@@ -172,6 +172,66 @@ class CampaignAutomationService(BaseService):
             logger.error(f"Error starting sequence {sequence_id} for user {user_id}: {e}")
             return False
 
+    def start_sequence_by_email(
+        self,
+        sequence_name: str,
+        email: str,
+        context: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        Start an automation sequence for a non-user (email-only contact).
+        Used for promo signups and lead nurturing.
+
+        Args:
+            sequence_name: Name of sequence (e.g., 'promo_credit_tracker')
+            email: Recipient email address
+            context: Additional variables for email personalization
+
+        Returns:
+            True if sequence started successfully
+        """
+        try:
+            # Find sequence by name
+            sequences = (
+                self.admin_client.table('automation_sequences')
+                .select('*')
+                .eq('name', sequence_name)
+                .eq('is_active', True)
+                .execute()
+            )
+
+            if not sequences.data:
+                logger.error(f"Active sequence '{sequence_name}' not found")
+                return False
+
+            sequence = sequences.data[0]
+            steps = sequence.get('steps', [])
+
+            if not steps:
+                logger.warning(f"Sequence '{sequence_name}' has no steps")
+                return False
+
+            logger.info(f"Starting sequence '{sequence_name}' for email {email} ({len(steps)} steps)")
+
+            # Process first step immediately (delay=0)
+            for step in steps:
+                delay_hours = step.get('delay_hours', 0)
+
+                if delay_hours == 0:
+                    # Send immediately
+                    self._process_sequence_step_by_email(sequence['id'], email, step, context)
+                else:
+                    logger.warning(
+                        f"Sequence step with delay {delay_hours}h not yet implemented. "
+                        f"Requires background job scheduler."
+                    )
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error starting sequence '{sequence_name}' for email {email}: {e}")
+            return False
+
     def _check_trigger_conditions(
         self,
         trigger_config: Optional[Dict[str, Any]],
@@ -336,6 +396,70 @@ class CampaignAutomationService(BaseService):
 
         except Exception as e:
             logger.error(f"Error processing sequence step: {e}")
+            return False
+
+    def _process_sequence_step_by_email(
+        self,
+        sequence_id: str,
+        email: str,
+        step: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        Process a single sequence step for an email-only contact (non-user).
+
+        Args:
+            sequence_id: Sequence UUID
+            email: Recipient email address
+            step: Step configuration with template_key
+            context: Additional variables for personalization
+
+        Returns:
+            True if email sent successfully
+        """
+        try:
+            # Get template
+            template_key = step.get('template_key')
+            if not template_key:
+                logger.error(f"Sequence step missing template_key")
+                return False
+
+            template = self.template_service.get_template(template_key)
+            if not template:
+                logger.error(f"Template '{template_key}' not found")
+                return False
+
+            # Prepare variables from context
+            variables = context or {}
+            variables.setdefault('email', email)
+
+            # Render email
+            rendered = self.crm_service._render_email(
+                template=template,
+                subject_override=template.get('subject'),
+                variables=variables
+            )
+
+            # Send email
+            from services.email_service import EmailService
+            email_service = EmailService()
+
+            success = email_service.send_email(
+                to_email=email,
+                subject=rendered['subject'],
+                html_body=rendered['html_body'],
+                text_body=rendered.get('text_body')
+            )
+
+            if success:
+                logger.info(f"Sent sequence email '{template_key}' to {email}")
+            else:
+                logger.error(f"Failed to send sequence email '{template_key}' to {email}")
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Error processing sequence step for email {email}: {e}")
             return False
 
     def _send_triggered_email(self, campaign: Dict[str, Any], user_id: str) -> bool:
