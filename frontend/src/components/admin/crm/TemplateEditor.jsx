@@ -78,25 +78,10 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       // Extract variables from markdown and subject
       extractVariables(markdown + ' ' + (template.subject || ''))
     }
-  }, [template])
-
-  // Extract variables from text ({{ variable_name }})
-  const extractVariables = useCallback((text) => {
-    const regex = /\{\{\s*(\w+)\s*\}\}/g
-    const matches = [...text.matchAll(regex)]
-    const uniqueVars = [...new Set(matches.map(m => m[1]))]
-    setVariables(uniqueVars)
-
-    // Initialize sample data for preview
-    const initialSampleData = {}
-    uniqueVars.forEach(v => {
-      initialSampleData[v] = getSampleValue(v)
-    })
-    setSampleData(initialSampleData)
-  }, [])
+  }, [template, extractVariables])
 
   // Get sample value for common variables
-  const getSampleValue = (varName) => {
+  const getSampleValue = useCallback((varName) => {
     const samples = {
       parent_name: 'Sarah Johnson',
       user_name: 'Alex Smith',
@@ -108,7 +93,25 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       goals: 'Prepare for college while maintaining flexibility'
     }
     return samples[varName] || `[${varName}]`
-  }
+  }, [])
+
+  // Extract variables from text ({{ variable_name }})
+  const extractVariables = useCallback((text) => {
+    const regex = /\{\{\s*(\w+)\s*\}\}/g
+    const matches = [...text.matchAll(regex)]
+    const uniqueVars = [...new Set(matches.map(m => m[1]))]
+    setVariables(uniqueVars)
+
+    // Initialize sample data for preview - preserve existing values if user has edited them
+    setSampleData(prevData => {
+      const newData = {}
+      uniqueVars.forEach(v => {
+        // Keep user's custom value if it exists, otherwise use default sample
+        newData[v] = prevData[v] || getSampleValue(v)
+      })
+      return newData
+    })
+  }, [getSampleValue])
 
   // Auto-update variables when markdown or subject changes
   useEffect(() => {
@@ -117,12 +120,13 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
 
   // Auto-preview when content changes
   useEffect(() => {
-    if (autoPreview && templateKey) {
+    if (autoPreview && templateKey && markdownContent) {
       const timer = setTimeout(() => {
         handlePreview()
       }, 1000) // Debounce 1 second
       return () => clearTimeout(timer)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markdownContent, subject, ctaText, ctaUrl, signature, sampleData, autoPreview, templateKey])
 
   const handlePreview = async () => {
