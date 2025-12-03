@@ -655,56 +655,19 @@ def login():
 
             # Create response with user data
 
-            # Extract session data
-            session_data = auth_response.session.model_dump() if auth_response.session else {}
-
-            # For incognito mode compatibility, we include tokens in response body
-            # Tokens are ALSO set in httpOnly cookies as a fallback
-            # Keep access_token and refresh_token for Authorization header usage
-
-            # ✅ INCOGNITO MODE FIX: Generate custom JWT tokens for Authorization headers
-            app_access_token = session_manager.generate_access_token(auth_response.user.id)
-            app_refresh_token = session_manager.generate_refresh_token(auth_response.user.id)
+            # ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY - NO tokens in response body
+            # Tokens NEVER returned in response body (XSS prevention)
+            # All authentication handled via secure httpOnly cookies ONLY
 
             response_data = {
                 'user': user_response_data,
-                'session': session_data,
-                'app_access_token': app_access_token,
-                'app_refresh_token': app_refresh_token,
-                # ✅ DUAL AUTH STRATEGY: App tokens in response body for Authorization headers
-                # AND in httpOnly cookies for fallback
-                # This ensures compatibility with incognito mode (where cookies may be blocked)
+                # NO tokens in response - httpOnly cookies ONLY for security
             }
             response = make_response(jsonify(response_data), 200)
 
-            # Set httpOnly cookies for authentication (same-origin only)
-            # In cross-origin mode, session_manager skips cookie operations
+            # Set httpOnly cookies for authentication
+            # This is the ONLY place tokens exist - never in response body or localStorage
             session_manager.set_auth_cookies(response, auth_response.user.id)
-
-            # ✅ INCOGNITO FIX: Skip Supabase cookies in cross-origin mode (blocked anyway)
-            # Supabase tokens are in response body for frontend to use if needed
-            if not session_manager.is_cross_origin and auth_response.session:
-                if auth_response.session.access_token:
-                    response.set_cookie(
-                        'supabase_access_token',
-                        auth_response.session.access_token,
-                        max_age=3600,  # 1 hour (matches Supabase default)
-                        httponly=True,
-                        secure=session_manager.cookie_secure,
-                        samesite=session_manager.cookie_samesite,
-                        path='/'
-                    )
-
-                if auth_response.session.refresh_token:
-                    response.set_cookie(
-                        'supabase_refresh_token',
-                        auth_response.session.refresh_token,
-                        max_age=2592000,  # 30 days (matches Supabase default)
-                        httponly=True,
-                        secure=session_manager.cookie_secure,
-                        samesite=session_manager.cookie_samesite,
-                        path='/'
-                    )
 
             return response
         else:

@@ -10,69 +10,31 @@ const api = axios.create({
   withCredentials: true,
 })
 
-// ✅ INCOGNITO MODE FIX: Token storage with localStorage persistence
-// Tokens stored in both memory (fast access) and localStorage (survives page refresh)
-// localStorage works in incognito mode and is cleared when tab closes
-let tokenStorage = {
-  accessToken: null,
-  refreshToken: null
-}
+// ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY - no token storage
+// Authentication tokens are NEVER stored in localStorage or memory (XSS prevention)
+// All authentication handled via secure httpOnly cookies set by backend
+// This is the ONLY secure authentication method - tokens never exposed to JavaScript
 
-// Export token storage interface for authService
+// Export token storage interface for backward compatibility (now no-ops)
 export const tokenStore = {
-  // Restore tokens from localStorage (call on app initialization)
+  // No-op: Tokens are in httpOnly cookies, not accessible to JavaScript
   restoreTokens: () => {
-    try {
-      const access = localStorage.getItem('app_access_token')
-      const refresh = localStorage.getItem('app_refresh_token')
-
-      if (access && refresh) {
-        tokenStorage.accessToken = access
-        tokenStorage.refreshToken = refresh
-        console.log('[TokenStore] Tokens restored from localStorage')
-        return true
-      }
-      console.log('[TokenStore] No tokens found in localStorage')
-      return false
-    } catch (e) {
-      // localStorage unavailable (strict privacy settings) - fallback to memory only
-      console.warn('[TokenStore] localStorage unavailable:', e.message)
-      return false
-    }
+    console.log('[TokenStore] Using httpOnly cookies - no token restoration needed')
+    return false
   },
 
-  // Set tokens in both memory and localStorage
+  // No-op: Backend sets httpOnly cookies automatically
   setTokens: (access, refresh) => {
-    // Always update memory (fast access for request interceptor)
-    tokenStorage.accessToken = access
-    tokenStorage.refreshToken = refresh
-
-    // Persist to localStorage for page refresh survival
-    try {
-      localStorage.setItem('app_access_token', access)
-      localStorage.setItem('app_refresh_token', refresh)
-      console.log('[TokenStore] Tokens stored in memory and localStorage')
-    } catch (e) {
-      // localStorage quota exceeded or unavailable - continue with memory only
-      console.warn('[TokenStore] Failed to persist tokens to localStorage:', e.message)
-    }
+    console.log('[TokenStore] Using httpOnly cookies - tokens set by backend')
   },
 
-  getAccessToken: () => tokenStorage.accessToken,
-  getRefreshToken: () => tokenStorage.refreshToken,
+  // No-op: Tokens are in httpOnly cookies, not accessible to JavaScript
+  getAccessToken: () => null,
+  getRefreshToken: () => null,
 
-  // Clear tokens from both memory and localStorage
+  // No-op: Backend clears httpOnly cookies on logout
   clearTokens: () => {
-    tokenStorage.accessToken = null
-    tokenStorage.refreshToken = null
-
-    try {
-      localStorage.removeItem('app_access_token')
-      localStorage.removeItem('app_refresh_token')
-      console.log('[TokenStore] Tokens cleared from memory and localStorage')
-    } catch (e) {
-      console.warn('[TokenStore] Failed to clear localStorage:', e.message)
-    }
+    console.log('[TokenStore] Using httpOnly cookies - cleared by backend')
   }
 }
 
@@ -87,22 +49,16 @@ export const getAuthHeaders = () => {
 /**
  * Request Interceptor
  *
- * ✅ INCOGNITO MODE FIX (2025-01-24):
- * Dual authentication strategy for incognito mode compatibility:
- * 1. Authorization header with in-memory tokens (works in incognito)
- * 2. httpOnly cookies as fallback (works in normal mode)
- *
- * Adds CSRF token for state-changing requests.
+ * ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY
+ * - Authentication tokens sent automatically via httpOnly cookies (withCredentials: true)
+ * - NO Authorization header (tokens never accessible to JavaScript)
+ * - CSRF token added for state-changing requests
  */
 api.interceptors.request.use(
   (config) => {
-    // ✅ INCOGNITO MODE FIX: Add Authorization header from token storage
-    // No circular dependency since tokenStore is in same module
-    const accessToken = tokenStore.getAccessToken()
-
-    if (accessToken) {
-      config.headers['Authorization'] = `Bearer ${accessToken}`
-    }
+    // ✅ SECURITY: Authentication via httpOnly cookies ONLY
+    // No Authorization header - backend reads tokens from secure cookies
+    // This prevents XSS token theft
 
     // Add CSRF token for state-changing requests
     if (['post', 'put', 'delete', 'patch'].includes(config.method?.toLowerCase())) {
@@ -148,12 +104,10 @@ function getCsrfToken() {
 /**
  * Response Interceptor - Token Refresh
  *
- * ✅ INCOGNITO MODE FIX (2025-01-24):
- * Dual authentication strategy for token refresh:
- * 1. Send refresh token in request body (works in incognito)
- * 2. Server also checks httpOnly cookies as fallback
- *
- * Updates in-memory tokens after successful refresh.
+ * ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY
+ * - Token refresh handled via httpOnly cookies (no tokens in request/response)
+ * - Backend automatically rotates tokens in cookies
+ * - Frontend just retries failed requests after refresh
  */
 let refreshPromise = null
 
@@ -175,23 +129,13 @@ api.interceptors.response.use(
         if (!refreshPromise) {
           refreshPromise = (async () => {
             try {
-              // ✅ INCOGNITO MODE FIX: Get refresh token from storage and send in body
-              const refreshToken = tokenStore.getRefreshToken()
-
-              // Send refresh token in body for incognito mode compatibility
-              // Server will also check cookies as fallback
-              const response = await api.post('/api/auth/refresh', {
-                refresh_token: refreshToken
-              })
+              // ✅ SECURITY: httpOnly cookies sent automatically (withCredentials: true)
+              // No tokens in request body - backend reads refresh token from cookie
+              const response = await api.post('/api/auth/refresh', {})
 
               if (response.status === 200) {
-                // Update in-memory tokens with new tokens from response
-                if (response.data.access_token && response.data.refresh_token) {
-                  tokenStore.setTokens(
-                    response.data.access_token,
-                    response.data.refresh_token
-                  )
-                }
+                // Backend automatically sets new tokens in httpOnly cookies
+                // No token handling needed in frontend
                 return true // Refresh successful
               }
               throw new Error('Token refresh failed')
@@ -205,11 +149,10 @@ api.interceptors.response.use(
         // Wait for the single refresh to complete
         await refreshPromise
 
-        // Retry the original request (new tokens automatically added by request interceptor)
+        // Retry the original request (new tokens automatically sent via cookies)
         return api(originalRequest)
       } catch (refreshError) {
-        // Clear any user data on refresh failure
-        tokenStore.clearTokens()
+        // Clear user data on refresh failure (tokens cleared by backend)
         localStorage.removeItem('user')
 
         // Only redirect to login if we're not already on auth pages or public pages

@@ -283,9 +283,13 @@ const MultiFormatEvidenceEditor = forwardRef(({
         console.log('[EVIDENCE] Task completion successful - setting documentStatus to completed');
         console.log('[EVIDENCE] BEFORE setState - documentStatus:', documentStatus);
 
-        // CRITICAL: Clear auto-save BEFORE setting status to prevent race condition
-        if (autoSaverRef.current) {
-          console.log('[EVIDENCE] Clearing auto-save to prevent overwriting completion');
+        // CRITICAL: Disable auto-save permanently BEFORE setting status
+        // This prevents any pending auto-save from overwriting the 'completed' status
+        if (autoSaverRef.current && autoSaverRef.current.disableAutoSave) {
+          console.log('[EVIDENCE] Disabling auto-save permanently to prevent overwriting completion');
+          autoSaverRef.current.disableAutoSave();
+        } else if (autoSaverRef.current) {
+          console.log('[EVIDENCE] Clearing auto-save (disableAutoSave not available)');
           autoSaverRef.current.clearAutoSave();
         }
 
