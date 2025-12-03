@@ -14,6 +14,7 @@ from backend.repositories import (
     AnalyticsRepository
 )
 from services.email_service import email_service
+from services.campaign_automation_service import CampaignAutomationService
 from utils.auth.decorators import require_admin
 
 from utils.logger import get_logger
@@ -22,6 +23,9 @@ logger = get_logger(__name__)
 
 logger = logging.getLogger(__name__)
 promo_bp = Blueprint('promo', __name__)
+
+# Initialize automation service
+automation_service = CampaignAutomationService()
 
 @promo_bp.route('/signup', methods=['POST'])
 def promo_signup():
@@ -192,18 +196,22 @@ def credit_tracker_signup():
         if result.data:
             logger.info(f"Credit tracker signup recorded: {email}")
 
-            # Send welcome email
+            # Start CRM sequence for credit tracker
             try:
-                email_sent = email_service.send_promo_welcome_email(
-                    parent_email=email,
-                    parent_name='',
-                    teen_age='',
-                    activity=current_curriculum
+                automation_service.start_sequence_by_email(
+                    sequence_name='promo_credit_tracker',
+                    email=email,
+                    context={
+                        'parent_email': email,
+                        'parent_name': 'there',
+                        'teen_age_text': '',
+                        'activity_text': f" We're excited to hear you're using {current_curriculum}." if current_curriculum else '',
+                        'current_curriculum': current_curriculum or ''
+                    }
                 )
-                if email_sent:
-                    logger.info(f"Welcome email sent to {email}")
+                logger.info(f"Started promo_credit_tracker sequence for {email}")
             except Exception as e:
-                logger.error(f"Error sending welcome email: {str(e)}")
+                logger.error(f"Error starting sequence for {email}: {str(e)}")
 
             return jsonify({
                 'success': True,
@@ -252,18 +260,21 @@ def homeschool_portfolio_signup():
         if result.data:
             logger.info(f"Homeschool portfolio signup recorded: {email}")
 
-            # Send welcome email
+            # Start CRM sequence for homeschool portfolio
             try:
-                email_sent = email_service.send_promo_welcome_email(
-                    parent_email=email,
-                    parent_name=data['parentName'],
-                    teen_age='',
-                    activity=''
+                automation_service.start_sequence_by_email(
+                    sequence_name='promo_homeschool_portfolio',
+                    email=email,
+                    context={
+                        'parent_email': email,
+                        'parent_name': data['parentName'],
+                        'teen_age_text': '',
+                        'activity_text': ''
+                    }
                 )
-                if email_sent:
-                    logger.info(f"Welcome email sent to {email}")
+                logger.info(f"Started promo_homeschool_portfolio sequence for {email}")
             except Exception as e:
-                logger.error(f"Error sending welcome email: {str(e)}")
+                logger.error(f"Error starting sequence for {email}: {str(e)}")
 
             return jsonify({
                 'success': True,
@@ -320,16 +331,21 @@ def teacher_consultation_signup():
         if result.data:
             logger.info(f"Teacher consultation request recorded: {email}")
 
-            # Send confirmation email
+            # Start CRM sequence for teacher consultation
             try:
-                email_sent = email_service.send_consultation_confirmation_email(
-                    parent_email=email,
-                    parent_name=data['parentName']
+                automation_service.start_sequence_by_email(
+                    sequence_name='promo_teacher_consultation',
+                    email=email,
+                    context={
+                        'parent_email': email,
+                        'parent_name': data['parentName'],
+                        'phone': data.get('phone', ''),
+                        'goals': data.get('goals', '')
+                    }
                 )
-                if email_sent:
-                    logger.info(f"Consultation confirmation email sent to {email}")
+                logger.info(f"Started promo_teacher_consultation sequence for {email}")
             except Exception as e:
-                logger.error(f"Error sending consultation confirmation email: {str(e)}")
+                logger.error(f"Error starting sequence for {email}: {str(e)}")
 
             return jsonify({
                 'success': True,
