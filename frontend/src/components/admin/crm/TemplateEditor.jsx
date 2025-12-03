@@ -1,273 +1,526 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { crmAPI } from '../../../services/crmAPI'
 import toast from 'react-hot-toast'
+import ReactMarkdown from 'react-markdown'
 
 const TemplateEditor = ({ template, onClose, onSave }) => {
-  const [formData, setFormData] = useState({
-    template_key: '',
-    name: '',
-    subject: '',
-    body_html: '',
-    body_text: '',
-    variables: []
-  })
-  const [previewHtml, setPreviewHtml] = useState('')
+  const [templateKey, setTemplateKey] = useState('')
+  const [templateName, setTemplateName] = useState('')
+  const [subject, setSubject] = useState('')
+  const [markdownContent, setMarkdownContent] = useState('')
+  const [ctaText, setCtaText] = useState('')
+  const [ctaUrl, setCtaUrl] = useState('')
+  const [signature, setSignature] = useState('tanner')
+  const [variables, setVariables] = useState([])
   const [sampleData, setSampleData] = useState({})
+  const [previewHtml, setPreviewHtml] = useState('')
   const [loading, setLoading] = useState(false)
-  const isReadOnly = false  // Allow editing all templates (creates override for system templates)
+  const [autoPreview, setAutoPreview] = useState(true)
 
+  // Convert template_data to markdown on load
   useEffect(() => {
     if (template) {
-      setFormData({
-        template_key: template.template_key,
-        name: template.name,
-        subject: template.subject,
-        body_html: template.body_html || '',
-        body_text: template.body_text || '',
-        variables: template.variables || []
-      })
-      // Initialize sample data with empty values
-      const initialSampleData = {}
-      template.variables?.forEach(v => {
-        initialSampleData[v] = ''
-      })
-      setSampleData(initialSampleData)
+      setTemplateKey(template.template_key || template.key)
+      setTemplateName(template.name)
+      setSubject(template.subject)
+
+      // Convert template_data to markdown
+      const data = template.template_data || template.data || {}
+      let markdown = ''
+
+      // Salutation/Greeting
+      if (data.salutation) {
+        markdown += `${data.salutation}\n\n`
+      } else if (data.greeting) {
+        markdown += `${data.greeting}\n\n`
+      }
+
+      // Paragraphs
+      if (data.paragraphs && Array.isArray(data.paragraphs)) {
+        markdown += data.paragraphs.join('\n\n') + '\n\n'
+      }
+
+      // Highlight box
+      if (data.highlight_box) {
+        markdown += `---\n`
+        markdown += `**${data.highlight_box.title}**\n\n`
+        if (data.highlight_box.content) {
+          markdown += `${data.highlight_box.content}\n\n`
+        }
+        if (data.highlight_box.bullet_points) {
+          data.highlight_box.bullet_points.forEach(point => {
+            markdown += `- ${point}\n`
+          })
+          markdown += '\n'
+        }
+        markdown += `---\n\n`
+      }
+
+      // Closing paragraphs
+      if (data.closing_paragraphs && Array.isArray(data.closing_paragraphs)) {
+        markdown += data.closing_paragraphs.join('\n\n') + '\n\n'
+      }
+
+      setMarkdownContent(markdown.trim())
+
+      // CTA
+      if (data.cta) {
+        setCtaText(data.cta.text || '')
+        setCtaUrl(data.cta.url || '')
+      }
+
+      // Signature
+      if (data.signature) {
+        setSignature(data.signature)
+      }
+
+      // Extract variables from markdown and subject
+      extractVariables(markdown + ' ' + (template.subject || ''))
     }
   }, [template])
 
+  // Extract variables from text ({{ variable_name }})
+  const extractVariables = useCallback((text) => {
+    const regex = /\{\{\s*(\w+)\s*\}\}/g
+    const matches = [...text.matchAll(regex)]
+    const uniqueVars = [...new Set(matches.map(m => m[1]))]
+    setVariables(uniqueVars)
+
+    // Initialize sample data for preview
+    const initialSampleData = {}
+    uniqueVars.forEach(v => {
+      initialSampleData[v] = getSampleValue(v)
+    })
+    setSampleData(initialSampleData)
+  }, [])
+
+  // Get sample value for common variables
+  const getSampleValue = (varName) => {
+    const samples = {
+      parent_name: 'Sarah Johnson',
+      user_name: 'Alex Smith',
+      teen_age_text: ' (age 15)',
+      activity_text: " We're excited to hear about your interest in homeschooling.",
+      email: 'parent@example.com',
+      current_curriculum: 'Time4Learning',
+      phone: '(555) 123-4567',
+      goals: 'Prepare for college while maintaining flexibility'
+    }
+    return samples[varName] || `[${varName}]`
+  }
+
+  // Auto-update variables when markdown or subject changes
+  useEffect(() => {
+    extractVariables(markdownContent + ' ' + subject)
+  }, [markdownContent, subject, extractVariables])
+
+  // Auto-preview when content changes
+  useEffect(() => {
+    if (autoPreview && templateKey) {
+      const timer = setTimeout(() => {
+        handlePreview()
+      }, 1000) // Debounce 1 second
+      return () => clearTimeout(timer)
+    }
+  }, [markdownContent, subject, ctaText, ctaUrl, signature, sampleData, autoPreview, templateKey])
+
   const handlePreview = async () => {
+    if (!templateKey) return
+
     try {
       setLoading(true)
-      const response = await crmAPI.previewTemplate(formData.template_key, sampleData)
-      setPreviewHtml(response.data.html)
+
+      // Convert markdown to template_data structure
+      const templateData = convertMarkdownToTemplateData()
+
+      // Call preview API
+      const response = await crmAPI.previewTemplate(templateKey, {
+        subject,
+        template_data: templateData,
+        sample_data: sampleData
+      })
+
+      setPreviewHtml(response.data.html || response.data.preview_html || '')
     } catch (error) {
-      toast.error('Failed to generate preview')
-      console.error(error)
+      console.error('Preview error:', error)
+      // Don't show error toast for auto-preview
+      if (!autoPreview) {
+        toast.error('Failed to generate preview')
+      }
     } finally {
       setLoading(false)
     }
   }
 
+  const convertMarkdownToTemplateData = () => {
+    const lines = markdownContent.split('\n')
+    const templateData = {
+      paragraphs: [],
+      cta: {},
+      signature
+    }
+
+    let currentSection = 'paragraphs'
+    let highlightBox = null
+    let currentParagraph = ''
+
+    lines.forEach(line => {
+      const trimmed = line.trim()
+
+      // Check for horizontal rule (highlight box delimiter)
+      if (trimmed === '---') {
+        if (currentSection === 'paragraphs') {
+          // Save current paragraph before starting highlight box
+          if (currentParagraph) {
+            templateData.paragraphs.push(currentParagraph.trim())
+            currentParagraph = ''
+          }
+          currentSection = 'highlight'
+          highlightBox = { bullet_points: [] }
+        } else if (currentSection === 'highlight') {
+          // End highlight box
+          if (highlightBox) {
+            templateData.highlight_box = highlightBox
+          }
+          currentSection = 'paragraphs'
+          highlightBox = null
+        }
+        return
+      }
+
+      // Handle highlight box content
+      if (currentSection === 'highlight') {
+        if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+          // Highlight box title
+          highlightBox.title = trimmed.slice(2, -2)
+        } else if (trimmed.startsWith('- ')) {
+          // Bullet point
+          highlightBox.bullet_points.push(trimmed.slice(2))
+        } else if (trimmed) {
+          // Content
+          if (!highlightBox.content) {
+            highlightBox.content = trimmed
+          } else {
+            highlightBox.content += ' ' + trimmed
+          }
+        }
+        return
+      }
+
+      // Regular paragraphs
+      if (trimmed === '') {
+        if (currentParagraph) {
+          templateData.paragraphs.push(currentParagraph.trim())
+          currentParagraph = ''
+        }
+      } else {
+        if (currentParagraph) {
+          currentParagraph += ' ' + trimmed
+        } else {
+          currentParagraph = trimmed
+        }
+      }
+    })
+
+    // Add last paragraph
+    if (currentParagraph) {
+      templateData.paragraphs.push(currentParagraph.trim())
+    }
+
+    // Add salutation (first paragraph if it looks like a greeting)
+    if (templateData.paragraphs.length > 0) {
+      const firstPara = templateData.paragraphs[0]
+      if (firstPara.match(/^(Hi|Hello|Dear|Hey|Greetings)/i)) {
+        templateData.salutation = templateData.paragraphs.shift()
+      }
+    }
+
+    // Add CTA
+    if (ctaText && ctaUrl) {
+      templateData.cta = {
+        text: ctaText,
+        url: ctaUrl
+      }
+    }
+
+    return templateData
+  }
+
   const handleSave = async () => {
-    if (!formData.template_key || !formData.name || !formData.subject) {
-      toast.error('Please fill in all required fields')
+    if (!templateKey || !templateName || !subject) {
+      toast.error('Please fill in template key, name, and subject')
       return
     }
 
     try {
       setLoading(true)
+
+      const templateData = convertMarkdownToTemplateData()
+
+      const payload = {
+        template_key: templateKey,
+        name: templateName,
+        subject,
+        template_data: templateData
+      }
+
       if (template) {
-        await crmAPI.updateTemplate(template.template_key, formData)
+        await crmAPI.updateTemplate(template.template_key || template.key, payload)
         toast.success('Template updated!')
       } else {
-        await crmAPI.createTemplate(formData)
+        await crmAPI.createTemplate(payload)
         toast.success('Template created!')
       }
+
       onSave()
     } catch (error) {
+      console.error('Save error:', error)
       toast.error(error.response?.data?.error || 'Failed to save template')
     } finally {
       setLoading(false)
     }
   }
 
-  const addVariable = () => {
-    const varName = prompt('Enter variable name (without curly braces):')
-    if (varName && !formData.variables.includes(varName)) {
-      setFormData(prev => ({
-        ...prev,
-        variables: [...prev.variables, varName]
-      }))
-      setSampleData(prev => ({ ...prev, [varName]: '' }))
-    }
-  }
-
-  const removeVariable = (varName) => {
-    setFormData(prev => ({
-      ...prev,
-      variables: prev.variables.filter(v => v !== varName)
-    }))
-    setSampleData(prev => {
-      const newData = { ...prev }
-      delete newData[varName]
-      return newData
-    })
+  const insertVariable = (varName) => {
+    const variable = `{{ ${varName} }}`
+    setMarkdownContent(prev => prev + variable)
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg">
-      <div className="flex justify-between items-center p-6 border-b">
-        <div>
-          <h2 className="text-2xl font-bold">
-            {isReadOnly ? 'View Template' : template ? 'Edit Template' : 'Create Template'}
-          </h2>
-          {isReadOnly && (
-            <p className="text-sm text-yellow-600 mt-1">
-              System templates are read-only. Edit email_copy.yaml to modify.
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 border-b bg-gradient-to-r from-optio-purple to-optio-pink text-white">
+          <div>
+            <h2 className="text-2xl font-bold">
+              {template ? 'Edit Email Template' : 'Create Email Template'}
+            </h2>
+            <p className="text-sm opacity-90 mt-1">
+              Write in markdown, preview in real-time
             </p>
-          )}
-        </div>
-        <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-6 p-6">
-        {/* Left: Editor */}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Template Key</label>
-            <input
-              type="text"
-              value={formData.template_key}
-              onChange={(e) => setFormData(prev => ({ ...prev, template_key: e.target.value }))}
-              disabled={isReadOnly || template}
-              placeholder="e.g., welcome_email"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
-            />
           </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Template Name</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              disabled={isReadOnly}
-              placeholder="e.g., Welcome Email"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Subject Line</label>
-            <input
-              type="text"
-              value={formData.subject}
-              onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
-              disabled={isReadOnly}
-              placeholder="e.g., Welcome to Optio!"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
-            />
-          </div>
-
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <label className="block text-sm font-semibold text-gray-700">Variables</label>
-              {!isReadOnly && (
-                <button
-                  onClick={addVariable}
-                  className="text-sm text-optio-purple hover:text-optio-purple-dark font-semibold"
-                >
-                  + Add Variable
-                </button>
-              )}
-            </div>
-            <div className="space-y-2">
-              {formData.variables.map(v => (
-                <div key={v} className="flex items-center gap-2">
-                  <span className="px-3 py-2 bg-gray-100 rounded font-mono text-sm flex-1">
-                    {`{${v}}`}
-                  </span>
-                  {!isReadOnly && (
-                    <button
-                      onClick={() => removeVariable(v)}
-                      className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">HTML Body</label>
-            <textarea
-              value={formData.body_html}
-              onChange={(e) => setFormData(prev => ({ ...prev, body_html: e.target.value }))}
-              disabled={isReadOnly}
-              placeholder="<h1>Welcome!</h1><p>Thanks for joining {user_name}!</p>"
-              rows={10}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple font-mono text-sm disabled:bg-gray-100"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Plain Text Body</label>
-            <textarea
-              value={formData.body_text}
-              onChange={(e) => setFormData(prev => ({ ...prev, body_text: e.target.value }))}
-              disabled={isReadOnly}
-              placeholder="Welcome! Thanks for joining {user_name}!"
-              rows={6}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple font-mono text-sm disabled:bg-gray-100"
-            />
-          </div>
+          <button
+            onClick={onClose}
+            className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2 transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        {/* Right: Preview */}
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-lg font-bold mb-3">Preview</h3>
-            <div className="space-y-2 mb-4">
-              {formData.variables.map(v => (
-                <div key={v}>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">{v}</label>
-                  <input
-                    type="text"
-                    value={sampleData[v] || ''}
-                    onChange={(e) => setSampleData(prev => ({ ...prev, [v]: e.target.value }))}
-                    placeholder={`Sample ${v}...`}
-                    className="w-full px-3 py-1 border rounded text-sm"
-                  />
-                </div>
-              ))}
+        {/* Main Content */}
+        <div className="flex-1 overflow-hidden flex">
+          {/* Left: Editor */}
+          <div className="w-1/2 border-r overflow-y-auto p-6 space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Template Key</label>
+              <input
+                type="text"
+                value={templateKey}
+                onChange={(e) => setTemplateKey(e.target.value)}
+                disabled={!!template}
+                placeholder="e.g., promo_welcome"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
+              />
             </div>
 
-            <button
-              onClick={handlePreview}
-              disabled={loading || !formData.template_key}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 mb-4"
-            >
-              {loading ? 'Generating...' : 'Generate Preview'}
-            </button>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Template Name</label>
+              <input
+                type="text"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="e.g., Promo Welcome Email"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple"
+              />
+            </div>
 
-            {previewHtml && (
-              <div className="border rounded-lg overflow-hidden bg-white">
-                <div className="bg-gray-100 px-4 py-2 border-b">
-                  <p className="text-xs font-semibold text-gray-600">Email Preview</p>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Subject Line</label>
+              <input
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="e.g., Welcome to Optio!"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple"
+              />
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-semibold text-gray-700">Email Body (Markdown)</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Variables detected: {variables.length}</span>
                 </div>
-                <div
-                  className="p-4 overflow-auto max-h-96"
-                  dangerouslySetInnerHTML={{ __html: previewHtml }}
+              </div>
+              <textarea
+                value={markdownContent}
+                onChange={(e) => setMarkdownContent(e.target.value)}
+                placeholder="Hi {{ parent_name }},
+
+Thank you for your interest in Optio...
+
+---
+**Want to learn more?**
+
+- Point 1
+- Point 2
+---
+
+Looking forward to connecting!"
+                rows={15}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple font-mono text-sm"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Use <code className="bg-gray-100 px-1 rounded">{`{{ variable_name }}`}</code> for variables.
+                Use <code className="bg-gray-100 px-1 rounded">---</code> for highlight boxes.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">CTA Button Text</label>
+                <input
+                  type="text"
+                  value={ctaText}
+                  onChange={(e) => setCtaText(e.target.value)}
+                  placeholder="e.g., Explore Our Demo"
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">CTA Button URL</label>
+                <input
+                  type="text"
+                  value={ctaUrl}
+                  onChange={(e) => setCtaUrl(e.target.value)}
+                  placeholder="https://www.optioeducation.com/demo"
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Signature</label>
+              <select
+                value={signature}
+                onChange={(e) => setSignature(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple"
+              >
+                <option value="tanner">Dr. Tanner Bowman (Founder)</option>
+                <option value="support">Optio Support</option>
+                <option value="team">The Optio Team</option>
+              </select>
+            </div>
+
+            {/* Variables detected */}
+            {variables.length > 0 && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Detected Variables</label>
+                <div className="flex flex-wrap gap-2">
+                  {variables.map(v => (
+                    <span key={v} className="px-3 py-1 bg-optio-purple bg-opacity-10 text-optio-purple rounded-full text-sm font-mono">
+                      {`{{ ${v} }}`}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* Footer actions */}
-      <div className="flex justify-end gap-3 p-6 border-t bg-gray-50">
-        <button
-          onClick={onClose}
-          className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-white"
-        >
-          {isReadOnly ? 'Close' : 'Cancel'}
-        </button>
-        {!isReadOnly && (
-          <button
-            onClick={handleSave}
-            disabled={loading}
-            className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50"
-          >
-            {loading ? 'Saving...' : 'Save Template'}
-          </button>
-        )}
+          {/* Right: Preview */}
+          <div className="w-1/2 overflow-y-auto bg-gray-50 p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold">Live Preview</h3>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={autoPreview}
+                  onChange={(e) => setAutoPreview(e.target.checked)}
+                  className="rounded"
+                />
+                Auto-preview
+              </label>
+            </div>
+
+            {/* Sample data inputs */}
+            {variables.length > 0 && (
+              <div className="mb-4 space-y-2 bg-white p-4 rounded-lg border">
+                <p className="text-xs font-semibold text-gray-600 mb-2">Sample Data for Preview:</p>
+                {variables.map(v => (
+                  <div key={v} className="flex items-center gap-2">
+                    <label className="text-xs font-mono text-gray-600 w-32">{v}:</label>
+                    <input
+                      type="text"
+                      value={sampleData[v] || ''}
+                      onChange={(e) => setSampleData(prev => ({ ...prev, [v]: e.target.value }))}
+                      placeholder={getSampleValue(v)}
+                      className="flex-1 px-2 py-1 border rounded text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!autoPreview && (
+              <button
+                onClick={handlePreview}
+                disabled={loading || !templateKey}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 mb-4"
+              >
+                {loading ? 'Generating Preview...' : 'Generate Preview'}
+              </button>
+            )}
+
+            {/* Email preview */}
+            <div className="bg-white rounded-lg shadow-lg border overflow-hidden">
+              {/* Email header bar */}
+              <div className="bg-gray-800 text-white px-4 py-2 text-sm flex items-center gap-2">
+                <div className="flex gap-1">
+                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                </div>
+                <span className="font-semibold ml-2">Inbox Preview</span>
+              </div>
+
+              {/* Subject line preview */}
+              <div className="bg-gray-100 border-b px-4 py-3">
+                <p className="text-xs text-gray-500 mb-1">Subject:</p>
+                <p className="font-semibold text-gray-900">{subject || '[No subject]'}</p>
+              </div>
+
+              {/* Email body */}
+              <div
+                className="p-6 min-h-96 overflow-auto"
+                dangerouslySetInnerHTML={{ __html: previewHtml || '<p class="text-gray-400 text-center py-12">Preview will appear here...</p>' }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-between items-center p-6 border-t bg-gray-50">
+          <div className="text-sm text-gray-600">
+            {loading && <span className="text-blue-600">Generating preview...</span>}
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-white font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={loading}
+              className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 font-semibold"
+            >
+              {loading ? 'Saving...' : 'Save Template'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

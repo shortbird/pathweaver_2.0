@@ -89,13 +89,16 @@ class EmailTemplateService(BaseService):
             db_templates = self.crm_repo.get_templates()
             for tpl in db_templates:
                 templates.append({
+                    'template_key': tpl['template_key'],
                     'key': tpl['template_key'],
                     'name': tpl['name'],
                     'subject': tpl['subject'],
                     'description': tpl.get('description', ''),
                     'is_system': tpl.get('is_system', False),
                     'source': 'database',
-                    'created_at': tpl.get('created_at')
+                    'created_at': tpl.get('created_at'),
+                    'template_data': tpl.get('template_data'),  # Include full template_data for editing
+                    'data': tpl.get('template_data')  # Alias for consistency
                 })
 
             # Get YAML templates if requested
@@ -106,13 +109,16 @@ class EmailTemplateService(BaseService):
                 for key, data in yaml_emails.items():
                     if key not in db_keys:  # Don't duplicate if already in DB
                         templates.append({
+                            'template_key': key,
                             'key': key,
                             'name': key.replace('_', ' ').title(),
                             'subject': data.get('subject', ''),
                             'description': f"System template from email_copy.yaml",
                             'is_system': True,
                             'source': 'yaml',
-                            'created_at': None
+                            'created_at': None,
+                            'template_data': data,  # Include YAML data for editing
+                            'data': data  # Alias for consistency
                         })
 
             logger.info(f"Listed {len(templates)} templates")

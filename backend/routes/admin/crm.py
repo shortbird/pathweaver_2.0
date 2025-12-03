@@ -541,16 +541,46 @@ def preview_template(user_id, template_key):
 
     Request body (optional):
     {
-        "sample_data": {"user_name": "John Doe", ...}
+        "sample_data": {"user_name": "John Doe", ...},
+        "subject": "Custom subject",  // Optional override
+        "template_data": {...}  // Optional template_data override
     }
     """
     try:
         data = request.get_json() or {}
-        sample_data = data.get('sample_data')
+        sample_data = data.get('sample_data', {})
+        subject_override = data.get('subject')
+        template_data_override = data.get('template_data')
 
-        preview = get_template_service().render_preview(template_key, sample_data)
+        # If template_data override provided, render directly
+        if template_data_override:
+            from services.crm_service import CRMService
+            crm_service = CRMService()
 
-        return jsonify({'preview': preview}), 200
+            # Create temporary template structure
+            temp_template = {
+                'key': template_key,
+                'subject': subject_override or 'Preview',
+                'data': template_data_override
+            }
+
+            # Render with CRM service
+            rendered = crm_service._render_email(
+                template=temp_template,
+                subject_override=subject_override,
+                variables=sample_data
+            )
+
+            return jsonify({
+                'html': rendered['html_body'],
+                'preview_html': rendered['html_body'],
+                'subject': rendered['subject'],
+                'text_body': rendered.get('text_body')
+            }), 200
+        else:
+            # Use existing template
+            preview = get_template_service().render_preview(template_key, sample_data)
+            return jsonify({'preview': preview, 'html': preview.get('preview_text')}), 200
 
     except Exception as e:
         logger.error(f"Error previewing template: {e}")
