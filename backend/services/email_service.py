@@ -265,21 +265,23 @@ class EmailService(BaseService):
                 body_template = Template(template_data['body_html'])
                 render_context['body_html'] = body_template.render(**variables)
             elif 'paragraphs' in template_data:
-                # YAML template - render paragraphs as HTML
+                # YAML template - render paragraphs as HTML (NOT closing_paragraphs - those go after highlight box)
                 rendered_paragraphs = []
                 for para in template_data['paragraphs']:
                     para_template = Template(para)
                     rendered_para = para_template.render(**variables)
                     rendered_paragraphs.append(f'<p class="text">{rendered_para}</p>')
 
-                # Also render closing_paragraphs if they exist
+                render_context['body_html'] = ''.join(rendered_paragraphs)
+
+                # Render closing_paragraphs separately (will be placed after highlight box)
                 if 'closing_paragraphs' in template_data:
+                    rendered_closing = []
                     for para in template_data['closing_paragraphs']:
                         para_template = Template(para)
                         rendered_para = para_template.render(**variables)
-                        rendered_paragraphs.append(f'<p class="text">{rendered_para}</p>')
-
-                render_context['body_html'] = ''.join(rendered_paragraphs)
+                        rendered_closing.append(f'<p class="text">{rendered_para}</p>')
+                    render_context['closing_html'] = ''.join(rendered_closing)
 
             # Process CTA button
             if 'cta' in template_data:
