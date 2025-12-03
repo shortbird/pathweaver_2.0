@@ -128,6 +128,10 @@ def save_evidence_document(user_id: str, task_id: str):
         blocks = data.get('blocks', [])
         status = data.get('status', 'draft')  # 'draft' or 'completed'
 
+        logger.info(f"[EVIDENCE_DOC] === SAVE REQUEST START ===")
+        logger.info(f"[EVIDENCE_DOC] task_id={task_id[:8]}, user_id={user_id[:8]}, status='{status}', num_blocks={len(blocks)}")
+        logger.info(f"[EVIDENCE_DOC] Full status value: '{status}' (type: {type(status).__name__})")
+
         # Validate task exists and user is enrolled (V3 personalized task system)
         task_check = admin_supabase.table('user_quest_tasks')\
             .select('quest_id, title, xp_value, pillar, user_id')\
