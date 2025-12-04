@@ -81,10 +81,9 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
         });
       }, 250);
 
-      // Call parent callback
-      if (onTaskComplete) {
-        onTaskComplete(task);
-      }
+      // DO NOT call onTaskComplete here - it will be called by handleComplete
+      // when the evidence document is actually saved with status='completed'
+      // Calling it here causes the task to be marked complete in UI before save
     } catch (err) {
       console.error('Error completing task:', err);
       setError(err.message || 'Failed to complete task');
