@@ -53,6 +53,7 @@ def spark_sso():
         given_name: First name
         family_name: Last name
         role: 'student' (always)
+        courses: Array of SPARK course IDs (optional - for course-specific enrollment)
         iat: Issued at timestamp
         exp: Expiration timestamp (10 minutes)
 
@@ -120,7 +121,11 @@ def spark_sso():
 
     # Create or update user
     try:
-        user = create_or_update_spark_user(claims)
+        # Extract course IDs from JWT claims (optional)
+        course_ids = claims.get('courses', [])
+        logger.info(f"SPARK SSO course_ids from JWT: {course_ids}")
+
+        user = create_or_update_spark_user(claims, course_ids)
 
         # Generate one-time authorization code (OAuth 2.0 authorization code flow)
         # SECURITY: This prevents tokens from appearing in browser history/logs
@@ -626,12 +631,13 @@ def validate_spark_signature(payload: bytes, signature: str) -> bool:
     return hmac.compare_digest(signature, expected)
 
 
-def create_or_update_spark_user(claims: dict) -> dict:
+def create_or_update_spark_user(claims: dict, course_ids: list = None) -> dict:
     """
     Create or update user from Spark SSO claims
 
     Args:
         claims: JWT claims from Spark SSO token
+        course_ids: List of SPARK course IDs to enroll user in (optional)
 
     Returns:
         User dict with 'id' field
@@ -712,8 +718,10 @@ def create_or_update_spark_user(claims: dict) -> dict:
         'expires_at': (datetime.utcnow() + timedelta(hours=24)).isoformat()
     }).execute()
 
-    # Auto-enroll user in all SPARK course quests
-    auto_enroll_spark_courses(user_id, spark_user_id)
+    # Auto-enroll user in SPARK course quests
+    # If course_ids provided, enroll only in those courses
+    # Otherwise, enroll in all SPARK courses (backward compatibility)
+    auto_enroll_spark_courses(user_id, spark_user_id, course_ids)
 
     return {'id': user_id}
 
@@ -1209,15 +1217,17 @@ def process_spark_course_sync(
     }
 
 
-def auto_enroll_spark_courses(user_id: str, spark_user_id: str):
+def auto_enroll_spark_courses(user_id: str, spark_user_id: str, course_ids: list = None):
     """
-    Auto-enroll a SPARK user in all SPARK course quests when they log in via SSO.
+    Auto-enroll a SPARK user in SPARK course quests when they log in via SSO.
     This ensures students are automatically enrolled in their courses without needing
     to manually start each quest or wait for a submission webhook.
 
     Args:
         user_id: Optio user ID
         spark_user_id: SPARK LMS user ID (for logging)
+        course_ids: List of SPARK course IDs to enroll in (optional)
+                   If None or empty, enrolls in ALL SPARK courses (backward compatibility)
 
     Creates:
         - user_quests enrollment records for each SPARK course
@@ -1226,19 +1236,30 @@ def auto_enroll_spark_courses(user_id: str, spark_user_id: str):
     supabase = get_supabase_admin_client()
 
     try:
-        # Find all active SPARK course quests
-        spark_quests = supabase.table('quests')\
+        # Build query to find active SPARK course quests
+        query = supabase.table('quests')\
             .select('id, title, lms_course_id')\
             .eq('quest_type', 'course')\
             .eq('is_active', True)\
-            .not_.is_('lms_course_id', 'null')\
-            .execute()
+            .not_.is_('lms_course_id', 'null')
+
+        # If specific course IDs provided, filter by those courses
+        if course_ids and len(course_ids) > 0:
+            query = query.in_('lms_course_id', course_ids)
+            logger.info(f"Filtering SPARK quests by course_ids: {course_ids}")
+        else:
+            logger.info(f"No course_ids specified - enrolling in all SPARK courses")
+
+        spark_quests = query.execute()
 
         if not spark_quests.data:
-            logger.info(f"No SPARK course quests found for auto-enrollment")
+            if course_ids:
+                logger.warning(f"No SPARK quests found for course_ids: {course_ids}")
+            else:
+                logger.info(f"No SPARK course quests found for auto-enrollment")
             return
 
-        logger.info(f"Found {len(spark_quests.data)} SPARK course quests for potential enrollment")
+        logger.info(f"Found {len(spark_quests.data)} SPARK course quests for enrollment")
 
         enrolled_count = 0
         skipped_count = 0
