@@ -10,7 +10,6 @@ import { getPillarData, normalizePillarKey } from '../utils/pillarMappings';
 import { queryKeys } from '../utils/queryKeys';
 import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
 import TaskDetailModal from '../components/quest/TaskDetailModal';
-import TutorialTaskInstructionsModal from '../components/quest/TutorialTaskInstructionsModal';
 import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
 import QuestCompletionCelebration from '../components/quest/QuestCompletionCelebration';
 import SampleTaskCard from '../components/quest/SampleTaskCard';
@@ -927,23 +926,12 @@ const QuestDetail = () => {
 
       {/* Modals */}
       {showTaskModal && selectedTask && (
-        <>
-          {/* Show tutorial instructions modal for tutorial tasks */}
-          {selectedTask.auto_complete && !selectedTask.is_completed ? (
-            <TutorialTaskInstructionsModal
-              task={selectedTask}
-              onClose={() => setShowTaskModal(false)}
-            />
-          ) : (
-            /* Show regular evidence modal for non-tutorial tasks */
-            <TaskEvidenceModal
-              task={selectedTask}
-              questId={quest.id}
-              onComplete={handleTaskCompletion}
-              onClose={() => setShowTaskModal(false)}
-            />
-          )}
-        </>
+        <TaskEvidenceModal
+          task={selectedTask}
+          questId={quest.id}
+          onComplete={handleTaskCompletion}
+          onClose={() => setShowTaskModal(false)}
+        />
       )}
 
       {showTaskDetailModal && (

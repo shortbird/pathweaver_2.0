@@ -19,7 +19,7 @@ from routes.admin.services import admin_services_bp
 from routes.observer_requests import observer_requests_bp
 
 # Import routes
-from routes import quests, tasks, admin_core, evidence_documents, tutorial, analytics as analytics_routes
+from routes import quests, tasks, admin_core, evidence_documents, analytics as analytics_routes
 from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import
 from cors_config import configure_cors
 from middleware.security import security_middleware
@@ -120,7 +120,6 @@ app.register_blueprint(evidence_documents.bp)  # /api/evidence (blueprint has ur
 # Register helper evidence routes (advisors/parents uploading for students)
 from routes import helper_evidence
 app.register_blueprint(helper_evidence.bp)  # /api/evidence/helper (blueprint has url_prefix='/api/evidence/helper')
-app.register_blueprint(tutorial.tutorial_bp, url_prefix='/api/tutorial')  # /api/tutorial
 app.register_blueprint(admin_core.bp)   # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(user_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(quest_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')

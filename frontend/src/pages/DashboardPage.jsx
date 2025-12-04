@@ -4,7 +4,6 @@ import { useAuth } from '../contexts/AuthContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
 import QuestCardSimple from '../components/quest/QuestCardSimple'
 import LearningEventModal from '../components/learning-events/LearningEventModal'
-import TutorialQuestCard from '../components/tutorial/TutorialQuestCard'
 import {
   RocketLaunchIcon
 } from '@heroicons/react/24/outline'
@@ -158,9 +157,6 @@ const DashboardPage = () => {
           Capture Moment
         </button>
       </div>
-
-      {/* Tutorial Quest Card */}
-      <TutorialQuestCard />
 
       {/* Active Quests Panel */}
       <div className="mb-12">
