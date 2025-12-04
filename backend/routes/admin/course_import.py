@@ -111,22 +111,93 @@ def preview_imscc_import(user_id):
 @require_admin
 def confirm_imscc_import(user_id):
     """
-    Create badge and quests from IMSCC preview data
-
-    THIS ENDPOINT IS NOT YET IMPLEMENTED - PLACEHOLDER FOR PHASE 2
+    Create quest and tasks from IMSCC preview data
 
     Expected JSON body:
-    - badge_data: Badge object from preview
-    - quests_data: List of quest objects from preview
-    - pillar_primary: Admin-selected primary pillar
+    - quest: Quest object with title, description, cover_image, etc.
+    - tasks: List of task objects with title, description, pillar, xp_value, etc.
 
     Returns:
-        JSON with created badge_id, quest_ids, and success status
+        JSON with created quest_id and success status
     """
-    return jsonify({
-        'success': False,
-        'error': 'Import confirmation not yet implemented. This is Phase 2 of development.'
-    }), 501  # Not Implemented
+    try:
+        data = request.get_json()
+
+        quest_data = data.get('quest')
+        tasks_data = data.get('tasks')
+
+        if not quest_data:
+            return jsonify({
+                'success': False,
+                'error': 'quest data is required'
+            }), 400
+
+        if not tasks_data or len(tasks_data) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'At least one task is required'
+            }), 400
+
+        supabase = get_supabase_admin_client()
+
+        # Create the quest
+        quest_insert = {
+            'title': quest_data['title'],
+            'description': quest_data.get('description', ''),
+            'quest_type': quest_data.get('quest_type', 'course'),
+            'lms_platform': quest_data.get('lms_platform'),
+            'lms_course_id': quest_data.get('lms_course_id'),
+            'cover_image': quest_data.get('cover_image'),
+            'is_active': quest_data.get('is_active', False),
+            'is_public': quest_data.get('is_public', False),
+            'metadata': quest_data.get('metadata', {})
+        }
+
+        quest_result = supabase.table('quests').insert(quest_insert).execute()
+
+        if not quest_result.data or len(quest_result.data) == 0:
+            raise Exception("Failed to create quest")
+
+        quest_id = quest_result.data[0]['id']
+
+        logger.info(f"Created quest {quest_id}: {quest_data['title']}")
+
+        # Create sample tasks for the quest
+        # Note: In Optio, tasks are created per-user when they enroll in a quest
+        # Here we create "sample tasks" that serve as templates
+        sample_tasks = []
+        for task in tasks_data:
+            sample_task = {
+                'quest_id': quest_id,
+                'title': task['title'],
+                'description': task.get('description', ''),
+                'pillar': task['pillar'],
+                'xp_value': task['xp_value'],
+                'order_index': task.get('order_index', 0),
+                'is_required': task.get('is_required', True),
+                'is_manual': task.get('is_manual', False),
+                'metadata': task.get('metadata', {})
+            }
+            sample_tasks.append(sample_task)
+
+        # Insert all sample tasks
+        if sample_tasks:
+            tasks_result = supabase.table('sample_quest_tasks').insert(sample_tasks).execute()
+            logger.info(f"Created {len(sample_tasks)} sample tasks for quest {quest_id}")
+
+        return jsonify({
+            'success': True,
+            'quest_id': quest_id,
+            'tasks_created': len(sample_tasks),
+            'message': f'Quest "{quest_data["title"]}" imported successfully with {len(sample_tasks)} tasks'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error confirming IMSCC import: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to import quest: {str(e)}'
+        }), 500
 
 
 @bp.route('/import/validate', methods=['POST'])

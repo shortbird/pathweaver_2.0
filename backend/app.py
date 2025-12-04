@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 logger.info("Starting Optio Backend API - Session persistence test #2")
 
 from routes import auth, users, community, portfolio
-from routes import uploads
+from routes import uploads, images
 from routes.settings import settings_bp
 from routes.promo import promo_bp
 from routes.services import services_bp
@@ -82,6 +82,7 @@ app.register_blueprint(users.bp, url_prefix='/api/users')
 app.register_blueprint(community.bp, url_prefix='/api/community')
 app.register_blueprint(portfolio.bp, url_prefix='/api/portfolio')
 app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
+app.register_blueprint(images.bp)  # /api/images (blueprint has url_prefix)
 app.register_blueprint(settings_bp, url_prefix='/api')  # /api/settings
 app.register_blueprint(promo_bp, url_prefix='/api/promo')  # /api/promo
 app.register_blueprint(services_bp)  # /api/services (blueprint has url_prefix in route definitions)

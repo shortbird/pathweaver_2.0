@@ -1,11 +1,15 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
+import CourseImportEditor from './CourseImportEditor'
 
 const CourseImport = () => {
+  const navigate = useNavigate()
   const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [previewData, setPreviewData] = useState(null)
+  const [showEditor, setShowEditor] = useState(false)
   const [dragActive, setDragActive] = useState(false)
 
   const handleDrag = (e) => {
@@ -75,6 +79,7 @@ const CourseImport = () => {
 
       if (response.data.success) {
         setPreviewData(response.data)
+        setShowEditor(true)
         toast.success('File parsed successfully!')
       } else {
         toast.error(response.data.error || 'Failed to parse file')
@@ -90,6 +95,23 @@ const CourseImport = () => {
   const handleReset = () => {
     setFile(null)
     setPreviewData(null)
+    setShowEditor(false)
+  }
+
+  const handleImportComplete = (questId) => {
+    // Navigate to quest management or show success
+    navigate(`/admin/quest-management`)
+  }
+
+  // Show editor if preview data is loaded
+  if (showEditor && previewData) {
+    return (
+      <CourseImportEditor
+        previewData={previewData}
+        onBack={handleReset}
+        onImportComplete={handleImportComplete}
+      />
+    )
   }
 
   return (
