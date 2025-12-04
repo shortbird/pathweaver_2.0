@@ -373,6 +373,9 @@ class PersonalizationService(BaseService):
     ) -> Dict[str, Any]:
         """Finalize personalization and create user-specific tasks"""
         try:
+            # Import subject classification service
+            from services.subject_classification_service import SubjectClassificationService
+            subject_service = SubjectClassificationService()
             # Use selected tasks directly if provided, otherwise get from session
             if selected_tasks:
                 ai_tasks = selected_tasks
@@ -429,6 +432,20 @@ class PersonalizationService(BaseService):
                 elif not isinstance(diploma_subjects, dict):
                     diploma_subjects = {'Electives': task.get('xp_value', 100)}
 
+                # Generate subject XP distribution using AI
+                subject_xp_distribution = {}
+                try:
+                    subject_xp_distribution = subject_service.classify_task_subjects(
+                        title=task['title'],
+                        description=description,
+                        pillar=db_pillar,
+                        xp_value=task.get('xp_value', 100)
+                    )
+                    logger.info(f"Generated subject distribution for task '{task['title']}': {subject_xp_distribution}")
+                except Exception as e:
+                    logger.error(f"Failed to generate subject distribution for task '{task['title']}': {e}")
+                    # Continue without subject distribution - it will be null
+
                 user_task = {
                     'user_id': user_id,
                     'quest_id': quest_id,
@@ -437,6 +454,7 @@ class PersonalizationService(BaseService):
                     'description': description,
                     'pillar': db_pillar,
                     'diploma_subjects': diploma_subjects,
+                    'subject_xp_distribution': subject_xp_distribution if subject_xp_distribution else None,
                     'xp_value': task.get('xp_value', 100),
                     'order_index': index,
                     'is_required': True,

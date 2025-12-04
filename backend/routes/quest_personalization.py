@@ -300,8 +300,10 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
     """
     try:
         from utils.pillar_mapping import normalize_pillar_name
+        from services.subject_classification_service import SubjectClassificationService
 
         supabase = get_supabase_admin_client()
+        subject_service = SubjectClassificationService()
         data = request.get_json()
 
         tasks = data.get('tasks', [])
@@ -367,6 +369,20 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
             if not isinstance(diploma_subjects, dict):
                 diploma_subjects = {'Electives': task.get('xp_value', 100)}
 
+            # Generate subject XP distribution using AI
+            subject_xp_distribution = {}
+            try:
+                subject_xp_distribution = subject_service.classify_task_subjects(
+                    title=task['title'],
+                    description=task.get('description', ''),
+                    pillar=pillar_key,
+                    xp_value=task.get('xp_value', 100)
+                )
+                logger.info(f"Generated subject distribution for manual task '{task['title']}': {subject_xp_distribution}")
+            except Exception as e:
+                logger.error(f"Failed to generate subject distribution for manual task '{task['title']}': {e}")
+                # Continue without subject distribution - it will be null
+
             user_task = {
                 'user_id': user_id,
                 'quest_id': quest_id,
@@ -375,6 +391,7 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
                 'description': task.get('description', ''),
                 'pillar': pillar_key,
                 'diploma_subjects': diploma_subjects,
+                'subject_xp_distribution': subject_xp_distribution if subject_xp_distribution else None,
                 'xp_value': task.get('xp_value', 100),
                 'order_index': max_order + idx + 1,
                 'is_required': True,
@@ -604,8 +621,10 @@ def accept_task_immediate(user_id: str, quest_id: str):
     try:
         from services.task_library_service import TaskLibraryService
         from utils.pillar_mapping import normalize_pillar_name
+        from services.subject_classification_service import SubjectClassificationService
 
         supabase = get_supabase_admin_client()
+        subject_service = SubjectClassificationService()
         data = request.get_json()
 
         session_id = data.get('session_id')
@@ -670,6 +689,20 @@ def accept_task_immediate(user_id: str, quest_id: str):
 
         max_order = max([t.get('order_index', -1) for t in existing_tasks.data], default=-1) if existing_tasks.data else -1
 
+        # Generate subject XP distribution using AI
+        subject_xp_distribution = {}
+        try:
+            subject_xp_distribution = subject_service.classify_task_subjects(
+                title=task['title'],
+                description=task.get('description', ''),
+                pillar=pillar_key,
+                xp_value=task.get('xp_value', 100)
+            )
+            logger.info(f"Generated subject distribution for accepted task '{task['title']}': {subject_xp_distribution}")
+        except Exception as e:
+            logger.error(f"Failed to generate subject distribution for accepted task '{task['title']}': {e}")
+            # Continue without subject distribution - it will be null
+
         # Create user_quest_tasks entry
         user_task = {
             'user_id': user_id,
@@ -679,6 +712,7 @@ def accept_task_immediate(user_id: str, quest_id: str):
             'description': task.get('description', ''),
             'pillar': pillar_key,
             'diploma_subjects': diploma_subjects,
+            'subject_xp_distribution': subject_xp_distribution if subject_xp_distribution else None,
             'xp_value': task.get('xp_value', 100),
             'order_index': max_order + 1,
             'is_required': True,
