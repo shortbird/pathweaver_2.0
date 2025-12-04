@@ -121,9 +121,13 @@ app.register_blueprint(evidence_documents.bp)  # /api/evidence (blueprint has ur
 from routes import helper_evidence
 app.register_blueprint(helper_evidence.bp)  # /api/evidence/helper (blueprint has url_prefix='/api/evidence/helper')
 
-# Register admin parent blueprint (contains subject_backfill and other sub-blueprints)
-from routes.admin import admin_bp
-app.register_blueprint(admin_bp)  # /api/admin/* (includes subject-backfill)
+# Register subject backfill blueprint (AI-powered subject XP classification)
+try:
+    from routes.admin.subject_backfill import bp as subject_backfill_bp
+    app.register_blueprint(subject_backfill_bp)  # /api/admin/subject-backfill
+    logger.info("Registered subject_backfill blueprint directly to app")
+except Exception as e:
+    logger.warning(f"Warning: Subject backfill routes not available: {e}")
 
 app.register_blueprint(admin_core.bp)   # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(user_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
