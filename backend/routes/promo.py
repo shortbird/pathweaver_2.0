@@ -176,10 +176,11 @@ def credit_tracker_signup():
 
         # Store curriculum info in activity field
         current_curriculum = data.get('currentCurriculum', '')
+        user_name = data.get('name', '').strip()  # Get name from form
 
         # Insert signup data (matches promo_signups table schema)
         signup_data = {
-            'parent_name': None,  # Not collected by this form
+            'parent_name': user_name if user_name else None,  # Store user's name
             'email': email,
             'teen_age': None,  # Not collected by this form
             'activity': current_curriculum,  # Store curriculum selection here
@@ -197,12 +198,17 @@ def credit_tracker_signup():
                 from services.campaign_automation_service import CampaignAutomationService
                 automation_service = CampaignAutomationService()
 
+                # Get user's name from form data (field is 'name' in the form)
+                user_name = data.get('name', 'there').strip() or 'there'
+
                 automation_service.start_sequence_by_email(
                     sequence_name='promo_credit_tracker',
                     email=email,
                     context={
                         'parent_email': email,
-                        'parent_name': 'there',
+                        'parent_name': user_name,
+                        'user_name': user_name,  # Also provide as user_name for templates
+                        'first_name': user_name.split()[0] if user_name != 'there' else 'there',  # Extract first name
                         'teen_age_text': '',
                         'activity_text': f" We're excited to hear you're using {current_curriculum}." if current_curriculum else '',
                         'current_curriculum': current_curriculum or ''
