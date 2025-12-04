@@ -548,7 +548,30 @@ def preview_template(user_id, template_key):
     """
     try:
         data = request.get_json() or {}
-        sample_data = data.get('sample_data', {})
+
+        # Define comprehensive default sample data to match _prepare_user_variables()
+        default_sample_data = {
+            'user_name': 'Jane Student',
+            'first_name': 'Jane',
+            'last_name': 'Student',
+            'email': 'jane.student@example.com',
+            'total_xp': 1250,
+            'level': 5,
+            'streak_days': 7,
+            'quest_title': 'Introduction to Python',
+            'xp_earned': 500,
+            'confirmation_link': 'https://www.optioeducation.com/confirm/abc123',
+            'reset_link': 'https://www.optioeducation.com/reset/abc123',
+            'expiry_hours': 24,
+            'dashboard_url': 'https://www.optioeducation.com/dashboard',
+            'quests_url': 'https://www.optioeducation.com/quests',
+            'profile_url': 'https://www.optioeducation.com/profile',
+            'tutor_url': 'https://www.optioeducation.com/tutor',
+            'connections_url': 'https://www.optioeducation.com/connections'
+        }
+
+        # Merge user-provided sample_data with defaults (user data takes priority)
+        sample_data = {**default_sample_data, **data.get('sample_data', {})}
         subject_override = data.get('subject')
         template_data_override = data.get('template_data')
 
