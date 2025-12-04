@@ -1,10 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { getPillarData, getPillarGradient } from '../../utils/pillarMappings';
 import { CheckCircleIcon, PlayIcon } from '@heroicons/react/24/solid';
 
 const CompactQuestCard = ({ quest }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Extract quest data
   const questData = quest.quests || quest;
@@ -26,7 +28,7 @@ const CompactQuestCard = ({ quest }) => {
 
   const handleClick = () => {
     if (isCompleted) {
-      navigate('/diploma');
+      navigate(`/diploma/${user?.id || ''}`);
     } else {
       navigate(`/quests/${questId}`);
     }

@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import Button from '../ui/Button';
 
 const AchievementCelebration = ({ latestAchievement, onDismiss }) => {
   const [show, setShow] = useState(false);
   const [confetti, setConfetti] = useState([]);
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (latestAchievement) {
@@ -91,7 +95,7 @@ const AchievementCelebration = ({ latestAchievement, onDismiss }) => {
             <Button
               variant="primary"
               className="flex-1"
-              onClick={() => window.location.href = '/diploma'}
+              onClick={() => navigate(`/diploma/${user?.id || ''}`)}
             >
               View Diploma
             </Button>

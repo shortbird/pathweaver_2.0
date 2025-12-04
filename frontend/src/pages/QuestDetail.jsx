@@ -12,6 +12,7 @@ import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
 import TaskDetailModal from '../components/quest/TaskDetailModal';
 import TutorialTaskInstructionsModal from '../components/quest/TutorialTaskInstructionsModal';
 import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
+import QuestCompletionCelebration from '../components/quest/QuestCompletionCelebration';
 import SampleTaskCard from '../components/quest/SampleTaskCard';
 import TaskTimeline from '../components/quest/TaskTimeline';
 import TaskWorkspace from '../components/quest/TaskWorkspace';
@@ -53,6 +54,7 @@ const QuestDetail = () => {
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);
   const [taskDetailToShow, setTaskDetailToShow] = useState(null);
   const [showPersonalizationWizard, setShowPersonalizationWizard] = useState(false);
+  const [showQuestCompletionCelebration, setShowQuestCompletionCelebration] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState(new Set());
   const [droppingTaskId, setDroppingTaskId] = useState(null);
   const [displayMode, setDisplayMode] = useState('flexible'); // 'timeline' or 'flexible'
@@ -191,13 +193,27 @@ const QuestDetail = () => {
   const handleEndQuest = async () => {
     if (!quest.user_enrollment) return;
 
-    if (window.confirm('Are you sure you want to finish this quest? This will end your active enrollment and save your progress.')) {
-      endQuestMutation.mutate(id, {
-        onSuccess: () => {
-          navigate('/diploma'); // Navigate to diploma to show achievement
-        }
-      });
-    }
+    endQuestMutation.mutate(id, {
+      onSuccess: () => {
+        toast.success('Quest completed! Returning to dashboard...');
+        navigate('/'); // Navigate to dashboard
+      },
+      onError: (error) => {
+        console.error('Error ending quest:', error);
+        toast.error('Failed to finish quest. Please try again.');
+      }
+    });
+  };
+
+  const handleAddMoreTasks = () => {
+    setShowQuestCompletionCelebration(false);
+    // Scroll to task library or show task creation UI
+    toast.success('You can add more tasks from the task library below');
+  };
+
+  const handleFinishQuestFromCelebration = () => {
+    setShowQuestCompletionCelebration(false);
+    handleEndQuest();
   };
 
   const handleTaskCompletion = async (completionData) => {
@@ -251,13 +267,22 @@ const QuestDetail = () => {
           const completedCount = updatedTasks.filter(task => task.is_completed).length;
           const totalCount = updatedTasks.length;
           const newProgressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
-          const isNewlyCompleted = newProgressPercentage === 100;
+          const isNewlyCompleted = newProgressPercentage === 100 && !oldData.completed_enrollment;
 
           console.log('[QUEST_DETAIL] Cache update complete:', {
             completedCount,
             totalCount,
-            progressPercentage: newProgressPercentage
+            progressPercentage: newProgressPercentage,
+            isNewlyCompleted
           });
+
+          // Show celebration if quest just completed
+          if (isNewlyCompleted) {
+            console.log('[QUEST_DETAIL] Quest newly completed - showing celebration');
+            setTimeout(() => {
+              setShowQuestCompletionCelebration(true);
+            }, 500);
+          }
 
           return {
             ...oldData,
@@ -910,6 +935,17 @@ const QuestDetail = () => {
             />
           </div>
         </div>
+      )}
+
+      {showQuestCompletionCelebration && quest && (
+        <QuestCompletionCelebration
+          quest={quest}
+          completedTasksCount={quest.progress?.completed_tasks || 0}
+          totalXP={quest.progress?.total_xp || 0}
+          onAddMoreTasks={handleAddMoreTasks}
+          onFinishQuest={handleFinishQuestFromCelebration}
+          onClose={() => setShowQuestCompletionCelebration(false)}
+        />
       )}
 
     </div>
