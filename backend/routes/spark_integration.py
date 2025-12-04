@@ -1133,7 +1133,6 @@ def process_spark_course_sync(
             'lms_course_id': spark_course_id,
             'is_active': True,
             'is_public': False,  # Course quests are not public
-            'xp_reward': 0,  # XP comes from tasks
             'created_at': datetime.utcnow().isoformat()
         }).execute()
 

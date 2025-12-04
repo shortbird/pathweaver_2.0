@@ -53,8 +53,22 @@ console.log('Course Data:');
 console.log(JSON.stringify(courseData, null, 2));
 console.log('');
 
-// Calculate HMAC signature
-const payload = JSON.stringify(courseData, null, 0);  // No whitespace for signature
+// Calculate HMAC signature - must match backend's format
+// Backend uses: json.dumps(data, separators=(',', ':'), sort_keys=True)
+// Need to sort all keys recursively and use compact JSON (no spaces)
+function sortedStringify(obj) {
+  if (typeof obj !== 'object' || obj === null) {
+    return JSON.stringify(obj);
+  }
+  if (Array.isArray(obj)) {
+    return '[' + obj.map(sortedStringify).join(',') + ']';
+  }
+  const keys = Object.keys(obj).sort();
+  const pairs = keys.map(key => `"${key}":${sortedStringify(obj[key])}`);
+  return '{' + pairs.join(',') + '}';
+}
+
+const payload = sortedStringify(courseData);
 const signature = crypto
   .createHmac('sha256', WEBHOOK_SECRET)
   .update(payload)
