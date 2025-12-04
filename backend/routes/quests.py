@@ -1086,29 +1086,68 @@ def create_user_quest(user_id: str):
         quest_id = quest_result.data[0]['id']
         logger.info(f"User {user_id[:8]} created private quest {quest_id}: {quest_data['title']}")
 
-        # Auto-enroll the user in their own quest
+        # Auto-enroll the user using repository pattern for proper error handling
+        enrollment = None
         try:
-            enrollment_data = {
-                'user_id': user_id,
-                'quest_id': quest_id,
-                'started_at': datetime.utcnow().isoformat(),
-                'is_active': True
-            }
-            enrollment_result = supabase.table('user_quests').insert(enrollment_data).execute()
+            quest_repo = QuestRepository()
+            enrollment = quest_repo.enroll_user(user_id, quest_id)
+            logger.info(f"Successfully auto-enrolled user {user_id[:8]} in quest {quest_id[:8]}, enrollment_id: {enrollment['id'][:8]}")
 
-            if enrollment_result.data:
-                logger.info(f"Auto-enrolled user {user_id[:8]} in their own quest {quest_id[:8]}")
-            else:
-                logger.warning(f"Failed to auto-enroll user {user_id[:8]} in quest {quest_id[:8]}")
+            # VERIFY enrollment was actually created
+            verification = quest_repo.get_user_enrollment(user_id, quest_id)
+            if not verification:
+                raise DatabaseError("Enrollment verification failed - record not found after creation")
+
         except Exception as enrollment_error:
-            # Log but don't fail the quest creation if enrollment fails
-            logger.error(f"Failed to auto-enroll user in their own quest: {enrollment_error}")
+            # CRITICAL: If enrollment fails, rollback quest creation
+            logger.error(f"CRITICAL: Failed to enroll user {user_id[:8]} in quest {quest_id[:8]}: {enrollment_error}", exc_info=True)
+
+            try:
+                # SAFETY CHECK: Only delete if no enrollments exist
+                enrollment_check = supabase.table('user_quests')\
+                    .select('id')\
+                    .eq('quest_id', quest_id)\
+                    .execute()
+
+                if not enrollment_check.data or len(enrollment_check.data) == 0:
+                    # Safe to delete - truly failed enrollment
+                    supabase.table('quests').delete().eq('id', quest_id).execute()
+                    logger.warning(f"Rolled back quest creation {quest_id[:8]} - enrollment failed with no records created")
+                else:
+                    # Enrollment may have succeeded despite error - don't delete
+                    logger.error(f"Enrollment verification failed but {len(enrollment_check.data)} enrollment(s) exist - preserving quest {quest_id[:8]}")
+                    # Return success since enrollment actually exists
+                    return jsonify({
+                        'success': True,
+                        'message': 'Quest created and enrolled successfully (verified after error)',
+                        'quest_id': quest_id,
+                        'quest': quest_result.data[0],
+                        'enrollment': {
+                            'enrolled': True,
+                            'enrollment_id': enrollment_check.data[0]['id'],
+                            'is_active': enrollment_check.data[0].get('is_active', True)
+                        }
+                    })
+
+            except Exception as rollback_error:
+                logger.error(f"Failed to check/rollback quest {quest_id[:8]}: {rollback_error}")
+
+            return jsonify({
+                'success': False,
+                'error': 'Failed to enroll in your quest. Please try enrolling manually from your quest library.',
+                'quest_id': quest_id
+            }), 500
 
         return jsonify({
             'success': True,
             'message': 'Quest created successfully! It\'s now available in your quest library.',
             'quest_id': quest_id,
-            'quest': quest_result.data[0]
+            'quest': quest_result.data[0],
+            'enrollment': {
+                'enrolled': True,
+                'enrollment_id': enrollment['id'] if enrollment else None,
+                'is_active': enrollment.get('is_active', False) if enrollment else False
+            }
         })
 
     except Exception as e:
