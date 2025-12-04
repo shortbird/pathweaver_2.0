@@ -274,33 +274,37 @@ const MultiFormatEvidenceEditor = forwardRef(({
         return;
       }
 
+      // CRITICAL: Disable auto-save permanently BEFORE sending the completion request
+      // This prevents any pending auto-save from overwriting the 'completed' status with 'draft'
+      if (autoSaverRef.current && autoSaverRef.current.disableAutoSave) {
+        console.log('[EVIDENCE] Disabling auto-save permanently to prevent race condition');
+        autoSaverRef.current.disableAutoSave();
+      } else if (autoSaverRef.current) {
+        console.log('[EVIDENCE] Clearing auto-save (disableAutoSave not available)');
+        autoSaverRef.current.clearAutoSave();
+      }
+
+      // Use flushSync to immediately update documentStatus to 'completed'
+      // This prevents the auto-save effect from triggering with status='draft'
+      flushSync(() => {
+        setDocumentStatus('completed');
+      });
+
       // Save and complete the task (files are already uploaded)
       const cleanedBlocks = cleanBlocksForSave(blocks);
       console.log('[EVIDENCE] Submitting task completion with status: completed');
-      console.log('[EVIDENCE] Current documentStatus before save:', documentStatus);
+      console.log('[EVIDENCE] documentStatus set to completed before request');
 
       const completeResponse = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, 'completed');
 
       if (completeResponse.success) {
-        console.log('[EVIDENCE] Task completion successful - setting documentStatus to completed');
+        console.log('[EVIDENCE] Task completion successful');
 
-        // CRITICAL: Disable auto-save permanently BEFORE setting status
-        // This prevents any pending auto-save from overwriting the 'completed' status
-        if (autoSaverRef.current && autoSaverRef.current.disableAutoSave) {
-          console.log('[EVIDENCE] Disabling auto-save permanently to prevent overwriting completion');
-          autoSaverRef.current.disableAutoSave();
-        } else if (autoSaverRef.current) {
-          console.log('[EVIDENCE] Clearing auto-save (disableAutoSave not available)');
-          autoSaverRef.current.clearAutoSave();
-        }
-
-        // Use flushSync to force synchronous state updates
-        // This prevents race conditions with React Query cache updates and component re-renders
+        // Set save status
         flushSync(() => {
-          setDocumentStatus('completed');
           setSaveStatus('saved');
         });
-        console.log('[EVIDENCE] State updated synchronously with flushSync - documentStatus:', documentStatus);
+        console.log('[EVIDENCE] State updated - task marked as completed');
 
         if (onComplete) {
           onComplete({
