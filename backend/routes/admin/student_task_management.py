@@ -22,6 +22,7 @@ from utils.auth.decorators import require_admin, require_role
 from utils.pillar_utils import is_valid_pillar
 from utils.pillar_mapping import normalize_pillar_name
 from utils.school_subjects import validate_school_subjects
+from services.subject_classification_service import SubjectClassificationService
 from datetime import datetime
 import json
 
@@ -125,6 +126,22 @@ def create_student_task(user_id, target_user_id, quest_id):
                 subject_xp_dist = template.data.get('subject_xp_distribution', {})
                 xp_value = sum(subject_xp_dist.values()) if subject_xp_dist else 100
 
+            # Generate subject XP distribution using AI
+            classification_service = SubjectClassificationService(client=supabase)
+            try:
+                subject_distribution = classification_service.classify_task_subjects(
+                    template.data['title'],
+                    template.data.get('description', ''),
+                    template.data['pillar'],
+                    int(xp_value)
+                )
+            except Exception as e:
+                logger.warning(f"Failed to classify task subjects, using fallback: {str(e)}")
+                subject_distribution = classification_service._fallback_subject_mapping(
+                    template.data['pillar'],
+                    int(xp_value)
+                )
+
             task_data = {
                 'user_id': target_user_id,
                 'quest_id': quest_id,
@@ -132,7 +149,7 @@ def create_student_task(user_id, target_user_id, quest_id):
                 'title': template.data['title'],
                 'description': template.data.get('description', ''),
                 'pillar': template.data['pillar'],
-                'subject_xp_distribution': None,
+                'subject_xp_distribution': subject_distribution,
                 'xp_value': int(xp_value),
                 'order_index': max_order + 1,
                 'is_required': True,
@@ -173,6 +190,22 @@ def create_student_task(user_id, target_user_id, quest_id):
                     'error': 'XP value must be greater than 0'
                 }), 400
 
+            # Generate subject XP distribution using AI
+            classification_service = SubjectClassificationService(client=supabase)
+            try:
+                subject_distribution = classification_service.classify_task_subjects(
+                    data['title'].strip(),
+                    data.get('description', '').strip(),
+                    normalized_pillar,
+                    int(xp_value)
+                )
+            except Exception as e:
+                logger.warning(f"Failed to classify task subjects, using fallback: {str(e)}")
+                subject_distribution = classification_service._fallback_subject_mapping(
+                    normalized_pillar,
+                    int(xp_value)
+                )
+
             task_data = {
                 'user_id': target_user_id,
                 'quest_id': quest_id,
@@ -180,7 +213,7 @@ def create_student_task(user_id, target_user_id, quest_id):
                 'title': data['title'].strip(),
                 'description': data.get('description', '').strip(),
                 'pillar': normalized_pillar,
-                'subject_xp_distribution': None,
+                'subject_xp_distribution': subject_distribution,
                 'xp_value': int(xp_value),
                 'order_index': max_order + 1,
                 'is_required': True,

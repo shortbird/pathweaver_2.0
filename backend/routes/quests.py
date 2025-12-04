@@ -578,9 +578,33 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 logger.info(f"[COURSE_ENROLL] Found {len(preset_tasks)} preset tasks")
 
                 if preset_tasks:
+                    # Initialize classification service for auto-generating subject distributions
+                    from services.subject_classification_service import SubjectClassificationService
+                    classification_service = SubjectClassificationService(client=get_supabase_admin_client())
+
                     # Copy all preset tasks to user_quest_tasks
                     user_tasks_data = []
                     for task in preset_tasks:
+                        xp_value = task.get('xp_value', 100)
+
+                        # Auto-generate subject distribution if not present
+                        subject_distribution = task.get('subject_xp_distribution', {})
+                        if not subject_distribution:
+                            try:
+                                subject_distribution = classification_service.classify_task_subjects(
+                                    task['title'],
+                                    task.get('description', ''),
+                                    task['pillar'],
+                                    xp_value
+                                )
+                                logger.info(f"[COURSE_ENROLL] Auto-classified task '{task['title'][:30]}': {subject_distribution}")
+                            except Exception as e:
+                                logger.warning(f"[COURSE_ENROLL] Failed to classify task, using fallback: {str(e)}")
+                                subject_distribution = classification_service._fallback_subject_mapping(
+                                    task['pillar'],
+                                    xp_value
+                                )
+
                         task_data = {
                             'user_id': user_id,
                             'quest_id': quest_id,
@@ -588,13 +612,13 @@ def enroll_in_quest(user_id: str, quest_id: str):
                             'title': task['title'],
                             'description': task.get('description', ''),
                             'pillar': task['pillar'],
-                            'xp_value': task.get('xp_value', 100),
+                            'xp_value': xp_value,
                             'order_index': task.get('order_index', 0),
                             'is_required': task.get('is_required', True),
                             'is_manual': False,
                             'approval_status': 'approved',
                             'diploma_subjects': task.get('diploma_subjects', ['Electives']),
-                            'subject_xp_distribution': task.get('subject_xp_distribution', {})
+                            'subject_xp_distribution': subject_distribution
                         }
                         user_tasks_data.append(task_data)
                         logger.info(f"[COURSE_ENROLL] Prepared task: {task['title'][:30]}")
