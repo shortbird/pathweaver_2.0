@@ -247,6 +247,24 @@ def register():
         
         # Sign up with Supabase Auth (use original names without HTML encoding)
         from app_config import Config
+
+        # Detect registration domain for email confirmation redirect
+        # Users should be redirected back to the domain they registered on
+        try:
+            from middleware.organization import get_current_organization
+            org = get_current_organization()
+            if org and org.get('full_domain') and org['full_domain'] != 'www.optioeducation.com':
+                # Client organization - use their subdomain
+                redirect_url = f"https://{org['full_domain']}/login"
+                logger.info(f"[REGISTRATION] Using org-specific redirect: {redirect_url}")
+            else:
+                # Optio default
+                redirect_url = f"{Config.FRONTEND_URL}/login"
+        except Exception as redirect_error:
+            # Fallback to default
+            redirect_url = f"{Config.FRONTEND_URL}/login"
+            logger.warning(f"[REGISTRATION] Using default redirect, detection failed: {redirect_error}")
+
         try:
             # Supabase Python client v2.x API
             auth_response = supabase.auth.sign_up({
@@ -257,7 +275,7 @@ def register():
                         'first_name': original_first_name,
                         'last_name': original_last_name
                     },
-                    'email_redirect_to': f"{Config.FRONTEND_URL}/login"
+                    'email_redirect_to': redirect_url
                 }
             })
         except Exception as auth_error:
