@@ -115,11 +115,13 @@ def select_library_task(user_id, quest_id):
             }), 400
 
         # Get user's enrollment (user must be enrolled to access library)
+        # Allow both active and inactive quests - we'll reactivate if needed
         user_quest_response = supabase.table('user_quests') \
-            .select('id') \
+            .select('id, is_active, completed_at') \
             .eq('user_id', user_id) \
             .eq('quest_id', quest_id) \
-            .eq('is_active', True) \
+            .order('created_at', desc=True) \
+            .limit(1) \
             .execute()
 
         if not user_quest_response.data or len(user_quest_response.data) == 0:
@@ -128,7 +130,16 @@ def select_library_task(user_id, quest_id):
                 'error': 'You must enroll in this quest first'
             }), 400
 
-        user_quest_id = user_quest_response.data[0]['id']
+        enrollment = user_quest_response.data[0]
+        user_quest_id = enrollment['id']
+
+        # If quest is inactive (completed), reactivate it when adding new tasks
+        if not enrollment.get('is_active'):
+            logger.info(f"Reactivating completed quest {quest_id} for user {user_id} (adding new tasks)")
+            supabase.table('user_quests') \
+                .update({'is_active': True}) \
+                .eq('id', user_quest_id) \
+                .execute()
 
         # Check if task already exists for this user
         existing_task = supabase.table('user_quest_tasks') \

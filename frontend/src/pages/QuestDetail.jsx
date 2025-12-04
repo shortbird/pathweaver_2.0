@@ -65,7 +65,21 @@ const QuestDetail = () => {
   useEffect(() => {
     if (location.state?.tasksAdded) {
       console.log('[QUEST_DETAIL] Returning from task library, refetching quest data');
-      // Invalidate and refetch to get fresh data
+
+      // Optimistically update cache to mark quest as active (in case it was completed)
+      queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
+        if (!oldData) return oldData;
+        return {
+          ...oldData,
+          user_enrollment: oldData.user_enrollment ? {
+            ...oldData.user_enrollment,
+            is_active: true
+          } : null,
+          completed_enrollment: false
+        };
+      });
+
+      // Invalidate and refetch to get fresh data from server
       queryClient.invalidateQueries(queryKeys.quests.detail(id));
       refetchQuest();
 

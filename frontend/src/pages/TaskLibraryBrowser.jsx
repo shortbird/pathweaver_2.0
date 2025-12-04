@@ -38,8 +38,55 @@ export default function TaskLibraryBrowser() {
   };
 
   const toggleTaskSelection = async (taskId) => {
-    // Check if already added
+    // Check if already added - allow deselecting
     if (addedTasks.has(taskId)) {
+      // Confirm before removing
+      if (!window.confirm('Remove this task from your quest?')) {
+        return;
+      }
+
+      try {
+        // Find the user task ID by matching the sample task
+        const libraryTask = libraryTasks.find(t => t.id === taskId);
+        if (!libraryTask) {
+          toast.error('Task not found');
+          return;
+        }
+
+        // Get all user tasks for this quest to find the matching one
+        const questResponse = await api.get(`/api/quests/${questId}`);
+        const userTask = questResponse.data.quest_tasks?.find(
+          t => t.title === libraryTask.title
+        );
+
+        if (!userTask) {
+          toast.error('Task not found in your quest');
+          return;
+        }
+
+        // Delete the task
+        await api.delete(`/api/tasks/${userTask.id}`);
+
+        // Remove from added tasks
+        setAddedTasks(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(taskId);
+          return newSet;
+        });
+
+        // Remove from selected tasks
+        setSelectedTasks(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(taskId);
+          return newSet;
+        });
+
+        toast.success('Task removed from your quest');
+      } catch (error) {
+        console.error('Error removing task:', error);
+        toast.error(error.response?.data?.error || 'Failed to remove task');
+      }
+
       return;
     }
 
@@ -47,7 +94,7 @@ export default function TaskLibraryBrowser() {
     const wasSelected = selectedTasks.has(taskId);
 
     if (wasSelected) {
-      // Deselect
+      // Deselect (only works for not-yet-added tasks)
       setSelectedTasks(prev => {
         const newSet = new Set(prev);
         newSet.delete(taskId);
@@ -156,7 +203,7 @@ export default function TaskLibraryBrowser() {
                 return (
                   <div
                     key={task.id}
-                    onClick={() => !isAdded && toggleTaskSelection(task.id)}
+                    onClick={() => toggleTaskSelection(task.id)}
                     className={`relative rounded-xl overflow-hidden transition-all hover:shadow-lg cursor-pointer border-2 ${
                       isSelected ? 'ring-2 ring-optio-purple' : ''
                     }`}
@@ -174,10 +221,18 @@ export default function TaskLibraryBrowser() {
                       {/* Checkbox and Added Badge */}
                       <div className="flex items-center justify-between mb-3">
                         {isAdded ? (
-                          <span className="flex items-center gap-1 text-green-600 font-semibold text-sm" style={{ fontFamily: 'Poppins' }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleTaskSelection(task.id);
+                            }}
+                            className="flex items-center gap-1 text-green-600 hover:text-red-600 font-semibold text-sm transition-colors"
+                            style={{ fontFamily: 'Poppins' }}
+                            title="Click to remove this task"
+                          >
                             <CheckCircle className="w-4 h-4" />
-                            Already Added
-                          </span>
+                            Added (click to remove)
+                          </button>
                         ) : (
                           <input
                             type="checkbox"
