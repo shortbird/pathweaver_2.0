@@ -1133,6 +1133,7 @@ def process_spark_course_sync(
             'lms_course_id': spark_course_id,
             'is_active': True,
             'is_public': False,  # Course quests are not public
+            'material_link': 'https://www.onfirelearning.com/',
             'created_at': datetime.utcnow().isoformat()
         }).execute()
 
