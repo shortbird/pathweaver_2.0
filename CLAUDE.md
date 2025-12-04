@@ -257,6 +257,8 @@ mcp__render__list_logs(resource, limit)
 # Prod Frontend: srv-d2to04vfte5s73ae97ag
 ```
 
+**IMPORTANT**: DO NOT use `text` filter parameter with `list_logs` - it causes 500 errors. Use `level` and `type` filters instead, then search results manually.
+
 ---
 
 ## Recent Changes (Jan 2025)

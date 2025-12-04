@@ -46,21 +46,14 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
             .eq('user_id', user_id)\
             .execute()
 
-        logger.debug(f"=== XP CALCULATION DEBUG for user {user_id} ===")
-        logger.info(f"Found {len(skill_xp.data) if skill_xp.data else 0} skill XP records")
-
         if skill_xp.data:
-            logger.debug(f"Processing {len(skill_xp.data)} skill XP records...")
-            for i, record in enumerate(skill_xp.data):
+            for record in skill_xp.data:
                 pillar = record.get('pillar')
                 xp_amount = record.get('xp_amount', 0)
-
-                print(f"Record {i+1}: Pillar='{pillar}', XP={xp_amount}")
 
                 if pillar in skill_breakdown:
                     total_xp += xp_amount
                     skill_breakdown[pillar] += xp_amount
-                    logger.info(f"  ✓ Added {xp_amount} XP to {pillar} (total now: {skill_breakdown[pillar]})")
                 else:
                     # Handle old pillar keys - map them to new single-word format
                     from utils.pillar_mapping import normalize_pillar_name
@@ -69,19 +62,10 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
                         if normalized_pillar in skill_breakdown:
                             total_xp += xp_amount
                             skill_breakdown[normalized_pillar] += xp_amount
-                            print(f"  ✓ Mapped '{pillar}' -> '{normalized_pillar}', added {xp_amount} XP")
                         else:
-                            print(f"  ❌ WARNING: Normalized pillar '{normalized_pillar}' not in {list(skill_breakdown.keys())}")
+                            logger.warning(f"Unknown normalized pillar '{normalized_pillar}' for user {user_id}")
                     except ValueError:
-                        print(f"  ❌ WARNING: Unknown pillar '{pillar}' could not be normalized")
-
-            logger.debug(f"After processing all records - skill breakdown: {skill_breakdown}")
-        else:
-            logger.info("No skill XP records found")
-
-        logger.info(f"Final total XP: {total_xp}")
-        logger.info(f"Final skill_breakdown: {skill_breakdown}")
-        logger.info("=======================================")
+                        logger.warning(f"Could not normalize pillar '{pillar}' for user {user_id}")
 
     except Exception as e:
         logger.error(f"Error calculating XP from V3 tasks: {str(e)}")

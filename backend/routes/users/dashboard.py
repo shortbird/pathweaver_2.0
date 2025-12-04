@@ -87,11 +87,6 @@ def get_dashboard(user_id):
         # Calculate XP stats (needed for ConstellationPage and other features)
         total_xp, skill_breakdown = calculate_user_xp(supabase, user_id)
 
-        logger.debug(f"=== DASHBOARD XP DEBUG for user {user_id} ===")
-        logger.info(f"Total XP: {total_xp}")
-        logger.info(f"Skill breakdown: {skill_breakdown}")
-        logger.info("=======================================")
-
         # Get user level info
         level_info = get_user_level(total_xp)
 
@@ -112,12 +107,6 @@ def get_dashboard(user_id):
             'recent_completed_quests': recent_completed_quests
         }
 
-        logger.debug(f"=== DASHBOARD RESPONSE DEBUG ===")
-        logger.info(f"Total XP being sent: {total_xp}")
-        logger.info(f"XP by category: {skill_breakdown}")
-        logger.info(f"Active quests: {len(active_quests)}")
-        logger.info(f"================================")
-
         return jsonify(dashboard_data), 200
 
     except NotFoundError:
@@ -129,8 +118,6 @@ def get_dashboard(user_id):
 
 def get_active_quests(supabase, user_id: str) -> list:
     """Get user's active quests with details"""
-    logger.info(f"Fetching active quests for user {user_id}")
-
     try:
         # Get active enrollments with quest details
         # IMPORTANT: Filter by both is_active AND completed_at to ensure we only get in-progress quests
@@ -141,8 +128,6 @@ def get_active_quests(supabase, user_id: str) -> list:
             .is_('completed_at', 'null')\
             .execute()
 
-        logger.info(f"Active quests query result: {len(active_quests.data) if active_quests.data else 0} quests found")
-
         if active_quests.data:
             # Additional safety check - should not be needed but keeps code defensive
             active_only = [q for q in active_quests.data if q.get('completed_at') is None]
@@ -150,16 +135,11 @@ def get_active_quests(supabase, user_id: str) -> list:
             # Debug: Log any quests that slip through
             filtered_count = len(active_quests.data) - len(active_only)
             if filtered_count > 0:
-                logger.warning(f"WARNING: {filtered_count} completed quests had is_active=True but completed_at set!")
-                for q in active_quests.data:
-                    if q.get('completed_at') is not None:
-                        print(f"  - Quest ID: {q.get('quest_id')}, Enrollment ID: {q.get('id')}, completed_at: {q.get('completed_at')}, is_active: {q.get('is_active')}")
+                logger.warning(f"{filtered_count} completed quests had is_active=True but completed_at set")
 
             # Process each quest to add calculated fields
             for enrollment in active_only:
-                quest_info = enrollment.get('quests', {})
                 enrollment_id = enrollment.get('id')
-                print(f"  - Enrollment ID: {enrollment_id}, Quest: {quest_info.get('title', 'Unknown')}, Completed: {enrollment.get('completed_at')}")
 
                 # Get user's personalized tasks for this enrollment
                 user_tasks = supabase.table('user_quest_tasks')\
@@ -214,8 +194,6 @@ def get_active_quests(supabase, user_id: str) -> list:
                     logger.error(f"Error getting completed tasks: {str(e)}")
                     enrollment['completed_tasks'] = 0
                     quest_info['quest_tasks'] = []
-
-                print(f"    Tasks: {enrollment['completed_tasks']}/{task_count}, Total XP: {total_xp}")
             
             return active_only
         
