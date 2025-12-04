@@ -171,11 +171,14 @@ def get_course_tasks_for_quest(quest_id: str):
     """
     Helper function to get preset tasks for a course quest.
     Returns ordered by order_index.
+
+    Note: Course tasks are stored in quest_sample_tasks table (not course_quest_tasks).
+    This applies to both manually created course quests and SPARK-synced courses.
     """
     supabase = get_supabase_admin_client()
 
     try:
-        tasks = supabase.table('course_quest_tasks')\
+        tasks = supabase.table('quest_sample_tasks')\
             .select('*')\
             .eq('quest_id', quest_id)\
             .order('order_index')\
