@@ -1,5 +1,6 @@
 """
 Admin endpoint for backfilling subject XP distributions on tasks.
+Provides REST API for reviewing, editing, and AI-generating subject classifications.
 """
 
 from flask import Blueprint, jsonify, request
