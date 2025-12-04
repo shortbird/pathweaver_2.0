@@ -154,21 +154,28 @@ def get_backfill_stats(user_id: str):
             .select('id', count='exact')\
             .execute()
 
-        # Count tasks with subject distribution
+        # Count tasks with valid subject distribution (not null and not empty object)
         with_distribution = admin_supabase.table('user_quest_tasks')\
             .select('id', count='exact')\
             .not_.is_('subject_xp_distribution', 'null')\
+            .neq('subject_xp_distribution', {})\
             .execute()
 
-        # Count tasks without subject distribution
-        without_distribution = admin_supabase.table('user_quest_tasks')\
+        # Count tasks without subject distribution (null or empty object)
+        without_distribution_null = admin_supabase.table('user_quest_tasks')\
             .select('id', count='exact')\
             .is_('subject_xp_distribution', 'null')\
             .execute()
 
+        without_distribution_empty = admin_supabase.table('user_quest_tasks')\
+            .select('id', count='exact')\
+            .eq('subject_xp_distribution', {})\
+            .execute()
+
+        without_count = (without_distribution_null.count or 0) + (without_distribution_empty.count or 0)
+
         total_count = total.count
         with_count = with_distribution.count
-        without_count = without_distribution.count
 
         return jsonify({
             'success': True,
@@ -213,9 +220,11 @@ def list_tasks_for_review(user_id: str):
             .select('id, title, description, pillar, xp_value, subject_xp_distribution, created_at', count='exact')
 
         if status == 'unclassified':
-            query = query.is_('subject_xp_distribution', 'null')
+            # Unclassified: null OR empty object
+            query = query.or_('subject_xp_distribution.is.null,subject_xp_distribution.eq.{}')
         elif status == 'classified':
-            query = query.not_.is_('subject_xp_distribution', 'null')
+            # Classified: not null AND not empty object
+            query = query.not_.is_('subject_xp_distribution', 'null').neq('subject_xp_distribution', {})
 
         # Execute with pagination
         result = query.order('created_at', desc=True)\
