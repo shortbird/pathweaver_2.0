@@ -5,7 +5,7 @@ Provides REST API for reviewing, editing, and AI-generating subject classificati
 
 from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
-from utils.auth.decorators import require_auth, require_admin
+from utils.auth.decorators import require_admin
 from services.subject_classification_service import SubjectClassificationService
 from utils.logger import get_logger
 
@@ -14,7 +14,6 @@ logger = get_logger(__name__)
 bp = Blueprint('admin_subject_backfill', __name__, url_prefix='/api/admin/subject-backfill')
 
 @bp.route('/task/<task_id>', methods=['POST'])
-@require_auth
 @require_admin
 def backfill_single_task(user_id: str, task_id: str):
     """
@@ -48,7 +47,6 @@ def backfill_single_task(user_id: str, task_id: str):
 
 
 @bp.route('/all', methods=['POST'])
-@require_auth
 @require_admin
 def backfill_all_tasks(user_id: str):
     """
@@ -85,7 +83,6 @@ def backfill_all_tasks(user_id: str):
 
 
 @bp.route('/preview/<task_id>', methods=['GET'])
-@require_auth
 @require_admin
 def preview_task_classification(user_id: str, task_id: str):
     """
@@ -142,7 +139,6 @@ def preview_task_classification(user_id: str, task_id: str):
 
 
 @bp.route('/stats', methods=['GET'])
-@require_auth
 @require_admin
 def get_backfill_stats(user_id: str):
     """
@@ -193,7 +189,6 @@ def get_backfill_stats(user_id: str):
 
 
 @bp.route('/tasks', methods=['GET'])
-@require_auth
 @require_admin
 def list_tasks_for_review(user_id: str):
     """
@@ -244,7 +239,6 @@ def list_tasks_for_review(user_id: str):
 
 
 @bp.route('/task/<task_id>/distribution', methods=['PUT'])
-@require_auth
 @require_admin
 def update_task_distribution(user_id: str, task_id: str):
     """
@@ -315,7 +309,6 @@ def update_task_distribution(user_id: str, task_id: str):
 
 
 @bp.route('/task/<task_id>/regenerate', methods=['POST'])
-@require_auth
 @require_admin
 def regenerate_task_distribution(user_id: str, task_id: str):
     """
