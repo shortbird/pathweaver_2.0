@@ -55,40 +55,62 @@ Canvas Course          →  Optio Badge
 Course Title           →  Badge Name
 Course Description     →  Badge Description
 Course Code            →  course_code metadata
-Total Assignments      →  min_quests
-Assignments × 100 XP   →  min_xp (default)
-Sum of Canvas Points   →  total_canvas_points (metadata)
+1 (single quest)       →  min_quests
+Sum of Canvas Points   →  min_xp
+Total Assignments      →  metadata.total_assignments
 ```
 
 **Badge Type**: `lms_course` (new enum value to be added to database)
 
-### Assignment → Quest
+### Course → Quest
 
 ```
-Canvas Assignment      →  Optio Quest
+Canvas Course          →  Optio Quest (Container)
 -----------------      →  -----------
-Assignment Title       →  Quest Title
-Instructions           →  Quest Description
-Assignment ID          →  lms_assignment_id
-Points Possible        →  metadata.canvas_points
-Submission Types       →  metadata.submission_types
-Due Date               →  metadata.due_date
+Course Title           →  Quest Title
+Course Description     →  Quest Description
+Course Code            →  lms_course_id
+Total Assignments      →  metadata.total_assignments
+Sum of Canvas Points   →  metadata.total_canvas_points
 ```
 
 **Quest Type**: `course` (existing type)
 **Platform**: `canvas`
 
-### Quest → Badge Relationship
+**Note**: The course itself becomes a single quest that serves as a container for all tasks.
+
+### Assignment → Task
+
+```
+Canvas Assignment      →  Optio Task
+-----------------      →  -----------
+Assignment Title       →  Task Title
+Instructions           →  Task Description
+Points Possible        →  xp_value (1 Canvas point = 1 XP)
+Assignment ID          →  metadata.lms_assignment_id
+Submission Types       →  metadata.submission_types
+Due Date               →  metadata.due_date
+```
+
+**Task Fields**:
+- `pillar`: Default to 'stem' (can be customized during import)
+- `is_required`: TRUE (all assignments required)
+- `is_manual`: FALSE (Canvas assignments are not manual tasks)
+- `approval_status`: 'approved'
+
+### Badge → Quest → Task Relationship
 
 Uses existing `badge_quests` junction table:
 ```sql
 badge_quests (
   badge_id → new badge UUID
-  quest_id → new quest UUID
-  is_required → TRUE (all assignments required)
-  order_index → assignment position (1, 2, 3...)
+  quest_id → new quest UUID (single quest for the course)
+  is_required → TRUE
+  order_index → 1
 )
 ```
+
+Tasks are linked to the quest via `user_quest_tasks` table (created per-student on enrollment)
 
 ## Testing
 
@@ -105,9 +127,9 @@ badge_quests (
    - Click "Parse & Preview"
 
 3. **Verify Preview Data**
-   - Badge section should show course name, description, stats
-   - Quests section should list all assignments
-   - Each quest should show title, description, XP, Canvas points
+   - Badge section should show course name, description, required XP
+   - Quest section should show single course quest container
+   - Tasks section should list all assignments with XP values
 
 ### API Testing with curl
 
@@ -129,44 +151,62 @@ curl -X POST https://optio-dev-backend.onrender.com/api/admin/courses/import/val
 {
   "success": true,
   "course": {
-    "title": "Introduction to Biology",
-    "description": "A comprehensive biology course",
-    "course_code": "BIO101",
+    "title": "(25F) 3D Design: Modeling, Animation, and Printing",
+    "description": "...",
+    "course_code": "3DDESIGN101",
     "modules": [...],
     "assignment_refs": [...]
   },
   "badge_preview": {
-    "name": "Introduction to Biology",
-    "description": "A comprehensive biology course",
+    "name": "(25F) 3D Design: Modeling, Animation, and Printing",
+    "description": "...",
     "badge_type": "lms_course",
     "pillar_primary": "stem",
-    "min_quests": 15,
-    "min_xp": 1500,
-    "total_canvas_points": 1000,
-    "metadata": {...}
+    "min_quests": 1,
+    "min_xp": 380,
+    "total_canvas_points": 380.0,
+    "metadata": {
+      "import_source": "canvas_imscc",
+      "canvas_course_code": "3DDESIGN101",
+      "total_assignments": 28
+    }
   },
-  "quests_preview": [
+  "quest_preview": {
+    "title": "(25F) 3D Design: Modeling, Animation, and Printing",
+    "description": "...",
+    "quest_type": "course",
+    "lms_platform": "canvas",
+    "lms_course_id": "3DDESIGN101",
+    "metadata": {
+      "import_source": "canvas_imscc",
+      "total_assignments": 28,
+      "total_canvas_points": 380.0
+    }
+  },
+  "tasks_preview": [
     {
-      "title": "Chapter 1 Quiz",
-      "description": "Test your knowledge...",
-      "quest_type": "course",
-      "lms_platform": "canvas",
-      "estimated_xp": 100,
+      "title": "Unit 1 Critical Thinking Dropbox",
+      "description": "...",
+      "pillar": "stem",
+      "xp_value": 10,
+      "order_index": 1,
+      "is_required": true,
       "metadata": {
-        "canvas_points": 50,
-        "submission_types": ["online_quiz"],
-        "due_date": "2024-02-15T23:59:00Z"
+        "lms_assignment_id": "...",
+        "canvas_points": 10.0,
+        "submission_types": ["online_upload"],
+        "due_date": "2025-01-15T23:59:00Z"
       }
     }
   ],
   "stats": {
-    "total_assignments": 15,
-    "total_modules": 4,
+    "total_assignments": 28,
+    "total_modules": 13,
     "has_course_settings": true
   },
   "upload_info": {
-    "filename": "biology_101_export.imscc",
-    "file_size_mb": 12.5,
+    "filename": "3d_design_export.imscc",
+    "file_size_mb": 1.97,
     "uploaded_by": "user-uuid"
   }
 }
