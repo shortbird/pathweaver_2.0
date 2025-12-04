@@ -256,17 +256,15 @@ const CourseImport = () => {
                   <p className="text-gray-900">{previewData.badge_preview.min_quests}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Total XP</label>
-                  <p className="text-gray-900">{previewData.badge_preview.min_xp} XP</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Canvas Points</label>
-                  <p className="text-gray-900">
-                    {previewData.badge_preview.total_canvas_points} points
-                  </p>
-                </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Total Canvas Points</label>
+                <p className="text-gray-900">
+                  {previewData.badge_preview.total_canvas_points} points
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Note: XP is earned by completing tasks within quests, not by quests themselves.
+                  Set min_xp after import based on expected tasks.
+                </p>
               </div>
             </div>
           </div>
@@ -294,11 +292,11 @@ const CourseImport = () => {
                       </p>
                     </div>
                     <div className="text-right ml-4">
-                      <p className="text-sm font-medium text-optio-purple">
-                        {quest.estimated_xp} XP
+                      <p className="text-sm font-medium text-gray-600">
+                        {quest.canvas_points_reference} Canvas pts
                       </p>
                       <p className="text-xs text-gray-500">
-                        {quest.metadata.canvas_points} Canvas pts
+                        XP via tasks
                       </p>
                     </div>
                   </div>

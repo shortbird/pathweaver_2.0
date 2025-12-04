@@ -31,7 +31,8 @@ class IMSCCParserService(BaseService):
         'imscc': 'http://www.imsglobal.org/xsd/imsccv1p1/imscp_v1p1',
         'lom': 'http://ltsc.ieee.org/xsd/imsccv1p1/LOM/resource',
         'lomimscc': 'http://ltsc.ieee.org/xsd/imsccv1p1/LOM/manifest',
-        'xsi': 'http://www.w3.org/2001/XMLSchema-instance'
+        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+        'canvas': 'http://canvas.instructure.com/xsd/cccv1p0'
     }
 
     def parse_imscc_file(self, file_content: bytes) -> Dict:
@@ -109,7 +110,7 @@ class IMSCCParserService(BaseService):
         Parse imsmanifest.xml to extract course structure
 
         Returns:
-            Dict with course title, description, modules, assignment_refs
+            Dict with course title, description, modules, assignment_refs, resources
         """
         try:
             manifest_xml = zip_file.read('imsmanifest.xml')
@@ -121,6 +122,9 @@ class IMSCCParserService(BaseService):
             if title_elem is not None and title_elem.text:
                 title = title_elem.text.strip()
 
+            # Extract resources section (maps identifierref to actual files)
+            resources = self._parse_resources(root)
+
             # Extract organizations (modules/structure)
             modules = []
             assignment_refs = []
@@ -128,14 +132,15 @@ class IMSCCParserService(BaseService):
             organizations = root.find('.//imscc:organizations', self.NAMESPACES)
             if organizations is not None:
                 for org in organizations.findall('.//imscc:organization', self.NAMESPACES):
-                    module_data = self._parse_organization(org)
+                    module_data = self._parse_organization(org, resources)
                     modules.extend(module_data['modules'])
                     assignment_refs.extend(module_data['assignment_refs'])
 
             return {
                 'title': title,
                 'modules': modules,
-                'assignment_refs': assignment_refs
+                'assignment_refs': assignment_refs,
+                'resources': resources
             }
 
         except Exception as e:
@@ -143,12 +148,44 @@ class IMSCCParserService(BaseService):
             return {
                 'title': 'Untitled Course',
                 'modules': [],
-                'assignment_refs': []
+                'assignment_refs': [],
+                'resources': {}
             }
 
-    def _parse_organization(self, org_element: ET.Element) -> Dict:
+    def _parse_resources(self, root: ET.Element) -> Dict:
+        """
+        Parse resources section to map identifierref to actual files and types
+
+        Returns:
+            Dict mapping resource identifier to resource metadata
+        """
+        resources = {}
+
+        resources_elem = root.find('.//imscc:resources', self.NAMESPACES)
+        if resources_elem is not None:
+            for resource in resources_elem.findall('imscc:resource', self.NAMESPACES):
+                identifier = resource.get('identifier', '')
+                resource_type = resource.get('type', '')
+
+                # Get file href if available
+                file_elem = resource.find('imscc:file', self.NAMESPACES)
+                href = file_elem.get('href', '') if file_elem is not None else ''
+
+                resources[identifier] = {
+                    'type': resource_type,
+                    'href': href,
+                    'identifier': identifier
+                }
+
+        return resources
+
+    def _parse_organization(self, org_element: ET.Element, resources: Dict) -> Dict:
         """
         Parse organization element (modules and items)
+
+        Args:
+            org_element: XML element for organization
+            resources: Dict of resources from _parse_resources
 
         Returns:
             Dict with modules list and assignment_refs list
@@ -157,7 +194,7 @@ class IMSCCParserService(BaseService):
         assignment_refs = []
 
         for item in org_element.findall('.//imscc:item', self.NAMESPACES):
-            item_data = self._parse_item(item)
+            item_data = self._parse_item(item, resources)
 
             if item_data['type'] == 'module':
                 modules.append(item_data)
@@ -169,8 +206,14 @@ class IMSCCParserService(BaseService):
             'assignment_refs': assignment_refs
         }
 
-    def _parse_item(self, item_element: ET.Element) -> Dict:
-        """Parse individual item element (could be module, assignment, page, etc.)"""
+    def _parse_item(self, item_element: ET.Element, resources: Dict) -> Dict:
+        """
+        Parse individual item element (could be module, assignment, page, etc.)
+
+        Args:
+            item_element: XML element for item
+            resources: Dict of resources to look up type information
+        """
         identifier = item_element.get('identifier', '')
         identifierref = item_element.get('identifierref', '')
 
@@ -178,24 +221,48 @@ class IMSCCParserService(BaseService):
         title_elem = item_element.find('imscc:title', self.NAMESPACES)
         title = title_elem.text.strip() if title_elem is not None and title_elem.text else 'Untitled'
 
-        # Determine type based on identifier pattern
+        # Determine type - first check resource type, then fall back to pattern matching
         item_type = 'unknown'
-        if 'assignment' in identifier.lower():
-            item_type = 'assignment'
-        elif 'module' in identifier.lower() or identifierref == '':
+        resource_href = ''
+
+        if identifierref and identifierref in resources:
+            resource = resources[identifierref]
+            resource_type = resource.get('type', '').lower()
+            resource_href = resource.get('href', '')
+
+            # Map Canvas resource types to our types
+            if 'assignment' in resource_type or 'associatedcontent/imscc_xmlv1p1/learning-application-resource' in resource_type:
+                item_type = 'assignment'
+            elif 'webcontent' in resource_type:
+                item_type = 'page'
+            elif 'discussion' in resource_type or 'imsdt_xmlv1p1' in resource_type:
+                item_type = 'discussion'
+            elif 'quiz' in resource_type or 'imsqti_xmlv1p2/imscc_xmlv1p1/assessment' in resource_type:
+                item_type = 'quiz'
+
+        # Fall back to identifier pattern matching if type still unknown
+        if item_type == 'unknown':
+            if 'assignment' in identifier.lower():
+                item_type = 'assignment'
+            elif 'module' in identifier.lower() or identifierref == '':
+                item_type = 'module'
+            elif 'page' in identifier.lower():
+                item_type = 'page'
+            elif 'discussion' in identifier.lower():
+                item_type = 'discussion'
+            elif 'quiz' in identifier.lower():
+                item_type = 'quiz'
+
+        # If no identifierref, it's likely a module/folder
+        if not identifierref:
             item_type = 'module'
-        elif 'page' in identifier.lower():
-            item_type = 'page'
-        elif 'discussion' in identifier.lower():
-            item_type = 'discussion'
-        elif 'quiz' in identifier.lower():
-            item_type = 'quiz'
 
         return {
             'identifier': identifier,
             'identifierref': identifierref,
             'title': title,
-            'type': item_type
+            'type': item_type,
+            'href': resource_href
         }
 
     def _parse_course_settings(self, zip_file: zipfile.ZipFile) -> Dict:
@@ -253,10 +320,23 @@ class IMSCCParserService(BaseService):
         """
         assignments = []
 
-        # Get all assignment XML files
-        assignment_files = [f for f in zip_file.namelist() if f.startswith('assignment') and f.endswith('.xml')]
+        # Canvas stores assignments in folders like: g{guid}/assignment_settings.xml
+        # We need to look for assignment_settings.xml in the folders referenced by href
+        for assignment_ref in assignment_refs:
+            href = assignment_ref.get('href', '')
+            if not href:
+                continue
 
-        for assignment_file in assignment_files:
+            # Extract folder from href (e.g., "g7a3f1874e5f749d3c6f77e5445aa3914/unit-1-critical-thinking-dropbox.html")
+            folder = href.split('/')[0] if '/' in href else ''
+            if not folder:
+                continue
+
+            assignment_file = f"{folder}/assignment_settings.xml"
+
+            if assignment_file not in zip_file.namelist():
+                logger.warning(f"Assignment settings file not found: {assignment_file}")
+                continue
             try:
                 assignment_xml = zip_file.read(assignment_file)
                 root = ET.fromstring(assignment_xml)
@@ -264,35 +344,46 @@ class IMSCCParserService(BaseService):
                 # Extract assignment details
                 assignment = {}
 
-                # Title
-                title = root.find('.//title')
-                assignment['title'] = title.text.strip() if title is not None and title.text else 'Untitled Assignment'
+                # Title - prefer from assignment_ref (from manifest) as it's cleaner
+                assignment['title'] = assignment_ref.get('title', 'Untitled Assignment')
 
-                # Description/Instructions
-                text = root.find('.//text')
+                # Also check XML title as fallback
+                if not assignment['title'] or assignment['title'] == 'Untitled Assignment':
+                    title = root.find('.//title')
+                    assignment['title'] = title.text.strip() if title is not None and title.text else 'Untitled Assignment'
+
+                # Description/Instructions - check both with and without namespace
+                text = root.find('.//canvas:text', self.NAMESPACES)
+                if text is None:
+                    text = root.find('.//text')
                 if text is not None and text.text:
                     assignment['description'] = self._clean_html(text.text)
                 else:
                     assignment['description'] = ''
 
-                # Points possible
-                points = root.find('.//points_possible')
+                # Points possible - use Canvas namespace
+                points = root.find('.//canvas:points_possible', self.NAMESPACES)
+                if points is None:
+                    points = root.find('.//points_possible')
                 assignment['points_possible'] = float(points.text) if points is not None and points.text else 0
 
-                # Assignment type
-                submission_types = root.find('.//submission_types')
+                # Assignment type - use Canvas namespace
+                submission_types = root.find('.//canvas:submission_types', self.NAMESPACES)
+                if submission_types is None:
+                    submission_types = root.find('.//submission_types')
                 if submission_types is not None and submission_types.text:
                     assignment['submission_types'] = submission_types.text.strip().split(',')
                 else:
                     assignment['submission_types'] = ['none']
 
-                # Due date
-                due_at = root.find('.//due_at')
+                # Due date - use Canvas namespace
+                due_at = root.find('.//canvas:due_at', self.NAMESPACES)
+                if due_at is None:
+                    due_at = root.find('.//due_at')
                 assignment['due_date'] = due_at.text.strip() if due_at is not None and due_at.text else None
 
-                # Assignment ID
-                assignment_id = root.find('.//assignment_identifier')
-                assignment['assignment_id'] = assignment_id.text.strip() if assignment_id is not None and assignment_id.text else None
+                # Assignment ID - try identifier from manifest first
+                assignment['assignment_id'] = assignment_ref.get('identifier', None)
 
                 # Source file for reference
                 assignment['source_file'] = assignment_file
@@ -328,6 +419,11 @@ class IMSCCParserService(BaseService):
         """
         total_points = sum(a.get('points_possible', 0) for a in assignments)
 
+        # Note: XP is not predetermined for quests in Optio
+        # XP is earned by completing tasks (created per student by advisors/AI)
+        # We use Canvas points as a reference for potential XP, but min_xp will be 0
+        # Admins can update this after import based on expected task XP
+
         return {
             'name': course_data.get('title', 'Untitled Course'),
             'description': course_data.get('description', 'Imported from Canvas course'),
@@ -335,7 +431,7 @@ class IMSCCParserService(BaseService):
             'badge_type': 'lms_course',
             'pillar_primary': 'stem',  # Default - admin can change
             'min_quests': len(assignments),
-            'min_xp': len(assignments) * 100,  # 100 XP per assignment default
+            'min_xp': 0,  # XP earned via tasks, not quests - admin sets this based on expected tasks
             'total_canvas_points': total_points,
             'quest_source_filter': 'canvas_import',
             'metadata': {
@@ -343,7 +439,8 @@ class IMSCCParserService(BaseService):
                 'import_date': None,  # Will be set on actual import
                 'canvas_course_code': course_data.get('course_code', ''),
                 'start_date': course_data.get('start_date'),
-                'end_date': course_data.get('end_date')
+                'end_date': course_data.get('end_date'),
+                'suggested_min_xp_note': f'Consider {int(total_points * 10)} XP (Canvas points × 10) or set based on expected tasks per quest'
             }
         }
 
@@ -369,13 +466,16 @@ class IMSCCParserService(BaseService):
                     'canvas_points': assignment.get('points_possible', 0),
                     'submission_types': assignment.get('submission_types', []),
                     'due_date': assignment.get('due_date'),
-                    'source_file': assignment.get('source_file')
+                    'source_file': assignment.get('source_file'),
+                    'note': 'XP is earned by completing tasks within this quest, not by the quest itself'
                 },
                 'badge_quest_settings': {
                     'is_required': True,
                     'order_index': idx + 1
                 },
-                'estimated_xp': 100  # Default XP per quest
+                # Note: Quests don't have XP - tasks do
+                # This is just a reference to Canvas points for context
+                'canvas_points_reference': assignment.get('points_possible', 0)
             }
 
             quests.append(quest)
