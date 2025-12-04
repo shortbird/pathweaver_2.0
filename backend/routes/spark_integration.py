@@ -339,7 +339,100 @@ def exchange_auth_code():
 
 
 # ============================================
-# WEBHOOK ENDPOINT
+# COURSE SYNC WEBHOOK
+# ============================================
+
+@bp.route('/spark/webhook/course', methods=['POST'])
+@rate_limit(limit=50, per=60)  # 50 course updates per minute
+def course_sync_webhook():
+    """
+    Receive course data from Spark to auto-create/update Optio quests
+
+    Headers:
+        X-Spark-Signature: HMAC-SHA256 signature of request body
+
+    Body (JSON):
+        spark_org_id: Spark organization ID
+        spark_course_id: Spark's course ID (unique identifier)
+        course_title: Course name (becomes quest title)
+        course_description: Course description (optional)
+        assignments: Array of assignment objects
+            - spark_assignment_id: Assignment ID
+            - title: Assignment title (becomes task title)
+            - description: Assignment description (optional)
+            - due_date: ISO timestamp (optional)
+
+    Returns:
+        200: Success with quest_id and task count
+        400: Invalid payload
+        401: Invalid signature
+        500: Server error
+    """
+    # Validate signature
+    signature = request.headers.get('X-Spark-Signature')
+    if not signature:
+        logger.warning("Spark course webhook missing signature")
+        return jsonify({'error': 'Missing signature'}), 401
+
+    try:
+        # Get request body
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Missing request body'}), 400
+
+        # Validate signature using webhook secret
+        webhook_secret = os.getenv('SPARK_WEBHOOK_SECRET')
+        if not webhook_secret:
+            logger.error("SPARK_WEBHOOK_SECRET not configured")
+            return jsonify({'error': 'Webhook not configured'}), 503
+
+        # Calculate expected signature
+        payload_str = json.dumps(data, separators=(',', ':'), sort_keys=True)
+        expected_signature = hmac.new(
+            webhook_secret.encode(),
+            payload_str.encode(),
+            hashlib.sha256
+        ).hexdigest()
+
+        if not hmac.compare_digest(signature, expected_signature):
+            logger.warning("Invalid Spark course webhook signature")
+            return jsonify({'error': 'Invalid signature'}), 401
+
+        # Extract required fields
+        spark_org_id = data.get('spark_org_id')
+        spark_course_id = data.get('spark_course_id')
+        course_title = data.get('course_title')
+        course_description = data.get('course_description', '')
+        assignments = data.get('assignments', [])
+
+        if not spark_course_id or not course_title:
+            return jsonify({'error': 'Missing spark_course_id or course_title'}), 400
+
+        logger.info(f"Course sync webhook: course_id={spark_course_id}, title={course_title}, assignments={len(assignments)}")
+
+        # Process course sync
+        result = process_spark_course_sync(
+            spark_org_id=spark_org_id,
+            spark_course_id=spark_course_id,
+            course_title=course_title,
+            course_description=course_description,
+            assignments=assignments
+        )
+
+        return jsonify({
+            'success': True,
+            'quest_id': result['quest_id'],
+            'task_count': result['task_count'],
+            'message': f"Quest '{course_title}' synced successfully"
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Course sync webhook error: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Course sync failed'}), 500
+
+
+# ============================================
+# SUBMISSION WEBHOOK
 # ============================================
 
 @bp.route('/spark/webhook/submission', methods=['POST'])
@@ -984,5 +1077,131 @@ def create_block_based_evidence(supabase, user_id: str, quest_id: str, task_id: 
         logger.info(f"Created {len(blocks)} evidence blocks for document {document_id}")
 
     return document_id
+
+
+def process_spark_course_sync(
+    spark_org_id: str,
+    spark_course_id: str,
+    course_title: str,
+    course_description: str,
+    assignments: list
+) -> dict:
+    """
+    Create or update Optio quest from Spark course data
+
+    Args:
+        spark_org_id: Spark organization ID
+        spark_course_id: Spark course ID (used as lms_course_id)
+        course_title: Course name (becomes quest title)
+        course_description: Course description
+        assignments: List of assignment dicts with spark_assignment_id, title, description
+
+    Returns:
+        Dict with quest_id and task_count
+    """
+    supabase = get_supabase_admin_client()
+
+    # Check if quest already exists for this course
+    existing_quest = supabase.table('quests')\
+        .select('id, title, description')\
+        .eq('lms_course_id', spark_course_id)\
+        .eq('quest_type', 'course')\
+        .execute()
+
+    if existing_quest.data:
+        # Update existing quest
+        quest_id = existing_quest.data[0]['id']
+        logger.info(f"Updating existing quest {quest_id} for course {spark_course_id}")
+
+        supabase.table('quests')\
+            .update({
+                'title': course_title,
+                'description': course_description,
+                'updated_at': datetime.utcnow().isoformat()
+            })\
+            .eq('id', quest_id)\
+            .execute()
+
+    else:
+        # Create new quest
+        logger.info(f"Creating new quest for course {spark_course_id}")
+
+        quest = supabase.table('quests').insert({
+            'title': course_title,
+            'description': course_description,
+            'quest_type': 'course',
+            'lms_course_id': spark_course_id,
+            'is_active': True,
+            'is_public': False,  # Course quests are not public
+            'xp_reward': 0,  # XP comes from tasks
+            'created_at': datetime.utcnow().isoformat()
+        }).execute()
+
+        if not quest.data:
+            raise ValueError("Failed to create quest")
+
+        quest_id = quest.data[0]['id']
+        logger.info(f"Created quest {quest_id} for course {spark_course_id}")
+
+    # Sync assignments as task library entries
+    # Get existing library tasks for this quest
+    existing_tasks = supabase.table('task_library')\
+        .select('id, spark_assignment_id')\
+        .eq('quest_id', quest_id)\
+        .execute()
+
+    existing_task_map = {
+        task['spark_assignment_id']: task['id']
+        for task in existing_tasks.data
+        if task.get('spark_assignment_id')
+    }
+
+    tasks_created = 0
+    tasks_updated = 0
+
+    for assignment in assignments:
+        spark_assignment_id = assignment.get('spark_assignment_id')
+        assignment_title = assignment.get('title')
+        assignment_description = assignment.get('description', '')
+
+        if not spark_assignment_id or not assignment_title:
+            logger.warning(f"Skipping assignment with missing ID or title: {assignment}")
+            continue
+
+        if spark_assignment_id in existing_task_map:
+            # Update existing task
+            task_id = existing_task_map[spark_assignment_id]
+            supabase.table('task_library')\
+                .update({
+                    'title': assignment_title,
+                    'description': assignment_description,
+                    'updated_at': datetime.utcnow().isoformat()
+                })\
+                .eq('id', task_id)\
+                .execute()
+            tasks_updated += 1
+            logger.info(f"Updated library task {task_id} for assignment {spark_assignment_id}")
+
+        else:
+            # Create new library task
+            supabase.table('task_library').insert({
+                'quest_id': quest_id,
+                'title': assignment_title,
+                'description': assignment_description,
+                'pillar': 'stem',  # Default pillar for course tasks
+                'xp_value': 100,   # Default XP, can be adjusted
+                'spark_assignment_id': spark_assignment_id,
+                'is_active': True,
+                'created_at': datetime.utcnow().isoformat()
+            }).execute()
+            tasks_created += 1
+            logger.info(f"Created library task for assignment {spark_assignment_id}")
+
+    logger.info(f"Course sync complete: quest_id={quest_id}, created={tasks_created}, updated={tasks_updated}")
+
+    return {
+        'quest_id': quest_id,
+        'task_count': tasks_created + tasks_updated
+    }
 
 
