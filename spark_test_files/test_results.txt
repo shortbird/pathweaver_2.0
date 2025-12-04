@@ -1,0 +1,30 @@
+Calculator Program Output Screenshot
+
+This screenshot shows the calculator program running successfully with the following test results:
+
+Test Case 1: Addition
+Input: 5 + 3
+Output: 8
+Status: PASS
+
+Test Case 2: Subtraction
+Input: 10 - 4
+Output: 6
+Status: PASS
+
+Test Case 3: Multiplication
+Input: 6 * 7
+Output: 42
+Status: PASS
+
+Test Case 4: Division
+Input: 15 / 3
+Output: 5.0
+Status: PASS
+
+Test Case 5: Division by Zero
+Input: 10 / 0
+Output: Error: Division by zero
+Status: PASS (correctly handled)
+
+All test cases passed successfully.

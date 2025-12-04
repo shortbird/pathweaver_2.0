@@ -27,6 +27,7 @@ from utils.session_manager import session_manager
 from services.xp_service import XPService
 from middleware.rate_limiter import rate_limit
 from middleware.activity_tracker import track_custom_event
+from routes.quest_types import get_course_tasks_for_quest
 import logging
 
 logger = logging.getLogger(__name__)

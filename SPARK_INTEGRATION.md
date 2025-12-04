@@ -64,9 +64,13 @@ The Spark integration enables seamless connectivity between Spark LMS (Learning 
 │     ↓                                                            │
 │  5. Create/update user account                                   │
 │     ↓                                                            │
-│  6. Create auth session (httpOnly cookies + URL tokens)          │
+│  6. Generate one-time authorization code (OAuth 2.0)             │
 │     ↓                                                            │
-│  7. Redirect to dashboard                                        │
+│  7. Redirect to /auth/callback?code={code}                       │
+│     ↓                                                            │
+│  8. Frontend exchanges code for access/refresh tokens            │
+│     ↓                                                            │
+│  9. Navigate to dashboard                                        │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -341,31 +345,82 @@ const signature = crypto
   .digest('hex');
 ```
 
-**Request Body:**
+**Request Body (Text-Only Submission):**
+
+For text-only submissions, use `application/json`:
+
 ```json
 {
   "spark_user_id": "user_123",              // Spark's user ID (required)
   "spark_assignment_id": "assignment_456",  // Spark's assignment ID (required)
   "spark_course_id": "course_789",          // Spark's course ID (required)
   "submission_text": "Student essay...",    // Essay/text response (required)
-  "submission_files": [                     // File attachments (optional)
-    {
-      "url": "https://spark-storage.com/temp/file.pdf?expires=...",
-      "type": "application/pdf",
-      "filename": "essay.pdf"
-    }
-  ],
   "submitted_at": "2025-01-15T14:30:00Z",  // ISO 8601 timestamp (required)
   "grade": 95.5                             // Numeric grade (optional)
 }
 ```
 
-**File URL Requirements:**
-- **Publicly accessible** - No authentication required
-- **Valid for 24+ hours** - Optio needs time to download
-- **HTTPS only** - HTTP URLs rejected for security
-- **Correct Content-Type headers** - Must match file type
-- **No redirects** - Must return file content directly
+**Request Body (With File Attachments):**
+
+For submissions with files, use `multipart/form-data`:
+
+- **Content-Type**: `multipart/form-data`
+- **metadata** field: JSON string with submission data (spark_user_id, spark_assignment_id, etc.)
+- **file1, file2, ...** fields: File attachments as binary data
+
+Example multipart structure:
+```
+POST /spark/webhook/submission HTTP/1.1
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary...
+X-Spark-Signature: abc123def456...
+
+------WebKitFormBoundary...
+Content-Disposition: form-data; name="metadata"
+
+{"spark_user_id":"user_123","spark_assignment_id":"assignment_456","spark_course_id":"course_789","submission_text":"See attached files.","submitted_at":"2025-01-15T14:30:00Z","grade":95.5}
+------WebKitFormBoundary...
+Content-Disposition: form-data; name="file1"; filename="essay.pdf"
+Content-Type: application/pdf
+
+[Binary PDF data...]
+------WebKitFormBoundary...
+Content-Disposition: form-data; name="file2"; filename="code.py"
+Content-Type: text/plain
+
+[Python code content...]
+------WebKitFormBoundary...--
+```
+
+**File Upload Constraints:**
+- 50MB per file maximum
+- 200MB total upload size per submission
+- Allowed MIME types:
+  - Images: image/jpeg, image/png, image/gif, image/webp
+  - Videos: video/mp4, video/quicktime, video/x-msvideo
+  - Documents: application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, text/plain
+
+**Signature Calculation for Multipart Requests:**
+
+IMPORTANT: Sign the **metadata JSON string only**, not the entire multipart body.
+
+```javascript
+const crypto = require('crypto');
+
+const metadata = {
+  spark_user_id: "user_123",
+  spark_assignment_id: "assignment_456",
+  // ... other fields
+};
+
+const metadataJson = JSON.stringify(metadata);
+
+const signature = crypto
+  .createHmac('sha256', WEBHOOK_SECRET)
+  .update(metadataJson)  // Sign metadata only, not files
+  .digest('hex');
+
+// Include signature in X-Spark-Signature header
+```
 
 **Success Response:**
 ```json
@@ -457,9 +512,18 @@ const signature = crypto
 - Trusted identity from Spark platform
 
 **Session Management:**
-- httpOnly cookies for CSRF protection
-- Access tokens in URL (for cross-origin scenarios where cookies may be blocked)
-- Refresh tokens for long-lived sessions
+- OAuth 2.0 authorization code flow (industry standard for SSO)
+- One-time authorization codes (60-second expiry, single-use)
+- Tokens returned in response body AND httpOnly cookies (cross-origin support)
+- Access tokens for API authentication (1-hour expiry)
+- Refresh tokens for session renewal (30-day expiry)
+
+**Implementation Details:**
+The backend returns tokens in BOTH response body and httpOnly cookies:
+- Response body tokens: Used by frontend for API requests (Authorization header)
+- httpOnly cookies: Fallback for same-origin deployments
+- Frontend stores tokens using tokenStore.setTokens() for persistence
+- This matches the regular /api/auth/login authentication pattern
 
 ### HMAC Webhook Signatures
 

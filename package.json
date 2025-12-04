@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "@supabase/supabase-js": "^2.79.0",
+    "form-data": "^4.0.5",
     "jsonwebtoken": "^9.0.2"
   }
 }
