@@ -172,7 +172,7 @@ const SubjectReviewPage = () => {
 
     try {
       const response = await api.post('/api/admin/subject-backfill/all', {
-        batch_size: 50
+        batch_size: 1000
       });
 
       if (response.data.success) {
