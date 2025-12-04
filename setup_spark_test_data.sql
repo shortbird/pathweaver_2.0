@@ -1,4 +1,4 @@
--- SPARK Integration Test Data Setup
+- SPARK Integration Test Data Setup
 -- Run this via Supabase SQL Editor or MCP execute_sql
 -- Creates test quest and tasks for Spark webhook testing
 

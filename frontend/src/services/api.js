@@ -10,31 +10,68 @@ const api = axios.create({
   withCredentials: true,
 })
 
-// ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY - no token storage
-// Authentication tokens are NEVER stored in localStorage or memory (XSS prevention)
-// All authentication handled via secure httpOnly cookies set by backend
-// This is the ONLY secure authentication method - tokens never exposed to JavaScript
+// ✅ HYBRID AUTHENTICATION (January 2025): httpOnly cookies + token storage for SSO
+// - Regular login: httpOnly cookies only (most secure, works same-origin)
+// - SPARK SSO: Tokens in localStorage + Authorization header (needed for cross-origin)
+// - Both methods set httpOnly cookies as fallback
+// - Frontend tries token storage first, then falls back to cookies
 
-// Export token storage interface for backward compatibility (now no-ops)
+// In-memory token storage (survives page navigation but not refresh)
+let accessToken = null
+let refreshToken = null
+
+// Export token storage interface
 export const tokenStore = {
-  // No-op: Tokens are in httpOnly cookies, not accessible to JavaScript
+  // Restore tokens from localStorage (for SSO flow that survives page refresh)
   restoreTokens: () => {
-    console.log('[TokenStore] Using httpOnly cookies - no token restoration needed')
+    try {
+      const storedAccess = localStorage.getItem('access_token')
+      const storedRefresh = localStorage.getItem('refresh_token')
+
+      if (storedAccess && storedRefresh) {
+        accessToken = storedAccess
+        refreshToken = storedRefresh
+        console.log('[TokenStore] Tokens restored from localStorage')
+        return true
+      }
+    } catch (error) {
+      console.error('[TokenStore] Failed to restore tokens:', error)
+    }
     return false
   },
 
-  // No-op: Backend sets httpOnly cookies automatically
+  // Store tokens in memory and localStorage (for SSO cross-origin support)
   setTokens: (access, refresh) => {
-    console.log('[TokenStore] Using httpOnly cookies - tokens set by backend')
+    accessToken = access
+    refreshToken = refresh
+
+    // Also store in localStorage for page refresh persistence
+    try {
+      localStorage.setItem('access_token', access)
+      localStorage.setItem('refresh_token', refresh)
+      console.log('[TokenStore] Tokens stored in memory and localStorage')
+    } catch (error) {
+      console.error('[TokenStore] Failed to store tokens in localStorage:', error)
+    }
   },
 
-  // No-op: Tokens are in httpOnly cookies, not accessible to JavaScript
-  getAccessToken: () => null,
-  getRefreshToken: () => null,
+  // Get access token from memory
+  getAccessToken: () => accessToken,
 
-  // No-op: Backend clears httpOnly cookies on logout
+  // Get refresh token from memory
+  getRefreshToken: () => refreshToken,
+
+  // Clear tokens from memory and localStorage
   clearTokens: () => {
-    console.log('[TokenStore] Using httpOnly cookies - cleared by backend')
+    accessToken = null
+    refreshToken = null
+    try {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      console.log('[TokenStore] Tokens cleared from memory and localStorage')
+    } catch (error) {
+      console.error('[TokenStore] Failed to clear tokens from localStorage:', error)
+    }
   }
 }
 
@@ -49,16 +86,19 @@ export const getAuthHeaders = () => {
 /**
  * Request Interceptor
  *
- * ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY
- * - Authentication tokens sent automatically via httpOnly cookies (withCredentials: true)
- * - NO Authorization header (tokens never accessible to JavaScript)
+ * ✅ HYBRID AUTHENTICATION (January 2025): httpOnly cookies + token storage
+ * - If tokens exist in memory (SPARK SSO): Add Authorization header
+ * - Otherwise: Use httpOnly cookies (regular login)
  * - CSRF token added for state-changing requests
  */
 api.interceptors.request.use(
   (config) => {
-    // ✅ SECURITY: Authentication via httpOnly cookies ONLY
-    // No Authorization header - backend reads tokens from secure cookies
-    // This prevents XSS token theft
+    // ✅ HYBRID AUTH: Use Authorization header if tokens available (SSO flow)
+    // Otherwise rely on httpOnly cookies (regular login)
+    const token = tokenStore.getAccessToken()
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`
+    }
 
     // Add CSRF token for state-changing requests
     if (['post', 'put', 'delete', 'patch'].includes(config.method?.toLowerCase())) {

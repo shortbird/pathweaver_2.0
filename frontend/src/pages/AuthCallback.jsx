@@ -68,7 +68,7 @@ export default function AuthCallback() {
 
         // ✅ CROSS-ORIGIN FIX: Store tokens from response body
         // httpOnly cookies don't work cross-origin, so backend returns tokens in body
-        // This matches the regular login flow
+        // Tokens are stored in localStorage and added to Authorization header
         if (app_access_token && app_refresh_token) {
           tokenStore.setTokens(app_access_token, app_refresh_token)
           console.log('[SPARK SSO] Tokens stored in tokenStore and localStorage')
@@ -76,62 +76,13 @@ export default function AuthCallback() {
           console.warn('[SPARK SSO] No tokens in response body - relying on httpOnly cookies')
         }
 
-        // ✅ CRITICAL FIX: Fetch user data immediately and update React Query cache
-        // This ensures AuthContext sees the authenticated state before navigation
-        console.log('[SPARK SSO] Fetching user data from /api/auth/me...')
-
-        try {
-          const userResponse = await api.get('/api/auth/me')
-          console.log('[SPARK SSO] User data fetched successfully:', userResponse.data.id)
-
-          if (userResponse.data) {
-            // Update React Query cache with user data
-            queryClient.setQueryData(queryKeys.user.profile('current'), userResponse.data)
-            console.log('[SPARK SSO] Cache updated with user data')
-
-            // Invalidate queries to force refetch and propagate changes
-            await queryClient.invalidateQueries(queryKeys.user.profile('current'))
-            console.log('[SPARK SSO] Cache invalidated to trigger AuthContext update')
-          }
-        } catch (err) {
-          console.error('[SPARK SSO] Failed to fetch user data:', err.response?.status, err.response?.data)
-          throw new Error('Failed to fetch user profile after authentication')
-        }
-
-        // ✅ NEW: Verify cache has propagated before navigation
-        // Replace hard-coded delay with cache verification loop
-        console.log('[SPARK SSO] Verifying cache propagation...')
-        const maxAttempts = 20 // 20 attempts × 100ms = 2 second timeout
-        let attempts = 0
-        let cacheVerified = false
-
-        while (attempts < maxAttempts && !cacheVerified) {
-          const cachedUser = queryClient.getQueryData(queryKeys.user.profile('current'))
-          console.log(`[SPARK SSO] Cache verification attempt ${attempts + 1}/${maxAttempts}:`, {
-            hasCachedUser: !!cachedUser,
-            cachedUserId: cachedUser?.id,
-            expectedUserId: user_id
-          })
-
-          if (cachedUser && cachedUser.id === user_id) {
-            cacheVerified = true
-            console.log('[SPARK SSO] Cache verified successfully!')
-            break
-          }
-
-          await new Promise(resolve => setTimeout(resolve, 100))
-          attempts++
-        }
-
-        if (!cacheVerified) {
-          console.warn('[SPARK SSO] Cache verification timeout - proceeding anyway')
-        }
-
         setStatus('success')
 
-        // Navigate immediately since cache is verified
-        console.log('[SPARK SSO] Cache verified, navigating to /dashboard now')
-        navigate('/dashboard?sso_pending=true', { replace: true })
+        // Force full page reload to /dashboard
+        // This ensures AuthContext runs checkSession() with the newly stored tokens
+        // and prevents the brief login page flash from PrivateRoute race condition
+        console.log('[SPARK SSO] Token exchange complete, redirecting to /dashboard with full reload')
+        window.location.href = '/dashboard'
       } catch (err) {
         console.error('Token exchange failed:', err)
         setError(err.response?.data?.error || 'Authentication failed')
