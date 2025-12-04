@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { flushSync } from 'react-dom';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuestDetail, useEnrollQuest, useCompleteTask, useEndQuest } from '../hooks/api/useQuests';
@@ -23,6 +23,7 @@ import toast from 'react-hot-toast';
 const QuestDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -59,6 +60,24 @@ const QuestDetail = () => {
   const [droppingTaskId, setDroppingTaskId] = useState(null);
   const [displayMode, setDisplayMode] = useState('flexible'); // 'timeline' or 'flexible'
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
+
+  // Handle navigation from task library - refetch data when tasks were added
+  useEffect(() => {
+    if (location.state?.tasksAdded) {
+      console.log('[QUEST_DETAIL] Returning from task library, refetching quest data');
+      // Invalidate and refetch to get fresh data
+      queryClient.invalidateQueries(queryKeys.quests.detail(id));
+      refetchQuest();
+
+      // Clear the navigation state to prevent repeated refetches
+      navigate(location.pathname, { replace: true, state: {} });
+
+      // Show success message if tasks were added
+      if (location.state?.addedCount > 0) {
+        toast.success(`${location.state.addedCount} task${location.state.addedCount > 1 ? 's' : ''} added successfully!`);
+      }
+    }
+  }, [location.state, id, queryClient, refetchQuest, navigate, location.pathname]);
 
   // Auto-select first task when quest loads
   useEffect(() => {
