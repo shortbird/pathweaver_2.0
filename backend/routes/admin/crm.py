@@ -549,8 +549,9 @@ def preview_template(user_id, template_key):
     try:
         data = request.get_json() or {}
 
-        # Define comprehensive default sample data to match _prepare_user_variables()
+        # Define comprehensive default sample data to match _prepare_user_variables() + custom templates
         default_sample_data = {
+            # Student variables
             'user_name': 'Jane Student',
             'first_name': 'Jane',
             'last_name': 'Student',
@@ -558,16 +559,27 @@ def preview_template(user_id, template_key):
             'total_xp': 1250,
             'level': 5,
             'streak_days': 7,
+            # Quest variables
             'quest_title': 'Introduction to Python',
             'xp_earned': 500,
+            # Auth variables
             'confirmation_link': 'https://www.optioeducation.com/confirm/abc123',
             'reset_link': 'https://www.optioeducation.com/reset/abc123',
             'expiry_hours': 24,
+            # URL variables
             'dashboard_url': 'https://www.optioeducation.com/dashboard',
             'quests_url': 'https://www.optioeducation.com/quests',
             'profile_url': 'https://www.optioeducation.com/profile',
             'tutor_url': 'https://www.optioeducation.com/tutor',
-            'connections_url': 'https://www.optioeducation.com/connections'
+            'connections_url': 'https://www.optioeducation.com/connections',
+            # Parent/promo variables (for promo_welcome and parent emails)
+            'parent_name': 'Sarah Johnson',
+            'teen_age_text': ' (age 15)',
+            'activity_text': " We're excited to hear about your interest in homeschooling.",
+            'current_curriculum': 'Time4Learning',
+            'phone': '(555) 123-4567',
+            'goals': 'Prepare for college while maintaining flexibility',
+            'child_name': 'Alex Johnson'
         }
 
         # Merge user-provided sample_data with defaults (user data takes priority)
