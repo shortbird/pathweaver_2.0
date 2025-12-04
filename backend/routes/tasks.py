@@ -376,7 +376,7 @@ def complete_task(user_id: str, task_id: str):
             'xp_awarded': final_xp,
             'has_collaboration_bonus': has_collaboration,
             'quest_completed': quest_completed,
-            'completion': completion.data[0]
+            'completion': completion_data
         })
 
     except Exception as e:
