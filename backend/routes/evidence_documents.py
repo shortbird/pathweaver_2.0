@@ -188,10 +188,12 @@ def save_evidence_document(user_id: str, task_id: str):
             if status == 'completed':
                 update_data['completed_at'] = datetime.utcnow().isoformat()
 
-            admin_supabase.table('user_task_evidence_documents')\
+            update_result = admin_supabase.table('user_task_evidence_documents')\
                 .update(update_data)\
                 .eq('id', document_id)\
                 .execute()
+
+            logger.info(f"[EVIDENCE_DOC] Document status updated: document_id={document_id[:8]}, status='{status}', updated={bool(update_result.data)}")
         else:
             # Create new document with conflict handling
             try:
@@ -249,12 +251,14 @@ def save_evidence_document(user_id: str, task_id: str):
 
             # Check if this task was already completed (V3 system)
             existing_completion = admin_supabase.table('quest_task_completions')\
-                .select('id')\
+                .select('id, user_quest_task_id')\
                 .eq('user_id', user_id)\
                 .eq('task_id', task_id)\
                 .execute()
 
             logger.info(f"[EVIDENCE_DOC] Existing completion check: found={len(existing_completion.data or [])} records")
+            if existing_completion.data:
+                logger.info(f"[EVIDENCE_DOC] Existing completion record(s): {[(c.get('id', 'unknown')[:8], c.get('user_quest_task_id', 'NULL')[:8] if c.get('user_quest_task_id') else 'NULL') for c in existing_completion.data]}")
 
             if not existing_completion.data:
                 # Award XP for task completion
@@ -262,6 +266,7 @@ def save_evidence_document(user_id: str, task_id: str):
                 base_xp = task_data.get('xp_value', 0)
 
                 logger.info(f"[EVIDENCE_DOC] Creating new completion record: task_id={task_id[:8]}, base_xp={base_xp}")
+                logger.info(f"[EVIDENCE_DOC] Completion record will have: user_id={user_id[:8]}, quest_id={quest_id[:8]}, task_id={task_id[:8]}, user_quest_task_id={task_id[:8]}")
 
                 # Calculate XP with collaboration bonus if applicable
                 final_xp, has_collaboration = xp_service.calculate_task_xp(
