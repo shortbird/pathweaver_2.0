@@ -271,13 +271,17 @@ def save_evidence_document(user_id: str, task_id: str):
                 logger.info(f"[EVIDENCE_DOC] XP calculated: final_xp={final_xp}, has_collaboration={has_collaboration}")
 
                 # Create task completion record using V3 system
+                # NOTE: In quest_task_completions table:
+                # - task_id: References user_quest_tasks.id (the user's specific task instance)
+                # - user_quest_task_id: Also references user_quest_tasks.id (for backward compatibility)
+                # The quest detail endpoint checks `user_quest_task_id` field to mark tasks as completed
                 try:
                     completion = admin_supabase.table('quest_task_completions')\
                         .insert({
                             'user_id': user_id,
                             'quest_id': quest_id,
-                            'task_id': task_id,
-                            'user_quest_task_id': task_id,  # In V3, task_id IS the user_quest_task_id
+                            'task_id': task_id,  # This is user_quest_tasks.id
+                            'user_quest_task_id': task_id,  # Must match task_id for completion check to work
                             'evidence_text': f'Multi-format evidence document (Document ID: {document_id})',
                             'completed_at': datetime.utcnow().isoformat()
                         })\
