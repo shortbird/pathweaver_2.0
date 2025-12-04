@@ -268,7 +268,8 @@ class CRMService(BaseService):
                             to_email=user['email'],
                             subject=rendered['subject'],
                             html_body=rendered['html_body'],
-                            text_body=rendered.get('text_body')
+                            text_body=rendered.get('text_body'),
+                            sender_name_override=rendered.get('sender_name')
                         )
 
                         # Log send result

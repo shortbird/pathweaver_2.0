@@ -46,7 +46,8 @@ class EmailService(BaseService):
         html_body: str,
         text_body: Optional[str] = None,
         cc: Optional[List[str]] = None,
-        bcc: Optional[List[str]] = None
+        bcc: Optional[List[str]] = None,
+        sender_name_override: Optional[str] = None
     ) -> bool:
         """
         Send an email using configured SMTP settings
@@ -65,7 +66,9 @@ class EmailService(BaseService):
         try:
             # Create message
             msg = MIMEMultipart('alternative')
-            msg['From'] = f"{self.sender_name} <{self.sender_email}>"
+            # Use sender_name_override if provided, otherwise use default
+            sender_display_name = sender_name_override if sender_name_override else self.sender_name
+            msg['From'] = f"{sender_display_name} <{self.sender_email}>"
             msg['To'] = to_email
             msg['Subject'] = subject
 
@@ -169,9 +172,18 @@ class EmailService(BaseService):
             html_body = rendered['html_body']
             text_body = rendered['text_body']
             final_subject = rendered['subject']
+            sender_name = rendered.get('sender_name')  # Get sender_name if it exists
 
-            # Send email
-            return self.send_email(to_email, final_subject, html_body, text_body, cc, bcc)
+            # Send email with sender_name override if provided
+            return self.send_email(
+                to_email,
+                final_subject,
+                html_body,
+                text_body,
+                cc,
+                bcc,
+                sender_name_override=sender_name
+            )
 
         except TemplateNotFound as e:
             logger.error(f"Template not found: {template_name} - {str(e)}")
@@ -195,7 +207,7 @@ class EmailService(BaseService):
             variables: Variable values for substitution
 
         Returns:
-            Dictionary with 'subject', 'html_body', 'text_body'
+            Dictionary with 'subject', 'html_body', 'text_body', 'sender_name'
         """
         from jinja2 import Template
 
@@ -208,17 +220,26 @@ class EmailService(BaseService):
             # Get template data
             template_data = template.get('data', {})
 
+            # Extract sender_name from template_data (if provided)
+            sender_name = template_data.get('sender_name')
+
             # Render with generic wrapper
             rendered_html = self._render_with_generic_wrapper(template_data, variables, rendered_subject)
 
             # Generate plain text version
             text_body = self._html_to_text(rendered_html)
 
-            return {
+            result = {
                 'subject': rendered_subject,
                 'html_body': rendered_html,
                 'text_body': text_body
             }
+
+            # Add sender_name if it exists in template
+            if sender_name:
+                result['sender_name'] = sender_name
+
+            return result
 
         except Exception as e:
             logger.error(f"Error rendering email template: {e}")

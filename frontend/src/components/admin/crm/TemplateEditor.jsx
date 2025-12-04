@@ -10,6 +10,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
   const [markdownContent, setMarkdownContent] = useState('')
   const [ctaText, setCtaText] = useState('')
   const [ctaUrl, setCtaUrl] = useState('')
+  const [senderName, setSenderName] = useState('Optio Support')
   const [signature, setSignature] = useState('tanner')
   const [variables, setVariables] = useState([])
   const [sampleData, setSampleData] = useState({})
@@ -103,6 +104,11 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
         setCtaUrl(data.cta.url || '')
       }
 
+      // Sender Name
+      if (data.sender_name) {
+        setSenderName(data.sender_name)
+      }
+
       // Signature
       if (data.signature) {
         setSignature(data.signature)
@@ -127,7 +133,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       return () => clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markdownContent, subject, ctaText, ctaUrl, signature, sampleData, autoPreview, templateKey])
+  }, [markdownContent, subject, ctaText, ctaUrl, senderName, signature, sampleData, autoPreview, templateKey])
 
   const handlePreview = async () => {
     if (!templateKey) return
@@ -180,6 +186,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       paragraphs: [],
       closing_paragraphs: [],
       cta: {},
+      sender_name: senderName,
       signature
     }
 
@@ -480,6 +487,20 @@ Looking forward to connecting!"
             </div>
 
             <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Sender Name (Email Preview)</label>
+              <select
+                value={senderName}
+                onChange={(e) => setSenderName(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple"
+              >
+                <option value="Optio Support">Optio Support</option>
+                <option value="Tanner with Optio">Tanner with Optio</option>
+                <option value="The Optio Team">The Optio Team</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">This is the name shown in the email "From" field</p>
+            </div>
+
+            <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Signature</label>
               <select
                 value={signature}
@@ -490,6 +511,7 @@ Looking forward to connecting!"
                 <option value="support">Optio Support</option>
                 <option value="team">The Optio Team</option>
               </select>
+              <p className="text-xs text-gray-500 mt-1">This is the signature at the bottom of the email</p>
             </div>
 
             {/* Variables detected */}
