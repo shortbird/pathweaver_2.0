@@ -949,7 +949,7 @@ def end_quest(user_id: str, quest_id: str):
     """
     try:
         # Use user client - user-specific quest enrollment operation
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()
 
         # Check if user is enrolled in this quest (allow both active and completed)
         # Quest might already be auto-completed when last task was submitted

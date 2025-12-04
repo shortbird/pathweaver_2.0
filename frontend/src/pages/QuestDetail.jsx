@@ -157,6 +157,8 @@ const QuestDetail = () => {
 
   const handlePersonalizationComplete = async () => {
     setShowPersonalizationWizard(false);
+    // Invalidate cache to force fresh data
+    queryClient.invalidateQueries(queryKeys.quests.detail(id));
     await refetchQuest(); // Reload quest with personalized tasks
     toast.success('Quest personalized successfully!');
   };
@@ -207,8 +209,8 @@ const QuestDetail = () => {
 
   const handleAddMoreTasks = () => {
     setShowQuestCompletionCelebration(false);
-    // Scroll to task library or show task creation UI
-    toast.success('You can add more tasks from the task library below');
+    // Immediately open personalization wizard to add more tasks
+    setShowPersonalizationWizard(true);
   };
 
   const handleFinishQuestFromCelebration = () => {
@@ -941,7 +943,11 @@ const QuestDetail = () => {
         <QuestCompletionCelebration
           quest={quest}
           completedTasksCount={quest.progress?.completed_tasks || 0}
-          totalXP={quest.progress?.total_xp || 0}
+          totalXP={
+            quest.quest_tasks
+              ?.filter(task => task.is_completed)
+              .reduce((sum, task) => sum + (task.xp_value || 0), 0) || 0
+          }
           onAddMoreTasks={handleAddMoreTasks}
           onFinishQuest={handleFinishQuestFromCelebration}
           onClose={() => setShowQuestCompletionCelebration(false)}

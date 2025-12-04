@@ -147,7 +147,7 @@ def confirm_imscc_import(user_id):
             'quest_type': quest_data.get('quest_type', 'course'),
             'lms_platform': quest_data.get('lms_platform'),
             'lms_course_id': quest_data.get('lms_course_id'),
-            'cover_image': quest_data.get('cover_image'),
+            'image_url': quest_data.get('cover_image'),  # Frontend uses 'cover_image', DB uses 'image_url'
             'is_active': quest_data.get('is_active', False),
             'is_public': quest_data.get('is_public', False),
             'metadata': quest_data.get('metadata', {})
