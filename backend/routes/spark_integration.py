@@ -1159,7 +1159,7 @@ def process_spark_course_sync(
     tasks_created = 0
     tasks_updated = 0
 
-    for assignment in assignments:
+    for index, assignment in enumerate(assignments):
         spark_assignment_id = assignment.get('spark_assignment_id')
         assignment_title = assignment.get('title')
         assignment_description = assignment.get('description', '')
@@ -1175,6 +1175,7 @@ def process_spark_course_sync(
                 .update({
                     'title': assignment_title,
                     'description': assignment_description,
+                    'order_index': index,
                     'updated_at': datetime.utcnow().isoformat()
                 })\
                 .eq('id', task_id)\
@@ -1191,6 +1192,7 @@ def process_spark_course_sync(
                 'pillar': 'stem',  # Default pillar for course tasks
                 'xp_value': 100,   # Default XP, can be adjusted
                 'spark_assignment_id': spark_assignment_id,
+                'order_index': index,
                 'created_at': datetime.utcnow().isoformat()
             }).execute()
             tasks_created += 1
