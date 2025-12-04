@@ -13,6 +13,7 @@ import UserActivityLogPage from './admin/UserActivityLogPage'
 import SparkLogsPanel from '../components/admin/SparkLogsPanel'
 import CRMPage from './CRMPage'
 import CourseImport from '../components/admin/CourseImport'
+import SubjectReviewPage from './admin/SubjectReviewPage'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -93,6 +94,12 @@ const AdminPage = () => {
             >
               Course Import
             </Link>
+            <Link
+              to="/admin/subject-review"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'subject-review' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Subject Review
+            </Link>
           </>
         )}
 
@@ -120,6 +127,7 @@ const AdminPage = () => {
         <Route path="lms-logs" element={<SparkLogsPanel />} />
         <Route path="crm" element={<CRMPage />} />
         <Route path="course-import" element={<CourseImport />} />
+        <Route path="subject-review" element={<SubjectReviewPage />} />
       </Routes>
     </div>
   )

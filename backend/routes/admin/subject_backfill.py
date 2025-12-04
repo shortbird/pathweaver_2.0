@@ -189,3 +189,184 @@ def get_backfill_stats(user_id: str):
             'success': False,
             'error': str(e)
         }), 500
+
+
+@bp.route('/tasks', methods=['GET'])
+@require_auth
+@require_admin
+def list_tasks_for_review(user_id: str):
+    """
+    Get paginated list of tasks for subject distribution review.
+
+    GET /api/admin/subject-backfill/tasks?status=unclassified&limit=20&offset=0
+
+    Query params:
+    - status: 'unclassified', 'classified', or 'all' (default: unclassified)
+    - limit: Number of tasks per page (default: 20, max: 100)
+    - offset: Number of tasks to skip (default: 0)
+    """
+    try:
+        admin_supabase = get_supabase_admin_client()
+
+        status = request.args.get('status', 'unclassified')
+        limit = min(int(request.args.get('limit', 20)), 100)
+        offset = int(request.args.get('offset', 0))
+
+        # Build query
+        query = admin_supabase.table('user_quest_tasks')\
+            .select('id, title, description, pillar, xp_value, subject_xp_distribution, created_at', count='exact')
+
+        if status == 'unclassified':
+            query = query.is_('subject_xp_distribution', 'null')
+        elif status == 'classified':
+            query = query.not_.is_('subject_xp_distribution', 'null')
+
+        # Execute with pagination
+        result = query.order('created_at', desc=True)\
+            .range(offset, offset + limit - 1)\
+            .execute()
+
+        return jsonify({
+            'success': True,
+            'tasks': result.data,
+            'total': result.count,
+            'limit': limit,
+            'offset': offset
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error listing tasks for review: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@bp.route('/task/<task_id>/distribution', methods=['PUT'])
+@require_auth
+@require_admin
+def update_task_distribution(user_id: str, task_id: str):
+    """
+    Update the subject XP distribution for a task.
+
+    PUT /api/admin/subject-backfill/task/<task_id>/distribution
+    Body: { "subject_xp_distribution": {"math": 50, "science": 50} }
+    """
+    try:
+        data = request.get_json()
+        if not data or 'subject_xp_distribution' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'subject_xp_distribution is required'
+            }), 400
+
+        subject_distribution = data['subject_xp_distribution']
+
+        # Validate it's a dictionary
+        if not isinstance(subject_distribution, dict):
+            return jsonify({
+                'success': False,
+                'error': 'subject_xp_distribution must be an object'
+            }), 400
+
+        # Get task to validate XP sum
+        admin_supabase = get_supabase_admin_client()
+        task = admin_supabase.table('user_quest_tasks')\
+            .select('xp_value')\
+            .eq('id', task_id)\
+            .single()\
+            .execute()
+
+        if not task.data:
+            return jsonify({
+                'success': False,
+                'error': 'Task not found'
+            }), 404
+
+        expected_total = task.data.get('xp_value', 100)
+
+        # Validate XP sum
+        actual_total = sum(subject_distribution.values())
+        if actual_total != expected_total:
+            return jsonify({
+                'success': False,
+                'error': f'Subject XP must sum to {expected_total}, got {actual_total}'
+            }), 400
+
+        # Update task
+        result = admin_supabase.table('user_quest_tasks')\
+            .update({'subject_xp_distribution': subject_distribution})\
+            .eq('id', task_id)\
+            .execute()
+
+        return jsonify({
+            'success': True,
+            'task': result.data[0] if result.data else None,
+            'message': 'Subject distribution updated successfully'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error updating task distribution: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@bp.route('/task/<task_id>/regenerate', methods=['POST'])
+@require_auth
+@require_admin
+def regenerate_task_distribution(user_id: str, task_id: str):
+    """
+    Regenerate the subject XP distribution for a task using AI.
+
+    POST /api/admin/subject-backfill/task/<task_id>/regenerate
+    """
+    try:
+        admin_supabase = get_supabase_admin_client()
+
+        # Get task details
+        task = admin_supabase.table('user_quest_tasks')\
+            .select('id, title, description, pillar, xp_value')\
+            .eq('id', task_id)\
+            .single()\
+            .execute()
+
+        if not task.data:
+            return jsonify({
+                'success': False,
+                'error': 'Task not found'
+            }), 404
+
+        task_data = task.data
+
+        # Regenerate classification
+        from services.subject_classification_service import SubjectClassificationService
+        service = SubjectClassificationService(client=admin_supabase)
+
+        subject_distribution = service.classify_task_subjects(
+            task_data['title'],
+            task_data.get('description', ''),
+            task_data['pillar'],
+            task_data.get('xp_value', 100)
+        )
+
+        # Update task
+        result = admin_supabase.table('user_quest_tasks')\
+            .update({'subject_xp_distribution': subject_distribution})\
+            .eq('id', task_id)\
+            .execute()
+
+        return jsonify({
+            'success': True,
+            'task': result.data[0] if result.data else None,
+            'distribution': subject_distribution,
+            'message': 'Subject distribution regenerated successfully'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error regenerating task distribution: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
