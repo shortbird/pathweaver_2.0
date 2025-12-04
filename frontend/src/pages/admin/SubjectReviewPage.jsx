@@ -42,6 +42,8 @@ const SubjectReviewPage = () => {
   const [editingTask, setEditingTask] = useState(null);
   const [editDistribution, setEditDistribution] = useState({});
   const [processingTasks, setProcessingTasks] = useState(new Set());
+  const [bulkGenerating, setBulkGenerating] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(null);
 
   const TASKS_PER_PAGE = 20;
 
@@ -160,6 +162,35 @@ const SubjectReviewPage = () => {
     });
   };
 
+  const handleBulkGenerate = async () => {
+    if (!confirm(`Generate AI classifications for ${stats?.without_distribution || 0} unclassified tasks? This may take several minutes.`)) {
+      return;
+    }
+
+    setBulkGenerating(true);
+    setBulkProgress({ processed: 0, total: stats?.without_distribution || 0 });
+
+    try {
+      const response = await api.post('/api/admin/subject-backfill/all', {
+        batch_size: 50
+      });
+
+      if (response.data.success) {
+        alert(`Bulk generation complete!\n\nSuccess: ${response.data.stats.success}\nFailed: ${response.data.stats.failed}\nTotal: ${response.data.stats.total}`);
+        fetchStats();
+        fetchTasks();
+      } else {
+        alert('Bulk generation failed: ' + response.data.error);
+      }
+    } catch (error) {
+      console.error('Error in bulk generation:', error);
+      alert('Failed to run bulk generation: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setBulkGenerating(false);
+      setBulkProgress(null);
+    }
+  };
+
   const totalPages = Math.ceil(totalTasks / TASKS_PER_PAGE);
 
   const getDistributionTotal = (dist) => {
@@ -184,7 +215,18 @@ const SubjectReviewPage = () => {
 
         {stats && (
           <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-            <h2 className="text-lg font-semibold mb-4">Classification Progress</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold">Classification Progress</h2>
+              {stats.without_distribution > 0 && (
+                <Button
+                  onClick={handleBulkGenerate}
+                  disabled={bulkGenerating}
+                  variant="primary"
+                >
+                  {bulkGenerating ? 'Generating...' : `Generate All ${stats.without_distribution} Unclassified`}
+                </Button>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <div className="text-2xl font-bold text-gray-900">{stats.total_tasks}</div>
@@ -203,6 +245,16 @@ const SubjectReviewPage = () => {
                 <div className="text-sm text-gray-600">Complete</div>
               </div>
             </div>
+            {bulkGenerating && (
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-optio-purple"></div>
+                  <div className="text-sm text-gray-700">
+                    Generating AI classifications... This may take several minutes for large datasets.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
