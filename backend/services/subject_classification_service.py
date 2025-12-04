@@ -305,8 +305,9 @@ Now classify the task above. Return ONLY the JSON object."""
 
             task_data = task.data
 
-            # Skip if already has subject distribution
-            if task_data.get('subject_xp_distribution'):
+            # Skip if already has subject distribution (not null and not empty object)
+            subject_dist = task_data.get('subject_xp_distribution')
+            if subject_dist and subject_dist != {}:
                 logger.info(f"Task {task_id} already has subject distribution")
                 return True
 
@@ -353,9 +354,10 @@ Now classify the task above. Return ONLY the JSON object."""
             offset = 0
 
             while True:
+                # Query for tasks with null OR empty object subject_xp_distribution
                 tasks = self.supabase.table('user_quest_tasks')\
                     .select('id, title, description, pillar, xp_value, subject_xp_distribution')\
-                    .is_('subject_xp_distribution', 'null')\
+                    .or_('subject_xp_distribution.is.null,subject_xp_distribution.eq.{}')\
                     .range(offset, offset + batch_size - 1)\
                     .execute()
 
