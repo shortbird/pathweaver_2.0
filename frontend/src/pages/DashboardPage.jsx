@@ -13,8 +13,11 @@ import {
 
 // Memoized component for Active Quests section
 const ActiveQuests = memo(({ activeQuests, completedQuestsCount = 0 }) => {
-  // Filter out completed and ended quests, but include all for compact view
-  const allQuests = activeQuests || []
+  // Filter out completed and ended quests (is_active=false or completed_at exists)
+  const allQuests = (activeQuests || []).filter(quest => {
+    // Keep quests that are active (not completed)
+    return quest.is_active !== false && !quest.completed_at;
+  });
 
   if (allQuests.length === 0) {
     const isFirstQuest = completedQuestsCount === 0;

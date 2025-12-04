@@ -46,23 +46,45 @@ export default function TaskLibraryBrowser() {
       }
 
       try {
-        // Find the user task ID by matching the sample task
+        // Find the sample task to get its title
         const libraryTask = libraryTasks.find(t => t.id === taskId);
         if (!libraryTask) {
-          toast.error('Task not found');
+          toast.error('Task not found in library');
+          console.error('Library task not found:', taskId);
           return;
         }
 
-        // Get all user tasks for this quest to find the matching one
+        console.log('Attempting to remove task:', {
+          sampleTaskId: taskId,
+          title: libraryTask.title
+        });
+
+        // Get fresh quest data to find the user task
         const questResponse = await api.get(`/api/quests/${questId}`);
+        console.log('Quest tasks:', questResponse.data.quest_tasks?.map(t => ({
+          id: t.id,
+          title: t.title
+        })));
+
         const userTask = questResponse.data.quest_tasks?.find(
           t => t.title === libraryTask.title
         );
 
         if (!userTask) {
-          toast.error('Task not found in your quest');
+          console.error('User task not found. Looking for title:', libraryTask.title);
+          console.error('Available tasks:', questResponse.data.quest_tasks?.map(t => t.title));
+          toast.error('Task not found in your quest. It may have already been removed.');
+
+          // Remove from local state anyway since it's not in the quest
+          setAddedTasks(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(taskId);
+            return newSet;
+          });
           return;
         }
+
+        console.log('Deleting user task:', userTask.id);
 
         // Delete the task
         await api.delete(`/api/tasks/${userTask.id}`);

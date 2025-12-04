@@ -167,7 +167,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
               className="flex-1 !bg-gradient-to-r !from-amber-600 !to-yellow-500 hover:!from-amber-700 hover:!to-yellow-600 !min-h-[48px] touch-manipulation"
               onClick={(e) => {
                 e.stopPropagation();
-                navigate('/diploma');
+                navigate(`/diploma/${user?.id || ''}`);
               }}
             >
               <CheckCircle className="w-4 h-4 mr-2 flex-shrink-0" />

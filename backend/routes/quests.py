@@ -1024,14 +1024,16 @@ def end_quest(user_id: str, quest_id: str):
             })
 
         # If not already inactive, mark it as such
-        
+
         user_quest_id = enrollment.data[0]['id']
-        
-        # Mark the quest as inactive (ended) but keep all data
-        # Note: There's no ended_at column in the database, just use is_active flag
+
+        # Mark the quest as inactive (ended) and set completed_at timestamp
+        from datetime import datetime
         result = supabase.table('user_quests')\
             .update({
-                'is_active': False
+                'is_active': False,
+                'completed_at': datetime.utcnow().isoformat(),
+                'last_set_down_at': datetime.utcnow().isoformat()
             })\
             .eq('id', user_quest_id)\
             .execute()
