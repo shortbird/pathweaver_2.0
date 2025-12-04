@@ -1,14 +1,24 @@
-import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
 
 const LoginPage = () => {
   const { register, handleSubmit, formState: { errors } } = useForm()
-  const { login } = useAuth()
+  const { login, isAuthenticated, user, loading: authLoading } = useAuth()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [loginError, setLoginError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && user && !authLoading) {
+      console.log('[LoginPage] User already authenticated, redirecting to dashboard')
+      const redirectPath = user.role === 'parent' ? '/parent/dashboard' : '/dashboard'
+      navigate(redirectPath, { replace: true })
+    }
+  }, [isAuthenticated, user, authLoading, navigate])
 
   const onSubmit = async (data) => {
     setLoading(true)

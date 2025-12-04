@@ -1,18 +1,28 @@
-import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
 import PasswordStrengthMeter from '../components/auth/PasswordStrengthMeter'
 
 const RegisterPage = () => {
   const { register: registerField, handleSubmit, formState: { errors }, watch } = useForm()
-  const { register } = useAuth()
+  const { register, isAuthenticated, user, loading: authLoading } = useAuth()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isUnder13, setIsUnder13] = useState(false)
   const password = watch('password')
   const dateOfBirth = watch('date_of_birth')
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && user && !authLoading) {
+      console.log('[RegisterPage] User already authenticated, redirecting to dashboard')
+      const redirectPath = user.role === 'parent' ? '/parent/dashboard' : '/dashboard'
+      navigate(redirectPath, { replace: true })
+    }
+  }, [isAuthenticated, user, authLoading, navigate])
 
   // Enhanced password validation matching backend requirements
   const validatePasswordStrength = (pwd) => {
