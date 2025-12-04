@@ -533,8 +533,10 @@ def get_public_diploma_by_user_id(user_id):
                 for tc in quest_task_completions:
                     task_info = tc.get('user_quest_tasks', {})
                     task_title = task_info.get('title', 'Unknown Task')
-                    task_id = tc.get('user_quest_task_id')  # Use user_quest_task_id to match evidence documents
+                    # FIX: Use task_id from quest_task_completions, which matches user_task_evidence_documents.task_id
+                    task_id = tc.get('task_id')
 
+                    logger.debug(f"Looking up evidence for task_id={task_id}, task_title='{task_title}', available keys: {list(evidence_docs_map.keys())[:5]}")
                     print(f"Looking up evidence for task_id={task_id}, task_title='{task_title}'")
 
                     # Get XP for this specific task from user_quest_tasks (not completions)
@@ -669,7 +671,8 @@ def get_public_diploma_by_user_id(user_id):
                 for tc in quest_task_completions:
                     task_info = tc.get('user_quest_tasks', {})
                     task_title = task_info.get('title', 'Unknown Task')
-                    task_id = tc.get('user_quest_task_id')  # Use user_quest_task_id to match evidence documents
+                    # FIX: Use task_id from quest_task_completions, which matches user_task_evidence_documents.task_id
+                    task_id = tc.get('task_id')
 
                     # Get XP for this specific task from user_quest_tasks (not completions)
                     task_xp = task_info.get('xp_value', 0)
