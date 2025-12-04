@@ -49,7 +49,8 @@ class IMSCCParserService(BaseService):
                 'error': str (if success=False),
                 'course': {...},
                 'badge_preview': {...},
-                'quests_preview': [...]
+                'quest_preview': {...},
+                'tasks_preview': [...]
             }
         """
         try:
@@ -79,13 +80,15 @@ class IMSCCParserService(BaseService):
 
                 # Generate preview objects
                 badge_preview = self._generate_badge_preview(course_data, assignments)
-                quests_preview = self._generate_quests_preview(assignments, course_data)
+                quest_preview = self._generate_quest_preview(course_data, assignments)
+                tasks_preview = self._generate_tasks_preview(assignments)
 
                 return {
                     'success': True,
                     'course': course_data,
                     'badge_preview': badge_preview,
-                    'quests_preview': quests_preview,
+                    'quest_preview': quest_preview,
+                    'tasks_preview': tasks_preview,
                     'stats': {
                         'total_assignments': len(assignments),
                         'total_modules': len(manifest_data.get('modules', [])),
@@ -419,10 +422,9 @@ class IMSCCParserService(BaseService):
         """
         total_points = sum(a.get('points_possible', 0) for a in assignments)
 
-        # Note: XP is not predetermined for quests in Optio
-        # XP is earned by completing tasks (created per student by advisors/AI)
-        # We use Canvas points as a reference for potential XP, but min_xp will be 0
-        # Admins can update this after import based on expected task XP
+        # Badge represents the Canvas course
+        # min_xp = total Canvas points (sum of all assignment points)
+        # min_quests = 1 (the course itself is the quest)
 
         return {
             'name': course_data.get('title', 'Untitled Course'),
@@ -430,8 +432,8 @@ class IMSCCParserService(BaseService):
             'course_code': course_data.get('course_code', ''),
             'badge_type': 'lms_course',
             'pillar_primary': 'stem',  # Default - admin can change
-            'min_quests': len(assignments),
-            'min_xp': 0,  # XP earned via tasks, not quests - admin sets this based on expected tasks
+            'min_quests': 1,  # One quest (the course container)
+            'min_xp': int(total_points),  # Total Canvas points from all assignments
             'total_canvas_points': total_points,
             'quest_source_filter': 'canvas_import',
             'metadata': {
@@ -440,47 +442,74 @@ class IMSCCParserService(BaseService):
                 'canvas_course_code': course_data.get('course_code', ''),
                 'start_date': course_data.get('start_date'),
                 'end_date': course_data.get('end_date'),
-                'suggested_min_xp_note': f'Consider {int(total_points * 10)} XP (Canvas points × 10) or set based on expected tasks per quest'
+                'total_assignments': len(assignments)
             }
         }
 
-    def _generate_quests_preview(self, assignments: List[Dict], course_data: Dict) -> List[Dict]:
+    def _generate_quest_preview(self, course_data: Dict, assignments: List[Dict]) -> Dict:
         """
-        Generate preview of what Quests would be created
+        Generate preview of the Quest (course container)
 
         Returns:
-            List of quest dicts
+            Dict representing the single quest that would be created
         """
-        quests = []
+        total_points = sum(a.get('points_possible', 0) for a in assignments)
+
+        # The course itself becomes the quest
+        # It's a container for the tasks (assignments)
+        return {
+            'title': course_data.get('title', 'Untitled Course'),
+            'description': course_data.get('description', 'Imported from Canvas course'),
+            'quest_type': 'course',
+            'lms_platform': 'canvas',
+            'lms_course_id': course_data.get('course_code'),
+            'is_active': False,  # Start as draft
+            'is_public': False,
+            'metadata': {
+                'import_source': 'canvas_imscc',
+                'canvas_course_code': course_data.get('course_code', ''),
+                'start_date': course_data.get('start_date'),
+                'end_date': course_data.get('end_date'),
+                'total_assignments': len(assignments),
+                'total_canvas_points': total_points
+            },
+            'badge_quest_settings': {
+                'is_required': True,
+                'order_index': 1
+            }
+        }
+
+    def _generate_tasks_preview(self, assignments: List[Dict]) -> List[Dict]:
+        """
+        Generate preview of Tasks (assignments)
+
+        Returns:
+            List of task dicts that would be created
+        """
+        tasks = []
 
         for idx, assignment in enumerate(assignments):
-            quest = {
+            task = {
                 'title': assignment['title'],
-                'description': assignment['description'][:500] if assignment['description'] else 'No description provided',
-                'quest_type': 'course',
-                'lms_platform': 'canvas',
-                'lms_assignment_id': assignment.get('assignment_id'),
-                'is_active': False,  # Start as draft
-                'is_public': False,
+                'description': assignment['description'] if assignment['description'] else 'No description provided',
+                'pillar': 'stem',  # Default - would be determined during import
+                'xp_value': int(assignment.get('points_possible', 0)),  # Canvas points = XP
+                'order_index': idx + 1,
+                'is_required': True,
+                'is_manual': False,
+                'approval_status': 'approved',
                 'metadata': {
-                    'canvas_points': assignment.get('points_possible', 0),
+                    'lms_assignment_id': assignment.get('assignment_id'),
                     'submission_types': assignment.get('submission_types', []),
                     'due_date': assignment.get('due_date'),
                     'source_file': assignment.get('source_file'),
-                    'note': 'XP is earned by completing tasks within this quest, not by the quest itself'
-                },
-                'badge_quest_settings': {
-                    'is_required': True,
-                    'order_index': idx + 1
-                },
-                # Note: Quests don't have XP - tasks do
-                # This is just a reference to Canvas points for context
-                'canvas_points_reference': assignment.get('points_possible', 0)
+                    'canvas_points': assignment.get('points_possible', 0)
+                }
             }
 
-            quests.append(quest)
+            tasks.append(task)
 
-        return quests
+        return tasks
 
     def validate_imscc_file(self, file_content: bytes) -> Tuple[bool, Optional[str]]:
         """

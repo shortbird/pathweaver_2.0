@@ -252,29 +252,58 @@ const CourseImport = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Required Quests</label>
-                  <p className="text-gray-900">{previewData.badge_preview.min_quests}</p>
+                  <label className="text-sm font-medium text-gray-700">Required XP</label>
+                  <p className="text-gray-900">{previewData.badge_preview.min_xp} XP</p>
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700">Total Canvas Points</label>
+                <label className="text-sm font-medium text-gray-700">Total Tasks</label>
                 <p className="text-gray-900">
-                  {previewData.badge_preview.total_canvas_points} points
+                  {previewData.badge_preview.metadata.total_assignments} assignments
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  Note: XP is earned by completing tasks within quests, not by quests themselves.
-                  Set min_xp after import based on expected tasks.
+                  Badge requires {previewData.badge_preview.min_xp} XP from completing tasks (1 Canvas point = 1 XP)
                 </p>
               </div>
             </div>
           </div>
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Quest Preview</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium text-gray-700">Title</label>
+                <p className="text-lg text-gray-900">{previewData.quest_preview.title}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Description</label>
+                <p className="text-gray-900">
+                  {previewData.quest_preview.description || 'No description provided'}
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Type</label>
+                  <p className="text-gray-900 capitalize">{previewData.quest_preview.quest_type}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Platform</label>
+                  <p className="text-gray-900 capitalize">{previewData.quest_preview.lms_platform}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Total Tasks</label>
+                  <p className="text-gray-900">{previewData.tasks_preview.length}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-xl font-bold text-gray-900 mb-4">
-              Quests Preview ({previewData.quests_preview.length})
+              Tasks Preview ({previewData.tasks_preview.length})
             </h3>
             <div className="space-y-4 max-h-96 overflow-y-auto">
-              {previewData.quests_preview.map((quest, index) => (
+              {previewData.tasks_preview.map((task, index) => (
                 <div
                   key={index}
                   className="border border-gray-200 rounded-lg p-4 hover:border-optio-purple transition-colors"
@@ -283,34 +312,34 @@ const CourseImport = () => {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-medium text-gray-500">
-                          #{quest.badge_quest_settings.order_index}
+                          #{task.order_index}
                         </span>
-                        <h4 className="text-lg font-semibold text-gray-900">{quest.title}</h4>
+                        <h4 className="text-lg font-semibold text-gray-900">{task.title}</h4>
                       </div>
                       <p className="text-sm text-gray-600 line-clamp-2">
-                        {quest.description || 'No description'}
+                        {task.description || 'No description'}
                       </p>
                     </div>
                     <div className="text-right ml-4">
-                      <p className="text-sm font-medium text-gray-600">
-                        {quest.canvas_points_reference} Canvas pts
+                      <p className="text-lg font-bold text-optio-purple">
+                        {task.xp_value} XP
                       </p>
                       <p className="text-xs text-gray-500">
-                        XP via tasks
+                        {task.metadata.canvas_points} Canvas pts
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
-                    <span className="bg-gray-100 px-2 py-1 rounded">
-                      {quest.quest_type}
+                    <span className="bg-gray-100 px-2 py-1 rounded capitalize">
+                      {task.pillar}
                     </span>
-                    {quest.metadata.submission_types && (
+                    {task.metadata.submission_types && (
                       <span>
-                        Submission: {quest.metadata.submission_types.join(', ')}
+                        Submission: {task.metadata.submission_types.join(', ')}
                       </span>
                     )}
-                    {quest.metadata.due_date && (
-                      <span>Due: {new Date(quest.metadata.due_date).toLocaleDateString()}</span>
+                    {task.metadata.due_date && (
+                      <span>Due: {new Date(task.metadata.due_date).toLocaleDateString()}</span>
                     )}
                   </div>
                 </div>
