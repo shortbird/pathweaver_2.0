@@ -267,7 +267,7 @@ def register():
             print(f"[DEBUG] Error type: {type(auth_error)}", file=sys.stderr)
             if hasattr(auth_error, 'args'):
                 print(f"[DEBUG] Error args: {auth_error.args}", file=sys.stderr)
-            
+
             # Check if the error is about rate limiting
             error_str = str(auth_error).lower()
             if 'email rate limit exceeded' in error_str or 'rate limit' in error_str:
@@ -277,6 +277,13 @@ def register():
                     'message': 'Registration may have succeeded. If you received a confirmation email, please verify your account. Otherwise, wait a minute and try again.',
                     'email_verification_required': True
                 }), 201
+
+            # Check if email already exists (SSO account or previous registration)
+            if 'already registered' in error_str or 'already exists' in error_str or 'user already exists' in error_str:
+                return jsonify({
+                    'error': 'An account with this email already exists. If you created your account through single sign-on (SSO), you can set a password by clicking "Forgot Password" on the login page.'
+                }), 400
+
             raise
         
         if auth_response.user:
