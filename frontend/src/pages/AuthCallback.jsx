@@ -37,13 +37,9 @@ export default function AuthCallback() {
       }
 
       try {
-        console.log('[SPARK SSO] AuthCallback: Starting token exchange')
-        console.log('[SPARK SSO] Auth code (first 10 chars):', code?.substring(0, 10) + '...')
-
         // Exchange code for tokens (OAuth 2.0 token endpoint)
         // Note: Spark endpoints are at root level, not under /api
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-        console.log('[SPARK SSO] API URL:', apiUrl)
 
         const response = await fetch(`${apiUrl}/spark/token`, {
           method: 'POST',
@@ -54,9 +50,6 @@ export default function AuthCallback() {
           body: JSON.stringify({ code }),
         })
 
-        console.log('[SPARK SSO] Token exchange response status:', response.status)
-        console.log('[SPARK SSO] Response headers:', Object.fromEntries(response.headers.entries()))
-
         if (!response.ok) {
           const errorData = await response.json()
           throw new Error(errorData.error || 'Token exchange failed')
@@ -64,16 +57,12 @@ export default function AuthCallback() {
 
         const data = await response.json()
         const { user_id, app_access_token, app_refresh_token } = data
-        console.log('[SPARK SSO] Token exchange successful, user_id:', user_id)
 
         // ✅ CROSS-ORIGIN FIX: Store tokens from response body
         // httpOnly cookies don't work cross-origin, so backend returns tokens in body
         // Tokens are stored in localStorage and added to Authorization header
         if (app_access_token && app_refresh_token) {
           tokenStore.setTokens(app_access_token, app_refresh_token)
-          console.log('[SPARK SSO] Tokens stored in tokenStore and localStorage')
-        } else {
-          console.warn('[SPARK SSO] No tokens in response body - relying on httpOnly cookies')
         }
 
         setStatus('success')
@@ -81,7 +70,6 @@ export default function AuthCallback() {
         // Force full page reload to /dashboard
         // This ensures AuthContext runs checkSession() with the newly stored tokens
         // and prevents the brief login page flash from PrivateRoute race condition
-        console.log('[SPARK SSO] Token exchange complete, redirecting to /dashboard with full reload')
         window.location.href = '/dashboard'
       } catch (err) {
         console.error('Token exchange failed:', err)

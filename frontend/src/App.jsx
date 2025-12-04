@@ -155,8 +155,6 @@ function App() {
       // Clean URL (remove tokens from address bar for security)
       const newUrl = window.location.pathname + (params.get('lti') ? '?lti=true' : '')
       window.history.replaceState({}, '', newUrl)
-
-      console.log('[SSO] Tokens extracted and stored from URL')
     }
   }, []) // Empty deps = runs once on mount
 

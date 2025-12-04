@@ -79,11 +79,9 @@ const DashboardPage = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.has('sso_pending')) {
-      console.log('[SPARK SSO] DashboardPage: Clearing sso_pending flag from URL')
       params.delete('sso_pending')
       const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '')
       window.history.replaceState({}, '', newUrl)
-      console.log('[SPARK SSO] DashboardPage: SSO flow complete, user on dashboard')
     }
   }, [])
 

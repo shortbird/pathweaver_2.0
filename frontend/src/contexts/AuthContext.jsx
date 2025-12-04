@@ -39,63 +39,46 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // ✅ INCOGNITO FIX: Restore tokens from localStorage before checking session
     const checkSession = async () => {
-      console.log('[SPARK SSO] AuthContext: Starting session check')
-
       try {
         // STEP 1: Restore tokens from localStorage (survives page refresh)
         const tokensRestored = tokenStore.restoreTokens()
-        console.log('[SPARK SSO] Tokens restored from localStorage:', tokensRestored)
 
         // STEP 2: Check if we have tokens (either restored or in memory)
         const hasTokens = !!tokenStore.getAccessToken()
-        console.log('[SPARK SSO] Has tokens in memory:', hasTokens)
 
         if (hasTokens) {
           // We have tokens, verify with backend
-          console.log('[SPARK SSO] Verifying tokens with /api/auth/me...')
           const response = await api.get('/api/auth/me')
           if (response.data) {
-            console.log('[SPARK SSO] Token verification successful, user:', response.data.id)
-
             // ✅ SPARK SSO FIX: Update React Query cache IMMEDIATELY with user data
             // This prevents PrivateRoute from redirecting to /login before user data loads
             queryClient.setQueryData(queryKeys.user.profile('current'), response.data)
-            console.log('[SPARK SSO] React Query cache updated with user data')
 
             setSession({ authenticated: true })
             setLoginTimestamp(Date.now())
-            console.log('[SPARK SSO] Session state set to authenticated')
           }
         } else {
           // No tokens available - try cookie-based auth (localhost fallback)
-          console.log('[SPARK SSO] No tokens found, trying cookie-based auth...')
           try {
             const response = await api.get('/api/auth/me')
             if (response.data) {
-              console.log('[SPARK SSO] Cookie auth successful, user:', response.data.id)
-
               // ✅ SPARK SSO FIX: Update React Query cache for cookie-based auth too
               queryClient.setQueryData(queryKeys.user.profile('current'), response.data)
-              console.log('[SPARK SSO] React Query cache updated (cookie auth)')
 
               setSession({ authenticated: true })
               setLoginTimestamp(Date.now())
-              console.log('[SPARK SSO] Session restored via cookies')
             }
           } catch (cookieError) {
             // No valid session - user needs to log in
-            console.log('[SPARK SSO] Cookie auth failed - no valid session')
             setSession(null)
           }
         }
       } catch (error) {
         // Token invalid/expired - clear and require login
-        console.log('[SPARK SSO] Session validation failed:', error.message)
         tokenStore.clearTokens()
         setSession(null)
       } finally {
         setLoading(false)
-        console.log('[SPARK SSO] AuthContext: Session check complete, loading = false')
       }
     }
 
@@ -353,18 +336,6 @@ export const AuthProvider = ({ children }) => {
     isAcademy: user?.subscription_tier === 'enterprise', // Academy tier uses 'enterprise' in database
     isFree: user?.subscription_tier === 'free' || user?.subscription_tier === 'explorer' || !user?.subscription_tier
   }
-
-  // ✅ SPARK SSO: Log auth state changes for debugging
-  useEffect(() => {
-    console.log('[SPARK SSO] AuthContext state changed:', {
-      hasUser: !!user,
-      userId: user?.id,
-      loading: loading || userLoading,
-      isAuthenticated: !!user,
-      session: !!session,
-      timestamp: Date.now()
-    })
-  }, [user, loading, userLoading, session])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
