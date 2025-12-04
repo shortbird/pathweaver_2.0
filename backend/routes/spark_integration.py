@@ -1142,9 +1142,9 @@ def process_spark_course_sync(
         quest_id = quest.data[0]['id']
         logger.info(f"Created quest {quest_id} for course {spark_course_id}")
 
-    # Sync assignments as task library entries
-    # Get existing library tasks for this quest
-    existing_tasks = supabase.table('task_library')\
+    # Sync assignments as sample tasks (quest task library)
+    # Get existing sample tasks for this quest
+    existing_tasks = supabase.table('quest_sample_tasks')\
         .select('id, spark_assignment_id')\
         .eq('quest_id', quest_id)\
         .execute()
@@ -1170,7 +1170,7 @@ def process_spark_course_sync(
         if spark_assignment_id in existing_task_map:
             # Update existing task
             task_id = existing_task_map[spark_assignment_id]
-            supabase.table('task_library')\
+            supabase.table('quest_sample_tasks')\
                 .update({
                     'title': assignment_title,
                     'description': assignment_description,
@@ -1179,22 +1179,21 @@ def process_spark_course_sync(
                 .eq('id', task_id)\
                 .execute()
             tasks_updated += 1
-            logger.info(f"Updated library task {task_id} for assignment {spark_assignment_id}")
+            logger.info(f"Updated sample task {task_id} for assignment {spark_assignment_id}")
 
         else:
-            # Create new library task
-            supabase.table('task_library').insert({
+            # Create new sample task
+            supabase.table('quest_sample_tasks').insert({
                 'quest_id': quest_id,
                 'title': assignment_title,
                 'description': assignment_description,
                 'pillar': 'stem',  # Default pillar for course tasks
                 'xp_value': 100,   # Default XP, can be adjusted
                 'spark_assignment_id': spark_assignment_id,
-                'is_active': True,
                 'created_at': datetime.utcnow().isoformat()
             }).execute()
             tasks_created += 1
-            logger.info(f"Created library task for assignment {spark_assignment_id}")
+            logger.info(f"Created sample task for assignment {spark_assignment_id}")
 
     logger.info(f"Course sync complete: quest_id={quest_id}, created={tasks_created}, updated={tasks_updated}")
 
