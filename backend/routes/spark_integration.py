@@ -712,6 +712,9 @@ def create_or_update_spark_user(claims: dict) -> dict:
         'expires_at': (datetime.utcnow() + timedelta(hours=24)).isoformat()
     }).execute()
 
+    # Auto-enroll user in all SPARK course quests
+    auto_enroll_spark_courses(user_id, spark_user_id)
+
     return {'id': user_id}
 
 
@@ -1204,5 +1207,118 @@ def process_spark_course_sync(
         'quest_id': quest_id,
         'task_count': tasks_created + tasks_updated
     }
+
+
+def auto_enroll_spark_courses(user_id: str, spark_user_id: str):
+    """
+    Auto-enroll a SPARK user in all SPARK course quests when they log in via SSO.
+    This ensures students are automatically enrolled in their courses without needing
+    to manually start each quest or wait for a submission webhook.
+
+    Args:
+        user_id: Optio user ID
+        spark_user_id: SPARK LMS user ID (for logging)
+
+    Creates:
+        - user_quests enrollment records for each SPARK course
+        - user_quest_tasks from quest_sample_tasks for each enrollment
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Find all active SPARK course quests
+        spark_quests = supabase.table('quests')\
+            .select('id, title, lms_course_id')\
+            .eq('quest_type', 'course')\
+            .eq('is_active', True)\
+            .not_.is_('lms_course_id', 'null')\
+            .execute()
+
+        if not spark_quests.data:
+            logger.info(f"No SPARK course quests found for auto-enrollment")
+            return
+
+        logger.info(f"Found {len(spark_quests.data)} SPARK course quests for potential enrollment")
+
+        enrolled_count = 0
+        skipped_count = 0
+
+        for quest in spark_quests.data:
+            quest_id = quest['id']
+            quest_title = quest['title']
+
+            # Check if user is already enrolled
+            existing = supabase.table('user_quests')\
+                .select('id, is_active')\
+                .eq('user_id', user_id)\
+                .eq('quest_id', quest_id)\
+                .execute()
+
+            if existing.data:
+                # User already enrolled - skip or reactivate if needed
+                enrollment = existing.data[0]
+                if enrollment['is_active']:
+                    skipped_count += 1
+                    logger.debug(f"User {user_id} already enrolled in quest {quest_id}")
+                    continue
+                else:
+                    # Reactivate inactive enrollment
+                    supabase.table('user_quests')\
+                        .update({'is_active': True, 'completed_at': None})\
+                        .eq('id', enrollment['id'])\
+                        .execute()
+                    logger.info(f"Reactivated quest {quest_id} for user {user_id}")
+                    enrolled_count += 1
+                    continue
+
+            # Create new enrollment
+            enrollment_result = supabase.table('user_quests').insert({
+                'user_id': user_id,
+                'quest_id': quest_id,
+                'is_active': True,
+                'started_at': datetime.utcnow().isoformat()
+            }).execute()
+
+            if not enrollment_result.data:
+                logger.error(f"Failed to enroll user {user_id} in quest {quest_id}")
+                continue
+
+            enrollment_id = enrollment_result.data[0]['id']
+            logger.info(f"Auto-enrolled user {user_id} in SPARK quest: {quest_title} (quest_id={quest_id})")
+
+            # Copy course tasks to user_quest_tasks
+            preset_tasks = get_course_tasks_for_quest(quest_id)
+
+            if preset_tasks:
+                user_tasks_data = []
+                for task in preset_tasks:
+                    task_data = {
+                        'user_id': user_id,
+                        'quest_id': quest_id,
+                        'user_quest_id': enrollment_id,
+                        'title': task['title'],
+                        'description': task.get('description', ''),
+                        'pillar': task['pillar'],
+                        'xp_value': task.get('xp_value', 100),
+                        'order_index': task.get('order_index', 0),
+                        'is_required': task.get('is_required', True),
+                        'is_manual': False,
+                        'approval_status': 'approved',
+                        'diploma_subjects': task.get('diploma_subjects', ['Electives']),
+                        'subject_xp_distribution': task.get('subject_xp_distribution', {})
+                    }
+                    user_tasks_data.append(task_data)
+
+                if user_tasks_data:
+                    supabase.table('user_quest_tasks').insert(user_tasks_data).execute()
+                    logger.info(f"Copied {len(user_tasks_data)} tasks to user_quest_tasks for SPARK enrollment")
+
+            enrolled_count += 1
+
+        logger.info(f"SPARK auto-enrollment complete: user_id={user_id}, enrolled={enrolled_count}, skipped={skipped_count}")
+
+    except Exception as e:
+        # Don't fail SSO login if auto-enrollment fails
+        logger.error(f"Error during SPARK auto-enrollment for user {user_id}: {str(e)}", exc_info=True)
 
 
