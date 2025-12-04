@@ -56,6 +56,13 @@ except RuntimeError as e:
 def add_correlation_id():
     request.correlation_id = request.headers.get('X-Correlation-ID', str(uuid.uuid4()))
 
+# Add organization detection middleware (domain-based multi-tenancy)
+@app.before_request
+def detect_organization():
+    """Detect organization from domain before each request"""
+    from middleware.organization import detect_organization_from_domain
+    detect_organization_from_domain()
+
 # Configure security middleware
 security_middleware.init_app(app)
 
