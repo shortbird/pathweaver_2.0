@@ -348,7 +348,20 @@ def register():
                 if requires_parental_consent and parent_email:
                     user_data['parental_consent_email'] = parent_email.strip().lower()
                     user_data['parental_consent_verified'] = False
-            
+
+            # Auto-assign organization based on registration domain (multi-tenancy)
+            try:
+                from middleware.organization import get_current_organization_id
+                from repositories.organization_repository import OPTIO_ORG_ID
+                org_id = get_current_organization_id()
+                user_data['organization_id'] = org_id
+                logger.info(f"[REGISTRATION] Auto-assigned user to organization: {org_id}")
+            except Exception as org_error:
+                # Fallback to Optio default if detection fails
+                from repositories.organization_repository import OPTIO_ORG_ID
+                user_data['organization_id'] = OPTIO_ORG_ID
+                logger.warning(f"[REGISTRATION] Failed to detect organization, defaulting to Optio: {org_error}")
+
             # Note: username column has been removed from the database
             # Don't include it in the insert
             

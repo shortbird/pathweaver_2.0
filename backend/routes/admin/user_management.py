@@ -60,8 +60,8 @@ def get_users(user_id):
         # Returns None for admins (all students), list of student IDs for advisors
         assigned_student_ids = get_advisor_assigned_students(user_id)
 
-        # Build query
-        query = supabase.table('users').select('*', count='exact')
+        # Build query - include organization data via join
+        query = supabase.table('users').select('*, organizations(id, name, slug)', count='exact')
 
         # Advisors can only see their assigned students
         if assigned_student_ids is not None:  # None means admin (all access)
@@ -773,3 +773,96 @@ def upload_user_avatar(user_id, target_user_id):
     except Exception as e:
         logger.error(f"Error uploading avatar for user {target_user_id}: {str(e)}")
         return jsonify({'error': 'Failed to upload profile picture'}), 500
+
+@bp.route('/users/<user_id>/organization', methods=['PUT'])
+@require_admin
+def assign_user_to_organization(admin_user_id, user_id):
+    """
+    Admin endpoint to manually assign a user to an organization.
+    Only platform admins can change user organizations.
+    """
+    try:
+        data = request.json
+        organization_id = data.get('organization_id')
+
+        if not organization_id:
+            return jsonify({
+                'success': False,
+                'error': 'organization_id is required'
+            }), 400
+
+        # Use organization repository to validate and assign
+        from repositories.organization_repository import OrganizationRepository
+        org_repo = OrganizationRepository()
+
+        # Verify organization exists
+        org = org_repo.find_by_id(organization_id)
+        if not org:
+            return jsonify({
+                'success': False,
+                'error': 'Organization not found'
+            }), 404
+
+        # Assign user to organization
+        org_repo.assign_user_to_organization(user_id, organization_id)
+
+        logger.info(f"[ADMIN] User {user_id} assigned to organization {organization_id} by admin {admin_user_id}")
+
+        return jsonify({
+            'success': True,
+            'message': f'User assigned to {org["name"]} successfully',
+            'organization': {
+                'id': org['id'],
+                'name': org['name'],
+                'slug': org['slug']
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error assigning user to organization: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to assign user to organization'
+        }), 500
+
+@bp.route('/organizations', methods=['GET'])
+@require_admin
+def get_organizations(admin_user_id):
+    """
+    Get all organizations for admin dropdown/selection.
+    Returns organization list with user counts.
+    """
+    try:
+        from repositories.organization_repository import OrganizationRepository
+        org_repo = OrganizationRepository()
+
+        # Get all active organizations
+        orgs = org_repo.list_all_active()
+
+        # Add stats to each organization
+        orgs_with_stats = []
+        for org in orgs:
+            stats = org_repo.get_organization_stats(org['id'])
+            orgs_with_stats.append({
+                'id': org['id'],
+                'name': org['name'],
+                'slug': org['slug'],
+                'full_domain': org.get('full_domain'),
+                'subdomain': org.get('subdomain'),
+                'user_count': stats['user_count'],
+                'quest_count': stats['quest_count'],
+                'is_active': org['is_active']
+            })
+
+        return jsonify({
+            'success': True,
+            'organizations': orgs_with_stats,
+            'total': len(orgs_with_stats)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching organizations: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch organizations'
+        }), 500
