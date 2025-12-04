@@ -17,11 +17,17 @@ OPTIO_ORG_ID = '00000000-0000-0000-0000-000000000001'
 class OrganizationRepository(BaseRepository):
     """Repository for organization operations"""
 
-    def __init__(self, client=None):
-        """Initialize repository with optional client"""
-        if client is None:
-            client = get_supabase_admin_client()
-        super().__init__(client, 'organizations')
+    table_name = 'organizations'
+    id_column = 'id'
+
+    def __init__(self, user_id: Optional[str] = None):
+        """
+        Initialize repository.
+
+        Note: OrganizationRepository typically uses admin client (no user_id)
+        since organization operations are admin-level.
+        """
+        super().__init__(user_id=user_id)
 
     def find_by_domain(self, domain: str) -> Optional[Dict[str, Any]]:
         """

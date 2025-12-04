@@ -979,8 +979,9 @@ def end_quest(user_id: str, quest_id: str):
     (from auto-completion when all tasks are done). We handle both cases gracefully.
     """
     try:
-        # Use user client - user-specific quest enrollment operation
-        supabase = get_user_client()
+        # Use admin client - @require_auth already validated user
+        # Using admin client avoids RLS issues with JWT tokens
+        supabase = get_supabase_admin_client()
 
         # Check if user is enrolled in this quest (allow both active and completed)
         # Quest might already be auto-completed when last task was submitted
