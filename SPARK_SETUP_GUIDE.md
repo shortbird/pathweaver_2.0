@@ -260,17 +260,19 @@ function buildWebhookMetadata(submission) {
 
 ### Step 2: Calculate HMAC Signature
 
+**CRITICAL:** The signature MUST be calculated on the **exact JSON string** you send in the HTTP body. Do NOT normalize, sort keys, or minify the JSON before hashing.
+
 **HMAC Signature Algorithm:**
 
 **For JSON requests (text-only):**
-1. Serialize entire payload to JSON string
-2. Calculate HMAC-SHA256 using webhook secret
+1. Serialize payload to JSON string (use whatever JSON.stringify produces - do NOT sort keys or minify)
+2. Calculate HMAC-SHA256 on the **exact string** you'll send
 3. Convert to hexadecimal string
 4. Include in `X-Spark-Signature` header
 
 **For multipart requests (with files):**
 1. Serialize ONLY the metadata field to JSON string (NOT the entire multipart body)
-2. Calculate HMAC-SHA256 using webhook secret
+2. Calculate HMAC-SHA256 on the **exact metadata string** you'll send
 3. Convert to hexadecimal string
 4. Include in `X-Spark-Signature` header
 
@@ -281,12 +283,13 @@ const crypto = require('crypto');
 
 // For JSON requests (text-only)
 function calculateHMAC_JSON(payload) {
+  // IMPORTANT: Sign the EXACT string you'll send in the body
   const payloadString = JSON.stringify(payload);
   const secret = process.env.OPTIO_WEBHOOK_SECRET;
 
   return crypto
     .createHmac('sha256', secret)
-    .update(payloadString)
+    .update(payloadString)  // Sign the exact string
     .digest('hex');
 }
 
@@ -297,9 +300,23 @@ function calculateHMAC_Multipart(metadata) {
 
   return crypto
     .createHmac('sha256', secret)
-    .update(metadataString)
+    .update(metadataString)  // Sign the exact metadata string
     .digest('hex');
 }
+```
+
+**PHP Example (for your reference):**
+```php
+// Sign the EXACT JSON string you'll send
+$json = json_encode($payload);
+$signature = hash_hmac('sha256', $json, OPTIO_WEBHOOK_SECRET);
+
+// Send the EXACT same string in the body
+curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Content-Type: application/json',
+    "X-Spark-Signature: {$signature}"
+]);
 ```
 
 ### Step 3: Send Webhook with Retry Logic

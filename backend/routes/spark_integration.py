@@ -380,28 +380,28 @@ def course_sync_webhook():
         return jsonify({'error': 'Missing signature'}), 401
 
     try:
-        # Get request body
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'Missing request body'}), 400
-
-        # Validate signature using webhook secret
+        # Validate signature using webhook secret BEFORE parsing JSON
+        # IMPORTANT: Must use raw request body bytes, not re-serialized JSON
         webhook_secret = os.getenv('SPARK_WEBHOOK_SECRET')
         if not webhook_secret:
             logger.error("SPARK_WEBHOOK_SECRET not configured")
             return jsonify({'error': 'Webhook not configured'}), 503
 
-        # Calculate expected signature
-        payload_str = json.dumps(data, separators=(',', ':'), sort_keys=True)
+        # Calculate expected signature from raw body
         expected_signature = hmac.new(
             webhook_secret.encode(),
-            payload_str.encode(),
+            request.data,
             hashlib.sha256
         ).hexdigest()
 
         if not hmac.compare_digest(signature, expected_signature):
-            logger.warning("Invalid Spark course webhook signature")
+            logger.warning(f"Invalid Spark course webhook signature. Expected: {expected_signature[:16]}..., Got: {signature[:16]}...")
             return jsonify({'error': 'Invalid signature'}), 401
+
+        # Parse request body after signature validation
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Missing request body'}), 400
 
         # Extract required fields
         spark_org_id = data.get('spark_org_id')
