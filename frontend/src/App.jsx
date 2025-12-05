@@ -95,8 +95,33 @@ function AppContent() {
 
   // Check masquerade state on mount and periodically
   useEffect(() => {
-    const checkMasquerade = () => {
+    const checkMasquerade = async () => {
       const state = getMasqueradeState();
+
+      // If we have local masquerade state, verify it with backend
+      if (state) {
+        try {
+          const response = await api.get('/api/admin/masquerade/status');
+          const backendStatus = response.data;
+
+          // If backend says we're not masquerading but localStorage says we are, clear it
+          if (!backendStatus.is_masquerading) {
+            console.warn('Clearing stale masquerade state from localStorage');
+            localStorage.removeItem('masquerade_state');
+            localStorage.removeItem('original_admin_token');
+            setMasqueradeState(null);
+            return;
+          }
+        } catch (error) {
+          // If status check fails, clear masquerade state to be safe
+          console.warn('Failed to verify masquerade status, clearing state:', error);
+          localStorage.removeItem('masquerade_state');
+          localStorage.removeItem('original_admin_token');
+          setMasqueradeState(null);
+          return;
+        }
+      }
+
       setMasqueradeState(state);
     };
 
