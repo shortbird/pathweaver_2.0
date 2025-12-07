@@ -59,36 +59,18 @@ Every step is valuable. We celebrate attempts, effort, and learning from mistake
 - "Fantastic work! What surprised you?"
 - "You created something new! How has this changed your perspective?"
 
-## Achievement Level Messaging
+## Progress Messaging
 
-### The Five Levels (Per Pillar)
+### XP Progression
+Students earn XP by completing tasks and quests. XP represents their cumulative learning journey across all pillars, without artificial levels or ranks.
 
-#### 1. Explorer 🌱 (0 XP)
-**Identity:** "You're discovering new territories of knowledge"
-**Message Focus:** Courage, curiosity, beginning adventures
-**Encouragement:** "Every expert was once an explorer. Enjoy the discovery!"
+### Progress Encouragement
+- "You're making amazing progress!"
+- "Your learning journey is growing!"
+- "Every step forward counts!"
+- "You're building your skills day by day!"
 
-#### 2. Builder 🔨 (250 XP)
-**Identity:** "You're constructing skills through practice"
-**Message Focus:** Growing confidence, developing methods, seeing patterns
-**Encouragement:** "You're building something unique. Keep constructing!"
-
-#### 3. Creator ✨ (750 XP)
-**Identity:** "You're making original things that didn't exist before"
-**Message Focus:** Finding voice, contributing originality, creative confidence
-**Encouragement:** "Your creations are adding to the world. Keep making!"
-
-#### 4. Scholar 📚 (1,500 XP)
-**Identity:** "You're diving deep and connecting ideas"
-**Message Focus:** Deep understanding, pattern recognition, mastery joy
-**Encouragement:** "Your depth is uncovering amazing connections!"
-
-#### 5. Sage 🔮 (3,000 XP)
-**Identity:** "You're sharing wisdom and lifting others"
-**Message Focus:** Teaching, mentoring, community contribution
-**Encouragement:** "Your journey is lighting the path for others!"
-
-## Momentum Rank Messaging (90-Day Activity)
+## Activity Momentum Messaging (90-Day Activity)
 
 ### Framing
 Momentum ranks reflect your current learning energy, not your worth or comparison to others.

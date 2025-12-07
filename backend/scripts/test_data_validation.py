@@ -317,39 +317,30 @@ def test_business_logic():
         logger.error(f"      [FAIL] Completion bonus validation error: {e}")
         results['completion_bonuses'] = False
 
-    # 4. Achievement levels accurate
+    # 4. XP tracking validation
     try:
         logger.info("
-[4/5] Testing achievement level calculations...")
+[4/5] Testing XP tracking validation...")
 
-        # Get users with XP and check levels
-        users_with_xp = supabase.table('users').select('total_xp, level').not_.is_('total_xp', 'null').limit(10).execute()
+        # Get users with XP
+        users_with_xp = supabase.table('users').select('total_xp').not_.is_('total_xp', 'null').limit(10).execute()
 
-        # Achievement thresholds: Explorer (0), Builder (250), Creator (750), Scholar (1500), Sage (3000)
-        level_mismatches = 0
-
+        # Verify XP values are non-negative
+        invalid_xp_users = 0
         for user in users_with_xp.data:
             xp = user.get('total_xp', 0)
-            level = user.get('level', 0)
-
-            expected_level = 0
-            if xp >= 3000:
-                expected_level = 4  # Sage
-            elif xp >= 1500:
-                expected_level = 3  # Scholar
-            elif xp >= 750:
-                expected_level = 2  # Creator
-            elif xp >= 250:
-                expected_level = 1  # Builder
-
-            # Level field might not exist or use different scale
-            # This is informational only
+            if xp < 0:
+                invalid_xp_users += 1
 
         logger.info(f"      Users with XP checked: {len(users_with_xp.data)}")
-        logger.info("      [OK] Achievement level structure in place")
-        results['achievement_levels'] = True
+        logger.info(f"      Users with invalid XP: {invalid_xp_users}")
+        results['achievement_levels'] = (invalid_xp_users == 0)
+        if results['achievement_levels']:
+            logger.info("      [OK] XP values are valid")
+        else:
+            logger.warning("      [WARN] Some users have negative XP")
     except Exception as e:
-        logger.error(f"      [FAIL] Achievement level validation error: {e}")
+        logger.error(f"      [FAIL] XP tracking validation error: {e}")
         results['achievement_levels'] = False
 
     # 5. Subscription status synced with Stripe

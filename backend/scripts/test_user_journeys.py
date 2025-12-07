@@ -262,69 +262,38 @@ def test_returning_user_flow():
 
     return results
 
-def test_premium_upgrade_path():
-    """Test: View subscription benefits → Select plan → Access features"""
+def test_social_features():
+    """Test: Social features and connections"""
     print("\n" + "="*70)
-    logger.info("TEST 3: Premium Upgrade Path")
+    logger.info("TEST 3: Social Features")
     print("="*70)
 
     supabase = get_supabase_admin_client()
     results = {}
 
-    # 1. Test subscription tier data
+    # 1. Test friendships/connections
     try:
         logger.info("
-[1/4] Testing subscription tier data...")
-        users_by_tier = {}
-        for tier in ['explorer', 'creator', 'visionary']:
-            count = supabase.table('users').select('id', count='exact').eq('subscription_tier', tier).execute()
-            users_by_tier[tier] = count.count
-
-        logger.info(f"      [OK] Subscription tiers:")
-        print(f"        - Explorer (free): {users_by_tier['explorer']} users")
-        print(f"        - Creator: {users_by_tier['creator']} users")
-        print(f"        - Visionary: {users_by_tier['visionary']} users")
-        results['subscription_tiers'] = True
-    except Exception as e:
-        logger.error(f"      [FAIL] Subscription tier error: {e}")
-        results['subscription_tiers'] = False
-
-    # 2. Test Stripe integration data
-    try:
-        logger.info("
-[2/4] Testing Stripe integration...")
-        users_with_stripe = supabase.table('users').select('id, stripe_customer_id, subscription_status').not_.is_('stripe_customer_id', 'null').limit(5).execute()
-        logger.info(f"      [OK] Found {len(users_with_stripe.data)} users with Stripe customers")
-        results['stripe_integration'] = True
-    except Exception as e:
-        logger.error(f"      [FAIL] Stripe integration error: {e}")
-        results['stripe_integration'] = False
-
-    # 3. Test paid-tier features (friends, collaborations)
-    try:
-        logger.info("
-[3/4] Testing paid-tier features...")
+[1/2] Testing friendships/connections...")
         friendships = supabase.table('friendships').select('id, status').execute()
-        collaborations = supabase.table('quest_collaborations').select('id, status').execute()
 
-        logger.info(f"      [OK] Paid features accessible:")
-        logger.info(f"        - Friendships: {len(friendships.data)} records")
-        logger.info(f"        - Collaborations: {len(collaborations.data)} records")
-        results['paid_features'] = True
+        logger.info(f"      [OK] Friendships accessible:")
+        logger.info(f"        - Total friendships: {len(friendships.data)} records")
+        results['friendships'] = True
     except Exception as e:
-        logger.error(f"      [FAIL] Paid features error: {e}")
-        results['paid_features'] = False
+        logger.error(f"      [FAIL] Friendships error: {e}")
+        results['friendships'] = False
 
-    # 4. Test subscription management
+    # 2. Test portfolio/diploma sharing
     try:
         logger.info("
-[4/4] Testing subscription management data...")
-        active_subs = supabase.table('users').select('id, subscription_status, subscription_end_date').eq('subscription_status', 'active').execute()
-        logger.info(f"      [OK] Active subscriptions: {len(active_subs.data)}")
-        results['subscription_management'] = True
+[2/2] Testing portfolio sharing...")
+        users_with_portfolio = supabase.table('users').select('id, portfolio_slug').not_.is_('portfolio_slug', 'null').limit(5).execute()
+        logger.info(f"      [OK] Found {len(users_with_portfolio.data)} users with portfolio slugs")
+        results['portfolio_sharing'] = True
     except Exception as e:
-        logger.error(f"      [FAIL] Subscription management error: {e}")
-        results['subscription_management'] = False
+        logger.error(f"      [FAIL] Portfolio sharing error: {e}")
+        results['portfolio_sharing'] = False
 
     return results
 
@@ -466,7 +435,7 @@ if __name__ == "__main__":
     # Run all tests
     all_results['New User Onboarding'] = test_new_user_onboarding()
     all_results['Returning User Flow'] = test_returning_user_flow()
-    all_results['Premium Upgrade Path'] = test_premium_upgrade_path()
+    all_results['Social Features'] = test_social_features()
     all_results['Edge Cases'] = test_edge_cases()
 
     # Print summary

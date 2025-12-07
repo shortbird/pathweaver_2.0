@@ -131,33 +131,6 @@ def test_badge_unlock_threshold():
         assert unlocked_badges[0]['name'] == 'STEM Explorer'
 
 
-@pytest.mark.unit
-def test_level_progression():
-    """Test level progression based on total XP"""
-    service = XPService()
-
-    # Test XP thresholds for level progression
-    # Explorer (0), Builder (250), Creator (750), Scholar (1500), Sage (3000)
-    test_cases = [
-        (0, 'Explorer'),
-        (100, 'Explorer'),
-        (249, 'Explorer'),
-        (250, 'Builder'),
-        (500, 'Builder'),
-        (749, 'Builder'),
-        (750, 'Creator'),
-        (1000, 'Creator'),
-        (1499, 'Creator'),
-        (1500, 'Scholar'),
-        (2000, 'Scholar'),
-        (2999, 'Scholar'),
-        (3000, 'Sage'),
-        (5000, 'Sage'),
-    ]
-
-    for xp, expected_level in test_cases:
-        level = service.calculate_level(total_xp=xp)
-        assert level == expected_level, f"XP {xp} should give level {expected_level}, got {level}"
 
 
 @pytest.mark.unit
