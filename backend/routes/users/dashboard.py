@@ -165,6 +165,7 @@ def get_active_quests(supabase, user_id: str) -> list:
                     pillar_breakdown[pillar] += xp_amount
 
                 # Add calculated fields to quest data
+                quest_info = enrollment.get('quests', {})
                 quest_info['total_xp'] = total_xp
                 quest_info['task_count'] = task_count
                 quest_info['pillar_breakdown'] = pillar_breakdown
