@@ -96,6 +96,9 @@ def setup_logging():
     # Silence noisy third-party loggers
     logging.getLogger('urllib3').setLevel(logging.WARNING)
     logging.getLogger('werkzeug').setLevel(logging.WARNING)
+    logging.getLogger('httpcore').setLevel(logging.WARNING)
+    logging.getLogger('httpx').setLevel(logging.WARNING)
+    logging.getLogger('hpack').setLevel(logging.WARNING)
 
     return root_logger
 
