@@ -110,528 +110,104 @@ lms_integrations (MODIFIED)
 
 ## Implementation Phases
 
-### Phase 0: Cleanup & Preparation
-**Status:** ✅ Complete (2025-12-07)
-**Time Taken:** 1.5 hours
+### Phase 0: Cleanup & Preparation ✅
+**Completed:** 2025-12-07 (1.5 hours) | **Commit:** `1b58368`
 
-#### Completed Tasks
-- [x] Remove all achievement rank references from backend
-  - [x] Removed MASTERY_LEVELS and ACHIEVEMENT_TIERS from [backend/config/xp_progression.py](backend/config/xp_progression.py)
-  - [x] Removed get_achievement_tier(), get_next_tier_info(), get_mastery_level(), get_xp_progress_percentage()
-  - [x] Removed test_level_progression() from [backend/tests/services/test_xp_service.py](backend/tests/services/test_xp_service.py)
-  - [x] Updated achievement level checks to XP validation in [backend/scripts/test_data_validation.py](backend/scripts/test_data_validation.py)
-  - [x] Replaced premium tier tests with social features in [backend/scripts/test_user_journeys.py](backend/scripts/test_user_journeys.py)
-  - [x] Verified [backend/routes/admin_badge_seed.py](backend/routes/admin_badge_seed.py) - no rank references
-  - [x] Verified [backend/database_migration/seed_initial_badges.sql](backend/database_migration/seed_initial_badges.sql) - clean
-  - [x] Verified [backend/database_migration/seed_onfire_pathway_badges.sql](backend/database_migration/seed_onfire_pathway_badges.sql) - clean
+**Summary:** Removed achievement rank system (Explorer, Builder, Creator, Scholar, Sage) to simplify XP progression.
 
-- [x] Remove all achievement rank references from frontend
-  - [x] Verified no actual rank references in frontend code (grep results were false positives for badge names)
-
-- [x] Update documentation
-  - [x] Removed achievement rank messaging from [core_philosophy.md](core_philosophy.md) (lines 62-90)
-  - [x] Replaced with simple progress encouragement messaging
-  - [x] Verified [CLAUDE.md](CLAUDE.md) has no achievement rank references
-  - [x] Committed changes with comprehensive changelog in git commit message
-
-**Results:**
-- Students now earn XP with no mastery levels or achievement tiers
-- XP system tracks pure cumulative progress without artificial hierarchies
-- Aligns with "The Process Is The Goal" philosophy
-- All code and documentation updated to reflect simplified progression model
-
-**Git Commit:** `1b58368` - "Phase 0: Remove achievement rank system (Explorer/Builder/Creator/Scholar/Sage)"
+**Changes:**
+- Removed `MASTERY_LEVELS`, `ACHIEVEMENT_TIERS`, and all rank calculation functions from [xp_progression.py](backend/config/xp_progression.py)
+- Updated test files to remove tier progression validation
+- Removed achievement rank messaging from [core_philosophy.md](core_philosophy.md)
+- Students now earn pure cumulative XP without artificial levels
 
 ---
 
-### Phase 1: Database Schema Migration
-**Status:** ✅ Complete (2025-12-07)
-**Time Taken:** 2 hours
-
-#### Migration 1.1: Create Organizations Table
-
-```sql
--- File: backend/scripts/migrations/009_create_organizations_table.sql
-
-BEGIN;
-
--- Create organizations table
-CREATE TABLE IF NOT EXISTS organizations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
-    slug VARCHAR(100) UNIQUE NOT NULL,
-    quest_visibility_policy VARCHAR(50) NOT NULL DEFAULT 'all_optio',
-    branding_config JSONB DEFAULT '{}',
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-
-    CONSTRAINT valid_policy CHECK (
-        quest_visibility_policy IN ('all_optio', 'curated', 'private_only')
-    )
-);
-
--- Create indexes
-CREATE INDEX idx_organizations_slug ON organizations(slug);
-CREATE INDEX idx_organizations_is_active ON organizations(is_active);
-
--- Insert default Optio organization
-INSERT INTO organizations (name, slug, quest_visibility_policy, is_active)
-VALUES ('Optio', 'optio', 'all_optio', true)
-ON CONFLICT (slug) DO NOTHING;
-
--- Enable RLS
-ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
-
--- RLS Policy: Users can view active organizations
-CREATE POLICY "users_can_view_active_organizations" ON organizations
-    FOR SELECT
-    USING (is_active = true);
-
--- RLS Policy: Only superadmins can insert/update/delete organizations
--- (Enforced at application level via @require_superadmin decorator)
-CREATE POLICY "superadmin_can_manage_organizations" ON organizations
-    FOR ALL
-    USING (auth.uid() IN (
-        SELECT id FROM users WHERE role = 'admin' AND email = 'tannerbowman@gmail.com'
-    ));
-
-COMMIT;
-```
-
-**Subtasks:**
-- [ ] Create migration file 009_create_organizations_table.sql
-- [ ] Run migration using Supabase MCP: `mcp__supabase__apply_migration`
-- [ ] Verify table created successfully
-- [ ] Verify default Optio organization exists
-
-**Verification SQL:**
-```sql
-SELECT * FROM organizations WHERE slug = 'optio';
--- Should return 1 row with name='Optio', quest_visibility_policy='all_optio'
-```
-
----
-
-#### Migration 1.2: Add Organization Fields to Users Table
-
-```sql
--- File: backend/scripts/migrations/010_add_organization_to_users.sql
-
-BEGIN;
-
--- Add organization_id column
-ALTER TABLE users
-ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id);
-
--- Add is_org_admin column
-ALTER TABLE users
-ADD COLUMN IF NOT EXISTS is_org_admin BOOLEAN DEFAULT false;
-
--- Create index for performance
-CREATE INDEX idx_users_organization_id ON users(organization_id);
-CREATE INDEX idx_users_is_org_admin ON users(is_org_admin) WHERE is_org_admin = true;
-
--- Assign all existing users to Optio organization
-UPDATE users
-SET organization_id = (SELECT id FROM organizations WHERE slug = 'optio')
-WHERE organization_id IS NULL;
-
--- Make organization_id NOT NULL after backfill
-ALTER TABLE users ALTER COLUMN organization_id SET NOT NULL;
-
-COMMIT;
-```
-
-**Subtasks:**
-- [ ] Create migration file 010_add_organization_to_users.sql
-- [ ] Run migration using Supabase MCP: `mcp__supabase__apply_migration`
-- [ ] Verify all users have organization_id set
-- [ ] Verify indexes created
-
-**Verification SQL:**
-```sql
--- Check all users have organization
-SELECT COUNT(*) as users_without_org
-FROM users
-WHERE organization_id IS NULL;
--- Should return 0
-
--- Check users assigned to Optio
-SELECT COUNT(*) as optio_users
-FROM users u
-JOIN organizations o ON u.organization_id = o.id
-WHERE o.slug = 'optio';
--- Should return total user count
-```
-
----
-
-#### Migration 1.3: Add Organization Fields to Quests Table
-
-```sql
--- File: backend/scripts/migrations/011_add_organization_to_quests.sql
-
-BEGIN;
-
--- Add organization_id column (NULLABLE for global quests)
-ALTER TABLE quests
-ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id);
-
--- Create index for performance
-CREATE INDEX idx_quests_organization_id ON quests(organization_id);
-
--- Mark all existing quests as global Optio quests (organization_id = NULL)
--- This keeps existing quest library available to all orgs with 'all_optio' policy
--- Note: We intentionally leave organization_id as NULL for global quests
-
--- Alternative: Assign existing quests to Optio organization
--- Uncomment below if you want existing quests to belong to Optio org instead
--- UPDATE quests
--- SET organization_id = (SELECT id FROM organizations WHERE slug = 'optio')
--- WHERE organization_id IS NULL;
-
-COMMIT;
-```
-
-**Subtasks:**
-- [ ] Create migration file 011_add_organization_to_quests.sql
-- [ ] **DECISION REQUIRED:** Should existing quests be global (NULL) or belong to Optio org?
-  - [ ] **Option A (Recommended):** Leave as NULL (global quests visible to all orgs)
-  - [ ] **Option B:** Assign to Optio organization
-- [ ] Run migration using Supabase MCP: `mcp__supabase__apply_migration`
-- [ ] Verify organization_id column added
-
-**Verification SQL:**
-```sql
--- Check quest distribution
-SELECT
-    CASE
-        WHEN organization_id IS NULL THEN 'Global Optio Quests'
-        ELSE 'Organization Quests'
-    END as quest_type,
-    COUNT(*) as count
-FROM quests
-GROUP BY quest_type;
-```
-
----
-
-#### Migration 1.4: Create Organization Quest Access Table
-
-```sql
--- File: backend/scripts/migrations/012_create_organization_quest_access.sql
-
-BEGIN;
-
--- Create organization_quest_access table for curated policy
-CREATE TABLE IF NOT EXISTS organization_quest_access (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    quest_id UUID NOT NULL REFERENCES quests(id) ON DELETE CASCADE,
-    granted_at TIMESTAMPTZ DEFAULT NOW(),
-    granted_by UUID REFERENCES users(id),
-
-    -- Prevent duplicate grants
-    UNIQUE(organization_id, quest_id)
-);
-
--- Create indexes
-CREATE INDEX idx_org_quest_access_org ON organization_quest_access(organization_id);
-CREATE INDEX idx_org_quest_access_quest ON organization_quest_access(quest_id);
-CREATE INDEX idx_org_quest_access_composite ON organization_quest_access(organization_id, quest_id);
-
--- Enable RLS
-ALTER TABLE organization_quest_access ENABLE ROW LEVEL SECURITY;
-
--- RLS Policy: Users can view quest access for their organization
-CREATE POLICY "users_can_view_org_quest_access" ON organization_quest_access
-    FOR SELECT
-    USING (
-        organization_id IN (
-            SELECT organization_id FROM users WHERE id = auth.uid()
-        )
-    );
-
--- RLS Policy: Org admins can manage quest access for their organization
-CREATE POLICY "org_admins_can_manage_quest_access" ON organization_quest_access
-    FOR ALL
-    USING (
-        organization_id IN (
-            SELECT organization_id
-            FROM users
-            WHERE id = auth.uid()
-            AND (is_org_admin = true OR role = 'admin')
-        )
-    );
-
-COMMIT;
-```
-
-**Subtasks:**
-- [ ] Create migration file 012_create_organization_quest_access.sql
-- [ ] Run migration using Supabase MCP: `mcp__supabase__apply_migration`
-- [ ] Verify table created with correct constraints
-- [ ] Verify RLS policies created
-
-**Verification SQL:**
-```sql
--- Check table exists
-SELECT column_name, data_type
-FROM information_schema.columns
-WHERE table_schema = 'public'
-AND table_name = 'organization_quest_access';
-
--- Check constraints
-SELECT constraint_name, constraint_type
-FROM information_schema.table_constraints
-WHERE table_schema = 'public'
-AND table_name = 'organization_quest_access';
-```
-
----
-
-#### Migration 1.5: Add Organization to LMS Integrations
-
-```sql
--- File: backend/scripts/migrations/013_add_organization_to_lms.sql
-
-BEGIN;
-
--- Add organization_id to lms_integrations table
-ALTER TABLE lms_integrations
-ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id);
-
--- Create index
-CREATE INDEX idx_lms_integrations_organization_id ON lms_integrations(organization_id);
-
--- Assign existing LMS integration to appropriate organization
--- OnFire Learning (SPARK) should be assigned to their organization
--- Default to Optio organization for now
-UPDATE lms_integrations
-SET organization_id = (SELECT id FROM organizations WHERE slug = 'optio')
-WHERE organization_id IS NULL;
-
--- Make organization_id NOT NULL after backfill
-ALTER TABLE lms_integrations ALTER COLUMN organization_id SET NOT NULL;
-
-COMMIT;
-```
-
-**Subtasks:**
-- [ ] Create migration file 013_add_organization_to_lms.sql
-- [ ] **DECISION REQUIRED:** Create "OnFire Learning" organization before running this migration?
-- [ ] Run migration using Supabase MCP: `mcp__supabase__apply_migration`
-- [ ] Verify LMS integrations have organization_id
-
-**Verification SQL:**
-```sql
-SELECT
-    l.id,
-    l.lms_type,
-    o.name as organization_name
-FROM lms_integrations l
-JOIN organizations o ON l.organization_id = o.id;
-```
-
----
-
-#### Migration 1.6: Update RLS Policies for Quest Visibility
-
-```sql
--- File: backend/scripts/migrations/014_update_quest_rls_policies.sql
-
-BEGIN;
-
--- Drop existing quest RLS policies
-DROP POLICY IF EXISTS "users_can_view_quests" ON quests;
-DROP POLICY IF EXISTS "users_can_create_quests" ON quests;
-DROP POLICY IF EXISTS "users_can_update_own_quests" ON quests;
-
--- Create helper function to check quest visibility based on org policy
-CREATE OR REPLACE FUNCTION quest_visible_to_user(quest_id_param UUID, user_id_param UUID)
-RETURNS BOOLEAN AS $$
-DECLARE
-    user_org_id UUID;
-    user_org_policy VARCHAR(50);
-    quest_org_id UUID;
-BEGIN
-    -- Get user's organization and policy
-    SELECT organization_id, organizations.quest_visibility_policy
-    INTO user_org_id, user_org_policy
-    FROM users
-    LEFT JOIN organizations ON users.organization_id = organizations.id
-    WHERE users.id = user_id_param;
-
-    -- If user has no organization, deny access
-    IF user_org_id IS NULL THEN
-        RETURN FALSE;
-    END IF;
-
-    -- Get quest's organization (NULL = global Optio quest)
-    SELECT organization_id INTO quest_org_id
-    FROM quests WHERE id = quest_id_param;
-
-    -- Apply visibility policy logic
-    IF user_org_policy = 'all_optio' THEN
-        -- See global Optio quests (NULL) + same organization quests
-        RETURN (quest_org_id IS NULL OR quest_org_id = user_org_id);
-
-    ELSIF user_org_policy = 'curated' THEN
-        -- See curated quests + same organization quests
-        RETURN (
-            quest_org_id = user_org_id
-            OR EXISTS (
-                SELECT 1 FROM organization_quest_access
-                WHERE organization_id = user_org_id
-                AND quest_id = quest_id_param
-            )
-        );
-
-    ELSIF user_org_policy = 'private_only' THEN
-        -- See only same organization quests
-        RETURN quest_org_id = user_org_id;
-
-    ELSE
-        -- Unknown policy: deny access
-        RETURN FALSE;
-    END IF;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Create new RLS policy for quest viewing
-CREATE POLICY "users_can_view_quests_by_org_policy" ON quests
-    FOR SELECT
-    USING (
-        is_active = true
-        AND (
-            -- User's own quests (always visible)
-            created_by = auth.uid()
-            OR
-            -- Organization policy check
-            quest_visible_to_user(id, auth.uid())
-        )
-    );
-
--- RLS policy for quest creation (unchanged)
-CREATE POLICY "users_can_create_quests" ON quests
-    FOR INSERT
-    WITH CHECK (created_by = auth.uid());
-
--- RLS policy for quest updates (users can update own quests)
-CREATE POLICY "users_can_update_own_quests" ON quests
-    FOR UPDATE
-    USING (created_by = auth.uid())
-    WITH CHECK (created_by = auth.uid());
-
--- RLS policy for org admins to update their organization's quests
-CREATE POLICY "org_admins_can_update_org_quests" ON quests
-    FOR UPDATE
-    USING (
-        organization_id IN (
-            SELECT organization_id
-            FROM users
-            WHERE id = auth.uid()
-            AND (is_org_admin = true OR role = 'admin')
-        )
-    )
-    WITH CHECK (
-        organization_id IN (
-            SELECT organization_id
-            FROM users
-            WHERE id = auth.uid()
-            AND (is_org_admin = true OR role = 'admin')
-        )
-    );
-
-COMMIT;
-```
-
-**Subtasks:**
-- [ ] Create migration file 014_update_quest_rls_policies.sql
-- [ ] Run migration using Supabase MCP: `mcp__supabase__apply_migration`
-- [ ] Test quest visibility for different policies
-- [ ] Verify RLS function works correctly
-
-**Verification SQL:**
-```sql
--- Test quest_visible_to_user function
--- Replace with actual user_id and quest_id
-SELECT quest_visible_to_user(
-    '<quest_id>'::UUID,
-    '<user_id>'::UUID
-);
-
--- Check RLS policies exist
-SELECT schemaname, tablename, policyname
-FROM pg_policies
-WHERE tablename = 'quests';
-```
-
----
-
-#### Migration 1.7: Create Updated Timestamp Trigger
-
-```sql
--- File: backend/scripts/migrations/015_organization_triggers.sql
-
-BEGIN;
-
--- Create updated_at trigger function (if not exists)
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Add trigger to organizations table
-DROP TRIGGER IF EXISTS update_organizations_updated_at ON organizations;
-CREATE TRIGGER update_organizations_updated_at
-    BEFORE UPDATE ON organizations
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-COMMIT;
-```
-
-**Subtasks:**
-- [ ] Create migration file 015_organization_triggers.sql
-- [ ] Run migration using Supabase MCP: `mcp__supabase__apply_migration`
-- [ ] Verify trigger created
-
----
-
-#### Phase 1 Completion Checklist
-
-- [x] All 7 migrations executed successfully
-- [x] `organizations` table created with default Optio org
-- [x] `users` table has organization_id and is_org_admin columns
-- [x] All existing users assigned to Optio organization (49 users)
-- [x] `quests` table has organization_id column
-- [x] Existing quests marked as global (131 quests with organization_id = NULL)
-- [x] `organization_quest_access` table created
-- [x] `lms_integrations` table has organization_id column
-- [x] RLS policies updated for organization-aware quest visibility
-- [x] Helper function `quest_visible_to_user()` created and deployed
-- [x] Updated_at trigger added to organizations table
-
-**Verification Results:**
-```
-organizations: 1 row (Optio organization)
-users with org: 49 rows (all users assigned)
-quests: 131 rows (all global)
-organization_quest_access: 0 rows (ready for curation)
-```
-
-**Git Commit:** `89df8a8` - "Phase 1: Database schema migration for multi-organization support"
+### Phase 1: Database Schema Migration ✅
+**Completed:** 2025-12-07 (2 hours) | **Commit:** `89df8a8`
+
+**Summary:** Created complete database foundation for multi-organization platform with 7 migrations.
+
+**New Tables:**
+- `organizations` - Core org table with 3 visibility policies (all_optio, curated, private_only)
+- `organization_quest_access` - Curated quest selection per organization
+
+**Modified Tables:**
+- `users` - Added organization_id (FK, NOT NULL) and is_org_admin flag
+- `quests` - Added organization_id (nullable, NULL = global quest)
+- `lms_integrations` - Added organization_id (FK, NOT NULL)
+
+**Key Features:**
+- Created `quest_visible_to_user()` function implementing 3-policy visibility logic
+- Updated RLS policies for organization-aware quest filtering
+- All 49 existing users assigned to default "Optio" organization
+- All 131 existing quests marked as global (visible to 'all_optio' orgs)
+- Org admins can manage their organization's quests and curated library
+
+**Migration Files:** [009-015](backend/database_migration/) applied via Supabase MCP
 
 ---
 
 ### Phase 2: Backend Repository & Service Layer
-**Status:** 🔴 Not Started
-**Estimated Time:** 6-8 hours
+**Status:** 🟢 Complete
+**Completed:** 2025-12-07 (3 hours) | **Commit:** Pending
+
+**Summary:** Created complete backend infrastructure for multi-organization management with organization-aware quest filtering.
+
+**Key Changes:**
+1. **OrganizationRepository** ([backend/repositories/organization_repository.py](backend/repositories/organization_repository.py))
+   - CRUD operations for organizations
+   - Quest access management (grant/revoke for curated policy)
+   - Organization analytics (users, completions, XP)
+   - User and quest queries per organization
+
+2. **OrganizationService** ([backend/services/organization_service.py](backend/services/organization_service.py))
+   - Business logic for organization management
+   - Policy validation (all_optio, curated, private_only)
+   - Slug validation and uniqueness checks
+   - Dashboard data aggregation
+
+3. **QuestRepository Enhancement** ([backend/repositories/quest_repository.py](backend/repositories/quest_repository.py))
+   - Added `get_quests_for_user()` method implementing 3-policy visibility system
+   - Respects organization quest_visibility_policy
+   - Filters quests based on: global quests, org quests, curated quests, user-created quests
+
+4. **Auth Decorators** ([backend/utils/auth/decorators.py](backend/utils/auth/decorators.py))
+   - `@require_superadmin` - Restricts to tannerbowman@gmail.com admin
+   - `@require_org_admin` - Allows org admins + superadmin
+   - Both pass user_id, organization_id, is_superadmin to routes
+
+5. **Organization Routes** ([backend/routes/admin/organization_management.py](backend/routes/admin/organization_management.py))
+   - `GET/POST /api/admin/organizations/organizations` - List/create orgs (superadmin)
+   - `GET/PUT /api/admin/organizations/organizations/<org_id>` - Manage org (org admin)
+   - `POST /api/admin/organizations/organizations/<org_id>/quests/grant` - Grant quest access
+   - `POST /api/admin/organizations/organizations/<org_id>/quests/revoke` - Revoke access
+   - `GET /api/admin/organizations/organizations/<org_id>/users` - List org users
+   - `GET /api/admin/organizations/organizations/<org_id>/analytics` - Org analytics
+
+6. **Quest Route Updates** ([backend/routes/quests.py](backend/routes/quests.py))
+   - Authenticated users: Uses `get_quests_for_user()` for org-aware filtering
+   - Anonymous users: Only see global public quests (organization_id IS NULL)
+
+7. **Database Migration** ([backend/database_migration/016_create_org_analytics_function.sql](backend/database_migration/016_create_org_analytics_function.sql))
+   - Created `get_org_total_xp()` RPC function for analytics
+
+**All Phase 2 Tasks Completed:**
+- ✅ OrganizationRepository with all methods
+- ✅ Analytics RPC function
+- ✅ OrganizationService with business logic
+- ✅ QuestRepository.get_quests_for_user() method
+- ✅ @require_superadmin and @require_org_admin decorators
+- ✅ Organization management routes
+- ✅ Quest routes updated for organization filtering
+- ✅ Routes registered in app.py
+
+---
+
+#### Original Task Documentation (Collapsed)
+
+<details>
+<summary>Task 2.1: Create OrganizationRepository (Click to expand)</summary>
 
 #### Task 2.1: Create OrganizationRepository
 
@@ -765,10 +341,10 @@ class OrganizationRepository(BaseRepository):
 ```
 
 **Subtasks:**
-- [ ] Create organization_repository.py
-- [ ] Implement all repository methods
-- [ ] Add docstrings to all methods
-- [ ] Create RPC function for analytics aggregation
+- [x] Create organization_repository.py
+- [x] Implement all repository methods
+- [x] Add docstrings to all methods
+- [x] Create RPC function for analytics aggregation
 
 **Analytics RPC Function:**
 ```sql
@@ -930,10 +506,10 @@ class OrganizationService(BaseService):
 ```
 
 **Subtasks:**
-- [ ] Create organization_service.py
-- [ ] Implement all service methods
-- [ ] Add validation logic
-- [ ] Add logging for all organization changes
+- [x] Create organization_service.py
+- [x] Implement all service methods
+- [x] Add validation logic
+- [x] Add logging for all organization changes
 
 ---
 
@@ -1028,9 +604,9 @@ def get_quests_for_user(
 ```
 
 **Subtasks:**
-- [ ] Add get_quests_for_user() method to QuestRepository
-- [ ] Update existing quest filtering methods to use this logic
-- [ ] Add unit tests for organization filtering
+- [x] Add get_quests_for_user() method to QuestRepository
+- [x] Update existing quest filtering methods to use this logic
+- [ ] Add unit tests for organization filtering (Phase 4)
 
 ---
 
@@ -1131,9 +707,9 @@ def require_org_admin(f):
 ```
 
 **Subtasks:**
-- [ ] Add @require_superadmin decorator
-- [ ] Add @require_org_admin decorator
-- [ ] Test decorators with different user roles
+- [x] Add @require_superadmin decorator
+- [x] Add @require_org_admin decorator
+- [ ] Test decorators with different user roles (Phase 4)
 
 ---
 
@@ -1337,10 +913,10 @@ def get_organization_analytics(current_user_id, current_org_id, is_superadmin, o
 ```
 
 **Subtasks:**
-- [ ] Create organization_management.py routes file
-- [ ] Implement all route handlers
-- [ ] Add error handling and validation
-- [ ] Test all endpoints with Postman/curl
+- [x] Create organization_management.py routes file
+- [x] Implement all route handlers
+- [x] Add error handling and validation
+- [ ] Test all endpoints with Postman/curl (Phase 4)
 
 ---
 
@@ -1432,9 +1008,9 @@ def get_quests():
 ```
 
 **Subtasks:**
-- [ ] Update get_quests() route handler
-- [ ] Test quest visibility for different policies
-- [ ] Verify anonymous users only see global quests
+- [x] Update get_quests() route handler
+- [ ] Test quest visibility for different policies (Phase 4)
+- [ ] Verify anonymous users only see global quests (Phase 4)
 
 ---
 
@@ -1456,24 +1032,26 @@ app.register_blueprint(
 ```
 
 **Subtasks:**
-- [ ] Import organization_management blueprint
-- [ ] Register blueprint with URL prefix
-- [ ] Test routes are accessible
+- [x] Import organization_management blueprint
+- [x] Register blueprint with URL prefix
+- [x] Test routes are accessible
+
+</details>
 
 ---
 
 #### Phase 2 Completion Checklist
 
-- [ ] OrganizationRepository created with all methods
-- [ ] OrganizationService created with business logic
-- [ ] QuestRepository updated with get_quests_for_user() method
-- [ ] @require_superadmin decorator created
-- [ ] @require_org_admin decorator created
-- [ ] Organization management routes created
-- [ ] Quest routes updated for organization filtering
-- [ ] All routes registered in app.py
-- [ ] Repository analytics RPC function created
-- [ ] All code tested with different organization policies
+- [x] OrganizationRepository created with all methods
+- [x] OrganizationService created with business logic
+- [x] QuestRepository updated with get_quests_for_user() method
+- [x] @require_superadmin decorator created
+- [x] @require_org_admin decorator created
+- [x] Organization management routes created
+- [x] Quest routes updated for organization filtering
+- [x] All routes registered in app.py
+- [x] Repository analytics RPC function created
+- [ ] All code tested with different organization policies (Phase 4)
 
 ---
 

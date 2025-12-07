@@ -305,6 +305,114 @@ def require_advisor_for_student(f):
 
     return decorated_function
 
+def require_superadmin(f):
+    """
+    Decorator to require superadmin role.
+    Superadmin is defined as role='admin' AND email='tannerbowman@gmail.com'
+
+    Uses httpOnly cookies exclusively for enhanced security.
+    When masquerading, this checks the ACTUAL admin identity, not the masquerade target.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Skip authentication for OPTIONS requests (CORS preflight)
+        if request.method == 'OPTIONS':
+            return ('', 200)
+
+        # Get actual admin user ID (not masquerade target)
+        user_id = session_manager.get_actual_admin_id()
+
+        if not user_id:
+            raise AuthenticationError('Authentication required')
+
+        # Store user_id in request context
+        request.user_id = user_id
+
+        # Verify superadmin status (use admin client to bypass RLS)
+        from database import get_supabase_admin_client
+        supabase = get_supabase_admin_client()
+
+        try:
+            user = supabase.table('users').select('role, email').eq('id', user_id).single().execute()
+
+            if not user.data or user.data['role'] != 'admin' or user.data['email'] != 'tannerbowman@gmail.com':
+                raise AuthorizationError('Superadmin access required')
+
+            return f(user_id, *args, **kwargs)
+
+        except (AuthenticationError, AuthorizationError):
+            raise
+        except Exception as e:
+            print(f"Error verifying superadmin status: {str(e)}", file=sys.stderr, flush=True)
+            raise AuthorizationError('Failed to verify superadmin status')
+
+    return decorated_function
+
+
+def require_org_admin(f):
+    """
+    Decorator to require org admin or superadmin role.
+    Org admins can manage their own organization.
+    Superadmins can manage all organizations.
+
+    Uses httpOnly cookies exclusively for enhanced security.
+    When masquerading, this checks the ACTUAL admin identity, not the masquerade target.
+
+    Passes user_id, organization_id, and is_superadmin to the decorated function.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Skip authentication for OPTIONS requests (CORS preflight)
+        if request.method == 'OPTIONS':
+            return ('', 200)
+
+        # Get actual admin user ID (not masquerade target)
+        user_id = session_manager.get_actual_admin_id()
+
+        if not user_id:
+            raise AuthenticationError('Authentication required')
+
+        # Store user_id in request context
+        request.user_id = user_id
+
+        # Verify org admin or superadmin status (use admin client to bypass RLS)
+        from database import get_supabase_admin_client
+        supabase = get_supabase_admin_client()
+
+        try:
+            user = supabase.table('users')\
+                .select('role, email, is_org_admin, organization_id')\
+                .eq('id', user_id)\
+                .single()\
+                .execute()
+
+            if not user.data:
+                raise AuthorizationError('User not found')
+
+            # Check if superadmin
+            is_superadmin = (
+                user.data['role'] == 'admin' and
+                user.data['email'] == 'tannerbowman@gmail.com'
+            )
+
+            # Check if org admin
+            is_org_admin = user.data.get('is_org_admin', False)
+
+            if not (is_superadmin or is_org_admin):
+                raise AuthorizationError('Organization admin access required')
+
+            # Pass user info to handler
+            return f(user_id, user.data['organization_id'], is_superadmin, *args, **kwargs)
+
+        except (AuthenticationError, AuthorizationError):
+            raise
+        except Exception as e:
+            print(f"Error verifying org admin status: {str(e)}", file=sys.stderr, flush=True)
+            raise AuthorizationError('Failed to verify organization admin status')
+
+    return decorated_function
+
+
 def get_advisor_assigned_students(advisor_id):
     """
     Helper function to get list of student IDs assigned to an advisor.

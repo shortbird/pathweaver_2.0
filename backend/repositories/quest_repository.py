@@ -482,6 +482,112 @@ class QuestRepository(BaseRepository):
             logger.error(f"Error fetching completed quests for user {user_id}: {e}")
             raise DatabaseError("Failed to fetch completed quests") from e
 
+    def get_quests_for_user(
+        self,
+        user_id: str,
+        filters: Optional[Dict[str, Any]] = None,
+        page: int = 1,
+        limit: int = 20
+    ) -> Dict[str, Any]:
+        """
+        Get quests visible to a user based on their organization's policy.
+        This method handles all organization-aware filtering.
+
+        Args:
+            user_id: User ID
+            filters: Optional filters (pillar, quest_type, search)
+            page: Page number (1-indexed)
+            limit: Items per page
+
+        Returns:
+            Dictionary with quests, total count, page, and limit
+
+        Raises:
+            DatabaseError: If query fails
+        """
+        try:
+            from backend.database import get_supabase_admin_client
+
+            # Get user's organization and policy
+            admin = get_supabase_admin_client()
+            user_data = admin.table('users')\
+                .select('organization_id, organizations(quest_visibility_policy)')\
+                .eq('id', user_id)\
+                .single()\
+                .execute()
+
+            if not user_data.data:
+                raise DatabaseError(f"User {user_id} not found")
+
+            org_id = user_data.data['organization_id']
+            policy = user_data.data['organizations']['quest_visibility_policy']
+
+            # Base query: only active quests
+            query = self.client.table('quests').select('*', count='exact').eq('is_active', True)
+
+            # Apply organization visibility policy
+            if policy == 'all_optio':
+                # Global quests (NULL) + organization quests
+                query = query.or_(f'organization_id.is.null,organization_id.eq.{org_id}')
+
+            elif policy == 'curated':
+                # Get curated quest IDs
+                curated = admin.table('organization_quest_access')\
+                    .select('quest_id')\
+                    .eq('organization_id', org_id)\
+                    .execute()
+
+                quest_ids = [q['quest_id'] for q in curated.data] if curated.data else []
+
+                if quest_ids:
+                    # Curated quests + organization quests + user's own created quests
+                    quest_ids_str = ','.join(quest_ids)
+                    query = query.or_(
+                        f'id.in.({quest_ids_str}),'
+                        f'organization_id.eq.{org_id},'
+                        f'created_by.eq.{user_id}'
+                    )
+                else:
+                    # No curated quests, only org quests + user's created quests
+                    query = query.or_(
+                        f'organization_id.eq.{org_id},'
+                        f'created_by.eq.{user_id}'
+                    )
+
+            elif policy == 'private_only':
+                # Only organization quests + user's own created quests
+                query = query.or_(
+                    f'organization_id.eq.{org_id},'
+                    f'created_by.eq.{user_id}'
+                )
+
+            # Apply additional filters
+            filters = filters or {}
+            if filters.get('pillar'):
+                query = query.eq('pillar_primary', filters['pillar'])
+            if filters.get('quest_type'):
+                query = query.eq('quest_type', filters['quest_type'])
+            if filters.get('search'):
+                query = query.ilike('title', f"%{filters['search']}%")
+
+            # Pagination
+            offset = (page - 1) * limit
+            query = query.range(offset, offset + limit - 1)
+
+            # Execute query
+            response = query.execute()
+
+            return {
+                'quests': response.data if response.data else [],
+                'total': response.count if response.count else 0,
+                'page': page,
+                'limit': limit
+            }
+
+        except APIError as e:
+            logger.error(f"Error fetching quests for user {user_id}: {e}")
+            raise DatabaseError("Failed to fetch quests for user") from e
+
 
 class QuestTaskRepository(BaseRepository):
     """Repository for quest task database operations"""

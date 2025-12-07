@@ -94,20 +94,69 @@ def list_quests():
         # Build main quest query
         # Note: In V3 personalized system, quests don't have quest_tasks
         # Users get personalized tasks when they enroll
+
+        # Apply organization-aware visibility filter
+        if user_id:
+            # Authenticated user: Use repository method for organization-aware filtering
+            from backend.repositories.quest_repository import QuestRepository
+            quest_repo = QuestRepository(client=get_user_client())
+
+            # Prepare filters for repository method
+            filters = {}
+            if pillar_filter:
+                filters['pillar'] = pillar_filter
+            if search:
+                filters['search'] = search
+
+            # Use organization-aware filtering from repository
+            # This respects the user's organization quest visibility policy
+            org_result = quest_repo.get_quests_for_user(
+                user_id=user_id,
+                filters=filters,
+                page=page,
+                limit=per_page
+            )
+
+            # Return the organization-filtered result
+            # Process quest data the same way
+            quests = []
+            for quest in org_result['quests']:
+                quest['total_xp'] = 0
+                quest['task_count'] = 0
+
+                # Add source header image if no custom header exists
+                if not quest.get('header_image_url') and quest.get('source'):
+                    source_header = get_quest_header_image(quest)
+                    if source_header:
+                        quest['header_image_url'] = source_header
+
+                quests.append(quest)
+
+            # Add user enrollment data
+            if quests:
+                logger.info(f"[OPTIMIZATION] Using batch queries for {len(quests)} quests")
+                quests = quest_optimization_service.enrich_quests_with_user_data(quests, user_id)
+
+            # Calculate pagination
+            total_pages = (org_result['total'] + per_page - 1) // per_page if org_result['total'] else 0
+            has_more = page < total_pages
+
+            return jsonify({
+                'success': True,
+                'quests': quests,
+                'total': org_result['total'],
+                'page': page,
+                'per_page': per_page,
+                'total_pages': total_pages,
+                'has_more': has_more
+            })
+
+        # Anonymous user: only show global public quests
         query = supabase.table('quests')\
             .select('*', count='exact')\
-            .eq('is_active', True)
-
-        # Apply visibility filter
-        if user_id:
-            # Authenticated user: show public quests + their own private quests
-            query = query.or_(
-                f'is_public.eq.true,'
-                f'created_by.eq.{user_id}'
-            )
-        else:
-            # Anonymous user: only show public quests
-            query = query.eq('is_public', True)
+            .eq('is_active', True)\
+            .eq('is_public', True)\
+            .is_('organization_id', 'null')
 
         # Apply quest ID filter if we have filters applied
         if filtered_quest_ids is not None:

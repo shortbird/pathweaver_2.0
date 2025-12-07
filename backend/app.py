@@ -20,7 +20,7 @@ from routes.observer_requests import observer_requests_bp
 
 # Import routes
 from routes import quests, tasks, admin_core, evidence_documents, analytics as analytics_routes
-from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import
+from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -136,6 +136,7 @@ app.register_blueprint(parent_connections.bp)  # /api/admin/parent-connections (
 app.register_blueprint(masquerade.masquerade_bp)  # /api/admin/masquerade (blueprint has url_prefix='/api/admin/masquerade')
 app.register_blueprint(crm.crm_bp)  # /api/admin/crm (CRM system for email campaigns and automation)
 app.register_blueprint(course_import.bp)  # /api/admin/courses (Course import from IMSCC files)
+app.register_blueprint(organization_management.bp, url_prefix='/api/admin/organizations')  # /api/admin/organizations (Multi-organization management)
 # Register quest types routes (sample tasks, course tasks)
 try:
     from routes import quest_types
