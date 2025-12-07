@@ -246,6 +246,12 @@ mcp__supabase__execute_sql  # Read-only queries (ALWAYS use for schema checks)
 
 ### Render MCP
 ```bash
+# Workspace
+# ID: tea-d2po2eur433s73dhbrd0
+# Name: Optio
+# Email: tannerbowman@gmail.com
+# Auto-selected when calling list_workspaces (only one workspace)
+
 # Service IDs
 mcp__render__list_services
 mcp__render__get_deploy(serviceId, deployId)
