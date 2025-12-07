@@ -60,8 +60,8 @@ def get_users(user_id):
         # Returns None for admins (all students), list of student IDs for advisors
         assigned_student_ids = get_advisor_assigned_students(user_id)
 
-        # Build query - include organization data via join
-        query = supabase.table('users').select('*, organizations(id, name, slug)', count='exact')
+        # Build query
+        query = supabase.table('users').select('*', count='exact')
 
         # Advisors can only see their assigned students
         if assigned_student_ids is not None:  # None means admin (all access)

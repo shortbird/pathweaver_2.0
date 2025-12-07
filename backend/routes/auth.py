@@ -248,22 +248,8 @@ def register():
         # Sign up with Supabase Auth (use original names without HTML encoding)
         from app_config import Config
 
-        # Detect registration domain for email confirmation redirect
-        # Users should be redirected back to the domain they registered on
-        try:
-            from middleware.organization import get_current_organization
-            org = get_current_organization()
-            if org and org.get('full_domain') and org['full_domain'] != 'www.optioeducation.com':
-                # Client organization - use their subdomain
-                redirect_url = f"https://{org['full_domain']}/login"
-                logger.info(f"[REGISTRATION] Using org-specific redirect: {redirect_url}")
-            else:
-                # Optio default
-                redirect_url = f"{Config.FRONTEND_URL}/login"
-        except Exception as redirect_error:
-            # Fallback to default
-            redirect_url = f"{Config.FRONTEND_URL}/login"
-            logger.warning(f"[REGISTRATION] Using default redirect, detection failed: {redirect_error}")
+        # Use standard redirect URL for email confirmation
+        redirect_url = f"{Config.FRONTEND_URL}/login"
 
         try:
             # Supabase Python client v2.x API
@@ -367,18 +353,7 @@ def register():
                     user_data['parental_consent_email'] = parent_email.strip().lower()
                     user_data['parental_consent_verified'] = False
 
-            # Auto-assign organization based on registration domain (multi-tenancy)
-            try:
-                from middleware.organization import get_current_organization_id
-                from repositories.organization_repository import OPTIO_ORG_ID
-                org_id = get_current_organization_id()
-                user_data['organization_id'] = org_id
-                logger.info(f"[REGISTRATION] Auto-assigned user to organization: {org_id}")
-            except Exception as org_error:
-                # Fallback to Optio default if detection fails
-                from repositories.organization_repository import OPTIO_ORG_ID
-                user_data['organization_id'] = OPTIO_ORG_ID
-                logger.warning(f"[REGISTRATION] Failed to detect organization, defaulting to Optio: {org_error}")
+            # Note: organization_id column will be removed in future migration
 
             # Note: username column has been removed from the database
             # Don't include it in the insert

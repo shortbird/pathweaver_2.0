@@ -24,8 +24,6 @@ from utils.pillar_utils import get_pillar_name
 from utils.pillar_mapping import normalize_pillar_name
 from repositories.quest_repository import QuestRepository, QuestTaskRepository
 from repositories.base_repository import NotFoundError, DatabaseError
-from repositories.organization_repository import OrganizationRepository, OPTIO_ORG_ID
-from middleware.organization import get_current_organization_id
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
@@ -93,47 +91,19 @@ def list_quests():
                 'has_more': False
             })
 
-        # Get current organization from middleware (domain-based detection)
-        try:
-            current_org_id = get_current_organization_id()
-        except Exception as e:
-            logger.warning(f"Could not detect organization, using Optio default: {e}")
-            current_org_id = OPTIO_ORG_ID
-
-        # Get user's organization if authenticated
-        user_org_id = None
-        if user_id:
-            try:
-                org_repo = OrganizationRepository()
-                user_org = org_repo.get_user_organization(user_id)
-                if user_org:
-                    user_org_id = user_org['id']
-            except Exception as e:
-                logger.error(f"Error getting user organization: {e}")
-
-        # Build main quest query with organization-aware filtering
+        # Build main quest query
         # Note: In V3 personalized system, quests don't have quest_tasks
         # Users get personalized tasks when they enroll
         query = supabase.table('quests')\
             .select('*', count='exact')\
             .eq('is_active', True)
 
-        # Apply multi-tenant visibility filter
-        if user_id and user_org_id:
-            # Authenticated user: show public quests + their own private quests +
-            # quests from their org + Optio public quests
+        # Apply visibility filter
+        if user_id:
+            # Authenticated user: show public quests + their own private quests
             query = query.or_(
                 f'is_public.eq.true,'
-                f'created_by.eq.{user_id},'
-                f'organization_id.eq.{user_org_id},'
-                f'organization_id.eq.{OPTIO_ORG_ID}'
-            )
-        elif user_id:
-            # Authenticated user without org: show public quests + their own + Optio quests
-            query = query.or_(
-                f'is_public.eq.true,'
-                f'created_by.eq.{user_id},'
-                f'organization_id.eq.{OPTIO_ORG_ID}'
+                f'created_by.eq.{user_id}'
             )
         else:
             # Anonymous user: only show public quests

@@ -49,6 +49,7 @@ friendships - id, requester_id, addressee_id, status (pending/accepted/rejected)
 - ~~quest_collaborations~~ ← Deleted Jan 2025
 - ~~task_collaborations~~ ← Deleted Jan 2025
 - ~~subscription_tiers~~ ← Deleted Jan 2025
+- ~~organizations~~ ← Deleted Jan 2025 (subdomain multi-tenancy removed)
 
 ### MCP Schema Check Pattern
 ```sql
@@ -284,6 +285,14 @@ mcp__render__list_logs(resource, limit)
 - ✅ Created 15 repositories (all use BaseRepository)
 - ✅ All 29 services use BaseService
 - ⚠️ 50 route files still use direct DB access
+
+### Subdomain/Multi-Tenancy Removal (Complete - Jan 7, 2025)
+- ✅ Removed organization-based multi-tenancy (subdomain) code
+- ✅ Deleted organizations table and organization_id columns from users/quests
+- ✅ Deleted OrganizationRepository and organization middleware
+- ✅ Deleted NEW_CLIENT_INTEGRATION_PROCESS.md documentation
+- ✅ All clients now use single Optio domain (no subdomains like ignite.optioeducation.com)
+- ✅ Simplified quest visibility logic (public + user's own quests)
 
 ### Security Fixes (Complete)
 - ✅ httpOnly cookies ONLY (no localStorage tokens)
