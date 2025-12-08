@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast'
 import { HelmetProvider } from 'react-helmet-async'
 import { AuthProvider } from './contexts/AuthContext'
 import { DemoProvider } from './contexts/DemoContext'
+import { OrganizationProvider } from './contexts/OrganizationContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { warmupBackend } from './utils/retryHelper'
 import { tokenStore } from './services/api'
@@ -196,6 +197,7 @@ function App() {
           <Router>
           <AppContent />
           <AuthProvider>
+            <OrganizationProvider>
             <Toaster
             position="top-right"
             toastOptions={{
@@ -280,6 +282,7 @@ function App() {
             </Route>
           </Routes>
           </Suspense>
+            </OrganizationProvider>
         </AuthProvider>
         </Router>
       </QueryClientProvider>
