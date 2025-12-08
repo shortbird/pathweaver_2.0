@@ -15,7 +15,7 @@ class OrganizationRepository(BaseRepository):
             .eq('is_active', True)\
             .maybe_single()\
             .execute()
-        return response.data if response.data else None
+        return response.data if response and response.data else None
 
     def get_all_active(self) -> List[Dict[str, Any]]:
         """Get all active organizations"""
