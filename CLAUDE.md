@@ -36,20 +36,21 @@
 
 ### Core Tables
 ```
-users - id, email, role (student/parent/advisor/admin/observer), display_name, total_xp
-quests - id, title, quest_type (optio/course), lms_course_id (nullable), is_active
+users - id, email, role (student/parent/advisor/admin/observer), display_name, total_xp, organization_id (nullable)
+quests - id, title, quest_type (optio/course), lms_course_id (nullable), is_active, organization_id (nullable)
 user_quest_tasks - id, user_id*, quest_id, title, pillar, xp_value, approval_status
 quest_task_completions - id, user_id, quest_id, task_id, xp_awarded, completed_at
 user_skill_xp - user_id, pillar (stem/wellness/communication/civics/art), xp_amount
 badges - id, name, pillar_primary, min_quests, min_xp, image_url
 friendships - id, requester_id, addressee_id, status (pending/accepted/rejected)
+organizations - id, name, slug, quest_visibility_policy, branding_config, is_active (NEW Dec 2025)
+organization_quest_access - organization_id, quest_id, granted_by (for curated policy)
 ```
 
 ### Removed Tables (Don't Query)
 - ~~quest_collaborations~~ ← Deleted Jan 2025
 - ~~task_collaborations~~ ← Deleted Jan 2025
 - ~~subscription_tiers~~ ← Deleted Jan 2025
-- ~~organizations~~ ← Deleted Jan 2025 (subdomain multi-tenancy removed)
 
 ### MCP Schema Check Pattern
 ```sql
@@ -121,6 +122,7 @@ task = task_repo.get_task_with_relations(task_id, user_id)
 - `POST /api/auth/login` - Login (sets httpOnly cookies)
 - `POST /api/auth/register` - Registration
 - `POST /api/auth/refresh` - Token refresh (httpOnly cookie rotation)
+- `GET /api/auth/me` - Get current user profile (includes organization_id)
 
 ### Quests & Tasks
 - `GET /api/quests` - List quests (pagination, filtering)
@@ -133,6 +135,16 @@ task = task_repo.get_task_with_relations(task_id, user_id)
 - `GET /api/admin/quests/*` - Quest management
 - `GET /api/admin/analytics/*` - Platform analytics
 - `GET /api/admin/analytics/user/:userId/activity` - User activity logs
+
+### Organizations (NEW - Dec 2025)
+- `GET /api/admin/organizations/organizations` - List all organizations (superadmin)
+- `POST /api/admin/organizations/organizations` - Create organization (superadmin)
+- `GET /api/admin/organizations/organizations/:id` - Get org details (org admin)
+- `PUT /api/admin/organizations/organizations/:id` - Update org (superadmin)
+- `GET /api/admin/organizations/:id/users` - List org users (org admin)
+- `GET /api/admin/organizations/:id/analytics` - Org analytics (org admin)
+- `POST /api/admin/organizations/:id/quests/grant` - Grant quest access (org admin, curated policy)
+- `POST /api/admin/organizations/:id/quests/revoke` - Revoke quest access (org admin)
 
 ### Portfolio (CORE FEATURE)
 - `GET /api/portfolio/:slug` - Public diploma page
@@ -286,13 +298,16 @@ mcp__render__list_logs(resource, limit)
 - ✅ All 29 services use BaseService
 - ⚠️ 50 route files still use direct DB access
 
-### Subdomain/Multi-Tenancy Removal (Complete - Jan 7, 2025)
-- ✅ Removed organization-based multi-tenancy (subdomain) code
-- ✅ Deleted organizations table and organization_id columns from users/quests
-- ✅ Deleted OrganizationRepository and organization middleware
-- ✅ Deleted NEW_CLIENT_INTEGRATION_PROCESS.md documentation
-- ✅ All clients now use single Optio domain (no subdomains like ignite.optioeducation.com)
-- ✅ Simplified quest visibility logic (public + user's own quests)
+### Organization System (NEW - Dec 2025)
+- ✅ Re-added organizations table (NOT for multi-tenancy/subdomains)
+- ✅ Organizations now used for enterprise/school account grouping only
+- ✅ OrganizationRepository restored (follows BaseRepository pattern)
+- ✅ OrganizationService for business logic
+- ✅ Admin routes: `/api/admin/organizations/*` (superadmin only)
+- ✅ Frontend: OrganizationContext uses `/api/auth/me` for user org_id
+- ⚠️ organizations table EXISTS but organization_id on users/quests is NULLABLE
+- ⚠️ Quest visibility NOT affected by organizations (still public + user's own)
+- ⚠️ NO subdomains (all users access optio.optioeducation.com)
 
 ### Security Fixes (Complete)
 - ✅ httpOnly cookies ONLY (no localStorage tokens)
