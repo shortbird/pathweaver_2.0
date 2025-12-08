@@ -77,7 +77,7 @@ class OrganizationRepository(BaseRepository):
             .select('*')\
             .eq('organization_id', org_id)\
             .eq('is_active', True)\
-            .order('created_at.desc')\
+            .order('created_at', desc=True)\
             .execute()
         return response.data if response.data else []
 

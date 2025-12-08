@@ -1,6 +1,9 @@
 from typing import Dict, Any, List, Optional
 from backend.services.base_service import BaseService
 from backend.repositories.organization_repository import OrganizationRepository
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class OrganizationService(BaseService):
@@ -53,7 +56,7 @@ class OrganizationService(BaseService):
         org = self.org_repo.create_organization(data)
 
         # Log organization creation
-        self.logger.info(f"Organization created: {name} (slug: {slug}, policy: {policy}) by user {created_by}")
+        logger.info(f"Organization created: {name} (slug: {slug}, policy: {policy}) by user {created_by}")
 
         return org
 
@@ -72,7 +75,7 @@ class OrganizationService(BaseService):
         data = {'quest_visibility_policy': new_policy}
         org = self.org_repo.update_organization(org_id, data)
 
-        self.logger.info(f"Organization {org_id} policy updated to {new_policy} by user {updated_by}")
+        logger.info(f"Organization {org_id} policy updated to {new_policy} by user {updated_by}")
 
         return org
 
@@ -120,7 +123,7 @@ class OrganizationService(BaseService):
 
         result = self.org_repo.grant_quest_access(org_id, quest_id, granted_by)
 
-        self.logger.info(f"Quest {quest_id} access granted to org {org_id} by user {granted_by}")
+        logger.info(f"Quest {quest_id} access granted to org {org_id} by user {granted_by}")
 
         return result
 
@@ -135,6 +138,6 @@ class OrganizationService(BaseService):
         success = self.org_repo.revoke_quest_access(org_id, quest_id)
 
         if success:
-            self.logger.info(f"Quest {quest_id} access revoked from org {org_id} by user {revoked_by}")
+            logger.info(f"Quest {quest_id} access revoked from org {org_id} by user {revoked_by}")
 
         return success
