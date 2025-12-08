@@ -5,9 +5,10 @@ from backend.repositories.base_repository import BaseRepository
 class OrganizationRepository(BaseRepository):
     """Repository for organization data access"""
 
+    table_name = 'organizations'
+
     def __init__(self, client=None):
         super().__init__(client)
-        self.table_name = 'organizations'
 
     def get_by_slug(self, slug: str) -> Optional[Dict[str, Any]]:
         """Get organization by slug"""
