@@ -8,7 +8,7 @@ class OrganizationService(BaseService):
 
     def __init__(self):
         super().__init__()
-        self.org_repo = OrganizationRepository(client=self.supabase)
+        self.org_repo = OrganizationRepository()
 
     def get_organization_by_slug(self, slug: str) -> Optional[Dict[str, Any]]:
         """Get organization by slug"""
@@ -79,7 +79,7 @@ class OrganizationService(BaseService):
     def get_organization_dashboard_data(self, org_id: str) -> Dict[str, Any]:
         """Get all data needed for org admin dashboard"""
 
-        org = self.org_repo.get_by_id(org_id)
+        org = self.org_repo.find_by_id(org_id)
         users = self.org_repo.get_organization_users(org_id)
         quests = self.org_repo.get_organization_quests(org_id)
         analytics = self.org_repo.get_organization_analytics(org_id)
@@ -106,14 +106,14 @@ class OrganizationService(BaseService):
         """Grant organization access to a quest (curated policy only)"""
 
         # Verify organization has curated policy
-        org = self.org_repo.get_by_id(org_id)
+        org = self.org_repo.find_by_id(org_id)
         if org['quest_visibility_policy'] != 'curated':
             raise ValueError("Can only grant quest access for organizations with 'curated' policy")
 
         # Verify quest is a global Optio quest (organization_id IS NULL)
         from backend.repositories.quest_repository import QuestRepository
-        quest_repo = QuestRepository(client=self.client)
-        quest = quest_repo.get_by_id(quest_id)
+        quest_repo = QuestRepository()
+        quest = quest_repo.find_by_id(quest_id)
 
         if quest['organization_id'] is not None:
             raise ValueError("Can only grant access to global Optio quests")
