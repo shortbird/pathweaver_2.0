@@ -21,7 +21,7 @@ export const OrganizationProvider = ({ children }) => {
 
   const fetchOrganization = async () => {
     try {
-      const { data } = await api.get('/api/user/profile');
+      const { data } = await api.get('/api/auth/me');
       if (data.organization_id) {
         const orgResponse = await api.get(`/api/admin/organizations/organizations/${data.organization_id}`);
         setOrganization(orgResponse.data);
