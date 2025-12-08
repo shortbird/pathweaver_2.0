@@ -28,10 +28,31 @@ class OrganizationRepository(BaseRepository):
 
     def create_organization(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Create new organization (superadmin only)"""
-        response = self.client.table(self.table_name)\
-            .insert(data)\
-            .execute()
-        return response.data[0] if response.data else None
+        from utils.logger import get_logger
+        logger = get_logger(__name__)
+
+        try:
+            logger.info(f"Attempting to create organization with data: {data}")
+            logger.info(f"Client type: {type(self.client)}, Table: {self.table_name}")
+
+            response = self.client.table(self.table_name)\
+                .insert(data)\
+                .execute()
+
+            logger.info(f"Response type: {type(response)}, Response: {response}")
+
+            if response is None:
+                raise Exception("Supabase client returned None for insert operation")
+
+            if not response.data:
+                raise Exception(f"Insert failed - no data returned. Response: {response}")
+
+            logger.info(f"Successfully created organization: {response.data[0]}")
+            return response.data[0]
+        except Exception as e:
+            logger.error(f"Error in create_organization: {type(e).__name__}: {str(e)}")
+            # Re-raise with more context
+            raise Exception(f"Failed to create organization: {str(e)}") from e
 
     def update_organization(self, org_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Update organization (superadmin only)"""
