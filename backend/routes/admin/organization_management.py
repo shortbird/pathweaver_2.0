@@ -107,7 +107,7 @@ def update_organization(superadmin_user_id, org_id):
         else:
             # Use repository directly for other updates
             from backend.repositories.organization_repository import OrganizationRepository
-            repo = OrganizationRepository(client=get_supabase_admin_client())
+            repo = OrganizationRepository()
             org = repo.update_organization(org_id, update_data)
 
         return jsonify(org), 200
@@ -181,7 +181,7 @@ def list_organization_users(current_user_id, current_org_id, is_superadmin, org_
             return jsonify({'error': 'Access denied'}), 403
 
         from backend.repositories.organization_repository import OrganizationRepository
-        repo = OrganizationRepository(client=get_supabase_admin_client())
+        repo = OrganizationRepository()
         users = repo.get_organization_users(org_id)
 
         return jsonify({
@@ -203,7 +203,7 @@ def get_organization_analytics(current_user_id, current_org_id, is_superadmin, o
             return jsonify({'error': 'Access denied'}), 403
 
         from backend.repositories.organization_repository import OrganizationRepository
-        repo = OrganizationRepository(client=get_supabase_admin_client())
+        repo = OrganizationRepository()
         analytics = repo.get_organization_analytics(org_id)
 
         return jsonify(analytics), 200

@@ -7,8 +7,8 @@ class OrganizationRepository(BaseRepository):
 
     table_name = 'organizations'
 
-    def __init__(self, client=None):
-        super().__init__(client)
+    def __init__(self, user_id: Optional[str] = None):
+        super().__init__(user_id)
 
     def get_by_slug(self, slug: str) -> Optional[Dict[str, Any]]:
         """Get organization by slug"""
