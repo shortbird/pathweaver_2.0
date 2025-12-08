@@ -200,172 +200,247 @@ lms_integrations (MODIFIED)
 
 ---
 
-### Phase 4: Testing & Validation
+### Phase 4: Browser-Based Testing & Validation
 **Status:** 🔴 Not Started
-**Estimated Time:** 4-6 hours
+**Estimated Time:** 2-3 hours
 
-#### Task 4.1: Database Testing
+**Testing Environment:** https://optio-dev-frontend.onrender.com (or production after deployment)
 
-**Test Cases:**
-- [ ] Create new organization via SQL
-- [ ] Assign user to organization
-- [ ] Create organization-specific quest
-- [ ] Grant quest access via organization_quest_access
-- [ ] Test RLS policies with different user roles
-- [ ] Test quest_visible_to_user() function with all three policies
+**Prerequisites:**
+- Superadmin account credentials (your account)
+- Access to Supabase dashboard for user/org verification
 
-**SQL Test Script:**
+---
+
+#### Test 1: Organization Creation & Management (Superadmin)
+
+**Steps:**
+1. Login as superadmin at https://optio-dev-frontend.onrender.com/login
+2. Navigate to `/admin/organizations`
+3. Click "Create Organization"
+4. Fill in form:
+   - Name: "Test Organization Alpha"
+   - Slug: "test-org-alpha"
+   - Policy: "All Optio Quests + Org Quests"
+5. Submit and verify organization appears in list
+
+**Expected Results:**
+- [ ] Organizations page loads without errors
+- [ ] Create modal opens and accepts input
+- [ ] New organization appears in list after creation
+- [ ] Organization card shows correct name, slug, and policy
+- [ ] "Manage" link navigates to `/admin/organizations/{org_id}`
+
+---
+
+#### Test 2: Organization Dashboard - All Tabs (Superadmin)
+
+**Steps:**
+1. Click "Manage" on the test organization
+2. Verify Overview tab shows:
+   - Organization name, slug, policy, status
+   - Three metric cards (Total Users, Quest Completions, Total XP)
+3. Click "Users" tab - should show table with headers (Name, Email, Role, XP, Org Admin)
+4. Click "Quests" tab - should show org-specific quests table
+5. Click "Analytics" tab - should show metrics
+
+**Expected Results:**
+- [ ] All 5 tabs render without errors
+- [ ] Overview tab displays organization details correctly
+- [ ] Users tab shows table (may be empty for new org)
+- [ ] Quests tab shows table (may be empty for new org)
+- [ ] Analytics tab shows metrics (zeros for new org)
+- [ ] Tab switching works smoothly
+
+---
+
+#### Test 3: Quest Curation (Curated Policy Only)
+
+**Steps:**
+1. Create a new organization with "Curated Quests + Org Quests" policy
+2. Navigate to that organization's management page
+3. Click "Quest Curation" tab (should only appear for curated orgs)
+4. Click "Add Quest" button
+5. Select a global quest from the dropdown
+6. Submit and verify quest appears in curated list
+7. Click "Remove" on the quest and verify it's removed
+
+**Expected Results:**
+- [ ] Quest Curation tab only appears for curated policy orgs
+- [ ] Add Quest modal loads global quests (organization_id = NULL)
+- [ ] Quest successfully added to curated library
+- [ ] Quest appears in table with title, pillar, granted date
+- [ ] Remove button successfully revokes access
+
+---
+
+#### Test 4: Quest Visibility - All Optio Policy
+
+**Steps:**
+1. In Supabase, create a test user assigned to "Test Organization Alpha" (all_optio policy)
+2. Set is_org_admin = false, role = 'student'
+3. Login as that test user
+4. Navigate to `/quests`
+5. Count total quests visible
+
+**Expected Results:**
+- [ ] User sees ALL global Optio quests (organization_id IS NULL)
+- [ ] User sees any quests created by their organization
+- [ ] Total quest count = (all global quests) + (org-specific quests)
+- [ ] Quest filtering and search work normally
+
+---
+
+#### Test 5: Quest Visibility - Curated Policy
+
+**Steps:**
+1. In Supabase, create "Test Organization Beta" with curated policy
+2. As superadmin, curate exactly 3 global quests for this org
+3. Create a test user in this organization (is_org_admin = false)
+4. Login as that test user
+5. Navigate to `/quests`
+6. Count visible quests
+
+**Expected Results:**
+- [ ] User sees ONLY the 3 curated global quests
+- [ ] User sees any org-specific quests (if created)
+- [ ] User does NOT see non-curated global quests
+- [ ] Total quest count = 3 + (org-specific quests)
+
+---
+
+#### Test 6: Quest Visibility - Private Only Policy
+
+**Steps:**
+1. In Supabase, create "Test Organization Gamma" with private_only policy
+2. Create test user in this organization
+3. Login as that test user
+4. Navigate to `/quests`
+
+**Expected Results:**
+- [ ] User sees ZERO global Optio quests
+- [ ] User only sees quests where organization_id = their org ID
+- [ ] Quest hub may appear empty (if no org quests exist)
+
+---
+
+#### Test 7: Organization Admin Access Control
+
+**Steps:**
+1. In Supabase, create user with is_org_admin = true in "Test Organization Alpha"
+2. Login as that org admin user
+3. Try to access `/admin/organizations` (superadmin only)
+4. Navigate to their own org's management page
+5. Try to access a different organization's management page
+
+**Expected Results:**
+- [ ] Org admin CANNOT access `/admin/organizations` (403 or redirect)
+- [ ] Org admin CAN access their own org's dashboard
+- [ ] Org admin CANNOT access other org's dashboards (403 error)
+- [ ] All permitted tabs work correctly for org admin
+
+---
+
+#### Test 8: User Management & Analytics
+
+**Steps:**
+1. In Supabase, add 3-5 test users to "Test Organization Alpha"
+2. Have these users complete some quests and earn XP
+3. As superadmin, navigate to the org's management page
+4. Check Users tab
+5. Check Analytics tab
+
+**Expected Results:**
+- [ ] Users tab lists all organization members
+- [ ] Each user shows correct display_name, email, role, total_xp
+- [ ] Org admin flag displays correctly (Yes/No)
+- [ ] Analytics shows accurate total_users count
+- [ ] Analytics shows total_completions and total_xp aggregates
+
+---
+
+#### Test 9: Default Optio Organization Verification
+
+**Steps:**
+1. In Supabase, verify the default "Optio" organization exists
+2. Check that existing users have organization_id = Optio org ID
+3. Check that existing quests have organization_id = NULL (global)
+4. Login as an existing Optio user
+5. Verify quest access hasn't changed
+
+**Expected Results:**
+- [ ] Default "Optio" organization exists in database
+- [ ] All pre-existing users assigned to Optio org
+- [ ] All pre-existing quests remain global (NULL organization_id)
+- [ ] Existing users can still access all quests (all_optio policy)
+- [ ] No disruption to existing user experience
+
+---
+
+#### Test 10: Anonymous User Quest Visibility
+
+**Steps:**
+1. Open browser in incognito/private mode
+2. Navigate to https://optio-dev-frontend.onrender.com/quests (without logging in)
+3. Observe visible quests
+
+**Expected Results:**
+- [ ] Anonymous users see only global public quests (organization_id IS NULL)
+- [ ] Anonymous users do NOT see organization-specific quests
+- [ ] No authentication errors occur
+- [ ] Quest listing loads successfully
+
+---
+
+#### Performance & Error Checks
+
+**Monitor throughout all tests:**
+- [ ] No JavaScript console errors
+- [ ] All API requests complete in < 2 seconds
+- [ ] Organization dashboard loads in < 1 second
+- [ ] Quest curation actions respond immediately
+- [ ] No network timeout errors
+- [ ] Browser DevTools Network tab shows all 200/201 responses
+
+---
+
+#### Database Verification Queries (Supabase SQL Editor)
+
+After completing tests, verify data integrity:
+
 ```sql
--- Create test organization
-INSERT INTO organizations (name, slug, quest_visibility_policy)
-VALUES ('Test Org', 'test-org', 'curated')
-RETURNING *;
+-- Verify all users have an organization
+SELECT COUNT(*) FROM users WHERE organization_id IS NULL;
+-- Should return 0
 
--- Create test user in that org
-INSERT INTO users (email, display_name, organization_id, is_org_admin, role)
-VALUES ('testuser@test.com', 'Test User', '<org_id>', false, 'student')
-RETURNING *;
+-- Check organization policies
+SELECT name, slug, quest_visibility_policy FROM organizations;
 
--- Test quest visibility function
-SELECT quest_visible_to_user('<quest_id>'::UUID, '<user_id>'::UUID);
+-- Verify global quests remain global
+SELECT COUNT(*) FROM quests WHERE organization_id IS NULL;
+-- Should match total global Optio quests
 
--- Verify RLS policies
-SET ROLE authenticated;
-SET request.jwt.claims.sub = '<user_id>';
-SELECT * FROM quests WHERE is_active = true;
+-- Check curated quest access
+SELECT o.name, COUNT(oqa.quest_id) as curated_count
+FROM organizations o
+LEFT JOIN organization_quest_access oqa ON o.id = oqa.organization_id
+WHERE o.quest_visibility_policy = 'curated'
+GROUP BY o.id, o.name;
 ```
-
----
-
-#### Task 4.2: Backend API Testing
-
-**Test with cURL or Postman:**
-
-```bash
-# Create organization (superadmin)
-curl -X POST http://localhost:5000/api/admin/organizations/organizations \
-  -H "Content-Type: application/json" \
-  -b cookies.txt \
-  -d '{
-    "name": "Test Organization",
-    "slug": "test-org",
-    "quest_visibility_policy": "curated"
-  }'
-
-# Get organization
-curl -X GET http://localhost:5000/api/admin/organizations/organizations/<org_id> \
-  -b cookies.txt
-
-# Grant quest access
-curl -X POST http://localhost:5000/api/admin/organizations/organizations/<org_id>/quests/grant \
-  -H "Content-Type: application/json" \
-  -b cookies.txt \
-  -d '{"quest_id": "<quest_id>"}'
-
-# List quests (should respect org policy)
-curl -X GET http://localhost:5000/api/quests \
-  -b cookies.txt
-```
-
-**Test Cases:**
-- [ ] Create organization (superadmin only)
-- [ ] Update organization policy (superadmin only)
-- [ ] Grant quest access (org admin)
-- [ ] Revoke quest access (org admin)
-- [ ] List organization users (org admin)
-- [ ] Get organization analytics (org admin)
-- [ ] Quest listing respects organization policy
-- [ ] Non-org-admin cannot access org admin routes
-- [ ] Non-superadmin cannot create organizations
-
----
-
-#### Task 4.3: Frontend Testing
-
-**Manual Test Cases:**
-- [ ] Superadmin can access /admin/organizations
-- [ ] Superadmin can create new organization
-- [ ] Org admin can access their organization's management page
-- [ ] Org admin cannot access other organization's pages
-- [ ] Curated policy: Org admin can add/remove quests from library
-- [ ] All policy: Users see all global quests + org quests
-- [ ] Curated policy: Users see only curated quests + org quests
-- [ ] Private policy: Users see only org quests
-- [ ] Quest hub filters work correctly
-- [ ] Organization analytics display correctly
-
----
-
-#### Task 4.4: Integration Testing
-
-**Test Scenarios:**
-
-**Scenario 1: New Organization with All Optio Policy**
-1. Superadmin creates organization with policy=all_optio
-2. Create new user in that organization
-3. Login as that user
-4. Verify user sees all global Optio quests + any org quests
-5. Create a quest as that user
-6. Verify quest is global (organization_id = NULL per requirements)
-
-**Scenario 2: Curated Policy Organization**
-1. Superadmin creates organization with policy=curated
-2. Create org admin user in that organization
-3. Login as org admin
-4. Grant access to 3 specific global quests
-5. Create 2 organization-specific quests
-6. Create regular student user in same organization
-7. Login as student
-8. Verify student sees only the 3 curated quests + 2 org quests
-
-**Scenario 3: Private Only Policy Organization**
-1. Superadmin creates organization with policy=private_only
-2. Create organization-specific quests
-3. Create student user in that organization
-4. Login as student
-5. Verify student sees ONLY organization quests (no global quests)
-
-**Scenario 4: OnFire Learning LMS Integration**
-1. Verify OnFire Learning organization exists (or create it)
-2. Assign OnFire users to OnFire organization
-3. Verify SPARK LMS integration has organization_id set
-4. Test course quest enrollment for OnFire users
-5. Verify LMS webhook still works correctly
-
-**Scenario 5: User Transfer Between Organizations**
-1. Create user in Organization A
-2. User completes quests, earns XP, earns badges
-3. Superadmin changes user's organization_id to Organization B
-4. Verify user keeps all XP, badges, quest completions
-5. Verify user now sees Organization B's quest library
-
----
-
-#### Task 4.5: Performance Testing
-
-**Test Cases:**
-- [ ] Quest listing with 100+ quests (check query performance)
-- [ ] Organization with 500+ users (analytics performance)
-- [ ] RLS policy enforcement doesn't cause N+1 queries
-- [ ] Curated policy with 50+ curated quests performs well
-
-**Performance Benchmarks:**
-- Quest listing should load in < 500ms
-- Organization analytics should load in < 1s
-- RLS function should execute in < 50ms
 
 ---
 
 #### Phase 4 Completion Checklist
 
-- [ ] All database test cases passed
-- [ ] All backend API test cases passed
-- [ ] All frontend test cases passed
-- [ ] All integration scenarios tested successfully
-- [ ] Performance benchmarks met
-- [ ] No RLS policy violations found
-- [ ] Quest visibility working correctly for all three policies
-- [ ] OnFire Learning LMS integration still working
+- [ ] All 10 browser tests passed successfully
+- [ ] Quest visibility works correctly for all three policies
+- [ ] Organization creation and management UI functional
+- [ ] Quest curation interface works for curated orgs
+- [ ] Access control properly enforced (superadmin vs org admin)
+- [ ] No console errors or broken UI elements
+- [ ] Database verification queries return expected results
+- [ ] Performance acceptable (<2s API calls, <1s page loads)
+- [ ] Existing Optio users unaffected by migration
 
 ---
 
