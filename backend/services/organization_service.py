@@ -6,9 +6,9 @@ from backend.repositories.organization_repository import OrganizationRepository
 class OrganizationService(BaseService):
     """Business logic for organization management"""
 
-    def __init__(self, client=None):
-        super().__init__(client)
-        self.org_repo = OrganizationRepository(client=self.client)
+    def __init__(self):
+        super().__init__()
+        self.org_repo = OrganizationRepository(client=self.supabase)
 
     def get_organization_by_slug(self, slug: str) -> Optional[Dict[str, Any]]:
         """Get organization by slug"""

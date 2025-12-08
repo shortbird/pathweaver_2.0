@@ -10,7 +10,6 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_superadmin, require_org_admin
 from backend.services.organization_service import OrganizationService
 from backend.database import get_supabase_admin_client
-
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -23,7 +22,7 @@ bp = Blueprint('organization_management', __name__)
 def list_organizations(superadmin_user_id):
     """List all organizations (superadmin only)"""
     try:
-        service = OrganizationService(client=get_supabase_admin_client())
+        service = OrganizationService()
         organizations = service.list_all_organizations()
 
         return jsonify({
@@ -48,7 +47,7 @@ def create_organization(superadmin_user_id):
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
 
-        service = OrganizationService(client=get_supabase_admin_client())
+        service = OrganizationService()
         org = service.create_organization(
             name=data['name'],
             slug=data['slug'],
@@ -73,7 +72,7 @@ def get_organization(current_user_id, current_org_id, is_superadmin, org_id):
         if not is_superadmin and current_org_id != org_id:
             return jsonify({'error': 'Access denied'}), 403
 
-        service = OrganizationService(client=get_supabase_admin_client())
+        service = OrganizationService()
         org = service.get_organization_dashboard_data(org_id)
 
         return jsonify(org), 200
@@ -96,7 +95,7 @@ def update_organization(superadmin_user_id, org_id):
         if not update_data:
             return jsonify({'error': 'No valid fields to update'}), 400
 
-        service = OrganizationService(client=get_supabase_admin_client())
+        service = OrganizationService()
 
         # If updating policy, use dedicated method
         if 'quest_visibility_policy' in update_data:
@@ -134,7 +133,7 @@ def grant_quest_access(current_user_id, current_org_id, is_superadmin, org_id):
         if not quest_id:
             return jsonify({'error': 'quest_id is required'}), 400
 
-        service = OrganizationService(client=get_supabase_admin_client())
+        service = OrganizationService()
         result = service.grant_quest_access(org_id, quest_id, current_user_id)
 
         return jsonify(result), 201
@@ -160,7 +159,7 @@ def revoke_quest_access(current_user_id, current_org_id, is_superadmin, org_id):
         if not quest_id:
             return jsonify({'error': 'quest_id is required'}), 400
 
-        service = OrganizationService(client=get_supabase_admin_client())
+        service = OrganizationService()
         success = service.revoke_quest_access(org_id, quest_id, current_user_id)
 
         if success:
