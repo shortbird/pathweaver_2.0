@@ -13,7 +13,7 @@ class OrganizationRepository(BaseRepository):
             .select('*')\
             .eq('slug', slug)\
             .eq('is_active', True)\
-            .single()\
+            .maybe_single()\
             .execute()
         return response.data if response.data else None
 
