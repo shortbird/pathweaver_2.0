@@ -450,7 +450,7 @@ def get_admin_quests(user_id):
     try:
         # Get pagination parameters
         page = int(request.args.get('page', 1))
-        per_page = min(int(request.args.get('per_page', 20)), 100)
+        per_page = min(int(request.args.get('per_page', 100)), 100)  # Default to 100 for admin panel
         offset = (page - 1) * per_page
 
         # Get user role
