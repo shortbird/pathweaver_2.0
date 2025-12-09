@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from 'recharts';
 
-const SkillsRadarChart = ({ skillsXP }) => {
+const SkillsRadarChart = ({ skillsXP, compact = false }) => {
   // Reordered for better visual balance - alternating between high and low values
   const competencyOrder = [
     'art',
@@ -100,9 +100,16 @@ const SkillsRadarChart = ({ skillsXP }) => {
   };
 
   if (!skillsXP || Object.keys(skillsXP).length === 0) {
+    if (compact) {
+      return (
+        <div className="text-center py-8">
+          <p className="text-sm text-gray-500">Complete quests to develop your growth dimensions</p>
+        </div>
+      );
+    }
     return (
       <div className="bg-white rounded-xl p-8 mb-8" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}>
-        <h2 className="text-2xl font-bold mb-4" style={{ color: text-primary }}>Growth Dimensions</h2>
+        <h2 className="text-2xl font-bold mb-4" style={{ color: 'text-primary' }}>Growth Dimensions</h2>
         <div className="text-center py-12">
           <div className="w-64 h-64 mx-auto rounded-full bg-gradient-to-br from-[#ef597b]/10 to-[#6d469b]/10 flex items-center justify-center">
             <p className="text-gray-600">Complete quests to develop your growth dimensions</p>
@@ -112,6 +119,70 @@ const SkillsRadarChart = ({ skillsXP }) => {
     );
   }
 
+  // Compact mode for sidebar
+  if (compact) {
+    return (
+      <div>
+        <ResponsiveContainer width="100%" height={280}>
+          <RadarChart data={radarData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+            <PolarGrid
+              stroke="#e5e7eb"
+              strokeDasharray="3 3"
+            />
+            <PolarAngleAxis
+              dataKey="competency"
+              tick={{
+                fill: '#6b7280',
+                fontSize: 10,
+                fontWeight: 600
+              }}
+            />
+            <PolarRadiusAxis
+              angle={90}
+              domain={[0, maxXP]}
+              tick={{ fill: '#9ca3af', fontSize: 8 }}
+              tickFormatter={(value) => value >= 1000 ? `${value/1000}k` : value}
+              tickCount={4}
+            />
+            <Radar
+              name="Growth Points"
+              dataKey="value"
+              stroke="#6d469b"
+              strokeWidth={2}
+              fill="url(#colorGradientCompact)"
+              fillOpacity={0.5}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <defs>
+              <linearGradient id="colorGradientCompact" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#ef597b" stopOpacity={0.7}/>
+                <stop offset="100%" stopColor="#6d469b" stopOpacity={0.7}/>
+              </linearGradient>
+            </defs>
+          </RadarChart>
+        </ResponsiveContainer>
+
+        {/* Compact stats grid */}
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          {competencyOrder.slice(0, 4).map(key => {
+            const info = competencyInfo[key];
+            const xp = skillsXP[key] || 0;
+
+            return (
+              <div key={key} className="text-center p-2 rounded bg-gray-50">
+                <div className="text-xs font-semibold text-gray-700 truncate">{info.label}</div>
+                <div className="text-sm font-bold" style={{ color: info.color }}>
+                  {xp >= 1000 ? `${(xp/1000).toFixed(1)}k` : xp}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // Full mode for main page
   return (
     <div className="bg-white rounded-xl p-8 mb-8" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}>
       <div className="flex justify-between items-center mb-8">
@@ -131,31 +202,31 @@ const SkillsRadarChart = ({ skillsXP }) => {
       <div className="flex items-center justify-center mb-8">
         <ResponsiveContainer width="100%" height={500}>
           <RadarChart data={radarData} margin={{ top: 60, right: 80, bottom: 60, left: 80 }}>
-            <PolarGrid 
+            <PolarGrid
               stroke="#e5e7eb"
               strokeDasharray="3 3"
               radialLines={true}
             />
-            <PolarAngleAxis 
-              dataKey="competency" 
-              tick={{ 
-                fill: '#374151', 
-                fontSize: 13, 
+            <PolarAngleAxis
+              dataKey="competency"
+              tick={{
+                fill: '#374151',
+                fontSize: 13,
                 fontWeight: 600,
                 textAnchor: 'middle'
               }}
               className="font-semibold"
             />
-            <PolarRadiusAxis 
+            <PolarRadiusAxis
               angle={90}
               domain={[0, maxXP]}
               tick={{ fill: '#9ca3af', fontSize: 10 }}
               tickFormatter={(value) => value >= 1000 ? `${value/1000}k` : value}
               tickCount={5}
             />
-            <Radar 
-              name="Growth Points" 
-              dataKey="value" 
+            <Radar
+              name="Growth Points"
+              dataKey="value"
               stroke="#6d469b"
               strokeWidth={3}
               fill="url(#colorGradient)"
@@ -177,7 +248,7 @@ const SkillsRadarChart = ({ skillsXP }) => {
         {competencyOrder.map(key => {
           const info = competencyInfo[key];
           const xp = skillsXP[key] || 0;
-          
+
           return (
             <div
               key={key}

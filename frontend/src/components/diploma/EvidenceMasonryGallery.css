@@ -1,0 +1,61 @@
+/* Masonry Grid Layout */
+.masonry-grid {
+  display: flex;
+  margin-left: -16px;
+  width: auto;
+}
+
+.masonry-grid-column {
+  padding-left: 16px;
+  background-clip: padding-box;
+}
+
+.masonry-item {
+  margin-bottom: 16px;
+  break-inside: avoid;
+}
+
+/* Evidence Preview Styles */
+.evidence-preview img,
+.evidence-preview video {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.evidence-preview .prose {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .masonry-grid {
+    margin-left: -12px;
+  }
+
+  .masonry-grid-column {
+    padding-left: 12px;
+  }
+
+  .masonry-item {
+    margin-bottom: 12px;
+  }
+}
+
+/* Hover effects */
+.masonry-item {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.masonry-item:hover {
+  transform: translateY(-4px);
+}
+
+/* Line clamp utility for older browsers */
+.line-clamp-4 {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
