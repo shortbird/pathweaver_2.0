@@ -522,13 +522,13 @@ class QuestRepository(BaseRepository):
             org_id = user_data.data['organization_id']
             policy = user_data.data['organizations']['quest_visibility_policy']
 
-            # Base query: only active quests
+            # Base query: only active and public quests
             # Use admin client to bypass RLS and apply our own visibility logic
-            query = admin.table('quests').select('*', count='exact').eq('is_active', True)
+            query = admin.table('quests').select('*', count='exact').eq('is_active', True).eq('is_public', True)
 
             # Apply organization visibility policy
             if policy == 'all_optio':
-                # Global quests (NULL) + organization quests
+                # Global quests (NULL org_id) + organization quests
                 query = query.or_(f'organization_id.is.null,organization_id.eq.{org_id}')
 
             elif policy == 'curated':
