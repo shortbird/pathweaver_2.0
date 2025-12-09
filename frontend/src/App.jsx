@@ -232,9 +232,6 @@ function App() {
                 <Route path="privacy" element={<PrivacyPolicy />} />
                 <Route path="academy-agreement" element={<OptioAcademyAgreement />} />
                 <Route path="academy-handbook" element={<OptioAcademyHandbook />} />
-                {/* Public diploma routes */}
-                <Route path="portfolio/:slug" element={<DiplomaPage />} />
-                <Route path="public/diploma/:userId" element={<DiplomaPage />} />
 
               <Route element={<PrivateRoute />}>
                 <Route path="dashboard" element={<DashboardPage />} />
@@ -251,7 +248,6 @@ function App() {
                 <Route path="credits" element={<CreditTrackerPage />} />
                 <Route path="transcript" element={<TranscriptPage />} />
                 {/* Other Routes */}
-                <Route path="diploma" element={<DiplomaPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="friends" element={<Navigate to="/connections" replace />} />
                 <Route path="connections" element={<ConnectionsPage />} />
@@ -280,6 +276,11 @@ function App() {
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
+
+            {/* Full-screen diploma routes (no Layout wrapper) */}
+            <Route path="diploma" element={<DiplomaPage />} />
+            <Route path="portfolio/:slug" element={<DiplomaPage />} />
+            <Route path="public/diploma/:userId" element={<DiplomaPage />} />
           </Routes>
           </Suspense>
             </OrganizationProvider>

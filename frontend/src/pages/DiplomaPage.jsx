@@ -639,9 +639,23 @@ const DiplomaPage = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-10">
-        {/* Share Controls */}
-        {isOwner && (
-          <div className="flex justify-end mb-6">
+        {/* Back Button and Share Controls */}
+        <div className="flex items-center justify-between mb-6">
+          {/* Back Button */}
+          {user && (
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors group"
+            >
+              <svg className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span className="font-medium">Back to Dashboard</span>
+            </button>
+          )}
+
+          {/* Share Controls */}
+          {isOwner && (
             <button
               onClick={copyShareLink}
               className="px-4 py-2 rounded-lg bg-gradient-primary text-white hover:shadow-lg transition-shadow flex items-center gap-2 text-sm"
@@ -651,8 +665,8 @@ const DiplomaPage = () => {
               </svg>
               Share Portfolio
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Main Layout: Sidebar + Evidence Gallery */}
         <div className="flex flex-col lg:flex-row gap-8">
