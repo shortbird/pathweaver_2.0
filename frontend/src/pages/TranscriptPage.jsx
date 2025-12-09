@@ -31,7 +31,7 @@ const TranscriptPage = () => {
             </button>
 
             <a
-              href={`/diploma/${user?.id || ''}`}
+              href="/diploma"
               className="inline-flex items-center gap-2 px-6 py-2 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

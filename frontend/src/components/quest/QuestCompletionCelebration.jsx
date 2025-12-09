@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Trophy, Plus, CheckCircle, BookOpen, Home } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -10,6 +11,7 @@ const QuestCompletionCelebration = ({
   onFinishQuest,
   onClose
 }) => {
+  const navigate = useNavigate();
   const [showDialog, setShowDialog] = useState(false);
 
   useEffect(() => {
@@ -150,14 +152,14 @@ const QuestCompletionCelebration = ({
 
           {/* View diploma link */}
           <div className="text-center mt-6">
-            <a
-              href={`/diploma/${quest?.user_enrollment?.user_id || ''}`}
+            <button
+              onClick={() => navigate('/diploma')}
               className="inline-flex items-center gap-2 text-optio-purple hover:text-optio-pink transition-colors font-medium"
               style={{ fontFamily: 'Poppins' }}
             >
               <BookOpen className="w-4 h-4" />
               View on Diploma
-            </a>
+            </button>
           </div>
         </div>
       </div>

@@ -102,7 +102,7 @@ const QuestCardSimple = ({ quest }) => {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/diploma/${user?.id || ''}`);
+              navigate('/diploma');
             }}
             className="w-full px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold rounded-lg transition-all duration-200 flex items-center justify-center gap-2"
           >

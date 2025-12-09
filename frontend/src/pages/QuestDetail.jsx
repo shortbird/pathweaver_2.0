@@ -587,7 +587,7 @@ const QuestDetail = () => {
             {/* View on Diploma button - show if user has completed any tasks */}
             {user && completedTasks > 0 && (
               <button
-                onClick={() => navigate(`/diploma/${user.id}`)}
+                onClick={() => navigate('/diploma')}
                 className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm text-optio-purple border-2 border-purple-200 rounded-full hover:bg-white hover:border-purple-300 hover:shadow-lg transition-all font-semibold"
                 style={{ fontFamily: 'Poppins' }}
               >

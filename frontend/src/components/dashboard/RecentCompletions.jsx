@@ -148,7 +148,7 @@ const RecentCompletions = ({ recentItems }) => {
       {recentItems.length >= 5 && user?.id && (
         <div className="mt-6 text-center">
           <Link
-            to={`/diploma/${user?.id || ''}`}
+            to="/diploma"
             className="text-sm text-optio-purple hover:text-purple-800 font-medium transition-colors"
           >
             view all completions on diploma →

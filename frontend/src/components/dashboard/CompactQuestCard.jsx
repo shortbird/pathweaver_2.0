@@ -28,7 +28,7 @@ const CompactQuestCard = ({ quest }) => {
 
   const handleClick = () => {
     if (isCompleted) {
-      navigate(`/diploma/${user?.id || ''}`);
+      navigate('/diploma');
     } else {
       navigate(`/quests/${questId}`);
     }
