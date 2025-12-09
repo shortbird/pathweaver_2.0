@@ -41,7 +41,7 @@ const ActiveQuests = memo(({ activeQuests, completedQuestsCount = 0 }) => {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {allQuests.slice(0, 6).map(quest => {
+      {allQuests.map(quest => {
         // Transform quest data to match QuestCardSimple expectations
         const questData = quest.quests || quest;
         const completedTasks = quest.tasks_completed || quest.completed_tasks || 0;
