@@ -667,18 +667,26 @@ def login():
 
             # Create response with user data
 
-            # ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY - NO tokens in response body
-            # Tokens NEVER returned in response body (XSS prevention)
-            # All authentication handled via secure httpOnly cookies ONLY
+            # ✅ MOBILE SAFARI FIX (January 2025): Return tokens in response body
+            # Mobile Safari (and other browsers with strict third-party cookie policies)
+            # may block httpOnly cookies even with SameSite=None and Secure=true
+            # Solution: Return tokens in response body so frontend can use Authorization headers
+            # Tokens are ALSO set in httpOnly cookies as fallback for browsers that support them
+
+            # Generate app tokens for Authorization header usage (mobile Safari compatibility)
+            app_access_token = session_manager.generate_access_token(auth_response.user.id)
+            app_refresh_token = session_manager.generate_refresh_token(auth_response.user.id)
 
             response_data = {
                 'user': user_response_data,
-                # NO tokens in response - httpOnly cookies ONLY for security
+                'app_access_token': app_access_token,
+                'app_refresh_token': app_refresh_token,
+                # Tokens in response body for Authorization headers (mobile Safari compatibility)
+                # Also set in httpOnly cookies as fallback for desktop browsers
             }
             response = make_response(jsonify(response_data), 200)
 
-            # Set httpOnly cookies for authentication
-            # This is the ONLY place tokens exist - never in response body or localStorage
+            # Set httpOnly cookies for authentication (fallback for desktop browsers)
             session_manager.set_auth_cookies(response, auth_response.user.id)
 
             return response
