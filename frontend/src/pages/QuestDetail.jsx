@@ -736,7 +736,7 @@ const QuestDetail = () => {
             {isQuestCompleted ? (
               // Completed quests can be picked up again
               <button
-                onClick={handleEnroll}
+                onClick={() => handleEnroll()}
                 disabled={isEnrolling}
                 className="flex-1 bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -753,7 +753,7 @@ const QuestDetail = () => {
               </button>
             ) : !quest.user_enrollment ? (
               <button
-                onClick={handleEnroll}
+                onClick={() => handleEnroll()}
                 disabled={isEnrolling}
                 className="flex-1 bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
