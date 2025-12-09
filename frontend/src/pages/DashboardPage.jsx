@@ -1,9 +1,10 @@
-import React, { useEffect, memo, useState } from 'react'
+import React, { useEffect, memo } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
 import QuestCardSimple from '../components/quest/QuestCardSimple'
-import LearningEventModal from '../components/learning-events/LearningEventModal'
+// Deprecated: Keeping for potential future use
+// import LearningEventModal from '../components/learning-events/LearningEventModal'
 import {
   RocketLaunchIcon
 } from '@heroicons/react/24/outline'
@@ -73,7 +74,8 @@ const ActiveQuests = memo(({ activeQuests, completedQuestsCount = 0 }) => {
 
 const DashboardPage = () => {
   const { user } = useAuth()
-  const [showLearningEventModal, setShowLearningEventModal] = useState(false)
+  // Deprecated: Keeping state for potential future use
+  // const [showLearningEventModal, setShowLearningEventModal] = useState(false)
 
   // ✅ SSO FIX: Clear sso_pending flag from URL on mount
   useEffect(() => {
@@ -145,6 +147,16 @@ const DashboardPage = () => {
               'Choose a quest that calls to you and see where it leads.'}
           </p>
         </div>
+        <Link
+          to="/diploma"
+          className="flex-shrink-0 bg-gradient-primary text-white px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-300 flex items-center gap-2 font-medium text-sm"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          View Portfolio
+        </Link>
+        {/* Deprecated: Capture Moment button - keeping for potential future use
         <button
           onClick={() => setShowLearningEventModal(true)}
           className="flex-shrink-0 bg-gradient-primary text-white px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-300 flex items-center gap-2 font-medium text-sm"
@@ -154,6 +166,7 @@ const DashboardPage = () => {
           </svg>
           Capture Moment
         </button>
+        */}
       </div>
 
       {/* Active Quests Panel */}
@@ -237,7 +250,7 @@ const DashboardPage = () => {
         </div>
       )}
 
-      {/* Learning Event Modal */}
+      {/* Deprecated: Learning Event Modal - keeping for potential future use
       <LearningEventModal
         isOpen={showLearningEventModal}
         onClose={() => setShowLearningEventModal(false)}
@@ -246,6 +259,7 @@ const DashboardPage = () => {
           // Optionally refetch dashboard data here if needed
         }}
       />
+      */}
     </div>
   )
 }
