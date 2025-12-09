@@ -537,8 +537,15 @@ def enroll_in_quest(user_id: str, quest_id: str):
     """
     Enroll a user in a quest.
     Creates a user_quests record to track progress.
+
+    Body (optional):
+    - load_previous_tasks: boolean - If true, copies tasks from previous enrollment
+    - force_new: boolean - If true, creates new enrollment even if previously completed
     """
     try:
+        data = request.get_json() or {}
+        load_previous_tasks = data.get('load_previous_tasks', False)
+        force_new = data.get('force_new', False)
         # Use admin client for reading quest data (public info, no RLS restrictions)
         quest_repo = QuestRepository()
 
@@ -566,6 +573,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
 
         # Check if there's an active (in-progress) enrollment
         if existing.data:
+            has_completed_enrollment = False
             for enrollment in existing.data:
                 # If there's an active enrollment that's NOT completed, return it (allow personalization)
                 if enrollment.get('is_active') and not enrollment.get('completed_at'):
@@ -575,12 +583,89 @@ def enroll_in_quest(user_id: str, quest_id: str):
                         'enrollment': enrollment,
                         'already_enrolled': True
                     })
+                # Check if user has completed this quest before
+                if enrollment.get('completed_at'):
+                    has_completed_enrollment = True
 
-            # If there are only completed enrollments, allow creating a new enrollment
-            # (We'll create a new record below rather than reactivating to preserve history)
+            # If there are only completed enrollments, ask if they want to load old tasks
+            # (unless force_new is specified in request body)
+            if has_completed_enrollment and not force_new:
+                # Get task count from previous enrollment
+                previous_enrollment = existing.data[0]
+                previous_tasks = quest_repo.client.table('user_quest_tasks')\
+                    .select('id')\
+                    .eq('user_quest_id', previous_enrollment['id'])\
+                    .execute()
+
+                return jsonify({
+                    'success': False,
+                    'error': 'quest_previously_completed',
+                    'message': f'You have completed this quest before with {len(previous_tasks.data or [])} tasks.',
+                    'previous_enrollment': previous_enrollment,
+                    'previous_task_count': len(previous_tasks.data or []),
+                    'requires_confirmation': True
+                }), 409  # Conflict status code
 
         # Create enrollment using repository
         enrollment = quest_repo.enroll_user(user_id, quest_id)
+
+        # Check if we should load tasks from previous enrollment
+        if load_previous_tasks and existing.data:
+            logger.info(f"[QUEST_RESTART] Loading tasks from previous enrollment for user {user_id[:8]}, quest {quest_id[:8]}")
+            try:
+                # Get all tasks from the previous enrollment
+                previous_enrollment = existing.data[0]
+                admin_client = get_supabase_admin_client()
+                previous_tasks = admin_client.table('user_quest_tasks')\
+                    .select('*')\
+                    .eq('user_quest_id', previous_enrollment['id'])\
+                    .eq('approval_status', 'approved')\
+                    .order('order_index')\
+                    .execute()
+
+                if previous_tasks.data:
+                    # Copy tasks to new enrollment
+                    new_tasks_data = []
+                    for task in previous_tasks.data:
+                        task_data = {
+                            'user_id': user_id,
+                            'quest_id': quest_id,
+                            'user_quest_id': enrollment['id'],
+                            'title': task['title'],
+                            'description': task.get('description', ''),
+                            'pillar': task['pillar'],
+                            'xp_value': task.get('xp_value', 100),
+                            'order_index': task.get('order_index', 0),
+                            'is_required': task.get('is_required', True),
+                            'is_manual': task.get('is_manual', True),
+                            'approval_status': 'approved',
+                            'diploma_subjects': task.get('diploma_subjects', ['Electives']),
+                            'subject_xp_distribution': task.get('subject_xp_distribution', {})
+                        }
+                        new_tasks_data.append(task_data)
+
+                    # Bulk insert
+                    admin_client.table('user_quest_tasks').insert(new_tasks_data).execute()
+                    logger.info(f"[QUEST_RESTART] Copied {len(new_tasks_data)} tasks from previous enrollment")
+
+                    # Mark personalization as completed
+                    admin_client.table('user_quests')\
+                        .update({'personalization_completed': True})\
+                        .eq('id', enrollment['id'])\
+                        .execute()
+
+                    return jsonify({
+                        'success': True,
+                        'message': f'Successfully restarted "{quest.get("title")}" with your previous tasks',
+                        'enrollment': enrollment,
+                        'skip_wizard': True,
+                        'tasks_loaded': len(new_tasks_data),
+                        'quest_type': quest.get('quest_type', 'optio')
+                    })
+
+            except Exception as copy_error:
+                logger.error(f"[QUEST_RESTART] Error copying previous tasks: {str(copy_error)}", exc_info=True)
+                # Continue with normal enrollment flow if copy fails
 
         # Check quest type and handle accordingly
         quest_type = quest.get('quest_type', 'optio')
@@ -900,15 +985,17 @@ def get_user_completed_quests(user_id: str):
                             'pillar': task_info.get('pillar', 'Arts & Creativity')
                         }
 
-                achievement = {
-                    'quest': quest,
-                    'completed_at': cq['completed_at'],
-                    'task_evidence': task_evidence,
-                    'total_xp_earned': total_xp,
-                    'status': 'completed'
-                }
+                # Only include completed quests that have at least one completed task
+                if len(task_evidence) > 0:
+                    achievement = {
+                        'quest': quest,
+                        'completed_at': cq['completed_at'],
+                        'task_evidence': task_evidence,
+                        'total_xp_earned': total_xp,
+                        'status': 'completed'
+                    }
 
-                achievements.append(achievement)
+                    achievements.append(achievement)
 
         # Add in-progress quests with at least one submitted task
         for cq in in_progress_quests:
@@ -1040,13 +1127,14 @@ def end_quest(user_id: str, quest_id: str):
             # Quest is already fully completed - return success with stats
             user_quest_id = current_enrollment['id']
 
-            # Get task completion stats
-            completed_tasks = supabase.table('user_quest_tasks')\
-                .select('xp_value')\
-                .eq('user_quest_id', user_quest_id)\
+            # Get ONLY completed tasks by joining with quest_task_completions
+            completed_tasks = supabase.table('quest_task_completions')\
+                .select('user_quest_task_id, user_quest_tasks!inner(xp_value)')\
+                .eq('user_id', user_id)\
+                .eq('quest_id', quest_id)\
                 .execute()
 
-            total_xp = sum(task.get('xp_value', 0) for task in (completed_tasks.data or []))
+            total_xp = sum(task.get('user_quest_tasks', {}).get('xp_value', 0) for task in (completed_tasks.data or []))
             task_count = len(completed_tasks.data or [])
 
             return jsonify({
@@ -1073,16 +1161,17 @@ def end_quest(user_id: str, quest_id: str):
             })\
             .eq('id', user_quest_id)\
             .execute()
-        
-        # Get task completion stats for the response
-        completed_tasks = supabase.table('user_quest_tasks')\
-            .select('xp_value')\
-            .eq('user_quest_id', user_quest_id)\
+
+        # Get ONLY completed tasks by joining with quest_task_completions
+        completed_tasks = supabase.table('quest_task_completions')\
+            .select('user_quest_task_id, user_quest_tasks!inner(xp_value)')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
             .execute()
 
-        total_xp = sum(task.get('xp_value', 0) for task in completed_tasks.data)
-        task_count = len(completed_tasks.data)
-        
+        total_xp = sum(task.get('user_quest_tasks', {}).get('xp_value', 0) for task in (completed_tasks.data or []))
+        task_count = len(completed_tasks.data or [])
+
         return jsonify({
             'success': True,
             'message': f'Quest ended successfully. You completed {task_count} tasks and earned {total_xp} XP.',

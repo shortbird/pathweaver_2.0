@@ -154,26 +154,30 @@ const QuestDetail = () => {
     );
   }
 
-  const handleEnroll = async () => {
+  const handleEnroll = async (options = {}) => {
     if (!user) {
       navigate('/login');
       return;
     }
 
-    enrollMutation.mutate(id, {
+    enrollMutation.mutate({ questId: id, options }, {
       onSuccess: async (data) => {
 
         // Force invalidate and refetch quest data
         queryClient.invalidateQueries(queryKeys.quests.detail(id));
         await refetchQuest();
 
-        // Check if we should skip the personalization wizard (course quests)
-        const skipWizard = data?.enrollment?.skip_wizard || data?.skip_wizard || false;
+        // Check if we should skip the personalization wizard (course quests or loaded previous tasks)
+        const skipWizard = data?.enrollment?.skip_wizard || data?.skip_wizard || data?.tasks_loaded || false;
         const questType = data?.quest_type || 'optio';
 
-        if (questType === 'course' || skipWizard) {
-          // Course quest - tasks are already added, just show success
-          toast.success('Enrolled! Your course tasks are ready.');
+        if (skipWizard) {
+          // Tasks are already loaded (course quest or previous tasks loaded)
+          if (data?.tasks_loaded) {
+            toast.success(`Restarted quest with ${data.tasks_loaded} previous tasks!`);
+          } else {
+            toast.success('Enrolled! Your tasks are ready.');
+          }
         } else {
           // Optio quest - always show personalization wizard
           setTimeout(() => {
@@ -182,7 +186,26 @@ const QuestDetail = () => {
         }
       },
       onError: (error) => {
-        console.error('Enrollment failed:', error);
+        // Handle quest previously completed case (409 Conflict)
+        if (error.response?.status === 409 && error.response?.data?.requires_confirmation) {
+          const previousTaskCount = error.response.data.previous_task_count || 0;
+
+          // Show confirmation dialog
+          if (window.confirm(
+            `You have completed this quest before with ${previousTaskCount} tasks.\n\n` +
+            `Would you like to:\n` +
+            `- Click OK to load your previous tasks and restart\n` +
+            `- Click Cancel to start fresh with new tasks`
+          )) {
+            // User wants to load previous tasks
+            handleEnroll({ load_previous_tasks: true, force_new: true });
+          } else {
+            // User wants to start fresh
+            handleEnroll({ force_new: true });
+          }
+        } else {
+          console.error('Enrollment failed:', error);
+        }
       }
     });
   };

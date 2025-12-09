@@ -65,17 +65,18 @@ export const useCompletedQuests = (userId, options = {}) => {
 
 /**
  * Hook for enrolling in a quest
+ * Supports optional body parameters for quest restart scenarios
  */
 export const useEnrollQuest = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationKey: [mutationKeys.enrollQuest],
-    mutationFn: async (questId) => {
-      const response = await api.post(`/api/quests/${questId}/enroll`, {})
+    mutationFn: async ({ questId, options = {} }) => {
+      const response = await api.post(`/api/quests/${questId}/enroll`, options)
       return response.data
     },
-    onSuccess: (data, questId) => {
+    onSuccess: (data, { questId }) => {
       // Invalidate quest detail to refresh enrollment status
       queryClient.invalidateQueries(queryKeys.quests.detail(questId))
 
@@ -83,10 +84,16 @@ export const useEnrollQuest = () => {
       queryClient.invalidateQueries(queryKeys.user.dashboard())
       queryClient.invalidateQueries(queryKeys.quests.all)
 
-      toast.success('Successfully enrolled in quest!')
+      // Only show success toast if not already shown by component
+      if (!data.tasks_loaded) {
+        toast.success('Successfully enrolled in quest!')
+      }
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error || 'Failed to enroll in quest')
+      // Don't show error toast for 409 (conflict) - let component handle it
+      if (error.response?.status !== 409) {
+        toast.error(error.response?.data?.error || 'Failed to enroll in quest')
+      }
     },
   })
 }
