@@ -353,7 +353,10 @@ def register():
                     user_data['parental_consent_email'] = parent_email.strip().lower()
                     user_data['parental_consent_verified'] = False
 
-            # Note: organization_id column will be removed in future migration
+            # Assign new users to default Optio organization
+            # This is required because organization_id is NOT NULL
+            DEFAULT_OPTIO_ORG_ID = 'e88b7aae-b9ad-4c71-bc3a-eef0701f5852'
+            user_data['organization_id'] = DEFAULT_OPTIO_ORG_ID
 
             # Note: username column has been removed from the database
             # Don't include it in the insert
