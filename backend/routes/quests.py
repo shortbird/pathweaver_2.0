@@ -99,7 +99,7 @@ def list_quests():
         if user_id:
             # Authenticated user: Use repository method for organization-aware filtering
             from backend.repositories.quest_repository import QuestRepository
-            quest_repo = QuestRepository(client=get_user_client())
+            quest_repo = QuestRepository(user_id=user_id)
 
             # Prepare filters for repository method
             filters = {}
