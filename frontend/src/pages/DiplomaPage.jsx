@@ -7,6 +7,8 @@ import SkillsRadarChart from '../components/diploma/SkillsRadarChart';
 import AccreditedDiplomaModal from '../components/diploma/AccreditedDiplomaModal';
 import BadgeCarouselCard from '../components/hub/BadgeCarouselCard';
 import LearningEventCard from '../components/learning-events/LearningEventCard';
+import EvidenceMasonryGallery from '../components/diploma/EvidenceMasonryGallery';
+import CompactSidebar from '../components/diploma/CompactSidebar';
 import { SkeletonDiplomaHeader, SkeletonStats, SkeletonAchievementGrid } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 import { formatErrorMessage } from '../utils/errorMessages';
@@ -40,6 +42,9 @@ const DiplomaPage = () => {
   const [totalXPCount, setTotalXPCount] = useState(0);
   const [showDiplomaExplanation, setShowDiplomaExplanation] = useState(false);
   const [showAccreditedDiplomaModal, setShowAccreditedDiplomaModal] = useState(false);
+  const [showFullCreditsModal, setShowFullCreditsModal] = useState(false);
+  const [showAllBadgesModal, setShowAllBadgesModal] = useState(false);
+  const [selectedEvidenceItem, setSelectedEvidenceItem] = useState(null);
 
   // All features are now free for all users (Phase 2 refactoring - January 2025)
   const hasAccess = true;
@@ -636,10 +641,10 @@ const DiplomaPage = () => {
       <div className="max-w-7xl mx-auto px-4 py-10">
         {/* Share Controls */}
         {isOwner && (
-          <div className="flex justify-end mb-8">
+          <div className="flex justify-end mb-6">
             <button
               onClick={copyShareLink}
-              className="px-4 py-2 rounded-lg bg-gradient-primary text-white hover:shadow-lg transition-shadow flex items-center gap-2"
+              className="px-4 py-2 rounded-lg bg-gradient-primary text-white hover:shadow-lg transition-shadow flex items-center gap-2 text-sm"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92zM18 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM6 13c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm12 7.02c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/>
@@ -649,198 +654,49 @@ const DiplomaPage = () => {
           </div>
         )}
 
-        {/* Subtle divider line */}
-        <div className="border-b border-gray-100 mb-8"></div>
-
-        {/* Growth Dimensions */}
-        {Object.keys(totalXP).length > 0 && (
-          <div className="mb-12 pb-12 border-b border-gray-100">
-            <SkillsRadarChart skillsXP={totalXP} />
-          </div>
-        )}
-
-        {/* School Subject Credits Section */}
-        {(() => {
-          // Use memoized values instead of recalculating on every render
-          return (
-            <div className="mb-12 pb-12 border-b border-gray-100">
-              <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold text-primary mb-3">Diploma Credits</h2>
-                <p className="text-gray-600 max-w-2xl mx-auto mb-4">
-                  Progress toward an accredited high school diploma through evidence-based learning
-                </p>
-                <button
-                  onClick={() => setShowAccreditedDiplomaModal(true)}
-                  className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 rounded-lg transition-all duration-200 text-sm"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>How does this work?</span>
-                </button>
-              </div>
-
-              {/* Total Credits Progress */}
-              <div className="max-w-2xl mx-auto mb-8">
-                <div className={`p-6 rounded-xl border-2 ${
-                  meetsRequirements
-                    ? 'bg-green-50 border-green-200'
-                    : 'bg-blue-50 border-blue-200'
-                }`}>
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-800">Total Credits Progress</h3>
-                      <p className="text-gray-600 text-sm">
-                        {meetsRequirements
-                          ? isOwner
-                            ? 'Congratulations! You meet graduation requirements!'
-                            : `${getStudentFirstName()} meets graduation requirements!`
-                          : `${(TOTAL_CREDITS_REQUIRED - totalCreditsEarned).toFixed(1)} credits remaining for graduation`
-                        }
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-gray-800">
-                        {totalCreditsEarned.toFixed(1)}/{TOTAL_CREDITS_REQUIRED}
-                      </div>
-                      <div className="text-sm text-gray-500">Credits</div>
-                    </div>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-3">
-                    <div
-                      className={`h-3 rounded-full transition-all duration-500 ${
-                        meetsRequirements
-                          ? 'bg-gradient-to-r from-green-400 to-green-600'
-                          : 'bg-gradient-primary'
-                      }`}
-                      style={{
-                        width: `${Math.min((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100, 100)}%`
-                      }}
-                    ></div>
-                  </div>
-                  <div className="text-center mt-2 text-sm text-gray-600">
-                    {Math.round((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100)}% Complete
-                  </div>
-                </div>
-              </div>
-
-              {/* Subject Credits Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {creditProgress.map((credit) => (
-                  <div
-                    key={credit.subject}
-                    className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-200 hover:shadow-md ${
-                      credit.isComplete
-                        ? 'border-green-200 bg-green-50'
-                        : credit.creditsEarned > 0
-                          ? 'border-blue-200'
-                          : 'border-gray-100'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        credit.isComplete
-                          ? 'bg-gradient-to-r from-green-400 to-green-600'
-                          : credit.creditsEarned > 0
-                            ? `bg-gradient-to-r ${subjectColors[credit.subject] || 'from-gray-400 to-gray-500'}`
-                            : 'bg-gray-200'
-                      }`}>
-                        {credit.isComplete ? (
-                          <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                          </svg>
-                        ) : (
-                          <svg className={`w-6 h-6 ${
-                            credit.creditsEarned > 0 ? 'text-white' : 'text-gray-400'
-                          }`} fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 2L2 7v10c0 5.55 3.84 9.739 9 9.99 5.16-.251 9-4.44 9-9.99V7l-10-5z"/>
-                            <path d="M10 17l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
-                          </svg>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-gray-800">
-                          {credit.creditsEarned.toFixed(1)}/{credit.creditsRequired}
-                        </div>
-                        <div className="text-xs text-gray-500">Credits</div>
-                      </div>
-                    </div>
-
-                    <h3 className="font-semibold text-gray-800 mb-2">
-                      {credit.displayName}
-                    </h3>
-
-                    <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-300 ${
-                          credit.isComplete
-                            ? 'bg-gradient-to-r from-green-400 to-green-600'
-                            : credit.creditsEarned > 0
-                              ? `bg-gradient-to-r ${subjectColors[credit.subject] || 'from-gray-400 to-gray-500'}`
-                              : 'bg-gray-300'
-                        }`}
-                        style={{
-                          width: `${credit.progressPercentage}%`
-                        }}
-                      ></div>
-                    </div>
-
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-xs text-gray-500">
-                        {Math.round(credit.progressPercentage)}% Complete
-                      </span>
-                      {credit.xpEarned > 0 && (
-                        <span className="text-xs text-gray-500">
-                          {credit.xpEarned} XP
-                        </span>
-                      )}
-                    </div>
-
-                    {credit.creditsEarned === 0 && (
-                      <p className="text-xs text-gray-400 italic">
-                        No progress yet - start learning to earn credits!
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
+        {/* Main Layout: Sidebar + Evidence Gallery */}
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Sidebar - Desktop: sticky left, Mobile: stacked top */}
+          <aside className="w-full lg:w-80 lg:flex-shrink-0">
+            <div className="lg:sticky lg:top-4">
+              <CompactSidebar
+                totalXP={totalXP}
+                subjectXP={subjectXP}
+                earnedBadges={earnedBadges}
+                totalXPCount={totalXPCount}
+                isOwner={isOwner}
+                studentName={getStudentFirstName()}
+                onCreditsClick={() => setShowFullCreditsModal(true)}
+                onBadgesClick={() => setShowAllBadgesModal(true)}
+              />
             </div>
-          );
-        })()}
+          </aside>
 
-        {/* Earned Badges Section */}
-        <div className="mb-12 pb-12 border-b border-gray-100">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-3 text-primary">Earned Badges</h2>
-            <p className="text-gray-600 max-w-2xl mx-auto">
-              Recognition of mastery and achievement across learning pillars
-            </p>
-          </div>
-
-          {earnedBadges.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {earnedBadges.map((userBadge) => (
-                <BadgeCarouselCard
-                  key={userBadge.badge_id || userBadge.id}
-                  badge={userBadge}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-gray-500">
-                {isOwner
-                  ? 'No badges earned yet - complete quests to earn your first badge!'
-                  : `${getStudentFirstName()} hasn't earned any badges yet.`
+          {/* Main Content - Evidence Gallery */}
+          <main className="flex-1 min-w-0">
+            <div className="mb-8">
+              <h2 className="text-3xl font-bold text-primary mb-2">Learning Evidence</h2>
+              <p className="text-gray-600">
+                {achievements.length === 0
+                  ? isOwner
+                    ? 'Start your learning journey by completing quests'
+                    : `${getStudentFirstName()} hasn't submitted any evidence yet`
+                  : `Showcasing work from ${achievements.length} ${achievements.length === 1 ? 'quest' : 'quests'}`
                 }
               </p>
             </div>
-          )}
+
+            <EvidenceMasonryGallery
+              achievements={achievements}
+              onEvidenceClick={(item) => setSelectedEvidenceItem(item)}
+              isOwner={isOwner}
+            />
+          </main>
         </div>
 
-        {/* Learning Moments Section */}
+        {/* Learning Events Section - Optional showcase below gallery */}
         {learningEvents.length > 0 && (
-          <div className="mb-12 pb-12 border-b border-gray-100">
+          <div className="mt-16 pt-12 border-t border-gray-100">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold mb-3 text-primary">Learning Moments</h2>
               <p className="text-gray-600 max-w-2xl mx-auto">
@@ -859,250 +715,363 @@ const DiplomaPage = () => {
           </div>
         )}
 
-        {/* Learning Journey Section */}
-        <div className="mb-8 pt-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-primary">Learning Journey</h2>
-            {achievements.length > 0 && (
-              <span className="text-sm text-gray-600">
-                {(() => {
-                  const completedCount = achievements.filter(a => a.status === 'completed').length;
-                  const inProgressCount = achievements.filter(a => a.status === 'in_progress').length;
-
-                  if (completedCount > 0 && inProgressCount > 0) {
-                    return `${completedCount} Completed, ${inProgressCount} In Progress`;
-                  } else if (completedCount > 0) {
-                    return `${completedCount} Adventure${completedCount === 1 ? '' : 's'} Completed`;
-                  } else {
-                    return `${inProgressCount} Adventure${inProgressCount === 1 ? '' : 's'} In Progress`;
-                  }
-                })()}
-              </span>
-            )}
-          </div>
-
-          {achievements.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 text-center">
-              <h3 className="text-xl font-bold mb-3">No achievements yet</h3>
-              <p className="text-gray-600 mb-6">
-                {isOwner
-                  ? 'Start your learning journey!'
-                  : `${getStudentFirstName()} hasn't started any quests yet.`
-                }
-              </p>
-              {isOwner && (
-                <button
-                  onClick={() => navigate('/quests')}
-                  className="px-6 py-3 bg-optio-purple text-white rounded-lg font-semibold"
-                >
-                  Start Your First Adventure
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {achievements.map((achievement, index) => {
-                const isInProgress = achievement.status === 'in_progress';
-
-                return (
-                  <div
-                    key={`${achievement.quest.id}-${index}`}
-                    className={`bg-white rounded-xl overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 flex flex-col h-full ${isInProgress ? 'ring-2 ring-blue-200' : ''}`}
-                    style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-                    onClick={() => setSelectedAchievement(achievement)}
+        {/* Full Credits Modal */}
+        {showFullCreditsModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowFullCreditsModal(false)}>
+            <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="sticky top-0 p-6 bg-gradient-primary z-10">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-white">Diploma Credits Breakdown</h2>
+                  <button
+                    onClick={() => setShowFullCreditsModal(false)}
+                    className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
                   >
-                    {/* Quest Image Header */}
-                    {achievement.quest.image_url || achievement.quest.header_image_url ? (
-                      <div className="relative h-40 overflow-hidden">
-                        <img
-                          src={achievement.quest.image_url || achievement.quest.header_image_url}
-                          alt={achievement.quest.title}
-                          loading="lazy"
-                          decoding="async"
-                          className="w-full h-full object-cover"
-                        />
-                        <div className={`absolute inset-0 bg-gradient-to-t from-black/30 to-transparent`} />
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6">
+                <div className="text-center mb-6">
+                  <p className="text-gray-600 mb-4">
+                    Progress toward an accredited high school diploma through evidence-based learning
+                  </p>
+                  <button
+                    onClick={() => setShowAccreditedDiplomaModal(true)}
+                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 rounded-lg transition-all duration-200 text-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>How does this work?</span>
+                  </button>
+                </div>
+
+                {/* Total Credits Progress */}
+                <div className="mb-8">
+                  <div className={`p-6 rounded-xl border-2 ${
+                    meetsRequirements
+                      ? 'bg-green-50 border-green-200'
+                      : 'bg-blue-50 border-blue-200'
+                  }`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800">Total Credits Progress</h3>
+                        <p className="text-gray-600 text-sm">
+                          {meetsRequirements
+                            ? isOwner
+                              ? 'Congratulations! You meet graduation requirements!'
+                              : `${getStudentFirstName()} meets graduation requirements!`
+                            : `${(TOTAL_CREDITS_REQUIRED - totalCreditsEarned).toFixed(1)} credits remaining for graduation`
+                          }
+                        </p>
                       </div>
-                    ) : (
-                      <div className="h-2 bg-gradient-primary"></div>
-                    )}
-
-                    <div className="p-4 sm:p-6 flex flex-col flex-grow">
-                      {/* Header with status badge and date */}
-                      <div className="mb-3">
-                        <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
-                          <div className="flex flex-wrap gap-2">
-                            {isInProgress && (
-                              <span className="inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-blue-600 bg-blue-100">
-                                In Progress
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-xs text-gray-500 shrink-0">
-                            {isInProgress ? formatDate(achievement.started_at) : formatDate(achievement.completed_at)}
-                          </span>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-gray-800">
+                          {totalCreditsEarned.toFixed(1)}/{TOTAL_CREDITS_REQUIRED}
                         </div>
-                      </div>
-
-                      {/* Quest title and description */}
-                      <h3 className="font-bold text-base sm:text-lg mb-2 leading-tight text-primary">
-                        {achievement.quest.title}
-                      </h3>
-                      <p className="text-sm text-gray-600 mb-4 line-clamp-2 flex-grow">
-                        {achievement.quest.description || achievement.quest.big_idea}
-                      </p>
-
-                      {/* Compact progress bar for in-progress quests */}
-                      {isInProgress && achievement.progress && (
-                        <div className="mb-4">
-                          <div className="flex justify-between items-center text-xs text-gray-600 mb-2">
-                            <span className="font-medium">Progress</span>
-                            <span className="text-blue-600 font-semibold">
-                              {achievement.progress.completed_tasks}/{achievement.progress.total_tasks} tasks
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-1.5">
-                            <div
-                              className="bg-gradient-primary h-1.5 rounded-full transition-all duration-300"
-                              style={{ width: `${achievement.progress.percentage}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Bottom section with XP and action link */}
-                      <div className="mt-auto">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                          <div className="flex items-center gap-2">
-                            <svg className={`w-4 h-4 shrink-0 ${isInProgress ? 'text-blue-500' : 'text-green-500'}`} fill="currentColor" viewBox="0 0 20 20">
-                              {isInProgress ? (
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                              ) : (
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                              )}
-                            </svg>
-                            <span className={`text-xs sm:text-sm font-medium ${isInProgress ? 'text-blue-600' : 'text-green-600'}`}>
-                              +{achievement.total_xp_earned} Points{isInProgress ? ' so far' : ''}
-                            </span>
-                          </div>
-                          <span className="text-xs sm:text-sm text-optio-purple font-medium hover:underline self-start sm:self-auto">
-                            {isInProgress ? 'View Progress →' : 'Explore Journey →'}
-                          </span>
-                        </div>
+                        <div className="text-sm text-gray-500">Credits</div>
                       </div>
                     </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div
+                        className={`h-3 rounded-full transition-all duration-500 ${
+                          meetsRequirements
+                            ? 'bg-gradient-to-r from-green-400 to-green-600'
+                            : 'bg-gradient-to-r from-optio-purple to-optio-pink'
+                        }`}
+                        style={{
+                          width: `${Math.min((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100, 100)}%`
+                        }}
+                      ></div>
+                    </div>
+                    <div className="text-center mt-2 text-sm text-gray-600">
+                      {Math.round((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100)}% Complete
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </div>
 
-            {/* Achievement Detail Modal */}
-            {selectedAchievement && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
-                  <div className="sticky top-0 p-4 sm:p-8 z-10 bg-gradient-primary">
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="flex-1 min-w-0">
-                        <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white leading-tight" style={{ letterSpacing: '-0.5px' }}>
-                          {selectedAchievement.quest.title}
-                        </h2>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <span className="text-white/80 text-sm">
-                            {selectedAchievement.status === 'completed'
-                              ? `Completed on ${formatDate(selectedAchievement.completed_at)}`
-                              : `Started on ${formatDate(selectedAchievement.started_at)}`
-                            }
-                          </span>
-                          {selectedAchievement.status === 'in_progress' && selectedAchievement.progress && (
-                            <span className="px-2 py-1 bg-white/20 rounded text-xs text-white font-medium">
-                              {selectedAchievement.progress.completed_tasks}/{selectedAchievement.progress.total_tasks} tasks completed
-                            </span>
+                {/* Subject Credits Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {creditProgress.map((credit) => (
+                    <div
+                      key={credit.subject}
+                      className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-200 hover:shadow-md ${
+                        credit.isComplete
+                          ? 'border-green-200 bg-green-50'
+                          : credit.creditsEarned > 0
+                            ? 'border-blue-200'
+                            : 'border-gray-100'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                          credit.isComplete
+                            ? 'bg-gradient-to-r from-green-400 to-green-600'
+                            : credit.creditsEarned > 0
+                              ? `bg-gradient-to-r ${subjectColors[credit.subject] || 'from-gray-400 to-gray-500'}`
+                              : 'bg-gray-200'
+                        }`}>
+                          {credit.isComplete ? (
+                            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                          ) : (
+                            <svg className={`w-6 h-6 ${
+                              credit.creditsEarned > 0 ? 'text-white' : 'text-gray-400'
+                            }`} fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M12 2L2 7v10c0 5.55 3.84 9.739 9 9.99 5.16-.251 9-4.44 9-9.99V7l-10-5z"/>
+                              <path d="M10 17l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+                            </svg>
                           )}
                         </div>
-                      </div>
-                      <button
-                        onClick={() => setSelectedAchievement(null)}
-                        className="text-white hover:bg-white/20 rounded-full p-2 transition-colors shrink-0">
-                        <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-4 sm:p-8">
-                    <div className="mb-6 sm:mb-8 p-4 sm:p-6 rounded-xl bg-gradient-subtle-strong">
-                      <h3 className="text-base sm:text-lg font-bold mb-3 text-optio-purple">Adventure Overview</h3>
-                      <p className="text-sm sm:text-base text-primary" style={{ lineHeight: 1.7 }}>{selectedAchievement.quest.description || selectedAchievement.quest.big_idea || 'A journey of discovery and growth.'}</p>
-                    </div>
-
-                    <div>
-                      <h3 className="text-base sm:text-lg font-bold mb-4 text-primary">Learning Journey & Evidence</h3>
-                      <div className="space-y-4">
-                        {Object.entries(selectedAchievement.task_evidence)
-                          .sort(([, a], [, b]) => new Date(a.completed_at) - new Date(b.completed_at))
-                          .map(([taskTitle, evidence], index) => {
-                          const normalizedPillar = normalizePillarKey(evidence.pillar);
-                          const displayPillar = getPillarDisplayName(normalizedPillar);
-                          const gradientClass = getPillarGradient(normalizedPillar);
-
-                          return (
-                            <div key={taskTitle} className="rounded-xl p-4 sm:p-5" style={{ background: 'white', border: '1px solid rgba(109,70,155,0.15)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                              <div className="mb-3">
-                                <div className="flex items-start gap-3">
-                                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-primary text-white flex items-center justify-center text-xs sm:text-sm font-bold flex-shrink-0">
-                                    {index + 1}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <h4 className="font-semibold text-sm sm:text-base leading-tight text-primary">{taskTitle}</h4>
-                                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2">
-                                      <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass} shadow-optio`}>
-                                        {displayPillar}
-                                      </span>
-                                      <span className="text-xs sm:text-sm font-medium text-green-600">
-                                        +{evidence.xp_awarded} Growth Points
-                                      </span>
-                                      <span className="text-xs text-gray-500">
-                                        {formatDate(evidence.completed_at)}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="mt-3 ml-10 sm:ml-11">
-                                <p className="text-xs sm:text-sm font-medium text-gray-700 mb-2">Learning Evidence:</p>
-                                {renderEvidence(evidence)}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      
-                      <div className={`mt-6 p-4 rounded-lg border ${selectedAchievement.status === 'completed' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
-                        <div className="flex items-center gap-2">
-                          <svg className={`w-5 h-5 ${selectedAchievement.status === 'completed' ? 'text-green-600' : 'text-blue-600'}`} fill="currentColor" viewBox="0 0 20 20">
-                            {selectedAchievement.status === 'completed' ? (
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            ) : (
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                            )}
-                          </svg>
-                          <span className={`font-semibold ${selectedAchievement.status === 'completed' ? 'text-green-800' : 'text-blue-800'}`}>
-                            {selectedAchievement.status === 'completed'
-                              ? `Total Growth: +${selectedAchievement.total_xp_earned} Points`
-                              : `Growth So Far: +${selectedAchievement.total_xp_earned} Points`
-                            }
-                          </span>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-gray-800">
+                            {credit.creditsEarned.toFixed(1)}/{credit.creditsRequired}
+                          </div>
+                          <div className="text-xs text-gray-500">Credits</div>
                         </div>
                       </div>
+
+                      <h3 className="font-semibold text-gray-800 mb-2">
+                        {credit.displayName}
+                      </h3>
+
+                      <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                        <div
+                          className={`h-2 rounded-full transition-all duration-300 ${
+                            credit.isComplete
+                              ? 'bg-gradient-to-r from-green-400 to-green-600'
+                              : credit.creditsEarned > 0
+                                ? `bg-gradient-to-r ${subjectColors[credit.subject] || 'from-gray-400 to-gray-500'}`
+                                : 'bg-gray-300'
+                          }`}
+                          style={{
+                            width: `${credit.progressPercentage}%`
+                          }}
+                        ></div>
+                      </div>
+
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs text-gray-500">
+                          {Math.round(credit.progressPercentage)}% Complete
+                        </span>
+                        {credit.xpEarned > 0 && (
+                          <span className="text-xs text-gray-500">
+                            {credit.xpEarned} XP
+                          </span>
+                        )}
+                      </div>
+
+                      {credit.creditsEarned === 0 && (
+                        <p className="text-xs text-gray-400 italic">
+                          No progress yet - start learning to earn credits!
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* All Badges Modal */}
+        {showAllBadgesModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setShowAllBadgesModal(false)}>
+            <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="sticky top-0 p-6 bg-gradient-primary z-10">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-white">Earned Badges</h2>
+                  <button
+                    onClick={() => setShowAllBadgesModal(false)}
+                    className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6">
+                <p className="text-gray-600 text-center mb-6">
+                  Recognition of mastery and achievement across learning pillars
+                </p>
+
+                {earnedBadges.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {earnedBadges.map((userBadge) => (
+                      <BadgeCarouselCard
+                        key={userBadge.badge_id || userBadge.id}
+                        badge={userBadge}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">
+                      {isOwner
+                        ? 'No badges earned yet - complete quests to earn your first badge!'
+                        : `${getStudentFirstName()} hasn't earned any badges yet.`
+                      }
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Evidence Detail Modal */}
+        {selectedEvidenceItem && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setSelectedEvidenceItem(null)}>
+            <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className={`sticky top-0 p-6 bg-gradient-to-r ${getPillarGradient(selectedEvidenceItem.pillar)} z-10`}>
+                <div className="flex justify-between items-center">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-2xl font-bold text-white mb-1 truncate">{selectedEvidenceItem.questTitle}</h2>
+                    <p className="text-white/90 text-sm truncate">{selectedEvidenceItem.taskTitle}</p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedEvidenceItem(null)}
+                    className="text-white hover:bg-white/20 rounded-full p-2 transition-colors flex-shrink-0 ml-4"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="flex items-center gap-3 mt-3">
+                  <span className="inline-block px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-white text-sm font-medium">
+                    {getPillarDisplayName(selectedEvidenceItem.pillar)}
+                  </span>
+                  <span className="text-white/90 text-sm">
+                    +{selectedEvidenceItem.xpAwarded} XP
+                  </span>
+                  <span className="text-white/80 text-sm">
+                    {formatDate(selectedEvidenceItem.completedAt)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-6">
+                <UnifiedEvidenceDisplay
+                  evidence={selectedEvidenceItem.evidence}
+                  displayMode="full"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Achievement Detail Modal (legacy - for old selectedAchievement state) */}
+        {selectedAchievement && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
+              <div className="sticky top-0 p-4 sm:p-8 z-10 bg-gradient-primary">
+                <div className="flex justify-between items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white leading-tight" style={{ letterSpacing: '-0.5px' }}>
+                      {selectedAchievement.quest.title}
+                    </h2>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="text-white/80 text-sm">
+                        {selectedAchievement.status === 'completed'
+                          ? `Completed on ${formatDate(selectedAchievement.completed_at)}`
+                          : `Started on ${formatDate(selectedAchievement.started_at)}`
+                        }
+                      </span>
+                      {selectedAchievement.status === 'in_progress' && selectedAchievement.progress && (
+                        <span className="px-2 py-1 bg-white/20 rounded text-xs text-white font-medium">
+                          {selectedAchievement.progress.completed_tasks}/{selectedAchievement.progress.total_tasks} tasks completed
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedAchievement(null)}
+                    className="text-white hover:bg-white/20 rounded-full p-2 transition-colors shrink-0">
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 sm:p-8">
+                <div className="mb-6 sm:mb-8 p-4 sm:p-6 rounded-xl bg-gradient-subtle-strong">
+                  <h3 className="text-base sm:text-lg font-bold mb-3 text-optio-purple">Adventure Overview</h3>
+                  <p className="text-sm sm:text-base text-primary" style={{ lineHeight: 1.7 }}>{selectedAchievement.quest.description || selectedAchievement.quest.big_idea || 'A journey of discovery and growth.'}</p>
+                </div>
+
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold mb-4 text-primary">Learning Journey & Evidence</h3>
+                  <div className="space-y-4">
+                    {Object.entries(selectedAchievement.task_evidence)
+                      .sort(([, a], [, b]) => new Date(a.completed_at) - new Date(b.completed_at))
+                      .map(([taskTitle, evidence], index) => {
+                      const normalizedPillar = normalizePillarKey(evidence.pillar);
+                      const displayPillar = getPillarDisplayName(normalizedPillar);
+                      const gradientClass = getPillarGradient(normalizedPillar);
+
+                      return (
+                        <div key={taskTitle} className="rounded-xl p-4 sm:p-5" style={{ background: 'white', border: '1px solid rgba(109,70,155,0.15)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                          <div className="mb-3">
+                            <div className="flex items-start gap-3">
+                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-primary text-white flex items-center justify-center text-xs sm:text-sm font-bold flex-shrink-0">
+                                {index + 1}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold text-sm sm:text-base leading-tight text-primary">{taskTitle}</h4>
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2">
+                                  <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass} shadow-optio`}>
+                                    {displayPillar}
+                                  </span>
+                                  <span className="text-xs sm:text-sm font-medium text-green-600">
+                                    +{evidence.xp_awarded} Growth Points
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {formatDate(evidence.completed_at)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 ml-10 sm:ml-11">
+                            <p className="text-xs sm:text-sm font-medium text-gray-700 mb-2">Learning Evidence:</p>
+                            {renderEvidence(evidence)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className={`mt-6 p-4 rounded-lg border ${selectedAchievement.status === 'completed' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
+                    <div className="flex items-center gap-2">
+                      <svg className={`w-5 h-5 ${selectedAchievement.status === 'completed' ? 'text-green-600' : 'text-blue-600'}`} fill="currentColor" viewBox="0 0 20 20">
+                        {selectedAchievement.status === 'completed' ? (
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        ) : (
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                        )}
+                      </svg>
+                      <span className={`font-semibold ${selectedAchievement.status === 'completed' ? 'text-green-800' : 'text-blue-800'}`}>
+                        {selectedAchievement.status === 'completed'
+                          ? `Total Growth: +${selectedAchievement.total_xp_earned} Points`
+                          : `Growth So Far: +${selectedAchievement.total_xp_earned} Points`
+                        }
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          </div>
+        )}
 
         {/* Self-Validated Diploma Explanation Modal */}
         {showDiplomaExplanation && (
@@ -1127,8 +1096,8 @@ const DiplomaPage = () => {
                   <div className="p-6 rounded-xl bg-gradient-to-r from-optio-pink/5 to-optio-purple/5" style={{ border: '1px solid rgba(109,70,155,0.1)' }}>
                     <h3 className="font-bold text-lg mb-3 text-optio-purple">A Revolutionary Approach to Education</h3>
                     <p className="text-gray-700 leading-relaxed">
-                      Unlike traditional diplomas that require external validation from institutions, a self-validated diploma 
-                      puts YOU in charge of your education. You choose what to learn, document your journey with evidence, 
+                      Unlike traditional diplomas that require external validation from institutions, a self-validated diploma
+                      puts YOU in charge of your education. You choose what to learn, document your journey with evidence,
                       and build a portfolio that authentically represents your unique skills and interests.
                     </p>
                   </div>
