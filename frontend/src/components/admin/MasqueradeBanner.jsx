@@ -1,50 +1,81 @@
-import React from 'react';
-import { AlertTriangle, LogOut } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, LogOut, ChevronUp, ChevronDown } from 'lucide-react';
 
 /**
- * MasqueradeBanner - Sticky banner shown during admin masquerade sessions
+ * MasqueradeBanner - Floating badge shown during admin masquerade sessions
  *
  * Displays when admin is viewing platform as another user
- * Sticks to top of screen when scrolling
+ * Positioned in bottom-left corner, below sidebar navigation
+ * Expandable to show full user details
  * Provides quick exit button to return to admin session
  */
 const MasqueradeBanner = ({ targetUser, onExit }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   return (
-    <div className="sticky top-0 left-0 right-0 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-4 py-3 shadow-lg z-50">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-          <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
-            <span className="font-semibold text-sm sm:text-base">
-              Masquerading as:
-            </span>
+    <div className="fixed bottom-4 left-4 lg:left-[17rem] z-50 transition-all duration-300">
+      {/* Collapsed Badge */}
+      {!isExpanded && (
+        <button
+          onClick={() => setIsExpanded(true)}
+          className="flex items-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-4 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all hover:scale-105"
+        >
+          <AlertTriangle className="w-5 h-5 animate-pulse" />
+          <span className="font-semibold text-sm">
+            Masquerading
+          </span>
+          <ChevronUp className="w-4 h-4" />
+        </button>
+      )}
+
+      {/* Expanded Badge */}
+      {isExpanded && (
+        <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg shadow-lg p-4 min-w-[280px] sm:min-w-[320px]">
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+              <span className="font-semibold text-sm">
+                Masquerade Mode
+              </span>
+            </div>
+            <button
+              onClick={() => setIsExpanded(false)}
+              className="text-white/80 hover:text-white transition-colors"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="mb-3 pb-3 border-b border-white/20">
+            <div className="text-xs opacity-90 mb-2">Viewing as:</div>
             <div className="flex items-center gap-2">
               {targetUser?.avatar_url && (
                 <img
                   src={targetUser.avatar_url}
                   alt={targetUser.display_name}
-                  className="w-6 h-6 rounded-full border-2 border-white"
+                  className="w-8 h-8 rounded-full border-2 border-white"
                 />
               )}
-              <span className="font-bold text-base sm:text-lg">
-                {targetUser?.display_name || targetUser?.email}
-              </span>
-              <span className="text-xs sm:text-sm opacity-90 bg-white/20 px-2 py-0.5 rounded">
-                {targetUser?.role || 'User'}
-              </span>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-sm truncate">
+                  {targetUser?.display_name || targetUser?.email}
+                </div>
+                <div className="text-xs opacity-90 bg-white/20 px-2 py-0.5 rounded inline-block mt-1">
+                  {targetUser?.role || 'User'}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <button
-          onClick={onExit}
-          className="flex items-center gap-2 bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 rounded-lg font-semibold transition-colors shadow-md flex-shrink-0"
-        >
-          <LogOut className="w-4 h-4" />
-          <span className="hidden sm:inline">Exit Masquerade</span>
-          <span className="sm:hidden">Exit</span>
-        </button>
-      </div>
+          <button
+            onClick={onExit}
+            className="w-full flex items-center justify-center gap-2 bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 rounded-lg font-semibold transition-colors shadow-md"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Exit Masquerade</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

@@ -50,8 +50,7 @@ const Layout = () => {
 
       {/* Main Content Area */}
       <main className={`
-        pt-16 sm:pt-16
-        ${isAuthenticated ? 'pt-[7.5rem] sm:pt-16' : 'pt-16'}
+        pt-16
         ${shouldShowSidebar ? 'lg:ml-64' : ''}
         min-h-[calc(100vh-4rem)]
       `}>
