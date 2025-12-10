@@ -625,18 +625,58 @@ def enroll_in_quest(user_id: str, quest_id: str):
         # Check if we should load tasks from previous enrollment
         if load_previous_tasks and existing.data:
             logger.info(f"[QUEST_RESTART] Loading tasks from previous enrollment for user {user_id[:8]}, quest {quest_id[:8]}")
+
+            # CRITICAL: Check if the "new" enrollment is actually the same as the previous one
+            # If enroll_user just reactivated an existing enrollment, we don't want to copy tasks from itself
+            if len(existing.data) == 1 and enrollment['id'] == existing.data[0]['id']:
+                logger.info(f"[QUEST_RESTART] Enrollment {enrollment['id'][:8]} was reactivated (not new). Tasks already exist, skipping copy.")
+                # Tasks are already there from the previous attempt - just mark as personalized and continue
+                admin_client = get_supabase_admin_client()
+                admin_client.table('user_quests')\
+                    .update({'personalization_completed': True})\
+                    .eq('id', enrollment['id'])\
+                    .execute()
+
+                # Count existing tasks
+                existing_tasks = admin_client.table('user_quest_tasks')\
+                    .select('id')\
+                    .eq('user_quest_id', enrollment['id'])\
+                    .eq('approval_status', 'approved')\
+                    .execute()
+
+                return jsonify({
+                    'success': True,
+                    'message': f'Reactivated "{quest.get("title")}" with your existing tasks',
+                    'enrollment': enrollment,
+                    'skip_wizard': True,
+                    'tasks_loaded': len(existing_tasks.data or []),
+                    'quest_type': quest.get('quest_type', 'optio')
+                })
+
             try:
-                # Get the most recent completed enrollment
+                # Get the most recent completed enrollment (that's NOT the current one)
                 most_recent_completed_enrollment = None
-                for enrollment in existing.data:
-                    if enrollment.get('completed_at'):
+                for enr in existing.data:
+                    if enr['id'] != enrollment['id'] and enr.get('completed_at'):
                         if not most_recent_completed_enrollment or \
-                           enrollment.get('completed_at', '') > most_recent_completed_enrollment.get('completed_at', ''):
-                            most_recent_completed_enrollment = enrollment
+                           enr.get('completed_at', '') > most_recent_completed_enrollment.get('completed_at', ''):
+                            most_recent_completed_enrollment = enr
 
                 if not most_recent_completed_enrollment:
-                    logger.warning(f"[QUEST_RESTART] No completed enrollment found, using first enrollment")
-                    most_recent_completed_enrollment = existing.data[0]
+                    logger.warning(f"[QUEST_RESTART] No previous completed enrollment found (only current one exists)")
+                    # Just mark as personalized and continue - no tasks to copy
+                    admin_client = get_supabase_admin_client()
+                    admin_client.table('user_quests')\
+                        .update({'personalization_completed': True})\
+                        .eq('id', enrollment['id'])\
+                        .execute()
+                    return jsonify({
+                        'success': True,
+                        'message': f'Started "{quest.get("title")}" fresh',
+                        'enrollment': enrollment,
+                        'skip_wizard': False,
+                        'quest_type': quest.get('quest_type', 'optio')
+                    })
 
                 previous_enrollment = most_recent_completed_enrollment
                 admin_client = get_supabase_admin_client()
