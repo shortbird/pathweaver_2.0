@@ -415,7 +415,7 @@ class TaskLibraryService(BaseService):
             self.logger.error(f"Error deleting task: {str(e)}")
             return False
 
-    def sanitize_library(self, quest_id: str, new_tasks: List[Dict]) -> Dict:
+    def sanitize_library(self, quest_id: str, new_tasks: List[Dict], async_mode: bool = True) -> Dict:
         """
         Sanitize the task library for a quest by deduplicating, generalizing,
         and removing low-quality tasks using AI.
@@ -423,20 +423,33 @@ class TaskLibraryService(BaseService):
         Args:
             quest_id: The quest ID to sanitize
             new_tasks: List of newly created tasks to add before sanitization
+            async_mode: If True (default), runs in background thread. If False, blocks until complete.
 
         Returns:
-            Dict containing sanitization results and statistics
+            Dict containing sanitization results and statistics (if async_mode=False)
+            or immediate success response (if async_mode=True)
         """
         try:
-            self.logger.info(f"Sanitizing task library for quest {quest_id}")
-
             # Import sanitization service
             from services.task_library_sanitization_service import TaskLibrarySanitizationService
 
             sanitization_service = TaskLibrarySanitizationService()
-            result = sanitization_service.sanitize_quest_tasks(quest_id, new_tasks)
 
-            return result
+            if async_mode:
+                # Run in background - user doesn't wait
+                self.logger.info(f"Starting async sanitization for quest {quest_id}")
+                sanitization_service.sanitize_quest_tasks_async(quest_id, new_tasks)
+
+                return {
+                    'success': True,
+                    'async': True,
+                    'message': 'Sanitization started in background'
+                }
+            else:
+                # Run synchronously - blocks until complete
+                self.logger.info(f"Starting sync sanitization for quest {quest_id}")
+                result = sanitization_service.sanitize_quest_tasks(quest_id, new_tasks)
+                return result
 
         except Exception as e:
             self.logger.error(f"Error sanitizing library: {str(e)}")

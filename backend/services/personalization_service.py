@@ -512,17 +512,21 @@ class PersonalizationService(BaseService):
                 }
                 new_library_tasks.append(library_task_data)
 
-            # Sanitize the task library with AI (deduplicate, generalize, remove low-quality)
-            logger.info(f"[FINALIZE] Running AI sanitization on task library for quest {quest_id}")
-            sanitization_result = library_service.sanitize_library(quest_id, new_library_tasks)
+            # Sanitize the task library with AI in background (deduplicate, generalize, remove low-quality)
+            # Using async mode so user doesn't wait for AI processing
+            logger.info(f"[FINALIZE] Starting background AI sanitization for quest {quest_id}")
+            sanitization_result = library_service.sanitize_library(quest_id, new_library_tasks, async_mode=True)
 
             if sanitization_result.get('success'):
-                logger.info(f"[FINALIZE] Sanitization complete: "
-                          f"{sanitization_result.get('removed_count', 0)} removed, "
-                          f"{sanitization_result.get('deduplicated_count', 0)} deduplicated, "
-                          f"{sanitization_result.get('generalized_count', 0)} generalized")
+                if sanitization_result.get('async'):
+                    logger.info(f"[FINALIZE] Background sanitization started for quest {quest_id}")
+                else:
+                    logger.info(f"[FINALIZE] Sanitization complete: "
+                              f"{sanitization_result.get('removed_count', 0)} removed, "
+                              f"{sanitization_result.get('deduplicated_count', 0)} deduplicated, "
+                              f"{sanitization_result.get('generalized_count', 0)} generalized")
             else:
-                logger.warning(f"[FINALIZE] Sanitization failed: {sanitization_result.get('error', 'Unknown error')}")
+                logger.warning(f"[FINALIZE] Sanitization failed to start: {sanitization_result.get('error', 'Unknown error')}")
 
             # Mark session as completed
             self.supabase.table('quest_personalization_sessions')\

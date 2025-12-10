@@ -12,7 +12,8 @@ USAGE PATTERN:
 
 import os
 import json
-from typing import Dict, List, Optional
+import threading
+from typing import Dict, List, Optional, Callable
 import google.generativeai as genai
 
 from services.base_service import BaseService
@@ -109,6 +110,62 @@ class TaskLibrarySanitizationService(BaseService):
                 'deduplicated_count': 0,
                 'generalized_count': 0
             }
+
+    def sanitize_quest_tasks_async(
+        self,
+        quest_id: str,
+        new_tasks: List[Dict],
+        callback: Optional[Callable[[Dict], None]] = None
+    ) -> None:
+        """
+        Run sanitization in a background thread so it doesn't block the user response.
+        This is the recommended method for production use.
+
+        Args:
+            quest_id: The quest ID to sanitize tasks for
+            new_tasks: List of newly created tasks to add to the library
+            callback: Optional callback function to receive results when complete
+
+        Example:
+            def log_results(result):
+                if result.get('success'):
+                    logger.info(f"Background sanitization complete: {result}")
+
+            service.sanitize_quest_tasks_async(quest_id, new_tasks, callback=log_results)
+        """
+        def run_sanitization():
+            try:
+                logger.info(f"Starting background sanitization for quest {quest_id}")
+                result = self.sanitize_quest_tasks(quest_id, new_tasks)
+
+                if callback:
+                    callback(result)
+                else:
+                    # Default logging if no callback provided
+                    if result.get('success'):
+                        logger.info(f"Background sanitization complete for quest {quest_id}: "
+                                  f"{result.get('removed_count', 0)} removed, "
+                                  f"{result.get('deduplicated_count', 0)} deduplicated, "
+                                  f"{result.get('generalized_count', 0)} generalized")
+                    else:
+                        logger.error(f"Background sanitization failed for quest {quest_id}: "
+                                   f"{result.get('error', 'Unknown error')}")
+            except Exception as e:
+                logger.error(f"Exception in background sanitization thread: {str(e)}")
+                if callback:
+                    callback({
+                        'success': False,
+                        'error': str(e),
+                        'sanitized_tasks': [],
+                        'removed_count': 0,
+                        'deduplicated_count': 0,
+                        'generalized_count': 0
+                    })
+
+        # Start sanitization in background thread
+        thread = threading.Thread(target=run_sanitization, daemon=True)
+        thread.start()
+        logger.info(f"Launched background sanitization thread for quest {quest_id}")
 
     def _call_ai_sanitization(self, quest_id: str, all_tasks: List[Dict]) -> List[Dict]:
         """
@@ -341,10 +398,12 @@ Return the JSON array now:"""
                     'ai_generated': True
                 }
 
+                # Only include ID if it's a valid non-null value
                 # If task has an ID from existing library, try to preserve it
-                # (Note: This might fail due to ID conflicts, in which case a new ID will be generated)
-                if task.get('id'):
-                    insert_data['id'] = task['id']
+                # Otherwise, let Supabase auto-generate a new UUID
+                task_id = task.get('id')
+                if task_id and task_id is not None and str(task_id).lower() != 'null':
+                    insert_data['id'] = task_id
 
                 insert_tasks.append(insert_data)
 
