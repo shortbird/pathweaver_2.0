@@ -807,85 +807,92 @@ const DiplomaPage = () => {
                   </div>
                 </div>
 
-                {/* Subject Credits Grid */}
+                {/* Subject Credits Grid with Circular Progress */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {creditProgress.map((credit) => (
-                    <div
-                      key={credit.subject}
-                      className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-200 hover:shadow-md ${
-                        credit.isComplete
-                          ? 'border-green-200 bg-green-50'
-                          : credit.creditsEarned > 0
-                            ? 'border-blue-200'
-                            : 'border-gray-100'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-4">
-                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  {creditProgress.map((credit) => {
+                    const radius = 45;
+                    const circumference = 2 * Math.PI * radius;
+                    const strokeDashoffset = circumference - (credit.progressPercentage / 100) * circumference;
+
+                    return (
+                      <div
+                        key={credit.subject}
+                        className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-200 hover:shadow-md ${
                           credit.isComplete
-                            ? 'bg-gradient-to-r from-green-400 to-green-600'
+                            ? 'border-green-200 bg-green-50'
                             : credit.creditsEarned > 0
-                              ? `bg-gradient-to-r ${subjectColors[credit.subject] || 'from-gray-400 to-gray-500'}`
-                              : 'bg-gray-200'
-                        }`}>
-                          {credit.isComplete ? (
-                            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                              ? 'border-blue-200'
+                              : 'border-gray-100'
+                        }`}
+                      >
+                        <div className="flex flex-col items-center mb-4">
+                          {/* Circular Progress Indicator */}
+                          <div className="relative w-32 h-32 mb-3">
+                            <svg className="transform -rotate-90 w-32 h-32">
+                              {/* Background circle */}
+                              <circle
+                                cx="64"
+                                cy="64"
+                                r={radius}
+                                stroke="#E5E7EB"
+                                strokeWidth="8"
+                                fill="none"
+                              />
+                              {/* Progress circle */}
+                              <circle
+                                cx="64"
+                                cy="64"
+                                r={radius}
+                                stroke={credit.isComplete ? '#10B981' : credit.creditsEarned > 0 ? '#6D469B' : '#D1D5DB'}
+                                strokeWidth="8"
+                                fill="none"
+                                strokeDasharray={circumference}
+                                strokeDashoffset={strokeDashoffset}
+                                strokeLinecap="round"
+                                className="transition-all duration-500 ease-out"
+                              />
                             </svg>
-                          ) : (
-                            <svg className={`w-6 h-6 ${
-                              credit.creditsEarned > 0 ? 'text-white' : 'text-gray-400'
-                            }`} fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M12 2L2 7v10c0 5.55 3.84 9.739 9 9.99 5.16-.251 9-4.44 9-9.99V7l-10-5z"/>
-                              <path d="M10 17l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
-                            </svg>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <div className="text-lg font-bold text-gray-800">
-                            {credit.creditsEarned.toFixed(1)}/{credit.creditsRequired}
+                            {/* Center content */}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                              {credit.isComplete ? (
+                                <svg className="w-8 h-8 text-green-600 mb-1" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                              ) : (
+                                <div className="text-center">
+                                  <div className="text-2xl font-bold text-gray-800">
+                                    {Math.round(credit.progressPercentage)}%
+                                  </div>
+                                  <div className="text-xs text-gray-500">complete</div>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="text-xs text-gray-500">Credits</div>
+
+                          <h3 className="font-semibold text-gray-800 text-center mb-1">
+                            {credit.displayName}
+                          </h3>
+
+                          <div className="text-center mb-2">
+                            <div className="text-sm font-bold text-gray-700">
+                              {credit.creditsEarned.toFixed(1)} / {credit.creditsRequired} Credits
+                            </div>
+                            {credit.xpEarned > 0 && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                {credit.xpEarned} XP earned
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      <h3 className="font-semibold text-gray-800 mb-2">
-                        {credit.displayName}
-                      </h3>
-
-                      <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
-                        <div
-                          className={`h-2 rounded-full transition-all duration-300 ${
-                            credit.isComplete
-                              ? 'bg-gradient-to-r from-green-400 to-green-600'
-                              : credit.creditsEarned > 0
-                                ? `bg-gradient-to-r ${subjectColors[credit.subject] || 'from-gray-400 to-gray-500'}`
-                                : 'bg-gray-300'
-                          }`}
-                          style={{
-                            width: `${credit.progressPercentage}%`
-                          }}
-                        ></div>
-                      </div>
-
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-xs text-gray-500">
-                          {Math.round(credit.progressPercentage)}% Complete
-                        </span>
-                        {credit.xpEarned > 0 && (
-                          <span className="text-xs text-gray-500">
-                            {credit.xpEarned} XP
-                          </span>
+                        {credit.creditsEarned === 0 && (
+                          <p className="text-xs text-gray-400 italic text-center">
+                            No progress yet - start learning to earn credits!
+                          </p>
                         )}
                       </div>
-
-                      {credit.creditsEarned === 0 && (
-                        <p className="text-xs text-gray-400 italic">
-                          No progress yet - start learning to earn credits!
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>

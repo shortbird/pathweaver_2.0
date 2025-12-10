@@ -1,80 +1,80 @@
 /**
  * Credit requirements for accredited high school diploma
- * Based on 1000 XP = 1 credit conversion ratio
+ * Based on 2000 XP = 1 credit conversion ratio
  */
 
 export const CREDIT_REQUIREMENTS = {
   'language_arts': {
     displayName: 'Language Arts',
     credits: 4.0,
-    xpRequired: 4000,
+    xpRequired: 8000,
     description: 'English, Literature, Writing, and Reading Comprehension'
   },
   'math': {
     displayName: 'Mathematics',
     credits: 3.0,
-    xpRequired: 3000,
+    xpRequired: 6000,
     description: 'Algebra, Geometry, Statistics, and Applied Mathematics'
   },
   'science': {
     displayName: 'Science',
     credits: 3.0,
-    xpRequired: 3000,
+    xpRequired: 6000,
     description: 'Biology, Chemistry, Physics, and Earth Sciences'
   },
   'social_studies': {
     displayName: 'Social Studies',
     credits: 3.5,
-    xpRequired: 3500,
+    xpRequired: 7000,
     description: 'History, Government, Geography, and Economics'
   },
   'financial_literacy': {
     displayName: 'Financial Literacy',
     credits: 0.5,
-    xpRequired: 500,
+    xpRequired: 1000,
     description: 'Personal Finance, Economics, and Financial Planning'
   },
   'health': {
     displayName: 'Health',
     credits: 0.5,
-    xpRequired: 500,
+    xpRequired: 1000,
     description: 'Health Education, Nutrition, and Wellness'
   },
   'pe': {
     displayName: 'Physical Education',
     credits: 2.0,
-    xpRequired: 2000,
+    xpRequired: 4000,
     description: 'Physical Fitness, Sports, and Exercise Science'
   },
   'fine_arts': {
     displayName: 'Fine Arts',
     credits: 1.5,
-    xpRequired: 1500,
+    xpRequired: 3000,
     description: 'Visual Arts, Music, Theater, and Creative Expression'
   },
   'cte': {
     displayName: 'Career & Technical Education',
     credits: 1.0,
-    xpRequired: 1000,
+    xpRequired: 2000,
     description: 'Career Preparation, Technical Skills, and Vocational Training'
   },
   'digital_literacy': {
     displayName: 'Digital Literacy',
     credits: 0.5,
-    xpRequired: 500,
+    xpRequired: 1000,
     description: 'Computer Skills, Digital Citizenship, and Technology'
   },
   'electives': {
     displayName: 'Electives',
     credits: 4.0,
-    xpRequired: 4000,
+    xpRequired: 8000,
     description: 'Additional courses in areas of student interest and exploration'
   }
 };
 
 export const TOTAL_CREDITS_REQUIRED = 24.0;
-export const TOTAL_XP_REQUIRED = 24000;
-export const XP_PER_CREDIT = 1000;
+export const TOTAL_XP_REQUIRED = 48000;
+export const XP_PER_CREDIT = 2000;
 
 /**
  * Calculate credits earned from XP
