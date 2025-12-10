@@ -631,9 +631,14 @@ def enroll_in_quest(user_id: str, quest_id: str):
             if len(existing.data) == 1 and enrollment['id'] == existing.data[0]['id']:
                 logger.info(f"[QUEST_RESTART] Enrollment {enrollment['id'][:8]} was reactivated (not new). Tasks already exist, skipping copy.")
                 # Tasks are already there from the previous attempt - just mark as personalized and continue
+                # IMPORTANT: Update last_picked_up_at to mark this as a restart (for dashboard filtering)
                 admin_client = get_supabase_admin_client()
+                from datetime import datetime, timezone
                 admin_client.table('user_quests')\
-                    .update({'personalization_completed': True})\
+                    .update({
+                        'personalization_completed': True,
+                        'last_picked_up_at': datetime.now(timezone.utc).isoformat()
+                    })\
                     .eq('id', enrollment['id'])\
                     .execute()
 
@@ -665,9 +670,14 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 if not most_recent_completed_enrollment:
                     logger.warning(f"[QUEST_RESTART] No previous completed enrollment found (only current one exists)")
                     # Just mark as personalized and continue - no tasks to copy
+                    # IMPORTANT: Update last_picked_up_at to mark this as a restart
                     admin_client = get_supabase_admin_client()
+                    from datetime import datetime, timezone
                     admin_client.table('user_quests')\
-                        .update({'personalization_completed': True})\
+                        .update({
+                            'personalization_completed': True,
+                            'last_picked_up_at': datetime.now(timezone.utc).isoformat()
+                        })\
                         .eq('id', enrollment['id'])\
                         .execute()
                     return jsonify({
