@@ -90,13 +90,13 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
     });
   }, [allEvidence, selectedPillar, selectedQuest]);
 
-  // Masonry breakpoint columns
+  // Masonry breakpoint columns - reduced to 2 columns for less cramped feel
   const breakpointColumns = {
-    default: 3,
-    1536: 3,
-    1280: 3,
+    default: 2,
+    1536: 2,
+    1280: 2,
     1024: 2,
-    768: 2,
+    768: 1,
     640: 1
   };
 

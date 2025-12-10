@@ -1,17 +1,17 @@
-/* Masonry Grid Layout */
+/* Masonry Grid Layout - Increased spacing for better breathing room */
 .masonry-grid {
   display: flex;
-  margin-left: -16px;
+  margin-left: -24px;
   width: auto;
 }
 
 .masonry-grid-column {
-  padding-left: 16px;
+  padding-left: 24px;
   background-clip: padding-box;
 }
 
 .masonry-item {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
   break-inside: avoid;
 }
 
