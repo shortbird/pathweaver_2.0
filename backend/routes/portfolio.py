@@ -624,17 +624,20 @@ def get_public_diploma_by_user_id(user_id):
                             'owner_user_id': user_id
                         }
 
-                achievement = {
-                    'quest': quest,
-                    'completed_at': cq['completed_at'],
-                    'task_evidence': task_evidence,
-                    'total_xp_earned': total_quest_xp,
-                    'status': 'completed'
-                }
+                # Only add quest to achievements if it has evidence to display
+                if task_evidence:
+                    achievement = {
+                        'quest': quest,
+                        'completed_at': cq['completed_at'],
+                        'task_evidence': task_evidence,
+                        'total_xp_earned': total_quest_xp,
+                        'status': 'completed'
+                    }
 
-                print(f"Quest '{quest.get('title')}': {len(task_evidence)} tasks, {total_quest_xp} XP")
-
-                achievements.append(achievement)
+                    print(f"Quest '{quest.get('title')}': {len(task_evidence)} tasks, {total_quest_xp} XP")
+                    achievements.append(achievement)
+                else:
+                    print(f"Skipping quest '{quest.get('title')}' - no public evidence available")
 
         # Add in-progress quests with at least one submitted task
         if in_progress_quests.data:
