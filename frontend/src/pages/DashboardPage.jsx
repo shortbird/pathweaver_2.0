@@ -54,7 +54,9 @@ const ActiveQuests = memo(({ activeQuests, completedQuestsCount = 0 }) => {
           image_url: questData.image_url,
           header_image_url: questData.header_image_url,
           user_enrollment: true, // Dashboard only shows enrolled quests
-          completed_enrollment: quest.status === 'completed' || quest.completed_at,
+          // IMPORTANT: Don't check completed_at alone - restarted quests have it set
+          // A quest is only completed if is_active=False (properly ended)
+          completed_enrollment: quest.status === 'completed' || (!quest.is_active && quest.completed_at),
           progress: {
             completed_tasks: completedTasks,
             total_tasks: totalTasks,
