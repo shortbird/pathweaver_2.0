@@ -15,13 +15,15 @@ class UserRole(Enum):
     PARENT = 'parent'
     ADVISOR = 'advisor'
     ADMIN = 'admin'
+    OBSERVER = 'observer'
 
 # Role hierarchy for privilege checking
 ROLE_HIERARCHY = {
     UserRole.ADMIN: 4,
     UserRole.ADVISOR: 2,
     UserRole.PARENT: 1,
-    UserRole.STUDENT: 0
+    UserRole.STUDENT: 0,
+    UserRole.OBSERVER: -1  # Special role with limited, relationship-based access
 }
 
 # Valid roles as a set for quick validation
@@ -32,7 +34,8 @@ ROLE_DISPLAY_NAMES = {
     UserRole.STUDENT.value: 'Student',
     UserRole.PARENT.value: 'Parent',
     UserRole.ADVISOR.value: 'Advisor',
-    UserRole.ADMIN.value: 'Administrator'
+    UserRole.ADMIN.value: 'Administrator',
+    UserRole.OBSERVER.value: 'Observer'
 }
 
 # Role descriptions
@@ -40,7 +43,8 @@ ROLE_DESCRIPTIONS = {
     UserRole.STUDENT.value: 'Can complete quests, earn XP, and build their diploma',
     UserRole.PARENT.value: 'Full platform access plus ability to view linked children\'s progress',
     UserRole.ADVISOR.value: 'Can manage student groups and view progress',
-    UserRole.ADMIN.value: 'Full system access including user and quest management'
+    UserRole.ADMIN.value: 'Full system access including user and quest management',
+    UserRole.OBSERVER.value: 'Can view linked students\' portfolios and provide encouragement'
 }
 
 class RolePermissions:
@@ -74,6 +78,13 @@ class RolePermissions:
             'collaborations': ['view_all', 'manage'],
             'profile': ['view_all', 'edit_all'],
             'admin_panel': ['full_access']
+        },
+        UserRole.OBSERVER.value: {
+            'quests': [],
+            'diploma': ['view_linked_students'],
+            'collaborations': [],
+            'profile': ['view_linked_students', 'edit_own'],
+            'admin_panel': []
         }
     }
     
@@ -149,7 +160,8 @@ def get_role_badge_color(role: str) -> str:
         UserRole.STUDENT.value: 'blue',
         UserRole.PARENT.value: 'green',
         UserRole.ADVISOR.value: 'purple',
-        UserRole.ADMIN.value: 'red'
+        UserRole.ADMIN.value: 'red',
+        UserRole.OBSERVER.value: 'cyan'
     }
     return colors.get(role, 'gray')
 

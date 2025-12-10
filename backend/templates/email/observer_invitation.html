@@ -1,0 +1,53 @@
+{% extends "email/base.html" %}
+
+{% block title %}You've Been Invited to Support a Student on Optio{% endblock %}
+
+{% block content %}
+<div class="greeting">Hi {{ observer_name }},</div>
+
+<p class="text">
+    {{ student_name }} has invited you to become an <strong>Observer</strong> on their Optio learning journey!
+</p>
+
+<p class="text">
+    As an observer, you'll get a special view into {{ student_name }}'s learning process. You'll see their completed work, celebrate their progress, and leave encouraging comments to support their growth.
+</p>
+
+<div class="highlight-box">
+    <h3>What is Optio?</h3>
+    <p>
+        Optio is a learning platform where students explore their interests through self-directed quests, build real-world skills, and create a personalized portfolio. We believe that <strong>the process is the goal</strong> - focusing on curiosity, effort, and growth rather than grades or test scores.
+    </p>
+</div>
+
+<p class="text">
+    Your role as an observer is to encourage {{ student_name }}'s learning journey. You'll be able to:
+</p>
+
+<ul style="margin: 20px 0; padding-left: 24px;">
+    <li class="list-item">View their completed quests and tasks</li>
+    <li class="list-item">See photos, videos, and evidence of their work</li>
+    <li class="list-item">Leave encouraging comments</li>
+    <li class="list-item">Celebrate their milestones and achievements</li>
+</ul>
+
+<div class="cta-container">
+    <a href="{{ invitation_link }}" class="cta-button">Accept Invitation</a>
+</div>
+
+<p class="link-fallback-text">
+    If the button doesn't work, copy and paste this link into your browser:
+</p>
+<div class="link-fallback-url">{{ invitation_link }}</div>
+
+<p class="text" style="margin-top: 32px; font-size: 15px; color: #605C61;">
+    This invitation will expire in 7 days. {{ student_name }} is excited to share their learning with you!
+</p>
+
+{% block signature %}
+<p style="margin-top: 40px; font-size: 16px; color: #3B383C; line-height: 1.8;">
+    Welcome to the Optio community,<br>
+    <strong style="color: #6D469B;">The Optio Team</strong>
+</p>
+{% endblock %}
+{% endblock %}

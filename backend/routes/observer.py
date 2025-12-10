@@ -70,11 +70,29 @@ def send_observer_invitation():
 
         logger.info(f"Observer invitation sent: student={user_id}, email={data['observer_email']}")
 
-        # TODO: Send email notification to observer
-        # send_observer_invitation_email(data['observer_email'], data['observer_name'], invitation_code)
+        # Get student name for email
+        student = supabase.table('users').select('first_name, last_name, display_name').eq('id', user_id).single().execute()
+        student_name = student.data.get('display_name') or f"{student.data.get('first_name', '')} {student.data.get('last_name', '')}".strip()
 
+        # Send email notification to observer
         frontend_url = request.environ.get('FRONTEND_URL', 'http://localhost:5173')
         invitation_link = f"{frontend_url}/observer/accept/{invitation_code}"
+
+        from services.email_service import EmailService
+        email_service = EmailService()
+        email_sent = email_service.send_templated_email(
+            to_email=data['observer_email'],
+            subject=f"{student_name} invited you to follow their learning on Optio",
+            template_name='observer_invitation',
+            context={
+                'observer_name': data['observer_name'],
+                'student_name': student_name,
+                'invitation_link': invitation_link
+            }
+        )
+
+        if not email_sent:
+            logger.warning(f"Failed to send observer invitation email to {data['observer_email']}")
 
         return jsonify({
             'status': 'success',

@@ -64,6 +64,10 @@ const AdvisorBadgeForm = lazy(() => import('./pages/AdvisorBadgeForm'))
 const AdvisorCheckinPage = lazy(() => import('./pages/AdvisorCheckinPage'))
 const ParentDashboardPage = lazy(() => import('./pages/ParentDashboardPage'))
 const ParentQuestView = lazy(() => import('./pages/ParentQuestView'))
+// Observer Pages (January 2025)
+const ObserverAcceptInvitationPage = lazy(() => import('./pages/ObserverAcceptInvitationPage'))
+const ObserverWelcomePage = lazy(() => import('./pages/ObserverWelcomePage'))
+const ObserverFeedPage = lazy(() => import('./pages/ObserverFeedPage'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -232,6 +236,7 @@ function App() {
                 <Route path="privacy" element={<PrivacyPolicy />} />
                 <Route path="academy-agreement" element={<OptioAcademyAgreement />} />
                 <Route path="academy-handbook" element={<OptioAcademyHandbook />} />
+                <Route path="observer/accept/:invitationCode" element={<ObserverAcceptInvitationPage />} />
 
               <Route element={<PrivateRoute />}>
                 <Route path="dashboard" element={<DashboardPage />} />
@@ -272,6 +277,11 @@ function App() {
                 <Route path="parent/dashboard" element={<ParentDashboardPage />} />
                 <Route path="parent/dashboard/:studentId" element={<ParentDashboardPage />} />
                 <Route path="parent/quest/:studentId/:questId" element={<ParentQuestView />} />
+              </Route>
+
+              <Route element={<PrivateRoute requiredRole="observer" />}>
+                <Route path="observer/welcome" element={<ObserverWelcomePage />} />
+                <Route path="observer/feed" element={<ObserverFeedPage />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />
