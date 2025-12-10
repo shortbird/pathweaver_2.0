@@ -132,14 +132,46 @@ def get_active_quests(supabase, user_id: str) -> list:
             .execute()
 
         if active_quests.data:
-            # No additional filtering needed - if is_active=True, it's active
-            # (Previously this filtered out restarted quests that had completed_at set)
-            active_only = active_quests.data
+            # Filter out "stale" completed quests that were never properly ended
+            # A quest is truly active if:
+            # 1. is_active=True AND completed_at IS NULL (in progress)
+            # 2. is_active=True AND completed_at IS NOT NULL AND completed_at > created_at (restarted)
+            #    BUT created_at should be AFTER the original completion (indicating a restart)
+            #
+            # To detect restarts: if completed_at is set, check if it's recent (within 24 hours)
+            # If completed_at is older than 24 hours, treat as stale and filter out
+            from datetime import datetime, timezone, timedelta
+            now = datetime.now(timezone.utc)
 
-            # Debug: Log if any quests have completed_at set (for monitoring)
-            quests_with_completed_at = [q for q in active_only if q.get('completed_at') is not None]
-            if len(quests_with_completed_at) > 0:
-                logger.info(f"{len(quests_with_completed_at)} active quest(s) have completed_at set (restarted quests)")
+            active_only = []
+            for quest in active_quests.data:
+                completed_at = quest.get('completed_at')
+
+                # If no completed_at, it's truly active
+                if not completed_at:
+                    active_only.append(quest)
+                    continue
+
+                # If completed_at is set, check if it's a recent restart (within 24 hours)
+                try:
+                    completed_dt = datetime.fromisoformat(completed_at.replace('Z', '+00:00'))
+                    hours_since_completion = (now - completed_dt).total_seconds() / 3600
+
+                    # If completed less than 24 hours ago, consider it an active restart
+                    if hours_since_completion < 24:
+                        active_only.append(quest)
+                    else:
+                        # Stale completion - was never properly ended with /end endpoint
+                        logger.info(f"Filtering out stale completed quest {quest.get('id')[:8]} (completed {hours_since_completion:.1f}h ago)")
+                except (ValueError, AttributeError) as e:
+                    # If date parsing fails, include it to be safe
+                    logger.warning(f"Could not parse completed_at for quest {quest.get('id')}: {e}")
+                    active_only.append(quest)
+
+            # Debug: Log filtering results
+            filtered_count = len(active_quests.data) - len(active_only)
+            if filtered_count > 0:
+                logger.info(f"Filtered out {filtered_count} stale completed quest(s) from active list")
 
             # Process each quest to add calculated fields
             for enrollment in active_only:
@@ -215,13 +247,33 @@ def get_active_quests(supabase, user_id: str) -> list:
                 .execute()
 
             if active_quests.data:
-                # No filtering needed - if is_active=True, it's active (even if completed_at is set from restart)
-                active_only = active_quests.data
+                # Apply same filtering logic as primary query
+                from datetime import datetime, timezone, timedelta
+                now = datetime.now(timezone.utc)
 
-                # Debug: Log if any have completed_at (restarted quests)
-                quests_with_completed_at = [q for q in active_only if q.get('completed_at') is not None]
-                if len(quests_with_completed_at) > 0:
-                    logger.info(f"Fallback: {len(quests_with_completed_at)} active quest(s) have completed_at set (restarted)")
+                active_only = []
+                for quest in active_quests.data:
+                    completed_at = quest.get('completed_at')
+
+                    if not completed_at:
+                        active_only.append(quest)
+                        continue
+
+                    try:
+                        completed_dt = datetime.fromisoformat(completed_at.replace('Z', '+00:00'))
+                        hours_since_completion = (now - completed_dt).total_seconds() / 3600
+
+                        if hours_since_completion < 24:
+                            active_only.append(quest)
+                        else:
+                            logger.info(f"Fallback: Filtering out stale completed quest {quest.get('id')[:8]} (completed {hours_since_completion:.1f}h ago)")
+                    except (ValueError, AttributeError) as e:
+                        logger.warning(f"Fallback: Could not parse completed_at for quest {quest.get('id')}: {e}")
+                        active_only.append(quest)
+
+                filtered_count = len(active_quests.data) - len(active_only)
+                if filtered_count > 0:
+                    logger.info(f"Fallback: Filtered out {filtered_count} stale completed quest(s) from active list")
                 
                 # Manually fetch quest details for each
                 for enrollment in active_only:
