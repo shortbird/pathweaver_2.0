@@ -13,7 +13,7 @@ const MasqueradeBanner = ({ targetUser, onExit }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <div className="fixed bottom-4 left-4 z-50 transition-all duration-300">
+    <div className="fixed bottom-4 left-4 z-[60] transition-all duration-300">
       {/* Collapsed Badge */}
       {!isExpanded && (
         <button
