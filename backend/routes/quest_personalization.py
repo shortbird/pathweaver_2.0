@@ -21,6 +21,111 @@ bp = Blueprint('quest_personalization', __name__, url_prefix='/api/quests')
 
 # CORS headers are set globally in app.py - do not duplicate here
 
+def _check_and_complete_personalization(user_id: str, quest_id: str, session_id: str):
+    """
+    Check if user has processed all AI-generated tasks and mark personalization complete.
+    Triggers async sanitization when complete.
+
+    Args:
+        user_id: The user's ID
+        quest_id: The quest ID
+        session_id: The personalization session ID
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get the session to check how many tasks were generated
+        session_response = supabase.table('quest_personalization_sessions')\
+            .select('ai_generated_tasks')\
+            .eq('id', session_id)\
+            .single()\
+            .execute()
+
+        if not session_response.data:
+            logger.warning(f"Session {session_id} not found - cannot check completion")
+            return
+
+        ai_generated_tasks = session_response.data.get('ai_generated_tasks', [])
+        total_tasks = len(ai_generated_tasks) if ai_generated_tasks else 0
+
+        if total_tasks == 0:
+            logger.info(f"Session {session_id} has no AI tasks - skipping completion check")
+            return
+
+        # Count how many tasks user has accepted for this quest
+        accepted_tasks = supabase.table('user_quest_tasks')\
+            .select('id', count='exact')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .eq('is_manual', False)\
+            .execute()
+
+        accepted_count = accepted_tasks.count if accepted_tasks.count is not None else 0
+
+        # Count how many tasks from THIS session are in the library
+        # (skipped tasks get saved to library)
+        library_tasks = supabase.table('quest_sample_tasks')\
+            .select('id', count='exact')\
+            .eq('quest_id', quest_id)\
+            .in_('title', [task.get('title') for task in ai_generated_tasks])\
+            .execute()
+
+        library_count = library_tasks.count if library_tasks.count is not None else 0
+
+        # Total processed = accepted + those added to library (skipped or accepted)
+        # Note: accepted tasks are ALSO added to library, so we need to avoid double-counting
+        # The library count includes ALL tasks (accepted + skipped), so we just use that
+        processed_count = library_count
+
+        logger.info(f"[PERSONALIZATION] Session {session_id[:8]}: {processed_count}/{total_tasks} tasks processed (library count)")
+
+        # If all tasks have been processed, mark personalization complete and sanitize
+        if processed_count >= total_tasks:
+            # Get user_quest_id
+            enrollment = supabase.table('user_quests')\
+                .select('id, personalization_completed')\
+                .eq('user_id', user_id)\
+                .eq('quest_id', quest_id)\
+                .eq('is_active', True)\
+                .execute()
+
+            if not enrollment.data:
+                logger.warning(f"No active enrollment found for user {user_id[:8]}, quest {quest_id[:8]}")
+                return
+
+            enrollment_data = enrollment.data[0]
+
+            # Check if already marked complete
+            if enrollment_data.get('personalization_completed'):
+                logger.info(f"[PERSONALIZATION] Already marked complete for user {user_id[:8]}, quest {quest_id[:8]}")
+                return
+
+            # Mark personalization as complete
+            supabase.table('user_quests')\
+                .update({'personalization_completed': True})\
+                .eq('id', enrollment_data['id'])\
+                .execute()
+
+            logger.info(f"[PERSONALIZATION] ✓ COMPLETE for user {user_id[:8]}, quest {quest_id[:8]} - {processed_count}/{total_tasks} tasks processed")
+
+            # Trigger async sanitization
+            from services.task_library_service import TaskLibraryService
+            library_service = TaskLibraryService()
+
+            logger.info(f"[PERSONALIZATION] Starting background AI sanitization for quest {quest_id[:8]}")
+            sanitization_result = library_service.sanitize_library(quest_id, [], async_mode=True)
+
+            if sanitization_result.get('success'):
+                logger.info(f"[PERSONALIZATION] Background sanitization started for quest {quest_id[:8]}")
+            else:
+                logger.error(f"[PERSONALIZATION] Failed to start sanitization: {sanitization_result.get('error')}")
+
+    except Exception as e:
+        logger.error(f"Error checking personalization completion: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Don't fail the request if completion check fails
+
 # Using repository pattern for database access
 @bp.route('/<quest_id>/start-personalization', methods=['POST'])
 @require_auth
@@ -746,6 +851,9 @@ def accept_task_immediate(user_id: str, quest_id: str):
 
         logger.info(f"User {user_id} accepted task '{task['title']}' for quest {quest_id}")
 
+        # Check if user has completed personalization (processed all AI tasks)
+        _check_and_complete_personalization(user_id, quest_id, session_id)
+
         return jsonify({
             'success': True,
             'task': result.data[0],
@@ -819,6 +927,9 @@ def skip_task_save_to_library(user_id: str, quest_id: str):
         library_service.add_library_task(quest_id, library_task_data)
 
         logger.info(f"User {user_id} skipped task '{task['title']}' - saved to library for quest {quest_id}")
+
+        # Check if user has completed personalization (processed all AI tasks)
+        _check_and_complete_personalization(user_id, quest_id, session_id)
 
         return jsonify({
             'success': True,
