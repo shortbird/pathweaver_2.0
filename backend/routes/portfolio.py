@@ -514,19 +514,20 @@ def get_public_diploma_by_user_id(user_id):
 
                 # Get task completions for this quest from our task_completions data
                 # Supabase returns nested data from !inner joins
+                # Note: We only match by quest_id, not user_quest_id, because when users
+                # restart quests they get a new user_quest_id but we want to show ALL
+                # completions for this quest regardless of which enrollment they came from
                 quest_task_completions = []
                 for tc in (task_completions.data or []):
                     task_info = tc.get('user_quest_tasks')
                     # Check if task_info exists and is a dict (not None or list)
                     if task_info and isinstance(task_info, dict):
-                        if (task_info.get('quest_id') == quest_id and
-                            task_info.get('user_quest_id') == user_quest_id):
+                        if task_info.get('quest_id') == quest_id:
                             quest_task_completions.append(tc)
                     # Handle case where Supabase returns it as a list with one element
                     elif task_info and isinstance(task_info, list) and len(task_info) > 0:
                         task_info = task_info[0]
-                        if (task_info.get('quest_id') == quest_id and
-                            task_info.get('user_quest_id') == user_quest_id):
+                        if task_info.get('quest_id') == quest_id:
                             # Flatten the structure
                             tc_copy = tc.copy()
                             tc_copy['user_quest_tasks'] = task_info
