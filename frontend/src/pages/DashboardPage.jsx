@@ -13,11 +13,10 @@ import {
 
 // Memoized component for Active Quests section
 const ActiveQuests = memo(({ activeQuests, completedQuestsCount = 0 }) => {
-  // Filter out completed and ended quests (is_active=false or completed_at exists)
-  const allQuests = (activeQuests || []).filter(quest => {
-    // Keep quests that are active (not completed)
-    return quest.is_active !== false && !quest.completed_at;
-  });
+  // Trust the backend's active_quests array - no need to filter
+  // Backend already filters by is_active=True, which is the source of truth
+  // Restarted quests have both is_active=True AND completed_at set from previous completion
+  const allQuests = activeQuests || [];
 
   if (allQuests.length === 0) {
     const isFirstQuest = completedQuestsCount === 0;
