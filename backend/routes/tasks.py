@@ -259,13 +259,27 @@ def complete_task(user_id: str, task_id: str):
             logger.info(f"Task ID: {task_id}, User ID: {user_id}")
             logger.info(f"Subject XP Distribution: {subject_xp_distribution}")
 
+            # Subject name normalization mapping to match enum values
+            SUBJECT_NORMALIZATION = {
+                'Electives': 'electives', 'Language Arts': 'language_arts', 'Math': 'math',
+                'Mathematics': 'math', 'Science': 'science', 'Social Studies': 'social_studies',
+                'Financial Literacy': 'financial_literacy', 'Health': 'health', 'PE': 'pe',
+                'Physical Education': 'pe', 'Fine Arts': 'fine_arts', 'Arts': 'fine_arts',
+                'CTE': 'cte', 'Career & Technical Education': 'cte',
+                'Digital Literacy': 'digital_literacy', 'Technology': 'digital_literacy',
+                'Business': 'cte', 'Music': 'fine_arts'
+            }
+
             for subject, subject_xp in subject_xp_distribution.items():
+                # Normalize subject name to match database enum
+                normalized_subject = SUBJECT_NORMALIZATION.get(subject, subject.lower().replace(' ', '_'))
+
                 try:
                     # Update or insert subject XP
                     existing_subject_xp = admin_supabase.table('user_subject_xp')\
                         .select('id, xp_amount')\
                         .eq('user_id', user_id)\
-                        .eq('school_subject', subject)\
+                        .eq('school_subject', normalized_subject)\
                         .execute()
 
                     if existing_subject_xp.data:
@@ -279,25 +293,25 @@ def complete_task(user_id: str, task_id: str):
                                 'updated_at': datetime.utcnow().isoformat()
                             })\
                             .eq('user_id', user_id)\
-                            .eq('school_subject', subject)\
+                            .eq('school_subject', normalized_subject)\
                             .execute()
 
-                        logger.info(f"Updated {subject}: {current_xp} + {subject_xp} = {new_total} XP")
+                        logger.info(f"Updated {normalized_subject}: {current_xp} + {subject_xp} = {new_total} XP")
                     else:
                         # Create new record
                         admin_supabase.table('user_subject_xp')\
                             .insert({
                                 'user_id': user_id,
-                                'school_subject': subject,
+                                'school_subject': normalized_subject,
                                 'xp_amount': subject_xp,
                                 'updated_at': datetime.utcnow().isoformat()
                             })\
                             .execute()
 
-                        logger.info(f"Created {subject}: {subject_xp} XP")
+                        logger.info(f"Created {normalized_subject}: {subject_xp} XP")
 
                 except Exception as e:
-                    logger.error(f"Warning: Failed to award subject XP for {subject}: {e}")
+                    logger.error(f"Warning: Failed to award subject XP for {subject} (normalized: {normalized_subject}): {e}")
 
             logger.info("==========================")
         else:
