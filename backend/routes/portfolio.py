@@ -422,7 +422,7 @@ def get_public_diploma_by_user_id(user_id):
 
         # Get multi-format evidence documents with their content blocks
         # This query fetches both the document metadata AND all associated blocks
-        # Filter to only PUBLIC evidence blocks (is_private = false) for diploma display
+        # Note: We filter private blocks AFTER retrieval to avoid excluding entire documents
         evidence_documents_response = supabase.table('user_task_evidence_documents').select(
             '''
             id,
@@ -432,7 +432,7 @@ def get_public_diploma_by_user_id(user_id):
             status,
             completed_at,
             is_confidential,
-            evidence_document_blocks!inner (
+            evidence_document_blocks (
                 id,
                 block_type,
                 content,
@@ -440,7 +440,7 @@ def get_public_diploma_by_user_id(user_id):
                 is_private
             )
             '''
-        ).eq('user_id', user_id).eq('status', 'completed').eq('evidence_document_blocks.is_private', False).execute()
+        ).eq('user_id', user_id).eq('status', 'completed').execute()
 
         logger.debug(f"=== EVIDENCE DOCUMENTS DEBUG ===")
         logger.info(f"Found {len(evidence_documents_response.data) if evidence_documents_response.data else 0} evidence documents")
@@ -450,20 +450,26 @@ def get_public_diploma_by_user_id(user_id):
         logger.info(f"================================")
 
         # Create a lookup map for quick evidence document access by task_id
+        # Filter out private blocks for public viewing
         evidence_docs_map = {}
         if evidence_documents_response.data:
             for doc in evidence_documents_response.data:
                 task_id = doc.get('task_id')
                 if task_id:
-                    # Store document with its blocks
-                    evidence_docs_map[task_id] = {
-                        'document_id': doc.get('id'),
-                        'blocks': doc.get('evidence_document_blocks', []),
-                        'completed_at': doc.get('completed_at'),
-                        'is_confidential': doc.get('is_confidential', False),
-                        'owner_user_id': doc.get('user_id')
-                    }
-                    print(f"Mapped evidence doc for task {task_id}: {len(doc.get('evidence_document_blocks', []))} blocks")
+                    # Filter out private blocks (only show public evidence on diploma)
+                    all_blocks = doc.get('evidence_document_blocks', [])
+                    public_blocks = [block for block in all_blocks if not block.get('is_private', False)]
+
+                    # Only add document if it has public blocks
+                    if public_blocks:
+                        evidence_docs_map[task_id] = {
+                            'document_id': doc.get('id'),
+                            'blocks': public_blocks,
+                            'completed_at': doc.get('completed_at'),
+                            'is_confidential': doc.get('is_confidential', False),
+                            'owner_user_id': doc.get('user_id')
+                        }
+                        print(f"Mapped evidence doc for task {task_id}: {len(public_blocks)} public blocks (out of {len(all_blocks)} total)")
 
         # Get user's in-progress quests (active with at least one task submitted)
         in_progress_quests = supabase.table('user_quests').select(

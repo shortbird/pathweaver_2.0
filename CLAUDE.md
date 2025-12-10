@@ -9,6 +9,7 @@
 3. **NEVER use emojis** - Professional tone only
 4. **Verify database schema** - Use Supabase MCP before ANY query (table names change)
 5. **Use Optio brand colors** - `optio-purple`/`optio-pink` (NOT `purple-600`/`pink-600`)
+6. **Multiple Claude instances** - You may work alongside other Claude Code instances. If you see staged/committed changes you didn't make, leave them alone
 
 ## Quick Reference
 

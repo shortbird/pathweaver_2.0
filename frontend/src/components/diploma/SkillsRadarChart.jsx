@@ -237,9 +237,9 @@ const SkillsRadarChart = ({ skillsXP, compact = false }) => {
           </RadarChart>
         </ResponsiveContainer>
 
-        {/* Compact stats grid */}
+        {/* Compact stats grid - show all 5 pillars */}
         <div className="grid grid-cols-2 gap-2 mt-2">
-          {competencyOrder.slice(0, 4).map(key => {
+          {competencyOrder.map(key => {
             const info = competencyInfo[key];
             const xp = skillsXP[key] || 0;
 
