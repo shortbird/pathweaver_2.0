@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Plus, CheckCircle, Circle, TrendingUp } from 'lucide-react';
+import { GripVertical, Plus, CheckCircle, Circle, TrendingUp, X } from 'lucide-react';
 import { getPillarData } from '../../utils/pillarMappings';
 import TaskDisplayModeToggle from './TaskDisplayModeToggle';
 import toast from 'react-hot-toast';
 
-const TaskCard = ({ task, index, isSelected, displayMode, onClick }) => {
+const TaskCard = ({ task, index, isSelected, displayMode, onClick, onRemove }) => {
   const {
     attributes,
     listeners,
@@ -106,6 +106,20 @@ const TaskCard = ({ task, index, isSelected, displayMode, onClick }) => {
               {task.title}
             </h3>
           </div>
+
+          {/* Remove Button - Only show for non-completed tasks */}
+          {!isCompleted && onRemove && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(task.id);
+              }}
+              className="flex-shrink-0 ml-2 p-1 rounded-full hover:bg-red-100 transition-colors group"
+              title="Remove task"
+            >
+              <X className="w-4 h-4 text-gray-400 group-hover:text-red-600" />
+            </button>
+          )}
         </div>
 
         {/* Pillar + XP Row */}
@@ -156,6 +170,7 @@ const TaskTimeline = ({
   onTaskSelect,
   onTaskReorder,
   onAddTask,
+  onRemoveTask,
   displayMode = 'flexible',
   onDisplayModeChange
 }) => {
@@ -229,6 +244,7 @@ const TaskTimeline = ({
                       isSelected={task.id === selectedTaskId}
                       displayMode={displayMode}
                       onClick={() => onTaskSelect(task)}
+                      onRemove={onRemoveTask}
                     />
                   </div>
                 ))}

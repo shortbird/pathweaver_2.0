@@ -786,6 +786,7 @@ const QuestDetail = () => {
                 onTaskSelect={handleTaskSelect}
                 onTaskReorder={handleTaskReorder}
                 onAddTask={() => setShowPersonalizationWizard(true)}
+                onRemoveTask={handleDropTask}
                 displayMode={displayMode}
                 onDisplayModeChange={handleDisplayModeChange}
               />
