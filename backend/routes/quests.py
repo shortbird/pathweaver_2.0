@@ -574,6 +574,8 @@ def enroll_in_quest(user_id: str, quest_id: str):
         # Check if there's an active (in-progress) enrollment
         if existing.data:
             has_completed_enrollment = False
+            most_recent_completed_enrollment = None
+
             for enrollment in existing.data:
                 # If there's an active enrollment that's NOT completed, return it (allow personalization)
                 if enrollment.get('is_active') and not enrollment.get('completed_at'):
@@ -586,12 +588,16 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 # Check if user has completed this quest before
                 if enrollment.get('completed_at'):
                     has_completed_enrollment = True
+                    # Track the most recent completed enrollment
+                    if not most_recent_completed_enrollment or \
+                       enrollment.get('completed_at', '') > most_recent_completed_enrollment.get('completed_at', ''):
+                        most_recent_completed_enrollment = enrollment
 
             # If there are only completed enrollments, ask if they want to load old tasks
             # (unless force_new is specified in request body)
             if has_completed_enrollment and not force_new:
-                # Get task count from previous enrollment
-                previous_enrollment = existing.data[0]
+                # Get task count from the most recent completed enrollment
+                previous_enrollment = most_recent_completed_enrollment
                 previous_tasks = quest_repo.client.table('user_quest_tasks')\
                     .select('id')\
                     .eq('user_quest_id', previous_enrollment['id'])\
@@ -613,8 +619,19 @@ def enroll_in_quest(user_id: str, quest_id: str):
         if load_previous_tasks and existing.data:
             logger.info(f"[QUEST_RESTART] Loading tasks from previous enrollment for user {user_id[:8]}, quest {quest_id[:8]}")
             try:
-                # Get all tasks from the previous enrollment
-                previous_enrollment = existing.data[0]
+                # Get the most recent completed enrollment
+                most_recent_completed_enrollment = None
+                for enrollment in existing.data:
+                    if enrollment.get('completed_at'):
+                        if not most_recent_completed_enrollment or \
+                           enrollment.get('completed_at', '') > most_recent_completed_enrollment.get('completed_at', ''):
+                            most_recent_completed_enrollment = enrollment
+
+                if not most_recent_completed_enrollment:
+                    logger.warning(f"[QUEST_RESTART] No completed enrollment found, using first enrollment")
+                    most_recent_completed_enrollment = existing.data[0]
+
+                previous_enrollment = most_recent_completed_enrollment
                 admin_client = get_supabase_admin_client()
                 previous_tasks = admin_client.table('user_quest_tasks')\
                     .select('*')\

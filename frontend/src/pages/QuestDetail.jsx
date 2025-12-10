@@ -15,6 +15,7 @@ import QuestCompletionCelebration from '../components/quest/QuestCompletionCeleb
 import SampleTaskCard from '../components/quest/SampleTaskCard';
 import TaskTimeline from '../components/quest/TaskTimeline';
 import TaskWorkspace from '../components/quest/TaskWorkspace';
+import RestartQuestModal from '../components/quest/RestartQuestModal';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
 import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus, ArrowLeft, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -59,6 +60,8 @@ const QuestDetail = () => {
   const [droppingTaskId, setDroppingTaskId] = useState(null);
   const [displayMode, setDisplayMode] = useState('flexible'); // 'timeline' or 'flexible'
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
+  const [showRestartModal, setShowRestartModal] = useState(false);
+  const [restartModalData, setRestartModalData] = useState({ previousTaskCount: 0, questTitle: '' });
 
   // Handle navigation from task library - refetch data when tasks were added
   useEffect(() => {
@@ -190,19 +193,12 @@ const QuestDetail = () => {
         if (error.response?.status === 409 && error.response?.data?.requires_confirmation) {
           const previousTaskCount = error.response.data.previous_task_count || 0;
 
-          // Show confirmation dialog
-          if (window.confirm(
-            `You have completed this quest before with ${previousTaskCount} tasks.\n\n` +
-            `Would you like to:\n` +
-            `- Click OK to load your previous tasks and restart\n` +
-            `- Click Cancel to start fresh with new tasks`
-          )) {
-            // User wants to load previous tasks
-            handleEnroll({ load_previous_tasks: true, force_new: true });
-          } else {
-            // User wants to start fresh
-            handleEnroll({ force_new: true });
-          }
+          // Show Optio modal instead of browser dialog
+          setRestartModalData({
+            previousTaskCount: previousTaskCount,
+            questTitle: quest?.title || 'this quest'
+          });
+          setShowRestartModal(true);
         } else {
           console.error('Enrollment failed:', error);
         }
@@ -220,6 +216,18 @@ const QuestDetail = () => {
 
   const handlePersonalizationCancel = () => {
     setShowPersonalizationWizard(false);
+  };
+
+  const handleLoadPreviousTasks = () => {
+    setShowRestartModal(false);
+    // User wants to load previous tasks
+    handleEnroll({ load_previous_tasks: true, force_new: true });
+  };
+
+  const handleStartFresh = () => {
+    setShowRestartModal(false);
+    // User wants to start fresh
+    handleEnroll({ force_new: true });
   };
 
   const handleDropTask = async (taskId) => {
@@ -998,6 +1006,16 @@ const QuestDetail = () => {
           onClose={() => setShowQuestCompletionCelebration(false)}
         />
       )}
+
+      {/* Restart Quest Modal */}
+      <RestartQuestModal
+        isOpen={showRestartModal}
+        questTitle={restartModalData.questTitle}
+        previousTaskCount={restartModalData.previousTaskCount}
+        onLoadPreviousTasks={handleLoadPreviousTasks}
+        onStartFresh={handleStartFresh}
+        onClose={() => setShowRestartModal(false)}
+      />
 
     </div>
   );
