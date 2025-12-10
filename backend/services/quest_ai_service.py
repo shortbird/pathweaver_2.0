@@ -112,11 +112,11 @@ class QuestAIService(BaseService):
     def enhance_quest_description(self, title: str, current_description: str) -> Dict[str, str]:
         """
         Enhance an existing quest description to be more engaging and detailed.
-        
+
         Args:
             title: Quest title
             current_description: Current description to enhance
-            
+
         Returns:
             Dict with enhanced description
         """
@@ -136,20 +136,108 @@ class QuestAIService(BaseService):
 
             Return only the improved description, no additional text.
             """
-            
+
             response = self.model.generate_content(prompt)
             enhanced_description = response.text.strip()
-            
+
             return {
                 'success': True,
                 'enhanced_description': enhanced_description
             }
-            
+
         except Exception as e:
             return {
                 'success': False,
                 'error': f"Failed to enhance description: {str(e)}",
                 'enhanced_description': current_description
+            }
+
+    def cleanup_quest_format(self, title: str, big_idea: str) -> Dict[str, Any]:
+        """
+        Clean and standardize quest text to match Optio formatting standards.
+        Fixes grammar, spelling, punctuation, and ensures consistent tone.
+
+        Args:
+            title: Current quest title
+            big_idea: Current quest description/big idea
+
+        Returns:
+            Dict with cleaned title, big_idea, and list of changes made
+        """
+        try:
+            prompt = f"""You are an expert at maintaining educational content quality for the Optio learning platform.
+
+Your task: Clean and standardize these quest details to match Optio's formatting standards.
+
+CURRENT QUEST:
+Title: {title}
+Big Idea: {big_idea}
+
+FORMATTING STANDARDS:
+
+1. Title (3-6 words, action-oriented):
+   - Use simple, clear language
+   - Include action verb (Start, Learn, Build, Create, Master, Design, Write, Paint, etc.)
+   - Title case capitalization
+   - No emojis, no exclamation points
+   - Examples: "Start a Small Business", "Learn to Surf", "Build a Treehouse", "Create a Podcast Series"
+
+2. Big Idea (exactly 2-3 sentences, process-focused):
+   - First sentence: Explain what students will DO in simple terms
+   - Keep it open to personal interpretation
+   - Focus on the EXPERIENCE itself, not future benefits
+   - Use simple, professional, respectful language
+   - NO "will help you" or outcome-oriented language
+   - NO flowery excitement, NO emojis, NO motivational hype
+   - Celebrate the present process ("The Process Is The Goal" philosophy)
+
+   Good examples:
+   "Create and run a small business venture. Choose your product, find customers, and learn through real entrepreneurship."
+   "Master the basics of surfing. Find a beach, get lessons or teach yourself, document your progression from beginner to confident."
+   "Design and construct a real treehouse. Plan the structure, gather materials, and bring your vision to life through hands-on building."
+
+YOUR JOB:
+- Fix grammar, spelling, and punctuation errors
+- Remove outcome-focused language ("this will help your career", "prepare for the future", etc.)
+- Remove motivational hype and flowery enthusiasm
+- Simplify overly complex sentences
+- Ensure exactly 2-3 sentences in big idea
+- Make title action-oriented if it isn't already
+- Add specificity where too vague
+- Maintain the core intent while improving clarity
+
+Return ONLY valid JSON (no markdown code blocks):
+{{
+  "cleaned_title": "...",
+  "cleaned_big_idea": "...",
+  "changes_made": ["specific change 1", "specific change 2", ...],
+  "quality_score": 0-100
+}}"""
+
+            response = self.model.generate_content(prompt)
+            if not response or not response.text:
+                raise Exception("Empty response from Gemini API")
+
+            # Parse JSON response
+            result = self._parse_cleanup_response(response.text)
+
+            return {
+                'success': True,
+                'cleaned_title': result.get('cleaned_title', title),
+                'cleaned_big_idea': result.get('cleaned_big_idea', big_idea),
+                'changes_made': result.get('changes_made', []),
+                'quality_score': result.get('quality_score', 50)
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup quest format: {str(e)}")
+            return {
+                'success': False,
+                'error': f"Failed to cleanup quest format: {str(e)}",
+                'cleaned_title': title,
+                'cleaned_big_idea': big_idea,
+                'changes_made': [],
+                'quality_score': 0
             }
     
     def suggest_tasks_for_quest(self, title: str, description: str, 
@@ -443,6 +531,27 @@ class QuestAIService(BaseService):
                 'strengths': ['AI analysis unavailable'],
                 'improvements': ['Could not parse AI feedback'],
                 'missing_elements': []
+            }
+
+    def _parse_cleanup_response(self, response_text: str) -> Dict[str, Any]:
+        """Parse cleanup response from AI"""
+        try:
+            # Remove markdown code blocks if present
+            response_text = re.sub(r'```json\s*|\s*```', '', response_text)
+
+            # Try to find JSON object in the response
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group()
+                return json.loads(json_str)
+            else:
+                return json.loads(response_text)
+        except json.JSONDecodeError:
+            return {
+                'cleaned_title': '',
+                'cleaned_big_idea': '',
+                'changes_made': ['Failed to parse AI response'],
+                'quality_score': 0
             }
     
     def _validate_and_fix_quest_data(self, quest_data: Dict[str, Any]) -> Dict[str, Any]:

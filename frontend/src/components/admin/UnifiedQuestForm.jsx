@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
-import { X, AlertCircle } from 'lucide-react'
+import { X, AlertCircle, Sparkles } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 
 const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false)
+  const [cleanupLoading, setCleanupLoading] = useState(false)
   const [errors, setErrors] = useState({})
 
   // Form state - simplified to title + idea only
@@ -73,6 +74,49 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
     }
   }
 
+  const handleAICleanup = async () => {
+    if (!formData.title.trim()) {
+      toast.error('Please enter a title before using AI cleanup')
+      return
+    }
+
+    if (mode === 'create') {
+      toast.error('Please save the quest first before using AI cleanup')
+      return
+    }
+
+    setCleanupLoading(true)
+
+    try {
+      const response = await api.post(`/api/admin/quests/${quest.id}/ai-cleanup`, {})
+
+      if (response.data.success) {
+        // Update form with cleaned data
+        setFormData({
+          ...formData,
+          title: response.data.cleaned_title,
+          big_idea: response.data.cleaned_big_idea
+        })
+
+        // Show what changed
+        const changes = response.data.changes_made
+        if (changes && changes.length > 0) {
+          toast.success(`AI cleanup complete! ${changes.length} improvements made.`)
+        } else {
+          toast.success('Quest looks great! No changes needed.')
+        }
+      } else {
+        toast.error(response.data.error || 'Failed to cleanup quest')
+      }
+    } catch (error) {
+      console.error('Error cleaning up quest:', error)
+      const errorMessage = error.response?.data?.error || 'Failed to cleanup quest format'
+      toast.error(errorMessage)
+    } finally {
+      setCleanupLoading(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -89,13 +133,6 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
         </div>
 
         <form onSubmit={handleSubmit} className="p-6">
-          {/* Info Message */}
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-blue-800">
-              <strong>Note:</strong> Quests are now personalized per student. After creating a quest, advisors can add custom tasks for each student through the user management interface.
-            </p>
-          </div>
-
           {/* Quest Details */}
           <div className="space-y-6">
             <div>
@@ -163,22 +200,37 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
           </div>
 
           {/* Form Actions */}
-          <div className="flex justify-end gap-4 pt-8 border-t mt-8">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50"
-              disabled={loading}
-            >
-              {loading ? (mode === 'edit' ? 'Updating...' : 'Creating...') : (mode === 'edit' ? 'Update Quest' : 'Create Quest')}
-            </button>
+          <div className="flex justify-between items-center gap-4 pt-8 border-t mt-8">
+            <div>
+              {mode === 'edit' && (
+                <button
+                  type="button"
+                  onClick={handleAICleanup}
+                  className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+                  disabled={cleanupLoading || loading}
+                >
+                  <Sparkles size={18} />
+                  {cleanupLoading ? 'Cleaning...' : 'AI Cleanup'}
+                </button>
+              )}
+            </div>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                disabled={loading}
+              >
+                {loading ? (mode === 'edit' ? 'Updating...' : 'Creating...') : (mode === 'edit' ? 'Update Quest' : 'Create Quest')}
+              </button>
+            </div>
           </div>
         </form>
       </div>

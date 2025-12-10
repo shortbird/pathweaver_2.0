@@ -223,6 +223,63 @@ def update_quest(user_id, quest_id):
             'error': f'Failed to update quest: {str(e)}'
         }), 500
 
+@bp.route('/quests/<quest_id>/ai-cleanup', methods=['POST'])
+@require_advisor
+def ai_cleanup_quest(user_id, quest_id):
+    """
+    Use AI to clean up and standardize quest title and description.
+    Fixes grammar, spelling, punctuation, and ensures Optio formatting standards.
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Get quest data
+        quest = supabase.table('quests').select('*').eq('id', quest_id).single().execute()
+        if not quest.data:
+            return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
+        # Get user role
+        user = supabase.table('users').select('role').eq('id', user_id).execute()
+        user_role = user.data[0].get('role') if user.data else 'advisor'
+
+        # Check ownership for advisors
+        if user_role == 'advisor':
+            if quest.data.get('created_by') != user_id:
+                return jsonify({'success': False, 'error': 'Not authorized to edit this quest'}), 403
+
+        # Get current title and big_idea
+        current_title = quest.data.get('title', '')
+        current_big_idea = quest.data.get('big_idea', '') or quest.data.get('description', '')
+
+        if not current_title:
+            return jsonify({'success': False, 'error': 'Quest must have a title'}), 400
+
+        # Use AI service to clean up the quest text
+        from services.quest_ai_service import QuestAIService
+        ai_service = QuestAIService(user_id=user_id)
+        result = ai_service.cleanup_quest_format(current_title, current_big_idea)
+
+        if not result.get('success'):
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to cleanup quest format')
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'cleaned_title': result.get('cleaned_title'),
+            'cleaned_big_idea': result.get('cleaned_big_idea'),
+            'changes_made': result.get('changes_made', []),
+            'quality_score': result.get('quality_score', 50)
+        })
+
+    except Exception as e:
+        logger.error(f"Error cleaning up quest: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to cleanup quest: {str(e)}'
+        }), 500
+
 @bp.route('/quests/<quest_id>/upload-image', methods=['POST'])
 @require_admin
 def upload_quest_image(user_id, quest_id):
