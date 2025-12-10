@@ -312,7 +312,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
                 Write My Own
               </h3>
               <p className="text-gray-600" style={{ fontFamily: 'Poppins' }}>
-                Create custom tasks based on your own ideas with AI quality feedback
+                Create custom tasks based on your own ideas and interests
               </p>
             </button>
           </div>

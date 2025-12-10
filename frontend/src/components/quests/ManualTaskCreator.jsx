@@ -1,44 +1,29 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import SuggestionBox from './SuggestionBox';
 import api from '../../services/api';
 
 /**
  * ManualTaskCreator Component
  *
- * Allows students to create custom quest tasks with optional AI suggestions.
+ * Allows students to create custom quest tasks manually.
  * Features:
  * - Clean, simple form focused on creativity
- * - Auto-trigger suggestions after 3-second typing pause (first time only)
- * - Manual refresh on >20 character changes
- * - Clickable suggestion chips with undo functionality
- * - No gates or approval requirements
+ * - Manual task entry with title, description, and pillar selection
+ * - No AI assistance - pure student-driven task creation
  */
 const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => {
   const [currentTask, setCurrentTask] = useState({
     title: '',
     description: '',
-    pillar: ''
+    pillar: '',
+    xp_value: 100
   });
 
-  const [analysis, setAnalysis] = useState(null); // Store full analysis response
-  const [suggestions, setSuggestions] = useState(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [addedTasks, setAddedTasks] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Undo functionality
-  const [lastAppliedSuggestion, setLastAppliedSuggestion] = useState(null);
-  const [previousDescription, setPreviousDescription] = useState('');
-
-  // Auto-trigger state
-  const [hasAutoTriggered, setHasAutoTriggered] = useState(false);
-  const [descriptionAtLastAnalysis, setDescriptionAtLastAnalysis] = useState('');
-  const typingTimeoutRef = useRef(null);
-
   const pillars = [
-    { key: '', label: 'Let AI suggest' },
     { key: 'stem', label: 'STEM' },
     { key: 'wellness', label: 'Wellness' },
     { key: 'communication', label: 'Communication' },
@@ -46,126 +31,19 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
     { key: 'art', label: 'Art' }
   ];
 
-  // Auto-trigger logic: First call after 3-second typing pause
-  useEffect(() => {
-    // Clear existing timeout
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    // Only auto-trigger if:
-    // 1. Haven't triggered yet
-    // 2. Have title (3+ chars) and description
-    // 3. User stopped typing for 3 seconds
-    if (!hasAutoTriggered && currentTask.title.length >= 3 && currentTask.description.trim().length > 0) {
-      typingTimeoutRef.current = setTimeout(() => {
-        handleAnalyzeTask(true); // true = auto-triggered
-      }, 3000);
-    }
-
-    return () => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    };
-  }, [currentTask.title, currentTask.description, hasAutoTriggered]);
+  const xpOptions = [
+    { value: 50, label: '50 XP - Small task' },
+    { value: 100, label: '100 XP - Medium task' },
+    { value: 150, label: '150 XP - Large task' },
+    { value: 200, label: '200 XP - Major task' }
+  ];
 
   const handleInputChange = (field, value) => {
     setCurrentTask(prev => ({ ...prev, [field]: value }));
     setError('');
-
-    // Smart refresh: Check if description changed significantly (>20 chars) since last analysis
-    if (field === 'description' && descriptionAtLastAnalysis) {
-      const changeAmount = Math.abs(value.length - descriptionAtLastAnalysis.length);
-      if (changeAmount > 20 && !isAnalyzing) {
-        // Significant change - refresh suggestions
-        handleAnalyzeTask(false);
-      }
-    }
   };
 
-  const handleAnalyzeTask = async (isAutoTriggered = false) => {
-    setError('');
-
-    // Validation
-    if (!currentTask.title || currentTask.title.length < 3) {
-      if (!isAutoTriggered) {
-        setError('Task title must be at least 3 characters');
-      }
-      return;
-    }
-
-    if (!currentTask.description || currentTask.description.trim().length === 0) {
-      if (!isAutoTriggered) {
-        setError('Task description is required');
-      }
-      return;
-    }
-
-    setIsAnalyzing(true);
-
-    try {
-      const response = await api.post(`/api/quests/${questId}/analyze-manual-task`, {
-        title: currentTask.title,
-        description: currentTask.description,
-        pillar: currentTask.pillar || undefined
-      });
-
-      if (response.data.success) {
-        // Store full analysis for later use
-        setAnalysis({
-          suggested_xp: response.data.suggested_xp,
-          suggested_pillar: response.data.suggested_pillar,
-          diploma_subjects: response.data.diploma_subjects
-        });
-
-        setSuggestions(response.data.suggestions || []);
-        setDescriptionAtLastAnalysis(currentTask.description);
-
-        if (isAutoTriggered) {
-          setHasAutoTriggered(true);
-        }
-      } else {
-        setError(response.data.error || 'Failed to get suggestions');
-      }
-    } catch (err) {
-      console.error('Error getting suggestions:', err);
-      if (!isAutoTriggered) {
-        setError(err.response?.data?.error || 'Failed to get suggestions. Please try again.');
-      }
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  const handleApplySuggestion = useCallback((suggestion) => {
-    // Save current state for undo
-    setPreviousDescription(currentTask.description);
-    setLastAppliedSuggestion(suggestion);
-
-    // Append suggestion to description with proper spacing
-    const newDescription = currentTask.description.trim()
-      ? `${currentTask.description.trim()} ${suggestion}`
-      : suggestion;
-
-    setCurrentTask(prev => ({
-      ...prev,
-      description: newDescription
-    }));
-  }, [currentTask.description]);
-
-  const handleUndo = useCallback(() => {
-    if (previousDescription !== null) {
-      setCurrentTask(prev => ({
-        ...prev,
-        description: previousDescription
-      }));
-      setPreviousDescription('');
-      setLastAppliedSuggestion(null);
-    }
-  }, [previousDescription]);
-
-  const handleAddTask = async () => {
+  const handleAddTask = () => {
     setError('');
 
     // Validation
@@ -179,50 +57,24 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
       return;
     }
 
-    // If no analysis yet, get it to determine XP and pillar
-    let taskData = { ...currentTask };
-
-    if (!analysis) {
-      setIsAnalyzing(true);
-      try {
-        const response = await api.post(`/api/quests/${questId}/analyze-manual-task`, {
-          title: currentTask.title,
-          description: currentTask.description,
-          pillar: currentTask.pillar || undefined
-        });
-
-        if (response.data.success) {
-          taskData.xp_value = response.data.suggested_xp;
-          taskData.pillar = response.data.suggested_pillar;
-          taskData.diploma_subjects = response.data.diploma_subjects;
-        }
-      } catch (err) {
-        console.error('Error analyzing task:', err);
-        // Use defaults if analysis fails
-        taskData.xp_value = 100;
-        taskData.pillar = currentTask.pillar || 'stem';
-        taskData.diploma_subjects = { 'Electives': 100 };
-      } finally {
-        setIsAnalyzing(false);
-      }
-    } else {
-      // Use values from last analysis
-      taskData.xp_value = analysis.suggested_xp;
-      taskData.pillar = analysis.suggested_pillar;
-      taskData.diploma_subjects = analysis.diploma_subjects;
+    if (!currentTask.pillar) {
+      setError('Please select a pillar for this task');
+      return;
     }
 
     // Add to tasks list
+    const taskData = {
+      title: currentTask.title,
+      description: currentTask.description,
+      pillar: currentTask.pillar,
+      xp_value: currentTask.xp_value || 100,
+      diploma_subjects: { 'Electives': 100 }
+    };
+
     setAddedTasks(prev => [...prev, taskData]);
 
     // Reset form
-    setCurrentTask({ title: '', description: '', pillar: '' });
-    setAnalysis(null);
-    setSuggestions(null);
-    setDescriptionAtLastAnalysis('');
-    setHasAutoTriggered(false);
-    setLastAppliedSuggestion(null);
-    setPreviousDescription('');
+    setCurrentTask({ title: '', description: '', pillar: '', xp_value: 100 });
     setError('');
   };
 
@@ -299,7 +151,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Your Quest Tasks</h2>
         <p className="text-gray-600">
-          Design tasks that spark your curiosity. Our AI can suggest ideas, but you're in control.
+          Design custom tasks that match your interests and learning goals.
         </p>
       </div>
 
@@ -324,7 +176,6 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
               onChange={(e) => handleInputChange('title', e.target.value)}
               placeholder="e.g., Interview my grandparent about their childhood"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-              disabled={isAnalyzing}
             />
           </div>
 
@@ -340,7 +191,6 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
               placeholder="Describe what you'll do, how you'll explore, and what you hope to discover..."
               rows={5}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-              disabled={isAnalyzing}
             />
             <p className="text-xs text-gray-500 mt-1">
               {currentTask.description.length} characters
@@ -350,45 +200,42 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
           {/* Pillar Selection */}
           <div>
             <label htmlFor="task-pillar" className="block text-sm font-semibold text-gray-700 mb-2">
-              Pillar (Optional)
+              Pillar *
             </label>
             <select
               id="task-pillar"
               value={currentTask.pillar}
               onChange={(e) => handleInputChange('pillar', e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-              disabled={isAnalyzing}
             >
+              <option value="">Select a pillar...</option>
               {pillars.map(p => (
                 <option key={p.key} value={p.key}>{p.label}</option>
               ))}
             </select>
           </div>
 
-          {/* Suggestion Box (appears automatically or on demand) */}
-          <SuggestionBox
-            suggestions={suggestions}
-            onApplySuggestion={handleApplySuggestion}
-            lastAppliedSuggestion={lastAppliedSuggestion}
-            onUndo={handleUndo}
-            isLoading={isAnalyzing}
-          />
-
-          {/* Get Suggestions Button (manual trigger) */}
-          {!suggestions && !isAnalyzing && hasAutoTriggered && (
-            <button
-              onClick={() => handleAnalyzeTask(false)}
-              disabled={!currentTask.title || !currentTask.description}
-              className="w-full px-6 py-3 bg-purple-100 hover:bg-purple-200 disabled:bg-gray-100 disabled:cursor-not-allowed text-purple-700 font-semibold rounded-lg transition-colors"
+          {/* XP Value Selection */}
+          <div>
+            <label htmlFor="task-xp" className="block text-sm font-semibold text-gray-700 mb-2">
+              Task Size *
+            </label>
+            <select
+              id="task-xp"
+              value={currentTask.xp_value}
+              onChange={(e) => handleInputChange('xp_value', parseInt(e.target.value))}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
-              Get Fresh Ideas
-            </button>
-          )}
+              {xpOptions.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
 
           {/* Add Task Button */}
           <button
             onClick={handleAddTask}
-            disabled={!currentTask.title || !currentTask.description || isAnalyzing}
+            disabled={!currentTask.title || !currentTask.description || !currentTask.pillar}
             className="w-full px-6 py-3 bg-optio-purple hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
           >
             Add This Task
