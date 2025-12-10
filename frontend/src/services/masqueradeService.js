@@ -3,6 +3,8 @@
  * Handles admin masquerade sessions (viewing platform as another user)
  */
 
+import { tokenStore } from './api.js';
+
 const MASQUERADE_STORAGE_KEY = 'masquerade_state';
 const ADMIN_TOKEN_STORAGE_KEY = 'original_admin_token';
 
@@ -36,14 +38,15 @@ export const isMasquerading = () => {
 export const startMasquerade = async (userId, reason = '', apiCall) => {
   try {
     // Store current admin token before masquerading
-    const currentToken = localStorage.getItem('app_access_token');
-    const currentRefreshToken = localStorage.getItem('app_refresh_token');
+    const currentToken = tokenStore.getAccessToken();
+    const currentRefreshToken = tokenStore.getRefreshToken();
 
     if (currentToken) {
       localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, JSON.stringify({
         access_token: currentToken,
         refresh_token: currentRefreshToken
       }));
+      console.log('[Masquerade] Backed up admin tokens before masquerading');
     }
 
     // Call masquerade API
@@ -53,8 +56,9 @@ export const startMasquerade = async (userId, reason = '', apiCall) => {
 
     const { masquerade_token, log_id, target_user } = response.data;
 
-    // Store masquerade token
-    localStorage.setItem('app_access_token', masquerade_token);
+    // Store masquerade token using tokenStore (fixes localStorage key mismatch bug)
+    tokenStore.setTokens(masquerade_token, null);
+    console.log('[Masquerade] Masquerade token stored in tokenStore');
 
     // Store masquerade state
     const masqueradeState = {
@@ -66,23 +70,22 @@ export const startMasquerade = async (userId, reason = '', apiCall) => {
     };
 
     localStorage.setItem(MASQUERADE_STORAGE_KEY, JSON.stringify(masqueradeState));
+    console.log('[Masquerade] Started masquerading as:', target_user.display_name || target_user.email);
 
     return {
       success: true,
       targetUser: target_user
     };
   } catch (error) {
-    console.error('Error starting masquerade:', error);
+    console.error('[Masquerade] Error starting masquerade:', error);
 
     // Restore original token if masquerade failed
     const originalTokens = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
     if (originalTokens) {
       const { access_token, refresh_token } = JSON.parse(originalTokens);
-      localStorage.setItem('app_access_token', access_token);
-      if (refresh_token) {
-        localStorage.setItem('app_refresh_token', refresh_token);
-      }
+      tokenStore.setTokens(access_token, refresh_token);
       localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+      console.log('[Masquerade] Restored admin tokens after failed masquerade attempt');
     }
 
     return {
@@ -104,33 +107,30 @@ export const exitMasquerade = async (apiCall) => {
 
     const { access_token, refresh_token, user: adminUser } = response.data;
 
-    // Restore admin tokens
-    localStorage.setItem('app_access_token', access_token);
-    if (refresh_token) {
-      localStorage.setItem('app_refresh_token', refresh_token);
-    }
+    // Restore admin tokens using tokenStore
+    tokenStore.setTokens(access_token, refresh_token);
+    console.log('[Masquerade] Admin tokens restored from backend response');
 
     // Clear masquerade state
     localStorage.removeItem(MASQUERADE_STORAGE_KEY);
     localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+    console.log('[Masquerade] Exited masquerade session, returned to admin identity');
 
     return {
       success: true,
       adminUser: adminUser
     };
   } catch (error) {
-    console.error('Error exiting masquerade:', error);
+    console.error('[Masquerade] Error exiting masquerade:', error);
 
     // Fallback: Try to restore from stored admin token
     const originalTokens = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
     if (originalTokens) {
       const { access_token, refresh_token } = JSON.parse(originalTokens);
-      localStorage.setItem('app_access_token', access_token);
-      if (refresh_token) {
-        localStorage.setItem('app_refresh_token', refresh_token);
-      }
+      tokenStore.setTokens(access_token, refresh_token);
       localStorage.removeItem(MASQUERADE_STORAGE_KEY);
       localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+      console.log('[Masquerade] Restored admin tokens from backup after exit error');
 
       // Force page reload to refresh with admin token
       window.location.href = '/admin/users';
