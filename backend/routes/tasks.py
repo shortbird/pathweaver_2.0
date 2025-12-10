@@ -398,14 +398,11 @@ def drop_task(user_id: str, task_id: str):
         JSON response with success status
     """
     try:
-        # Use admin client to ensure delete permissions
+        # Initialize repositories without user_id to use admin client
         # User authentication is already enforced by @require_auth decorator
-        admin_supabase = get_supabase_admin_client()
-
-        # Initialize repositories with admin client for delete permissions
         from backend.repositories.task_repository import TaskRepository, TaskCompletionRepository
-        task_repo = TaskRepository(client=admin_supabase)
-        completion_repo = TaskCompletionRepository(client=admin_supabase)
+        task_repo = TaskRepository()
+        completion_repo = TaskCompletionRepository()
 
         # Verify task belongs to user using repository
         try:
