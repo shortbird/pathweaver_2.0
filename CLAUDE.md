@@ -151,6 +151,15 @@ task = task_repo.get_task_with_relations(task_id, user_id)
 - `GET /api/portfolio/:slug` - Public diploma page
 - `GET /api/portfolio/diploma/:userId` - Diploma data
 
+### Observer (NEW - Jan 2025)
+- `POST /api/observers/invite` - Send observer invitation (sends email)
+- `GET /api/observers/my-invitations` - Student views sent invitations
+- `GET /api/observers/my-observers` - Student views linked observers
+- `DELETE /api/observers/<link_id>/remove` - Student removes observer
+- `POST /api/observers/accept/<code>` - Observer accepts invitation (creates account with role='observer')
+- `GET /api/observers/my-students` - Observer views linked students
+- `GET /api/observers/student/<id>/portfolio` - Observer views student portfolio
+
 ---
 
 ## Common Patterns & Fixes
@@ -214,7 +223,10 @@ frontend/src/
 ├── pages/               # Route components
 │   ├── DiplomaPage.jsx  # CORE FEATURE (public portfolio)
 │   ├── QuestBadgeHub.jsx # Main quest/badge interface
-│   └── ConnectionsPage.jsx # Social features (NEW 2025)
+│   ├── ConnectionsPage.jsx # Social features (NEW 2025)
+│   ├── ObserverAcceptInvitationPage.jsx # Observer invitation acceptance (NEW Jan 2025)
+│   ├── ObserverWelcomePage.jsx # Observer onboarding (NEW Jan 2025)
+│   └── ObserverFeedPage.jsx # Observer dashboard (NEW Jan 2025)
 ├── components/
 │   ├── admin/           # Admin dashboard components
 │   ├── connections/     # Redesigned connections UI (Jan 2025)
@@ -222,6 +234,46 @@ frontend/src/
 └── services/
     ├── api.js           # Axios instance (httpOnly cookies)
     └── authService.js   # Auth state management
+```
+
+---
+
+## Email System
+
+### Email Template Management
+All system emails are managed through the **Admin CRM** at `/admin/crm`:
+- Database-stored templates with YAML fallback
+- Jinja2 templating with base layout (`backend/templates/email/base.html`)
+- Admin can customize email copy, subject, and content
+- Templates auto-load from `backend/templates/email/*.html` and `*.txt`
+
+### Available Email Templates
+- `welcome` - New user welcome email
+- `password_reset` - Password reset link
+- `email_confirmation` - Email verification
+- `parent_invitation` - Parent account invitation
+- `observer_invitation` - Observer role invitation (NEW Jan 2025)
+- `quest_completion` - Quest completion notification
+- `promo_welcome` - Promo campaign welcome
+- `consultation_confirmation` - Consultation booking confirmation
+
+### Creating New Email Templates
+1. Create HTML template in `backend/templates/email/your_template.html` (extends `base.html`)
+2. Create plain text version in `backend/templates/email/your_template.txt`
+3. Use `EmailService.send_templated_email(template_name='your_template', ...)`
+4. Admin can override template content in `/admin/crm` interface
+5. Template system checks database first, falls back to file templates
+
+### Email Sending
+```python
+from services.email_service import EmailService
+email_service = EmailService()
+email_service.send_templated_email(
+    to_email='user@example.com',
+    subject='Subject line',
+    template_name='observer_invitation',
+    context={'student_name': 'John', 'invitation_link': 'https://...'}
+)
 ```
 
 ---
@@ -286,7 +338,7 @@ mcp__render__list_logs(resource, limit)
 ### Phase 1 (Complete)
 - ✅ Deleted 6 tables (collaborations, ratings, subscriptions)
 - ✅ Removed 5 user columns (subscription_tier, etc.)
-- ✅ Added observer role
+- ✅ Added observer role to database schema
 
 ### Phase 2 (Complete)
 - ✅ Removed ~400 lines of tier-related code
@@ -315,6 +367,18 @@ mcp__render__list_logs(resource, limit)
 - ✅ Removed tokens from API response bodies
 - ✅ Strong password policy (12 chars, complexity)
 - ✅ Brand color consistency (233 replacements)
+
+### Observer Role Implementation (NEW - Jan 2025)
+- ✅ Added observer role to roles.py enum and permissions system
+- ✅ Observer role hierarchy: -1 (relationship-based access, lower than student)
+- ✅ Observer permissions: view linked students' diplomas/profiles, edit own profile
+- ✅ Created observer invitation email templates (HTML + plain text)
+- ✅ Integrated EmailService to send invitations automatically
+- ✅ Built ObserverAcceptInvitationPage (public route for accepting invitations)
+- ✅ Built ObserverWelcomePage (explains Optio philosophy and observer role)
+- ✅ Built ObserverFeedPage (MVP dashboard with multi-student view)
+- ✅ Added observer routes: /observer/accept/:code, /observer/welcome, /observer/feed
+- ⚠️ Full activity feed not yet implemented (coming soon: chronological feed, reactions, conversation starters)
 
 ---
 

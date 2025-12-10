@@ -79,6 +79,29 @@ emails:
       content: "Every quest you complete brings you closer to mastering new skills. Check out more quests to continue your learning journey."
     signature: "team"
 
+  observer_invitation:
+    subject: "{student_name} invited you to follow their learning on Optio"
+    title: "You've Been Invited to Support a Student on Optio"
+    greeting: "Hi {observer_name},"
+    paragraphs:
+      - "{student_name} has invited you to become an <strong>Observer</strong> on their Optio learning journey!"
+      - "As an observer, you'll get a special view into {student_name}'s learning process. You'll see their completed work, celebrate their progress, and leave encouraging comments to support their growth."
+    highlight_box:
+      title: "What is Optio?"
+      content: "Optio is a learning platform where students explore their interests through self-directed quests, build real-world skills, and create a personalized portfolio. We believe that <strong>the process is the goal</strong> - focusing on curiosity, effort, and growth rather than grades or test scores."
+    bullet_points:
+      - "View their completed quests and tasks"
+      - "See photos, videos, and evidence of their work"
+      - "Leave encouraging comments"
+      - "Celebrate their milestones and achievements"
+    cta:
+      text: "Accept Invitation"
+      url: "{invitation_link}"
+    link_fallback: "If the button doesn't work, copy and paste this link into your browser:"
+    closing_paragraph: "This invitation will expire in 7 days. {student_name} is excited to share their learning with you!"
+    signature: "team"
+    footer_extra: "Welcome to the Optio community."
+
   promo_welcome:
     subject: "Welcome to Optio! Let's Chat About Your Teen's Future"
     title: "Welcome to Optio! Let's Chat About Your Teen's Future"
