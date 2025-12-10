@@ -316,18 +316,23 @@ def get_quest_detail(user_id: str, quest_id: str):
         completed_enrollment = None
 
         for enrollment in enrollments_data:
-            # Check if completed
-            if enrollment.get('completed_at'):
+            # IMPORTANT: Check is_active FIRST before completed_at
+            # A quest can have both is_active=True AND completed_at set when restarted
+            # In this case, it should be treated as ACTIVE, not completed
+            is_active = enrollment.get('is_active')
+            has_completed_at = enrollment.get('completed_at')
+
+            if is_active:
+                # Active enrollment (even if it has a completed_at from previous completion)
+                active_enrollment = enrollment
+            elif has_completed_at and not is_active:
+                # Truly completed (has completed_at AND is_active=False)
                 completed_enrollment = enrollment
-            # Consider enrollment active if not completed and is_active is true
-            elif not enrollment.get('completed_at'):
-                is_active = enrollment.get('is_active')
-                if is_active is not False:  # True or None are both considered active
-                    active_enrollment = enrollment
 
         # Get user-specific tasks if enrolled (regardless of personalization_completed status)
         if active_enrollment or completed_enrollment:
-            enrollment_to_use = completed_enrollment or active_enrollment
+            # Prioritize active enrollment over completed (fixes restart bug)
+            enrollment_to_use = active_enrollment or completed_enrollment
             logger.info(f"[QUEST_DETAIL] Using enrollment ID: {enrollment_to_use['id'][:8]}, user_id: {user_id[:8]}, quest_id: {quest_id[:8]}")
 
             # Debug: Check ALL tasks for this user and quest (ignoring user_quest_id)
@@ -415,7 +420,17 @@ def get_quest_detail(user_id: str, quest_id: str):
             total_tasks = len(quest_tasks)
             completed_count = len(completed_task_ids)
 
-            if completed_enrollment:
+            # Prioritize active enrollment over completed (fixes restart bug)
+            if active_enrollment:
+                logger.info(f"[QUEST DETAIL] Using active enrollment")
+                quest_data['user_enrollment'] = active_enrollment
+                quest_data['completed_enrollment'] = None
+                quest_data['progress'] = {
+                    'completed_tasks': completed_count,
+                    'total_tasks': total_tasks,
+                    'percentage': (completed_count / total_tasks * 100) if total_tasks > 0 else 0
+                }
+            elif completed_enrollment:
                 logger.info(f"[QUEST DETAIL] Using completed enrollment")
                 quest_data['completed_enrollment'] = completed_enrollment
                 quest_data['user_enrollment'] = None
@@ -423,14 +438,6 @@ def get_quest_detail(user_id: str, quest_id: str):
                     'completed_tasks': completed_count,
                     'total_tasks': total_tasks,
                     'percentage': 100
-                }
-            elif active_enrollment:
-                logger.info(f"[QUEST DETAIL] Using active enrollment")
-                quest_data['user_enrollment'] = active_enrollment
-                quest_data['progress'] = {
-                    'completed_tasks': completed_count,
-                    'total_tasks': total_tasks,
-                    'percentage': (completed_count / total_tasks * 100) if total_tasks > 0 else 0
                 }
         else:
             # Not enrolled - show empty quest (personalization required)
