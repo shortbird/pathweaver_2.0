@@ -731,7 +731,8 @@ def accept_task_immediate(user_id: str, quest_id: str):
                 'error': 'Failed to create task'
             }), 500
 
-        # Save task to library and sanitize
+        # Save task to library for future users
+        # Note: Sanitization happens in batch during finalize_tasks, not per-task
         library_service = TaskLibraryService()
         library_task_data = {
             'title': task['title'],
@@ -741,13 +742,7 @@ def accept_task_immediate(user_id: str, quest_id: str):
             'diploma_subjects': diploma_subjects,
             'ai_generated': True
         }
-
-        # Run AI sanitization on the library (deduplicates, generalizes, removes low-quality)
-        sanitization_result = library_service.sanitize_library(quest_id, [library_task_data])
-        if sanitization_result.get('success'):
-            logger.info(f"Library sanitized for quest {quest_id}: "
-                       f"{sanitization_result.get('removed_count', 0)} removed, "
-                       f"{sanitization_result.get('deduplicated_count', 0)} deduplicated")
+        library_service.add_library_task(quest_id, library_task_data)
 
         logger.info(f"User {user_id} accepted task '{task['title']}' for quest {quest_id}")
 
@@ -810,7 +805,8 @@ def skip_task_save_to_library(user_id: str, quest_id: str):
         elif not isinstance(diploma_subjects, dict):
             diploma_subjects = {'Electives': task.get('xp_value', 100)}
 
-        # Save task to library and sanitize
+        # Save task to library for future users
+        # Note: Sanitization happens in batch during finalize_tasks, not per-task
         library_service = TaskLibraryService()
         library_task_data = {
             'title': task['title'],
@@ -820,13 +816,7 @@ def skip_task_save_to_library(user_id: str, quest_id: str):
             'diploma_subjects': diploma_subjects,
             'ai_generated': True
         }
-
-        # Run AI sanitization on the library (deduplicates, generalizes, removes low-quality)
-        sanitization_result = library_service.sanitize_library(quest_id, [library_task_data])
-        if sanitization_result.get('success'):
-            logger.info(f"Library sanitized for quest {quest_id}: "
-                       f"{sanitization_result.get('removed_count', 0)} removed, "
-                       f"{sanitization_result.get('deduplicated_count', 0)} deduplicated")
+        library_service.add_library_task(quest_id, library_task_data)
 
         logger.info(f"User {user_id} skipped task '{task['title']}' - saved to library for quest {quest_id}")
 

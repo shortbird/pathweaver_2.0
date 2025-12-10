@@ -2,6 +2,12 @@
 Task Library Sanitization Service
 Automatically cleans up the task library by deduplicating, generalizing,
 and removing low-quality tasks using AI.
+
+USAGE PATTERN:
+- Run sanitization in BATCH scenarios only (e.g., when finalizing multiple tasks)
+- DO NOT run on individual task creation (too expensive and slow)
+- Typical use case: After a student finalizes 5-10 personalized tasks
+- Can also be run as periodic maintenance via admin endpoint or cron job
 """
 
 import os
