@@ -414,3 +414,33 @@ class TaskLibraryService(BaseService):
         except Exception as e:
             self.logger.error(f"Error deleting task: {str(e)}")
             return False
+
+    def sanitize_library(self, quest_id: str, new_tasks: List[Dict]) -> Dict:
+        """
+        Sanitize the task library for a quest by deduplicating, generalizing,
+        and removing low-quality tasks using AI.
+
+        Args:
+            quest_id: The quest ID to sanitize
+            new_tasks: List of newly created tasks to add before sanitization
+
+        Returns:
+            Dict containing sanitization results and statistics
+        """
+        try:
+            self.logger.info(f"Sanitizing task library for quest {quest_id}")
+
+            # Import sanitization service
+            from services.task_library_sanitization_service import TaskLibrarySanitizationService
+
+            sanitization_service = TaskLibrarySanitizationService()
+            result = sanitization_service.sanitize_quest_tasks(quest_id, new_tasks)
+
+            return result
+
+        except Exception as e:
+            self.logger.error(f"Error sanitizing library: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }

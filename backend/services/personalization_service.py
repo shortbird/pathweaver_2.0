@@ -480,9 +480,11 @@ class PersonalizationService(BaseService):
             for i, task_result in enumerate(result.data):
                 print(f"  Task {i}: ID={task_result['id']}, title='{task_result['title']}', pillar='{task_result['pillar']}'")
 
-            # Save all generated tasks to library for future users
+            # Prepare new tasks for library sanitization
             library_service = TaskLibraryService()
-            logger.info(f"[FINALIZE] Saving {len(ai_tasks)} tasks to library for quest {quest_id}")
+            logger.info(f"[FINALIZE] Preparing {len(ai_tasks)} tasks for library sanitization")
+
+            new_library_tasks = []
             for task in ai_tasks:
                 # Normalize pillar name before saving
                 try:
@@ -508,7 +510,19 @@ class PersonalizationService(BaseService):
                     'diploma_subjects': diploma_subjects,
                     'ai_generated': True
                 }
-                library_service.add_library_task(quest_id, library_task_data)
+                new_library_tasks.append(library_task_data)
+
+            # Sanitize the task library with AI (deduplicate, generalize, remove low-quality)
+            logger.info(f"[FINALIZE] Running AI sanitization on task library for quest {quest_id}")
+            sanitization_result = library_service.sanitize_library(quest_id, new_library_tasks)
+
+            if sanitization_result.get('success'):
+                logger.info(f"[FINALIZE] Sanitization complete: "
+                          f"{sanitization_result.get('removed_count', 0)} removed, "
+                          f"{sanitization_result.get('deduplicated_count', 0)} deduplicated, "
+                          f"{sanitization_result.get('generalized_count', 0)} generalized")
+            else:
+                logger.warning(f"[FINALIZE] Sanitization failed: {sanitization_result.get('error', 'Unknown error')}")
 
             # Mark session as completed
             self.supabase.table('quest_personalization_sessions')\
