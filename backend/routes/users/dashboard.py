@@ -72,6 +72,8 @@ def get_dashboard(user_id):
         active_quests = get_active_quests(supabase, user_id)
 
         # Get completed quests count and recent completions
+        # IMPORTANT: A quest is truly completed only if is_active=False AND completed_at is set
+        # (Active quests may have completed_at from previous completion, but they're not "completed" anymore)
         completed_quests_response = supabase.table('user_quests')\
             .select('id, quest_id, completed_at, quests(id, title, description, image_url, header_image_url)', count='exact')\
             .eq('user_id', user_id)\
@@ -120,22 +122,24 @@ def get_active_quests(supabase, user_id: str) -> list:
     """Get user's active quests with details"""
     try:
         # Get active enrollments with quest details
-        # IMPORTANT: Filter by both is_active AND completed_at to ensure we only get in-progress quests
+        # IMPORTANT: Only filter by is_active=True, NOT completed_at
+        # Restarted quests have both is_active=True AND a completed_at timestamp from previous completion
+        # If is_active=True, the quest is active regardless of completed_at value
         active_quests = supabase.table('user_quests')\
             .select('*, quests(*)')\
             .eq('user_id', user_id)\
             .eq('is_active', True)\
-            .is_('completed_at', 'null')\
             .execute()
 
         if active_quests.data:
-            # Additional safety check - should not be needed but keeps code defensive
-            active_only = [q for q in active_quests.data if q.get('completed_at') is None]
+            # No additional filtering needed - if is_active=True, it's active
+            # (Previously this filtered out restarted quests that had completed_at set)
+            active_only = active_quests.data
 
-            # Debug: Log any quests that slip through
-            filtered_count = len(active_quests.data) - len(active_only)
-            if filtered_count > 0:
-                logger.warning(f"{filtered_count} completed quests had is_active=True but completed_at set")
+            # Debug: Log if any quests have completed_at set (for monitoring)
+            quests_with_completed_at = [q for q in active_only if q.get('completed_at') is not None]
+            if len(quests_with_completed_at) > 0:
+                logger.info(f"{len(quests_with_completed_at)} active quest(s) have completed_at set (restarted quests)")
 
             # Process each quest to add calculated fields
             for enrollment in active_only:
@@ -208,20 +212,16 @@ def get_active_quests(supabase, user_id: str) -> list:
                 .select('*')\
                 .eq('user_id', user_id)\
                 .eq('is_active', True)\
-                .is_('completed_at', 'null')\
                 .execute()
 
             if active_quests.data:
-                # Filter out completed (defensive check)
-                active_only = [q for q in active_quests.data if q.get('completed_at') is None]
+                # No filtering needed - if is_active=True, it's active (even if completed_at is set from restart)
+                active_only = active_quests.data
 
-                # Debug: Log any data inconsistencies
-                filtered_count = len(active_quests.data) - len(active_only)
-                if filtered_count > 0:
-                    logger.warning(f"WARNING (fallback): {filtered_count} completed quests had is_active=True!")
-                    for q in active_quests.data:
-                        if q.get('completed_at') is not None:
-                            print(f"  - Quest ID: {q.get('quest_id')}, Enrollment ID: {q.get('id')}")
+                # Debug: Log if any have completed_at (restarted quests)
+                quests_with_completed_at = [q for q in active_only if q.get('completed_at') is not None]
+                if len(quests_with_completed_at) > 0:
+                    logger.info(f"Fallback: {len(quests_with_completed_at)} active quest(s) have completed_at set (restarted)")
                 
                 # Manually fetch quest details for each
                 for enrollment in active_only:
