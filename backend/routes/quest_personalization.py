@@ -52,6 +52,21 @@ def _check_and_complete_personalization(user_id: str, quest_id: str, session_id:
             logger.info(f"Session {session_id} has no AI tasks - skipping completion check")
             return
 
+        # Extract task titles from the ai_generated_tasks list (handle both dict and potential malformed data)
+        task_titles = []
+        for task in ai_generated_tasks:
+            if isinstance(task, dict):
+                title = task.get('title')
+                if title:
+                    task_titles.append(title)
+            elif isinstance(task, str):
+                # If it's a string, assume it's the title itself
+                task_titles.append(task)
+
+        if not task_titles:
+            logger.warning(f"Session {session_id} has {total_tasks} tasks but no valid titles - skipping completion check")
+            return
+
         # Count how many tasks user has accepted for this quest
         accepted_tasks = supabase.table('user_quest_tasks')\
             .select('id', count='exact')\
@@ -67,7 +82,7 @@ def _check_and_complete_personalization(user_id: str, quest_id: str, session_id:
         library_tasks = supabase.table('quest_sample_tasks')\
             .select('id', count='exact')\
             .eq('quest_id', quest_id)\
-            .in_('title', [task.get('title') for task in ai_generated_tasks])\
+            .in_('title', task_titles)\
             .execute()
 
         library_count = library_tasks.count if library_tasks.count is not None else 0
