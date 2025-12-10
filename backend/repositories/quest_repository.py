@@ -218,10 +218,15 @@ class QuestRepository(BaseRepository):
 
             if existing.data:
                 # Already enrolled, update to active if needed
+                # IMPORTANT: Always update last_picked_up_at when reactivating (for restart detection)
+                from datetime import datetime, timezone
                 if not existing.data[0].get('is_active'):
                     response = (
                         admin_client.table('user_quests')
-                        .update({'is_active': True})
+                        .update({
+                            'is_active': True,
+                            'last_picked_up_at': datetime.now(timezone.utc).isoformat()
+                        })
                         .eq('user_id', user_id)
                         .eq('quest_id', quest_id)
                         .execute()
@@ -235,12 +240,14 @@ class QuestRepository(BaseRepository):
 
             # Create new enrollment
             logger.info(f"Creating new enrollment for user {user_id[:8]} in quest {quest_id[:8]}")
+            from datetime import datetime, timezone
             response = (
                 admin_client.table('user_quests')
                 .insert({
                     'user_id': user_id,
                     'quest_id': quest_id,
-                    'is_active': True
+                    'is_active': True,
+                    'last_picked_up_at': datetime.now(timezone.utc).isoformat()
                 })
                 .execute()
             )
