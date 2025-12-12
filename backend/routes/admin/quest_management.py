@@ -819,3 +819,164 @@ def bulk_generate_images(user_id):
             'success': False,
             'error': f'Failed to generate images: {str(e)}'
         }), 500
+
+@bp.route('/quests/fix-course-enrollments', methods=['POST'])
+@require_admin
+def fix_course_quest_enrollments(user_id):
+    """
+    One-time fix for existing course quest enrollments that are missing preset tasks.
+
+    Finds all active course quest enrollments without tasks and auto-loads preset tasks.
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Get all active course quest enrollments
+        enrollments = supabase.table('user_quests')\
+            .select('id, user_id, quest_id, quests!inner(quest_type, title)')\
+            .eq('is_active', True)\
+            .eq('quests.quest_type', 'course')\
+            .execute()
+
+        if not enrollments.data:
+            return jsonify({
+                'success': True,
+                'message': 'No course quest enrollments found',
+                'fixed': 0
+            })
+
+        logger.info(f"[FIX_COURSE_ENROLLMENTS] Found {len(enrollments.data)} course quest enrollments")
+
+        fixed_count = 0
+        skipped_count = 0
+        failed_count = 0
+        results = []
+
+        from routes.quest_types import get_course_tasks_for_quest
+        from services.subject_classification_service import SubjectClassificationService
+        classification_service = SubjectClassificationService(client=supabase)
+
+        for enrollment in enrollments.data:
+            enrollment_id = enrollment['id']
+            quest_id = enrollment['quest_id']
+            user_id_enrolled = enrollment['user_id']
+            quest_title = enrollment['quests']['title']
+
+            try:
+                # Check if tasks already exist for this enrollment
+                existing_tasks = supabase.table('user_quest_tasks')\
+                    .select('id')\
+                    .eq('user_quest_id', enrollment_id)\
+                    .execute()
+
+                if existing_tasks.data:
+                    skipped_count += 1
+                    results.append({
+                        'enrollment_id': enrollment_id,
+                        'quest_title': quest_title,
+                        'user_id': user_id_enrolled[:8],
+                        'status': 'skipped',
+                        'reason': 'Tasks already exist'
+                    })
+                    continue
+
+                # Get preset tasks for this course quest
+                preset_tasks = get_course_tasks_for_quest(quest_id)
+
+                if not preset_tasks:
+                    failed_count += 1
+                    results.append({
+                        'enrollment_id': enrollment_id,
+                        'quest_title': quest_title,
+                        'user_id': user_id_enrolled[:8],
+                        'status': 'failed',
+                        'reason': 'No preset tasks found'
+                    })
+                    continue
+
+                # Copy preset tasks to user_quest_tasks
+                user_tasks_data = []
+                for task in preset_tasks:
+                    xp_value = task.get('xp_value', 100)
+
+                    # Auto-generate subject distribution if not present
+                    subject_distribution = task.get('subject_xp_distribution', {})
+                    if not subject_distribution:
+                        try:
+                            subject_distribution = classification_service.classify_task_subjects(
+                                task['title'],
+                                task.get('description', ''),
+                                task['pillar'],
+                                xp_value
+                            )
+                        except Exception as e:
+                            logger.warning(f"[FIX_COURSE_ENROLLMENTS] Failed to classify task, using fallback: {str(e)}")
+                            subject_distribution = classification_service._fallback_subject_mapping(
+                                task['pillar'],
+                                xp_value
+                            )
+
+                    task_data = {
+                        'user_id': user_id_enrolled,
+                        'quest_id': quest_id,
+                        'user_quest_id': enrollment_id,
+                        'title': task['title'],
+                        'description': task.get('description', ''),
+                        'pillar': task['pillar'],
+                        'xp_value': xp_value,
+                        'order_index': task.get('order_index', 0),
+                        'is_required': task.get('is_required', True),
+                        'is_manual': False,
+                        'approval_status': 'approved',
+                        'diploma_subjects': task.get('diploma_subjects', ['Electives']),
+                        'subject_xp_distribution': subject_distribution
+                    }
+                    user_tasks_data.append(task_data)
+
+                # Bulk insert tasks
+                if user_tasks_data:
+                    supabase.table('user_quest_tasks').insert(user_tasks_data).execute()
+
+                    # Mark personalization as completed
+                    supabase.table('user_quests')\
+                        .update({'personalization_completed': True})\
+                        .eq('id', enrollment_id)\
+                        .execute()
+
+                    fixed_count += 1
+                    results.append({
+                        'enrollment_id': enrollment_id,
+                        'quest_title': quest_title,
+                        'user_id': user_id_enrolled[:8],
+                        'status': 'fixed',
+                        'tasks_added': len(user_tasks_data)
+                    })
+                    logger.info(f"[FIX_COURSE_ENROLLMENTS] Fixed enrollment {enrollment_id[:8]} - added {len(user_tasks_data)} tasks")
+
+            except Exception as e:
+                failed_count += 1
+                logger.error(f"[FIX_COURSE_ENROLLMENTS] Error fixing enrollment {enrollment_id[:8]}: {str(e)}")
+                results.append({
+                    'enrollment_id': enrollment_id,
+                    'quest_title': quest_title,
+                    'user_id': user_id_enrolled[:8],
+                    'status': 'failed',
+                    'error': str(e)
+                })
+
+        return jsonify({
+            'success': True,
+            'message': f'Fixed {fixed_count} enrollments, skipped {skipped_count}, failed {failed_count}',
+            'fixed': fixed_count,
+            'skipped': skipped_count,
+            'failed': failed_count,
+            'total_checked': len(enrollments.data),
+            'results': results
+        })
+
+    except Exception as e:
+        logger.error(f"[FIX_COURSE_ENROLLMENTS] Error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to fix course enrollments: {str(e)}'
+        }), 500
