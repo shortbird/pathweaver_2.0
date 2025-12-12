@@ -135,21 +135,10 @@ def get_users_list(user_id):
         # Enhance user data
         users = response.data if response.data else []
 
-        # Get emails from auth.users table
-        try:
-            auth_users = supabase.auth.admin.list_users()
-            email_map = {}
-            if auth_users:
-                for auth_user in auth_users:
-                    email_map[auth_user.id] = getattr(auth_user, 'email', None)
-        except Exception as e:
-            logger.warning(f"Warning: Could not fetch auth users: {e}")
-            email_map = {}
-        
-        for user in users:
-            # Add email from auth.users
-            user['email'] = email_map.get(user['id'], '')
+        # Email is already included in the users table SELECT * query
+        # No need for separate auth.users lookup
 
+        for user in users:
             # Calculate total XP across all pillars
             try:
                 xp_response = supabase.table('user_skill_xp')\
@@ -245,7 +234,7 @@ def update_user_profile(admin_id, user_id):
     """Update user profile information"""
     supabase = get_supabase_admin_client()
     data = request.json
-    
+
     try:
         # Update user profile
         update_data = {}
@@ -254,20 +243,47 @@ def update_user_profile(admin_id, user_id):
         if 'last_name' in data:
             update_data['last_name'] = data['last_name']
         if 'email' in data:
-            # Note: Email updates might require auth.users update too
             update_data['email'] = data['email']
-            
+        if 'phone_number' in data:
+            update_data['phone_number'] = data['phone_number']
+        if 'address_line1' in data:
+            update_data['address_line1'] = data['address_line1']
+        if 'address_line2' in data:
+            update_data['address_line2'] = data['address_line2']
+        if 'city' in data:
+            update_data['city'] = data['city']
+        if 'state' in data:
+            update_data['state'] = data['state']
+        if 'postal_code' in data:
+            update_data['postal_code'] = data['postal_code']
+        if 'country' in data:
+            update_data['country'] = data['country']
+        if 'date_of_birth' in data:
+            update_data['date_of_birth'] = data['date_of_birth']
+
         if update_data:
             response = supabase.table('users')\
                 .update(update_data)\
                 .eq('id', user_id)\
                 .execute()
-            
+
             if not response.data:
                 return jsonify({'error': 'User not found'}), 404
-        
+
+        # If email was updated, also update auth.users
+        if 'email' in data:
+            try:
+                supabase.auth.admin.update_user_by_id(
+                    user_id,
+                    {'email': data['email']}
+                )
+                logger.info(f"Admin {admin_id} updated email for user {user_id}")
+            except Exception as e:
+                logger.warning(f"Failed to update auth.users email: {e}")
+                # Continue anyway since users table was updated successfully
+
         return jsonify({'message': 'User updated successfully'}), 200
-        
+
     except Exception as e:
         logger.error(f"Error updating user: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -467,32 +483,20 @@ def send_bulk_email(admin_id):
         if not user_ids or not subject or not message:
             return jsonify({'error': 'Missing required fields'}), 400
         
-        # Get user details
+        # Get user details with email from users table
         users_response = supabase.table('users')\
-            .select('id, first_name, last_name')\
+            .select('id, first_name, last_name, email')\
             .in_('id', user_ids)\
             .execute()
-        
+
         if not users_response.data:
             return jsonify({'error': 'No users found'}), 404
-        
-        # Get emails from auth.users
-        try:
-            auth_users = supabase.auth.admin.list_users()
-            email_map = {}
-            if auth_users:
-                for auth_user in auth_users:
-                    if auth_user.id in user_ids:
-                        email_map[auth_user.id] = getattr(auth_user, 'email', None)
-        except Exception as e:
-            logger.error(f"Error fetching emails: {e}")
-            return jsonify({'error': 'Could not fetch user emails'}), 500
-        
+
         # For now, we'll just return success
         # In a real implementation, you'd integrate with an email service
         emails_sent = 0
         for user in users_response.data:
-            user_email = email_map.get(user['id'])
+            user_email = user.get('email')
             if user_email:
                 # Here you would send the actual email
                 emails_sent += 1
