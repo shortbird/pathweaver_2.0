@@ -50,12 +50,38 @@ def complete_task(user_id: str, task_id: str):
     """
     Complete a task with evidence submission.
     Handles file uploads and awards XP with collaboration bonus if applicable.
+
+    Optional form parameter:
+        acting_as_dependent_id: UUID of dependent (if parent is acting on behalf of child)
     """
     try:
+        # Get optional acting_as_dependent_id from form data
+        acting_as_dependent_id = request.form.get('acting_as_dependent_id')
+
+        # Determine effective user ID (handles parent -> dependent delegation)
+        effective_user_id = user_id
+        if acting_as_dependent_id:
+            from backend.repositories.dependent_repository import DependentRepository
+            from backend.repositories.base_repository import PermissionError as RepoPermissionError
+
+            try:
+                admin_client = get_supabase_admin_client()
+                dependent_repo = DependentRepository(client=admin_client)
+                # Verify parent owns dependent
+                dependent_repo.get_dependent(acting_as_dependent_id, user_id)
+                effective_user_id = acting_as_dependent_id
+                logger.info(f"Parent {user_id[:8]} completing task for dependent {acting_as_dependent_id[:8]}")
+            except RepoPermissionError as e:
+                logger.warning(f"Unauthorized dependent access attempt: {str(e)}")
+                return jsonify({
+                    'success': False,
+                    'error': 'You do not have permission to manage this dependent profile'
+                }), 403
+
         # Use user client for user operations (RLS enforcement)
         supabase = get_user_client()
         # JUSTIFICATION: Admin client only for Supabase storage and XP operations
-        # Storage operations (line 165-172) and XP awards (line 257-288) require elevated privileges
+        # Storage operations and XP awards require elevated privileges
         # All user-scoped database operations use user client with proper RLS enforcement
         admin_supabase = get_supabase_admin_client()
 
@@ -66,7 +92,7 @@ def complete_task(user_id: str, task_id: str):
 
         # Get user-specific task details using repository
         try:
-            task_data = task_repo.get_task_with_relations(task_id, user_id)
+            task_data = task_repo.get_task_with_relations(task_id, effective_user_id)
         except NotFoundError:
             return jsonify({
                 'success': False,
@@ -84,7 +110,7 @@ def complete_task(user_id: str, task_id: str):
             }), 403
 
         # Check if task already completed using repository
-        if completion_repo.check_existing_completion(user_id, task_id):
+        if completion_repo.check_existing_completion(effective_user_id, task_id):
             return jsonify({
                 'success': False,
                 'error': 'Task already completed'
@@ -167,7 +193,7 @@ def complete_task(user_id: str, task_id: str):
             try:
                 # Generate unique filename for Supabase storage
                 timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-                unique_filename = f"task-evidence/{user_id}/{task_id}_{timestamp}_{filename}"
+                unique_filename = f"task-evidence/{effective_user_id}/{task_id}_{timestamp}_{filename}"
 
                 # Read file content
                 file_content = file.read()
@@ -219,7 +245,7 @@ def complete_task(user_id: str, task_id: str):
         # Create task completion record using repository
         try:
             completion_data = completion_repo.create_completion({
-                'user_id': user_id,
+                'user_id': effective_user_id,
                 'quest_id': quest_id,
                 'task_id': task_id,
                 'user_quest_task_id': task_id,  # Reference to personalized task
@@ -236,27 +262,29 @@ def complete_task(user_id: str, task_id: str):
 
         # Award XP to user
         logger.debug(f"=== TASK COMPLETION XP DEBUG ===")
-        logger.info(f"Task ID: {task_id}, User ID: {user_id}")
+        logger.info(f"Task ID: {task_id}, User ID: {effective_user_id}")
         print(f"Task pillar: {task_data.get('pillar')}")
         logger.info(f"Base XP: {base_xp}, Final XP: {final_xp}, Has Collaboration: {has_collaboration}")
+        if acting_as_dependent_id:
+            logger.info(f"Parent {user_id[:8]} completing for dependent {acting_as_dependent_id[:8]}")
         logger.info("================================")
 
         # Award XP using XP service
         xp_awarded = xp_service.award_xp(
-            user_id,
+            effective_user_id,
             task_data.get('pillar', 'creativity'),  # Default to old key, service will normalize
             final_xp,
             f'task_completion:{task_id}'
         )
 
         if not xp_awarded:
-            logger.error(f"Warning: Failed to award XP for task {task_id} to user {user_id}")
+            logger.error(f"Warning: Failed to award XP for task {task_id} to user {effective_user_id}")
 
         # Award subject-specific XP for diploma credits (optional - for backward compatibility with old tasks)
         subject_xp_distribution = task_data.get('subject_xp_distribution', {})
         if subject_xp_distribution:
             logger.info(f"=== SUBJECT XP TRACKING ===")
-            logger.info(f"Task ID: {task_id}, User ID: {user_id}")
+            logger.info(f"Task ID: {task_id}, User ID: {effective_user_id}")
             logger.info(f"Subject XP Distribution: {subject_xp_distribution}")
 
             # Subject name normalization mapping to match enum values
@@ -278,7 +306,7 @@ def complete_task(user_id: str, task_id: str):
                     # Update or insert subject XP
                     existing_subject_xp = admin_supabase.table('user_subject_xp')\
                         .select('id, xp_amount')\
-                        .eq('user_id', user_id)\
+                        .eq('user_id', effective_user_id)\
                         .eq('school_subject', normalized_subject)\
                         .execute()
 
@@ -292,7 +320,7 @@ def complete_task(user_id: str, task_id: str):
                                 'xp_amount': new_total,
                                 'updated_at': datetime.utcnow().isoformat()
                             })\
-                            .eq('user_id', user_id)\
+                            .eq('user_id', effective_user_id)\
                             .eq('school_subject', normalized_subject)\
                             .execute()
 
@@ -301,7 +329,7 @@ def complete_task(user_id: str, task_id: str):
                         # Create new record
                         admin_supabase.table('user_subject_xp')\
                             .insert({
-                                'user_id': user_id,
+                                'user_id': effective_user_id,
                                 'school_subject': normalized_subject,
                                 'xp_amount': subject_xp,
                                 'updated_at': datetime.utcnow().isoformat()
@@ -316,13 +344,13 @@ def complete_task(user_id: str, task_id: str):
             logger.info("==========================")
         else:
             logger.info(f"No subject XP distribution found for task {task_id}")
-        
+
         # Check if all required tasks are completed (personalized quest system)
         # Get user's personalized tasks for this quest
         all_required_tasks = supabase.table('user_quest_tasks')\
             .select('id')\
             .eq('quest_id', quest_id)\
-            .eq('user_id', user_id)\
+            .eq('user_id', effective_user_id)\
             .eq('is_required', True)\
             .execute()
 
@@ -330,13 +358,13 @@ def complete_task(user_id: str, task_id: str):
         all_tasks = supabase.table('user_quest_tasks')\
             .select('id, xp_value, pillar')\
             .eq('quest_id', quest_id)\
-            .eq('user_id', user_id)\
+            .eq('user_id', effective_user_id)\
             .execute()
 
         # Get completed task IDs from quest_task_completions
         completed_tasks = supabase.table('quest_task_completions')\
             .select('user_quest_task_id')\
-            .eq('user_id', user_id)\
+            .eq('user_id', effective_user_id)\
             .eq('quest_id', quest_id)\
             .execute()
 

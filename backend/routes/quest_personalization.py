@@ -21,6 +21,46 @@ bp = Blueprint('quest_personalization', __name__, url_prefix='/api/quests')
 
 # CORS headers are set globally in app.py - do not duplicate here
 
+def _get_effective_user_id(parent_user_id: str, acting_as_dependent_id: str = None) -> str:
+    """
+    Determine the effective user ID for quest operations.
+
+    If acting_as_dependent_id is provided, verify parent owns the dependent
+    and return the dependent's ID. Otherwise, return the parent's ID.
+
+    Args:
+        parent_user_id: The authenticated user's ID
+        acting_as_dependent_id: Optional dependent user ID
+
+    Returns:
+        The effective user ID to use for operations
+
+    Raises:
+        PermissionError: If parent doesn't own the dependent
+    """
+    if not acting_as_dependent_id:
+        return parent_user_id
+
+    from backend.repositories.dependent_repository import DependentRepository
+    from backend.repositories.base_repository import PermissionError as RepoPermissionError
+
+    try:
+        supabase = get_supabase_admin_client()
+        dependent_repo = DependentRepository(client=supabase)
+
+        # This will raise PermissionError if parent doesn't own dependent
+        dependent_repo.get_dependent(acting_as_dependent_id, parent_user_id)
+
+        logger.info(f"Parent {parent_user_id[:8]} acting as dependent {acting_as_dependent_id[:8]}")
+        return acting_as_dependent_id
+
+    except RepoPermissionError as e:
+        logger.warning(f"Unauthorized dependent access attempt: {str(e)}")
+        raise PermissionError(f"You do not have permission to manage this dependent profile")
+    except Exception as e:
+        logger.error(f"Error verifying dependent ownership: {str(e)}")
+        raise PermissionError("Failed to verify dependent ownership")
+
 def _check_and_complete_personalization(user_id: str, quest_id: str, session_id: str):
     """
     Check if user has processed all AI-generated tasks and mark personalization complete.
@@ -148,11 +188,21 @@ def start_personalization(user_id: str, quest_id: str):
     """
     Begin the personalization flow for a quest.
     Creates or resumes a personalization session.
+
+    Optional body parameter:
+        acting_as_dependent_id: UUID of dependent (if parent is acting on behalf of child)
     """
 
     try:
+        # Get optional acting_as_dependent_id from request body
+        data = request.get_json() or {}
+        acting_as_dependent_id = data.get('acting_as_dependent_id')
+
+        # Determine effective user ID (handles parent -> dependent delegation)
+        effective_user_id = _get_effective_user_id(user_id, acting_as_dependent_id)
+
         result = personalization_service.start_personalization_session(
-            user_id=user_id,
+            user_id=effective_user_id,
             quest_id=quest_id
         )
 
@@ -164,9 +214,16 @@ def start_personalization(user_id: str, quest_id: str):
             'session_id': result['session']['id'],
             'session': result['session'],
             'resumed': result.get('resumed', False),
+            'acting_as_dependent': acting_as_dependent_id is not None,
             'message': 'Personalization session started' if not result.get('resumed') else 'Resuming personalization session'
         })
 
+    except PermissionError as e:
+        logger.warning(f"Permission denied in start_personalization: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 403
     except Exception as e:
         logger.error(f"Error starting personalization: {str(e)}")
         return jsonify({
