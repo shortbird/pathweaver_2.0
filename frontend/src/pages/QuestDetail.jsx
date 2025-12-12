@@ -832,23 +832,37 @@ const QuestDetail = () => {
 
         {/* Enrollment flow for users without tasks */}
         {quest.quest_tasks && quest.quest_tasks.length === 0 && quest.user_enrollment && !showPersonalizationWizard ? (
-          <div className="text-center py-12 bg-white rounded-xl shadow-md">
-            <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-            <p className="text-lg text-gray-600 mb-2" style={{ fontFamily: 'Poppins' }}>
-              Ready to personalize this quest?
-            </p>
-              <p className="text-sm text-gray-500 mb-6" style={{ fontFamily: 'Poppins' }}>
-                Create custom tasks, write your own, or browse the task library
+          quest.quest_type === 'course' ? (
+            // Course quest: Show loading state (tasks should be auto-loading)
+            <div className="text-center py-12 bg-white rounded-xl shadow-md">
+              <div className="animate-spin w-12 h-12 border-4 border-optio-purple border-t-transparent rounded-full mx-auto mb-4" />
+              <p className="text-lg text-gray-600 mb-2" style={{ fontFamily: 'Poppins' }}>
+                Loading course tasks...
               </p>
-              <button
-                onClick={() => setShowPersonalizationWizard(true)}
-                className="px-6 py-3 bg-gradient-primary text-white rounded-lg font-semibold hover:opacity-90"
-                style={{ fontFamily: 'Poppins' }}
-              >
-                Start Personalizing
-              </button>
+              <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins' }}>
+                Your preset tasks are being prepared
+              </p>
             </div>
-          ) : !quest.user_enrollment ? (
+          ) : (
+            // Optio quest: Show personalization prompt
+            <div className="text-center py-12 bg-white rounded-xl shadow-md">
+              <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+              <p className="text-lg text-gray-600 mb-2" style={{ fontFamily: 'Poppins' }}>
+                Ready to personalize this quest?
+              </p>
+                <p className="text-sm text-gray-500 mb-6" style={{ fontFamily: 'Poppins' }}>
+                  Create custom tasks, write your own, or browse the task library
+                </p>
+                <button
+                  onClick={() => setShowPersonalizationWizard(true)}
+                  className="px-6 py-3 bg-gradient-primary text-white rounded-lg font-semibold hover:opacity-90"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  Start Personalizing
+                </button>
+              </div>
+          )
+        ) : !quest.user_enrollment ? (
             <>
               {/* Show sample tasks for Optio quests OR preset tasks for Course quests */}
               {quest.quest_type === 'optio' && quest.sample_tasks && quest.sample_tasks.length > 0 ? (
