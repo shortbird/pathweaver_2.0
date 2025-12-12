@@ -172,19 +172,25 @@ def get_course_tasks_for_quest(quest_id: str):
     Helper function to get preset tasks for a course quest.
     Returns ordered by order_index.
 
-    Note: Course tasks are stored in quest_sample_tasks table (not course_quest_tasks).
-    This applies to both manually created course quests and SPARK-synced courses.
+    Note: Course tasks are ONLY stored in course_quest_tasks table.
+    This is different from Optio quests which use quest_sample_tasks.
     """
     supabase = get_supabase_admin_client()
 
     try:
-        tasks = supabase.table('quest_sample_tasks')\
+        # Course quests ONLY use course_quest_tasks table
+        course_tasks = supabase.table('course_quest_tasks')\
             .select('*')\
             .eq('quest_id', quest_id)\
             .order('order_index')\
             .execute()
 
-        return tasks.data or []
+        if course_tasks.data and len(course_tasks.data) > 0:
+            logger.info(f"Found {len(course_tasks.data)} course tasks for quest {quest_id[:8]}")
+            return course_tasks.data
+
+        logger.warning(f"No preset tasks found in course_quest_tasks for quest {quest_id[:8]}")
+        return []
 
     except Exception as e:
         logger.error(f"Error getting course tasks: {str(e)}")

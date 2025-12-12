@@ -605,9 +605,9 @@ def validate_course_quest_has_preset_tasks(quest_id: str) -> tuple[bool, str]:
         if quest.data.get('quest_type') != 'course':
             return True, ''
 
-        # Check for preset tasks in quest_sample_tasks table
-        # Note: Course quest tasks are stored in quest_sample_tasks, not course_quest_tasks
-        preset_tasks = supabase.table('quest_sample_tasks')\
+        # Check for preset tasks in course_quest_tasks table
+        # Note: Course quests ONLY use course_quest_tasks, NOT quest_sample_tasks
+        preset_tasks = supabase.table('course_quest_tasks')\
             .select('id')\
             .eq('quest_id', quest_id)\
             .limit(1)\
