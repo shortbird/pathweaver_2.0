@@ -38,6 +38,7 @@
 ### Core Tables
 ```
 users - id, email, role (student/parent/advisor/admin/observer), display_name, total_xp, organization_id (nullable)
+        is_dependent (boolean), managed_by_parent_id (uuid), promotion_eligible_at (date) [NEW Jan 2025]
 quests - id, title, quest_type (optio/course), lms_course_id (nullable), is_active, organization_id (nullable)
 user_quest_tasks - id, user_id*, quest_id, title, pillar, xp_value, approval_status
 quest_task_completions - id, user_id, quest_id, task_id, xp_awarded, completed_at
@@ -204,6 +205,20 @@ task = task_repo.get_task_with_relations(task_id, user_id)
 - `POST /api/observers/accept/<code>` - Observer accepts invitation (creates account with role='observer')
 - `GET /api/observers/my-students` - Observer views linked students
 - `GET /api/observers/student/<id>/portfolio` - Observer views student portfolio
+
+### Dependent Profiles (NEW - Jan 2025)
+- `GET /api/dependents/my-dependents` - Get all dependents for logged-in parent
+- `POST /api/dependents/create` - Create new dependent (requires display_name, date_of_birth)
+- `GET /api/dependents/:id` - Get specific dependent
+- `PUT /api/dependents/:id` - Update dependent (allowed: display_name, avatar_url, date_of_birth, bio)
+- `DELETE /api/dependents/:id` - Delete dependent (cascades all data)
+- `POST /api/dependents/:id/promote` - Promote to independent account at age 13 (requires email, password)
+
+**Acting as Dependent** (Quest/Task Operations):
+- `POST /api/quests/:id/start-personalization` - Optional body param: `acting_as_dependent_id`
+- `POST /api/tasks/:id/complete` - Optional form param: `acting_as_dependent_id`
+- All operations verify parent owns dependent before proceeding
+- XP and progress tracked under dependent's user_id
 
 ---
 
@@ -424,6 +439,24 @@ mcp__render__list_logs(resource, limit)
 - ✅ Built ObserverFeedPage (MVP dashboard with multi-student view)
 - ✅ Added observer routes: /observer/accept/:code, /observer/welcome, /observer/feed
 - ⚠️ Full activity feed not yet implemented (coming soon: chronological feed, reactions, conversation starters)
+
+### Dependent Profiles Implementation (NEW - Jan 2025)
+- ✅ Database schema: Added is_dependent, managed_by_parent_id, promotion_eligible_at to users table
+- ✅ Created indexes: idx_users_managed_by_parent, idx_users_is_dependent
+- ✅ Added COPPA compliance constraints: check_dependent_has_parent, check_dependent_no_email
+- ✅ Created RLS policies: parent_view/create/update/delete_dependents
+- ✅ Created helper functions: calculate_promotion_eligible_date, is_promotion_eligible, get_parent_dependents
+- ✅ Built DependentRepository with full CRUD operations
+- ✅ Created 6 API endpoints: /api/dependents/* (create, read, update, delete, promote)
+- ✅ Built dependentAPI.js service for frontend
+- ✅ Created ProfileSwitcher component (dropdown to switch between parent/dependents)
+- ✅ Created AddDependentModal component (form with age validation + COPPA notice)
+- ✅ Integrated ProfileSwitcher into ParentDashboardPage header
+- ✅ Added acting_as_dependent_id support to quest_personalization.py (start-personalization endpoint)
+- ✅ Added acting_as_dependent_id support to tasks.py (complete_task endpoint)
+- ✅ XP and progress tracking work correctly for dependents
+- ⚠️ Frontend quest components need acting_as_dependent_id parameter passed
+- ⚠️ End-to-end testing pending
 
 ---
 
