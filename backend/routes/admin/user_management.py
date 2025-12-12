@@ -112,6 +112,11 @@ def get_users(user_id):
 
         users = result.data if result.data else []
 
+        # Debug logging - check what Supabase returns
+        if users:
+            sample_user = users[0]
+            logger.info(f"[DEBUG] First user from DB: id={sample_user.get('id')}, email='{sample_user.get('email')}', first_name={sample_user.get('first_name')}")
+
         return jsonify({
             'success': True,
             'users': users,
