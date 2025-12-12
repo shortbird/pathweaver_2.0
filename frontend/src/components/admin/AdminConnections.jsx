@@ -17,24 +17,20 @@ const AdminConnections = () => {
   const [expandedAdvisorId, setExpandedAdvisorId] = useState(null)
 
   // Parent-Student state
-  const [parentRequests, setParentRequests] = useState([])
   const [parentLinks, setParentLinks] = useState([])
   const [parents, setParents] = useState([])
   const [students, setStudents] = useState([])
-  const [statusFilter, setStatusFilter] = useState('pending')
-  const [showApproveModal, setShowApproveModal] = useState(false)
-  const [showRejectModal, setShowRejectModal] = useState(false)
   const [showDisconnectModal, setShowDisconnectModal] = useState(false)
-  const [showConnectModal, setShowConnectModal] = useState(false)
-  const [selectedRequest, setSelectedRequest] = useState(null)
+  const [showAddConnectionModal, setShowAddConnectionModal] = useState(false)
   const [selectedLink, setSelectedLink] = useState(null)
   const [selectedParent, setSelectedParent] = useState(null)
-  const [selectedStudentId, setSelectedStudentId] = useState('')
+  const [selectedStudentIds, setSelectedStudentIds] = useState([])
   const [adminNotes, setAdminNotes] = useState('')
+  const [addConnectionLoading, setAddConnectionLoading] = useState(false)
 
   useEffect(() => {
     loadAllData()
-  }, [statusFilter])
+  }, [])
 
   const loadAllData = async () => {
     setLoading(true)
@@ -42,7 +38,6 @@ const AdminConnections = () => {
       await Promise.all([
         fetchAdvisors(),
         fetchUnassignedStudents(),
-        loadParentRequests(),
         loadParentLinks(),
         loadParentsAndStudents()
       ])
@@ -129,15 +124,6 @@ const AdminConnections = () => {
   }
 
   // Parent-Student functions
-  const loadParentRequests = async () => {
-    try {
-      const response = await adminParentConnectionsAPI.getConnectionRequests({ status: statusFilter })
-      setParentRequests(response.data.requests || [])
-    } catch (error) {
-      console.error('Error loading parent requests:', error)
-    }
-  }
-
   const loadParentLinks = async () => {
     try {
       const response = await adminParentConnectionsAPI.getActiveLinks({ admin_verified: true })
@@ -160,37 +146,32 @@ const AdminConnections = () => {
     }
   }
 
-  const handleApproveParentRequest = async () => {
-    if (!selectedRequest) return
-
-    try {
-      await adminParentConnectionsAPI.approveConnectionRequest(selectedRequest.id, adminNotes)
-      toast.success('Connection request approved')
-      setShowApproveModal(false)
-      setAdminNotes('')
-      setSelectedRequest(null)
-      loadParentRequests()
-      loadParentLinks()
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to approve request')
-    }
-  }
-
-  const handleRejectParentRequest = async () => {
-    if (!selectedRequest || !adminNotes.trim()) {
-      toast.error('Rejection reason is required')
+  const handleAddConnection = async () => {
+    if (!selectedParent || selectedStudentIds.length === 0) {
+      toast.error('Please select a parent and at least one student')
       return
     }
 
+    setAddConnectionLoading(true)
     try {
-      await adminParentConnectionsAPI.rejectConnectionRequest(selectedRequest.id, adminNotes)
-      toast.success('Connection request rejected')
-      setShowRejectModal(false)
+      // Create connections for each selected student
+      await Promise.all(
+        selectedStudentIds.map(studentId =>
+          adminParentConnectionsAPI.createManualLink(selectedParent.id, studentId, adminNotes)
+        )
+      )
+
+      const studentCount = selectedStudentIds.length
+      toast.success(`Successfully added ${studentCount} student${studentCount > 1 ? 's' : ''} to parent`)
+      setShowAddConnectionModal(false)
+      setSelectedParent(null)
+      setSelectedStudentIds([])
       setAdminNotes('')
-      setSelectedRequest(null)
-      loadParentRequests()
+      loadParentLinks()
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to reject request')
+      toast.error(error.response?.data?.error || 'Failed to create connection')
+    } finally {
+      setAddConnectionLoading(false)
     }
   }
 
@@ -208,23 +189,14 @@ const AdminConnections = () => {
     }
   }
 
-  const handleConnectParent = async () => {
-    if (!selectedParent || !selectedStudentId) {
-      toast.error('Please select both parent and student')
-      return
-    }
-
-    try {
-      await adminParentConnectionsAPI.createManualLink(selectedParent.id, selectedStudentId, adminNotes)
-      toast.success('Parent-student connection created successfully')
-      setShowConnectModal(false)
-      setSelectedParent(null)
-      setSelectedStudentId('')
-      setAdminNotes('')
-      loadParentLinks()
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to create connection')
-    }
+  const toggleStudentSelection = (studentId) => {
+    setSelectedStudentIds(prev => {
+      if (prev.includes(studentId)) {
+        return prev.filter(id => id !== studentId)
+      } else {
+        return [...prev, studentId]
+      }
+    })
   }
 
   // Filtering
@@ -243,19 +215,6 @@ const AdminConnections = () => {
     )
   })
 
-  const filteredParentRequests = parentRequests.filter(req => {
-    if (!searchTerm) return true
-    const search = searchTerm.toLowerCase()
-    return (
-      req.parent_user?.first_name?.toLowerCase().includes(search) ||
-      req.parent_user?.last_name?.toLowerCase().includes(search) ||
-      req.parent_user?.email?.toLowerCase().includes(search) ||
-      req.child_first_name?.toLowerCase().includes(search) ||
-      req.child_last_name?.toLowerCase().includes(search) ||
-      req.child_email?.toLowerCase().includes(search)
-    )
-  })
-
   const filteredParentLinks = parentLinks.filter(link => {
     if (!searchTerm) return true
     const search = searchTerm.toLowerCase()
@@ -266,6 +225,38 @@ const AdminConnections = () => {
       link.student?.first_name?.toLowerCase().includes(search) ||
       link.student?.last_name?.toLowerCase().includes(search) ||
       link.student?.email?.toLowerCase().includes(search)
+    )
+  })
+
+  const filteredParents = parents.filter(parent => {
+    if (!searchTerm) return true
+    const search = searchTerm.toLowerCase()
+    return (
+      parent.first_name?.toLowerCase().includes(search) ||
+      parent.last_name?.toLowerCase().includes(search) ||
+      parent.email?.toLowerCase().includes(search) ||
+      parent.display_name?.toLowerCase().includes(search)
+    )
+  })
+
+  const getAvailableStudents = () => {
+    if (!selectedParent) return []
+
+    const linkedStudentIds = parentLinks
+      .filter(link => link.parent_user_id === selectedParent.id)
+      .map(link => link.student_user_id)
+
+    return students.filter(student => !linkedStudentIds.includes(student.id))
+  }
+
+  const filteredAvailableStudents = getAvailableStudents().filter(student => {
+    if (!searchTerm) return true
+    const search = searchTerm.toLowerCase()
+    return (
+      student.first_name?.toLowerCase().includes(search) ||
+      student.last_name?.toLowerCase().includes(search) ||
+      student.email?.toLowerCase().includes(search) ||
+      student.display_name?.toLowerCase().includes(search)
     )
   })
 
@@ -420,126 +411,34 @@ const AdminConnections = () => {
 
       {/* Parent-Student Connections Section */}
       <section className="bg-white rounded-lg shadow p-6">
-        <div className="mb-6">
-          <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>Parent-Student Connections</h3>
-          <p className="text-gray-600 text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>Manage parent connection requests and active links</p>
-        </div>
-
-        {/* Filters and Search */}
-        <div className="flex gap-4 items-center mb-6">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg font-medium focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+        <div className="mb-6 flex justify-between items-center">
+          <div>
+            <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>Parent-Student Connections</h3>
+            <p className="text-gray-600 text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>Manage parent-student relationships and access</p>
+          </div>
+          <button
+            onClick={() => setShowAddConnectionModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
-            <option value="pending">Pending Requests</option>
-            <option value="approved">Approved Requests</option>
-            <option value="rejected">Rejected Requests</option>
-          </select>
-          <div className="flex-1 relative">
+            <UserPlus className="w-5 h-5" />
+            Add Parent-Student Connection
+          </button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="mb-6">
+          <div className="relative">
             <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by name or email..."
+              placeholder="Search by parent or student name/email..."
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
               style={{ fontFamily: 'Poppins, sans-serif' }}
             />
           </div>
-        </div>
-
-        {/* Connection Requests Table */}
-        <div className="mb-8">
-          <h4 className="font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>Connection Requests</h4>
-          {filteredParentRequests.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 rounded-lg">
-              <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>No connection requests found</p>
-            </div>
-          ) : (
-            <div className="bg-white shadow-md rounded-lg overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Parent</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Child</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Submitted</th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredParentRequests.map((request) => (
-                    <tr key={request.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {request.parent_user?.first_name} {request.parent_user?.last_name}
-                          </div>
-                          <div className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {request.parent_user?.email}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {request.child_first_name} {request.child_last_name}
-                          </div>
-                          <div className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {request.child_email}
-                          </div>
-                          {request.matched_student_id && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 mt-1">
-                              Matched
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <StatusBadge status={request.status} />
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        {new Date(request.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-right space-x-2">
-                        {request.status === 'pending' && (
-                          <>
-                            <button
-                              onClick={() => {
-                                setSelectedRequest(request)
-                                setShowApproveModal(true)
-                              }}
-                              disabled={!request.matched_student_id}
-                              className="inline-flex items-center px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                              style={{ fontFamily: 'Poppins, sans-serif' }}
-                              title={!request.matched_student_id ? 'No student matched yet' : 'Approve request'}
-                            >
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedRequest(request)
-                                setShowRejectModal(true)
-                              }}
-                              className="inline-flex items-center px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-                              style={{ fontFamily: 'Poppins, sans-serif' }}
-                            >
-                              <XCircle className="w-4 h-4 mr-1" />
-                              Reject
-                            </button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
 
         {/* Active Connections Table */}
@@ -668,82 +567,215 @@ const AdminConnections = () => {
         </Modal>
       )}
 
-      {/* Approve Parent Request Modal */}
-      {showApproveModal && (
+      {/* Add Parent-Student Connection Modal */}
+      {showAddConnectionModal && (
         <Modal
-          title="Approve Connection Request"
+          title="Add Parent-Student Connection"
           onClose={() => {
-            setShowApproveModal(false)
+            setShowAddConnectionModal(false)
+            setSelectedParent(null)
+            setSelectedStudentIds([])
             setAdminNotes('')
-            setSelectedRequest(null)
+            setSearchTerm('')
           }}
-          onConfirm={handleApproveParentRequest}
-          confirmText="Approve"
-          confirmClass="bg-green-600 hover:bg-green-700"
         >
-          <div className="space-y-4">
-            <p className="text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Approve connection between <strong>{selectedRequest?.parent_user?.first_name} {selectedRequest?.parent_user?.last_name}</strong> and{' '}
-              <strong>{selectedRequest?.child_first_name} {selectedRequest?.child_last_name}</strong>?
-            </p>
-            {selectedRequest?.matched_student_id ? (
-              <p className="text-sm text-green-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Student account matched: {selectedRequest?.matched_student?.email}
-              </p>
-            ) : (
-              <p className="text-sm text-yellow-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                No student account matched yet
-              </p>
-            )}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Admin Notes (Optional)
-              </label>
-              <textarea
-                value={adminNotes}
-                onChange={(e) => setAdminNotes(e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                style={{ fontFamily: 'Poppins, sans-serif' }}
-                placeholder="Add any notes about this approval..."
-              />
+          <div className="flex-1 overflow-y-auto">
+            <div className="px-6 py-4 space-y-6">
+              {/* Step 1: Select Parent */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  Step 1: Select Parent Account
+                </label>
+                {selectedParent ? (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
+                    <div>
+                      <p className="font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        {selectedParent.first_name} {selectedParent.last_name}
+                      </p>
+                      <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>{selectedParent.email}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedParent(null)
+                        setSelectedStudentIds([])
+                      }}
+                      className="text-sm text-red-600 hover:text-red-800 font-medium"
+                      style={{ fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative mb-3">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Search parents by name or email..."
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        style={{ fontFamily: 'Poppins, sans-serif' }}
+                      />
+                    </div>
+                    <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg">
+                      {filteredParents.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                          <p style={{ fontFamily: 'Poppins, sans-serif' }}>No parent accounts found</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-gray-200">
+                          {filteredParents.map(parent => (
+                            <button
+                              key={parent.id}
+                              onClick={() => {
+                                setSelectedParent(parent)
+                                setSearchTerm('')
+                              }}
+                              className="w-full text-left p-3 hover:bg-purple-50 transition-colors"
+                            >
+                              <p className="font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                {parent.first_name} {parent.last_name}
+                              </p>
+                              <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>{parent.email}</p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Step 2: Select Students */}
+              {selectedParent && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Step 2: Select Student(s) to Add
+                  </label>
+                  {selectedStudentIds.length > 0 && (
+                    <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm font-medium text-blue-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        {selectedStudentIds.length} student{selectedStudentIds.length > 1 ? 's' : ''} selected
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {students
+                          .filter(s => selectedStudentIds.includes(s.id))
+                          .map(student => (
+                            <span
+                              key={student.id}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-blue-300 rounded text-sm"
+                              style={{ fontFamily: 'Poppins, sans-serif' }}
+                            >
+                              {student.first_name} {student.last_name}
+                              <button
+                                onClick={() => toggleStudentSelection(student.id)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search students by name or email..."
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      style={{ fontFamily: 'Poppins, sans-serif' }}
+                    />
+                  </div>
+                  <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg">
+                    {filteredAvailableStudents.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <p style={{ fontFamily: 'Poppins, sans-serif' }}>
+                          {getAvailableStudents().length === 0
+                            ? 'All students are already connected to this parent'
+                            : 'No students found matching your search'}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-200">
+                        {filteredAvailableStudents.map(student => (
+                          <button
+                            key={student.id}
+                            onClick={() => toggleStudentSelection(student.id)}
+                            className={`w-full text-left p-3 transition-colors flex items-center gap-3 ${
+                              selectedStudentIds.includes(student.id)
+                                ? 'bg-purple-50 border-l-4 border-purple-500'
+                                : 'hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                              selectedStudentIds.includes(student.id)
+                                ? 'bg-purple-600 border-purple-600'
+                                : 'border-gray-300'
+                            }`}>
+                              {selectedStudentIds.includes(student.id) && (
+                                <CheckCircle className="w-4 h-4 text-white" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                {student.first_name} {student.last_name}
+                              </p>
+                              <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>{student.email}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Admin Notes */}
+              {selectedParent && selectedStudentIds.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Admin Notes (Optional)
+                  </label>
+                  <textarea
+                    value={adminNotes}
+                    onChange={(e) => setAdminNotes(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                    style={{ fontFamily: 'Poppins, sans-serif' }}
+                    placeholder="Add any notes about this connection..."
+                  />
+                </div>
+              )}
             </div>
           </div>
-        </Modal>
-      )}
 
-      {/* Reject Parent Request Modal */}
-      {showRejectModal && (
-        <Modal
-          title="Reject Connection Request"
-          onClose={() => {
-            setShowRejectModal(false)
-            setAdminNotes('')
-            setSelectedRequest(null)
-          }}
-          onConfirm={handleRejectParentRequest}
-          confirmText="Reject"
-          confirmClass="bg-red-600 hover:bg-red-700"
-        >
-          <div className="space-y-4">
-            <p className="text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Reject connection between <strong>{selectedRequest?.parent_user?.first_name} {selectedRequest?.parent_user?.last_name}</strong> and{' '}
-              <strong>{selectedRequest?.child_first_name} {selectedRequest?.child_last_name}</strong>?
-            </p>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Rejection Reason (Required) *
-              </label>
-              <textarea
-                value={adminNotes}
-                onChange={(e) => setAdminNotes(e.target.value)}
-                rows={3}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                style={{ fontFamily: 'Poppins, sans-serif' }}
-                placeholder="Explain why this request is being rejected..."
-              />
-            </div>
+          {/* Footer with Actions */}
+          <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+            <button
+              onClick={() => {
+                setShowAddConnectionModal(false)
+                setSelectedParent(null)
+                setSelectedStudentIds([])
+                setAdminNotes('')
+                setSearchTerm('')
+              }}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors font-medium"
+              style={{ fontFamily: 'Poppins, sans-serif' }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAddConnection}
+              disabled={!selectedParent || selectedStudentIds.length === 0 || addConnectionLoading}
+              className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ fontFamily: 'Poppins, sans-serif' }}
+            >
+              {addConnectionLoading ? 'Adding...' : `Add Connection${selectedStudentIds.length > 1 ? 's' : ''}`}
+            </button>
           </div>
         </Modal>
       )}
@@ -770,21 +802,6 @@ const AdminConnections = () => {
         </Modal>
       )}
     </div>
-  )
-}
-
-// Status Badge Component
-const StatusBadge = ({ status }) => {
-  const colors = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    approved: 'bg-green-100 text-green-800',
-    rejected: 'bg-red-100 text-red-800',
-  }
-
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[status]}`} style={{ fontFamily: 'Poppins, sans-serif' }}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
   )
 }
 
