@@ -501,14 +501,26 @@ def get_admin_quests(user_id):
     Get quests for admin/advisor management.
     Admins see all quests.
     Advisors see only their own quests.
+
+    Query Parameters:
+    - page: Page number (default: 1)
+    - per_page: Items per page (default: 1000, max: 10000)
+    - quest_type: Filter by quest type ('optio', 'course', or omit for all)
+    - is_active: Filter by active status ('true', 'false', or omit for all)
+    - is_public: Filter by public status ('true', 'false', or omit for all)
     """
     supabase = get_supabase_admin_client()
 
     try:
         # Get pagination parameters
         page = int(request.args.get('page', 1))
-        per_page = min(int(request.args.get('per_page', 100)), 100)  # Default to 100 for admin panel
+        per_page = min(int(request.args.get('per_page', 1000)), 10000)  # Default to 1000, max 10000
         offset = (page - 1) * per_page
+
+        # Get filter parameters
+        quest_type = request.args.get('quest_type')  # 'optio', 'course', or None for all
+        is_active = request.args.get('is_active')  # 'true', 'false', or None for all
+        is_public = request.args.get('is_public')  # 'true', 'false', or None for all
 
         # Get user role
         user = supabase.table('users').select('role').eq('id', user_id).execute()
@@ -521,6 +533,18 @@ def get_admin_quests(user_id):
         # Advisors see only their own quests
         if user_role == 'advisor':
             query = query.eq('created_by', user_id)
+
+        # Apply filters
+        if quest_type:
+            query = query.eq('quest_type', quest_type)
+
+        if is_active is not None:
+            active_bool = is_active.lower() == 'true'
+            query = query.eq('is_active', active_bool)
+
+        if is_public is not None:
+            public_bool = is_public.lower() == 'true'
+            query = query.eq('is_public', public_bool)
 
         # Get quests with pagination
         # Note: In V3 personalized system, quests don't have quest_tasks (that table is archived)

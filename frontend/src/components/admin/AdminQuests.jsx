@@ -17,6 +17,8 @@ const AdminQuests = () => {
   const [showCourseQuestForm, setShowCourseQuestForm] = useState(false)
   const [editingCourseQuest, setEditingCourseQuest] = useState(null)
   const [activeFilter, setActiveFilter] = useState('all') // all, active, inactive
+  const [questTypeFilter, setQuestTypeFilter] = useState('all') // all, optio, course
+  const [publicFilter, setPublicFilter] = useState('all') // all, public, private
   const [showBulkGenerator, setShowBulkGenerator] = useState(false)
   const [showAIReviewModal, setShowAIReviewModal] = useState(false)
 
@@ -26,11 +28,27 @@ const AdminQuests = () => {
 
   useEffect(() => {
     fetchQuests()
-  }, [])
+  }, [activeFilter, questTypeFilter, publicFilter])
 
   const fetchQuests = async () => {
+    setLoading(true)
     try {
-      const response = await api.get('/api/admin/quests')
+      // Build query parameters
+      const params = new URLSearchParams({ per_page: '10000' })
+
+      if (activeFilter !== 'all') {
+        params.append('is_active', activeFilter === 'active' ? 'true' : 'false')
+      }
+
+      if (questTypeFilter !== 'all') {
+        params.append('quest_type', questTypeFilter)
+      }
+
+      if (publicFilter !== 'all') {
+        params.append('is_public', publicFilter === 'public' ? 'true' : 'false')
+      }
+
+      const response = await api.get(`/api/admin/quests?${params.toString()}`)
       setQuests(response.data.quests)
     } catch (error) {
       toast.error('Failed to load quests')
@@ -149,14 +167,6 @@ const AdminQuests = () => {
     }
   }
 
-  // Filter quests based on active filter
-  const filteredQuests = quests.filter(quest => {
-    if (activeFilter === 'all') return true
-    if (activeFilter === 'active') return quest.is_active === true
-    if (activeFilter === 'inactive') return quest.is_active === false
-    return true
-  })
-
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -196,37 +206,127 @@ const AdminQuests = () => {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-2 mb-6">
-        <button
-          onClick={() => setActiveFilter('all')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeFilter === 'all'
-              ? 'bg-gradient-primary text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          All Quests ({quests.length})
-        </button>
-        <button
-          onClick={() => setActiveFilter('active')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeFilter === 'active'
-              ? 'bg-green-600 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          Active ({quests.filter(q => q.is_active === true).length})
-        </button>
-        <button
-          onClick={() => setActiveFilter('inactive')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeFilter === 'inactive'
-              ? 'bg-gray-600 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          Inactive ({quests.filter(q => q.is_active === false).length})
-        </button>
+      <div className="space-y-4 mb-6">
+        {/* Active Status Filter */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Active Status</label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveFilter('all')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                activeFilter === 'all'
+                  ? 'bg-gradient-primary text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setActiveFilter('active')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                activeFilter === 'active'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Active
+            </button>
+            <button
+              onClick={() => setActiveFilter('inactive')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                activeFilter === 'inactive'
+                  ? 'bg-gray-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Inactive
+            </button>
+          </div>
+        </div>
+
+        {/* Quest Type Filter */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Quest Type</label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setQuestTypeFilter('all')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                questTypeFilter === 'all'
+                  ? 'bg-gradient-primary text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All Types
+            </button>
+            <button
+              onClick={() => setQuestTypeFilter('optio')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                questTypeFilter === 'optio'
+                  ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Optio Quests
+            </button>
+            <button
+              onClick={() => setQuestTypeFilter('course')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                questTypeFilter === 'course'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Course Quests
+            </button>
+          </div>
+        </div>
+
+        {/* Public Status Filter */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Public Status</label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPublicFilter('all')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                publicFilter === 'all'
+                  ? 'bg-gradient-primary text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setPublicFilter('public')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                publicFilter === 'public'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Public
+            </button>
+            <button
+              onClick={() => setPublicFilter('private')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                publicFilter === 'private'
+                  ? 'bg-gray-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Private
+            </button>
+          </div>
+        </div>
+
+        {/* Results Summary */}
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <p className="text-sm text-gray-700">
+            Showing <span className="font-semibold">{quests.length}</span> quest{quests.length !== 1 ? 's' : ''}
+            {activeFilter !== 'all' && <span> (Active: {activeFilter})</span>}
+            {questTypeFilter !== 'all' && <span> (Type: {questTypeFilter})</span>}
+            {publicFilter !== 'all' && <span> (Public: {publicFilter})</span>}
+          </p>
+        </div>
       </div>
 
       {showManager && (
@@ -274,22 +374,19 @@ const AdminQuests = () => {
         </div>
       ) : (
         <div>
-          {filteredQuests.length === 0 ? (
+          {quests.length === 0 ? (
             <div className="text-center py-16 text-gray-500 bg-gray-50 rounded-xl">
               <svg className="mx-auto h-16 w-16 text-gray-300 mb-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
               </svg>
               <p className="text-lg font-semibold">No quests found</p>
               <p className="text-sm mt-2">
-                {activeFilter === 'all'
-                  ? 'Create your first quest using the button above'
-                  : `No ${activeFilter} quests found`
-                }
+                No quests match your current filters. Try adjusting the filters above.
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredQuests.map(quest => (
+              {quests.map(quest => (
                 <div
                   key={quest.id}
                   className="group bg-white rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100"
