@@ -59,6 +59,10 @@ const AdminUsers = () => {
       })
 
       const response = await api.get(`/api/admin/users?${queryParams}`)
+
+      // Debug logging - check if emails are in the response
+      console.log('API Response Sample:', response.data.users?.slice(0, 3))
+
       setUsers(response.data.users || [])
       setTotalPages(Math.ceil((response.data.total || 0) / usersPerPage))
     } catch (error) {
