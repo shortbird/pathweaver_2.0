@@ -607,7 +607,9 @@ class QuestRepository(BaseRepository):
             if filters.get('quest_type'):
                 query = query.eq('quest_type', filters['quest_type'])
             if filters.get('search'):
-                query = query.ilike('title', f"%{filters['search']}%")
+                # Search in both title and description (matches anonymous user path)
+                search_term = filters['search']
+                query = query.or_(f'title.ilike.%{search_term}%,description.ilike.%{search_term}%')
 
             # Pagination
             offset = (page - 1) * limit
