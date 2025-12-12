@@ -327,6 +327,10 @@ try:
     app.register_blueprint(parent_linking.bp)  # /api/parents
     app.register_blueprint(parent_dashboard.bp)  # /api/parent
     app.register_blueprint(parent_evidence.bp)  # /api/parent (evidence endpoints)
+
+    # Register dependent profiles blueprint (January 2025 - COPPA-compliant dependent profiles)
+    from routes import dependents
+    app.register_blueprint(dependents.bp)  # /api/dependents (blueprint has url_prefix='/api/dependents')
 except Exception as e:
     logger.warning(f"Warning: Parent Dashboard routes not available: {e}")
 
