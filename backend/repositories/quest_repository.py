@@ -517,17 +517,36 @@ class QuestRepository(BaseRepository):
 
             # Get user's organization and policy
             admin = get_supabase_admin_client()
-            user_data = admin.table('users')\
-                .select('organization_id, organizations(quest_visibility_policy)')\
+
+            # First get user data
+            user_response = admin.table('users')\
+                .select('organization_id')\
                 .eq('id', user_id)\
                 .single()\
                 .execute()
 
-            if not user_data.data:
+            if not user_response.data:
                 raise DatabaseError(f"User {user_id} not found")
 
-            org_id = user_data.data['organization_id']
-            policy = user_data.data['organizations']['quest_visibility_policy']
+            org_id = user_response.data.get('organization_id')
+
+            # If user has no organization, default to 'all_optio' policy (global quests only)
+            if not org_id:
+                policy = 'all_optio'
+            else:
+                # Get organization policy separately
+                org_response = admin.table('organizations')\
+                    .select('quest_visibility_policy')\
+                    .eq('id', org_id)\
+                    .single()\
+                    .execute()
+
+                if not org_response.data:
+                    # Organization not found, fallback to 'all_optio'
+                    policy = 'all_optio'
+                    org_id = None
+                else:
+                    policy = org_response.data.get('quest_visibility_policy', 'all_optio')
 
             # Base query: only active and public quests
             # Use admin client to bypass RLS and apply our own visibility logic
@@ -535,39 +554,51 @@ class QuestRepository(BaseRepository):
 
             # Apply organization visibility policy
             if policy == 'all_optio':
-                # Global quests (NULL org_id) + organization quests
-                query = query.or_(f'organization_id.is.null,organization_id.eq.{org_id}')
+                if org_id:
+                    # Global quests (NULL org_id) + organization quests
+                    query = query.or_(f'organization_id.is.null,organization_id.eq.{org_id}')
+                else:
+                    # No organization - only global quests
+                    query = query.is_('organization_id', 'null')
 
             elif policy == 'curated':
-                # Get curated quest IDs
-                curated = admin.table('organization_quest_access')\
-                    .select('quest_id')\
-                    .eq('organization_id', org_id)\
-                    .execute()
-
-                quest_ids = [q['quest_id'] for q in curated.data] if curated.data else []
-
-                if quest_ids:
-                    # Curated quests + organization quests + user's own created quests
-                    quest_ids_str = ','.join(quest_ids)
-                    query = query.or_(
-                        f'id.in.({quest_ids_str}),'
-                        f'organization_id.eq.{org_id},'
-                        f'created_by.eq.{user_id}'
-                    )
+                if not org_id:
+                    # No organization - fallback to global quests only
+                    query = query.is_('organization_id', 'null')
                 else:
-                    # No curated quests, only org quests + user's created quests
-                    query = query.or_(
-                        f'organization_id.eq.{org_id},'
-                        f'created_by.eq.{user_id}'
-                    )
+                    # Get curated quest IDs
+                    curated = admin.table('organization_quest_access')\
+                        .select('quest_id')\
+                        .eq('organization_id', org_id)\
+                        .execute()
+
+                    quest_ids = [q['quest_id'] for q in curated.data] if curated.data else []
+
+                    if quest_ids:
+                        # Curated quests + organization quests + user's own created quests
+                        quest_ids_str = ','.join(quest_ids)
+                        query = query.or_(
+                            f'id.in.({quest_ids_str}),'
+                            f'organization_id.eq.{org_id},'
+                            f'created_by.eq.{user_id}'
+                        )
+                    else:
+                        # No curated quests, only org quests + user's created quests
+                        query = query.or_(
+                            f'organization_id.eq.{org_id},'
+                            f'created_by.eq.{user_id}'
+                        )
 
             elif policy == 'private_only':
-                # Only organization quests + user's own created quests
-                query = query.or_(
-                    f'organization_id.eq.{org_id},'
-                    f'created_by.eq.{user_id}'
-                )
+                if not org_id:
+                    # No organization - only user's own created quests
+                    query = query.eq('created_by', user_id)
+                else:
+                    # Only organization quests + user's own created quests
+                    query = query.or_(
+                        f'organization_id.eq.{org_id},'
+                        f'created_by.eq.{user_id}'
+                    )
 
             # Apply additional filters
             filters = filters or {}
