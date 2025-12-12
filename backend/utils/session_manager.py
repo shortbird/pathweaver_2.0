@@ -49,6 +49,28 @@ class SessionManager:
         # Cookie settings (for same-origin deployments only)
         self.cookie_secure = is_production or is_on_render
         self.cookie_samesite = 'None' if (is_production or is_on_render) else 'Lax'
+
+        # Safari cookie domain attribute (Safari is strict about domain matching)
+        # Extract domain from frontend URL for production
+        self.cookie_domain = None
+        if is_production and frontend_url:
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(frontend_url)
+                hostname = parsed.hostname
+                if hostname and '.' in hostname:
+                    # For onrender.com, use the full subdomain (e.g., optio-dev-frontend.onrender.com)
+                    # For custom domains, use the root domain (e.g., .optioeducation.com)
+                    if 'onrender.com' in hostname:
+                        self.cookie_domain = hostname
+                    else:
+                        # Extract root domain for custom domains (e.g., .optioeducation.com)
+                        parts = hostname.split('.')
+                        if len(parts) >= 2:
+                            self.cookie_domain = f".{'.'.join(parts[-2:])}"
+            except Exception as e:
+                logger.warning(f"[SessionManager] Failed to extract cookie domain: {e}")
+                self.cookie_domain = None
         
     def generate_access_token(self, user_id: str) -> str:
         """Generate a JWT access token"""
@@ -163,16 +185,26 @@ class SessionManager:
         # which bypasses Safari's Intelligent Tracking Prevention
         partitioned = self.is_cross_origin
 
+        # Safari Domain Fix: Explicitly set domain for better compatibility
+        # Safari is stricter about domain matching than other browsers
+        cookie_kwargs = {
+            'httponly': True,
+            'secure': self.cookie_secure,
+            'samesite': self.cookie_samesite,
+            'path': '/',
+            'partitioned': partitioned
+        }
+
+        # Add domain attribute if configured (Safari compatibility)
+        if self.cookie_domain:
+            cookie_kwargs['domain'] = self.cookie_domain
+
         # Set access token cookie
         response.set_cookie(
             'access_token',
             access_token,
             max_age=int(self.access_token_expiry.total_seconds()),
-            httponly=True,
-            secure=self.cookie_secure,
-            samesite=self.cookie_samesite,
-            path='/',
-            partitioned=partitioned
+            **cookie_kwargs
         )
 
         # Set refresh token cookie
@@ -180,15 +212,12 @@ class SessionManager:
             'refresh_token',
             refresh_token,
             max_age=int(self.refresh_token_expiry.total_seconds()),
-            httponly=True,
-            secure=self.cookie_secure,
-            samesite=self.cookie_samesite,
-            path='/',
-            partitioned=partitioned
+            **cookie_kwargs
         )
 
         mode = "cross-origin" if self.is_cross_origin else "same-origin"
-        logger.info(f"[SessionManager] Auth cookies set ({mode} mode, SameSite={self.cookie_samesite}, Secure={self.cookie_secure}, Partitioned={partitioned})")
+        domain_info = f", Domain={self.cookie_domain}" if self.cookie_domain else ""
+        logger.info(f"[SessionManager] Auth cookies set ({mode} mode, SameSite={self.cookie_samesite}, Secure={self.cookie_secure}, Partitioned={partitioned}{domain_info})")
         return response
     
     def clear_auth_cookies(self, response):
@@ -196,8 +225,20 @@ class SessionManager:
         # Safari ITP Fix: Include Partitioned attribute when clearing cookies
         partitioned = self.is_cross_origin
 
-        response.set_cookie('access_token', '', expires=0, httponly=True, secure=self.cookie_secure, samesite=self.cookie_samesite, partitioned=partitioned)
-        response.set_cookie('refresh_token', '', expires=0, httponly=True, secure=self.cookie_secure, samesite=self.cookie_samesite, partitioned=partitioned)
+        # Safari Domain Fix: Use same domain attribute when clearing
+        cookie_kwargs = {
+            'expires': 0,
+            'httponly': True,
+            'secure': self.cookie_secure,
+            'samesite': self.cookie_samesite,
+            'partitioned': partitioned
+        }
+
+        if self.cookie_domain:
+            cookie_kwargs['domain'] = self.cookie_domain
+
+        response.set_cookie('access_token', '', **cookie_kwargs)
+        response.set_cookie('refresh_token', '', **cookie_kwargs)
 
         mode = "cross-origin" if self.is_cross_origin else "same-origin"
         logger.info(f"[SessionManager] Auth cookies cleared ({mode} mode)")

@@ -64,6 +64,34 @@ WHERE table_schema = 'public' AND table_name = 'your_table';
 
 ## Authentication & Security
 
+### Safari/iOS Cookie Compatibility (Jan 2025)
+
+Safari and iOS devices have stricter cookie policies due to Intelligent Tracking Prevention (ITP). Our platform automatically handles this:
+
+**Backend (session_manager.py)**:
+- Cookie domain attribute explicitly set for Safari compatibility
+- Partitioned cookies (CHIPS) to bypass ITP
+- Tokens returned in response body as fallback
+
+**Frontend (AuthContext + browserDetection.js)**:
+- Automatic Safari/iOS detection
+- Auto-fallback to Authorization headers when cookies blocked
+- Client-side cookie compatibility testing
+- Safari troubleshooting banner for users
+
+**Debug Endpoint**: `GET /api/auth/cookie-debug`
+- Returns cookie/header diagnostics
+- Browser detection info
+- Safari-specific recommendations
+- SECURITY: Does NOT expose cookie values
+
+**How It Works**:
+1. Safari users login normally
+2. Backend sets cookies AND returns tokens in response
+3. Frontend stores tokens in localStorage (Safari-compatible)
+4. All requests use Authorization header (bypasses cookie blocking)
+5. Desktop browsers continue using httpOnly cookies
+
 ### httpOnly Cookies ONLY (Jan 2025 Security Fix)
 ```javascript
 // ✅ CORRECT - No token storage

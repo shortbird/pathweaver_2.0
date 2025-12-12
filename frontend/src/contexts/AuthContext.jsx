@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import api, { tokenStore } from '../services/api'
 import { retryWithBackoff } from '../utils/retryHelper'
 import { queryKeys } from '../utils/queryKeys'
+import { isSafari, isIOS, shouldUseAuthHeaders, setAuthMethodPreference, testCookieSupport, logBrowserInfo } from '../utils/browserDetection'
 
 const AuthContext = createContext()
 
@@ -37,9 +38,12 @@ export const AuthProvider = ({ children }) => {
   })
 
   useEffect(() => {
-    // ✅ INCOGNITO FIX: Restore tokens from localStorage before checking session
+    // ✅ SAFARI FIX: Detect browser and log compatibility info
     const checkSession = async () => {
       try {
+        // Log browser detection info (development only)
+        logBrowserInfo()
+
         // STEP 1: Restore tokens from localStorage (survives page refresh)
         const tokensRestored = tokenStore.restoreTokens()
 
@@ -56,6 +60,9 @@ export const AuthProvider = ({ children }) => {
 
             setSession({ authenticated: true })
             setLoginTimestamp(Date.now())
+
+            // ✅ SAFARI FIX: Mark that we're using auth headers successfully
+            setAuthMethodPreference('headers')
           }
         } else {
           // No tokens available - try cookie-based auth (localhost fallback)
@@ -67,9 +74,16 @@ export const AuthProvider = ({ children }) => {
 
               setSession({ authenticated: true })
               setLoginTimestamp(Date.now())
+
+              // ✅ SAFARI FIX: Mark that cookies are working
+              setAuthMethodPreference('cookies')
             }
           } catch (cookieError) {
-            // No valid session - user needs to log in
+            // ✅ SAFARI FIX: Cookie auth failed - this is expected on Safari
+            // User needs to log in, and we'll use auth headers automatically
+            if (isSafari() || isIOS()) {
+              console.log('[AuthContext] Safari/iOS detected - will use Authorization headers on next login')
+            }
             setSession(null)
           }
         }

@@ -1276,4 +1276,124 @@ def token_health():
             'authenticated': False
         }), 200  # Return 200 even on error so frontend can handle gracefully
 
+@bp.route('/cookie-debug', methods=['GET'])
+def cookie_debug():
+    """
+    Debug endpoint to help diagnose cookie issues (especially Safari).
+    Returns information about received cookies and headers.
+    SECURITY: This endpoint does NOT expose cookie values, only metadata.
+    """
+    try:
+        # Get all cookie names (not values for security)
+        received_cookies = list(request.cookies.keys())
+
+        # Check for auth cookies specifically
+        has_access_token = 'access_token' in request.cookies
+        has_refresh_token = 'refresh_token' in request.cookies
+        has_csrf_token = 'csrf_token' in request.cookies
+
+        # Get Authorization header status
+        auth_header = request.headers.get('Authorization', '')
+        has_auth_header = auth_header.startswith('Bearer ')
+
+        # Get browser info from User-Agent
+        user_agent = request.headers.get('User-Agent', 'Unknown')
+        is_safari = 'Safari' in user_agent and 'Chrome' not in user_agent
+        is_mobile = 'Mobile' in user_agent or 'iPhone' in user_agent or 'iPad' in user_agent
+
+        # Check if user is authenticated via either method
+        user_id = session_manager.get_current_user_id()
+        is_authenticated = user_id is not None
+        auth_method = None
+        if is_authenticated:
+            if has_auth_header:
+                auth_method = 'Authorization header'
+            elif has_access_token:
+                auth_method = 'httpOnly cookie'
+
+        # Server configuration
+        server_config = {
+            'cross_origin_mode': session_manager.is_cross_origin,
+            'cookie_secure': session_manager.cookie_secure,
+            'cookie_samesite': session_manager.cookie_samesite,
+            'cookie_domain': session_manager.cookie_domain,
+            'frontend_url': os.getenv('FRONTEND_URL', 'Not configured')
+        }
+
+        return jsonify({
+            'cookies_received': {
+                'count': len(received_cookies),
+                'names': received_cookies,
+                'has_access_token': has_access_token,
+                'has_refresh_token': has_refresh_token,
+                'has_csrf_token': has_csrf_token
+            },
+            'headers': {
+                'has_authorization': has_auth_header,
+                'origin': request.headers.get('Origin', 'Not present'),
+                'referer': request.headers.get('Referer', 'Not present')
+            },
+            'browser': {
+                'user_agent': user_agent,
+                'is_safari': is_safari,
+                'is_mobile': is_mobile
+            },
+            'authentication': {
+                'is_authenticated': is_authenticated,
+                'auth_method': auth_method,
+                'user_id_present': user_id is not None
+            },
+            'server_config': server_config,
+            'recommendations': get_safari_recommendations(
+                is_safari,
+                has_access_token,
+                has_auth_header,
+                is_authenticated
+            )
+        }), 200
+
+    except Exception as e:
+        logger.error(f"[COOKIE_DEBUG] Error: {str(e)}")
+        return jsonify({
+            'error': 'Failed to generate debug info',
+            'message': str(e)
+        }), 500
+
+def get_safari_recommendations(is_safari, has_cookie, has_header, is_authenticated):
+    """Generate Safari-specific troubleshooting recommendations"""
+    recommendations = []
+
+    if is_safari and not has_cookie and not has_header:
+        recommendations.append({
+            'issue': 'Safari is blocking cookies and no Authorization header detected',
+            'solution': 'Frontend should automatically use Authorization headers. Check browser console for errors.',
+            'action': 'Try logging out and logging back in to refresh authentication method.'
+        })
+    elif is_safari and not has_cookie and has_header:
+        recommendations.append({
+            'issue': 'Safari is blocking cookies (expected behavior)',
+            'solution': 'Using Authorization header fallback - this is working correctly!',
+            'action': 'No action needed. System is functioning normally with Safari.'
+        })
+    elif is_safari and has_cookie:
+        recommendations.append({
+            'issue': 'None - cookies are working in Safari',
+            'solution': 'Your Safari browser is accepting cookies. System is functioning normally.',
+            'action': 'No action needed.'
+        })
+    elif not is_authenticated:
+        recommendations.append({
+            'issue': 'Not authenticated',
+            'solution': 'Please log in to access protected resources.',
+            'action': 'Navigate to the login page.'
+        })
+    else:
+        recommendations.append({
+            'issue': 'None detected',
+            'solution': 'System is functioning normally.',
+            'action': 'No action needed.'
+        })
+
+    return recommendations
+
 

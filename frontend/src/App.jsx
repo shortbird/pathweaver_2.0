@@ -10,6 +10,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { warmupBackend } from './utils/retryHelper'
 import { tokenStore } from './services/api'
 import MasqueradeBanner from './components/admin/MasqueradeBanner'
+import SafariTroubleshootingBanner from './components/auth/SafariTroubleshootingBanner'
 import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
 import api from './services/api'
 import toast from 'react-hot-toast'
@@ -215,6 +216,7 @@ function App() {
               },
             }}
           />
+          <SafariTroubleshootingBanner />
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Layout />}>
