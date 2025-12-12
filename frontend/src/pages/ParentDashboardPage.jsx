@@ -19,6 +19,8 @@ import {
 } from '@heroicons/react/24/outline';
 import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
 import AddEvidenceModal from '../components/advisor/AddEvidenceModal';
+import ProfileSwitcher from '../components/parent/ProfileSwitcher';
+import AddDependentModal from '../components/parent/AddDependentModal';
 
 const ParentDashboardPage = () => {
   const { user } = useAuth();
@@ -48,6 +50,8 @@ const ParentDashboardPage = () => {
   const [selectedCompletion, setSelectedCompletion] = useState(null);
   const [completedQuests, setCompletedQuests] = useState([]);
   const [showAddEvidenceModal, setShowAddEvidenceModal] = useState(false);
+  const [currentProfile, setCurrentProfile] = useState(null);
+  const [showAddDependentModal, setShowAddDependentModal] = useState(false);
 
   // Pillar display names mapping
   const pillarDisplayNames = {
@@ -57,6 +61,18 @@ const ParentDashboardPage = () => {
     communication: 'Communication',
     civics: 'Civics'
   };
+
+  // Initialize current profile (parent's own profile)
+  useEffect(() => {
+    if (user && !currentProfile) {
+      setCurrentProfile({
+        id: user.id,
+        display_name: user.display_name || `${user.first_name} ${user.last_name}`,
+        avatar_url: user.avatar_url,
+        is_dependent: false
+      });
+    }
+  }, [user, currentProfile]);
 
   // Load children list (admin-only linking, no invitations)
   useEffect(() => {
@@ -123,6 +139,46 @@ const ParentDashboardPage = () => {
 
     loadDashboardData();
   }, [selectedStudentId, children.length, user]);
+
+  // Handle profile switching (parent <-> dependent)
+  const handleProfileChange = (profile) => {
+    setCurrentProfile(profile);
+
+    if (profile.is_dependent) {
+      // Switched to dependent: set selectedStudentId to dependent's ID
+      setSelectedStudentId(profile.id);
+    } else {
+      // Switched back to parent: show first linked child or clear
+      if (children.length > 0) {
+        setSelectedStudentId(children[0].student_id);
+      } else {
+        setSelectedStudentId(null);
+      }
+    }
+  };
+
+  // Handle adding a new dependent
+  const handleAddDependent = () => {
+    setShowAddDependentModal(true);
+  };
+
+  // Handle dependent creation success
+  const handleDependentAdded = (result) => {
+    toast.success(result.message || 'Dependent profile created');
+
+    // Auto-switch to the newly created dependent
+    if (result.dependent) {
+      const newProfile = {
+        id: result.dependent.id,
+        display_name: result.dependent.display_name,
+        avatar_url: result.dependent.avatar_url,
+        is_dependent: true,
+        age: result.dependent.age
+      };
+      setCurrentProfile(newProfile);
+      setSelectedStudentId(result.dependent.id);
+    }
+  };
 
   // Load conversations when Communications tab is active
   useEffect(() => {
@@ -337,8 +393,15 @@ const ParentDashboardPage = () => {
           )}
         </div>
 
-        {/* Multi-Child Selector + Learning Rhythm Indicator + Add Child Button */}
+        {/* Multi-Child Selector + Profile Switcher + Learning Rhythm Indicator + Add Child Button */}
         <div className="flex gap-3 items-center">
+          {/* Profile Switcher (Parent <-> Dependents) */}
+          <ProfileSwitcher
+            currentProfile={currentProfile}
+            onProfileChange={handleProfileChange}
+            onAddDependent={handleAddDependent}
+          />
+
           {/* Learning Rhythm Indicator - Clickable */}
           <button
             onClick={() => setShowRhythmModal(true)}
@@ -1197,6 +1260,15 @@ const ParentDashboardPage = () => {
           onClose={() => setShowAddEvidenceModal(false)}
           studentId={selectedStudentId}
           studentName={children.find(c => c.student_id === selectedStudentId)?.student_name || 'Student'}
+        />
+      )}
+
+      {/* Add Dependent Modal */}
+      {showAddDependentModal && (
+        <AddDependentModal
+          isOpen={showAddDependentModal}
+          onClose={() => setShowAddDependentModal(false)}
+          onSuccess={handleDependentAdded}
         />
       )}
     </div>
