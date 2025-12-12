@@ -1279,8 +1279,8 @@ def token_health():
 @bp.route('/cookie-debug', methods=['GET'])
 def cookie_debug():
     """
-    Debug endpoint to help diagnose cookie issues (especially Safari).
-    Returns information about received cookies and headers.
+    Enhanced debug endpoint to diagnose cookie issues (especially Safari).
+    Returns comprehensive information about cookies, headers, and auth state.
     SECURITY: This endpoint does NOT expose cookie values, only metadata.
     """
     try:
@@ -1296,10 +1296,38 @@ def cookie_debug():
         auth_header = request.headers.get('Authorization', '')
         has_auth_header = auth_header.startswith('Bearer ')
 
+        # Token analysis (without exposing values)
+        token_info = {}
+        if has_auth_header:
+            token = auth_header.replace('Bearer ', '')
+            payload = session_manager.verify_access_token(token)
+            if payload:
+                token_info = {
+                    'valid': True,
+                    'type': payload.get('type'),
+                    'version': payload.get('version'),
+                    'expires_at': datetime.fromtimestamp(payload.get('exp')).isoformat() if payload.get('exp') else None,
+                    'issued_at': datetime.fromtimestamp(payload.get('iat')).isoformat() if payload.get('iat') else None,
+                }
+            else:
+                token_info = {'valid': False, 'reason': 'Invalid or expired'}
+
         # Get browser info from User-Agent
         user_agent = request.headers.get('User-Agent', 'Unknown')
         is_safari = 'Safari' in user_agent and 'Chrome' not in user_agent
-        is_mobile = 'Mobile' in user_agent or 'iPhone' in user_agent or 'iPad' in user_agent
+        is_ios = 'iPhone' in user_agent or 'iPad' in user_agent or 'iPod' in user_agent
+        is_mobile = 'Mobile' in user_agent or is_ios
+
+        # Detailed browser detection
+        browser_details = {
+            'user_agent': user_agent,
+            'is_safari': is_safari,
+            'is_ios': is_ios,
+            'is_mobile': is_mobile,
+            'is_chrome': 'Chrome' in user_agent and 'Edge' not in user_agent,
+            'is_firefox': 'Firefox' in user_agent,
+            'is_edge': 'Edge' in user_agent,
+        }
 
         # Check if user is authenticated via either method
         user_id = session_manager.get_current_user_id()
@@ -1307,57 +1335,108 @@ def cookie_debug():
         auth_method = None
         if is_authenticated:
             if has_auth_header:
-                auth_method = 'Authorization header'
+                auth_method = 'Authorization header (Safari/iOS compatible)'
             elif has_access_token:
-                auth_method = 'httpOnly cookie'
+                auth_method = 'httpOnly cookie (desktop browsers)'
 
-        # Server configuration
+        # Server configuration with explanations
         server_config = {
             'cross_origin_mode': session_manager.is_cross_origin,
             'cookie_secure': session_manager.cookie_secure,
             'cookie_samesite': session_manager.cookie_samesite,
             'cookie_domain': session_manager.cookie_domain,
-            'frontend_url': os.getenv('FRONTEND_URL', 'Not configured')
+            'frontend_url': os.getenv('FRONTEND_URL', 'Not configured'),
+            'backend_url': request.host_url,
+            'environment': os.getenv('FLASK_ENV', 'Not set'),
+            'partitioned_cookies_enabled': session_manager.is_cross_origin,
         }
 
-        return jsonify({
+        # Request details
+        request_details = {
+            'method': request.method,
+            'path': request.path,
+            'remote_addr': request.remote_addr,
+            'scheme': request.scheme,
+            'host': request.host,
+        }
+
+        # All headers (for debugging)
+        all_headers = dict(request.headers)
+
+        # Detailed diagnostic results
+        diagnostics = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'summary': generate_diagnostic_summary(
+                is_safari, is_ios, has_access_token, has_auth_header, is_authenticated
+            ),
             'cookies_received': {
                 'count': len(received_cookies),
                 'names': received_cookies,
                 'has_access_token': has_access_token,
                 'has_refresh_token': has_refresh_token,
-                'has_csrf_token': has_csrf_token
+                'has_csrf_token': has_csrf_token,
+                'explanation': 'Cookie presence indicates browser is not blocking cookies'
             },
             'headers': {
                 'has_authorization': has_auth_header,
+                'token_info': token_info if has_auth_header else None,
                 'origin': request.headers.get('Origin', 'Not present'),
-                'referer': request.headers.get('Referer', 'Not present')
+                'referer': request.headers.get('Referer', 'Not present'),
+                'all_headers': all_headers,
+                'explanation': 'Authorization header is Safari/iOS fallback when cookies blocked'
             },
-            'browser': {
-                'user_agent': user_agent,
-                'is_safari': is_safari,
-                'is_mobile': is_mobile
-            },
+            'browser': browser_details,
             'authentication': {
                 'is_authenticated': is_authenticated,
                 'auth_method': auth_method,
-                'user_id_present': user_id is not None
+                'user_id_present': user_id is not None,
+                'explanation': 'System supports both cookie and header-based auth'
             },
             'server_config': server_config,
+            'request_details': request_details,
             'recommendations': get_safari_recommendations(
-                is_safari,
+                is_safari or is_ios,
                 has_access_token,
                 has_auth_header,
                 is_authenticated
             )
-        }), 200
+        }
+
+        # Log diagnostic request for debugging
+        logger.info(f"[COOKIE_DEBUG] Request from {browser_details['user_agent'][:50]}... | Auth: {is_authenticated} via {auth_method} | Safari: {is_safari} | iOS: {is_ios}")
+
+        return jsonify(diagnostics), 200
 
     except Exception as e:
         logger.error(f"[COOKIE_DEBUG] Error: {str(e)}")
+        import traceback
         return jsonify({
             'error': 'Failed to generate debug info',
-            'message': str(e)
+            'message': str(e),
+            'traceback': traceback.format_exc() if os.getenv('FLASK_ENV') == 'development' else None
         }), 500
+
+def generate_diagnostic_summary(is_safari, is_ios, has_cookie, has_header, is_authenticated):
+    """Generate a human-readable diagnostic summary"""
+    if not is_authenticated:
+        return "Not authenticated - please log in to test authentication method"
+
+    if is_safari or is_ios:
+        if has_cookie and has_header:
+            return "Safari/iOS: Both cookies AND headers working (ideal state)"
+        elif has_header and not has_cookie:
+            return "Safari/iOS: Cookies blocked, using Authorization header fallback (working correctly)"
+        elif has_cookie and not has_header:
+            return "Safari/iOS: Using cookies (unexpected - Safari usually blocks cross-origin cookies)"
+        else:
+            return "Safari/iOS: WARNING - Neither cookies nor headers detected (check frontend implementation)"
+    else:
+        if has_cookie:
+            return "Desktop browser: Using httpOnly cookies (standard method)"
+        elif has_header:
+            return "Desktop browser: Using Authorization headers (works but cookies preferred)"
+        else:
+            return "WARNING: Authenticated but no auth method detected (should not happen)"
 
 def get_safari_recommendations(is_safari, has_cookie, has_header, is_authenticated):
     """Generate Safari-specific troubleshooting recommendations"""

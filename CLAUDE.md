@@ -72,18 +72,29 @@ Safari and iOS devices have stricter cookie policies due to Intelligent Tracking
 - Cookie domain attribute explicitly set for Safari compatibility
 - Partitioned cookies (CHIPS) to bypass ITP
 - Tokens returned in response body as fallback
+- Enhanced logging for Safari debugging (auth method, warnings, etc.)
 
 **Frontend (AuthContext + browserDetection.js)**:
 - Automatic Safari/iOS detection
 - Auto-fallback to Authorization headers when cookies blocked
 - Client-side cookie compatibility testing
-- Safari troubleshooting banner for users
 
-**Debug Endpoint**: `GET /api/auth/cookie-debug`
-- Returns cookie/header diagnostics
-- Browser detection info
-- Safari-specific recommendations
-- SECURITY: Does NOT expose cookie values
+**Enhanced Debug Endpoint**: `GET /api/auth/cookie-debug`
+- Returns comprehensive diagnostics with human-readable summary
+- Token analysis (expiry, validity, type) without exposing values
+- Detailed browser detection (Safari, iOS, Chrome, Firefox, Edge)
+- All request headers included for debugging
+- Server configuration details (domain, SameSite, Secure, Partitioned)
+- Request details (path, IP, scheme, host)
+- Safari-specific recommendations based on detected state
+- SECURITY: Does NOT expose cookie/token values, only metadata
+
+**Backend Logging**:
+- `[SessionManager]` logs show auth method used (cookie vs header)
+- Safari/iOS requests logged with browser detection
+- Warnings if Safari using cookies (unexpected behavior)
+- Warnings if domain not set in cross-origin mode
+- Cookie TTL and configuration logged on set
 
 **How It Works**:
 1. Safari users login normally
@@ -91,6 +102,12 @@ Safari and iOS devices have stricter cookie policies due to Intelligent Tracking
 3. Frontend stores tokens in localStorage (Safari-compatible)
 4. All requests use Authorization header (bypasses cookie blocking)
 5. Desktop browsers continue using httpOnly cookies
+
+**Debugging Safari Issues**:
+1. Check logs for `[SessionManager]` entries showing auth method
+2. Visit `/api/auth/cookie-debug` to see comprehensive diagnostics
+3. Look for Safari warnings in backend logs
+4. Check `summary` field in debug response for quick diagnosis
 
 ### httpOnly Cookies ONLY (Jan 2025 Security Fix)
 ```javascript

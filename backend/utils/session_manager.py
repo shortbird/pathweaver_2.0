@@ -217,7 +217,23 @@ class SessionManager:
 
         mode = "cross-origin" if self.is_cross_origin else "same-origin"
         domain_info = f", Domain={self.cookie_domain}" if self.cookie_domain else ""
-        logger.info(f"[SessionManager] Auth cookies set ({mode} mode, SameSite={self.cookie_samesite}, Secure={self.cookie_secure}, Partitioned={partitioned}{domain_info})")
+
+        # Enhanced logging for Safari debugging
+        logger.info(
+            f"[SessionManager] Auth cookies set for user {user_id[:8]}... | "
+            f"Mode: {mode} | SameSite: {self.cookie_samesite} | "
+            f"Secure: {self.cookie_secure} | Partitioned: {partitioned}{domain_info} | "
+            f"Access TTL: {int(self.access_token_expiry.total_seconds())}s | "
+            f"Refresh TTL: {int(self.refresh_token_expiry.total_seconds())}s"
+        )
+
+        # Safari-specific warning if domain not set in production
+        if self.is_cross_origin and not self.cookie_domain:
+            logger.warning(
+                f"[SessionManager] SAFARI WARNING: Cross-origin mode enabled but cookie_domain not set. "
+                f"Safari/iOS users may experience cookie blocking. Check FRONTEND_URL environment variable."
+            )
+
         return response
     
     def clear_auth_cookies(self, response):
@@ -252,13 +268,33 @@ class SessionManager:
             access_token = auth_header.replace('Bearer ', '')
             payload = self.verify_access_token(access_token)
             if payload:
-                return payload.get('user_id')
+                user_id = payload.get('user_id')
+                # Log Safari/iOS header usage for debugging
+                user_agent = request.headers.get('User-Agent', '')
+                is_safari_ios = ('Safari' in user_agent and 'Chrome' not in user_agent) or 'iPhone' in user_agent or 'iPad' in user_agent
+                if is_safari_ios:
+                    logger.debug(f"[SessionManager] Safari/iOS auth via header for user {user_id[:8]}...")
+                return user_id
 
         # Fallback to cookie (works in both same-origin and cross-origin with SameSite=None)
         access_token = request.cookies.get('access_token')
         if access_token:
             payload = self.verify_access_token(access_token)
-            return payload.get('user_id') if payload else None
+            if payload:
+                user_id = payload.get('user_id')
+                # Log cookie auth for Safari debugging (unexpected on Safari)
+                user_agent = request.headers.get('User-Agent', '')
+                is_safari_ios = ('Safari' in user_agent and 'Chrome' not in user_agent) or 'iPhone' in user_agent or 'iPad' in user_agent
+                if is_safari_ios:
+                    logger.info(f"[SessionManager] Safari/iOS auth via COOKIE for user {user_id[:8]}... (unexpected - cookies usually blocked)")
+                return user_id
+            return None
+
+        # No auth method found
+        user_agent = request.headers.get('User-Agent', '')[:50]
+        is_safari_ios = ('Safari' in user_agent and 'Chrome' not in user_agent) or 'iPhone' in user_agent or 'iPad' in user_agent
+        if is_safari_ios:
+            logger.debug(f"[SessionManager] Safari/iOS request with no auth: {request.path}")
 
         return None
 
