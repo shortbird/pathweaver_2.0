@@ -573,3 +573,85 @@ class QuestValidator:
             ])
         
         return summary
+
+
+def validate_course_quest_has_preset_tasks(quest_id: str) -> tuple[bool, str]:
+    """
+    Validate that a course quest has at least one preset task.
+
+    Args:
+        quest_id: The quest ID to validate
+
+    Returns:
+        tuple: (is_valid, error_message)
+            - is_valid: True if quest has preset tasks or is not a course quest
+            - error_message: Error message if validation fails, empty string otherwise
+    """
+    try:
+        from database import get_supabase_admin_client
+        supabase = get_supabase_admin_client()
+
+        # Get quest type
+        quest = supabase.table('quests')\
+            .select('quest_type')\
+            .eq('id', quest_id)\
+            .single()\
+            .execute()
+
+        if not quest.data:
+            return False, 'Quest not found'
+
+        # Only validate course quests
+        if quest.data.get('quest_type') != 'course':
+            return True, ''
+
+        # Check for preset tasks in quest_sample_tasks table
+        # Note: Course quest tasks are stored in quest_sample_tasks, not course_quest_tasks
+        preset_tasks = supabase.table('quest_sample_tasks')\
+            .select('id')\
+            .eq('quest_id', quest_id)\
+            .limit(1)\
+            .execute()
+
+        if not preset_tasks.data or len(preset_tasks.data) == 0:
+            return False, 'Course quests must have at least one preset task before they can be activated or made public. Please add tasks first.'
+
+        return True, ''
+
+    except Exception as e:
+        logger.error(f"Error validating course quest {quest_id}: {str(e)}")
+        return False, f'Validation error: {str(e)}'
+
+
+def can_activate_quest(quest_id: str) -> tuple[bool, str]:
+    """
+    Check if a quest can be activated (made is_active=True).
+
+    Args:
+        quest_id: The quest ID to check
+
+    Returns:
+        tuple: (can_activate, error_message)
+            - can_activate: True if quest can be activated
+            - error_message: Error message if cannot activate, empty string otherwise
+    """
+    # Currently only validates course quests have preset tasks
+    # Can be extended with additional validation rules in the future
+    return validate_course_quest_has_preset_tasks(quest_id)
+
+
+def can_make_public(quest_id: str) -> tuple[bool, str]:
+    """
+    Check if a quest can be made public (is_public=True).
+
+    Args:
+        quest_id: The quest ID to check
+
+    Returns:
+        tuple: (can_make_public, error_message)
+            - can_make_public: True if quest can be made public
+            - error_message: Error message if cannot make public, empty string otherwise
+    """
+    # Currently only validates course quests have preset tasks
+    # Can be extended with additional validation rules in the future
+    return validate_course_quest_has_preset_tasks(quest_id)

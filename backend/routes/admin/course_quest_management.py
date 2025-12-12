@@ -78,6 +78,8 @@ def create_course_quest(user_id):
         # Determine is_active value based on role
         # Admins can set is_active=True (publish immediately)
         # Advisors always create drafts (is_active=False)
+        # NOTE: Course quests CANNOT be activated without preset tasks
+        # so we create as inactive and let admin activate after adding tasks
         if user_role == 'admin':
             is_active = data.get('is_active', False)
         else:
@@ -281,6 +283,17 @@ def update_course_tasks(user_id, quest_id):
         if 'lms_assignment_id' in data:
             quest_update_data['lms_assignment_id'] = data.get('lms_assignment_id')
         if 'is_active' in data:
+            # Validate course quest has preset tasks before activation
+            # Note: Tasks must be provided in this request OR already exist
+            if data['is_active']:
+                has_tasks_in_request = data.get('tasks') and len(data.get('tasks', [])) > 0
+                if not has_tasks_in_request:
+                    # Check if tasks already exist
+                    from utils.quest_validation import can_activate_quest
+                    can_activate, error_msg = can_activate_quest(quest_id)
+                    if not can_activate:
+                        return jsonify({'success': False, 'error': error_msg}), 400
+
             quest_update_data['is_active'] = data['is_active']
 
         # Always update the updated_at timestamp

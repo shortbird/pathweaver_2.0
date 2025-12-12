@@ -190,12 +190,26 @@ def update_quest(user_id, quest_id):
         # Only admins can change is_active (publish/unpublish quests)
         if 'is_active' in data:
             if user_role == 'admin':
+                # Validate course quests have preset tasks before activation
+                if data['is_active']:
+                    from utils.quest_validation import can_activate_quest
+                    can_activate, error_msg = can_activate_quest(quest_id)
+                    if not can_activate:
+                        return jsonify({'success': False, 'error': error_msg}), 400
+
                 update_data['is_active'] = data['is_active']
             # Silently ignore is_active changes from advisors
 
         # Only admins can change is_public (make quests available in public quest library)
         if 'is_public' in data:
             if user_role == 'admin':
+                # Validate course quests have preset tasks before making public
+                if data['is_public']:
+                    from utils.quest_validation import can_make_public
+                    can_make_public_result, error_msg = can_make_public(quest_id)
+                    if not can_make_public_result:
+                        return jsonify({'success': False, 'error': error_msg}), 400
+
                 update_data['is_public'] = data['is_public']
             # Silently ignore is_public changes from advisors
 
