@@ -755,7 +755,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 preset_tasks = get_course_tasks_for_quest(quest_id)
                 logger.info(f"[COURSE_ENROLL] Found {len(preset_tasks)} preset tasks")
 
-                if preset_tasks:
+                if preset_tasks and len(preset_tasks) > 0:
                     # Initialize classification service for auto-generating subject distributions
                     from services.subject_classification_service import SubjectClassificationService
                     classification_service = SubjectClassificationService(client=get_supabase_admin_client())
@@ -817,15 +817,18 @@ def enroll_in_quest(user_id: str, quest_id: str):
                         .eq('id', enrollment['id'])\
                         .execute()
                     logger.info(f"[COURSE_ENROLL] Personalization marked complete")
-                else:
-                    logger.warning(f"[COURSE_ENROLL] No preset tasks found for course quest {quest_id[:8]}")
 
-                skip_wizard = True
+                    # Only skip wizard if tasks were successfully created
+                    skip_wizard = True
+                else:
+                    logger.warning(f"[COURSE_ENROLL] No preset tasks found for course quest {quest_id[:8]} - will show personalization wizard")
+                    # Don't skip wizard - let user personalize like an Optio quest
+                    skip_wizard = False
 
             except Exception as task_error:
                 logger.error(f"[COURSE_ENROLL] ERROR copying tasks: {str(task_error)}", exc_info=True)
-                # Don't fail the enrollment, but log the error
-                # User will still be enrolled but without tasks
+                # Don't fail the enrollment, but show wizard so user can add tasks manually
+                skip_wizard = False
 
         return jsonify({
             'success': True,
