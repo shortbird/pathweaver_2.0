@@ -158,6 +158,11 @@ class SessionManager:
         access_token = self.generate_access_token(user_id)
         refresh_token = self.generate_refresh_token(user_id)
 
+        # Safari ITP Fix: Add Partitioned attribute for cross-origin cookies
+        # This enables CHIPS (Cookies Having Independent Partitioned State)
+        # which bypasses Safari's Intelligent Tracking Prevention
+        partitioned = self.is_cross_origin
+
         # Set access token cookie
         response.set_cookie(
             'access_token',
@@ -166,7 +171,8 @@ class SessionManager:
             httponly=True,
             secure=self.cookie_secure,
             samesite=self.cookie_samesite,
-            path='/'
+            path='/',
+            partitioned=partitioned
         )
 
         # Set refresh token cookie
@@ -177,17 +183,21 @@ class SessionManager:
             httponly=True,
             secure=self.cookie_secure,
             samesite=self.cookie_samesite,
-            path='/'  # Available to all paths
+            path='/',
+            partitioned=partitioned
         )
 
         mode = "cross-origin" if self.is_cross_origin else "same-origin"
-        logger.info(f"[SessionManager] Auth cookies set ({mode} mode, SameSite={self.cookie_samesite}, Secure={self.cookie_secure})")
+        logger.info(f"[SessionManager] Auth cookies set ({mode} mode, SameSite={self.cookie_samesite}, Secure={self.cookie_secure}, Partitioned={partitioned})")
         return response
     
     def clear_auth_cookies(self, response):
         """Clear authentication cookies (works for both same-origin and cross-origin)"""
-        response.set_cookie('access_token', '', expires=0, httponly=True, secure=self.cookie_secure, samesite=self.cookie_samesite)
-        response.set_cookie('refresh_token', '', expires=0, httponly=True, secure=self.cookie_secure, samesite=self.cookie_samesite)
+        # Safari ITP Fix: Include Partitioned attribute when clearing cookies
+        partitioned = self.is_cross_origin
+
+        response.set_cookie('access_token', '', expires=0, httponly=True, secure=self.cookie_secure, samesite=self.cookie_samesite, partitioned=partitioned)
+        response.set_cookie('refresh_token', '', expires=0, httponly=True, secure=self.cookie_secure, samesite=self.cookie_samesite, partitioned=partitioned)
 
         mode = "cross-origin" if self.is_cross_origin else "same-origin"
         logger.info(f"[SessionManager] Auth cookies cleared ({mode} mode)")

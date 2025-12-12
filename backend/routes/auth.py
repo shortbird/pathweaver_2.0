@@ -797,8 +797,8 @@ def logout():
 
         # ✅ INCOGNITO FIX: Clear Supabase cookies only in same-origin mode
         if not session_manager.is_cross_origin:
-            response.set_cookie('supabase_access_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite)
-            response.set_cookie('supabase_refresh_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite)
+            response.set_cookie('supabase_access_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite, partitioned=session_manager.is_cross_origin)
+            response.set_cookie('supabase_refresh_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite, partitioned=session_manager.is_cross_origin)
 
         return response
     except Exception as e:
@@ -866,7 +866,8 @@ def refresh_token():
             httponly=True,
             secure=session_manager.cookie_secure,
             samesite=session_manager.cookie_samesite,
-            path='/'
+            path='/',
+            partitioned=session_manager.is_cross_origin
         )
 
     return response
