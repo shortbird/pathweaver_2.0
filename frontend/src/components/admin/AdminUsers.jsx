@@ -54,7 +54,8 @@ const AdminUsers = () => {
         role: filters.role,
         activity: filters.activity,
         sort_by: filters.sortBy,
-        sort_order: filters.sortOrder
+        sort_order: filters.sortOrder,
+        _t: Date.now() // Cache buster
       })
 
       const response = await api.get(`/api/admin/users?${queryParams}`)
