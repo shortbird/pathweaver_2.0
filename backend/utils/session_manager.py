@@ -242,11 +242,13 @@ class SessionManager:
         partitioned = self.is_cross_origin
 
         # Safari Domain Fix: Use same domain attribute when clearing
+        # CRITICAL: Must match the path used when setting cookies
         cookie_kwargs = {
             'expires': 0,
             'httponly': True,
             'secure': self.cookie_secure,
             'samesite': self.cookie_samesite,
+            'path': '/',  # CRITICAL: Must match path used in set_auth_cookies
             'partitioned': partitioned
         }
 
@@ -257,7 +259,8 @@ class SessionManager:
         response.set_cookie('refresh_token', '', **cookie_kwargs)
 
         mode = "cross-origin" if self.is_cross_origin else "same-origin"
-        logger.info(f"[SessionManager] Auth cookies cleared ({mode} mode)")
+        domain_info = f", domain={self.cookie_domain}" if self.cookie_domain else ""
+        logger.info(f"[SessionManager] Auth cookies cleared ({mode} mode{domain_info})")
         return response
     
     def get_current_user_id(self) -> Optional[str]:
