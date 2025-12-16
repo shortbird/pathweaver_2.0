@@ -55,6 +55,9 @@ const ParentDashboardPage = () => {
   const [showAddDependentModal, setShowAddDependentModal] = useState(false);
   const [showRequestConnectionModal, setShowRequestConnectionModal] = useState(false);
 
+  // DEBUG: Log on every render
+  console.log('RENDER - Modal states:', { showAddDependentModal, showRequestConnectionModal, childrenCount: children.length, loading });
+
   // Pillar display names mapping
   const pillarDisplayNames = {
     art: 'Art',
