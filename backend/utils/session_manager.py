@@ -252,13 +252,19 @@ class SessionManager:
             'partitioned': partitioned
         }
 
+        # CRITICAL FIX: Clear cookies BOTH with and without domain attribute
+        # This ensures cookies are cleared regardless of how they were set
+        # First try with domain (if configured)
         if self.cookie_domain:
-            cookie_kwargs['domain'] = self.cookie_domain
+            cookie_kwargs_with_domain = cookie_kwargs.copy()
+            cookie_kwargs_with_domain['domain'] = self.cookie_domain
+            response.set_cookie('access_token', '', **cookie_kwargs_with_domain)
+            response.set_cookie('refresh_token', '', **cookie_kwargs_with_domain)
+            response.set_cookie('masquerade_token', '', **cookie_kwargs_with_domain)
 
+        # Then clear without domain (for current hostname)
         response.set_cookie('access_token', '', **cookie_kwargs)
         response.set_cookie('refresh_token', '', **cookie_kwargs)
-
-        # CRITICAL FIX: Also clear masquerade cookies if they exist
         response.set_cookie('masquerade_token', '', **cookie_kwargs)
 
         mode = "cross-origin" if self.is_cross_origin else "same-origin"
@@ -267,6 +273,7 @@ class SessionManager:
         # Enhanced logging
         logger.info(
             f"[SessionManager] Auth cookies cleared ({mode} mode{domain_info}) | "
+            f"Cleared with AND without domain | "
             f"Secure: {self.cookie_secure} | SameSite: {self.cookie_samesite} | "
             f"Partitioned: {partitioned} | Path: /"
         )
