@@ -55,9 +55,6 @@ const ParentDashboardPage = () => {
   const [showAddDependentModal, setShowAddDependentModal] = useState(false);
   const [showRequestConnectionModal, setShowRequestConnectionModal] = useState(false);
 
-  // DEBUG: Log on every render
-  console.log('RENDER - Modal states:', { showAddDependentModal, showRequestConnectionModal, childrenCount: children.length, loading });
-
   // Pillar display names mapping
   const pillarDisplayNames = {
     art: 'Art',
@@ -314,10 +311,7 @@ const ParentDashboardPage = () => {
           <div className="space-y-4">
             {/* Create Dependent Profile (Under 13) */}
             <button
-              onClick={() => {
-                console.log('Create Child Profile clicked');
-                setShowAddDependentModal(true);
-              }}
+              onClick={() => setShowAddDependentModal(true)}
               className="w-full bg-white border-2 border-optio-purple rounded-lg p-6 hover:shadow-lg transition-shadow text-left group"
             >
               <div className="flex items-start gap-4">
@@ -343,10 +337,7 @@ const ParentDashboardPage = () => {
 
             {/* Connect to Existing Student (13+) */}
             <button
-              onClick={() => {
-                console.log('Connect to Existing Student clicked');
-                setShowRequestConnectionModal(true);
-              }}
+              onClick={() => setShowRequestConnectionModal(true)}
               className="w-full bg-white border-2 border-optio-pink rounded-lg p-6 hover:shadow-lg transition-shadow text-left group"
             >
               <div className="flex items-start gap-4">
@@ -378,6 +369,22 @@ const ParentDashboardPage = () => {
             </p>
           </div>
         </div>
+
+        {/* Modals for Empty State */}
+        <AddDependentModal
+          isOpen={showAddDependentModal}
+          onClose={() => setShowAddDependentModal(false)}
+          onSuccess={handleDependentAdded}
+        />
+
+        <RequestStudentConnectionModal
+          isOpen={showRequestConnectionModal}
+          onClose={() => setShowRequestConnectionModal(false)}
+          onSuccess={(result) => {
+            toast.success(result.message);
+            setShowRequestConnectionModal(false);
+          }}
+        />
       </div>
     );
   }
@@ -1292,27 +1299,19 @@ const ParentDashboardPage = () => {
       {/* Add Dependent Modal */}
       <AddDependentModal
         isOpen={showAddDependentModal}
-        onClose={() => {
-          console.log('Closing AddDependentModal');
-          setShowAddDependentModal(false);
-        }}
+        onClose={() => setShowAddDependentModal(false)}
         onSuccess={handleDependentAdded}
       />
-      {console.log('showAddDependentModal:', showAddDependentModal)}
 
       {/* Request Student Connection Modal */}
       <RequestStudentConnectionModal
         isOpen={showRequestConnectionModal}
-        onClose={() => {
-          console.log('Closing RequestStudentConnectionModal');
-          setShowRequestConnectionModal(false);
-        }}
+        onClose={() => setShowRequestConnectionModal(false)}
         onSuccess={(result) => {
           toast.success(result.message);
           setShowRequestConnectionModal(false);
         }}
       />
-      {console.log('showRequestConnectionModal:', showRequestConnectionModal)}
     </div>
   );
 };

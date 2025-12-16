@@ -4,8 +4,6 @@ import { X, AlertCircle, Info } from 'lucide-react';
 import { createDependent } from '../../services/dependentAPI';
 
 const AddDependentModal = ({ isOpen, onClose, onSuccess }) => {
-  console.log('AddDependentModal render - isOpen:', isOpen);
-
   const [formData, setFormData] = useState({
     display_name: '',
     date_of_birth: '',
@@ -121,15 +119,11 @@ const AddDependentModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   if (!isOpen) {
-    console.log('AddDependentModal returning null');
     return null;
   }
 
-  console.log('AddDependentModal RENDERING MODAL');
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center p-4" onClick={(e) => {
-      console.log('Modal backdrop clicked');
       if (e.target === e.currentTarget) handleClose();
     }}>
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
