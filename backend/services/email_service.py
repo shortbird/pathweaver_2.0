@@ -88,9 +88,6 @@ class EmailService(BaseService):
             html_part = MIMEText(html_body, 'html')
             msg.attach(html_part)
 
-            # Disable SendGrid click tracking to avoid HTTP warning
-            msg['X-SMTPAPI'] = '{"filters": {"clicktrack": {"settings": {"enable": 0}}}}'
-
             # Automatically BCC support email for monitoring all outgoing emails
             support_email = os.getenv('SUPPORT_EMAIL', 'support@optioeducation.com')
             bcc = bcc or []
@@ -100,6 +97,23 @@ class EmailService(BaseService):
             if support_email not in bcc and support_email not in cc:
                 bcc.append(support_email)
                 logger.info(f"Automatically adding {support_email} to BCC for email to {to_email}")
+
+            # SendGrid SMTP API configuration
+            # - Disable click tracking to avoid HTTP warning
+            # - Add BCC recipients via X-SMTPAPI header (SendGrid-specific method)
+            import json
+            sendgrid_config = {
+                "filters": {
+                    "clicktrack": {"settings": {"enable": 0}}
+                }
+            }
+
+            # Add BCC to SendGrid config if present
+            if bcc:
+                sendgrid_config["to"] = bcc  # SendGrid X-SMTPAPI uses "to" field for BCC
+                logger.info(f"Adding BCC to SendGrid X-SMTPAPI header: {bcc}")
+
+            msg['X-SMTPAPI'] = json.dumps(sendgrid_config)
 
             # Prepare recipient list
             recipients = [to_email]
