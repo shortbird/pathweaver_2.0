@@ -311,7 +311,10 @@ const ParentDashboardPage = () => {
           <div className="space-y-4">
             {/* Create Dependent Profile (Under 13) */}
             <button
-              onClick={() => setShowAddDependentModal(true)}
+              onClick={() => {
+                console.log('Create Child Profile clicked');
+                setShowAddDependentModal(true);
+              }}
               className="w-full bg-white border-2 border-optio-purple rounded-lg p-6 hover:shadow-lg transition-shadow text-left group"
             >
               <div className="flex items-start gap-4">
@@ -337,7 +340,10 @@ const ParentDashboardPage = () => {
 
             {/* Connect to Existing Student (13+) */}
             <button
-              onClick={() => setShowRequestConnectionModal(true)}
+              onClick={() => {
+                console.log('Connect to Existing Student clicked');
+                setShowRequestConnectionModal(true);
+              }}
               className="w-full bg-white border-2 border-optio-pink rounded-lg p-6 hover:shadow-lg transition-shadow text-left group"
             >
               <div className="flex items-start gap-4">
@@ -1284,22 +1290,30 @@ const ParentDashboardPage = () => {
       {showAddDependentModal && (
         <AddDependentModal
           isOpen={showAddDependentModal}
-          onClose={() => setShowAddDependentModal(false)}
+          onClose={() => {
+            console.log('Closing AddDependentModal');
+            setShowAddDependentModal(false);
+          }}
           onSuccess={handleDependentAdded}
         />
       )}
+      {console.log('showAddDependentModal:', showAddDependentModal)}
 
       {/* Request Student Connection Modal */}
       {showRequestConnectionModal && (
         <RequestStudentConnectionModal
           isOpen={showRequestConnectionModal}
-          onClose={() => setShowRequestConnectionModal(false)}
+          onClose={() => {
+            console.log('Closing RequestStudentConnectionModal');
+            setShowRequestConnectionModal(false);
+          }}
           onSuccess={(result) => {
             toast.success(result.message);
             setShowRequestConnectionModal(false);
           }}
         />
       )}
+      {console.log('showRequestConnectionModal:', showRequestConnectionModal)}
     </div>
   );
 };
