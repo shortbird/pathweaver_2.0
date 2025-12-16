@@ -21,6 +21,7 @@ import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDispla
 import AddEvidenceModal from '../components/advisor/AddEvidenceModal';
 import ProfileSwitcher from '../components/parent/ProfileSwitcher';
 import AddDependentModal from '../components/parent/AddDependentModal';
+import RequestStudentConnectionModal from '../components/parent/RequestStudentConnectionModal';
 
 const ParentDashboardPage = () => {
   const { user } = useAuth();
@@ -52,6 +53,7 @@ const ParentDashboardPage = () => {
   const [showAddEvidenceModal, setShowAddEvidenceModal] = useState(false);
   const [currentProfile, setCurrentProfile] = useState(null);
   const [showAddDependentModal, setShowAddDependentModal] = useState(false);
+  const [showRequestConnectionModal, setShowRequestConnectionModal] = useState(false);
 
   // Pillar display names mapping
   const pillarDisplayNames = {
@@ -301,60 +303,69 @@ const ParentDashboardPage = () => {
               Welcome to Your Family Dashboard
             </h1>
             <p className="text-lg text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Connect with your student to view their learning progress
+              Get started by adding your child's profile
             </p>
           </div>
 
-          {/* Admin-Only Linking Notice */}
-          <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-6 mb-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              No Students Linked
-            </h3>
-            <p className="text-gray-700 font-medium mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Student connections are managed by administrators. Please contact an administrator to link your parent account to a student.
-            </p>
-            <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Once linked, you'll be able to view your student's learning progress, quests, and achievements here.
-            </p>
+          {/* Action Buttons */}
+          <div className="space-y-4">
+            {/* Create Dependent Profile (Under 13) */}
+            <button
+              onClick={() => setShowAddDependentModal(true)}
+              className="w-full bg-white border-2 border-optio-purple rounded-lg p-6 hover:shadow-lg transition-shadow text-left group"
+            >
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg flex items-center justify-center">
+                  <PlusIcon className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-optio-purple transition-colors" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Create Child Profile (Under 13)
+                  </h3>
+                  <p className="text-gray-600 font-medium mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    For children under 13, you can create and fully manage their learning profile. Perfect for younger learners who need parental guidance.
+                  </p>
+                  <ul className="space-y-1 text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <li>• Full access to manage their quests and tasks</li>
+                    <li>• Upload evidence and track progress</li>
+                    <li>• Mark tasks as complete on their behalf</li>
+                    <li>• COPPA-compliant (no email required until age 13)</li>
+                  </ul>
+                </div>
+              </div>
+            </button>
+
+            {/* Connect to Existing Student (13+) */}
+            <button
+              onClick={() => setShowRequestConnectionModal(true)}
+              className="w-full bg-white border-2 border-optio-pink rounded-lg p-6 hover:shadow-lg transition-shadow text-left group"
+            >
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-r from-optio-pink to-optio-purple rounded-lg flex items-center justify-center">
+                  <UserGroupIcon className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-optio-pink transition-colors" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Connect to Existing Student (13+)
+                  </h3>
+                  <p className="text-gray-600 font-medium mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    For teens with their own Optio account, send a connection request to view their progress and support their learning.
+                  </p>
+                  <ul className="space-y-1 text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <li>• View their learning progress and achievements</li>
+                    <li>• Upload evidence to help with quest tasks</li>
+                    <li>• Student maintains control (marks tasks complete)</li>
+                    <li>• Student must approve the connection request</li>
+                  </ul>
+                </div>
+              </div>
+            </button>
           </div>
 
-          {/* Alternative Method */}
-          <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Or, have your student send you an invitation:
-            </h3>
-            <ol className="space-y-3 text-gray-700 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              <li className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-optio-purple text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
-                <span>Your student logs in to their Optio account at <strong>optioeducation.com</strong></span>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-optio-purple text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
-                <span>They click on <strong>Connections</strong> in the navigation menu</span>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-optio-purple text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
-                <span>In the <strong>Invitations</strong> tab, they'll find a section called "Invite Your Parent"</span>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-optio-purple text-white rounded-full flex items-center justify-center text-sm font-bold">4</span>
-                <span>They enter your email address (the one you used to create this parent account) and send the invitation</span>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-optio-purple text-white rounded-full flex items-center justify-center text-sm font-bold">5</span>
-                <span>You'll see their invitation here, ready to approve</span>
-              </li>
-            </ol>
-            <div className="bg-white rounded-lg p-4 border-l-4 border-optio-purple">
-              <p className="text-sm text-gray-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                <strong>Note:</strong> The student must approve the connection from their end. This ensures they're in control of who can view their learning journey.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <p className="text-sm text-yellow-900 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              💡 <strong>Note:</strong> Once your student approves the connection, you'll have permanent read-only access to support their learning journey.
+          {/* Info Notice */}
+          <div className="mt-6 bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <p className="text-sm text-purple-900 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              💡 <strong>Not sure which option?</strong> If your child is under 13, start with "Create Child Profile." For teens who already have an account, use "Connect to Existing Student."
             </p>
           </div>
         </div>
@@ -1275,6 +1286,18 @@ const ParentDashboardPage = () => {
           isOpen={showAddDependentModal}
           onClose={() => setShowAddDependentModal(false)}
           onSuccess={handleDependentAdded}
+        />
+      )}
+
+      {/* Request Student Connection Modal */}
+      {showRequestConnectionModal && (
+        <RequestStudentConnectionModal
+          isOpen={showRequestConnectionModal}
+          onClose={() => setShowRequestConnectionModal(false)}
+          onSuccess={(result) => {
+            toast.success(result.message);
+            setShowRequestConnectionModal(false);
+          }}
         />
       )}
     </div>
