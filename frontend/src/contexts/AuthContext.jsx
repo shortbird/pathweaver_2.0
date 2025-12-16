@@ -6,6 +6,7 @@ import api, { tokenStore } from '../services/api'
 import { retryWithBackoff } from '../utils/retryHelper'
 import { queryKeys } from '../utils/queryKeys'
 import { isSafari, isIOS, shouldUseAuthHeaders, setAuthMethodPreference, testCookieSupport, logBrowserInfo } from '../utils/browserDetection'
+import { clearMasqueradeData } from '../services/masqueradeService'
 
 const AuthContext = createContext()
 
@@ -275,17 +276,22 @@ export const AuthProvider = ({ children }) => {
     try {
       await api.post('/api/auth/logout')
     } catch (error) {
+      // Continue with logout even if backend call fails
     } finally {
       setSession(null)
       setLoginTimestamp(null) // Clear timestamp on logout
 
-      // ✅ INCOGNITO FIX: Clear tokens from memory
+      // Clear tokens from memory
       tokenStore.clearTokens()
 
-      // Clear localStorage tokens (legacy)
+      // Clear localStorage tokens
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('user')
+
+      // CRITICAL FIX: Clear masquerade data (admin tokens, masquerade state)
+      // This prevents admin tokens from persisting after logout
+      clearMasqueradeData()
 
       // Clear all React Query cache on logout
       queryClient.clear()
