@@ -77,8 +77,13 @@ class DependentRepository(BaseRepository):
         # Calculate promotion eligibility date (13th birthday)
         promotion_eligible_at = date_of_birth + relativedelta(years=13)
 
+        # Generate UUID for dependent
+        import uuid
+        dependent_id = str(uuid.uuid4())
+
         # Create dependent user record
         dependent_data = {
+            'id': dependent_id,
             'display_name': display_name,
             'date_of_birth': str(date_of_birth),
             'avatar_url': avatar_url,

@@ -10,6 +10,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import get_supabase_admin_client
 from backend.repositories import ParentRepository
+from backend.services.email_service import EmailService
 from utils.auth.decorators import require_auth, require_admin
 from middleware.error_handler import ValidationError, NotFoundError, AuthorizationError
 import logging
@@ -335,8 +336,6 @@ def submit_connection_requests(user_id):
     }
     """
     try:
-        from services.email_service import EmailService
-
         data = request.get_json()
         if not data or 'children' not in data:
             raise ValidationError("Request must include 'children' array")
