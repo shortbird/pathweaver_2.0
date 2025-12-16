@@ -254,41 +254,6 @@ emails:
       url: "https://www.optioeducation.com/admin/users/{user_id}"
     signature: "support"
 
-  parent_connection_request_admin:
-    subject: "Parent Connection Request: {parent_name} → {student_first_name} {student_last_name}"
-    title: "New Parent Connection Request"
-    intro: "A parent has requested to connect with a student account and needs admin review."
-    user_details:
-      title: "Parent Information"
-      fields:
-        - label: "Parent Name"
-          value: "{parent_name}"
-        - label: "Parent Email"
-          value: "{parent_email}"
-        - label: "Parent User ID"
-          value: "{parent_id}"
-    request_details:
-      title: "Student Information"
-      fields:
-        - label: "Student First Name"
-          value: "{student_first_name}"
-        - label: "Student Last Name"
-          value: "{student_last_name}"
-        - label: "Student Email"
-          value: "{student_email}"
-    action_items:
-      title: "Action Required"
-      bullet_points:
-        - "Verify the parent-student relationship"
-        - "Check if student account exists with the provided email"
-        - "Review parent's account history and legitimacy"
-        - "If verified, create the connection manually in Admin Dashboard"
-        - "Notify parent once connection is established"
-    dashboard_link:
-      text: "View Parent Connections in Admin"
-      url: "https://www.optioeducation.com/admin/parent-connections"
-    signature: "support"
-
   password_reset:
     subject: "Reset Your Optio Password"
     title: "Reset Your Optio Password"

@@ -58,8 +58,8 @@ class DependentRepository(BaseRepository):
             ValidationError: If validation fails (age > 13, parent not valid, etc.)
             PermissionError: If parent doesn't have permission
         """
-        # Validate parent exists and has parent role
-        parent = self.client.table('users').select('id, role').eq('id', parent_id).single().execute()
+        # Validate parent exists and has parent role (get organization_id too)
+        parent = self.client.table('users').select('id, role, organization_id, first_name, last_name').eq('id', parent_id).single().execute()
         if not parent.data:
             raise NotFoundError(f"Parent with ID {parent_id} not found")
 
@@ -81,7 +81,10 @@ class DependentRepository(BaseRepository):
         import uuid
         dependent_id = str(uuid.uuid4())
 
-        # Create dependent user record
+        # Inherit organization_id from parent
+        parent_org_id = parent.data.get('organization_id')
+
+        # Create dependent user record with all required fields
         dependent_data = {
             'id': dependent_id,
             'display_name': display_name,
@@ -92,9 +95,12 @@ class DependentRepository(BaseRepository):
             'promotion_eligible_at': str(promotion_eligible_at),
             'role': 'student',
             'email': None,  # COPPA compliance - no email for dependents
+            'organization_id': parent_org_id,  # Inherit from parent
             'total_xp': 0,
             'level': 1,
-            'streak_days': 0
+            'streak_days': 0,
+            'first_name': display_name.split()[0] if display_name else 'Child',
+            'last_name': ' '.join(display_name.split()[1:]) if len(display_name.split()) > 1 else ''
         }
 
         try:

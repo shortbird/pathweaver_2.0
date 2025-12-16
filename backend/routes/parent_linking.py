@@ -10,7 +10,6 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import get_supabase_admin_client
 from backend.repositories import ParentRepository
-from backend.services.email_service import EmailService
 from utils.auth.decorators import require_auth, require_admin
 from middleware.error_handler import ValidationError, NotFoundError, AuthorizationError
 import logging
@@ -345,7 +344,6 @@ def submit_connection_requests(user_id):
             raise ValidationError("At least one child must be provided")
 
         supabase = get_supabase_admin_client()
-        email_service = EmailService()
 
         # Verify requesting user is a parent
         parent = supabase.table('users').select('id, role, first_name, last_name, email').eq('id', user_id).execute()
@@ -418,31 +416,15 @@ def submit_connection_requests(user_id):
                 })
                 continue
 
-            # Send email notification to admin for manual review
-            try:
-                email_service.send_parent_connection_request_admin(
-                    parent_name=f"{parent_data['first_name']} {parent_data['last_name']}",
-                    parent_email=parent_data['email'],
-                    parent_id=user_id,
-                    student_first_name=first_name,
-                    student_last_name=last_name,
-                    student_email=email
-                )
-                pending_approval += 1
+            # Admin will handle connection manually - just return success message
+            pending_approval += 1
 
-                results.append({
-                    'email': email,
-                    'student_name': f"{first_name} {last_name}",
-                    'status': 'pending_admin_review',
-                    'message': f'Connection request sent to admin for review. You will be notified once approved.'
-                })
-            except Exception as email_error:
-                logger.error(f"Failed to send connection request email to admin: {str(email_error)}")
-                results.append({
-                    'email': email,
-                    'status': 'error',
-                    'message': 'Failed to send connection request to admin. Please try again later.'
-                })
+            results.append({
+                'email': email,
+                'student_name': f"{first_name} {last_name}",
+                'status': 'pending_admin_review',
+                'message': f'Request received. Please contact support@optioeducation.com with your name and the student\'s email to complete the connection.'
+            })
 
         logger.info(f"Parent {user_id} submitted {len(children)} connection requests: {auto_matched} auto-matched, {pending_approval} pending approval")
 

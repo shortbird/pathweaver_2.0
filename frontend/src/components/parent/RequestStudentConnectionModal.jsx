@@ -52,7 +52,7 @@ const RequestStudentConnectionModal = ({ isOpen, onClose, onSuccess }) => {
       // Success
       const { submitted_count, auto_matched_count } = response.data;
       onSuccess({
-        message: `Connection request sent! Our admin team will review and verify the request. You'll receive an email notification once approved.`,
+        message: `Request received! Please contact support@optioeducation.com with your name and the student's email to complete the connection.`,
         submitted_count,
         auto_matched_count
       });
@@ -110,8 +110,8 @@ const RequestStudentConnectionModal = ({ isOpen, onClose, onSuccess }) => {
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3">
             <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-blue-800">
-              <strong>For students 13 and older:</strong> Enter their information to request a connection.
-              Your request will be sent to our admin team for verification, and you'll be notified once approved.
+              <strong>For students 13 and older:</strong> Enter their information and we'll verify if an account exists.
+              You'll then need to contact support to complete the connection manually.
             </div>
           </div>
 
@@ -170,10 +170,11 @@ const RequestStudentConnectionModal = ({ isOpen, onClose, onSuccess }) => {
           <div className="bg-gray-50 rounded-lg p-4">
             <h4 className="text-sm font-semibold text-gray-900 mb-2">How it works:</h4>
             <ol className="text-sm text-gray-700 space-y-1 list-decimal list-inside">
-              <li>We'll send your request to our admin team for verification</li>
-              <li>Admin verifies the parent-student relationship</li>
-              <li>Once approved, you'll receive a notification email</li>
-              <li>You'll see their learning progress and can upload evidence to help them complete quests</li>
+              <li>Submit the student's information</li>
+              <li>We'll verify if an account exists with that email</li>
+              <li>Contact <strong>support@optioeducation.com</strong> with your name and the student's email</li>
+              <li>Our team will manually verify and create the connection</li>
+              <li>Once connected, you'll see their progress and can upload evidence</li>
             </ol>
             <p className="text-xs text-gray-600 mt-3">
               <strong>Note:</strong> For students 13+, you can view progress and upload evidence, but the student must mark tasks as complete.
