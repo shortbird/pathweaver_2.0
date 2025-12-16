@@ -302,3 +302,173 @@ def admin_list_links(admin_id):
     except Exception as e:
         logger.error(f"Error listing parent-student links: {str(e)}")
         return jsonify({'error': 'Failed to list links'}), 500
+
+
+# ============================================================================
+# PARENT-INITIATED CONNECTION REQUESTS (NEW)
+# ============================================================================
+
+@bp.route('/submit-connection-requests', methods=['POST'])
+@require_auth
+def submit_connection_requests(user_id):
+    """
+    Parent submits connection requests for one or more students (13+).
+    Searches for existing student accounts by email and creates pending connections.
+
+    Request body:
+    {
+        "children": [
+            {
+                "first_name": "Alex",
+                "last_name": "Smith",
+                "email": "alex@example.com"
+            }
+        ]
+    }
+
+    Returns:
+    {
+        "submitted_count": 1,
+        "auto_matched_count": 1,
+        "pending_approval_count": 0,
+        "details": [...]
+    }
+    """
+    try:
+        from services.email_service import EmailService
+
+        data = request.get_json()
+        if not data or 'children' not in data:
+            raise ValidationError("Request must include 'children' array")
+
+        children = data.get('children', [])
+        if not isinstance(children, list) or len(children) == 0:
+            raise ValidationError("At least one child must be provided")
+
+        supabase = get_supabase_admin_client()
+        email_service = EmailService()
+
+        # Verify requesting user is a parent
+        parent = supabase.table('users').select('id, role, first_name, last_name, email').eq('id', user_id).execute()
+        if not parent.data or parent.data[0].get('role') != 'parent':
+            raise AuthorizationError("Only parent accounts can submit connection requests")
+
+        parent_data = parent.data[0]
+        results = []
+        auto_matched = 0
+        pending_approval = 0
+
+        for child in children:
+            first_name = child.get('first_name', '').strip()
+            last_name = child.get('last_name', '').strip()
+            email = child.get('email', '').strip().lower()
+
+            if not first_name or not last_name or not email:
+                results.append({
+                    'email': email,
+                    'status': 'error',
+                    'message': 'Missing required fields'
+                })
+                continue
+
+            # Search for existing student account by email
+            student_search = supabase.table('users').select(
+                'id, first_name, last_name, email, role, is_dependent, managed_by_parent_id'
+            ).eq('email', email).execute()
+
+            if not student_search.data or len(student_search.data) == 0:
+                # No account found - parent should create dependent profile instead
+                results.append({
+                    'email': email,
+                    'status': 'not_found',
+                    'message': f'No student account found for {email}. If they are under 13, create a dependent profile instead.'
+                })
+                continue
+
+            student = student_search.data[0]
+
+            # Check if student is actually a dependent (shouldn't use this flow)
+            if student.get('is_dependent'):
+                results.append({
+                    'email': email,
+                    'status': 'error',
+                    'message': 'This is a dependent profile. Dependent profiles cannot be connected via requests.'
+                })
+                continue
+
+            # Check if student has student role
+            if student.get('role') != 'student':
+                results.append({
+                    'email': email,
+                    'status': 'error',
+                    'message': f'{email} is not a student account (role: {student.get("role")})'
+                })
+                continue
+
+            # Check if link already exists
+            existing_link = supabase.table('parent_student_links').select('id, status').eq(
+                'parent_user_id', user_id
+            ).eq('student_user_id', student['id']).execute()
+
+            if existing_link.data:
+                link_status = existing_link.data[0].get('status')
+                results.append({
+                    'email': email,
+                    'status': 'already_exists',
+                    'message': f'Connection already exists (status: {link_status})'
+                })
+                continue
+
+            # Create pending connection
+            link_data = {
+                'parent_user_id': user_id,
+                'student_user_id': student['id'],
+                'status': 'pending_approval',  # Student must approve
+                'created_at': datetime.utcnow().isoformat()
+            }
+
+            link_result = supabase.table('parent_student_links').insert(link_data).execute()
+            pending_approval += 1
+
+            # Send email notification to student
+            try:
+                email_service.send_templated_email(
+                    to_email=student['email'],
+                    subject=f"Parent Connection Request from {parent_data['first_name']} {parent_data['last_name']}",
+                    template_name='parent_connection_request',
+                    context={
+                        'student_name': student['first_name'],
+                        'parent_name': f"{parent_data['first_name']} {parent_data['last_name']}",
+                        'parent_email': parent_data['email'],
+                        'approval_link': f"https://optio-dev-frontend.onrender.com/parent/approve-request/{link_result.data[0]['id']}"
+                    }
+                )
+            except Exception as email_error:
+                logger.warning(f"Failed to send connection request email to {student['email']}: {str(email_error)}")
+
+            results.append({
+                'email': email,
+                'student_name': f"{student['first_name']} {student['last_name']}",
+                'status': 'pending_approval',
+                'message': f'Connection request sent to {student["first_name"]}. They must approve it from their account.',
+                'link_id': link_result.data[0]['id']
+            })
+
+        logger.info(f"Parent {user_id} submitted {len(children)} connection requests: {auto_matched} auto-matched, {pending_approval} pending approval")
+
+        return jsonify({
+            'success': True,
+            'submitted_count': len(children),
+            'auto_matched_count': auto_matched,
+            'pending_approval_count': pending_approval,
+            'details': results
+        }), 200
+
+    except (ValidationError, AuthorizationError) as e:
+        logger.warning(f"Validation error submitting connection requests: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error submitting connection requests: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': 'Failed to submit connection requests'}), 500
