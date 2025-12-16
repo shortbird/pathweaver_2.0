@@ -175,11 +175,11 @@ def list_quests():
                     'has_more': False
                 })
 
-        # Apply search filter if provided (search in both title and description)
+        # Apply search filter if provided (search in title only for simplicity)
         if search:
             logger.info(f"[SEARCH DEBUG] Applying search filter: '{search}'")
-            # Use proper Supabase filter syntax with or_
-            query = query.or_(f'title.ilike.%{search}%,description.ilike.%{search}%')
+            # Search title only (simple, works with infinite scroll)
+            query = query.ilike('title', f'%{search}%')
             logger.info(f"[SEARCH DEBUG] Query after filter applied")
 
         # Apply ordering

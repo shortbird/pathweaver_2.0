@@ -606,47 +606,25 @@ class QuestRepository(BaseRepository):
                 query = query.eq('pillar_primary', filters['pillar'])
             if filters.get('quest_type'):
                 query = query.eq('quest_type', filters['quest_type'])
+            if filters.get('search'):
+                # Search in title only (simple, no .or_() conflicts)
+                # Most quest info is in the title anyway (e.g., "Khan Academy - Algebra 1")
+                search_term = filters['search']
+                query = query.ilike('title', f'%{search_term}%')
 
-            # Store search term for post-query filtering
-            search_term = filters.get('search', '').lower() if filters.get('search') else None
+            # Pagination for infinite scroll
+            offset = (page - 1) * limit
+            query = query.range(offset, offset + limit - 1)
 
-            # Execute query WITHOUT search filter (we'll filter in Python to avoid .or_() conflicts)
-            # When searching, fetch more results to account for post-filtering
-            if search_term:
-                # Fetch more results for filtering (no pagination yet)
-                response = query.execute()
+            # Execute query
+            response = query.execute()
 
-                # Filter results in Python for title OR description match
-                all_quests = response.data if response.data else []
-                filtered_quests = [
-                    q for q in all_quests
-                    if search_term in (q.get('title', '') or '').lower() or
-                       search_term in (q.get('description', '') or '').lower()
-                ]
-
-                # Apply pagination after filtering
-                total_count = len(filtered_quests)
-                offset = (page - 1) * limit
-                paginated_quests = filtered_quests[offset:offset + limit]
-
-                return {
-                    'quests': paginated_quests,
-                    'total': total_count,
-                    'page': page,
-                    'limit': limit
-                }
-            else:
-                # No search - apply pagination normally
-                offset = (page - 1) * limit
-                query = query.range(offset, offset + limit - 1)
-                response = query.execute()
-
-                return {
-                    'quests': response.data if response.data else [],
-                    'total': response.count if response.count else 0,
-                    'page': page,
-                    'limit': limit
-                }
+            return {
+                'quests': response.data if response.data else [],
+                'total': response.count if response.count else 0,
+                'page': page,
+                'limit': limit
+            }
 
         except APIError as e:
             logger.error(f"Error fetching quests for user {user_id}: {e}")
