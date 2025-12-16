@@ -85,9 +85,15 @@ const ParentDashboardPage = () => {
         if (!selectedStudentId && childrenResponse.data.children?.length > 0) {
           setSelectedStudentId(childrenResponse.data.children[0].student_id);
         }
+
+        // If no children, turn off loading so the empty state shows
+        if (childrenResponse.data.children?.length === 0) {
+          setLoading(false);
+        }
       } catch (error) {
         console.error('Error loading children:', error);
         setError('Failed to load linked students');
+        setLoading(false); // Stop loading on error
       }
     };
 
