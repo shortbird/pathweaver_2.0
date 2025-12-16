@@ -778,31 +778,44 @@ def login():
 
 @bp.route('/logout', methods=['POST'])
 def logout():
-    # Get token from cookie or header
+    # CRITICAL FIX: Always clear cookies even if token is invalid or missing
+    # This prevents automatic re-login after logout + page refresh
+    # Get token from cookie or header (for logging purposes)
     token = request.cookies.get('access_token')
     if not token:
         token = request.headers.get('Authorization', '').replace('Bearer ', '')
 
-    if not token:
-        return jsonify({'error': 'No token provided'}), 401
-
     supabase = get_supabase_client()
 
     try:
-        supabase.auth.sign_out()
+        # Attempt to sign out from Supabase if token exists
+        # But don't fail logout if this fails
+        if token:
+            try:
+                supabase.auth.sign_out()
+            except Exception as signout_error:
+                # Log but don't fail - cookies should still be cleared
+                logger.warning(f"Supabase sign out failed during logout: {signout_error}")
+
+        # ALWAYS clear cookies regardless of token validity
         response = make_response(jsonify({'message': 'Logged out successfully'}), 200)
 
-        # Clear authentication cookies (same-origin only, skipped in cross-origin)
+        # Clear authentication cookies
         session_manager.clear_auth_cookies(response)
 
-        # ✅ INCOGNITO FIX: Clear Supabase cookies only in same-origin mode
+        # Clear Supabase cookies only in same-origin mode
         if not session_manager.is_cross_origin:
             response.set_cookie('supabase_access_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite, partitioned=session_manager.is_cross_origin)
             response.set_cookie('supabase_refresh_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite, partitioned=session_manager.is_cross_origin)
 
+        logger.info(f"[LOGOUT] User logged out successfully, cookies cleared")
         return response
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        # Even if there's an error, try to clear cookies
+        logger.error(f"[LOGOUT] Error during logout: {e}")
+        response = make_response(jsonify({'message': 'Logged out (with errors)'}), 200)
+        session_manager.clear_auth_cookies(response)
+        return response
 
 @bp.route('/refresh', methods=['POST'])
 def refresh_token():
