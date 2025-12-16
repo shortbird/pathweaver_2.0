@@ -201,6 +201,15 @@ class AuthService {
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
 
+      // CRITICAL FIX: Clear masquerade data
+      // Import at top: import { clearMasqueradeData } from './masqueradeService'
+      try {
+        const { clearMasqueradeData } = await import('./masqueradeService.js')
+        clearMasqueradeData()
+      } catch (e) {
+        console.warn('Failed to clear masquerade data:', e)
+      }
+
       this.notifyListeners()
     }
   }
