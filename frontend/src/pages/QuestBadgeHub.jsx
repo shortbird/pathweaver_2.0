@@ -119,7 +119,7 @@ const QuestBadgeHub = () => {
       console.log(`[HUB] Fetching page ${questPage}...`);
       fetchQuests(false);
     }
-  }, [activeTab, questPage, user, loginTimestamp]);
+  }, [activeTab, questPage, user, loginTimestamp, debouncedSearchTerm]);
 
   // Fetch badges from API - memoized to prevent recreation
   const fetchBadges = useCallback(async () => {
