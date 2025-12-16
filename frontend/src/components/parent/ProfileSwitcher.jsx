@@ -34,7 +34,10 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
       setError(null);
     } catch (err) {
       console.error('Error loading dependents:', err);
-      setError('Failed to load dependent profiles');
+      // Don't show error if parent simply has no dependents or lacks permission
+      // Just set empty profiles array
+      setProfiles([]);
+      setError(null);
     } finally {
       setLoading(false);
     }
