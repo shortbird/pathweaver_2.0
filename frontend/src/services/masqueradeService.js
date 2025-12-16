@@ -163,6 +163,33 @@ export const checkMasqueradeStatus = async (apiCall) => {
  * Clear all masquerade data (for logout)
  */
 export const clearMasqueradeData = () => {
-  localStorage.removeItem(MASQUERADE_STORAGE_KEY);
-  localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+  try {
+    // Clear masquerade state
+    localStorage.removeItem(MASQUERADE_STORAGE_KEY);
+    localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+
+    // CRITICAL FIX: Also clear any active masquerade tokens from tokenStore
+    // This prevents the masquerade token from being restored on page refresh
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+
+    console.log('[Masquerade] Cleared masquerade data and tokens');
+
+    // Verify cleanup
+    const accessToken = localStorage.getItem('access_token');
+    const refreshToken = localStorage.getItem('refresh_token');
+    const masqueradeState = localStorage.getItem(MASQUERADE_STORAGE_KEY);
+    const adminToken = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
+
+    if (accessToken || refreshToken || masqueradeState || adminToken) {
+      console.error('[Masquerade] CRITICAL: Tokens still exist after clearing!', {
+        hasAccess: !!accessToken,
+        hasRefresh: !!refreshToken,
+        hasMasqueradeState: !!masqueradeState,
+        hasAdminToken: !!adminToken
+      });
+    }
+  } catch (error) {
+    console.error('[Masquerade] Error clearing masquerade data:', error);
+  }
 };

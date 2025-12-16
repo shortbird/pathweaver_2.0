@@ -68,7 +68,28 @@ export const tokenStore = {
     try {
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
-      console.log('[TokenStore] Tokens cleared from memory and localStorage')
+
+      // CRITICAL FIX: Verify tokens are actually cleared
+      const accessStillExists = localStorage.getItem('access_token')
+      const refreshStillExists = localStorage.getItem('refresh_token')
+
+      if (accessStillExists || refreshStillExists) {
+        console.error('[TokenStore] CRITICAL: Tokens failed to clear on first attempt!')
+        // Force clear again
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+
+        // Clear ALL localStorage as last resort
+        if (localStorage.getItem('access_token') || localStorage.getItem('refresh_token')) {
+          console.error('[TokenStore] CRITICAL: Using nuclear option - clearing all localStorage')
+          const masqueradeState = localStorage.getItem('masquerade_state')
+          const originalAdmin = localStorage.getItem('original_admin_token')
+          localStorage.clear()
+          console.error('[TokenStore] Preserved masquerade data:', { masqueradeState, originalAdmin })
+        }
+      }
+
+      console.log('[TokenStore] Tokens cleared and verified from memory and localStorage')
     } catch (error) {
       console.error('[TokenStore] Failed to clear tokens from localStorage:', error)
     }

@@ -258,9 +258,19 @@ class SessionManager:
         response.set_cookie('access_token', '', **cookie_kwargs)
         response.set_cookie('refresh_token', '', **cookie_kwargs)
 
+        # CRITICAL FIX: Also clear masquerade cookies if they exist
+        response.set_cookie('masquerade_token', '', **cookie_kwargs)
+
         mode = "cross-origin" if self.is_cross_origin else "same-origin"
         domain_info = f", domain={self.cookie_domain}" if self.cookie_domain else ""
-        logger.info(f"[SessionManager] Auth cookies cleared ({mode} mode{domain_info})")
+
+        # Enhanced logging
+        logger.info(
+            f"[SessionManager] Auth cookies cleared ({mode} mode{domain_info}) | "
+            f"Secure: {self.cookie_secure} | SameSite: {self.cookie_samesite} | "
+            f"Partitioned: {partitioned} | Path: /"
+        )
+
         return response
     
     def get_current_user_id(self) -> Optional[str]:

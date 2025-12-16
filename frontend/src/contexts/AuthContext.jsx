@@ -274,26 +274,41 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await api.post('/api/auth/logout')
-    } catch (error) {
-      // Continue with logout even if backend call fails
-    } finally {
-      setSession(null)
-      setLoginTimestamp(null) // Clear timestamp on logout
+      // CRITICAL: Clear tokens FIRST (synchronously) before API call
+      // This prevents race conditions where page refresh happens before clearing
 
-      // Clear tokens from memory
+      // Step 1: Clear masquerade data (includes tokens)
+      clearMasqueradeData()
+
+      // Step 2: Clear tokenStore
       tokenStore.clearTokens()
 
-      // Clear localStorage tokens
+      // Step 3: Clear localStorage tokens explicitly (defensive)
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('user')
 
-      // CRITICAL FIX: Clear masquerade data (admin tokens, masquerade state)
-      // This prevents admin tokens from persisting after logout
-      clearMasqueradeData()
+      // Step 4: Verify tokens are cleared
+      const accessStillExists = localStorage.getItem('access_token')
+      const refreshStillExists = localStorage.getItem('refresh_token')
+      if (accessStillExists || refreshStillExists) {
+        console.error('[AuthContext] CRITICAL: Tokens still exist after logout clearing!')
+        // Force clear again
+        localStorage.clear()
+      }
 
-      // Clear all React Query cache on logout
+      // Step 5: Now call backend logout (this clears cookies)
+      await api.post('/api/auth/logout')
+
+    } catch (error) {
+      // Continue with logout even if backend call fails
+      console.warn('[AuthContext] Backend logout failed, but local cleanup completed:', error)
+    } finally {
+      // Step 6: Clear React state
+      setSession(null)
+      setLoginTimestamp(null)
+
+      // Step 7: Clear React Query cache
       queryClient.clear()
 
       toast.success('Logged out successfully')

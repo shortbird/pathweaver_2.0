@@ -183,9 +183,39 @@ class AuthService {
    */
   async logout() {
     try {
+      // CRITICAL: Clear tokens FIRST (synchronously) before API call
+      // This prevents race conditions where page refresh happens before clearing
+
+      // Step 1: Clear masquerade data (includes tokens)
+      try {
+        const { clearMasqueradeData } = await import('./masqueradeService.js')
+        clearMasqueradeData()
+      } catch (e) {
+        console.warn('Failed to clear masquerade data:', e)
+      }
+
+      // Step 2: Clear memory tokens
+      this.clearTokens()
+
+      // Step 3: Clear localStorage tokens explicitly (defensive)
+      localStorage.removeItem('user')
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+
+      // Step 4: Verify tokens are cleared
+      const accessStillExists = localStorage.getItem('access_token')
+      const refreshStillExists = localStorage.getItem('refresh_token')
+      if (accessStillExists || refreshStillExists) {
+        console.error('[AuthService] CRITICAL: Tokens still exist after logout clearing!')
+        // Force clear again
+        localStorage.clear()
+      }
+
+      // Step 5: Now call backend logout (this clears cookies)
       await api.post('/api/auth/logout')
+
     } catch (error) {
-      console.warn('Logout API call failed:', error)
+      console.warn('[AuthService] Logout API call failed, but local cleanup completed:', error)
     } finally {
       // Stop token health monitoring
       this.stopTokenHealthMonitoring()
@@ -194,21 +224,6 @@ class AuthService {
       this.user = null
       this.isAuthenticated = false
       this.csrfToken = null
-      this.clearTokens() // Clear memory tokens
-
-      // Clear localStorage data
-      localStorage.removeItem('user')
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
-
-      // CRITICAL FIX: Clear masquerade data
-      // Import at top: import { clearMasqueradeData } from './masqueradeService'
-      try {
-        const { clearMasqueradeData } = await import('./masqueradeService.js')
-        clearMasqueradeData()
-      } catch (e) {
-        console.warn('Failed to clear masquerade data:', e)
-      }
 
       this.notifyListeners()
     }
