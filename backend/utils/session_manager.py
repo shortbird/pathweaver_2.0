@@ -401,11 +401,20 @@ class SessionManager:
         if not user_id:
             return None
 
+        # Get token issued at timestamp (iat claim)
+        token_issued_at = payload.get('iat')
+        if token_issued_at:
+            # Convert Unix timestamp to datetime
+            token_issued_at = datetime.fromtimestamp(token_issued_at, tz=timezone.utc)
+        else:
+            # If no iat, use current time (should never happen)
+            token_issued_at = datetime.now(timezone.utc)
+
         # Generate new tokens
         new_access_token = self.generate_access_token(user_id)
         new_refresh_token = self.generate_refresh_token(user_id)
 
-        return new_access_token, new_refresh_token, user_id
+        return new_access_token, new_refresh_token, user_id, token_issued_at
 
     def get_access_token_string(self) -> Optional[str]:
         """Get the raw access token string from Authorization header or cookie"""

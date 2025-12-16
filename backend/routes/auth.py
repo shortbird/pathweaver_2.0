@@ -787,7 +787,20 @@ def logout():
 
     supabase = get_supabase_client()
 
+    # Get user ID for session invalidation
+    user_id = session_manager.get_current_user_id()
+
     try:
+        # CRITICAL FIX: Invalidate all tokens by recording logout timestamp
+        # This prevents refresh token from working even if cookie persists
+        if user_id:
+            from database import get_supabase_admin_client
+            admin_client = get_supabase_admin_client()
+            admin_client.table('users').update({
+                'last_logout_at': datetime.utcnow().isoformat()
+            }).eq('id', user_id).execute()
+            logger.info(f"[LOGOUT] Invalidated all tokens for user {user_id[:8]}... via last_logout_at timestamp")
+
         # Attempt to sign out from Supabase if token exists
         # But don't fail logout if this fails
         if token:
@@ -830,7 +843,26 @@ def refresh_token():
         logger.warning("Refresh token validation failed - token may be expired or invalid")
         return jsonify({'error': 'Your session has expired. Please log in again to continue.'}), 401
 
-    new_access_token, new_refresh_token, user_id = refresh_result
+    new_access_token, new_refresh_token, user_id, token_issued_at = refresh_result
+
+    # CRITICAL FIX: Check if token was issued before last logout
+    # If so, reject the refresh to prevent automatic re-login after logout
+    try:
+        from database import get_supabase_admin_client
+        admin_client = get_supabase_admin_client()
+        user_data = admin_client.table('users').select('last_logout_at').eq('id', user_id).single().execute()
+
+        if user_data.data and user_data.data.get('last_logout_at'):
+            last_logout_at = datetime.fromisoformat(user_data.data['last_logout_at'].replace('Z', '+00:00'))
+
+            # If token was issued before logout, reject it
+            if token_issued_at < last_logout_at:
+                logger.warning(f"[REFRESH] Rejecting token for user {user_id[:8]}... - issued before logout (token: {token_issued_at.isoformat()}, logout: {last_logout_at.isoformat()})")
+                return jsonify({'error': 'Session invalidated. Please log in again.'}), 401
+
+    except Exception as logout_check_error:
+        logger.error(f"Error checking last_logout_at: {logout_check_error}")
+        # Don't fail the refresh if we can't check - but log it
 
     # Update last_active timestamp on token refresh
     try:
