@@ -175,18 +175,9 @@ const ParentDashboardPage = () => {
   const handleDependentAdded = (result) => {
     toast.success(result.message || 'Dependent profile created');
 
-    // Auto-switch to the newly created dependent
-    if (result.dependent) {
-      const newProfile = {
-        id: result.dependent.id,
-        display_name: result.dependent.display_name,
-        avatar_url: result.dependent.avatar_url,
-        is_dependent: true,
-        age: result.dependent.age
-      };
-      setCurrentProfile(newProfile);
-      setSelectedStudentId(result.dependent.id);
-    }
+    // Reload the page to refresh the children/dependents list
+    // This ensures the ProfileSwitcher shows the new dependent
+    window.location.reload();
   };
 
   // Load conversations when Communications tab is active
