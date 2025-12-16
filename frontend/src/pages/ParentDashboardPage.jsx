@@ -355,7 +355,6 @@ const ParentDashboardPage = () => {
                     <li>• View their learning progress and achievements</li>
                     <li>• Upload evidence to help with quest tasks</li>
                     <li>• Student maintains control (marks tasks complete)</li>
-                    <li>• Student must approve the connection request</li>
                   </ul>
                 </div>
               </div>
@@ -365,7 +364,7 @@ const ParentDashboardPage = () => {
           {/* Info Notice */}
           <div className="mt-6 bg-purple-50 border border-purple-200 rounded-lg p-4">
             <p className="text-sm text-purple-900 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              💡 <strong>Not sure which option?</strong> If your child is under 13, start with "Create Child Profile." For teens 13+, use "Connect to Existing Student" (login credentials optional).
+              💡 <strong>Not sure which option?</strong> If your child is under 13, start with "Create Child Profile." For teens 13+, we recommend having them create their own account first, then use the "Connect to Existing Student" option.
             </p>
           </div>
         </div>

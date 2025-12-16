@@ -578,6 +578,31 @@ class EmailService(BaseService):
             }
         )
 
+    def send_parent_connection_request_admin(
+        self,
+        parent_name: str,
+        parent_email: str,
+        parent_id: str,
+        student_first_name: str,
+        student_last_name: str,
+        student_email: str
+    ) -> bool:
+        """Send notification email to admin about parent connection request"""
+        admin_email = os.getenv('ADMIN_EMAIL', 'support@optioeducation.com')
+        return self.send_templated_email(
+            to_email=admin_email,
+            subject=f"Parent Connection Request: {parent_name} → {student_first_name} {student_last_name}",
+            template_name='parent_connection_request_admin',
+            context={
+                'parent_name': parent_name,
+                'parent_email': parent_email,
+                'parent_id': parent_id,
+                'student_first_name': student_first_name,
+                'student_last_name': student_last_name,
+                'student_email': student_email
+            }
+        )
+
     def send_password_reset_email(
         self,
         user_email: str,

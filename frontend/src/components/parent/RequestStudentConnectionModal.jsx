@@ -52,9 +52,7 @@ const RequestStudentConnectionModal = ({ isOpen, onClose, onSuccess }) => {
       // Success
       const { submitted_count, auto_matched_count } = response.data;
       onSuccess({
-        message: auto_matched_count > 0
-          ? `Connection request sent! We found an existing student account and linked it automatically.`
-          : `Connection request sent! Your student will receive an email to approve the connection.`,
+        message: `Connection request sent! Our admin team will review and verify the request. You'll receive an email notification once approved.`,
         submitted_count,
         auto_matched_count
       });
@@ -112,8 +110,8 @@ const RequestStudentConnectionModal = ({ isOpen, onClose, onSuccess }) => {
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3">
             <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-blue-800">
-              <strong>For students 13 and older:</strong> Enter their information to send a connection request.
-              They'll approve from their account (or you can optionally create login credentials for them if they don't have an account yet).
+              <strong>For students 13 and older:</strong> Enter their information to request a connection.
+              Your request will be sent to our admin team for verification, and you'll be notified once approved.
             </div>
           </div>
 
@@ -172,8 +170,9 @@ const RequestStudentConnectionModal = ({ isOpen, onClose, onSuccess }) => {
           <div className="bg-gray-50 rounded-lg p-4">
             <h4 className="text-sm font-semibold text-gray-900 mb-2">How it works:</h4>
             <ol className="text-sm text-gray-700 space-y-1 list-decimal list-inside">
-              <li>We'll send them an email with your connection request</li>
-              <li>They log in and approve the connection</li>
+              <li>We'll send your request to our admin team for verification</li>
+              <li>Admin verifies the parent-student relationship</li>
+              <li>Once approved, you'll receive a notification email</li>
               <li>You'll see their learning progress and can upload evidence to help them complete quests</li>
             </ol>
             <p className="text-xs text-gray-600 mt-3">

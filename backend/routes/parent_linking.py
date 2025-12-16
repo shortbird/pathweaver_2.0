@@ -419,40 +419,31 @@ def submit_connection_requests(user_id):
                 })
                 continue
 
-            # Create pending connection
-            link_data = {
-                'parent_user_id': user_id,
-                'student_user_id': student['id'],
-                'status': 'pending_approval',  # Student must approve
-                'created_at': datetime.utcnow().isoformat()
-            }
-
-            link_result = supabase.table('parent_student_links').insert(link_data).execute()
-            pending_approval += 1
-
-            # Send email notification to student
+            # Send email notification to admin for manual review
             try:
-                email_service.send_templated_email(
-                    to_email=student['email'],
-                    subject=f"Parent Connection Request from {parent_data['first_name']} {parent_data['last_name']}",
-                    template_name='parent_connection_request',
-                    context={
-                        'student_name': student['first_name'],
-                        'parent_name': f"{parent_data['first_name']} {parent_data['last_name']}",
-                        'parent_email': parent_data['email'],
-                        'approval_link': f"https://optio-dev-frontend.onrender.com/parent/approve-request/{link_result.data[0]['id']}"
-                    }
+                email_service.send_parent_connection_request_admin(
+                    parent_name=f"{parent_data['first_name']} {parent_data['last_name']}",
+                    parent_email=parent_data['email'],
+                    parent_id=user_id,
+                    student_first_name=first_name,
+                    student_last_name=last_name,
+                    student_email=email
                 )
-            except Exception as email_error:
-                logger.warning(f"Failed to send connection request email to {student['email']}: {str(email_error)}")
+                pending_approval += 1
 
-            results.append({
-                'email': email,
-                'student_name': f"{student['first_name']} {student['last_name']}",
-                'status': 'pending_approval',
-                'message': f'Connection request sent to {student["first_name"]}. They must approve it from their account.',
-                'link_id': link_result.data[0]['id']
-            })
+                results.append({
+                    'email': email,
+                    'student_name': f"{first_name} {last_name}",
+                    'status': 'pending_admin_review',
+                    'message': f'Connection request sent to admin for review. You will be notified once approved.'
+                })
+            except Exception as email_error:
+                logger.error(f"Failed to send connection request email to admin: {str(email_error)}")
+                results.append({
+                    'email': email,
+                    'status': 'error',
+                    'message': 'Failed to send connection request to admin. Please try again later.'
+                })
 
         logger.info(f"Parent {user_id} submitted {len(children)} connection requests: {auto_matched} auto-matched, {pending_approval} pending approval")
 
