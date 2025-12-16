@@ -91,7 +91,7 @@ const RequestStudentConnectionModal = ({ isOpen, onClose, onSuccess }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-optio-purple to-optio-pink">
           <h2 className="text-xl font-semibold text-white font-['Poppins']">
@@ -113,7 +113,7 @@ const RequestStudentConnectionModal = ({ isOpen, onClose, onSuccess }) => {
             <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-blue-800">
               <strong>For students 13 and older:</strong> Enter their information to send a connection request.
-              They'll need to approve the connection from their account.
+              They'll approve from their account (or you can optionally create login credentials for them if they don't have an account yet).
             </div>
           </div>
 

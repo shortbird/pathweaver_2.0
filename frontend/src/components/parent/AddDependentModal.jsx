@@ -5,9 +5,9 @@ import { createDependent } from '../../services/dependentAPI';
 
 const AddDependentModal = ({ isOpen, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
-    display_name: '',
-    date_of_birth: '',
-    avatar_url: ''
+    first_name: '',
+    last_name: '',
+    date_of_birth: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -36,7 +36,7 @@ const AddDependentModal = ({ isOpen, onClose, onSuccess }) => {
       if (age >= 13) {
         setAgeWarning(
           `Child is ${age} years old. Dependent profiles are for children under 13. ` +
-          'Please create an independent account instead.'
+          'For teens 13+, use "Connect to Existing Student" instead.'
         );
       } else if (age < 5) {
         setAgeWarning(
@@ -55,8 +55,13 @@ const AddDependentModal = ({ isOpen, onClose, onSuccess }) => {
     setError('');
 
     // Validate required fields
-    if (!formData.display_name.trim()) {
-      setError('Display name is required');
+    if (!formData.first_name.trim()) {
+      setError('First name is required');
+      return;
+    }
+
+    if (!formData.last_name.trim()) {
+      setError('Last name is required');
       return;
     }
 
@@ -70,7 +75,7 @@ const AddDependentModal = ({ isOpen, onClose, onSuccess }) => {
     if (age >= 13) {
       setError(
         `Child must be under 13 years old (currently ${age}). ` +
-        'For children 13+, please create an independent account.'
+        'For teens 13+, use "Connect to Existing Student" instead.'
       );
       return;
     }
@@ -78,23 +83,24 @@ const AddDependentModal = ({ isOpen, onClose, onSuccess }) => {
     setIsSubmitting(true);
 
     try {
+      const displayName = `${formData.first_name.trim()} ${formData.last_name.trim()}`;
       const response = await createDependent({
-        display_name: formData.display_name.trim(),
+        display_name: displayName,
         date_of_birth: formData.date_of_birth,
-        avatar_url: formData.avatar_url.trim() || null
+        avatar_url: null
       });
 
       // Success
       onSuccess({
-        message: response.message || `Dependent profile created for ${formData.display_name}`,
+        message: response.message || `Dependent profile created for ${displayName}`,
         dependent: response.dependent
       });
 
       // Reset form
       setFormData({
-        display_name: '',
-        date_of_birth: '',
-        avatar_url: ''
+        first_name: '',
+        last_name: '',
+        date_of_birth: ''
       });
       setAgeWarning('');
       onClose();
@@ -108,9 +114,9 @@ const AddDependentModal = ({ isOpen, onClose, onSuccess }) => {
   const handleClose = () => {
     if (!isSubmitting) {
       setFormData({
-        display_name: '',
-        date_of_birth: '',
-        avatar_url: ''
+        first_name: '',
+        last_name: '',
+        date_of_birth: ''
       });
       setError('');
       setAgeWarning('');
@@ -126,7 +132,7 @@ const AddDependentModal = ({ isOpen, onClose, onSuccess }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center p-4" onClick={(e) => {
       if (e.target === e.currentTarget) handleClose();
     }}>
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-optio-purple to-optio-pink">
           <h2 className="text-xl font-semibold text-white font-['Poppins']">
@@ -148,21 +154,37 @@ const AddDependentModal = ({ isOpen, onClose, onSuccess }) => {
             <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-blue-800">
               <strong>COPPA Compliance:</strong> Dependent profiles are for children under 13.
-              They won't have email/password until promoted to an independent account at age 13.
+              No email/password required. At age 13, you can optionally create login credentials for them.
             </div>
           </div>
 
-          {/* Display Name */}
+          {/* First Name */}
           <div>
-            <label htmlFor="display_name" className="block text-sm font-medium text-gray-700 mb-1">
-              Display Name <span className="text-red-500">*</span>
+            <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-1">
+              First Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
-              id="display_name"
-              value={formData.display_name}
-              onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
-              placeholder="e.g., Alex, Sam, Jordan"
+              id="first_name"
+              value={formData.first_name}
+              onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+              placeholder="e.g., Alex"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
+              disabled={isSubmitting}
+            />
+          </div>
+
+          {/* Last Name */}
+          <div>
+            <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-1">
+              Last Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="last_name"
+              value={formData.last_name}
+              onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+              placeholder="e.g., Smith"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
               disabled={isSubmitting}
             />
@@ -193,25 +215,6 @@ const AddDependentModal = ({ isOpen, onClose, onSuccess }) => {
               </div>
             </div>
           )}
-
-          {/* Avatar URL (Optional) */}
-          <div>
-            <label htmlFor="avatar_url" className="block text-sm font-medium text-gray-700 mb-1">
-              Avatar URL <span className="text-gray-400">(Optional)</span>
-            </label>
-            <input
-              type="url"
-              id="avatar_url"
-              value={formData.avatar_url}
-              onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
-              placeholder="https://example.com/avatar.png"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
-              disabled={isSubmitting}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Optional: URL to a profile picture for this dependent
-            </p>
-          </div>
 
           {/* Error Message */}
           {error && (

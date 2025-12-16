@@ -329,7 +329,7 @@ const ParentDashboardPage = () => {
                     <li>• Full access to manage their quests and tasks</li>
                     <li>• Upload evidence and track progress</li>
                     <li>• Mark tasks as complete on their behalf</li>
-                    <li>• COPPA-compliant (no email required until age 13)</li>
+                    <li>• COPPA-compliant (no email required, optional at age 13)</li>
                   </ul>
                 </div>
               </div>
@@ -365,7 +365,7 @@ const ParentDashboardPage = () => {
           {/* Info Notice */}
           <div className="mt-6 bg-purple-50 border border-purple-200 rounded-lg p-4">
             <p className="text-sm text-purple-900 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              💡 <strong>Not sure which option?</strong> If your child is under 13, start with "Create Child Profile." For teens who already have an account, use "Connect to Existing Student."
+              💡 <strong>Not sure which option?</strong> If your child is under 13, start with "Create Child Profile." For teens 13+, use "Connect to Existing Student" (login credentials optional).
             </p>
           </div>
         </div>
