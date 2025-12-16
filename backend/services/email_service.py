@@ -75,6 +75,10 @@ class EmailService(BaseService):
             if cc:
                 msg['Cc'] = ', '.join(cc)
 
+            # Note: BCC header is intentionally NOT set in the message itself
+            # BCC recipients are only added to the SMTP envelope (to_addrs)
+            # This prevents BCC recipients from being visible in the email headers
+
             # Add plain text part if provided
             if text_body:
                 text_part = MIMEText(text_body, 'plain')
@@ -104,13 +108,16 @@ class EmailService(BaseService):
             if bcc:
                 recipients.extend(bcc)
 
+            # Log full recipient list for debugging
+            logger.info(f"SMTP envelope recipients: to={to_email}, cc={cc}, bcc={bcc}, total_recipients={recipients}")
+
             # Send email
             with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
                 server.starttls()
                 server.login(self.smtp_user, self.smtp_pass)
                 server.send_message(msg, to_addrs=recipients)
 
-            logger.info(f"Email sent successfully to {to_email}")
+            logger.info(f"Email sent successfully to {to_email} (with {len(recipients)} total recipients)")
             return True
 
         except Exception as e:
