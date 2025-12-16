@@ -77,36 +77,67 @@ class DependentRepository(BaseRepository):
         # Calculate promotion eligibility date (13th birthday)
         promotion_eligible_at = date_of_birth + relativedelta(years=13)
 
-        # Generate UUID for dependent
-        import uuid
-        dependent_id = str(uuid.uuid4())
-
         # Inherit organization_id from parent
         parent_org_id = parent.data.get('organization_id')
 
-        # Create dependent user record with all required fields
-        dependent_data = {
-            'id': dependent_id,
-            'display_name': display_name,
-            'date_of_birth': str(date_of_birth),
-            'avatar_url': avatar_url,
-            'is_dependent': True,
-            'managed_by_parent_id': parent_id,
-            'promotion_eligible_at': str(promotion_eligible_at),
-            'role': 'student',
-            'email': None,  # COPPA compliance - no email for dependents
-            'organization_id': parent_org_id,  # Inherit from parent
-            'total_xp': 0,
-            'level': 1,
-            'streak_days': 0,
-            'first_name': display_name.split()[0] if display_name else 'Child',
-            'last_name': ' '.join(display_name.split()[1:]) if len(display_name.split()) > 1 else ''
-        }
-
         try:
+            # Step 1: Create a stub auth account (COPPA-compliant, no login)
+            # Use a placeholder email that can't be used for login
+            import uuid
+            import secrets
+
+            # Generate unique placeholder email
+            random_suffix = secrets.token_hex(16)
+            placeholder_email = f"dependent_{random_suffix}@optio-internal-placeholder.local"
+
+            # Create disabled auth account
+            auth_response = self.client.auth.admin.create_user({
+                'email': placeholder_email,
+                'email_confirm': False,  # Don't send confirmation email
+                'user_metadata': {
+                    'is_dependent': True,
+                    'managed_by_parent_id': parent_id,
+                    'display_name': display_name,
+                    'created_as_dependent': True
+                },
+                'app_metadata': {
+                    'provider': 'dependent',
+                    'providers': ['dependent']
+                }
+            })
+
+            if not auth_response.user:
+                raise ValidationError("Failed to create auth account for dependent")
+
+            dependent_id = auth_response.user.id
+
+            # Step 2: Create dependent user record in public.users
+            dependent_data = {
+                'id': dependent_id,
+                'display_name': display_name,
+                'date_of_birth': str(date_of_birth),
+                'avatar_url': avatar_url,
+                'is_dependent': True,
+                'managed_by_parent_id': parent_id,
+                'promotion_eligible_at': str(promotion_eligible_at),
+                'role': 'student',
+                'email': None,  # COPPA compliance - no visible email for dependents
+                'organization_id': parent_org_id,  # Inherit from parent
+                'total_xp': 0,
+                'level': 1,
+                'streak_days': 0,
+                'first_name': display_name.split()[0] if display_name else 'Child',
+                'last_name': ' '.join(display_name.split()[1:]) if len(display_name.split()) > 1 else ''
+            }
+
             result = self.client.table('users').insert(dependent_data).execute()
 
             if not result.data:
+                # Rollback: delete auth user if public.users insert fails
+                try:
+                    self.client.auth.admin.delete_user(dependent_id)
+                except:
+                    pass
                 raise ValidationError("Failed to create dependent profile")
 
             logger.info(f"Created dependent profile {result.data[0]['id']} for parent {parent_id}")

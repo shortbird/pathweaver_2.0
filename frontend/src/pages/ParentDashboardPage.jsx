@@ -54,6 +54,7 @@ const ParentDashboardPage = () => {
   const [currentProfile, setCurrentProfile] = useState(null);
   const [showAddDependentModal, setShowAddDependentModal] = useState(false);
   const [showRequestConnectionModal, setShowRequestConnectionModal] = useState(false);
+  const [showAddChildMenu, setShowAddChildMenu] = useState(false);
 
   // Pillar display names mapping
   const pillarDisplayNames = {
@@ -349,12 +350,13 @@ const ParentDashboardPage = () => {
                     Connect to Existing Student (13+)
                   </h3>
                   <p className="text-gray-600 font-medium mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    For teens with their own Optio account, send a connection request to view their progress and support their learning.
+                    For teens with their own Optio account, email support@optioeducation.com to request a connection.
                   </p>
                   <ul className="space-y-1 text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
                     <li>• View their learning progress and achievements</li>
                     <li>• Upload evidence to help with quest tasks</li>
                     <li>• Student maintains control (marks tasks complete)</li>
+                    <li>• Requires manual verification by Optio Support</li>
                   </ul>
                 </div>
               </div>
@@ -379,10 +381,6 @@ const ParentDashboardPage = () => {
         <RequestStudentConnectionModal
           isOpen={showRequestConnectionModal}
           onClose={() => setShowRequestConnectionModal(false)}
-          onSuccess={(result) => {
-            toast.success(result.message);
-            setShowRequestConnectionModal(false);
-          }}
         />
       </div>
     );
@@ -426,13 +424,68 @@ const ParentDashboardPage = () => {
         </div>
 
         {/* Multi-Child Selector + Profile Switcher + Learning Rhythm Indicator + Add Child Button */}
-        <div className="flex gap-3 items-center">
+        <div className="flex gap-3 items-center flex-wrap">
           {/* Profile Switcher (Parent <-> Dependents) */}
           <ProfileSwitcher
             currentProfile={currentProfile}
             onProfileChange={handleProfileChange}
             onAddDependent={handleAddDependent}
           />
+
+          {/* Add Child Dropdown Menu */}
+          <div className="relative">
+            <button
+              onClick={() => setShowAddChildMenu(!showAddChildMenu)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:shadow-md transition-all font-semibold"
+              style={{ fontFamily: 'Poppins, sans-serif' }}
+            >
+              <PlusIcon className="w-4 h-4" />
+              <span className="text-sm">Add Child</span>
+            </button>
+
+            {showAddChildMenu && (
+              <>
+                {/* Backdrop to close menu */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowAddChildMenu(false)}
+                />
+
+                {/* Dropdown Menu */}
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-20 overflow-hidden">
+                  <button
+                    onClick={() => {
+                      setShowAddChildMenu(false);
+                      setShowAddDependentModal(true);
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-purple-50 transition-colors border-b border-gray-200"
+                  >
+                    <div className="font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      Create Child Profile (Under 13)
+                    </div>
+                    <div className="text-xs text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      Manage their account fully
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowAddChildMenu(false);
+                      setShowRequestConnectionModal(true);
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-pink-50 transition-colors"
+                  >
+                    <div className="font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      Connect Existing Student (13+)
+                    </div>
+                    <div className="text-xs text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      Contact support to link their account
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Learning Rhythm Indicator - Clickable */}
           <button
@@ -1306,10 +1359,6 @@ const ParentDashboardPage = () => {
       <RequestStudentConnectionModal
         isOpen={showRequestConnectionModal}
         onClose={() => setShowRequestConnectionModal(false)}
-        onSuccess={(result) => {
-          toast.success(result.message);
-          setShowRequestConnectionModal(false);
-        }}
       />
     </div>
   );
