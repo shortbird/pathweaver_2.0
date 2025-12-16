@@ -88,10 +88,14 @@ class EmailService(BaseService):
             msg['X-SMTPAPI'] = '{"filters": {"clicktrack": {"settings": {"enable": 0}}}}'
 
             # Automatically BCC support email for monitoring all outgoing emails
-            support_email = 'support@optioeducation.com'
+            support_email = os.getenv('SUPPORT_EMAIL', 'support@optioeducation.com')
             bcc = bcc or []
-            if support_email not in bcc:
+            cc = cc or []
+
+            # Only add to BCC if not already in CC or BCC (avoid duplicates)
+            if support_email not in bcc and support_email not in cc:
                 bcc.append(support_email)
+                logger.info(f"Automatically adding {support_email} to BCC for email to {to_email}")
 
             # Prepare recipient list
             recipients = [to_email]
