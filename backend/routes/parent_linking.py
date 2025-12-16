@@ -35,7 +35,7 @@ def get_linked_children(user_id):
     try:
         supabase = get_supabase_admin_client()
 
-        # Get all linked students (links are permanent once created)
+        # Get all linked students (only approved links)
         links_response = supabase.table('parent_student_links').select('''
             id,
             student_user_id,
@@ -48,7 +48,7 @@ def get_linked_children(user_id):
                 level,
                 total_xp
             )
-        ''').eq('parent_user_id', user_id).execute()
+        ''').eq('parent_user_id', user_id).eq('status', 'approved').execute()
 
         if not links_response.data:
             return jsonify({'children': []}), 200
@@ -472,3 +472,167 @@ def submit_connection_requests(user_id):
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': 'Failed to submit connection requests'}), 500
+
+
+# ============================================================================
+# STUDENT ENDPOINTS - Approve/Reject Connection Requests
+# ============================================================================
+
+@bp.route('/pending-requests', methods=['GET'])
+@require_auth
+def get_pending_requests(user_id):
+    """
+    Student views pending parent connection requests.
+    Returns list of parents requesting to link to this student's account.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get pending requests where this user is the student
+        pending_response = supabase.table('parent_student_links').select('''
+            id,
+            parent_user_id,
+            created_at,
+            users!parent_student_links_parent_user_id_fkey(
+                id,
+                first_name,
+                last_name,
+                email,
+                avatar_url
+            )
+        ''').eq('student_user_id', user_id).eq('status', 'pending_approval').execute()
+
+        pending_requests = []
+        if pending_response.data:
+            for link in pending_response.data:
+                parent = link.get('users')
+                if parent:
+                    pending_requests.append({
+                        'link_id': link['id'],
+                        'parent_id': link['parent_user_id'],
+                        'parent_first_name': parent.get('first_name'),
+                        'parent_last_name': parent.get('last_name'),
+                        'parent_email': parent.get('email'),
+                        'parent_avatar_url': parent.get('avatar_url'),
+                        'requested_at': link['created_at']
+                    })
+
+        return jsonify({
+            'success': True,
+            'pending_requests': pending_requests,
+            'count': len(pending_requests)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting pending requests: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': 'Failed to fetch pending requests'}), 500
+
+
+@bp.route('/approve-request/<link_id>', methods=['POST'])
+@require_auth
+def approve_connection_request(user_id, link_id):
+    """
+    Student approves a parent connection request.
+    Updates link status from 'pending_approval' to 'approved'.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get the link and verify it's pending and belongs to this student
+        link_response = supabase.table('parent_student_links').select('''
+            id, parent_user_id, student_user_id, status
+        ''').eq('id', link_id).single().execute()
+
+        if not link_response.data:
+            raise NotFoundError("Connection request not found")
+
+        link = link_response.data
+
+        # Verify this student owns the request
+        if link['student_user_id'] != user_id:
+            raise AuthorizationError("You can only approve requests for your own account")
+
+        # Verify status is pending
+        if link['status'] != 'pending_approval':
+            return jsonify({
+                'success': False,
+                'error': f'This request has already been {link["status"]}'
+            }), 400
+
+        # Update status to approved
+        supabase.table('parent_student_links').update({
+            'status': 'approved',
+            'updated_at': datetime.utcnow().isoformat()
+        }).eq('id', link_id).execute()
+
+        logger.info(f"Student {user_id} approved parent connection request {link_id}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Parent connection approved successfully'
+        }), 200
+
+    except (NotFoundError, AuthorizationError) as e:
+        logger.warning(f"Authorization error approving request: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error approving connection request: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': 'Failed to approve connection request'}), 500
+
+
+@bp.route('/reject-request/<link_id>', methods=['POST'])
+@require_auth
+def reject_connection_request(user_id, link_id):
+    """
+    Student rejects a parent connection request.
+    Updates link status from 'pending_approval' to 'rejected'.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get the link and verify it's pending and belongs to this student
+        link_response = supabase.table('parent_student_links').select('''
+            id, parent_user_id, student_user_id, status
+        ''').eq('id', link_id).single().execute()
+
+        if not link_response.data:
+            raise NotFoundError("Connection request not found")
+
+        link = link_response.data
+
+        # Verify this student owns the request
+        if link['student_user_id'] != user_id:
+            raise AuthorizationError("You can only reject requests for your own account")
+
+        # Verify status is pending
+        if link['status'] != 'pending_approval':
+            return jsonify({
+                'success': False,
+                'error': f'This request has already been {link["status"]}'
+            }), 400
+
+        # Update status to rejected
+        supabase.table('parent_student_links').update({
+            'status': 'rejected',
+            'updated_at': datetime.utcnow().isoformat()
+        }).eq('id', link_id).execute()
+
+        logger.info(f"Student {user_id} rejected parent connection request {link_id}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Parent connection rejected'
+        }), 200
+
+    except (NotFoundError, AuthorizationError) as e:
+        logger.warning(f"Authorization error rejecting request: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error rejecting connection request: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': 'Failed to reject connection request'}), 500
