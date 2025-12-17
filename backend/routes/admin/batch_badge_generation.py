@@ -1,4 +1,10 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Uses BatchBadgeGenerationService exclusively (service layer pattern)
+- AI-driven batch badge creation workflow
+- Service layer essential for complex AI orchestration
+- No direct database calls - all delegated to service
+
 Admin Batch Badge Generation Routes
 
 Provides endpoints for:

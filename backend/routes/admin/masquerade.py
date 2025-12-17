@@ -1,4 +1,11 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED - Admin Utility
+- Masquerade functionality (admin impersonation for debugging)
+- Uses session_manager for session handling
+- Minimal database access (user lookup only)
+- Admin utility endpoints don't benefit from repository abstraction
+- Security-focused code should remain simple and transparent
+
 Admin masquerade routes - Allow admins to view platform as other users
 """
 from flask import Blueprint, jsonify, request

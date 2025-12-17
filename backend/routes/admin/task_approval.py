@@ -1,4 +1,14 @@
 """
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- 10+ direct database calls for task approval workflow
+- Task review, approval, rejection, flagging operations
+- Could create TaskApprovalRepository with methods:
+  - get_pending_approvals(filters)
+  - approve_task(task_id, admin_id)
+  - reject_task(task_id, admin_id, reason)
+  - get_approval_history(task_id)
+- Currently imports repositories but doesn't use them (lines 10-20)
+
 Admin Task Approval Routes
 ===========================
 

@@ -1,4 +1,10 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Uses BatchQuestGenerationService exclusively (service layer pattern)
+- AI-driven batch generation workflow
+- Service layer essential for complex AI orchestration
+- No direct database calls - all delegated to service
+
 Admin Batch Quest Generation Routes
 
 Provides endpoints for:

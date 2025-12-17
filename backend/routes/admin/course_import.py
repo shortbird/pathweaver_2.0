@@ -1,4 +1,10 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Uses IMSCCParserService for IMSCC file parsing (service layer pattern)
+- LMS integration/import functionality
+- Service layer essential for complex file parsing and mapping logic
+- Integration endpoints don't benefit from repository abstraction
+
 Admin Course Import Routes
 
 Handles importing LMS course packages (IMSCC format) and previewing
