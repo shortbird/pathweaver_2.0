@@ -548,11 +548,21 @@ class QuestRepository(BaseRepository):
                 else:
                     policy = org_response.data.get('quest_visibility_policy', 'all_optio')
 
+            # Apply search filter early to reduce result set BEFORE complex org filtering
+            # This prevents stack depth errors by simplifying the query plan
+            filters = filters or {}
+            search_term = filters.get('search')
+
             # Base query: only active and public quests
             # Use admin client to bypass RLS and apply our own visibility logic
             query = admin.table('quests').select('*', count='exact').eq('is_active', True).eq('is_public', True)
 
+            # Apply search FIRST (before org filtering) to reduce result set
+            if search_term:
+                query = query.ilike('title', f'%{search_term}%')
+
             # Apply organization visibility policy
+            # Note: Since we applied search first, the org filtering now operates on a smaller set
             if policy == 'all_optio':
                 if org_id:
                     # Global quests (NULL org_id) + organization quests
@@ -600,17 +610,11 @@ class QuestRepository(BaseRepository):
                         f'created_by.eq.{user_id}'
                     )
 
-            # Apply additional filters
-            filters = filters or {}
+            # Apply additional non-search filters
             if filters.get('pillar'):
                 query = query.eq('pillar_primary', filters['pillar'])
             if filters.get('quest_type'):
                 query = query.eq('quest_type', filters['quest_type'])
-            if filters.get('search'):
-                # Search in title only (simple, no .or_() conflicts)
-                # Most quest info is in the title anyway (e.g., "Khan Academy - Algebra 1")
-                search_term = filters['search']
-                query = query.ilike('title', f'%{search_term}%')
 
             # Pagination for infinite scroll
             offset = (page - 1) * limit
