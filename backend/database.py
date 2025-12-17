@@ -1,7 +1,9 @@
 from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions
 from app_config import Config
 from flask import request, g
 from typing import Optional
+import httpx
 
 # Lazy logger import to avoid circular dependency
 # Logger is initialized after config is loaded
@@ -15,6 +17,38 @@ def _get_logger():
         _logger = get_logger(__name__)
     return _logger
 
+def _get_client_options() -> ClientOptions:
+    """
+    Create Supabase client options with connection pooling configuration.
+
+    Uses httpx.Limits to configure connection pool:
+    - max_connections: Total connection pool size (SUPABASE_POOL_SIZE)
+    - max_keepalive_connections: Idle connections to keep alive (SUPABASE_POOL_SIZE)
+    - keepalive_expiry: Connection lifetime (SUPABASE_CONN_LIFETIME)
+
+    Returns:
+        ClientOptions configured with connection pooling
+    """
+    # Configure httpx connection limits from app config
+    limits = httpx.Limits(
+        max_connections=Config.SUPABASE_POOL_SIZE,  # Total pool size (default: 10)
+        max_keepalive_connections=Config.SUPABASE_POOL_SIZE,  # Keep-alive connections
+        keepalive_expiry=Config.SUPABASE_CONN_LIFETIME  # Connection lifetime in seconds (default: 3600)
+    )
+
+    # Create httpx client with pooling configuration
+    # timeout is set via SUPABASE_POOL_TIMEOUT
+    http_client = httpx.Client(
+        limits=limits,
+        timeout=Config.SUPABASE_POOL_TIMEOUT  # Request timeout (default: 30s)
+    )
+
+    # Return ClientOptions with custom httpx client
+    return ClientOptions(
+        postgrest_client_timeout=Config.SUPABASE_POOL_TIMEOUT,
+        storage_client_timeout=Config.SUPABASE_POOL_TIMEOUT
+    )
+
 # Create singleton client for anonymous operations only
 # Admin client is per-request (cached in Flask's g) to prevent HTTP/2 exhaustion
 _supabase_client = None
@@ -26,9 +60,15 @@ def get_supabase_client() -> Client:
     if not Config.SUPABASE_URL or not Config.SUPABASE_ANON_KEY:
         raise ValueError("Missing Supabase configuration. Check SUPABASE_URL and SUPABASE_ANON_KEY environment variables.")
 
-    # Create singleton client - supabase-py handles connection pooling internally
+    # Create singleton client with connection pooling configuration
     if _supabase_client is None:
-        _supabase_client = create_client(Config.SUPABASE_URL, Config.SUPABASE_ANON_KEY)
+        options = _get_client_options()
+        _supabase_client = create_client(
+            Config.SUPABASE_URL,
+            Config.SUPABASE_ANON_KEY,
+            options=options
+        )
+        _get_logger().info(f"[DATABASE] Created anonymous client with connection pool (size={Config.SUPABASE_POOL_SIZE}, timeout={Config.SUPABASE_POOL_TIMEOUT}s)")
 
     return _supabase_client
 
@@ -48,7 +88,13 @@ def get_supabase_admin_singleton() -> Client:
         raise ValueError("Missing Supabase admin configuration. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.")
 
     if _supabase_admin_singleton is None:
-        _supabase_admin_singleton = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
+        options = _get_client_options()
+        _supabase_admin_singleton = create_client(
+            Config.SUPABASE_URL,
+            Config.SUPABASE_SERVICE_ROLE_KEY,
+            options=options
+        )
+        _get_logger().info(f"[DATABASE] Created admin singleton client with connection pool (size={Config.SUPABASE_POOL_SIZE}, timeout={Config.SUPABASE_POOL_TIMEOUT}s)")
 
     return _supabase_admin_singleton
 
@@ -72,8 +118,13 @@ def get_supabase_admin_client() -> Client:
     # This prevents HTTP/2 stream exhaustion from singleton pattern
     # while still limiting to one client per request
     if not hasattr(g, '_admin_client'):
-        g._admin_client = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
-        _get_logger().debug("Created new admin client for request")
+        options = _get_client_options()
+        g._admin_client = create_client(
+            Config.SUPABASE_URL,
+            Config.SUPABASE_SERVICE_ROLE_KEY,
+            options=options
+        )
+        _get_logger().debug(f"[DATABASE] Created request-scoped admin client with connection pool")
 
     return g._admin_client
 
@@ -160,14 +211,16 @@ def get_user_client(token: Optional[str] = None) -> Client:
             # IMPORTANT: ClientOptions headers don't work for auth context in supabase-py
             # We must use postgrest.auth() to set the token for RLS policies
             _get_logger().info(f"[GET_USER_CLIENT] Creating client with JWT token for RLS")
+            options = _get_client_options()
             client = create_client(
                 Config.SUPABASE_URL,
-                Config.SUPABASE_ANON_KEY
+                Config.SUPABASE_ANON_KEY,
+                options=options
             )
             # Set auth token on postgrest client for RLS to work with auth.uid()
             # This is the correct way to enable RLS in supabase-py
             client.postgrest.auth(token)
-            _get_logger().info(f"[GET_USER_CLIENT] Client created with postgrest.auth() for RLS")
+            _get_logger().info(f"[GET_USER_CLIENT] Client created with postgrest.auth() and connection pool for RLS")
             # Cache in Flask g context for this request
             setattr(g, cache_key, client)
             return client
