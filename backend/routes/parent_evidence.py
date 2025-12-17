@@ -95,7 +95,7 @@ def upload_evidence_inline(user_id):
         # Check parent_student_links for 13+ students
         link_check = admin_client.table('parent_student_links')\
             .select('id')\
-            .eq('parent_id', user_id)\
+            .eq('parent_user_id', user_id)\
             .eq('student_user_id', student_id)\
             .eq('status', 'active')\
             .execute()
