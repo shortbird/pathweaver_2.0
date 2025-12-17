@@ -156,49 +156,7 @@ class Config:
     # Stripe Configuration
     STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
     STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
-    
-    # Subscription tier price IDs - Monthly only (no yearly billing)
-    STRIPE_FREE_PRICE_ID = None  # Free tier has no Stripe price
-    STRIPE_PARENT_SUPPORTED_PRICE_ID = os.getenv('STRIPE_PARENT_SUPPORTED_MONTHLY_PRICE_ID', os.getenv('STRIPE_ACCELERATE_MONTHLY_PRICE_ID'))  # $50/month
-    STRIPE_WEEKLY_PRICE_ID = os.getenv('STRIPE_WEEKLY_MONTHLY_PRICE_ID', os.getenv('STRIPE_ACHIEVE_MONTHLY_PRICE_ID'))  # $300/month
-    STRIPE_DAILY_PRICE_ID = os.getenv('STRIPE_DAILY_MONTHLY_PRICE_ID', os.getenv('STRIPE_EXCEL_MONTHLY_PRICE_ID'))  # $600/month
 
-    # Stripe configuration mapping (monthly only)
-    STRIPE_TIER_PRICES = {
-        'Free': None,
-        'Parent Supported': STRIPE_PARENT_SUPPORTED_PRICE_ID,
-        'Weekly': STRIPE_WEEKLY_PRICE_ID,
-        'Daily': STRIPE_DAILY_PRICE_ID
-    }
-
-    # Tier features and limits (NOTE: Frontend uses database subscription_tiers as single source of truth)
-    TIER_FEATURES = {
-        'Free': {
-            'name': 'Free',
-            'price_monthly': 0,
-            'max_quests': None,  # Unlimited
-            'features': ['Quest library access', 'Portfolio tracking', 'Quest customization']
-        },
-        'Parent Supported': {
-            'name': 'Parent Supported',
-            'price_monthly': 50.00,
-            'max_quests': None,  # Unlimited
-            'features': ['Everything in Free', 'Badge library', 'Advanced parent tools', 'Priority support']
-        },
-        'Weekly': {
-            'name': 'Weekly',
-            'price_monthly': 300.00,
-            'max_quests': None,  # Unlimited
-            'features': ['Everything in Parent Supported', 'Weekly educator check-ins', 'Quarterly strategy sessions']
-        },
-        'Daily': {
-            'name': 'Daily',
-            'price_monthly': 600.00,
-            'max_quests': None,  # Unlimited
-            'features': ['Everything in Weekly', 'Daily educator availability', 'Near-immediate support']
-        }
-    }
-    
     # Rate Limiting - CONFIGURABLE
     RATE_LIMIT_ENABLED = os.getenv('RATE_LIMIT_ENABLED', 'true').lower() == 'true'
     RATE_LIMIT_DEFAULT = os.getenv('RATE_LIMIT_DEFAULT', '100 per hour')

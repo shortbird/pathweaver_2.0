@@ -202,8 +202,7 @@ def update_user(user_id, target_user_id):
             'first_name', 'last_name', 'email',
             'phone_number', 'address_line1', 'address_line2',
             'city', 'state', 'postal_code', 'country',
-            'date_of_birth',
-            'subscription_tier', 'subscription_status'
+            'date_of_birth'
         ]
 
         for field in allowed_fields:
@@ -232,54 +231,6 @@ def update_user(user_id, target_user_id):
         return jsonify({
             'success': False,
             'error': f'Failed to update user: {str(e)}'
-        }), 500
-
-@bp.route('/users/<target_user_id>/subscription', methods=['POST'])
-@require_admin
-def update_user_subscription(user_id, target_user_id):
-    """Update user subscription tier"""
-    supabase = get_supabase_admin_client()
-
-    try:
-        data = request.json
-        subscription_tier = data.get('subscription_tier')
-
-        if not subscription_tier:
-            return jsonify({'success': False, 'error': 'Subscription tier is required'}), 400
-
-        # Fetch valid tier keys from database (single source of truth)
-        tiers_result = supabase.table('subscription_tiers').select('tier_key, display_name').eq('is_active', True).execute()
-        valid_tiers = [tier['tier_key'] for tier in tiers_result.data] if tiers_result.data else []
-
-        if not valid_tiers:
-            logger.warning("Warning: No active subscription tiers found in database")
-            valid_tiers = ['Explore', 'Accelerate', 'Achieve', 'Excel']  # Fallback
-
-        if subscription_tier not in valid_tiers:
-            return jsonify({'success': False, 'error': f'Invalid subscription tier. Must be one of: {valid_tiers}'}), 400
-
-        # Update subscription
-        update_data = {
-            'subscription_tier': subscription_tier,
-            'subscription_status': 'active'
-        }
-
-        result = supabase.table('users').update(update_data).eq('id', target_user_id).execute()
-
-        if not result.data:
-            return jsonify({'success': False, 'error': 'User not found'}), 404
-
-        return jsonify({
-            'success': True,
-            'message': f'User subscription updated to {subscription_tier}',
-            'user': result.data[0]
-        })
-
-    except Exception as e:
-        logger.error(f"Error updating subscription: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to update subscription: {str(e)}'
         }), 500
 
 @bp.route('/users/<target_user_id>/role', methods=['PUT'])
@@ -339,46 +290,6 @@ def update_user_role(user_id, target_user_id):
         return jsonify({
             'success': False,
             'error': f'Failed to update role: {str(e)}'
-        }), 500
-
-@bp.route('/users/<target_user_id>/toggle-status', methods=['POST'])
-@require_admin
-def toggle_user_status(user_id, target_user_id):
-    """Toggle user active/inactive status"""
-    supabase = get_supabase_admin_client()
-
-    try:
-        # Prevent admin from deactivating themselves
-        if target_user_id == user_id:
-            return jsonify({'success': False, 'error': 'Cannot deactivate your own account'}), 403
-
-        # Get current user
-        user = supabase.table('users').select('subscription_status').eq('id', target_user_id).single().execute()
-
-        if not user.data:
-            return jsonify({'success': False, 'error': 'User not found'}), 404
-
-        current_status = user.data.get('subscription_status', 'active')
-        new_status = 'inactive' if current_status == 'active' else 'active'
-
-        # Update status (note: users table has no updated_at column)
-        update_data = {
-            'subscription_status': new_status
-        }
-
-        result = supabase.table('users').update(update_data).eq('id', target_user_id).execute()
-
-        return jsonify({
-            'success': True,
-            'message': f'User status changed to {new_status}',
-            'user': result.data[0]
-        })
-
-    except Exception as e:
-        logger.error(f"Error toggling user status: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to update user status: {str(e)}'
         }), 500
 
 @bp.route('/users/<target_user_id>', methods=['DELETE'])
