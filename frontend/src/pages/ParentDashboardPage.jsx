@@ -529,9 +529,10 @@ const ParentDashboardPage = () => {
                   const age = dependent.age || calculateAge(dependent.date_of_birth);
                   const isUnder13 = age !== null && age < 13;
                   const isSelected = selectedStudentId === dependent.id;
+                  const firstName = dependent.display_name?.split(' ')[0] || dependent.display_name;
 
                   return (
-                    <div key={dependent.id} className="flex items-start gap-2 relative">
+                    <div key={dependent.id} className="flex items-center gap-3">
                       <button
                         onClick={() => setSelectedStudentId(dependent.id)}
                         className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
@@ -543,11 +544,6 @@ const ParentDashboardPage = () => {
                       >
                         <UserGroupIcon className="w-5 h-5" />
                         {dependent.display_name}
-                        {isUnder13 && (
-                          <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
-                            Under 13
-                          </span>
-                        )}
                       </button>
 
                       {/* "Act As" button for under-13 dependents */}
@@ -557,10 +553,10 @@ const ParentDashboardPage = () => {
                             e.stopPropagation();
                             handleActAsDependent(dependent);
                           }}
-                          className="absolute -top-1 right-0 px-3 py-1 text-xs font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity shadow-sm"
+                          className="px-3 py-1 text-xs font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity shadow-sm whitespace-nowrap"
                           style={{ fontFamily: 'Poppins, sans-serif' }}
                         >
-                          Manage Account
+                          Act As {firstName}
                         </button>
                       )}
                     </div>
