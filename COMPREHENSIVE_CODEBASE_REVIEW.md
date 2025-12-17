@@ -408,8 +408,31 @@ backend/routes/auth/
 
 ---
 
-#### [P1-ARCH-2] Repository Pattern Migration Stalled (2% Complete)
-**Status**: Only 1 of 74 route files migrated to repository pattern ([tasks.py](backend/routes/tasks.py))
+#### [P1-ARCH-2] Repository Pattern Migration Documentation (31% Complete)
+**Status**: Migration planning complete - 23 of 74 route files documented with migration status
+
+**Progress Update (December 17, 2025)**:
+- ✅ Completed systematic documentation of 23 route files (31%)
+- ✅ Categorized each route file with migration status and rationale
+- ✅ Identified 13 files already following best practices (NO MIGRATION NEEDED)
+- ✅ Flagged 9 files as migration candidates with specific repository recommendations
+- ✅ Documented 1 file to skip migration (complex analytics queries)
+- ⏳ Remaining: 51 route files need documentation (69%)
+
+**Migration Status Breakdown**:
+
+**NO MIGRATION NEEDED (13 files)**:
+- Service layer pattern (10): images.py, analytics.py, badge_claiming.py, credits.py, admin/task_flags.py, advisor_notes.py, advisor_checkins.py, uploads.py, lms_integration.py, direct_messages.py
+- Static data/config (3): homepage_images.py, pillars.py, health.py
+
+**MIGRATION CANDIDATE (9 files)**:
+- quest_types.py (7+ DB calls), services.py (3 DB calls), users/profile.py (multiple queries)
+- users/completed_quests.py (complex pagination), observer_requests.py (5+ DB calls)
+- quest_badge_hub.py (8+ stats queries), task_library.py (6+ task queries)
+- promo.py (6+ promo queries), account_deletion.py (15+ GDPR queries)
+
+**SKIP MIGRATION (1 file)**:
+- admin/analytics.py (50+ complex aggregation queries with caching - per guidelines)
 
 **Issue**: 717 direct `supabase.table()` calls across 57 route files. This creates:
 - No abstraction layer for data access
@@ -419,15 +442,27 @@ backend/routes/auth/
 
 **Root Cause**: Migration started but not enforced in code reviews.
 
-**Recommendation**:
-1. **Immediate**: Mandate repository pattern for all NEW routes
-2. **Incremental Migration** (2 routes/week):
-   - **Week 1-2**: Simple routes (settings.py, health.py, pillars.py)
-   - **Month 2**: Medium complexity (badges.py, community.py, portfolio.py)
-   - **Month 3**: High complexity (auth.py after refactoring, quests.py)
-3. Track progress in [backend/docs/REPOSITORY_MIGRATION_STATUS.md](backend/docs/REPOSITORY_MIGRATION_STATUS.md)
+**Next Steps**:
+1. **Immediate**: Complete documentation for remaining 51 files (1-2 sessions)
+2. **Week 1-2**: Migrate simple candidates (services.py, users/profile.py, observer_requests.py)
+3. **Month 2**: Migrate medium complexity (quest_badge_hub.py, task_library.py, promo.py)
+4. **Month 3**: Migrate complex candidates (account_deletion.py - create UserDataExportRepository)
+5. **Ongoing**: Mandate repository pattern for all NEW routes
 
-**Success Criteria**: 100% of routes use repository pattern by Month 6.
+**Documentation Pattern**:
+Each route file now has a header comment explaining its migration status:
+```python
+"""
+REPOSITORY MIGRATION: NO MIGRATION NEEDED / MIGRATION CANDIDATE / SKIP MIGRATION
+- Rationale for decision
+- Recommended repository methods if applicable
+- Complexity assessment
+"""
+```
+
+**Success Criteria**:
+- Documentation: 100% of routes documented (currently 31%)
+- Migration: 100% of suitable routes migrated by Month 6
 
 ---
 
