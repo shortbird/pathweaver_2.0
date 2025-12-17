@@ -107,6 +107,11 @@ const ParentDashboardPage = () => {
 
   // Load children list (admin-only linking, no invitations) and dependents
   useEffect(() => {
+    // Skip loading if acting as dependent (will be redirected to student dashboard)
+    if (actingAsDependent) {
+      return;
+    }
+
     const loadChildrenAndDependents = async () => {
       try {
         // Load both linked students and dependents in parallel
@@ -144,11 +149,16 @@ const ParentDashboardPage = () => {
     if (user?.role === 'parent' || user?.role === 'admin') {
       loadChildrenAndDependents();
     }
-  }, [user]);
+  }, [user, actingAsDependent]);
 
 
   // Load dashboard data when student selected and children/dependents are loaded
   useEffect(() => {
+    // Skip loading if acting as dependent (will be redirected to student dashboard)
+    if (actingAsDependent) {
+      return;
+    }
+
     const loadDashboardData = async () => {
       // Wait until we have student data before trying to load dashboard
       if (!selectedStudentId || (children.length === 0 && dependents.length === 0)) {
@@ -188,7 +198,7 @@ const ParentDashboardPage = () => {
     };
 
     loadDashboardData();
-  }, [selectedStudentId, children.length, dependents.length, user]);
+  }, [selectedStudentId, children.length, dependents.length, user, actingAsDependent]);
 
   // Handle profile switching (parent <-> dependent)
   const handleProfileChange = async (profile) => {

@@ -136,8 +136,11 @@ const DashboardPage = () => {
   }
 
   // Check if user is new (created within the last 5 minutes)
-  const isNewUser = user?.created_at ? 
+  const isNewUser = user?.created_at ?
     (new Date() - new Date(user.created_at)) < 5 * 60 * 1000 : false
+
+  // Determine display name: dependent's name if acting as one, otherwise logged-in user
+  const displayName = actingAsDependent?.display_name?.split(' ')[0] || user?.first_name
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -145,7 +148,7 @@ const DashboardPage = () => {
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-            {isNewUser ? `Welcome to Optio, ${user?.first_name}!` : `Welcome back, ${user?.first_name}!`}
+            {isNewUser ? `Welcome to Optio, ${displayName}!` : `Welcome back, ${displayName}!`}
           </h1>
           <p className="text-gray-600 mt-2">
             {isNewUser ?
