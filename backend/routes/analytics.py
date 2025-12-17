@@ -4,6 +4,11 @@ Analytics API routes for activity tracking and insights.
 Simplified endpoints:
 - GET /api/analytics/popular-quests - Quest popularity metrics (admin only)
 - GET /api/analytics/event-counts - Event counts by category (admin only)
+
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Already uses AnalyticsService (service layer pattern) - best practice
+- Only direct DB call is _is_admin helper (simple role check)
+- Helper could use UserRepository, but query is trivial and acceptable
 """
 
 from flask import Blueprint, request, jsonify, g

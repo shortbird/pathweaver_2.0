@@ -1,6 +1,14 @@
 """
 Public API routes for services
 Handles public-facing service listing and inquiry submissions
+
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- 3 direct database calls to 'services' and 'service_inquiries' tables
+- Simple CRUD operations suitable for repository pattern
+- Could create ServicesRepository with methods:
+  - get_active_services()
+  - get_service_by_id(service_id)
+  - create_inquiry(inquiry_data)
 """
 
 from flask import Blueprint, request, jsonify

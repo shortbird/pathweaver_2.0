@@ -1,4 +1,12 @@
-"""User profile routes"""
+"""
+User profile routes
+
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- Multiple direct database calls to 'users' and 'user_quests' tables
+- Should use UserRepository for user CRUD operations
+- Helper functions in helpers.py may also need migration
+- Methods needed: get_user_profile_with_xp(), update_user_profile()
+"""
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth

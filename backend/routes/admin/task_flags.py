@@ -1,6 +1,11 @@
 """
 Admin Task Flags Routes
 API endpoints for reviewing and managing flagged tasks.
+
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Already uses TaskLibraryService (service layer pattern) - best practice
+- No direct database calls
+- Service layer is the preferred pattern over direct repository usage
 """
 
 from flask import Blueprint, jsonify, request

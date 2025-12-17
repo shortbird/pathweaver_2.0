@@ -1,3 +1,10 @@
+"""
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Health check endpoint with single simple database query for connectivity testing
+- Direct database access is appropriate here for monitoring/health checks
+- Should remain simple and lightweight (no repository overhead)
+"""
+
 from flask import Blueprint, jsonify, request
 from database import get_supabase_client
 from backend.repositories import (

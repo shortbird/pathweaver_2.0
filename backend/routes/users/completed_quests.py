@@ -1,4 +1,12 @@
-"""Completed quests routes"""
+"""
+Completed quests routes
+
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- Multiple direct database calls with complex queries (joins, pagination, aggregations)
+- Should use QuestRepository for quest queries
+- Helper function calculate_quest_xp needs migration to use TaskCompletionRepository
+- Complex pagination logic - may benefit from repository abstraction
+"""
 
 from flask import Blueprint, jsonify, request
 from database import get_user_client

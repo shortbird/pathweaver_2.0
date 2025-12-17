@@ -3,6 +3,11 @@ Pillars API - Public endpoint for pillar configuration data
 
 This endpoint serves pillar definitions to the frontend, eliminating
 the need for duplicate pillar mapping files across the codebase.
+
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Serves static configuration data from config/pillars.py
+- No database calls
+- No external API calls
 """
 
 from flask import Blueprint, jsonify

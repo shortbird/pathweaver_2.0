@@ -1,6 +1,12 @@
 """
 Task Library Routes
 API endpoints for browsing and selecting tasks from the shared library.
+
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- Uses TaskLibraryService (service layer) for library operations
+- Multiple direct database calls for task selection logic (6+ calls)
+- select_library_task endpoint has complex logic that should use TaskRepository
+- Quest enrollment checks could use QuestRepository
 """
 
 from flask import Blueprint, jsonify, request

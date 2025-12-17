@@ -1,5 +1,10 @@
 """
 Image search routes for quest cover images
+
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- This route uses ImageService (service layer pattern) - already following best practices
+- No direct database calls
+- Service layer is the preferred pattern over direct repository usage
 """
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth

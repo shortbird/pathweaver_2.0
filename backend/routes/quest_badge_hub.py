@@ -1,6 +1,12 @@
 """
 Quest/Badge Hub API
 Unified endpoint for the combined quest and badge explorer interface.
+
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- Uses BadgeService (service layer) for badge operations
+- Multiple direct database calls for stats and quest counts (8+ calls)
+- get_hub_stats endpoint should use UserRepository and QuestRepository
+- Badge quest counts could be moved to BadgeRepository
 """
 
 from flask import Blueprint, request, jsonify

@@ -4,6 +4,12 @@ Quest Type-Specific API Routes
 
 Handles quest type differentiation (Optio vs Course quests).
 Provides sample tasks for Optio quests and preset tasks for Course quests.
+
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- Multiple direct database calls (7+ supabase.table() calls)
+- Task operations should use TaskRepository
+- Quest enrollment checks should use QuestRepository
+- Helper functions get_sample_tasks_for_quest and get_course_tasks_for_quest are good migration targets
 """
 
 from flask import Blueprint, request, jsonify

@@ -1,6 +1,11 @@
 """
 Advisor Check-in Routes
 API endpoints for advisor check-in functionality.
+
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Already uses CheckinService (service layer) and CheckinRepository
+- Direct database calls only for admin role checks (simple queries, acceptable)
+- Service layer and repository pattern fully implemented
 """
 
 from flask import Blueprint, request, jsonify

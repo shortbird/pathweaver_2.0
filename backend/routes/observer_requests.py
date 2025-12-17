@@ -1,6 +1,15 @@
 """
 Observer Requests Routes
 Handles student requests to add observers to their account
+
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- Multiple direct database calls to 'observer_requests' table (5+ calls)
+- Simple CRUD operations suitable for repository pattern
+- Could create ObserverRequestRepository with methods:
+  - create_request(user_id, observer_data)
+  - get_user_requests(user_id)
+  - get_all_requests() (admin only)
+  - update_request_status(request_id, status, reviewed_by)
 """
 from flask import Blueprint, request, jsonify
 from datetime import datetime

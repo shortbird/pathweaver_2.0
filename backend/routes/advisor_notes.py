@@ -1,6 +1,11 @@
 """
 Advisor Notes Routes
 API endpoints for confidential advisor notes about students/parents.
+
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Already uses AdvisorNotesRepository for all note operations
+- Direct database calls only for admin role checks (simple queries, acceptable)
+- Repository pattern fully implemented for core functionality
 """
 
 from flask import Blueprint, request, jsonify

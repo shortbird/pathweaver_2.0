@@ -1,6 +1,11 @@
 """
 Homepage image management routes.
 Serves static Pexels image URLs for homepage sections.
+
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- This route serves only static data (constant dictionaries)
+- No database calls
+- No external API calls (Pexels URLs are hardcoded)
 """
 from flask import Blueprint, jsonify, request
 from utils.logger import get_logger

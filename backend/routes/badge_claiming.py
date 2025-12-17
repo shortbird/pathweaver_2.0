@@ -1,6 +1,11 @@
 """
 Badge Claiming Routes
 Handles badge claiming workflow and notifications.
+
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Already uses BadgeService (service layer pattern) - best practice
+- No direct database calls
+- Service layer is the preferred pattern over direct repository usage
 """
 
 from flask import Blueprint, request, jsonify
