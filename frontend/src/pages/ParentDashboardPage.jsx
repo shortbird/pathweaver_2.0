@@ -592,7 +592,7 @@ const ParentDashboardPage = () => {
                       Managing {firstName}'s Profile (Under 13)
                     </p>
                     <p className="text-xs sm:text-sm text-gray-600 mt-0.5" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      You're viewing as parent. Switch to full management mode to complete tasks on their behalf.
+                      You're viewing as a parent. Click "Act as {firstName}" to use the full platform as your student.
                     </p>
                   </div>
                   <button
