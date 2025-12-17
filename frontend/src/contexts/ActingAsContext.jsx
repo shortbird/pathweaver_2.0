@@ -45,7 +45,10 @@ export const ActingAsProvider = ({ children }) => {
   // Clear acting-as state if user changes or logs out
   useEffect(() => {
     if (!user) {
-      clearActingAs();
+      // Handle async clearActingAs properly in useEffect
+      (async () => {
+        await clearActingAs();
+      })();
     }
   }, [user]);
 
