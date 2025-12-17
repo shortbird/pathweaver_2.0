@@ -92,12 +92,23 @@ def upload_evidence_inline(user_id):
             }), 400
 
         # Verify parent has permission (linked student or dependent)
-        parent_check = admin_client.rpc('verify_parent_student_access', {
-            'p_parent_id': user_id,
-            'p_student_id': student_id
-        }).execute()
+        # Check parent_student_links for 13+ students
+        link_check = admin_client.table('parent_student_links')\
+            .select('id')\
+            .eq('parent_id', user_id)\
+            .eq('student_user_id', student_id)\
+            .eq('status', 'active')\
+            .execute()
 
-        if not parent_check.data or not parent_check.data[0].get('has_access'):
+        # Check users table for dependents
+        dependent_check = admin_client.table('users')\
+            .select('id')\
+            .eq('id', student_id)\
+            .eq('is_dependent', True)\
+            .eq('managed_by_parent_id', user_id)\
+            .execute()
+
+        if not link_check.data and not dependent_check.data:
             logger.warning(f"Parent {user_id[:8]} attempted unauthorized access to student {student_id[:8]}")
             return jsonify({
                 'success': False,
@@ -118,18 +129,8 @@ def upload_evidence_inline(user_id):
                 'error': 'Task not found or does not belong to student'
             }), 404
 
-        # Check if task already completed
-        completion_check = admin_client.table('quest_task_completions')\
-            .select('id')\
-            .eq('user_quest_task_id', task_id)\
-            .eq('user_id', student_id)\
-            .execute()
-
-        if completion_check.data:
-            return jsonify({
-                'success': False,
-                'error': 'Cannot add evidence to completed tasks'
-            }), 400
+        # Parents can add evidence to both incomplete AND completed tasks
+        # This allows them to provide additional documentation after completion
 
         # Prepare evidence content based on type
         evidence_content = {}

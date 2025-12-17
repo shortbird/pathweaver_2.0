@@ -217,56 +217,56 @@ const ParentQuestView = () => {
                     </p>
                   )}
 
-                  {/* Completion Status or Evidence Upload */}
-                  {task.is_completed ? (
-                    <div className="mt-3 pt-3 border-t border-green-200">
+                  {/* Evidence Display and Upload (available for all tasks) */}
+                  <div className={`mt-3 pt-3 ${task.is_completed ? 'border-t border-green-200' : 'border-t border-gray-200'}`}>
+                    {task.is_completed && (
                       <p className="text-xs sm:text-sm text-green-700 font-semibold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
                         ✓ Completed {new Date(task.completed_at).toLocaleDateString()}
                       </p>
-                      {/* Enhanced Evidence Display */}
-                      {(task.evidence_blocks?.length > 0 || task.evidence_text || task.evidence_url) && (
-                        <div className="mt-2">
-                          <UnifiedEvidenceDisplay
-                            evidence={{
-                              evidence_type: task.evidence_type || 'legacy_text',
-                              evidence_blocks: task.evidence_blocks || [],
-                              evidence_text: task.evidence_text,
-                              evidence_url: task.evidence_url
-                            }}
-                            displayMode="full"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      {!showEvidenceForm[task.id] ? (
-                        <button
-                          onClick={() => setShowEvidenceForm({ ...showEvidenceForm, [task.id]: true })}
-                          className="w-full sm:w-auto px-4 py-2 text-xs sm:text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity"
-                          style={{ fontFamily: 'Poppins, sans-serif' }}
-                        >
-                          + Add Evidence
-                        </button>
-                      ) : (
-                        <EvidenceUploadForm
-                          taskId={task.id}
-                          studentId={studentId}
-                          onCancel={() => {
-                            const newShowForm = { ...showEvidenceForm };
-                            delete newShowForm[task.id];
-                            setShowEvidenceForm(newShowForm);
+                    )}
+
+                    {/* Enhanced Evidence Display */}
+                    {(task.evidence_blocks?.length > 0 || task.evidence_text || task.evidence_url) && (
+                      <div className="mt-2 mb-3">
+                        <UnifiedEvidenceDisplay
+                          evidence={{
+                            evidence_type: task.evidence_type || 'legacy_text',
+                            evidence_blocks: task.evidence_blocks || [],
+                            evidence_text: task.evidence_text,
+                            evidence_url: task.evidence_url
                           }}
-                          onSuccess={() => {
-                            const newShowForm = { ...showEvidenceForm };
-                            delete newShowForm[task.id];
-                            setShowEvidenceForm(newShowForm);
-                            loadQuestData();
-                          }}
+                          displayMode="full"
                         />
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
+
+                    {/* Evidence Upload Form (available for both completed and incomplete tasks) */}
+                    {!showEvidenceForm[task.id] ? (
+                      <button
+                        onClick={() => setShowEvidenceForm({ ...showEvidenceForm, [task.id]: true })}
+                        className="w-full sm:w-auto px-4 py-2 text-xs sm:text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity"
+                        style={{ fontFamily: 'Poppins, sans-serif' }}
+                      >
+                        + Add Evidence
+                      </button>
+                    ) : (
+                      <EvidenceUploadForm
+                        taskId={task.id}
+                        studentId={studentId}
+                        onCancel={() => {
+                          const newShowForm = { ...showEvidenceForm };
+                          delete newShowForm[task.id];
+                          setShowEvidenceForm(newShowForm);
+                        }}
+                        onSuccess={() => {
+                          const newShowForm = { ...showEvidenceForm };
+                          delete newShowForm[task.id];
+                          setShowEvidenceForm(newShowForm);
+                          loadQuestData();
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
