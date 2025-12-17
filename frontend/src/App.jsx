@@ -14,7 +14,7 @@ import MasqueradeBanner from './components/admin/MasqueradeBanner'
 import ActingAsBanner from './components/parent/ActingAsBanner'
 import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
 import api from './services/api'
-import toast from 'react-hot-toast'
+import { toast } from 'react-hot-toast'
 
 // Always-loaded components (Layout, Auth, Landing pages)
 import Layout from './components/Layout'

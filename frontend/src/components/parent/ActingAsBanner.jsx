@@ -17,7 +17,7 @@ const ActingAsBanner = ({ dependent, onSwitchBack }) => {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-[60] transition-all duration-300">
+    <div className="fixed bottom-4 left-4 z-[60] transition-all duration-300">
       {/* Collapsed Badge - Compact for mobile */}
       {!isExpanded && (
         <button

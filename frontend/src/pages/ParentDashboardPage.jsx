@@ -4,7 +4,7 @@ import { useActingAs } from '../contexts/ActingAsContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import { parentAPI } from '../services/api';
 import api from '../services/api';
-import toast from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
 import { getMyDependents } from '../services/dependentAPI';
 import {
   CheckCircleIcon,
@@ -27,7 +27,7 @@ import RequestStudentConnectionModal from '../components/parent/RequestStudentCo
 
 const ParentDashboardPage = () => {
   const { user } = useAuth();
-  const { setActingAs } = useActingAs();
+  const { setActingAs, actingAsDependent } = useActingAs();
   const navigate = useNavigate();
   const { studentId } = useParams(); // Get student ID from URL if multi-child
   const [selectedStudentId, setSelectedStudentId] = useState(studentId || null);
@@ -41,6 +41,13 @@ const ParentDashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [error, setError] = useState(null);
+
+  // If user is acting as dependent, redirect immediately to quest hub
+  useEffect(() => {
+    if (actingAsDependent) {
+      navigate('/quest-hub');
+    }
+  }, [actingAsDependent, navigate]);
   const [showRhythmModal, setShowRhythmModal] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [loadingConversations, setLoadingConversations] = useState(false);
