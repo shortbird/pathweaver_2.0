@@ -39,14 +39,17 @@ export const AuthProvider = ({ children }) => {
   })
 
   useEffect(() => {
-    // ✅ SAFARI FIX: Detect browser and log compatibility info
+    // ✅ SAFARI FIX + P0 SECURITY FIX: Detect browser and initialize secure token storage
     const checkSession = async () => {
       try {
+        // Initialize secure token store (migrates from localStorage if needed)
+        await tokenStore.init()
+
         // Log browser detection info (development only)
         logBrowserInfo()
 
-        // STEP 1: Restore tokens from localStorage (survives page refresh)
-        const tokensRestored = tokenStore.restoreTokens()
+        // STEP 1: Restore tokens from encrypted IndexedDB (survives page refresh)
+        const tokensRestored = await tokenStore.restoreTokens()
 
         // STEP 2: Check if we have tokens (either restored or in memory)
         const hasTokens = !!tokenStore.getAccessToken()
@@ -90,7 +93,7 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (error) {
         // Token invalid/expired - clear and require login
-        tokenStore.clearTokens()
+        await tokenStore.clearTokens()
         setSession(null)
       } finally {
         setLoading(false)
@@ -105,10 +108,10 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/api/auth/login', { email, password })
       const { user: loginUser, session: loginSession, app_access_token, app_refresh_token } = response.data
 
-      // ✅ INCOGNITO FIX: Store app tokens in memory for Authorization headers
+      // ✅ P0 SECURITY FIX: Store app tokens in encrypted IndexedDB for Authorization headers
       // This is the CRITICAL piece that was missing!
       if (app_access_token && app_refresh_token) {
-        tokenStore.setTokens(app_access_token, app_refresh_token)
+        await tokenStore.setTokens(app_access_token, app_refresh_token)
       }
 
       setSession({ authenticated: true })
@@ -196,10 +199,10 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (session) {
-        // ✅ INCOGNITO FIX: Extract and store tokens from registration response
+        // ✅ P0 SECURITY FIX: Extract and store tokens from registration response
         const { app_access_token, app_refresh_token } = response.data
         if (app_access_token && app_refresh_token) {
-          tokenStore.setTokens(app_access_token, app_refresh_token)
+          await tokenStore.setTokens(app_access_token, app_refresh_token)
         }
 
         setSession({ authenticated: true })
@@ -274,30 +277,21 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      // CRITICAL: Clear tokens FIRST (synchronously) before API call
+      // CRITICAL: Clear tokens FIRST before API call
       // This prevents race conditions where page refresh happens before clearing
 
       // Step 1: Clear masquerade data (includes tokens)
       clearMasqueradeData()
 
-      // Step 2: Clear tokenStore
-      tokenStore.clearTokens()
+      // Step 2: Clear encrypted IndexedDB tokenStore
+      await tokenStore.clearTokens()
 
-      // Step 3: Clear localStorage tokens explicitly (defensive)
+      // Step 3: Clear localStorage (migration cleanup)
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('user')
 
-      // Step 4: Verify tokens are cleared
-      const accessStillExists = localStorage.getItem('access_token')
-      const refreshStillExists = localStorage.getItem('refresh_token')
-      if (accessStillExists || refreshStillExists) {
-        console.error('[AuthContext] CRITICAL: Tokens still exist after logout clearing!')
-        // Force clear again
-        localStorage.clear()
-      }
-
-      // Step 5: Now call backend logout (this clears cookies)
+      // Step 4: Now call backend logout (this clears cookies)
       await api.post('/api/auth/logout')
 
     } catch (error) {

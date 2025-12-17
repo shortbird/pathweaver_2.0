@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { secureTokenStore } from './secureTokenStore'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
@@ -10,28 +11,38 @@ const api = axios.create({
   withCredentials: true,
 })
 
-// ✅ HYBRID AUTHENTICATION (January 2025): httpOnly cookies + token storage for SSO
-// - Regular login: httpOnly cookies only (most secure, works same-origin)
-// - SPARK SSO: Tokens in localStorage + Authorization header (needed for cross-origin)
-// - Both methods set httpOnly cookies as fallback
-// - Frontend tries token storage first, then falls back to cookies
+// ✅ P0 SECURITY FIX (December 2024): Encrypted IndexedDB token storage
+// - Replaced localStorage (XSS vulnerable) with encrypted IndexedDB
+// - In-memory cache for synchronous access (fast)
+// - IndexedDB for persistence across page refreshes (secure)
+// - Safari/iOS compatible while maintaining security
 
-// In-memory token storage (survives page navigation but not refresh)
+// In-memory token storage (synchronous access for request interceptor)
 let accessToken = null
 let refreshToken = null
 
 // Export token storage interface
 export const tokenStore = {
-  // Restore tokens from localStorage (for SSO flow that survives page refresh)
-  restoreTokens: () => {
+  // Initialize secure token store (call once on app load)
+  init: async () => {
     try {
-      const storedAccess = localStorage.getItem('access_token')
-      const storedRefresh = localStorage.getItem('refresh_token')
+      await secureTokenStore.init()
+      console.log('[TokenStore] Secure token store initialized')
+    } catch (error) {
+      console.error('[TokenStore] Failed to initialize secure token store:', error)
+    }
+  },
+
+  // Restore tokens from encrypted IndexedDB (for page refresh persistence)
+  restoreTokens: async () => {
+    try {
+      const storedAccess = await secureTokenStore.getAccessToken()
+      const storedRefresh = await secureTokenStore.getRefreshToken()
 
       if (storedAccess && storedRefresh) {
         accessToken = storedAccess
         refreshToken = storedRefresh
-        console.log('[TokenStore] Tokens restored from localStorage')
+        console.log('[TokenStore] Tokens restored from encrypted IndexedDB')
         return true
       }
     } catch (error) {
@@ -40,58 +51,47 @@ export const tokenStore = {
     return false
   },
 
-  // Store tokens in memory and localStorage (for SSO cross-origin support)
-  setTokens: (access, refresh) => {
+  // Store tokens in memory and encrypted IndexedDB (for Safari/iOS compatibility)
+  setTokens: async (access, refresh) => {
+    // Store in memory for synchronous access
     accessToken = access
     refreshToken = refresh
 
-    // Also store in localStorage for page refresh persistence
+    // Also store in encrypted IndexedDB for page refresh persistence
     try {
-      localStorage.setItem('access_token', access)
-      localStorage.setItem('refresh_token', refresh)
-      console.log('[TokenStore] Tokens stored in memory and localStorage')
+      await secureTokenStore.setTokens(access, refresh)
+      console.log('[TokenStore] Tokens stored in memory and encrypted IndexedDB')
     } catch (error) {
-      console.error('[TokenStore] Failed to store tokens in localStorage:', error)
+      console.error('[TokenStore] Failed to store tokens in encrypted IndexedDB:', error)
     }
   },
 
-  // Get access token from memory
+  // Get access token from memory (synchronous for request interceptor)
   getAccessToken: () => accessToken,
 
-  // Get refresh token from memory
+  // Get refresh token from memory (synchronous for request interceptor)
   getRefreshToken: () => refreshToken,
 
-  // Clear tokens from memory and localStorage
-  clearTokens: () => {
+  // Clear tokens from memory and encrypted IndexedDB
+  clearTokens: async () => {
+    // Clear from memory
     accessToken = null
     refreshToken = null
+
+    // Clear from encrypted IndexedDB
+    try {
+      await secureTokenStore.clearTokens()
+      console.log('[TokenStore] Tokens cleared from memory and encrypted IndexedDB')
+    } catch (error) {
+      console.error('[TokenStore] Failed to clear tokens from encrypted IndexedDB:', error)
+    }
+
+    // MIGRATION CLEANUP: Remove any old localStorage tokens
     try {
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
-
-      // CRITICAL FIX: Verify tokens are actually cleared
-      const accessStillExists = localStorage.getItem('access_token')
-      const refreshStillExists = localStorage.getItem('refresh_token')
-
-      if (accessStillExists || refreshStillExists) {
-        console.error('[TokenStore] CRITICAL: Tokens failed to clear on first attempt!')
-        // Force clear again
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-
-        // Clear ALL localStorage as last resort
-        if (localStorage.getItem('access_token') || localStorage.getItem('refresh_token')) {
-          console.error('[TokenStore] CRITICAL: Using nuclear option - clearing all localStorage')
-          const masqueradeState = localStorage.getItem('masquerade_state')
-          const originalAdmin = localStorage.getItem('original_admin_token')
-          localStorage.clear()
-          console.error('[TokenStore] Preserved masquerade data:', { masqueradeState, originalAdmin })
-        }
-      }
-
-      console.log('[TokenStore] Tokens cleared and verified from memory and localStorage')
     } catch (error) {
-      console.error('[TokenStore] Failed to clear tokens from localStorage:', error)
+      // Ignore errors - tokens may not exist in localStorage
     }
   }
 }

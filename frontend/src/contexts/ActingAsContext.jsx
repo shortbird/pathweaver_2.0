@@ -19,23 +19,27 @@ export const ActingAsProvider = ({ children }) => {
 
   // Load acting-as state from localStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem('acting_as_dependent');
-    const storedToken = localStorage.getItem('acting_as_token');
-    if (stored && storedToken) {
-      try {
-        const parsed = JSON.parse(stored);
-        setActingAsDependent(parsed);
-        setActingAsToken(storedToken);
+    const restoreActingAsState = async () => {
+      const stored = localStorage.getItem('acting_as_dependent');
+      const storedToken = localStorage.getItem('acting_as_token');
+      if (stored && storedToken) {
+        try {
+          const parsed = JSON.parse(stored);
+          setActingAsDependent(parsed);
+          setActingAsToken(storedToken);
 
-        // CRITICAL: Restore token to tokenStore so it gets included in Authorization header
-        tokenStore.setTokens(storedToken, tokenStore.getRefreshToken() || '');
-        console.log('[ActingAsContext] Restored acting-as token from localStorage');
-      } catch (error) {
-        console.error('Failed to parse acting_as_dependent from localStorage:', error);
-        localStorage.removeItem('acting_as_dependent');
-        localStorage.removeItem('acting_as_token');
+          // CRITICAL: Restore token to tokenStore so it gets included in Authorization header
+          await tokenStore.setTokens(storedToken, tokenStore.getRefreshToken() || '');
+          console.log('[ActingAsContext] Restored acting-as token from localStorage');
+        } catch (error) {
+          console.error('Failed to parse acting_as_dependent from localStorage:', error);
+          localStorage.removeItem('acting_as_dependent');
+          localStorage.removeItem('acting_as_token');
+        }
       }
-    }
+    };
+
+    restoreActingAsState();
   }, []);
 
   // Clear acting-as state if user changes or logs out
@@ -49,8 +53,8 @@ export const ActingAsProvider = ({ children }) => {
     if (dependent) {
       try {
         // CRITICAL: Save parent's tokens before switching to dependent
-        const parentAccess = tokenStore.getAccessToken() || localStorage.getItem('access_token');
-        const parentRefresh = tokenStore.getRefreshToken() || localStorage.getItem('refresh_token');
+        const parentAccess = tokenStore.getAccessToken();
+        const parentRefresh = tokenStore.getRefreshToken();
 
         if (parentAccess && parentRefresh) {
           localStorage.setItem('parent_access_token', parentAccess);
@@ -69,7 +73,7 @@ export const ActingAsProvider = ({ children }) => {
         setActingAsToken(acting_as_token);
 
         // Store token in tokenStore so it gets included in Authorization header
-        tokenStore.setTokens(acting_as_token, tokenStore.getRefreshToken() || parentRefresh);
+        await tokenStore.setTokens(acting_as_token, tokenStore.getRefreshToken() || parentRefresh);
 
         console.log('[ActingAsContext] Now acting as dependent:', dependent.display_name);
       } catch (error) {
@@ -77,11 +81,11 @@ export const ActingAsProvider = ({ children }) => {
         throw error;
       }
     } else {
-      clearActingAs();
+      await clearActingAs();
     }
   };
 
-  const clearActingAs = () => {
+  const clearActingAs = async () => {
     localStorage.removeItem('acting_as_dependent');
     localStorage.removeItem('acting_as_token');
     setActingAsDependent(null);
@@ -93,10 +97,7 @@ export const ActingAsProvider = ({ children }) => {
 
     if (parentAccess && parentRefresh) {
       // Restore parent's tokens to tokenStore
-      tokenStore.setTokens(parentAccess, parentRefresh);
-      // Also restore to regular localStorage keys
-      localStorage.setItem('access_token', parentAccess);
-      localStorage.setItem('refresh_token', parentRefresh);
+      await tokenStore.setTokens(parentAccess, parentRefresh);
       // Clean up temporary parent token storage
       localStorage.removeItem('parent_access_token');
       localStorage.removeItem('parent_refresh_token');

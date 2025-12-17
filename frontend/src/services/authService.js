@@ -32,17 +32,17 @@ class AuthService {
   }
 
   /**
-   * Store tokens in memory (cleared on tab close for security)
+   * Store tokens in encrypted IndexedDB (survives page refresh but cleared on logout)
    */
-  setTokens(accessToken, refreshToken) {
-    tokenStore.setTokens(accessToken, refreshToken)
+  async setTokens(accessToken, refreshToken) {
+    await tokenStore.setTokens(accessToken, refreshToken)
   }
 
   /**
-   * Clear tokens from memory
+   * Clear tokens from memory and encrypted IndexedDB
    */
-  clearTokens() {
-    tokenStore.clearTokens()
+  async clearTokens() {
+    await tokenStore.clearTokens()
   }
 
   /**
@@ -134,7 +134,7 @@ class AuthService {
     } catch (error) {
       this.user = null
       this.isAuthenticated = false
-      this.clearTokens()
+      await this.clearTokens()
       this.notifyListeners()
 
       const errorMessage = error.response?.data?.error || 'Login failed'
@@ -194,10 +194,10 @@ class AuthService {
         console.warn('Failed to clear masquerade data:', e)
       }
 
-      // Step 2: Clear memory tokens
-      this.clearTokens()
+      // Step 2: Clear encrypted IndexedDB tokens
+      await this.clearTokens()
 
-      // Step 3: Clear localStorage tokens explicitly (defensive)
+      // Step 3: Clear localStorage tokens explicitly (migration cleanup)
       localStorage.removeItem('user')
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
@@ -251,7 +251,7 @@ class AuthService {
     } catch (error) {
       this.user = null
       this.isAuthenticated = false
-      this.clearTokens()
+      await this.clearTokens()
       this.notifyListeners()
       return false
     }
