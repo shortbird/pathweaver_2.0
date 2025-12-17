@@ -88,27 +88,35 @@ class QuestOptimizationService(BaseService):
             return {}
 
         try:
-            # Single query to get all task completions
-            # Note: quest_task_completions has user_quest_task_id (FK to user_quest_tasks)
-            # We need to join with user_quest_tasks to get the user_quest_id
-            completions = self.supabase.table('quest_task_completions')\
-                .select('user_quest_task_id, user_quest_tasks!inner(user_quest_id)')\
-                .eq('user_id', user_id)\
+            # OPTIMIZATION: Avoid recursive joins that cause stack depth errors
+            # Instead of joining with user_quest_tasks, we'll fetch tasks separately
+            # and build the mapping in memory (much more efficient for PostgreSQL)
+
+            # Step 1: Get all user_quest_tasks for the enrollments we care about
+            tasks = self.supabase.table('user_quest_tasks')\
+                .select('id, user_quest_id')\
+                .in_('user_quest_id', enrollment_ids)\
                 .execute()
 
-            # Group by enrollment_id (user_quest_id from the joined table)
+            # Build a map of task_id -> enrollment_id
+            task_to_enrollment = {}
+            for task in tasks.data or []:
+                task_to_enrollment[task['id']] = task['user_quest_id']
+
+            # Step 2: Get all completions for this user
+            completions = self.supabase.table('quest_task_completions')\
+                .select('user_quest_task_id')\
+                .eq('user_id', user_id)\
+                .in_('user_quest_task_id', list(task_to_enrollment.keys()) if task_to_enrollment else ['__none__'])\
+                .execute()
+
+            # Step 3: Build the completion map using our in-memory task mapping
             completion_map = {}
             for completion in completions.data or []:
-                # Get user_quest_id from the joined user_quest_tasks data
-                user_quest_data = completion.get('user_quest_tasks')
-                if not user_quest_data:
-                    continue
-
-                enrollment_id = user_quest_data.get('user_quest_id')
                 task_id = completion['user_quest_task_id']
+                enrollment_id = task_to_enrollment.get(task_id)
 
-                # Only include completions for the enrollments we care about
-                if enrollment_id in enrollment_ids:
+                if enrollment_id:
                     if enrollment_id not in completion_map:
                         completion_map[enrollment_id] = set()
                     completion_map[enrollment_id].add(task_id)
