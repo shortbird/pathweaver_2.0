@@ -1,4 +1,13 @@
 """
+REPOSITORY MIGRATION: PARTIALLY MIGRATED - Needs Completion
+- Already uses UserRepository, TaskRepository, ParentRepository (lines 11-17)
+- BUT: Direct DB call at line 42 for advisor_student_assignments check
+- Mixed pattern creates inconsistency
+- Could create AdvisorRepository with method verify_student_access(advisor_id, student_id)
+- Or move advisor verification logic to AdvisorService
+
+Recommendation: Complete migration by creating AdvisorRepository or delegating to AdvisorService
+
 Helper Evidence Upload Routes - Advisors and Parents uploading evidence for students
 Allows advisors and parents to add evidence blocks to student tasks without completing them.
 Students retain full control and can edit/delete helper-uploaded evidence.

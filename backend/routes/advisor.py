@@ -1,4 +1,10 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Uses AdvisorService for all business logic (service layer pattern)
+- Uses CheckinService for check-in functionality
+- Service layer is the preferred pattern over direct repository usage
+- Advisor-specific logic properly encapsulated in dedicated service
+
 Advisor Routes - API endpoints for advisor functionality
 Handles custom badge creation, student monitoring, and advisor-student management
 """

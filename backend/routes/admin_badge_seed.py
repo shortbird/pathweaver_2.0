@@ -1,4 +1,10 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED - One-Time Seeding Script
+- Seed endpoint for initial badge population
+- One-time administrative operation, not regular CRUD
+- Direct DB insert acceptable for batch seeding operations
+- Not a candidate for repository pattern (infrequent, batch data loading)
+
 Admin Badge Seeding Route
 One-time endpoint to populate initial badges
 """

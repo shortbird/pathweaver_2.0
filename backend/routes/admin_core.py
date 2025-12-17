@@ -1,3 +1,14 @@
+"""
+REPOSITORY MIGRATION: NO MIGRATION NEEDED - Utility/Helper Endpoints
+- Helper endpoints (school subjects lookup, pillar normalization)
+- Minimal database access (mostly static data/utility functions)
+- Not suitable for repository abstraction
+- Utility endpoints don't follow standard CRUD patterns
+
+Admin Core Routes
+Utility and helper endpoints for admin panel
+"""
+
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from backend.repositories import (
