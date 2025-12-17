@@ -88,32 +88,23 @@ class EmailService(BaseService):
             html_part = MIMEText(html_body, 'html')
             msg.attach(html_part)
 
-            # Automatically BCC support email for monitoring all outgoing emails
+            # Automatically copy support email for monitoring all outgoing emails
+            # Note: We'll send a separate copy instead of BCC due to SendGrid SMTP limitations
             support_email = os.getenv('SUPPORT_EMAIL', 'support@optioeducation.com')
+            should_copy_support = False
+
             bcc = bcc or []
             cc = cc or []
 
-            # Only add to BCC if not already in CC or BCC (avoid duplicates)
-            if support_email not in bcc and support_email not in cc:
-                bcc.append(support_email)
-                logger.info(f"Automatically adding {support_email} to BCC for email to {to_email}")
+            # Check if support email should be copied (not already in CC and not the primary recipient)
+            if support_email not in cc and to_email.lower() != support_email.lower():
+                should_copy_support = True
+                logger.info(f"Will send copy to {support_email} for monitoring email to {to_email}")
 
-            # SendGrid SMTP API configuration
-            # - Disable click tracking to avoid HTTP warning
-            # - Add BCC recipients via X-SMTPAPI header (SendGrid-specific method)
-            import json
-            sendgrid_config = {
-                "filters": {
-                    "clicktrack": {"settings": {"enable": 0}}
-                }
-            }
-
-            # Add BCC to SendGrid config if present
-            if bcc:
-                sendgrid_config["to"] = bcc  # SendGrid X-SMTPAPI uses "to" field for BCC
-                logger.info(f"Adding BCC to SendGrid X-SMTPAPI header: {bcc}")
-
-            msg['X-SMTPAPI'] = json.dumps(sendgrid_config)
+            # SendGrid SMTP API configuration - disable click tracking only
+            # Note: BCC is handled via standard SMTP envelope (recipients list)
+            # SendGrid SMTP does not support BCC via X-SMTPAPI header
+            msg['X-SMTPAPI'] = '{"filters": {"clicktrack": {"settings": {"enable": 0}}}}'
 
             # Prepare recipient list
             recipients = [to_email]

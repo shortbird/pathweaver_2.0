@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { parentAPI } from '../services/api';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { getMyDependents } from '../services/dependentAPI';
 import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
@@ -29,6 +30,7 @@ const ParentDashboardPage = () => {
   const { studentId } = useParams(); // Get student ID from URL if multi-child
   const [selectedStudentId, setSelectedStudentId] = useState(studentId || null);
   const [children, setChildren] = useState([]);
+  const [dependents, setDependents] = useState([]);
   const [dashboardData, setDashboardData] = useState(null);
   const [calendarData, setCalendarData] = useState(null);
   const [progressData, setProgressData] = useState(null);
@@ -77,44 +79,57 @@ const ParentDashboardPage = () => {
     }
   }, [user, currentProfile]);
 
-  // Load children list (admin-only linking, no invitations)
+  // Load children list (admin-only linking, no invitations) and dependents
   useEffect(() => {
-    const loadChildren = async () => {
+    const loadChildrenAndDependents = async () => {
       try {
-        const childrenResponse = await parentAPI.getMyChildren();
-        setChildren(childrenResponse.data.children || []);
+        // Load both linked students and dependents in parallel
+        const [childrenResponse, dependentsResponse] = await Promise.all([
+          parentAPI.getMyChildren(),
+          getMyDependents()
+        ]);
 
-        // Auto-select first child if none selected
-        if (!selectedStudentId && childrenResponse.data.children?.length > 0) {
-          setSelectedStudentId(childrenResponse.data.children[0].student_id);
+        const childrenData = childrenResponse.data.children || [];
+        const dependentsData = dependentsResponse.dependents || [];
+
+        setChildren(childrenData);
+        setDependents(dependentsData);
+
+        // Auto-select first child or dependent if none selected
+        if (!selectedStudentId) {
+          if (childrenData.length > 0) {
+            setSelectedStudentId(childrenData[0].student_id);
+          } else if (dependentsData.length > 0) {
+            setSelectedStudentId(dependentsData[0].id);
+          }
         }
 
-        // If no children, turn off loading so the empty state shows
-        if (childrenResponse.data.children?.length === 0) {
+        // If no children AND no dependents, turn off loading so the empty state shows
+        if (childrenData.length === 0 && dependentsData.length === 0) {
           setLoading(false);
         }
       } catch (error) {
-        console.error('Error loading children:', error);
-        setError('Failed to load linked students');
+        console.error('Error loading children/dependents:', error);
+        setError('Failed to load students');
         setLoading(false); // Stop loading on error
       }
     };
 
     if (user?.role === 'parent' || user?.role === 'admin') {
-      loadChildren();
+      loadChildrenAndDependents();
     }
   }, [user]);
 
 
-  // Load dashboard data when student selected and children are loaded
+  // Load dashboard data when student selected and children/dependents are loaded
   useEffect(() => {
     const loadDashboardData = async () => {
-      // Wait until we have children data before trying to load dashboard
-      if (!selectedStudentId || children.length === 0) {
-        if (children.length === 0) {
-          setLoading(true); // Keep loading while children are being fetched
+      // Wait until we have student data before trying to load dashboard
+      if (!selectedStudentId || (children.length === 0 && dependents.length === 0)) {
+        if (children.length === 0 && dependents.length === 0) {
+          setLoading(true); // Keep loading while children/dependents are being fetched
         } else {
-          setLoading(false); // No children selected
+          setLoading(false); // No student selected
         }
         return;
       }
@@ -147,7 +162,7 @@ const ParentDashboardPage = () => {
     };
 
     loadDashboardData();
-  }, [selectedStudentId, children.length, user]);
+  }, [selectedStudentId, children.length, dependents.length, user]);
 
   // Handle profile switching (parent <-> dependent)
   const handleProfileChange = (profile) => {
@@ -285,7 +300,7 @@ const ParentDashboardPage = () => {
     );
   }
 
-  if (children.length === 0 && !loading) {
+  if (children.length === 0 && dependents.length === 0 && !loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="max-w-3xl mx-auto">
@@ -381,8 +396,8 @@ const ParentDashboardPage = () => {
   const rhythmStatus = dashboardData?.learning_rhythm?.status || 'needs_support';
   const isFlowState = rhythmStatus === 'flow';
 
-  // Show loading spinner while children list is loading
-  if (loading && children.length === 0) {
+  // Show loading spinner while children/dependents list is loading
+  if (loading && children.length === 0 && dependents.length === 0) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
