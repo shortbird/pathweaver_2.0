@@ -1,4 +1,11 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Primarily uses BadgeService for all business logic (service layer pattern)
+- BadgeRepository used for some operations (lines 437-438)
+- Admin endpoints have 5 direct DB calls (lines 478, 522, 544, 573, 603) but acceptable
+- Service layer is the preferred pattern over direct repository usage
+- Complex badge progression logic properly encapsulated in BadgeService
+
 Badge Routes
 API endpoints for badge management and progression tracking.
 """

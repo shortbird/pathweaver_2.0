@@ -1,3 +1,21 @@
+"""
+REPOSITORY MIGRATION: PARTIALLY MIGRATED - Needs Completion
+- Already uses FriendshipRepository and UserRepository (lines 31-38)
+- BUT: Many endpoints still use direct database access
+- Mixed pattern creates inconsistency and maintenance burden
+- Remaining direct DB calls (15+):
+  - send_friend_request: Lines 187-298 (auth.users lookup, friendships insert)
+  - accept_friend_request: Lines 335-359 (direct table update)
+  - decline_friend_request: Line 419 (direct delete)
+  - cancel_friend_request: Line 455 (direct delete)
+  - invite_to_quest: Lines 488-508 (user_quests check, friendships check)
+  - get_friends_activity: Lines 534-594 (multiple direct queries)
+- Should consolidate ALL friendship operations into FriendshipRepository
+- Auth user lookup (lines 196-209) should use admin client helper
+
+Recommendation: Complete repository migration by moving remaining direct DB calls to FriendshipRepository
+"""
+
 from flask import Blueprint, request, jsonify
 from database import get_supabase_client
 from backend.repositories import (

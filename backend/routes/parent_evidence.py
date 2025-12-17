@@ -1,4 +1,16 @@
 """
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- 25+ direct database calls for parent evidence upload workflow
+- Complex file upload handling with Supabase storage
+- Task ownership verification, evidence approval/rejection logic
+- Could create ParentEvidenceRepository with methods:
+  - upload_evidence_inline(parent_id, student_id, task_id, evidence_data)
+  - upload_parent_evidence_legacy(parent_id, student_id, quest_id, task_id, evidence_data)
+  - get_pending_evidence(student_id)
+  - approve_evidence(student_id, evidence_id)
+  - reject_evidence(student_id, evidence_id)
+- File upload logic should remain in route layer (hard to abstract storage operations)
+
 Parent Evidence Upload API routes.
 Allows parents to upload evidence on behalf of their students for tasks.
 Parents cannot start quests - only upload evidence for active tasks.

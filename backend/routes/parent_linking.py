@@ -1,4 +1,18 @@
 """
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- 30+ direct database calls for parent-student linking operations
+- Complex JOIN queries with nested select (users table)
+- Could create ParentLinkingRepository with methods:
+  - get_linked_children(parent_id)
+  - get_parent_links(student_id)
+  - create_admin_link(parent_id, student_id, admin_id)
+  - delete_link(link_id, admin_id)
+  - submit_connection_requests(parent_id, children_data)
+  - get_pending_requests(student_id)
+  - approve_connection(link_id, student_id)
+  - reject_connection(link_id, student_id)
+- Note: Already uses ParentRepository (imported but unused), needs integration
+
 Parent-Student Linking API routes.
 Admin-only workflow for connecting parents to students.
 Once linked, connections are permanent.
