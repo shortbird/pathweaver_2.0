@@ -1,4 +1,15 @@
 """
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- 20+ direct database calls for COPPA compliance workflow
+- Token generation, validation, and email verification logic
+- Could create ParentalConsentRepository with methods:
+  - send_consent_request(user_id, parent_email, child_email)
+  - verify_consent_token(token)
+  - check_consent_status(user_id)
+  - resend_consent_request(user_id)
+  - log_consent_attempt(user_id, parent_email, ip, user_agent)
+- Complex consent workflow suitable for repository abstraction
+
 Parental Consent API routes.
 Handles COPPA compliance for users under 13.
 

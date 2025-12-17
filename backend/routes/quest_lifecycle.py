@@ -1,4 +1,15 @@
 """
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- 15+ direct database calls for quest pickup/set down workflow
+- Mix of get_user_client() and get_supabase_admin_client() usage
+- Complex logic for course quest task auto-loading (lines 62-138, 168-239)
+- Could create QuestLifecycleRepository with methods:
+  - pickup_quest(user_id, quest_id) -> handles enrollment + course task loading
+  - set_down_quest(user_id, quest_id, reflection_note, prompt_id)
+  - get_pickup_history(user_id, quest_id)
+  - save_reflection(user_quest_id, note, prompt_id)
+- Task auto-loading logic should remain in service layer (QuestLifecycleService)
+
 Quest Lifecycle Routes
 Handles pick up/set down workflow and reflection system.
 """

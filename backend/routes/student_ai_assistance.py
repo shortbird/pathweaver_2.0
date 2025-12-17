@@ -1,4 +1,10 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Primarily uses StudentAIAssistantService (service layer pattern)
+- Only 2 direct database calls to fetch quest data for similarity comparison (lines 164-180)
+- Simple queries acceptable; service layer is preferred pattern over repository
+- AI functionality properly abstracted in service layer
+
 Student AI Assistance Routes
 
 Provides API endpoints for AI-powered student assistance:

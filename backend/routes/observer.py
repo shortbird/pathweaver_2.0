@@ -1,4 +1,20 @@
 """
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- 25+ direct database calls for observer workflow
+- Invitation management, student linking, access control, comments
+- Could create ObserverRepository with methods:
+  - send_invitation(student_id, observer_email, observer_name)
+  - get_student_invitations(student_id)
+  - cancel_invitation(invitation_id, student_id)
+  - accept_invitation(invitation_code, observer_data)
+  - get_observer_students(observer_id)
+  - get_student_observers(student_id)
+  - create_observer_link(observer_id, student_id, relationship, permissions)
+  - remove_observer_link(link_id, student_id)
+  - post_comment(observer_id, student_id, comment_data)
+  - get_student_comments(student_id)
+- Complex invitation workflow suitable for repository abstraction
+
 Observer Routes
 
 Handles observer role functionality for extended family portfolio access.

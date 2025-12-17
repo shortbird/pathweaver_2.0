@@ -1,3 +1,10 @@
+"""
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Already uses SiteSettingsRepository for all database operations
+- Only 2 endpoints (GET/PUT settings, upload logo)
+- Exemplar of repository pattern usage - no direct database calls
+"""
+
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from backend.repositories import SiteSettingsRepository

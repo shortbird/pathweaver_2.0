@@ -1,4 +1,10 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Already uses DependentRepository exclusively for all database operations
+- All CRUD operations delegated to repository layer
+- Exemplar of repository pattern usage (clean separation of concerns)
+- Parent role verification is properly isolated in helper function
+
 Dependent Profiles API routes.
 Allows parents to create and manage dependent child profiles (ages 5-12).
 COPPA-compliant: Dependents have no email/password until promoted at age 13.

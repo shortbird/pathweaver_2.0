@@ -1,4 +1,10 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Uses QuestAIService exclusively (service layer pattern)
+- No direct database calls - all operations delegated to service
+- Lazy service initialization for memory efficiency
+- Service layer is the preferred pattern over direct repository usage
+
 Quest AI API endpoints.
 Provides AI-powered quest generation and enhancement capabilities.
 """

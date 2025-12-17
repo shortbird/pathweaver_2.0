@@ -1,4 +1,10 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Uses LearningEventsService exclusively (service layer pattern)
+- Only 1 direct database call for file upload verification (line 293-304, acceptable)
+- Service layer properly encapsulates all CRUD operations
+- File upload endpoint uses get_user_client for RLS enforcement (correct pattern)
+
 Learning Events Routes
 API endpoints for spontaneous learning moment capture
 """
