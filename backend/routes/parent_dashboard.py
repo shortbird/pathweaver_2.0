@@ -113,6 +113,7 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
     IMPORTANT: Accepts supabase client to avoid connection exhaustion.
 
     Special case: Admin users can view their own student data for demo purposes.
+    Supports both dependent relationships (managed_by_parent_id) and linked students (parent_student_links).
     Optimized to ONE database query to prevent HTTP/2 stream exhaustion.
     """
     try:
@@ -151,10 +152,19 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
             for link in links
         )
 
-        if not has_active_link:
-            raise AuthorizationError("You do not have access to this student's data")
+        if has_active_link:
+            return True
 
-        return True
+        # If no link found, check if student is a dependent managed by this parent
+        student_response = supabase.table('users').select('is_dependent, managed_by_parent_id').eq('id', student_user_id).single().execute()
+        if student_response.data:
+            is_dependent = student_response.data.get('is_dependent', False)
+            managed_by = student_response.data.get('managed_by_parent_id')
+            if is_dependent and managed_by == parent_user_id:
+                return True
+
+        # No access found
+        raise AuthorizationError("You do not have access to this student's data")
 
     except AuthorizationError:
         raise
