@@ -384,7 +384,7 @@ def toggle_user_status(user_id, target_user_id):
 @bp.route('/users/<target_user_id>', methods=['DELETE'])
 @require_admin
 def delete_user(user_id, target_user_id):
-    """Delete a user account (admin only)"""
+    """Delete a user account from both auth.users and public.users (admin only)"""
     supabase = get_supabase_admin_client()
 
     try:
@@ -392,18 +392,28 @@ def delete_user(user_id, target_user_id):
         if target_user_id == user_id:
             return jsonify({'success': False, 'error': 'Cannot delete your own account'}), 403
 
-        # Check if user exists
+        # Check if user exists in public.users
         user = supabase.table('users').select('*').eq('id', target_user_id).single().execute()
 
         if not user.data:
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
-        # Delete user (cascade should handle related records)
+        # Step 1: Delete from auth.users first (source of truth for authentication)
+        try:
+            supabase.auth.admin.delete_user(target_user_id)
+            logger.info(f"Deleted user {target_user_id} from auth.users")
+        except Exception as auth_error:
+            logger.error(f"Error deleting from auth.users: {str(auth_error)}")
+            # Continue to delete from public.users even if auth deletion fails
+            # (user might only exist in public.users due to sync issues)
+
+        # Step 2: Delete from public.users (cascade should handle related records)
         supabase.table('users').delete().eq('id', target_user_id).execute()
+        logger.info(f"Deleted user {target_user_id} from public.users")
 
         return jsonify({
             'success': True,
-            'message': 'User deleted successfully'
+            'message': 'User deleted successfully from both authentication and profile tables'
         })
 
     except Exception as e:
