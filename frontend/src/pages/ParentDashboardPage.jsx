@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useActingAs } from '../contexts/ActingAsContext';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -9,17 +9,10 @@ import { getMyDependents } from '../services/dependentAPI';
 import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
-  CalendarIcon,
-  ChartBarIcon,
-  ChatBubbleLeftRightIcon,
-  ArrowPathIcon,
   UserGroupIcon,
-  LightBulbIcon,
   XMarkIcon,
-  ChevronRightIcon,
   PlusIcon
 } from '@heroicons/react/24/outline';
-import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
 import AddEvidenceModal from '../components/advisor/AddEvidenceModal';
 import ProfileSwitcher from '../components/parent/ProfileSwitcher';
 import AddDependentModal from '../components/parent/AddDependentModal';
@@ -34,25 +27,11 @@ const ParentDashboardPage = () => {
   const [children, setChildren] = useState([]);
   const [dependents, setDependents] = useState([]);
   const [dashboardData, setDashboardData] = useState(null);
-  const [calendarData, setCalendarData] = useState(null);
   const [progressData, setProgressData] = useState(null);
-  const [insightsData, setInsightsData] = useState(null);
   const [creditData, setCreditData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
   const [error, setError] = useState(null);
   const [showRhythmModal, setShowRhythmModal] = useState(false);
-  const [conversations, setConversations] = useState([]);
-  const [loadingConversations, setLoadingConversations] = useState(false);
-  const [selectedConversationId, setSelectedConversationId] = useState(null);
-  const [conversationMessages, setConversationMessages] = useState([]);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [selectedTask, setSelectedTask] = useState(null);
-  const [taskDetails, setTaskDetails] = useState(null);
-  const [loadingTaskDetails, setLoadingTaskDetails] = useState(false);
-  const [recentCompletions, setRecentCompletions] = useState([]);
-  const [loadingCompletions, setLoadingCompletions] = useState(false);
-  const [selectedCompletion, setSelectedCompletion] = useState(null);
   const [completedQuests, setCompletedQuests] = useState([]);
   const [showAddEvidenceModal, setShowAddEvidenceModal] = useState(false);
   const [currentProfile, setCurrentProfile] = useState(null);
@@ -171,20 +150,16 @@ const ParentDashboardPage = () => {
 
       setLoading(true);
       try {
-        // Load all data in parallel
-        const [dashboard, calendar, progress, insights, credits, completed] = await Promise.all([
+        // Load only overview data
+        const [dashboard, progress, credits, completed] = await Promise.all([
           parentAPI.getDashboard(selectedStudentId),
-          parentAPI.getCalendar(selectedStudentId),
           parentAPI.getProgress(selectedStudentId),
-          parentAPI.getInsights(selectedStudentId),
           api.get(`/api/credits/transcript/${selectedStudentId}`),
           parentAPI.getCompletedQuests(selectedStudentId)
         ]);
 
         setDashboardData(dashboard.data);
-        setCalendarData(calendar.data);
         setProgressData(progress.data);
-        setInsightsData(insights.data);
         setCreditData(credits.data.transcript);
         setCompletedQuests(completed.data.quests || []);
         setError(null);
@@ -237,95 +212,6 @@ const ParentDashboardPage = () => {
     window.location.reload();
   };
 
-  // Load conversations when Communications tab is active
-  useEffect(() => {
-    const loadConversations = async () => {
-      if (activeTab !== 'communications' || !selectedStudentId) {
-        return;
-      }
-
-      setLoadingConversations(true);
-      try {
-        const response = await parentAPI.getTutorConversations(selectedStudentId);
-        setConversations(response.data.conversations || []);
-      } catch (error) {
-        console.error('Error loading conversations:', error);
-        toast.error('Failed to load tutor conversations');
-      } finally {
-        setLoadingConversations(false);
-      }
-    };
-
-    loadConversations();
-  }, [activeTab, selectedStudentId, user]);
-
-  // Load conversation messages when a conversation is selected
-  useEffect(() => {
-    const loadMessages = async () => {
-      if (!selectedConversationId) {
-        setConversationMessages([]);
-        return;
-      }
-
-      setLoadingMessages(true);
-      try {
-        const response = await parentAPI.getConversationMessages(selectedConversationId);
-        setConversationMessages(response.data.messages || []);
-      } catch (error) {
-        console.error('Error loading conversation messages:', error);
-        toast.error('Failed to load conversation messages');
-      } finally {
-        setLoadingMessages(false);
-      }
-    };
-
-    loadMessages();
-  }, [selectedConversationId, user]);
-
-  // Load task details when a task is selected
-  useEffect(() => {
-    const loadTaskDetails = async () => {
-      if (!selectedTask || !selectedStudentId) {
-        setTaskDetails(null);
-        return;
-      }
-
-      setLoadingTaskDetails(true);
-      try {
-        const response = await parentAPI.getTaskDetails(selectedStudentId, selectedTask.id);
-        setTaskDetails(response.data);
-      } catch (error) {
-        console.error('Error loading task details:', error);
-        toast.error('Failed to load task details');
-      } finally {
-        setLoadingTaskDetails(false);
-      }
-    };
-
-    loadTaskDetails();
-  }, [selectedTask, selectedStudentId, user]);
-
-  // Load recent completions when Insights tab is active
-  useEffect(() => {
-    const loadCompletions = async () => {
-      if (activeTab !== 'insights' || !selectedStudentId) {
-        return;
-      }
-
-      setLoadingCompletions(true);
-      try {
-        const response = await parentAPI.getRecentCompletions(selectedStudentId);
-        setRecentCompletions(response.data.completions || []);
-      } catch (error) {
-        console.error('Error loading completions:', error);
-        toast.error('Failed to load recent completions');
-      } finally {
-        setLoadingCompletions(false);
-      }
-    };
-
-    loadCompletions();
-  }, [activeTab, selectedStudentId, user]);
 
   // Check if logged-in user is a dependent - redirect to student dashboard
   if (user && user.is_dependent) {
@@ -477,30 +363,12 @@ const ParentDashboardPage = () => {
           )}
         </div>
 
-        {/* Multi-Child Selector + Profile Switcher */}
-        <div className="flex gap-3 items-center flex-wrap">
-          {/* Profile Switcher (Parent <-> Dependents) */}
-          <ProfileSwitcher
-            currentProfile={currentProfile}
-            onProfileChange={handleProfileChange}
-            onAddDependent={handleAddDependent}
-          />
-
-          {children.length > 1 && (
-            <select
-              value={selectedStudentId || ''}
-              onChange={(e) => setSelectedStudentId(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg font-medium focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-              style={{ fontFamily: 'Poppins, sans-serif' }}
-            >
-              {children.map((child) => (
-                <option key={child.student_id} value={child.student_id}>
-                  {child.student_first_name} {child.student_last_name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
+        {/* Profile Switcher (Parent <-> Dependents) */}
+        <ProfileSwitcher
+          currentProfile={currentProfile}
+          onProfileChange={handleProfileChange}
+          onAddDependent={handleAddDependent}
+        />
       </div>
 
 
@@ -663,35 +531,46 @@ const ParentDashboardPage = () => {
         </div>
       ) : (
         <>
-          {/* Tabs */}
-          <div className="border-b border-gray-200 mb-6">
-            <nav className="flex gap-8">
-              {[
-                { id: 'overview', label: 'Overview', icon: ChartBarIcon },
-                { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
-                { id: 'insights', label: 'Insights', icon: LightBulbIcon },
-                { id: 'communications', label: 'Communications', icon: ChatBubbleLeftRightIcon }
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 ${
-                    activeTab === tab.id
-                      ? 'border-b-2 border-optio-purple text-optio-purple'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                  style={{ fontFamily: 'Poppins, sans-serif' }}
-                >
-                  <tab.icon className="w-5 h-5" />
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
-          </div>
+          {/* Student Tabs */}
+          {(children.length > 1 || dependents.length > 1 || (children.length > 0 && dependents.length > 0)) && (
+            <div className="border-b border-gray-200 mb-6">
+              <nav className="flex gap-6 overflow-x-auto">
+                {children.map((child) => (
+                  <button
+                    key={child.student_id}
+                    onClick={() => setSelectedStudentId(child.student_id)}
+                    className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
+                      selectedStudentId === child.student_id
+                        ? 'border-b-2 border-optio-purple text-optio-purple'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                    style={{ fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    <UserGroupIcon className="w-5 h-5" />
+                    {child.student_first_name} {child.student_last_name}
+                  </button>
+                ))}
+                {dependents.map((dependent) => (
+                  <button
+                    key={dependent.id}
+                    onClick={() => setSelectedStudentId(dependent.id)}
+                    className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
+                      selectedStudentId === dependent.id
+                        ? 'border-b-2 border-optio-purple text-optio-purple'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                    style={{ fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    <UserGroupIcon className="w-5 h-5" />
+                    {dependent.display_name}
+                  </button>
+                ))}
+              </nav>
+            </div>
+          )}
 
-          {/* Tab Content */}
-          {activeTab === 'overview' && (
-            <div className="space-y-6">
+          {/* Overview Content */}
+          <div className="space-y-6">
               {/* Active Quests */}
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -859,465 +738,7 @@ const ParentDashboardPage = () => {
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {activeTab === 'calendar' && (
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Scheduled Tasks
-              </h3>
-              {calendarData?.items?.length > 0 ? (
-                <div className="space-y-3">
-                  {calendarData.items
-                    .filter(item => item.status !== 'completed')
-                    .sort((a, b) => {
-                      if (!a.scheduled_date) return 1;
-                      if (!b.scheduled_date) return -1;
-                      return new Date(a.scheduled_date) - new Date(b.scheduled_date);
-                    })
-                    .slice(0, 10)
-                    .map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg hover:shadow-md hover:border-purple-300 transition-all cursor-pointer"
-                        onClick={() => setSelectedTask(item)}
-                      >
-                        <CalendarIcon className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {item.task_title}
-                          </h4>
-                          <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {item.quest_title} • {item.pillar}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            {item.scheduled_date && (
-                              <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                                item.status === 'wandering' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
-                              }`} style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                {item.status === 'wandering' ? 'Overdue' : new Date(item.scheduled_date).toLocaleDateString()}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <ChevronRightIcon className="h-5 w-5 text-gray-400 flex-shrink-0 mt-1" />
-                      </div>
-                    ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  No scheduled tasks yet. They're exploring freely!
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Task Detail Modal */}
-          {selectedTask && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg max-w-3xl w-full max-h-[85vh] overflow-hidden">
-                <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Task Details
-                  </h3>
-                  <button
-                    onClick={() => setSelectedTask(null)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <XMarkIcon className="h-6 w-6" />
-                  </button>
-                </div>
-                <div className="p-6 overflow-y-auto max-h-[calc(85vh-80px)]">
-                  {loadingTaskDetails ? (
-                    <div className="flex items-center justify-center py-12">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
-                    </div>
-                  ) : taskDetails ? (
-                    <div className="space-y-6">
-                      {/* Quest Info */}
-                      {taskDetails.quest && (
-                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                          <h4 className="font-bold text-purple-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            From Quest: {taskDetails.quest.title}
-                          </h4>
-                          {taskDetails.quest.description && (
-                            <p className="text-sm text-purple-800 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                              {taskDetails.quest.description}
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Task Info */}
-                      <div>
-                        <h4 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          {taskDetails.task.title}
-                        </h4>
-                        {taskDetails.task.description && (
-                          <p className="text-gray-700 font-medium mb-3 whitespace-pre-wrap" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {taskDetails.task.description}
-                          </p>
-                        )}
-                        <div className="flex flex-wrap gap-2">
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {taskDetails.task.pillar}
-                          </span>
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {taskDetails.task.xp_value} XP
-                          </span>
-                          {taskDetails.task.is_required && (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                              Required
-                            </span>
-                          )}
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                            taskDetails.task.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            taskDetails.task.status === 'overdue' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`} style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {taskDetails.task.status === 'completed' ? 'Completed' :
-                             taskDetails.task.status === 'overdue' ? 'Overdue' :
-                             taskDetails.task.status === 'scheduled' ? 'Scheduled' :
-                             'Not Started'}
-                          </span>
-                        </div>
-                        {taskDetails.task.scheduled_date && (
-                          <p className="text-sm text-gray-600 font-medium mt-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            Scheduled: {new Date(taskDetails.task.scheduled_date).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Task Status Note */}
-                      <div className="border-t border-gray-200 pt-6">
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                          <p className="text-sm text-blue-900 font-semibold mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            This is a scheduled task for your learner
-                          </p>
-                          <p className="text-xs text-blue-800 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            View completed tasks and evidence in the Insights tab under "Recently Completed"
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 text-center py-8" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      Failed to load task details
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'insights' && insightsData && (
-            <div className="space-y-6">
-
-              {/* Pillar Preferences */}
-              {insightsData.pillar_preferences?.length > 0 && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Learning Areas
-                  </h3>
-                  <div className="space-y-3">
-                    {insightsData.pillar_preferences.map((item, index) => (
-                      <div key={index} className="flex items-center gap-4">
-                        <span className="text-2xl font-bold text-gray-400" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          {index + 1}
-                        </span>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                              {item.pillar}
-                            </span>
-                            <span className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                              {item.completions} completions
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className="bg-gradient-primary h-2 rounded-full"
-                              style={{ width: `${(item.completions / insightsData.pillar_preferences[0].completions) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-
-              {/* Recently Completed */}
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  Recently Completed (Last 30 Days)
-                </h3>
-                {loadingCompletions ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
-                    <span className="ml-3 text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      Loading completions...
-                    </span>
-                  </div>
-                ) : recentCompletions.length === 0 ? (
-                  <div className="text-center py-8">
-                    <CheckCircleIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      No tasks completed in the last 30 days
-                    </p>
-                    <p className="text-gray-400 text-sm mt-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      Completed tasks will appear here with submitted evidence
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {recentCompletions.map((completion) => (
-                      <div
-                        key={completion.completion_id}
-                        className="border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-purple-300 transition-all cursor-pointer"
-                        onClick={() => setSelectedCompletion(completion)}
-                      >
-                        <div className="flex items-start gap-4">
-                          <div className="flex-shrink-0">
-                            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                              <CheckCircleIcon className="w-6 h-6 text-green-600" />
-                            </div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                              {completion.task.title}
-                            </h4>
-                            <p className="text-sm text-gray-600 font-medium mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                              {completion.quest.title} • {completion.task.pillar}
-                            </p>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                {new Date(completion.completed_at).toLocaleDateString()}
-                              </span>
-                              <span className="text-xs font-semibold px-2 py-1 rounded bg-blue-100 text-blue-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                {completion.task.xp_value} XP
-                              </span>
-                              {(completion.evidence_text || completion.evidence_url || (completion.evidence_blocks && completion.evidence_blocks.length > 0)) && (
-                                <span className="text-xs font-semibold px-2 py-1 rounded bg-purple-100 text-purple-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                  Has Evidence
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <ChevronRightIcon className="h-5 w-5 text-gray-400 flex-shrink-0 mt-1" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'communications' && (
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                AI Tutor Conversations
-              </h3>
-              <p className="text-gray-600 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                View your learner's conversations with OptioBot. All conversations are automatically monitored for safety.
-              </p>
-              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200 mb-6">
-                <p className="text-purple-900 font-medium text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  🔒 Privacy respected: Conversations are available for safety monitoring while honoring your learner's autonomy.
-                </p>
-              </div>
-
-              {loadingConversations ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
-                  <span className="ml-3 text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Loading conversations...
-                  </span>
-                </div>
-              ) : conversations.length === 0 ? (
-                <div className="text-center py-8">
-                  <ChatBubbleLeftRightIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    No tutor conversations yet
-                  </p>
-                  <p className="text-gray-400 text-sm mt-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Conversations will appear here when your learner uses OptioBot
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {conversations.map((conv) => (
-                    <div
-                      key={conv.id}
-                      className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                      onClick={() => setSelectedConversationId(conv.id)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {conv.title}
-                          </h4>
-                          <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            Mode: <span className="capitalize">{conv.mode}</span> • {conv.message_count} messages
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            Last activity: {new Date(conv.last_activity).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <ChevronRightIcon className="h-5 w-5 text-gray-400" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Conversation Detail Modal */}
-              {selectedConversationId && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                  <div className="bg-white rounded-lg max-w-3xl w-full max-h-[80vh] overflow-hidden">
-                    <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                      <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        Conversation Details
-                      </h3>
-                      <button
-                        onClick={() => setSelectedConversationId(null)}
-                        className="text-gray-400 hover:text-gray-600"
-                      >
-                        <XMarkIcon className="h-6 w-6" />
-                      </button>
-                    </div>
-                    <div className="p-6 overflow-y-auto max-h-[60vh]">
-                      {loadingMessages ? (
-                        <div className="flex items-center justify-center py-8">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
-                        </div>
-                      ) : conversationMessages.length === 0 ? (
-                        <p className="text-gray-500 text-center py-8" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          No messages in this conversation
-                        </p>
-                      ) : (
-                        <div className="space-y-4">
-                          {conversationMessages.map((msg) => (
-                            <div
-                              key={msg.id}
-                              className={`p-4 rounded-lg ${
-                                msg.role === 'user'
-                                  ? 'bg-purple-50 border border-purple-200 ml-8'
-                                  : 'bg-gray-50 border border-gray-200 mr-8'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between mb-2">
-                                <span
-                                  className={`text-xs font-semibold ${
-                                    msg.role === 'user' ? 'text-purple-700' : 'text-gray-700'
-                                  }`}
-                                  style={{ fontFamily: 'Poppins, sans-serif' }}
-                                >
-                                  {msg.role === 'user' ? 'Student' : 'OptioBot'}
-                                </span>
-                                {msg.safety_level !== 'safe' && (
-                                  <span className="text-xs font-semibold text-red-600 bg-red-100 px-2 py-1 rounded">
-                                    ⚠️ {msg.safety_level}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-gray-800 font-medium whitespace-pre-wrap" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                {msg.content}
-                              </p>
-                              <p className="text-xs text-gray-500 mt-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                {new Date(msg.created_at).toLocaleString()}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Completion Evidence Modal */}
-          {selectedCompletion && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg max-w-3xl w-full max-h-[85vh] overflow-hidden">
-                <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Completed Task Evidence
-                  </h3>
-                  <button
-                    onClick={() => setSelectedCompletion(null)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <XMarkIcon className="h-6 w-6" />
-                  </button>
-                </div>
-                <div className="p-6 overflow-y-auto max-h-[calc(85vh-80px)]">
-                  <div className="space-y-6">
-                    {/* Quest Context */}
-                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                      <h4 className="font-bold text-purple-900 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        From Quest: {selectedCompletion.quest.title}
-                      </h4>
-                      <p className="text-sm text-purple-800 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        Task: {selectedCompletion.task.title}
-                      </p>
-                    </div>
-
-                    {/* Task Info */}
-                    {selectedCompletion.task.description && (
-                      <div>
-                        <h4 className="font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          Task Description:
-                        </h4>
-                        <p className="text-gray-700 font-medium whitespace-pre-wrap" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          {selectedCompletion.task.description}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Completion Info */}
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <p className="text-sm text-green-800 font-semibold mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        Completed on {new Date(selectedCompletion.completed_at).toLocaleDateString()}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs font-semibold px-2 py-1 rounded bg-blue-100 text-blue-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          {selectedCompletion.task.xp_value} XP
-                        </span>
-                        <span className="text-xs font-semibold px-2 py-1 rounded bg-purple-100 text-purple-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          {selectedCompletion.task.pillar}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Evidence */}
-                    <div className="border-t border-gray-200 pt-6">
-                      <h4 className="text-lg font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        Submitted Evidence
-                      </h4>
-
-                      <UnifiedEvidenceDisplay
-                        evidence={{
-                          evidence_type: selectedCompletion.evidence_type,
-                          evidence_blocks: selectedCompletion.evidence_blocks,
-                          evidence_text: selectedCompletion.evidence_text,
-                          evidence_url: selectedCompletion.evidence_url
-                        }}
-                        displayMode="full"
-                        showMetadata={false}
-                        allowPrivateBlocks={true}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
 
         </>
       )}
