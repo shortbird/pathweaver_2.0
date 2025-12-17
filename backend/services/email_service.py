@@ -155,7 +155,7 @@ class EmailService(BaseService):
                         server.login(self.smtp_user, self.smtp_pass)
                         server.send_message(support_msg, to_addrs=[support_email])
 
-                    logger.info(f"Support copy sent successfully to {support_email}")
+                    logger.info(f"Support copy sent successfully to {support_email} | Subject: [COPY] {subject}")
                 except Exception as e:
                     # Don't fail the main email if support copy fails
                     logger.error(f"Failed to send support copy to {support_email}: {str(e)}")

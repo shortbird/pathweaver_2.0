@@ -166,16 +166,18 @@ const ParentDashboardPage = () => {
 
   // Handle profile switching (parent <-> dependent)
   const handleProfileChange = (profile) => {
-    setCurrentProfile(profile);
-
     if (profile.is_dependent) {
-      // Switched to dependent: set selectedStudentId to dependent's ID
-      setSelectedStudentId(profile.id);
+      // Switching to dependent: redirect to quest hub to manage their quests
+      toast.info(`Switching to ${profile.display_name}'s profile...`);
+      navigate('/quest-hub');
+      window.location.reload(); // Reload to update acting context
     } else {
-      // Switched back to parent: show first linked child or clear
+      // Switching back to parent: stay on parent dashboard
+      setCurrentProfile(profile);
       if (children.length > 0) {
         setSelectedStudentId(children[0].student_id);
-      } else {
+      } else if (dependents.length > 0) {
+        // If no linked children, just stay as parent viewing empty dashboard
         setSelectedStudentId(null);
       }
     }
