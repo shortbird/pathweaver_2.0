@@ -168,11 +168,12 @@ function AppContent() {
     }
   };
 
-  const handleSwitchBackToParent = () => {
-    clearActingAs();
-    // Navigate back to parent dashboard
-    navigate('/parent/dashboard');
-    toast.success('Switched back to parent view');
+  const handleSwitchBackToParent = async () => {
+    await clearActingAs();
+    // Force page reload to ensure clean state transition
+    // This is necessary because we're already on /parent/dashboard
+    // and navigate() won't unmount/remount the component
+    window.location.href = '/parent/dashboard';
   };
 
   return (
