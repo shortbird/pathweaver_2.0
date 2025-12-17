@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, startTransition } from 'react';
 import { useAuth } from './AuthContext';
 import api, { tokenStore } from '../services/api';
 
@@ -30,12 +30,12 @@ export const ActingAsProvider = ({ children }) => {
           // CRITICAL: Restore token to tokenStore so it gets included in Authorization header
           await tokenStore.setTokens(storedToken, tokenStore.getRefreshToken() || '');
 
-          // Defer state updates to avoid React error #300
-          setTimeout(() => {
+          // Use startTransition for non-urgent state updates (prevents React errors #300 and #310)
+          startTransition(() => {
             setActingAsDependent(parsed);
             setActingAsToken(storedToken);
             console.log('[ActingAsContext] Restored acting-as token from sessionStorage');
-          }, 0);
+          });
         } catch (error) {
           console.error('Failed to parse acting_as_dependent from sessionStorage:', error);
           sessionStorage.removeItem('acting_as_dependent');
@@ -67,12 +67,12 @@ export const ActingAsProvider = ({ children }) => {
       console.warn('[ActingAsContext] No saved parent tokens found to restore');
     }
 
-    // Defer state updates to avoid React error #300
-    setTimeout(() => {
+    // Use startTransition for non-urgent state updates (prevents React errors #300 and #310)
+    startTransition(() => {
       setActingAsDependent(null);
       setActingAsToken(null);
       console.log('[ActingAsContext] Cleared acting-as state');
-    }, 0);
+    });
   }, []);
 
   // Clear acting-as state if user changes or logs out
@@ -106,13 +106,12 @@ export const ActingAsProvider = ({ children }) => {
         // Store token in tokenStore so it gets included in Authorization header
         await tokenStore.setTokens(acting_as_token, tokenStore.getRefreshToken() || parentRefresh);
 
-        // Defer state updates to avoid React error #300 (updating during render)
-        // setTimeout ensures updates happen after current render cycle completes
-        setTimeout(() => {
+        // Use startTransition for non-urgent state updates (prevents React errors #300 and #310)
+        startTransition(() => {
           setActingAsDependent(dependent);
           setActingAsToken(acting_as_token);
           console.log('[ActingAsContext] Now acting as dependent:', dependent.display_name);
-        }, 0);
+        });
       } catch (error) {
         console.error('[ActingAsContext] Failed to generate acting-as token:', error);
         throw error;
