@@ -1,4 +1,14 @@
 """
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- Direct database calls for course quest CRUD operations
+- Uses image_service for quest image generation (line 11)
+- Could create CourseQuestRepository with methods:
+  - create_course_quest(quest_data, creator_id)
+  - update_course_quest(quest_id, quest_data)
+  - delete_course_quest(quest_id)
+  - get_course_quest_with_preset_tasks(quest_id)
+- Image management should remain in service layer
+
 Admin Course Quest Management Routes
 =====================================
 

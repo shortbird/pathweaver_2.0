@@ -1,4 +1,14 @@
 """
+REPOSITORY MIGRATION: PARTIALLY MIGRATED - Needs Completion
+- Already imports QuestRepository (lines 10-20)
+- Uses image_service for quest image generation (line 25)
+- BUT: Many endpoints still use direct database access
+- Mixed pattern creates inconsistency
+- Should consolidate quest CRUD into QuestRepository methods
+- Image management should remain in service layer
+
+Recommendation: Complete migration by using existing QuestRepository for all quest CRUD
+
 Admin Quest Management Routes
 
 Handles CRUD operations for quests including creation, editing, deletion,

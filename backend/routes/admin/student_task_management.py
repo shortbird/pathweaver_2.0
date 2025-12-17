@@ -1,4 +1,10 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Uses SubjectClassificationService for AI subject classification (line 25)
+- Complex advisor/admin task creation workflow
+- Service layer appropriate for cross-entity operations (student quest instances)
+- Direct DB calls exist but acceptable for admin task management
+
 Admin Student Task Management Routes
 
 Handles advisor/admin creation of tasks for individual student quest instances.

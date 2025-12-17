@@ -1,4 +1,13 @@
 """
+REPOSITORY MIGRATION: PARTIALLY MIGRATED - Needs Completion
+- Already imports UserRepository (lines 10-20)
+- BUT: Many endpoints still use direct database access
+- Mixed pattern creates inconsistency
+- User role changes, status updates, chat logs - all via direct DB calls
+- Should consolidate user management into UserRepository methods
+
+Recommendation: Complete migration by using existing UserRepository for all user operations
+
 Admin User Management Routes
 
 Handles user CRUD operations, subscription management, role changes,

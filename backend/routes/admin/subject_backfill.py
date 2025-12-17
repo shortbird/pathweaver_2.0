@@ -1,4 +1,10 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Uses SubjectClassificationService exclusively (line 9)
+- AI-driven subject classification backfill operations
+- Service layer essential for complex AI classification logic
+- One-time/batch operation (not regular CRUD)
+
 Admin endpoint for backfilling subject XP distributions on tasks.
 Provides REST API for reviewing, editing, and AI-generating subject classifications.
 """

@@ -1,3 +1,16 @@
+"""
+REPOSITORY MIGRATION: SKIP MIGRATION - Mega-File Requires Refactoring First
+- 1,523 lines violating Single Responsibility Principle (SRP)
+- Per P1-ARCH-1: Must be split into 5 focused modules before migration:
+  - auth/login.py (login, logout, refresh, session validation)
+  - auth/registration.py (signup, email verification)
+  - auth/password.py (reset, change, strength validation)
+  - auth/session.py (session management, cookie handling)
+  - auth/organization.py (org context, switching)
+- AFTER refactoring, each module should use UserRepository for database operations
+- Target: Max 300 lines per file, then migrate to repository pattern
+"""
+
 from flask import Blueprint, request, jsonify, make_response
 from database import get_supabase_client
 from backend.repositories import (
