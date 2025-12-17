@@ -162,9 +162,7 @@ function AppContent() {
 
   const handleSwitchBackToParent = () => {
     clearActingAs();
-    toast.info('Switched back to parent view');
-    navigate('/parent/dashboard');
-    window.location.reload();
+    navigate('/parent/dashboard', { replace: true });
   };
 
   return (

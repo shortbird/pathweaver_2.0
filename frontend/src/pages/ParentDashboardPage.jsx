@@ -42,10 +42,10 @@ const ParentDashboardPage = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [error, setError] = useState(null);
 
-  // If user is acting as dependent, redirect immediately to quest hub
+  // If user is acting as dependent, redirect immediately to quest hub (without reload to prevent loop)
   useEffect(() => {
-    if (actingAsDependent) {
-      navigate('/quest-hub');
+    if (actingAsDependent && window.location.pathname === '/parent/dashboard') {
+      navigate('/quest-hub', { replace: true });
     }
   }, [actingAsDependent, navigate]);
   const [showRhythmModal, setShowRhythmModal] = useState(false);
@@ -178,9 +178,8 @@ const ParentDashboardPage = () => {
     if (profile.is_dependent) {
       // Switching to dependent: store in context and redirect to quest hub
       setActingAs(profile);
-      toast.info(`Switching to ${profile.display_name}'s profile...`);
-      navigate('/quest-hub');
-      window.location.reload(); // Reload to update acting context
+      // Don't use window.location.reload() - just navigate
+      navigate('/quest-hub', { replace: true });
     } else {
       // Switching back to parent: clear acting-as state and stay on parent dashboard
       setActingAs(null);
@@ -419,7 +418,7 @@ const ParentDashboardPage = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-20 sm:pt-8">
       {/* Admin Demo Mode Notice */}
       {user.role === 'admin' && (
         <div className="mb-6 bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
