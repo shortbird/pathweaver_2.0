@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import api, { tokenStore } from '../services/api';
 
@@ -42,15 +42,37 @@ export const ActingAsProvider = ({ children }) => {
     restoreActingAsState();
   }, []);
 
+  // Memoized clearActingAs function to prevent re-renders
+  const clearActingAs = useCallback(async () => {
+    localStorage.removeItem('acting_as_dependent');
+    localStorage.removeItem('acting_as_token');
+    setActingAsDependent(null);
+    setActingAsToken(null);
+
+    // Restore parent's saved tokens (saved before switching to dependent)
+    const parentAccess = localStorage.getItem('parent_access_token');
+    const parentRefresh = localStorage.getItem('parent_refresh_token');
+
+    if (parentAccess && parentRefresh) {
+      // Restore parent's tokens to tokenStore
+      await tokenStore.setTokens(parentAccess, parentRefresh);
+      // Clean up temporary parent token storage
+      localStorage.removeItem('parent_access_token');
+      localStorage.removeItem('parent_refresh_token');
+      console.log('[ActingAsContext] Restored parent tokens');
+    } else {
+      console.warn('[ActingAsContext] No saved parent tokens found to restore');
+    }
+
+    console.log('[ActingAsContext] Cleared acting-as state');
+  }, []);
+
   // Clear acting-as state if user changes or logs out
   useEffect(() => {
     if (!user) {
-      // Handle async clearActingAs properly in useEffect
-      (async () => {
-        await clearActingAs();
-      })();
+      clearActingAs();
     }
-  }, [user]);
+  }, [user, clearActingAs]);
 
   const setActingAs = async (dependent) => {
     if (dependent) {
@@ -86,30 +108,6 @@ export const ActingAsProvider = ({ children }) => {
     } else {
       await clearActingAs();
     }
-  };
-
-  const clearActingAs = async () => {
-    localStorage.removeItem('acting_as_dependent');
-    localStorage.removeItem('acting_as_token');
-    setActingAsDependent(null);
-    setActingAsToken(null);
-
-    // Restore parent's saved tokens (saved before switching to dependent)
-    const parentAccess = localStorage.getItem('parent_access_token');
-    const parentRefresh = localStorage.getItem('parent_refresh_token');
-
-    if (parentAccess && parentRefresh) {
-      // Restore parent's tokens to tokenStore
-      await tokenStore.setTokens(parentAccess, parentRefresh);
-      // Clean up temporary parent token storage
-      localStorage.removeItem('parent_access_token');
-      localStorage.removeItem('parent_refresh_token');
-      console.log('[ActingAsContext] Restored parent tokens');
-    } else {
-      console.warn('[ActingAsContext] No saved parent tokens found to restore');
-    }
-
-    console.log('[ActingAsContext] Cleared acting-as state');
   };
 
   const value = {
