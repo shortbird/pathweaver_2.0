@@ -58,7 +58,6 @@ const ParentDashboardPage = () => {
   const [currentProfile, setCurrentProfile] = useState(null);
   const [showAddDependentModal, setShowAddDependentModal] = useState(false);
   const [showRequestConnectionModal, setShowRequestConnectionModal] = useState(false);
-  const [showAddChildMenu, setShowAddChildMenu] = useState(false);
 
   // Pillar display names mapping
   const pillarDisplayNames = {
@@ -472,7 +471,7 @@ const ParentDashboardPage = () => {
           )}
         </div>
 
-        {/* Multi-Child Selector + Profile Switcher + Learning Rhythm Indicator + Add Child Button */}
+        {/* Multi-Child Selector + Profile Switcher */}
         <div className="flex gap-3 items-center flex-wrap">
           {/* Profile Switcher (Parent <-> Dependents) */}
           <ProfileSwitcher
@@ -480,76 +479,6 @@ const ParentDashboardPage = () => {
             onProfileChange={handleProfileChange}
             onAddDependent={handleAddDependent}
           />
-
-          {/* Add Child Dropdown Menu */}
-          <div className="relative">
-            <button
-              onClick={() => setShowAddChildMenu(!showAddChildMenu)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:shadow-md transition-all font-semibold"
-              style={{ fontFamily: 'Poppins, sans-serif' }}
-            >
-              <PlusIcon className="w-4 h-4" />
-              <span className="text-sm">Add Child</span>
-            </button>
-
-            {showAddChildMenu && (
-              <>
-                {/* Backdrop to close menu */}
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowAddChildMenu(false)}
-                />
-
-                {/* Dropdown Menu */}
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-20 overflow-hidden">
-                  <button
-                    onClick={() => {
-                      setShowAddChildMenu(false);
-                      setShowAddDependentModal(true);
-                    }}
-                    className="w-full text-left px-4 py-3 hover:bg-purple-50 transition-colors border-b border-gray-200"
-                  >
-                    <div className="font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      Create Child Profile (Under 13)
-                    </div>
-                    <div className="text-xs text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      Manage their account fully
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setShowAddChildMenu(false);
-                      setShowRequestConnectionModal(true);
-                    }}
-                    className="w-full text-left px-4 py-3 hover:bg-pink-50 transition-colors"
-                  >
-                    <div className="font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      Connect Existing Student (13+)
-                    </div>
-                    <div className="text-xs text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      Contact support to link their account
-                    </div>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Learning Rhythm Indicator - Clickable */}
-          <button
-            onClick={() => setShowRhythmModal(true)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all hover:shadow-md ${isFlowState ? 'bg-green-50 hover:bg-green-100' : 'bg-yellow-50 hover:bg-yellow-100'}`}
-          >
-            {isFlowState ? (
-              <CheckCircleIcon className="w-5 h-5 text-green-600" />
-            ) : (
-              <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600" />
-            )}
-            <span className={`text-sm font-semibold ${isFlowState ? 'text-green-800' : 'text-yellow-800'}`} style={{ fontFamily: 'Poppins, sans-serif' }}>
-              {isFlowState ? 'In Flow' : 'Check-In Suggested'}
-            </span>
-          </button>
 
           {children.length > 1 && (
             <select

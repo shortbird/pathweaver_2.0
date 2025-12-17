@@ -149,12 +149,16 @@ const AddDependentModal = ({ isOpen, onClose, onSuccess }) => {
 
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* COPPA Notice */}
+          {/* Explanation Notice */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3">
             <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-blue-800">
-              <strong>COPPA Compliance:</strong> Dependent profiles are for children under 13.
-              No email/password required. At age 13, you can optionally create login credentials for them.
+              <p className="mb-2">
+                <strong>Under 13:</strong> Create a dependent profile by filling out this form. You'll manage their account fully with no email/password required.
+              </p>
+              <p>
+                <strong>13+:</strong> If your child already has their own Optio account, please email <a href="mailto:support@optioeducation.com" className="underline font-semibold">support@optioeducation.com</a> to request a connection. They'll maintain control of their account.
+              </p>
             </div>
           </div>
 
