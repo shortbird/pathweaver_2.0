@@ -1,5 +1,16 @@
 """
 Calendar routes for managing user quest/task scheduling and deadlines.
+
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- 556 lines with 20+ direct database calls
+- Calendar/deadline management functionality
+- Could create CalendarRepository with methods:
+  - get_user_deadlines(user_id, start_date, end_date)
+  - get_upcoming_deadlines(user_id, days_ahead)
+  - set_task_deadline(task_id, deadline_date)
+  - get_calendar_events(user_id, month, year)
+- Helper functions for date manipulation could move to utils
+- Uses mix of get_user_client() and get_supabase_admin_client() - needs RLS review
 """
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta, date

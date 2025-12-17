@@ -1,3 +1,19 @@
+"""
+REPOSITORY MIGRATION: MIGRATION CANDIDATE - High Priority
+- 812 lines with 30+ direct database calls
+- Core feature (public diploma/portfolio pages)
+- Complex queries for diploma data aggregation
+- Could create DiplomaRepository with methods:
+  - get_diploma_by_user_id(user_id)
+  - get_diploma_by_slug(slug)
+  - get_completed_quests_for_diploma(user_id)
+  - get_earned_badges_for_diploma(user_id)
+  - get_skill_xp_distribution(user_id)
+  - get_evidence_samples(user_id, limit)
+- Helper functions (parse_document_id_from_evidence_text, enhance_evidence_display_data)
+  could move to utils or service layer
+"""
+
 from flask import Blueprint, jsonify
 from flask_cors import cross_origin
 from database import get_supabase_client, get_supabase_admin_client

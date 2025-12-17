@@ -5,6 +5,18 @@ Provides read-only access to student data for linked parents.
 NOTE: Admin client usage justified throughout this file for cross-user data access.
 Parents viewing linked student data requires elevated privileges beyond normal RLS.
 All endpoints verify parent-student link before allowing access.
+
+REPOSITORY MIGRATION: SKIP MIGRATION - Mega-File with Complex Cross-User Queries
+- 1,375 lines violating Single Responsibility Principle (SRP)
+- Already uses ParentRepository for link verification (good)
+- Complex cross-user data aggregation (parent viewing student data)
+- Per P1-ARCH-1: Should be split before migration:
+  - parent/dashboard.py (overview, summary stats)
+  - parent/quests.py (student quest progress)
+  - parent/evidence.py (evidence viewing/uploading)
+  - parent/analytics.py (student activity, insights)
+- AFTER refactoring, create ParentDashboardService to encapsulate business logic
+- Complex aggregation queries acceptable in service layer per guidelines
 """
 from flask import Blueprint, request, jsonify
 from datetime import datetime, date, timedelta

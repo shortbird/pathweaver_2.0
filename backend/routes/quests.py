@@ -1,6 +1,18 @@
 """
 Quest V3 API endpoints.
 Handles quest listing, enrollment, and detail views.
+
+REPOSITORY MIGRATION: SKIP MIGRATION - Mega-File Requires Refactoring First
+- 1,507 lines violating Single Responsibility Principle (SRP)
+- Already uses QuestRepository and QuestTaskRepository (good start)
+- Also uses quest_optimization_service for N+1 prevention
+- Per P1-ARCH-1: Should be split before further migration:
+  - quest/listing.py (quest list, filtering, pagination)
+  - quest/enrollment.py (start quest, task selection)
+  - quest/detail.py (quest detail views, task views)
+  - quest/completion.py (quest completion logic)
+- AFTER refactoring, consolidate remaining direct DB calls into repositories
+- Complex queries with optimization should remain in service layer
 """
 
 from flask import Blueprint, request, jsonify, g
