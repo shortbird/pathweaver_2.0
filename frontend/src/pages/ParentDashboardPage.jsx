@@ -27,7 +27,7 @@ import RequestStudentConnectionModal from '../components/parent/RequestStudentCo
 
 const ParentDashboardPage = () => {
   const { user } = useAuth();
-  const { setActingAs, actingAsDependent } = useActingAs();
+  const { setActingAs, actingAsDependent, clearActingAs } = useActingAs();
   const navigate = useNavigate();
   const { studentId } = useParams(); // Get student ID from URL if multi-child
   const [selectedStudentId, setSelectedStudentId] = useState(studentId || null);
@@ -41,13 +41,6 @@ const ParentDashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [error, setError] = useState(null);
-
-  // If user is acting as dependent, redirect immediately to quest hub (without reload to prevent loop)
-  useEffect(() => {
-    if (actingAsDependent && window.location.pathname === '/parent/dashboard') {
-      navigate('/quest-hub', { replace: true });
-    }
-  }, [actingAsDependent, navigate]);
   const [showRhythmModal, setShowRhythmModal] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [loadingConversations, setLoadingConversations] = useState(false);
@@ -75,6 +68,30 @@ const ParentDashboardPage = () => {
     communication: 'Communication',
     civics: 'Civics'
   };
+
+  // Early return: Show message if trying to access parent dashboard while acting as dependent
+  if (actingAsDependent) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-12 text-center">
+        <UserGroupIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          Acting as {actingAsDependent.display_name}
+        </h2>
+        <p className="text-gray-600 font-medium mb-6" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          You're currently managing your child's profile. To view the parent dashboard, switch back to your profile using the banner in the bottom-left corner.
+        </p>
+        <button
+          onClick={() => {
+            clearActingAs();
+          }}
+          className="px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-lg transition-shadow"
+          style={{ fontFamily: 'Poppins, sans-serif' }}
+        >
+          Switch Back to Parent View
+        </button>
+      </div>
+    );
+  }
 
   // Initialize current profile (parent's own profile)
   useEffect(() => {

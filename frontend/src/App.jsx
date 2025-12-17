@@ -162,7 +162,8 @@ function AppContent() {
 
   const handleSwitchBackToParent = () => {
     clearActingAs();
-    navigate('/parent/dashboard', { replace: true });
+    // Don't navigate automatically - let the user control where they go
+    toast.success('Switched back to parent view');
   };
 
   return (
