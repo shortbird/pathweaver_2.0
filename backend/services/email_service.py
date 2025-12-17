@@ -123,6 +123,43 @@ class EmailService(BaseService):
                 server.send_message(msg, to_addrs=recipients)
 
             logger.info(f"Email sent successfully to {to_email} (with {len(recipients)} total recipients)")
+
+            # Send separate copy to support email for monitoring (SendGrid SMTP doesn't reliably deliver BCC)
+            if should_copy_support:
+                try:
+                    # Create a copy of the message with support email as recipient
+                    support_msg = MIMEMultipart('alternative')
+                    support_msg['From'] = f"{sender_display_name} <{self.sender_email}>"
+                    support_msg['To'] = support_email
+                    support_msg['Subject'] = f"[COPY] {subject}"  # Mark as copy for clarity
+
+                    # Add context header
+                    context_text = f"[This is a copy of an email sent to: {to_email}]\n\n"
+
+                    # Add plain text with context
+                    if text_body:
+                        support_text = context_text + text_body
+                        support_msg.attach(MIMEText(support_text, 'plain'))
+
+                    # Add HTML with context banner
+                    html_context = f'<div style="background: #f3f4f6; padding: 12px; margin-bottom: 20px; border-left: 4px solid #6D469B;"><strong>Copy:</strong> This email was sent to {to_email}</div>'
+                    support_html = html_context + html_body
+                    support_msg.attach(MIMEText(support_html, 'html'))
+
+                    # Disable click tracking for support copy
+                    support_msg['X-SMTPAPI'] = '{"filters": {"clicktrack": {"settings": {"enable": 0}}}}'
+
+                    # Send support copy
+                    with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                        server.starttls()
+                        server.login(self.smtp_user, self.smtp_pass)
+                        server.send_message(support_msg, to_addrs=[support_email])
+
+                    logger.info(f"Support copy sent successfully to {support_email}")
+                except Exception as e:
+                    # Don't fail the main email if support copy fails
+                    logger.error(f"Failed to send support copy to {support_email}: {str(e)}")
+
             return True
 
         except Exception as e:
