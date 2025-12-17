@@ -22,12 +22,57 @@ This document tracks the progress of migrating route files from direct database 
 
 **Impact**: Eliminated 5 direct database calls, improved error handling with NotFoundError exceptions
 
+### ✅ backend/routes/settings.py
+**Status**: COMPLETE
+**Date**: 2025-12-17
+**Changes**:
+- Created `SiteSettingsRepository` with methods:
+  - `get_settings()`: Returns site settings or defaults
+  - `upsert_settings(data)`: Creates or updates settings
+  - `update_logo_url(logo_url)`: Updates logo
+- Migrated all 3 endpoints to use repository
+- Removed 58 lines of boilerplate database code
+- Added admin client justification comments
+
+**Impact**: Eliminated 7 direct database calls, cleaner code
+
+### ✅ backend/routes/helper_evidence.py
+**Status**: COMPLETE
+**Date**: 2025-12-17
+**Changes**:
+- Extended `EvidenceDocumentRepository` with helper-specific methods:
+  - `get_or_create_document()`: Automatic document creation
+  - `get_next_block_order_index()`: Block ordering helper
+  - `create_helper_block()`: Evidence blocks with uploader metadata
+- Migrated helper functions to use `UserRepository`, `ParentRepository`
+- Migrated evidence creation to use `EvidenceDocumentRepository`
+- Kept complex joins as direct queries (per guidelines)
+- Added admin client justification comments
+
+**Impact**: Eliminated 12 direct database calls, better separation of concerns
+
 ### ✅ backend/repositories/task_repository.py
 **Status**: ENHANCED
 **Date**: 2025-01-02
 **New Methods Added**:
 - `get_task_with_relations(task_id, user_id)`: Fetches task with quest and user_quest relationships
 - `check_existing_completion(user_id, task_id)`: Checks if task completion exists (TaskCompletionRepository)
+
+### ✅ backend/repositories/site_settings_repository.py
+**Status**: NEW
+**Date**: 2025-12-17
+**Methods**:
+- `get_settings()`: Get site settings with defaults
+- `upsert_settings(data)`: Create or update settings
+- `update_logo_url()`, `update_site_name()`, `update_favicon_url()`: Convenience methods
+
+### ✅ backend/repositories/evidence_document_repository.py
+**Status**: ENHANCED
+**Date**: 2025-12-17
+**New Methods Added**:
+- `get_or_create_document(user_id, task_id, quest_id)`: Gets existing or creates new evidence document
+- `get_next_block_order_index(document_id)`: Calculates next block position
+- `create_helper_block()`: Creates blocks with uploader metadata for advisors/parents
 
 ## In Progress
 
@@ -57,10 +102,12 @@ This document tracks the progress of migrating route files from direct database 
 4. **Keep complex logic in routes**: Don't over-abstract - repositories for data access only
 
 ## Migration Statistics
-- **Total route files with direct DB access**: 51
-- **Files migrated**: 1 (tasks.py)
-- **Files remaining**: 50
-- **Completion**: 2%
+- **Total route files with direct DB access**: ~74
+- **Files fully migrated**: 3 (tasks.py, settings.py, helper_evidence.py)
+- **Files using services (best practice)**: ~15 (badges.py, badge_claiming.py, etc.)
+- **Files remaining**: ~56
+- **Completion**: ~4% (direct migration) + ~20% (service layer) = ~24% overall adherence to pattern
+- **Database calls eliminated**: 24+ direct calls replaced with repository methods
 
 ## Next Steps
 1. ✅ Document migration guidelines (this file)
