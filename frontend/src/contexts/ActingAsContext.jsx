@@ -26,12 +26,16 @@ export const ActingAsProvider = ({ children }) => {
       if (stored && storedToken) {
         try {
           const parsed = JSON.parse(stored);
-          setActingAsDependent(parsed);
-          setActingAsToken(storedToken);
 
           // CRITICAL: Restore token to tokenStore so it gets included in Authorization header
           await tokenStore.setTokens(storedToken, tokenStore.getRefreshToken() || '');
-          console.log('[ActingAsContext] Restored acting-as token from sessionStorage');
+
+          // Defer state updates to avoid React error #300
+          setTimeout(() => {
+            setActingAsDependent(parsed);
+            setActingAsToken(storedToken);
+            console.log('[ActingAsContext] Restored acting-as token from sessionStorage');
+          }, 0);
         } catch (error) {
           console.error('Failed to parse acting_as_dependent from sessionStorage:', error);
           sessionStorage.removeItem('acting_as_dependent');
@@ -47,8 +51,6 @@ export const ActingAsProvider = ({ children }) => {
   const clearActingAs = useCallback(async () => {
     sessionStorage.removeItem('acting_as_dependent');
     sessionStorage.removeItem('acting_as_token');
-    setActingAsDependent(null);
-    setActingAsToken(null);
 
     // Restore parent's saved tokens (saved before switching to dependent)
     const parentAccess = sessionStorage.getItem('parent_access_token');
@@ -65,7 +67,12 @@ export const ActingAsProvider = ({ children }) => {
       console.warn('[ActingAsContext] No saved parent tokens found to restore');
     }
 
-    console.log('[ActingAsContext] Cleared acting-as state');
+    // Defer state updates to avoid React error #300
+    setTimeout(() => {
+      setActingAsDependent(null);
+      setActingAsToken(null);
+      console.log('[ActingAsContext] Cleared acting-as state');
+    }, 0);
   }, []);
 
   // Clear acting-as state if user changes or logs out
@@ -95,13 +102,17 @@ export const ActingAsProvider = ({ children }) => {
         // Store dependent info and token in sessionStorage (clears on page refresh)
         sessionStorage.setItem('acting_as_dependent', JSON.stringify(dependent));
         sessionStorage.setItem('acting_as_token', acting_as_token);
-        setActingAsDependent(dependent);
-        setActingAsToken(acting_as_token);
 
         // Store token in tokenStore so it gets included in Authorization header
         await tokenStore.setTokens(acting_as_token, tokenStore.getRefreshToken() || parentRefresh);
 
-        console.log('[ActingAsContext] Now acting as dependent:', dependent.display_name);
+        // Defer state updates to avoid React error #300 (updating during render)
+        // setTimeout ensures updates happen after current render cycle completes
+        setTimeout(() => {
+          setActingAsDependent(dependent);
+          setActingAsToken(acting_as_token);
+          console.log('[ActingAsContext] Now acting as dependent:', dependent.display_name);
+        }, 0);
       } catch (error) {
         console.error('[ActingAsContext] Failed to generate acting-as token:', error);
         throw error;
