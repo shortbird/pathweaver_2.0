@@ -17,11 +17,12 @@ export const ActingAsProvider = ({ children }) => {
   const [actingAsDependent, setActingAsDependent] = useState(null);
   const [actingAsToken, setActingAsToken] = useState(null);
 
-  // Load acting-as state from localStorage on mount
+  // Load acting-as state from sessionStorage on mount
+  // sessionStorage clears on page refresh, returning user to parent account
   useEffect(() => {
     const restoreActingAsState = async () => {
-      const stored = localStorage.getItem('acting_as_dependent');
-      const storedToken = localStorage.getItem('acting_as_token');
+      const stored = sessionStorage.getItem('acting_as_dependent');
+      const storedToken = sessionStorage.getItem('acting_as_token');
       if (stored && storedToken) {
         try {
           const parsed = JSON.parse(stored);
@@ -30,11 +31,11 @@ export const ActingAsProvider = ({ children }) => {
 
           // CRITICAL: Restore token to tokenStore so it gets included in Authorization header
           await tokenStore.setTokens(storedToken, tokenStore.getRefreshToken() || '');
-          console.log('[ActingAsContext] Restored acting-as token from localStorage');
+          console.log('[ActingAsContext] Restored acting-as token from sessionStorage');
         } catch (error) {
-          console.error('Failed to parse acting_as_dependent from localStorage:', error);
-          localStorage.removeItem('acting_as_dependent');
-          localStorage.removeItem('acting_as_token');
+          console.error('Failed to parse acting_as_dependent from sessionStorage:', error);
+          sessionStorage.removeItem('acting_as_dependent');
+          sessionStorage.removeItem('acting_as_token');
         }
       }
     };
@@ -44,21 +45,21 @@ export const ActingAsProvider = ({ children }) => {
 
   // Memoized clearActingAs function to prevent re-renders
   const clearActingAs = useCallback(async () => {
-    localStorage.removeItem('acting_as_dependent');
-    localStorage.removeItem('acting_as_token');
+    sessionStorage.removeItem('acting_as_dependent');
+    sessionStorage.removeItem('acting_as_token');
     setActingAsDependent(null);
     setActingAsToken(null);
 
     // Restore parent's saved tokens (saved before switching to dependent)
-    const parentAccess = localStorage.getItem('parent_access_token');
-    const parentRefresh = localStorage.getItem('parent_refresh_token');
+    const parentAccess = sessionStorage.getItem('parent_access_token');
+    const parentRefresh = sessionStorage.getItem('parent_refresh_token');
 
     if (parentAccess && parentRefresh) {
       // Restore parent's tokens to tokenStore
       await tokenStore.setTokens(parentAccess, parentRefresh);
       // Clean up temporary parent token storage
-      localStorage.removeItem('parent_access_token');
-      localStorage.removeItem('parent_refresh_token');
+      sessionStorage.removeItem('parent_access_token');
+      sessionStorage.removeItem('parent_refresh_token');
       console.log('[ActingAsContext] Restored parent tokens');
     } else {
       console.warn('[ActingAsContext] No saved parent tokens found to restore');
@@ -82,8 +83,8 @@ export const ActingAsProvider = ({ children }) => {
         const parentRefresh = tokenStore.getRefreshToken();
 
         if (parentAccess && parentRefresh) {
-          localStorage.setItem('parent_access_token', parentAccess);
-          localStorage.setItem('parent_refresh_token', parentRefresh);
+          sessionStorage.setItem('parent_access_token', parentAccess);
+          sessionStorage.setItem('parent_refresh_token', parentRefresh);
           console.log('[ActingAsContext] Saved parent tokens before switching');
         }
 
@@ -91,9 +92,9 @@ export const ActingAsProvider = ({ children }) => {
         const response = await api.post(`/api/dependents/${dependent.id}/act-as`, {});
         const { acting_as_token } = response.data;
 
-        // Store dependent info and token
-        localStorage.setItem('acting_as_dependent', JSON.stringify(dependent));
-        localStorage.setItem('acting_as_token', acting_as_token);
+        // Store dependent info and token in sessionStorage (clears on page refresh)
+        sessionStorage.setItem('acting_as_dependent', JSON.stringify(dependent));
+        sessionStorage.setItem('acting_as_token', acting_as_token);
         setActingAsDependent(dependent);
         setActingAsToken(acting_as_token);
 
