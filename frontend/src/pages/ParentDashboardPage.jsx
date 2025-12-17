@@ -193,10 +193,9 @@ const ParentDashboardPage = () => {
   // Handle profile switching (parent <-> dependent)
   const handleProfileChange = (profile) => {
     if (profile.is_dependent) {
-      // Switching to dependent: store in context and redirect to quest hub
+      // Switching to dependent: store in context and redirect to student dashboard
       setActingAs(profile);
-      // Don't use window.location.reload() - just navigate
-      navigate('/quest-hub', { replace: true });
+      navigate('/dashboard', { replace: true });
     } else {
       // Switching back to parent: clear acting-as state and stay on parent dashboard
       setActingAs(null);

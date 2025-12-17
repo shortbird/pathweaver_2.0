@@ -1,6 +1,7 @@
 import React, { useEffect, memo } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useActingAs } from '../contexts/ActingAsContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
 import QuestCardSimple from '../components/quest/QuestCardSimple'
 // Deprecated: Keeping for potential future use
@@ -75,8 +76,12 @@ const ActiveQuests = memo(({ activeQuests, completedQuestsCount = 0 }) => {
 
 const DashboardPage = () => {
   const { user } = useAuth()
+  const { actingAsDependent } = useActingAs()
   // Deprecated: Keeping state for potential future use
   // const [showLearningEventModal, setShowLearningEventModal] = useState(false)
+
+  // Determine which user ID to use: dependent if acting as one, otherwise logged-in user
+  const effectiveUserId = actingAsDependent?.id || user?.id
 
   // ✅ SSO FIX: Clear sso_pending flag from URL on mount
   useEffect(() => {
@@ -94,8 +99,8 @@ const DashboardPage = () => {
     isLoading: dashboardLoading,
     error: dashboardError,
     refetch: refetchDashboard
-  } = useUserDashboard(user?.id, {
-    enabled: !!user?.id,
+  } = useUserDashboard(effectiveUserId, {
+    enabled: !!effectiveUserId,
     refetchInterval: 30000, // Auto-refresh every 30 seconds
   })
 
