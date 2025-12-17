@@ -13,6 +13,7 @@ from database import get_supabase_admin_client
 from backend.repositories.dependent_repository import DependentRepository
 from backend.repositories.base_repository import NotFoundError, PermissionError, ValidationError as RepoValidationError
 from utils.auth.decorators import require_auth
+from utils.session_manager import session_manager
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError as RouteNotFoundError
 import logging
 
@@ -347,3 +348,54 @@ def promote_dependent(user_id, dependent_id):
     except Exception as e:
         logger.error(f"Error promoting dependent {dependent_id}: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to promote dependent'}), 500
+
+
+@bp.route('/<string:dependent_id>/act-as', methods=['POST'])
+@require_auth
+def generate_acting_as_token(user_id, dependent_id):
+    """
+    Generate an acting-as token for a parent to act as their dependent.
+    This allows the parent to use the platform as if they were the dependent,
+    similar to admin masquerade functionality.
+
+    Returns:
+        200: Token generated successfully with acting_as_token
+        403: User is not a parent or doesn't own this dependent
+        404: Dependent not found
+    """
+    try:
+        verify_parent_role(user_id)
+
+        supabase = get_supabase_admin_client()
+        dependent_repo = DependentRepository(client=supabase)
+
+        # Verify that this dependent belongs to this parent
+        dependent = dependent_repo.get_dependent_by_id(dependent_id)
+        if not dependent:
+            raise RouteNotFoundError('Dependent', dependent_id)
+
+        if dependent.get('managed_by_parent_id') != user_id:
+            raise AuthorizationError("You can only act as your own dependents")
+
+        # Generate acting-as token (parent_id, dependent_id)
+        acting_as_token = session_manager.generate_acting_as_token(user_id, dependent_id)
+
+        logger.info(f"Parent {user_id} generated acting-as token for dependent {dependent_id}")
+
+        return jsonify({
+            'success': True,
+            'acting_as_token': acting_as_token,
+            'dependent_id': dependent_id,
+            'dependent_display_name': dependent.get('display_name'),
+            'message': f"Now acting as {dependent.get('display_name')}"
+        }), 200
+
+    except AuthorizationError as e:
+        logger.warning(f"Authorization error for user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except RouteNotFoundError as e:
+        logger.warning(f"Dependent {dependent_id} not found for user {user_id}")
+        return jsonify({'success': False, 'error': 'Dependent not found'}), 404
+    except Exception as e:
+        logger.error(f"Error generating acting-as token for dependent {dependent_id}: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to generate token'}), 500

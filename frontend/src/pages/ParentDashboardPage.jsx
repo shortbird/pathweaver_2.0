@@ -191,11 +191,16 @@ const ParentDashboardPage = () => {
   }, [selectedStudentId, children.length, dependents.length, user]);
 
   // Handle profile switching (parent <-> dependent)
-  const handleProfileChange = (profile) => {
+  const handleProfileChange = async (profile) => {
     if (profile.is_dependent) {
-      // Switching to dependent: store in context and redirect to student dashboard
-      setActingAs(profile);
-      navigate('/dashboard', { replace: true });
+      try {
+        // Switching to dependent: request acting-as token and redirect to student dashboard
+        await setActingAs(profile);
+        navigate('/dashboard', { replace: true });
+      } catch (error) {
+        console.error('Failed to switch to dependent profile:', error);
+        toast.error('Failed to switch profiles. Please try again.');
+      }
     } else {
       // Switching back to parent: clear acting-as state and stay on parent dashboard
       setActingAs(null);

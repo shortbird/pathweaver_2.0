@@ -30,6 +30,7 @@ class SessionManager:
         self.access_token_expiry = timedelta(minutes=15)  # Short-lived access token
         self.refresh_token_expiry = timedelta(days=7)  # Longer-lived refresh token
         self.masquerade_token_expiry = timedelta(hours=1)  # Masquerade sessions expire faster
+        self.acting_as_token_expiry = timedelta(hours=24)  # Acting as dependent sessions (longer for parents)
 
         # Log token versioning status
         if self.previous_secret_key:
@@ -108,6 +109,19 @@ class SessionManager:
             'iat': datetime.now(timezone.utc)
         }
         return jwt.encode(payload, self.secret_key, algorithm='HS256')
+
+    def generate_acting_as_token(self, parent_id: str, dependent_id: str) -> str:
+        """Generate a JWT acting-as token (parent acting as dependent)"""
+        payload = {
+            'sub': dependent_id,  # CRITICAL: Supabase RLS expects 'sub' for dependent user
+            'user_id': parent_id,  # Keep parent ID for audit trail
+            'acting_as': dependent_id,
+            'type': 'acting_as_dependent',
+            'version': self.token_version,  # Add version for rotation tracking
+            'exp': datetime.now(timezone.utc) + self.acting_as_token_expiry,
+            'iat': datetime.now(timezone.utc)
+        }
+        return jwt.encode(payload, self.secret_key, algorithm='HS256')
     
     def verify_access_token(self, token: str) -> Optional[Dict[str, Any]]:
         """Verify and decode an access token (supports graceful key rotation)"""
@@ -169,6 +183,28 @@ class SessionManager:
                 payload = jwt.decode(token, self.previous_secret_key, algorithms=['HS256'])
                 if payload.get('type') == 'masquerade':
                     logger.info(f"[SessionManager] Masquerade token validated with previous secret (version: {payload.get('version', 'unknown')})")
+                    return payload
+            except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+                pass
+
+        return None
+
+    def verify_acting_as_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """Verify and decode an acting-as token (supports graceful key rotation)"""
+        # Try current secret key first
+        try:
+            payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
+            if payload.get('type') == 'acting_as_dependent':
+                return payload
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+            pass
+
+        # Fallback to previous secret key during rotation period
+        if self.previous_secret_key:
+            try:
+                payload = jwt.decode(token, self.previous_secret_key, algorithms=['HS256'])
+                if payload.get('type') == 'acting_as_dependent':
+                    logger.info(f"[SessionManager] Acting-as token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
                 pass
@@ -319,13 +355,18 @@ class SessionManager:
         return None
 
     def get_effective_user_id(self) -> Optional[str]:
-        """Get the effective user ID (masquerade target if masquerading, else actual user)"""
-        # Check for masquerade token first
+        """Get the effective user ID (masquerade/acting-as target if applicable, else actual user)"""
+        # Check Authorization header first
         auth_header = request.headers.get('Authorization', '')
         if auth_header.startswith('Bearer '):
             token = auth_header.replace('Bearer ', '')
 
-            # Try masquerade token first
+            # Try acting-as token first (parent acting as dependent)
+            acting_as_payload = self.verify_acting_as_token(token)
+            if acting_as_payload:
+                return acting_as_payload.get('acting_as')
+
+            # Try masquerade token second (admin masquerading as user)
             masquerade_payload = self.verify_masquerade_token(token)
             if masquerade_payload:
                 return masquerade_payload.get('masquerade_as')
