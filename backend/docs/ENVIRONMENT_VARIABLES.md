@@ -27,11 +27,13 @@ Complete guide to all configurable environment variables for the Optio Platform 
 - **Example**: `FLASK_ENV=production`
 
 ### FLASK_SECRET_KEY
-- **Description**: Secret key for Flask sessions and cookies
+- **Description**: Secret key for Flask sessions and cookies (used for JWT signing with HS256)
 - **Default**: `dev-secret-key-CHANGE-IN-PRODUCTION` (dev only)
 - **Required**: YES (production)
-- **Minimum Length**: 32 characters (production)
-- **Example**: `FLASK_SECRET_KEY=your-super-secret-key-at-least-32-chars`
+- **Minimum Length**: 64 characters (production) - industry standard for HS256 JWT signing
+- **Security**: Must have sufficient entropy (at least 16 unique characters)
+- **Generation**: Use `python -c "import secrets; print(secrets.token_urlsafe(48))"` to generate a secure key
+- **Example**: `FLASK_SECRET_KEY=your-super-secret-key-at-least-64-chars-use-random-generation`
 
 ### FRONTEND_URL
 - **Description**: Frontend URL for CORS configuration
@@ -387,7 +389,9 @@ Complete guide to all configurable environment variables for the Optio Platform 
 ### Development Environment
 ```bash
 FLASK_ENV=development
-FLASK_SECRET_KEY=dev-secret-key-at-least-32-characters-long
+# Note: Use a properly generated 64-character key even in development
+# Generate with: python -c "import secrets; print(secrets.token_urlsafe(48))"
+FLASK_SECRET_KEY=dev-secret-key-at-least-64-characters-long-use-proper-generation-for-security
 FRONTEND_URL=http://localhost:5173
 LOG_LEVEL=DEBUG
 LOG_FORMAT=text
@@ -397,7 +401,9 @@ GUNICORN_WORKERS=1
 ### Production Environment (Render)
 ```bash
 FLASK_ENV=production
-FLASK_SECRET_KEY=your-secure-production-key-at-least-32-chars
+# CRITICAL: Generate with: python -c "import secrets; print(secrets.token_urlsafe(48))"
+# Must be at least 64 characters with high entropy
+FLASK_SECRET_KEY=your-secure-production-key-at-least-64-chars-use-proper-random-generation
 FRONTEND_URL=https://www.optioeducation.com
 LOG_LEVEL=INFO
 LOG_FORMAT=json
@@ -418,7 +424,9 @@ GUNICORN_WORKER_MEMORY_LIMIT=524288000
 ### Staging Environment
 ```bash
 FLASK_ENV=production
-FLASK_SECRET_KEY=your-staging-key-at-least-32-chars
+# CRITICAL: Generate with: python -c "import secrets; print(secrets.token_urlsafe(48))"
+# Must be at least 64 characters with high entropy
+FLASK_SECRET_KEY=your-staging-key-at-least-64-chars-use-proper-random-generation
 FRONTEND_URL=https://optio-dev-frontend.onrender.com
 LOG_LEVEL=DEBUG
 LOG_FORMAT=json

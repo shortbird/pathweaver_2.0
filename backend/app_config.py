@@ -44,13 +44,20 @@ class Config:
             # NOTE: print() used here due to circular dependency - logger not available yet
             SECRET_KEY = 'dev-secret-key-change-in-production'
 
-    # Ensure minimum length for security
-    if len(SECRET_KEY) < 32:
+    # Ensure minimum length for security (64 chars = 32 bytes for HS256)
+    MIN_SECRET_KEY_LENGTH = 64
+    if len(SECRET_KEY) < MIN_SECRET_KEY_LENGTH:
         if FLASK_ENV == 'production':
-            raise ValueError("FLASK_SECRET_KEY must be at least 32 characters in production!")
+            raise ValueError(f"FLASK_SECRET_KEY must be at least {MIN_SECRET_KEY_LENGTH} characters in production (current: {len(SECRET_KEY)})")
         else:
             # NOTE: print() used here due to circular dependency - logger not available yet
-            pass
+            print(f"[WARNING] FLASK_SECRET_KEY should be at least {MIN_SECRET_KEY_LENGTH} characters for production use (current: {len(SECRET_KEY)})")
+
+    # Check for sufficient entropy (not just repeated characters)
+    if FLASK_ENV == 'production':
+        unique_chars = len(set(SECRET_KEY))
+        if unique_chars < 16:  # At least 16 different characters
+            raise ValueError(f"FLASK_SECRET_KEY has insufficient entropy ({unique_chars} unique characters, need at least 16)")
     DEBUG = FLASK_ENV == 'development'
     TESTING = False
     
@@ -262,8 +269,14 @@ class Config:
             if cls.SECRET_KEY == 'dev-secret-key-CHANGE-IN-PRODUCTION':
                 raise RuntimeError("FLASK_SECRET_KEY must be set in production")
 
-            if len(cls.SECRET_KEY) < 32:
-                raise RuntimeError("FLASK_SECRET_KEY must be at least 32 characters")
+            MIN_SECRET_KEY_LENGTH = 64
+            if len(cls.SECRET_KEY) < MIN_SECRET_KEY_LENGTH:
+                raise RuntimeError(f"FLASK_SECRET_KEY must be at least {MIN_SECRET_KEY_LENGTH} characters (current: {len(cls.SECRET_KEY)})")
+
+            # Check for sufficient entropy
+            unique_chars = len(set(cls.SECRET_KEY))
+            if unique_chars < 16:
+                raise RuntimeError(f"FLASK_SECRET_KEY has insufficient entropy ({unique_chars} unique characters, need at least 16)")
 
     @classmethod
     def validate_config(cls) -> None:
