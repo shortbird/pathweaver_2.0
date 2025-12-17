@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 
 const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation()
-  const { user } = useAuth()
+  const { user, logout, isAuthenticated } = useAuth()
 
   const isActiveRoute = (path) => {
     // Exact match for the path
@@ -132,6 +132,13 @@ const Sidebar = ({ isOpen, onClose }) => {
     }
   }
 
+  const handleLogout = async () => {
+    await logout()
+    if (onClose) {
+      onClose()
+    }
+  }
+
   return (
     <>
       {/* Mobile backdrop */}
@@ -182,6 +189,21 @@ const Sidebar = ({ isOpen, onClose }) => {
             })}
           </nav>
         </div>
+
+        {/* Logout Button (Bottom of Sidebar - Mobile Only) */}
+        {isAuthenticated && (
+          <div className="lg:hidden border-t border-gray-200 p-4">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center px-4 py-3 rounded-lg font-poppins font-semibold text-neutral-700 hover:bg-neutral-100 transition-colors duration-200 min-h-[44px] touch-manipulation"
+            >
+              <svg className="w-5 h-5 mr-3 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span>Logout</span>
+            </button>
+          </div>
+        )}
       </aside>
     </>
   )
