@@ -1,3 +1,10 @@
+"""
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- File upload handling only - no database calls
+- Uses Supabase Storage API (not database operations)
+- Includes security features: magic byte validation, filename sanitization, size limits
+"""
+
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from database import get_supabase_admin_client

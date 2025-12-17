@@ -1,3 +1,13 @@
+"""
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- Multiple direct database calls to 'promo_signups' and 'consultation_requests' tables (6+ calls)
+- Uses EmailService and CampaignAutomationService (service layer)
+- Could create PromoRepository with methods:
+  - create_signup(signup_data)
+  - create_consultation_request(request_data)
+  - get_all_signups() (admin only)
+"""
+
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 import logging

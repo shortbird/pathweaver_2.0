@@ -1,6 +1,11 @@
 """
 Direct Messages API routes for user-to-user communication
 Handles advisor-student and friend-to-friend messaging
+
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Primarily uses DirectMessageService (service layer pattern)
+- One direct database call for user role check (simple query, acceptable)
+- Service layer is the preferred pattern over direct repository usage
 """
 
 from flask import Blueprint, request, jsonify

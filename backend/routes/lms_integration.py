@@ -2,6 +2,11 @@
 LMS Integration Routes
 
 Handles LTI 1.3 launches, SSO authentication, roster sync, and assignment imports.
+
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Primarily uses LTI13Service and LMSSyncService (service layer pattern)
+- Only 3 direct database calls for status checks (simple queries, acceptable)
+- Service layer is the preferred pattern over direct repository usage
 """
 
 from flask import Blueprint, request, redirect, jsonify, current_app, make_response
