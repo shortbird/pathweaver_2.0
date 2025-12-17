@@ -48,6 +48,16 @@ export const ActingAsProvider = ({ children }) => {
   const setActingAs = async (dependent) => {
     if (dependent) {
       try {
+        // CRITICAL: Save parent's tokens before switching to dependent
+        const parentAccess = tokenStore.getAccessToken() || localStorage.getItem('access_token');
+        const parentRefresh = tokenStore.getRefreshToken() || localStorage.getItem('refresh_token');
+
+        if (parentAccess && parentRefresh) {
+          localStorage.setItem('parent_access_token', parentAccess);
+          localStorage.setItem('parent_refresh_token', parentRefresh);
+          console.log('[ActingAsContext] Saved parent tokens before switching');
+        }
+
         // Request acting-as token from backend
         const response = await api.post(`/api/dependents/${dependent.id}/act-as`, {});
         const { acting_as_token } = response.data;
@@ -59,7 +69,7 @@ export const ActingAsProvider = ({ children }) => {
         setActingAsToken(acting_as_token);
 
         // Store token in tokenStore so it gets included in Authorization header
-        tokenStore.setTokens(acting_as_token, tokenStore.getRefreshToken() || '');
+        tokenStore.setTokens(acting_as_token, tokenStore.getRefreshToken() || parentRefresh);
 
         console.log('[ActingAsContext] Now acting as dependent:', dependent.display_name);
       } catch (error) {
@@ -77,11 +87,22 @@ export const ActingAsProvider = ({ children }) => {
     setActingAsDependent(null);
     setActingAsToken(null);
 
-    // Restore regular tokens to tokenStore (clear acting-as token)
-    const regularAccess = localStorage.getItem('access_token');
-    const regularRefresh = localStorage.getItem('refresh_token');
-    if (regularAccess && regularRefresh) {
-      tokenStore.setTokens(regularAccess, regularRefresh);
+    // Restore parent's saved tokens (saved before switching to dependent)
+    const parentAccess = localStorage.getItem('parent_access_token');
+    const parentRefresh = localStorage.getItem('parent_refresh_token');
+
+    if (parentAccess && parentRefresh) {
+      // Restore parent's tokens to tokenStore
+      tokenStore.setTokens(parentAccess, parentRefresh);
+      // Also restore to regular localStorage keys
+      localStorage.setItem('access_token', parentAccess);
+      localStorage.setItem('refresh_token', parentRefresh);
+      // Clean up temporary parent token storage
+      localStorage.removeItem('parent_access_token');
+      localStorage.removeItem('parent_refresh_token');
+      console.log('[ActingAsContext] Restored parent tokens');
+    } else {
+      console.warn('[ActingAsContext] No saved parent tokens found to restore');
     }
 
     console.log('[ActingAsContext] Cleared acting-as state');
