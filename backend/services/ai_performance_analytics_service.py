@@ -121,12 +121,18 @@ class AIPerformanceAnalyticsService(BaseService):
         Compare performance of AI-generated quests vs human-created quests.
 
         Args:
-            days_back: Number of days to look back for comparison
+            days_back: Number of days to look back for comparison (1-365)
 
         Returns:
             Dict with comparison metrics
         """
         try:
+            # Input validation (defense in depth against SQL injection)
+            if not isinstance(days_back, int):
+                raise ValueError(f"days_back must be an integer, got {type(days_back).__name__}")
+            if days_back < 1 or days_back > 365:
+                raise ValueError(f"days_back must be between 1 and 365, got {days_back}")
+
             supabase = get_supabase_admin_client()
             date_cutoff = (datetime.utcnow() - timedelta(days=days_back)).isoformat()
 
@@ -137,10 +143,9 @@ class AIPerformanceAnalyticsService(BaseService):
 
             ai_quests = ai_metrics_response.data
 
-            # Get human quest performance (non-AI sources)
-            # We need to calculate this manually since human quests don't have metrics table
+            # Get human quest performance (NOW SAFE from SQL injection)
             human_quests_response = supabase.rpc('get_human_quest_performance', {
-                'days_back_param': days_back
+                'days_back_param': days_back  # Validated as integer 1-365
             }).execute()
 
             human_quests = human_quests_response.data if human_quests_response.data else []
