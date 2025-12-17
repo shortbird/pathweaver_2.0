@@ -108,6 +108,14 @@ function AppContent() {
 
       // If we have local masquerade state, verify it with backend
       if (state) {
+        // Wait for token to be available (fixes race condition after page reload)
+        const token = tokenStore.getAccessToken();
+        if (!token) {
+          console.log('[Masquerade] Waiting for token to be restored before checking masquerade status');
+          // Don't clear state yet, just wait for next check
+          return;
+        }
+
         try {
           const response = await api.get('/api/admin/masquerade/status');
           const backendStatus = response.data;
@@ -135,7 +143,7 @@ function AppContent() {
 
     checkMasquerade();
 
-    // Check every 5 seconds in case state changes
+    // Check every 5 seconds in case state changes (also retries if token wasn't ready)
     const interval = setInterval(checkMasquerade, 5000);
 
     return () => clearInterval(interval);
