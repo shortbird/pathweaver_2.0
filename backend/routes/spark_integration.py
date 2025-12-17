@@ -1,4 +1,13 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED - Integration Layer
+- SSO authentication endpoint (JWT signature validation)
+- Webhook handler for external LMS events (HMAC signature validation)
+- Uses XPService for XP calculations from LMS submissions
+- Integration layer, not standard CRUD operations
+- Security-focused code (JWT, HMAC, rate limiting, replay protection)
+- Direct DB access acceptable for SSO user provisioning and webhook processing
+- Per migration guidelines: Integration endpoints don't benefit from repository abstraction
+
 Spark LMS Integration Routes
 
 Handles SSO authentication and evidence webhooks from Spark LMS.

@@ -1,4 +1,11 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Primarily uses EvidenceService for business logic (service layer pattern)
+- Uses XPService for XP calculations
+- Some direct DB calls exist but are acceptable for evidence document operations
+- Service layer is the preferred pattern over direct repository usage
+- Complex evidence block management properly encapsulated in EvidenceService
+
 Evidence documents endpoints for multi-format evidence system.
 Handles creating, updating, and retrieving evidence documents with multiple content blocks.
 """

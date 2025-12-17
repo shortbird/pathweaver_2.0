@@ -1,4 +1,12 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Uses AITutorService for all AI chat functionality (service layer pattern)
+- Uses SafetyService for content moderation
+- Already uses TutorRepository for data persistence (lines 12-17)
+- Service layer is essential for complex AI tutor interactions
+- Tier service integration for feature gating (tutor_tier_service)
+- Proper encapsulation of conversation state and AI model management
+
 AI Tutor API routes for chat functionality.
 Handles conversations, messages, settings, and safety monitoring.
 """

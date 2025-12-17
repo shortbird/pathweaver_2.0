@@ -1,4 +1,11 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Uses personalization_service for AI-driven quest generation (service layer pattern)
+- Uses TaskQualityService for task validation
+- Uses DependentRepository for parent/dependent workflow (lines 43-51)
+- Service layer is the preferred pattern for complex AI personalization logic
+- Dependent profile support properly integrated with repository pattern
+
 Quest Personalization API Routes
 =================================
 
