@@ -90,16 +90,18 @@ class EmailService(BaseService):
 
             # Automatically copy support email for monitoring all outgoing emails
             # Note: We'll send a separate copy instead of BCC due to SendGrid SMTP limitations
+            # Use tanner@optioeducation.com directly to avoid email alias loops (support@ and admin@ redirect to tanner@)
             support_email = os.getenv('SUPPORT_EMAIL', 'support@optioeducation.com')
+            support_copy_email = os.getenv('SUPPORT_COPY_EMAIL', 'tanner@optioeducation.com')  # Direct email to avoid alias loops
             should_copy_support = False
 
             bcc = bcc or []
             cc = cc or []
 
             # Check if support email should be copied (not already in CC and not the primary recipient)
-            if support_email not in cc and to_email.lower() != support_email.lower():
+            if support_email not in cc and to_email.lower() != support_copy_email.lower():
                 should_copy_support = True
-                logger.info(f"Will send copy to {support_email} for monitoring email to {to_email}")
+                logger.info(f"Will send copy to {support_copy_email} for monitoring email to {to_email}")
 
             # SendGrid SMTP API configuration - disable click tracking only
             # Note: BCC is handled via standard SMTP envelope (recipients list)
@@ -130,7 +132,7 @@ class EmailService(BaseService):
                     # Create a copy of the message with support email as recipient
                     support_msg = MIMEMultipart('alternative')
                     support_msg['From'] = f"{sender_display_name} <{self.sender_email}>"
-                    support_msg['To'] = support_email
+                    support_msg['To'] = support_copy_email
                     support_msg['Subject'] = f"[COPY] {subject}"  # Mark as copy for clarity
 
                     # Add context header
@@ -153,9 +155,9 @@ class EmailService(BaseService):
                     with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
                         server.starttls()
                         server.login(self.smtp_user, self.smtp_pass)
-                        server.send_message(support_msg, to_addrs=[support_email])
+                        server.send_message(support_msg, to_addrs=[support_copy_email])
 
-                    logger.info(f"Support copy sent successfully to {support_email} | Subject: [COPY] {subject}")
+                    logger.info(f"Support copy sent successfully to {support_copy_email} | Subject: [COPY] {subject}")
                 except Exception as e:
                     # Don't fail the main email if support copy fails
                     logger.error(f"Failed to send support copy to {support_email}: {str(e)}")
