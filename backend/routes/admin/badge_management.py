@@ -1,4 +1,14 @@
 """
+REPOSITORY MIGRATION: PARTIALLY MIGRATED - Needs Completion
+- Already imports BadgeRepository and QuestRepository (line 10)
+- Uses image_service for badge image generation (line 12)
+- BUT: Many endpoints still use direct database access
+- Mixed pattern creates inconsistency
+- Should consolidate badge CRUD into BadgeRepository methods
+- Image management (search_badge_image) should remain in service layer
+
+Recommendation: Complete migration by using existing BadgeRepository for all badge CRUD
+
 Admin Badge Management Routes
 
 Handles CRUD operations for badges including creation, editing, deletion,

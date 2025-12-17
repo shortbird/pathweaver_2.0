@@ -1,4 +1,13 @@
 """
+REPOSITORY MIGRATION: PARTIALLY MIGRATED - Needs Completion
+- Already imports ParentRepository (line 8)
+- BUT: Direct database calls still used throughout
+- Mixed pattern creates inconsistency
+- Should use ParentRepository methods for all connection operations
+- Parent linking logic exists but not fully utilized
+
+Recommendation: Complete migration by using existing ParentRepository exclusively
+
 Admin routes for managing parent-student connections.
 Handles connection request approval, rejection, and manual linking.
 """

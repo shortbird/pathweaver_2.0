@@ -1,4 +1,14 @@
 """
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- Direct database calls for advisor-student assignment operations
+- Could create AdvisorManagementRepository with methods:
+  - get_all_advisors()
+  - get_advisor_students(advisor_id)
+  - assign_student_to_advisor(student_id, advisor_id, admin_id)
+  - remove_student_from_advisor(assignment_id, admin_id)
+  - get_unassigned_students()
+- Simple admin CRUD suitable for repository abstraction
+
 Admin Advisor Management Routes
 ================================
 
