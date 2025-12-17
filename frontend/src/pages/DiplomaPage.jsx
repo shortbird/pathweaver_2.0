@@ -1,6 +1,7 @@
 import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../contexts/AuthContext';
+import { useActingAs } from '../contexts/ActingAsContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import SkillsRadarChart from '../components/diploma/SkillsRadarChart';
@@ -23,8 +24,12 @@ import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDispla
 
 const DiplomaPage = () => {
   const { user, loginTimestamp } = useAuth();
+  const { actingAsDependent } = useActingAs();
   const { slug, userId } = useParams();
   const navigate = useNavigate();
+
+  // Determine effective user: dependent if acting as one, otherwise logged-in user
+  const effectiveUser = actingAsDependent || user;
 
   // Check if this is explicitly a public route
   const isPublicRoute = window.location.pathname.startsWith('/public/');
@@ -128,7 +133,7 @@ const DiplomaPage = () => {
     } else if (userId) {
       // Public diploma route via userId
       fetchPublicDiplomaByUserId();
-    } else if (user) {
+    } else if (effectiveUser) {
       // Authenticated user viewing their own diploma (no params)
       if (hasAccess) {
         // Fetch all data independently with error handling
@@ -151,11 +156,11 @@ const DiplomaPage = () => {
       // No user and no params - show loading
       setIsLoading(true);
     }
-  }, [user, slug, userId, loginTimestamp, hasAccess]);
+  }, [effectiveUser, slug, userId, loginTimestamp, hasAccess]);
 
   // Event handlers for refreshing data - defined as regular functions to avoid circular dependencies
   const handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible' && user && !slug && !userId && hasAccess) {
+    if (document.visibilityState === 'visible' && effectiveUser && !slug && !userId && hasAccess) {
       // Refresh all data independently with error handling
       Promise.allSettled([
         fetchAchievements().catch(err => console.error('Failed to fetch achievements:', err)),
@@ -167,7 +172,7 @@ const DiplomaPage = () => {
   };
 
   const handleFocus = () => {
-    if (user && !slug && !userId && hasAccess) {
+    if (effectiveUser && !slug && !userId && hasAccess) {
       // Refresh all data independently with error handling
       Promise.allSettled([
         fetchAchievements().catch(err => console.error('Failed to fetch achievements:', err)),
@@ -188,7 +193,7 @@ const DiplomaPage = () => {
       window.removeEventListener('focus', handleFocus);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, slug, userId, hasAccess]);
+  }, [effectiveUser, slug, userId, hasAccess]);
 
   const fetchPublicDiploma = async () => {
     try {
@@ -451,7 +456,8 @@ const DiplomaPage = () => {
   // Owner when: viewing /diploma (no params) OR viewing their own userId
   // Public routes (/public/*) are NEVER owner view, even if logged in as that user
   // Explicitly convert to boolean to avoid undefined/null
-  const isOwner = !isPublicRoute && Boolean(user && (!slug && (!userId || user.id === userId)));
+  // Use effectiveUser to check ownership (dependent's ID when acting as dependent)
+  const isOwner = !isPublicRoute && Boolean(effectiveUser && (!slug && (!userId || effectiveUser.id === userId)));
 
   // Debug logging for public viewer issue
   console.log('DiplomaPage render - isOwner:', isOwner, 'isPublicRoute:', isPublicRoute, 'user:', !!user, 'slug:', slug, 'userId:', userId);
