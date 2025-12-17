@@ -674,18 +674,67 @@ const ParentDashboardPage = () => {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    No active quests right now. They might be exploring what to start next!
-                  </p>
+                  (() => {
+                    // Determine if this is a dependent (under 13) or linked student (13+)
+                    const selectedDependent = dependents.find(d => d.id === selectedStudentId);
+                    const isDependent = !!selectedDependent;
+                    const age = selectedDependent
+                      ? (selectedDependent.age || calculateAge(selectedDependent.date_of_birth))
+                      : null;
+                    const isUnder13 = age !== null && age < 13;
+                    const firstName = selectedDependent?.display_name?.split(' ')[0] || selectedStudent?.student_first_name;
+
+                    return (
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0">
+                            <div className="w-10 h-10 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
+                              <UserIcon className="w-5 h-5 text-white" />
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              No Active Quests Yet
+                            </h4>
+                            {isDependent && isUnder13 ? (
+                              <div className="text-sm text-gray-700 space-y-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                <p>
+                                  {firstName} hasn't started any quests yet. To browse and start quests for them:
+                                </p>
+                                <ol className="list-decimal list-inside space-y-1 ml-2">
+                                  <li>Click the "Act as {firstName}" button above</li>
+                                  <li>Browse available quests in the Quest & Badge Hub</li>
+                                  <li>Start quests that interest them</li>
+                                  <li>Begin completing tasks and uploading evidence</li>
+                                </ol>
+                                <p className="text-xs text-gray-600 mt-3">
+                                  Once quests are started, they'll appear here for easy tracking.
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                <p>
+                                  {firstName} hasn't started any quests yet. They can browse and start quests from their own dashboard.
+                                </p>
+                                <p className="text-xs text-gray-600 mt-3">
+                                  Once they start quests, they'll appear here so you can track their progress and upload evidence to help them.
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()
                 )}
               </div>
 
               {/* XP by Pillar */}
-              {progressData?.xp_by_pillar && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Learning Progress
-                  </h3>
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  Learning Progress
+                </h3>
+                {progressData?.xp_by_pillar && Object.keys(progressData.xp_by_pillar).length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Object.entries(progressData.xp_by_pillar)
                       .filter(([pillar]) => {
@@ -705,8 +754,38 @@ const ParentDashboardPage = () => {
                         </div>
                       ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <div className="w-10 h-10 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
+                          <CheckCircleIcon className="w-5 h-5 text-white" />
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                          Learning Progress Will Appear Here
+                        </h4>
+                        <div className="text-sm text-gray-700 space-y-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                          <p>
+                            As {selectedStudent?.student_first_name || dependents.find(d => d.id === selectedStudentId)?.display_name?.split(' ')[0]} completes quest tasks, you'll see their progress tracked across five learning pillars:
+                          </p>
+                          <ul className="list-disc list-inside space-y-1 ml-2 text-gray-600">
+                            <li><strong>Art</strong> - Creative expression and design</li>
+                            <li><strong>STEM</strong> - Science, technology, engineering, math</li>
+                            <li><strong>Wellness</strong> - Physical and mental well-being</li>
+                            <li><strong>Communication</strong> - Writing, speaking, and connection</li>
+                            <li><strong>Civics</strong> - Community engagement and citizenship</li>
+                          </ul>
+                          <p className="text-xs text-gray-600 mt-3">
+                            Each completed task earns XP (experience points) in its related pillar. XP accumulates toward diploma credits (1,000 XP = 1 credit).
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Completed Quests */}
               <div className="bg-white rounded-lg border border-gray-200 p-6">
