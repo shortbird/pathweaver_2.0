@@ -327,6 +327,12 @@ const ParentDashboardPage = () => {
     loadCompletions();
   }, [activeTab, selectedStudentId, user]);
 
+  // Check if logged-in user is a dependent - redirect to student dashboard
+  if (user && user.is_dependent) {
+    navigate('/dashboard', { replace: true });
+    return null;
+  }
+
   // Allow parent and admin roles to access the dashboard
   if (!user || (user.role !== 'parent' && user.role !== 'admin')) {
     return (

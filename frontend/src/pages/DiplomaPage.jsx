@@ -531,7 +531,7 @@ const DiplomaPage = () => {
   // Unified view - show same layout for both public and owner, with conditional elements
   const viewMode = isOwner && !previewMode ? 'owner' : 'public';
   const displayData = diploma || {
-    student: user,
+    student: effectiveUser,
     total_xp: totalXPCount,
     total_quests_completed: achievements.length,
     skill_details: Object.keys(totalXP)
@@ -539,7 +539,7 @@ const DiplomaPage = () => {
 
   // Get student display name
   const getStudentName = () => {
-    const student = displayData.student || user;
+    const student = displayData.student || effectiveUser;
     if (!student) return 'Student';
 
     const firstName = student.first_name || '';
@@ -559,7 +559,7 @@ const DiplomaPage = () => {
       return diploma.student.first_name || diploma.student.username || 'This student';
     }
 
-    const student = displayData.student || user;
+    const student = displayData.student || effectiveUser;
     if (!student) return 'This student';
     return student.first_name || student.username || 'This student';
   };
