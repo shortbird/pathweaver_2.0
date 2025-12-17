@@ -1,4 +1,15 @@
-"""User dashboard routes"""
+"""
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- Multiple direct database calls for dashboard data aggregation
+- Uses helper functions from users/helpers.py for XP calculations
+- Could create DashboardRepository with methods:
+  - get_user_subject_xp(user_id)
+  - get_dashboard_summary(user_id)
+  - get_user_progress_stats(user_id)
+- Complex aggregation queries suitable for repository abstraction
+
+User dashboard routes
+"""
 
 from flask import Blueprint, jsonify
 from datetime import datetime, timezone

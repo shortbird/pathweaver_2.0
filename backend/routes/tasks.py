@@ -1,4 +1,11 @@
 """
+REPOSITORY MIGRATION: FULLY MIGRATED (Phase 3 Complete)
+- First route file migrated to repository pattern (November 2024)
+- Uses TaskRepository and TaskCompletionRepository exclusively
+- Exemplar implementation of repository pattern
+- All direct database calls replaced with repository methods
+- See backend/docs/REPOSITORY_MIGRATION_STATUS.md for details
+
 Task completion endpoints for Quest V3 system.
 Handles task completion with evidence upload and XP awards.
 """

@@ -1,4 +1,12 @@
-"""Shared helper functions for user routes"""
+"""
+REPOSITORY MIGRATION: NO MIGRATION NEEDED - Utility Functions
+- Pure utility/helper functions for XP calculations
+- Shared constants (SKILL_CATEGORIES, SUBJECT_TO_SKILL_MAP)
+- Helper functions don't follow repository pattern (not CRUD operations)
+- Utility code should remain in helpers
+
+Shared helper functions for user routes
+"""
 
 from typing import Tuple, Dict, List
 from cache import cached as cache_decorator

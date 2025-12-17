@@ -1,4 +1,16 @@
-"""User transcript routes"""
+"""
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- Direct database calls for transcript data retrieval
+- Uses helper functions from users/helpers.py for calculations
+- Could create TranscriptRepository with methods:
+  - get_user_transcript(user_id)
+  - get_completed_quests_with_details(user_id)
+  - get_earned_badges_with_dates(user_id)
+  - get_skill_progression(user_id)
+- Transcript generation suitable for repository abstraction
+
+User transcript routes
+"""
 
 from flask import Blueprint, jsonify
 from database import get_user_client
