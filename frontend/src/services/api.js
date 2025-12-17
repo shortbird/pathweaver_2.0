@@ -334,9 +334,9 @@ export const parentAPI = {
   // Get recent completions with evidence (for Insights tab)
   getRecentCompletions: (studentId) => api.get(`/api/parent/completions/${studentId}`),
 
-  // Upload evidence on behalf of student (requires student approval)
-  uploadEvidence: (studentId, taskId, formData) =>
-    api.post(`/api/parent/evidence/${studentId}`, formData, {
+  // Upload evidence on behalf of student (parent-only, no task completion)
+  uploadEvidence: (formData) =>
+    api.post('/api/parent/evidence/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

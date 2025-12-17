@@ -13,8 +13,6 @@ import {
   XMarkIcon,
   PlusIcon
 } from '@heroicons/react/24/outline';
-import AddEvidenceModal from '../components/advisor/AddEvidenceModal';
-import ProfileSwitcher from '../components/parent/ProfileSwitcher';
 import AddDependentModal from '../components/parent/AddDependentModal';
 import RequestStudentConnectionModal from '../components/parent/RequestStudentConnectionModal';
 
@@ -33,8 +31,6 @@ const ParentDashboardPage = () => {
   const [error, setError] = useState(null);
   const [showRhythmModal, setShowRhythmModal] = useState(false);
   const [completedQuests, setCompletedQuests] = useState([]);
-  const [showAddEvidenceModal, setShowAddEvidenceModal] = useState(false);
-  const [currentProfile, setCurrentProfile] = useState(null);
   const [showAddDependentModal, setShowAddDependentModal] = useState(false);
   const [showRequestConnectionModal, setShowRequestConnectionModal] = useState(false);
 
@@ -70,18 +66,6 @@ const ParentDashboardPage = () => {
       </div>
     );
   }
-
-  // Initialize current profile (parent's own profile)
-  useEffect(() => {
-    if (user && !currentProfile) {
-      setCurrentProfile({
-        id: user.id,
-        display_name: user.display_name || `${user.first_name} ${user.last_name}`,
-        avatar_url: user.avatar_url,
-        is_dependent: false
-      });
-    }
-  }, [user, currentProfile]);
 
   // Load children list (admin-only linking, no invitations) and dependents
   useEffect(() => {
@@ -174,33 +158,29 @@ const ParentDashboardPage = () => {
     loadDashboardData();
   }, [selectedStudentId, children.length, dependents.length, user, actingAsDependent]);
 
-  // Handle profile switching (parent <-> dependent)
-  const handleProfileChange = async (profile) => {
-    if (profile.is_dependent) {
-      try {
-        // Switching to dependent: request acting-as token and redirect to student dashboard
-        await setActingAs(profile);
-        navigate('/dashboard', { replace: true });
-      } catch (error) {
-        console.error('Failed to switch to dependent profile:', error);
-        toast.error('Failed to switch profiles. Please try again.');
-      }
-    } else {
-      // Switching back to parent: clear acting-as state and stay on parent dashboard
-      setActingAs(null);
-      setCurrentProfile(profile);
-      if (children.length > 0) {
-        setSelectedStudentId(children[0].student_id);
-      } else if (dependents.length > 0) {
-        // If no linked children, just stay as parent viewing empty dashboard
-        setSelectedStudentId(null);
-      }
+  // Helper to calculate age from date_of_birth
+  const calculateAge = (dateOfBirth) => {
+    if (!dateOfBirth) return null;
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
     }
+    return age;
   };
 
-  // Handle adding a new dependent
-  const handleAddDependent = () => {
-    setShowAddDependentModal(true);
+  // Handler for "Act As Dependent" button
+  const handleActAsDependent = async (dependent) => {
+    try {
+      await setActingAs(dependent);
+      toast.success(`Now managing ${dependent.display_name}'s account`);
+      navigate('/dashboard', { replace: true });
+    } catch (error) {
+      console.error('Failed to switch to dependent profile:', error);
+      toast.error('Failed to switch profiles. Please try again.');
+    }
   };
 
   // Handle dependent creation success
@@ -350,25 +330,16 @@ const ParentDashboardPage = () => {
         </div>
       )}
 
-      {/* Header with Child Selector */}
-      <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            Family Dashboard
-          </h1>
-          {selectedStudent && (
-            <p className="text-gray-600 mt-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Supporting {selectedStudent.student_first_name}'s learning journey
-            </p>
-          )}
-        </div>
-
-        {/* Profile Switcher (Parent <-> Dependents) */}
-        <ProfileSwitcher
-          currentProfile={currentProfile}
-          onProfileChange={handleProfileChange}
-          onAddDependent={handleAddDependent}
-        />
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          Family Dashboard
+        </h1>
+        {selectedStudent && (
+          <p className="text-gray-600 mt-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            Supporting {selectedStudent.student_first_name}'s learning journey
+          </p>
+        )}
       </div>
 
 
@@ -534,7 +505,8 @@ const ParentDashboardPage = () => {
           {/* Student Tabs */}
           {(children.length > 1 || dependents.length > 1 || (children.length > 0 && dependents.length > 0)) && (
             <div className="border-b border-gray-200 mb-6">
-              <nav className="flex gap-6 overflow-x-auto">
+              <nav className="flex gap-6 overflow-x-auto pb-4">
+                {/* Linked 13+ students */}
                 {children.map((child) => (
                   <button
                     key={child.student_id}
@@ -548,23 +520,52 @@ const ParentDashboardPage = () => {
                   >
                     <UserGroupIcon className="w-5 h-5" />
                     {child.student_first_name} {child.student_last_name}
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">13+</span>
                   </button>
                 ))}
-                {dependents.map((dependent) => (
-                  <button
-                    key={dependent.id}
-                    onClick={() => setSelectedStudentId(dependent.id)}
-                    className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
-                      selectedStudentId === dependent.id
-                        ? 'border-b-2 border-optio-purple text-optio-purple'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                    style={{ fontFamily: 'Poppins, sans-serif' }}
-                  >
-                    <UserGroupIcon className="w-5 h-5" />
-                    {dependent.display_name}
-                  </button>
-                ))}
+
+                {/* Dependents (under 13) with "Act As" button */}
+                {dependents.map((dependent) => {
+                  const age = dependent.age || calculateAge(dependent.date_of_birth);
+                  const isUnder13 = age !== null && age < 13;
+                  const isSelected = selectedStudentId === dependent.id;
+
+                  return (
+                    <div key={dependent.id} className="flex items-start gap-2 relative">
+                      <button
+                        onClick={() => setSelectedStudentId(dependent.id)}
+                        className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
+                          isSelected
+                            ? 'border-b-2 border-optio-purple text-optio-purple'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                        style={{ fontFamily: 'Poppins, sans-serif' }}
+                      >
+                        <UserGroupIcon className="w-5 h-5" />
+                        {dependent.display_name}
+                        {isUnder13 && (
+                          <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
+                            Under 13
+                          </span>
+                        )}
+                      </button>
+
+                      {/* "Act As" button for under-13 dependents */}
+                      {isUnder13 && isSelected && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleActAsDependent(dependent);
+                          }}
+                          className="absolute -top-1 right-0 px-3 py-1 text-xs font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity shadow-sm"
+                          style={{ fontFamily: 'Poppins, sans-serif' }}
+                        >
+                          Manage Account
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </nav>
             </div>
           )}
@@ -573,19 +574,9 @@ const ParentDashboardPage = () => {
           <div className="space-y-6">
               {/* Active Quests */}
               <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Active Quests
-                  </h3>
-                  <button
-                    onClick={() => setShowAddEvidenceModal(true)}
-                    className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity flex items-center space-x-2"
-                    style={{ fontFamily: 'Poppins, sans-serif' }}
-                  >
-                    <PlusIcon className="w-5 h-5" />
-                    <span>Add Evidence</span>
-                  </button>
-                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  Active Quests
+                </h3>
                 {dashboardData?.active_quests?.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {dashboardData.active_quests.map((quest) => (
@@ -614,6 +605,9 @@ const ParentDashboardPage = () => {
                               className="bg-gradient-primary h-2 rounded-full transition-all"
                               style={{ width: `${quest.progress.percentage}%` }}
                             />
+                          </div>
+                          <div className="mt-3 text-xs text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            Click to view tasks and add evidence
                           </div>
                         </div>
                       </button>
@@ -741,16 +735,6 @@ const ParentDashboardPage = () => {
           </div>
 
         </>
-      )}
-
-      {/* Add Evidence Modal */}
-      {showAddEvidenceModal && selectedStudentId && (
-        <AddEvidenceModal
-          isOpen={showAddEvidenceModal}
-          onClose={() => setShowAddEvidenceModal(false)}
-          studentId={selectedStudentId}
-          studentName={children.find(c => c.student_id === selectedStudentId)?.student_name || 'Student'}
-        />
       )}
 
       {/* Add Dependent Modal */}

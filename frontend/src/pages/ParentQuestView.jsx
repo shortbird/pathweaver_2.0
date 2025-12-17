@@ -9,6 +9,7 @@ import {
   BookOpenIcon
 } from '@heroicons/react/24/outline';
 import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
+import EvidenceUploadForm from '../components/parent/EvidenceUploadForm';
 
 /**
  * ParentQuestView - Read-only quest view for parents
@@ -20,6 +21,7 @@ const ParentQuestView = () => {
   const [questData, setQuestData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showEvidenceForm, setShowEvidenceForm] = useState({});
 
   // Pillar colors for visual distinction
   const pillarColors = {
@@ -30,21 +32,22 @@ const ParentQuestView = () => {
     'Art': 'bg-purple-100 text-purple-800'
   };
 
-  useEffect(() => {
-    const loadQuestData = async () => {
-      try {
-        setLoading(true);
-        const response = await parentAPI.getQuestView(studentId, questId);
-        setQuestData(response.data);
-      } catch (error) {
-        console.error('Error loading quest:', error);
-        setError('Failed to load quest details');
-        toast.error('Failed to load quest details');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadQuestData = async () => {
+    try {
+      setLoading(true);
+      const response = await parentAPI.getQuestView(studentId, questId);
+      setQuestData(response.data);
+      setError(null);
+    } catch (error) {
+      console.error('Error loading quest:', error);
+      setError('Failed to load quest details');
+      toast.error('Failed to load quest details');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadQuestData();
   }, [studentId, questId]);
 
@@ -89,27 +92,28 @@ const ParentQuestView = () => {
         Back to Dashboard
       </button>
 
-      {/* Quest Header */}
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-8">
+      {/* Quest Header - Mobile optimized */}
+      <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-6 sm:mb-8">
         {quest.image_url && (
           <img
             src={quest.image_url}
             alt={quest.title}
-            className="w-full h-64 object-cover"
+            className="w-full h-48 sm:h-64 object-cover"
           />
         )}
-        <div className="p-8">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <div className="p-4 sm:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+            <div className="flex-1">
+              <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 {quest.title}
               </h1>
-              <p className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <p className="text-sm sm:text-base text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 {quest.description}
               </p>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+            {/* Status badges - stack on mobile */}
+            <div className="flex flex-row sm:flex-col items-start gap-2">
+              <span className={`px-3 py-1 rounded-full text-xs sm:text-sm font-semibold ${
                 quest.status === 'completed' ? 'bg-green-100 text-green-800' :
                 quest.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
                 'bg-gray-100 text-gray-800'
@@ -119,7 +123,7 @@ const ParentQuestView = () => {
                  'Not Started'}
               </span>
               {quest.started_at && (
-                <span className="text-sm text-gray-500 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <span className="text-xs sm:text-sm text-gray-500 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   Started {new Date(quest.started_at).toLocaleDateString()}
                 </span>
               )}
@@ -127,18 +131,18 @@ const ParentQuestView = () => {
           </div>
 
           {/* Progress Bar */}
-          <div className="mt-6">
+          <div className="mt-4 sm:mt-6">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-semibold text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <span className="text-xs sm:text-sm font-semibold text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 Progress: {progress.completed_tasks} / {progress.total_tasks} tasks
               </span>
-              <span className="text-sm font-bold text-optio-purple" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <span className="text-xs sm:text-sm font-bold text-optio-purple" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 {progress.percentage}%
               </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
+            <div className="w-full bg-gray-200 rounded-full h-2 sm:h-3">
               <div
-                className="bg-gradient-to-r from-optio-purple to-optio-pink h-3 rounded-full transition-all"
+                className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 sm:h-3 rounded-full transition-all"
                 style={{ width: `${progress.percentage}%` }}
               />
             </div>
@@ -146,16 +150,16 @@ const ParentQuestView = () => {
         </div>
       </div>
 
-      {/* Read-Only Notice */}
-      <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4 mb-6">
-        <div className="flex items-start gap-3">
-          <BookOpenIcon className="w-6 h-6 text-optio-purple flex-shrink-0 mt-0.5" />
+      {/* Parent Capabilities Banner */}
+      <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-3 sm:p-4 mb-6">
+        <div className="flex items-start gap-2 sm:gap-3">
+          <BookOpenIcon className="w-5 h-5 sm:w-6 sm:h-6 text-optio-purple flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-gray-700 font-semibold mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Parent View (Read-Only)
+            <p className="text-sm sm:text-base text-gray-700 font-semibold mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              You Can Help!
             </p>
-            <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              You're viewing your student's personalized tasks for this quest. Only your student can complete tasks and submit evidence.
+            <p className="text-xs sm:text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Upload evidence (photos, documents, links) to help {quest?.title || 'your student'}. They'll review your evidence and mark tasks as complete when ready.
             </p>
           </div>
         </div>
@@ -177,27 +181,27 @@ const ParentQuestView = () => {
           tasks.map((task, index) => (
             <div
               key={task.id}
-              className={`bg-white rounded-lg border-2 p-6 ${
+              className={`bg-white rounded-lg border-2 p-4 sm:p-6 ${
                 task.is_completed ? 'border-green-300 bg-green-50' : 'border-gray-200'
               }`}
             >
-              <div className="flex items-start gap-4">
+              <div className="flex items-start gap-3 sm:gap-4">
                 {/* Completion Icon */}
                 <div className="flex-shrink-0 mt-1">
                   {task.is_completed ? (
-                    <CheckCircleIcon className="w-6 h-6 text-green-600" />
+                    <CheckCircleIcon className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
                   ) : (
-                    <ClockIcon className="w-6 h-6 text-gray-400" />
+                    <ClockIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
                   )}
                 </div>
 
                 {/* Task Content */}
-                <div className="flex-1">
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+                    <h3 className="text-base sm:text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
                       {index + 1}. {task.title}
                     </h3>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <span className={`px-2 py-1 rounded text-xs font-semibold ${pillarColors[task.pillar] || 'bg-gray-100 text-gray-800'}`} style={{ fontFamily: 'Poppins, sans-serif' }}>
                         {task.pillar}
                       </span>
@@ -208,15 +212,15 @@ const ParentQuestView = () => {
                   </div>
 
                   {task.description && (
-                    <p className="text-gray-600 font-medium mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <p className="text-sm sm:text-base text-gray-600 font-medium mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
                       {task.description}
                     </p>
                   )}
 
-                  {/* Completion Status */}
+                  {/* Completion Status or Evidence Upload */}
                   {task.is_completed ? (
                     <div className="mt-3 pt-3 border-t border-green-200">
-                      <p className="text-sm text-green-700 font-semibold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      <p className="text-xs sm:text-sm text-green-700 font-semibold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
                         ✓ Completed {new Date(task.completed_at).toLocaleDateString()}
                       </p>
                       {/* Enhanced Evidence Display */}
@@ -235,9 +239,33 @@ const ParentQuestView = () => {
                       )}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500 font-medium mt-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      Not yet completed
-                    </p>
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      {!showEvidenceForm[task.id] ? (
+                        <button
+                          onClick={() => setShowEvidenceForm({ ...showEvidenceForm, [task.id]: true })}
+                          className="w-full sm:w-auto px-4 py-2 text-xs sm:text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity"
+                          style={{ fontFamily: 'Poppins, sans-serif' }}
+                        >
+                          + Add Evidence
+                        </button>
+                      ) : (
+                        <EvidenceUploadForm
+                          taskId={task.id}
+                          studentId={studentId}
+                          onCancel={() => {
+                            const newShowForm = { ...showEvidenceForm };
+                            delete newShowForm[task.id];
+                            setShowEvidenceForm(newShowForm);
+                          }}
+                          onSuccess={() => {
+                            const newShowForm = { ...showEvidenceForm };
+                            delete newShowForm[task.id];
+                            setShowEvidenceForm(newShowForm);
+                            loadQuestData();
+                          }}
+                        />
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

@@ -55,7 +55,249 @@ def verify_parent_access(parent_user_id, student_user_id):
     return True
 
 
-# Using repository pattern for database access
+# New endpoint for inline evidence upload (January 2025)
+@bp.route('/evidence/upload', methods=['POST'])
+@require_auth
+def upload_evidence_inline(user_id):
+    """
+    Upload evidence for a student's task (parent-only, no task completion).
+
+    Parent must be linked to student or be parent of dependent.
+    Evidence is added as a block to the task's evidence document.
+    Student can edit/remove evidence before completing task.
+
+    Required form fields:
+        student_id: Student user ID
+        task_id: User quest task ID
+        evidence_type: text, link, image, video, document
+
+    Optional form fields (based on type):
+        text_content: For text type
+        url: For link/video/image/document (URL mode)
+        title: For link type
+        file: For image/document (file upload mode)
+    """
+    try:
+        admin_client = get_supabase_admin_client()
+
+        # Get request data
+        student_id = request.form.get('student_id')
+        task_id = request.form.get('task_id')
+        evidence_type = request.form.get('evidence_type')
+
+        if not all([student_id, task_id, evidence_type]):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required fields: student_id, task_id, evidence_type'
+            }), 400
+
+        # Verify parent has permission (linked student or dependent)
+        parent_check = admin_client.rpc('verify_parent_student_access', {
+            'p_parent_id': user_id,
+            'p_student_id': student_id
+        }).execute()
+
+        if not parent_check.data or not parent_check.data[0].get('has_access'):
+            logger.warning(f"Parent {user_id[:8]} attempted unauthorized access to student {student_id[:8]}")
+            return jsonify({
+                'success': False,
+                'error': 'You do not have permission to access this student'
+            }), 403
+
+        # Verify task belongs to student
+        task_check = admin_client.table('user_quest_tasks')\
+            .select('id, user_id, title')\
+            .eq('id', task_id)\
+            .eq('user_id', student_id)\
+            .single()\
+            .execute()
+
+        if not task_check.data:
+            return jsonify({
+                'success': False,
+                'error': 'Task not found or does not belong to student'
+            }), 404
+
+        # Check if task already completed
+        completion_check = admin_client.table('quest_task_completions')\
+            .select('id')\
+            .eq('user_quest_task_id', task_id)\
+            .eq('user_id', student_id)\
+            .execute()
+
+        if completion_check.data:
+            return jsonify({
+                'success': False,
+                'error': 'Cannot add evidence to completed tasks'
+            }), 400
+
+        # Prepare evidence content based on type
+        evidence_content = {}
+        file_url = None
+
+        if evidence_type == 'text':
+            evidence_content['text'] = request.form.get('text_content', '')
+            if not evidence_content['text'].strip():
+                return jsonify({
+                    'success': False,
+                    'error': 'Text content is required'
+                }), 400
+
+        elif evidence_type in ['link', 'video']:
+            evidence_content['url'] = request.form.get('url', '')
+            evidence_content['title'] = request.form.get('title', '')
+            if not evidence_content['url'].strip():
+                return jsonify({
+                    'success': False,
+                    'error': 'URL is required'
+                }), 400
+
+        elif evidence_type in ['image', 'document']:
+            # Check if file upload or URL
+            if 'file' in request.files:
+                file = request.files['file']
+                if file.filename == '':
+                    return jsonify({
+                        'success': False,
+                        'error': 'No file selected'
+                    }), 400
+
+                # Validate file
+                from werkzeug.utils import secure_filename
+                filename = secure_filename(file.filename)
+                ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+
+                allowed_image_extensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+                allowed_document_extensions = {'pdf', 'doc', 'docx', 'txt'}
+
+                if evidence_type == 'image':
+                    allowed_extensions = allowed_image_extensions
+                    max_size = 10 * 1024 * 1024  # 10MB
+                elif evidence_type == 'document':
+                    allowed_extensions = allowed_document_extensions
+                    max_size = 25 * 1024 * 1024  # 25MB
+
+                if ext not in allowed_extensions:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Invalid file extension. Allowed: {", ".join(allowed_extensions)}'
+                    }), 400
+
+                # Check file size
+                import os
+                file.seek(0, os.SEEK_END)
+                file_size = file.tell()
+                file.seek(0)
+
+                if file_size > max_size:
+                    return jsonify({
+                        'success': False,
+                        'error': f'File too large. Maximum size: {max_size // (1024*1024)}MB'
+                    }), 400
+
+                # Upload to Supabase storage
+                try:
+                    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                    storage_path = f"parent-evidence/{student_id}/{task_id}_{timestamp}_{filename}"
+
+                    file_content = file.read()
+                    file.seek(0)
+
+                    storage_response = admin_client.storage.from_('quest-evidence').upload(
+                        path=storage_path,
+                        file=file_content,
+                        file_options={"content-type": file.content_type or 'application/octet-stream'}
+                    )
+
+                    file_url = admin_client.storage.from_('quest-evidence').get_public_url(storage_path)
+                    evidence_content['url'] = file_url
+                    evidence_content['filename'] = filename
+                    evidence_content['file_size'] = file_size
+
+                except Exception as e:
+                    logger.error(f"Failed to upload file to storage: {e}")
+                    return jsonify({
+                        'success': False,
+                        'error': 'Failed to upload file. Please try again.'
+                    }), 500
+            else:
+                # URL mode
+                evidence_content['url'] = request.form.get('url', '')
+                if not evidence_content['url'].strip():
+                    return jsonify({
+                        'success': False,
+                        'error': 'URL or file is required'
+                    }), 400
+
+        # Get or create evidence document for task
+        evidence_doc = admin_client.table('evidence_documents')\
+            .select('id, blocks')\
+            .eq('user_quest_task_id', task_id)\
+            .eq('user_id', student_id)\
+            .execute()
+
+        if evidence_doc.data:
+            # Append to existing document
+            doc_id = evidence_doc.data[0]['id']
+            existing_blocks = evidence_doc.data[0].get('blocks', [])
+
+            new_block = {
+                'id': f"block_{len(existing_blocks) + 1}",
+                'type': evidence_type,
+                'content': evidence_content,
+                'uploaded_by_parent': True,
+                'uploaded_by': user_id,
+                'uploaded_at': datetime.utcnow().isoformat()
+            }
+
+            existing_blocks.append(new_block)
+
+            admin_client.table('evidence_documents')\
+                .update({
+                    'blocks': existing_blocks,
+                    'updated_at': datetime.utcnow().isoformat()
+                })\
+                .eq('id', doc_id)\
+                .execute()
+        else:
+            # Create new evidence document
+            new_block = {
+                'id': 'block_1',
+                'type': evidence_type,
+                'content': evidence_content,
+                'uploaded_by_parent': True,
+                'uploaded_by': user_id,
+                'uploaded_at': datetime.utcnow().isoformat()
+            }
+
+            admin_client.table('evidence_documents')\
+                .insert({
+                    'user_id': student_id,
+                    'user_quest_task_id': task_id,
+                    'blocks': [new_block],
+                    'created_at': datetime.utcnow().isoformat(),
+                    'updated_at': datetime.utcnow().isoformat()
+                })\
+                .execute()
+
+        logger.info(f"Parent {user_id[:8]} uploaded {evidence_type} evidence for student {student_id[:8]} task {task_id[:8]}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Evidence uploaded successfully'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error uploading parent evidence: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': 'Failed to upload evidence'
+        }), 500
+
+
+# Legacy endpoint (kept for backwards compatibility)
 @bp.route('/evidence/<student_id>', methods=['POST'])
 @require_auth
 def upload_parent_evidence(user_id, student_id):
