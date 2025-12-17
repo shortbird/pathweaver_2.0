@@ -8,8 +8,13 @@ from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError
-import uuid
-import logging
+from backend.repositories import (
+    UserRepository,
+    TaskRepository,
+    QuestRepository,
+    EvidenceDocumentRepository,
+    ParentRepository
+)
 
 from utils.logger import get_logger
 
@@ -20,18 +25,20 @@ bp = Blueprint('helper_evidence', __name__, url_prefix='/api/evidence/helper')
 
 def verify_advisor_access(advisor_user_id, student_user_id):
     """Verify advisor has access to student"""
-    supabase = get_supabase_admin_client()
+    # ADMIN CLIENT JUSTIFIED: Verifying role and advisor-student relationship (not user-specific data query)
+    user_repo = UserRepository()
 
     # Verify advisor role
-    user_response = supabase.table('users').select('role').eq('id', advisor_user_id).execute()
-    if not user_response.data:
+    user = user_repo.find_by_id(advisor_user_id)
+    if not user:
         raise AuthorizationError("User not found")
 
-    user_role = user_response.data[0].get('role')
+    user_role = user.get('role')
     if user_role not in ['advisor', 'admin']:
         raise AuthorizationError("Only advisors can access this endpoint")
 
-    # Verify advisor-student link
+    # Verify advisor-student link (direct DB query for now - no AdvisorRepository exists)
+    supabase = get_supabase_admin_client()
     link_response = supabase.table('advisor_student_assignments').select('id').eq(
         'advisor_id', advisor_user_id
     ).eq('student_id', student_user_id).execute()
@@ -44,56 +51,36 @@ def verify_advisor_access(advisor_user_id, student_user_id):
 
 def verify_parent_access(parent_user_id, student_user_id):
     """Verify parent has active access to student"""
+    # ADMIN CLIENT JUSTIFIED: Verifying role and parent-student relationship (not user-specific data query)
+    user_repo = UserRepository()
     supabase = get_supabase_admin_client()
+    parent_repo = ParentRepository(client=supabase)
 
     # Verify parent role
-    user_response = supabase.table('users').select('role').eq('id', parent_user_id).execute()
-    if not user_response.data:
+    user = user_repo.find_by_id(parent_user_id)
+    if not user:
         raise AuthorizationError("User not found")
 
-    user_role = user_response.data[0].get('role')
+    user_role = user.get('role')
     if user_role not in ['parent', 'admin']:
         raise AuthorizationError("Only parents can access this endpoint")
 
-    # Verify link exists (no status column - once linked, always linked)
-    link_response = supabase.table('parent_student_links').select('id').eq(
-        'parent_user_id', parent_user_id
-    ).eq('student_user_id', student_user_id).execute()
-
-    if not link_response.data:
+    # Verify parent-student link
+    is_linked = parent_repo.is_linked(parent_user_id, student_user_id)
+    if not is_linked:
         raise AuthorizationError("You do not have access to this student's data")
 
     return True
 
 
-def get_or_create_evidence_document(supabase, student_user_id, task_id, quest_id):
-    """Get existing evidence document or create a new one"""
-    # Check if document exists
-    document_response = supabase.table('user_task_evidence_documents')\
-        .select('*')\
-        .eq('user_id', student_user_id)\
-        .eq('task_id', task_id)\
-        .execute()
+def get_or_create_evidence_document(student_user_id, task_id, quest_id):
+    """Get existing evidence document ID or create a new one"""
+    # ADMIN CLIENT JUSTIFIED: Creating evidence document for student (verified access in calling function)
+    supabase = get_supabase_admin_client()
+    evidence_repo = EvidenceDocumentRepository()
+    evidence_repo._client = supabase  # Use admin client since we already verified access
 
-    if document_response.data:
-        return document_response.data[0]['id']
-
-    # Create new document
-    document_data = {
-        'user_id': student_user_id,
-        'quest_id': quest_id,
-        'task_id': task_id,
-        'status': 'draft'
-    }
-
-    document_insert = supabase.table('user_task_evidence_documents')\
-        .insert(document_data)\
-        .execute()
-
-    if not document_insert.data:
-        raise Exception("Failed to create evidence document")
-
-    return document_insert.data[0]['id']
+    return evidence_repo.get_or_create_document(student_user_id, task_id, quest_id)
 
 
 @bp.route('/upload-for-student', methods=['POST'])
@@ -112,7 +99,13 @@ def upload_evidence_for_student(user_id):
     }
     """
     try:
+        # ADMIN CLIENT JUSTIFIED: Helper uploading evidence for student (access verified below)
         supabase = get_supabase_admin_client()
+        user_repo = UserRepository()
+        task_repo = TaskRepository()
+        task_repo._client = supabase
+        evidence_repo = EvidenceDocumentRepository()
+        evidence_repo._client = supabase
 
         data = request.get_json()
         student_id = data.get('student_id')
@@ -127,11 +120,11 @@ def upload_evidence_for_student(user_id):
             raise ValidationError("Invalid block_type")
 
         # Get user role to determine access type
-        user_response = supabase.table('users').select('role').eq('id', user_id).execute()
-        if not user_response.data:
+        user = user_repo.find_by_id(user_id)
+        if not user:
             raise NotFoundError("User not found")
 
-        user_role = user_response.data[0].get('role')
+        user_role = user.get('role')
 
         # Verify access based on role
         if user_role in ['advisor', 'admin']:
@@ -144,6 +137,7 @@ def upload_evidence_for_student(user_id):
             raise AuthorizationError("Only advisors and parents can upload evidence for students")
 
         # Verify task exists and belongs to student
+        # Note: Using direct query for now as task_repo doesn't have a method to verify task ownership with quest details
         task_response = supabase.table('user_quest_tasks').select('''
             id, quest_id, title, user_id
         ''').eq('id', task_id).eq('user_id', student_id).execute()
@@ -155,6 +149,7 @@ def upload_evidence_for_student(user_id):
         quest_id = task['quest_id']
 
         # Verify quest is active
+        # Note: Using direct query for complex filtering (active quest check)
         quest_response = supabase.table('user_quests').select('''
             quest_id, is_active, completed_at
         ''').eq('user_id', student_id).eq('quest_id', quest_id).execute()
@@ -168,6 +163,7 @@ def upload_evidence_for_student(user_id):
             raise ValidationError("Quest is not active or already completed")
 
         # Check if task is already completed
+        # Note: Using direct query for completion check (simple query)
         completion_check = supabase.table('quest_task_completions').select('id').eq(
             'user_id', student_id
         ).eq('task_id', task_id).execute()
@@ -175,46 +171,29 @@ def upload_evidence_for_student(user_id):
         if completion_check.data:
             raise ValidationError("Task is already completed")
 
-        # Get or create evidence document
-        document_id = get_or_create_evidence_document(supabase, student_id, task_id, quest_id)
+        # Get or create evidence document using repository
+        document_id = get_or_create_evidence_document(student_id, task_id, quest_id)
 
-        # Get current max order_index
-        blocks_response = supabase.table('evidence_document_blocks')\
-            .select('order_index')\
-            .eq('document_id', document_id)\
-            .order('order_index', desc=True)\
-            .limit(1)\
-            .execute()
+        # Get next block order index using repository
+        next_order = evidence_repo.get_next_block_order_index(document_id)
 
-        next_order = 0
-        if blocks_response.data:
-            next_order = blocks_response.data[0]['order_index'] + 1
+        # Create helper evidence block using repository
+        created_block = evidence_repo.create_helper_block(
+            document_id=document_id,
+            block_type=block_type,
+            content=content,
+            order_index=next_order,
+            uploaded_by_user_id=user_id,
+            uploaded_by_role=uploader_role,
+            is_private=False
+        )
 
-        # Create evidence block
-        block_data = {
-            'id': str(uuid.uuid4()),
-            'document_id': document_id,
-            'block_type': block_type,
-            'content': content,
-            'order_index': next_order,
-            'is_private': False,
-            'uploaded_by_user_id': user_id,
-            'uploaded_by_role': uploader_role
-        }
-
-        block_insert = supabase.table('evidence_document_blocks')\
-            .insert(block_data)\
-            .execute()
-
-        if not block_insert.data:
-            raise Exception("Failed to create evidence block")
-
-        # Get uploader name for response
-        uploader_response = supabase.table('users').select('first_name, last_name').eq('id', user_id).execute()
+        # Get uploader name for response using repository
+        uploader_user = user_repo.find_by_id(user_id)
         uploader_name = "Unknown"
-        if uploader_response.data:
-            first = uploader_response.data[0].get('first_name', '')
-            last = uploader_response.data[0].get('last_name', '')
+        if uploader_user:
+            first = uploader_user.get('first_name', '')
+            last = uploader_user.get('last_name', '')
             uploader_name = f"{first} {last}".strip()
 
         logger.info(f"{uploader_role.capitalize()} {user_id} uploaded evidence block for student {student_id} task {task_id}")
@@ -222,7 +201,7 @@ def upload_evidence_for_student(user_id):
         return jsonify({
             'success': True,
             'message': f'Evidence added successfully by {uploader_role}',
-            'block_id': block_data['id'],
+            'block_id': created_block['id'],
             'document_id': document_id,
             'task_title': task['title'],
             'uploaded_by': uploader_name,
@@ -250,14 +229,16 @@ def get_student_tasks_for_evidence(user_id, student_id):
     Only returns tasks from active quests that are not yet completed.
     """
     try:
+        # ADMIN CLIENT JUSTIFIED: Helper accessing student task list (access verified below)
         supabase = get_supabase_admin_client()
+        user_repo = UserRepository()
 
-        # Get user role
-        user_response = supabase.table('users').select('role').eq('id', user_id).execute()
-        if not user_response.data:
+        # Get user role using repository
+        user = user_repo.find_by_id(user_id)
+        if not user:
             raise NotFoundError("User not found")
 
-        user_role = user_response.data[0].get('role')
+        user_role = user.get('role')
 
         # Verify access based on role
         if user_role in ['advisor', 'admin']:

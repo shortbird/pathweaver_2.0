@@ -1,16 +1,6 @@
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from backend.repositories import (
-    UserRepository,
-    QuestRepository,
-    BadgeRepository,
-    EvidenceRepository,
-    FriendshipRepository,
-    ParentRepository,
-    TutorRepository,
-    LMSRepository,
-    AnalyticsRepository
-)
+from backend.repositories import SiteSettingsRepository
 from utils.auth.decorators import require_auth, require_admin
 import uuid
 from datetime import datetime
@@ -23,23 +13,16 @@ settings_bp = Blueprint('settings', __name__)
 
 @settings_bp.route('/settings', methods=['GET'])
 def get_settings():
+    """Get site settings (public endpoint)"""
     try:
         # ADMIN CLIENT JUSTIFIED: Reading public site-wide settings (not user-specific data)
-        supabase = get_supabase_admin_client()
-        response = supabase.table('site_settings').select('*').single().execute()
-        
-        if response.data:
-            return jsonify(response.data), 200
-        else:
-            # Return default settings if none exist
-            return jsonify({
-                'logo_url': 'https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/logo.svg',
-                'site_name': 'Optio',
-                'favicon_url': None
-            }), 200
+        settings_repo = SiteSettingsRepository()
+        settings = settings_repo.get_settings()
+        return jsonify(settings), 200
 
     except Exception as e:
-        # If table doesn't exist or no settings, return defaults
+        logger.error(f"Error getting site settings: {str(e)}")
+        # Return defaults on error
         return jsonify({
             'logo_url': 'https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/logo.svg',
             'site_name': 'Optio',
@@ -49,88 +32,61 @@ def get_settings():
 @settings_bp.route('/settings', methods=['PUT'])
 @require_admin
 def update_settings(current_user):
+    """Update site settings (admin only)"""
     try:
         data = request.get_json()
         # ADMIN CLIENT JUSTIFIED: Admin-only endpoint for updating site-wide settings
-        supabase = get_supabase_admin_client()
-        
-        # Check if settings exist
-        existing = supabase.table('site_settings').select('id').execute()
-        
-        if existing.data and len(existing.data) > 0:
-            # Update existing settings
-            response = supabase.table('site_settings').update({
-                **data,
-                'updated_at': datetime.utcnow().isoformat()
-            }).eq('id', existing.data[0]['id']).execute()
-        else:
-            # Create new settings
-            response = supabase.table('site_settings').insert({
-                'id': str(uuid.uuid4()),
-                **data,
-                'created_at': datetime.utcnow().isoformat(),
-                'updated_at': datetime.utcnow().isoformat()
-            }).execute()
-        
-        return jsonify(response.data[0]), 200
-        
+        settings_repo = SiteSettingsRepository()
+        updated_settings = settings_repo.upsert_settings(data)
+        return jsonify(updated_settings), 200
+
     except Exception as e:
+        logger.error(f"Error updating site settings: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @settings_bp.route('/settings/upload-logo', methods=['POST'])
 @require_admin
 def upload_logo(current_user):
+    """Upload site logo (admin only)"""
     try:
         if 'logo' not in request.files:
             return jsonify({'error': 'No logo file provided'}), 400
-        
+
         logo_file = request.files['logo']
-        
+
         if logo_file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
-        
+
         # Generate unique filename
         file_ext = logo_file.filename.rsplit('.', 1)[1].lower() if '.' in logo_file.filename else 'png'
         filename = f"logo_{uuid.uuid4().hex}.{file_ext}"
-        
+
         # ADMIN CLIENT JUSTIFIED: Admin-only endpoint for uploading site-wide assets
         file_data = logo_file.read()
         supabase = get_supabase_admin_client()
-        
+
         # Create bucket if it doesn't exist
         try:
             supabase.storage.create_bucket('site-assets', {'public': True})
         except:
             pass  # Bucket might already exist
-        
+
         # Upload file
         response = supabase.storage.from_('site-assets').upload(
             f'logos/{filename}',
             file_data,
             {'content-type': logo_file.content_type}
         )
-        
+
         # Get public URL
         public_url = supabase.storage.from_('site-assets').get_public_url(f'logos/{filename}')
-        
-        # Update settings with new logo URL
-        existing = supabase.table('site_settings').select('id').execute()
-        
-        if existing.data and len(existing.data) > 0:
-            supabase.table('site_settings').update({
-                'logo_url': public_url,
-                'updated_at': datetime.utcnow().isoformat()
-            }).eq('id', existing.data[0]['id']).execute()
-        else:
-            supabase.table('site_settings').insert({
-                'id': str(uuid.uuid4()),
-                'logo_url': public_url,
-                'site_name': 'Optio',
-                'created_at': datetime.utcnow().isoformat(),
-                'updated_at': datetime.utcnow().isoformat()
-            }).execute()
-        
+
+        # Update settings with new logo URL using repository
+        settings_repo = SiteSettingsRepository()
+        settings_repo.update_logo_url(public_url)
+
         return jsonify({'logo_url': public_url}), 200
-        
+
     except Exception as e:
+        logger.error(f"Error uploading logo: {str(e)}")
         return jsonify({'error': str(e)}), 500

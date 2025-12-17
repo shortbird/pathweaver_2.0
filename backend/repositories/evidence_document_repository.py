@@ -418,3 +418,122 @@ class EvidenceDocumentRepository(BaseRepository):
         except APIError as e:
             logger.error(f"Error fetching block with ownership check: {e}")
             raise DatabaseError("Failed to fetch block") from e
+
+    def get_or_create_document(
+        self,
+        user_id: str,
+        task_id: str,
+        quest_id: str
+    ) -> str:
+        """
+        Get existing evidence document ID or create a new one.
+
+        Args:
+            user_id: User ID (student)
+            task_id: Task ID
+            quest_id: Quest ID
+
+        Returns:
+            Document ID
+
+        Raises:
+            DatabaseError: If operation fails
+        """
+        # Check if document exists
+        existing_doc = self.find_by_task(user_id, task_id)
+
+        if existing_doc:
+            return existing_doc['id']
+
+        # Create new document
+        new_doc = self.create_document(user_id, task_id, quest_id, status='draft')
+        return new_doc['id']
+
+    def get_next_block_order_index(self, document_id: str) -> int:
+        """
+        Get the next available order_index for a new block.
+
+        Args:
+            document_id: Document ID
+
+        Returns:
+            Next order_index value
+
+        Raises:
+            DatabaseError: If query fails
+        """
+        try:
+            response = (
+                self.client.table('evidence_document_blocks')
+                .select('order_index')
+                .eq('document_id', document_id)
+                .order('order_index', desc=True)
+                .limit(1)
+                .execute()
+            )
+
+            if response.data:
+                return response.data[0]['order_index'] + 1
+
+            return 0
+
+        except APIError as e:
+            logger.error(f"Error getting next block order_index: {e}")
+            raise DatabaseError("Failed to get next order_index") from e
+
+    def create_helper_block(
+        self,
+        document_id: str,
+        block_type: str,
+        content: Dict[str, Any],
+        order_index: int,
+        uploaded_by_user_id: str,
+        uploaded_by_role: str,
+        is_private: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Create a content block uploaded by a helper (advisor/parent).
+
+        Args:
+            document_id: Document ID
+            block_type: Type of block (text/image/link/video/document)
+            content: Block content as JSON
+            order_index: Position in document
+            uploaded_by_user_id: ID of the advisor/parent who uploaded
+            uploaded_by_role: Role of uploader ('advisor' or 'parent')
+            is_private: Whether block is private
+
+        Returns:
+            Created block record with uploader information
+
+        Raises:
+            DatabaseError: If creation fails
+        """
+        try:
+            import uuid
+            data = {
+                'id': str(uuid.uuid4()),
+                'document_id': document_id,
+                'block_type': block_type,
+                'content': content,
+                'order_index': order_index,
+                'is_private': is_private,
+                'uploaded_by_user_id': uploaded_by_user_id,
+                'uploaded_by_role': uploaded_by_role
+            }
+
+            response = (
+                self.client.table('evidence_document_blocks')
+                .insert(data)
+                .execute()
+            )
+
+            if not response.data:
+                raise DatabaseError("Failed to create helper evidence block")
+
+            logger.info(f"{uploaded_by_role.capitalize()} {uploaded_by_user_id} uploaded evidence block to document {document_id}")
+            return response.data[0]
+
+        except APIError as e:
+            logger.error(f"Error creating helper evidence block: {e}")
+            raise DatabaseError("Failed to create helper evidence block") from e
