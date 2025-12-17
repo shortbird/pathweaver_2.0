@@ -8,6 +8,13 @@ Performance optimizations:
 - In-memory caching with 2-minute TTL
 - Reduced subscription tier queries from 8 to 1
 - XP calculation from quest completions (indexed query)
+
+REPOSITORY MIGRATION: SKIP MIGRATION - Complex Analytics Queries
+- 50+ direct database calls for analytics aggregation
+- Complex queries with date filtering, grouping, and aggregations
+- In-memory caching layer (2-minute TTL) for performance
+- Per migration guidelines: Complex analytics queries should remain as direct DB access
+- Analytics endpoints benefit from flexibility of raw queries over repository abstraction
 """
 
 from flask import Blueprint, jsonify, request

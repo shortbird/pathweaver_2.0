@@ -1,3 +1,15 @@
+"""
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- 15+ direct database calls across multiple tables
+- GDPR data export requires complex cross-table operations
+- Could create UserDataExportRepository with methods:
+  - export_all_user_data(user_id)
+  - request_account_deletion(user_id, reason)
+  - cancel_account_deletion(user_id)
+  - get_deletion_status(user_id)
+- Complex multi-table operations but still suitable for repository abstraction
+"""
+
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client, get_user_client
 from backend.repositories import (
