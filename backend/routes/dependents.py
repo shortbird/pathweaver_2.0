@@ -370,12 +370,8 @@ def generate_acting_as_token(user_id, dependent_id):
         dependent_repo = DependentRepository(client=supabase)
 
         # Verify that this dependent belongs to this parent
-        dependent = dependent_repo.get_dependent_by_id(dependent_id)
-        if not dependent:
-            raise RouteNotFoundError('Dependent', dependent_id)
-
-        if dependent.get('managed_by_parent_id') != user_id:
-            raise AuthorizationError("You can only act as your own dependents")
+        # get_dependent() will raise NotFoundError or PermissionError if not valid
+        dependent = dependent_repo.get_dependent(dependent_id, user_id)
 
         # Generate acting-as token (parent_id, dependent_id)
         acting_as_token = session_manager.generate_acting_as_token(user_id, dependent_id)
@@ -393,9 +389,9 @@ def generate_acting_as_token(user_id, dependent_id):
     except AuthorizationError as e:
         logger.warning(f"Authorization error for user {user_id}: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 403
-    except RouteNotFoundError as e:
-        logger.warning(f"Dependent {dependent_id} not found for user {user_id}")
-        return jsonify({'success': False, 'error': 'Dependent not found'}), 404
+    except (NotFoundError, PermissionError) as e:
+        logger.warning(f"Error accessing dependent {dependent_id} for user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error generating acting-as token for dependent {dependent_id}: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to generate token'}), 500
