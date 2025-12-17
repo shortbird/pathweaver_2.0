@@ -519,16 +519,26 @@ class QuestRepository(BaseRepository):
             admin = get_supabase_admin_client()
 
             # First get user data
-            user_response = admin.table('users')\
-                .select('organization_id')\
-                .eq('id', user_id)\
-                .single()\
-                .execute()
+            # IMPORTANT: For dependent users, the Supabase client query was causing stack depth errors
+            # due to recursive foreign key resolution on managed_by_parent_id. Use RPC instead.
+            try:
+                user_response = admin.rpc('get_user_organization', {'p_user_id': user_id}).execute()
+                if not user_response.data or len(user_response.data) == 0:
+                    raise DatabaseError(f"User {user_id} not found")
+                org_id = user_response.data[0].get('organization_id') if isinstance(user_response.data, list) else user_response.data.get('organization_id')
+            except Exception as e:
+                # Fallback to direct query if RPC doesn't exist (will create it later)
+                logger.warning(f"RPC get_user_organization not found, using direct query: {e}")
+                user_response = admin.table('users')\
+                    .select('organization_id')\
+                    .eq('id', user_id)\
+                    .single()\
+                    .execute()
 
-            if not user_response.data:
-                raise DatabaseError(f"User {user_id} not found")
+                if not user_response.data:
+                    raise DatabaseError(f"User {user_id} not found")
 
-            org_id = user_response.data.get('organization_id')
+                org_id = user_response.data.get('organization_id')
 
             # If user has no organization, default to 'all_optio' policy (global quests only)
             if not org_id:
