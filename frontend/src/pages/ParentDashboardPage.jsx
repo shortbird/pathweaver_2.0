@@ -11,7 +11,8 @@ import {
   ExclamationTriangleIcon,
   UserIcon,
   XMarkIcon,
-  PlusIcon
+  PlusIcon,
+  UserGroupIcon
 } from '@heroicons/react/24/outline';
 import AddDependentModal from '../components/parent/AddDependentModal';
 import RequestStudentConnectionModal from '../components/parent/RequestStudentConnectionModal';
@@ -356,15 +357,29 @@ const ParentDashboardPage = () => {
       )}
 
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-          Family Dashboard
-        </h1>
-        {selectedStudent && (
-          <p className="text-gray-600 mt-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            Supporting {selectedStudent.student_first_name}'s learning journey
-          </p>
-        )}
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            Family Dashboard
+          </h1>
+          {selectedStudent && (
+            <p className="text-gray-600 mt-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Supporting {selectedStudent.student_first_name}'s learning journey
+            </p>
+          )}
+        </div>
+
+        {/* Add Child Button */}
+        <div className="relative">
+          <button
+            onClick={() => setShowAddDependentModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-lg transition-shadow"
+            style={{ fontFamily: 'Poppins, sans-serif' }}
+          >
+            <PlusIcon className="w-5 h-5" />
+            Add Child
+          </button>
+        </div>
       </div>
 
 
@@ -532,22 +547,30 @@ const ParentDashboardPage = () => {
             <div className="border-b border-gray-200 mb-6">
               <nav className="flex gap-6 overflow-x-auto pb-4">
                 {/* Linked 13+ students */}
-                {children.map((child) => (
-                  <button
-                    key={child.student_id}
-                    onClick={() => setSelectedStudentId(child.student_id)}
-                    className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
-                      selectedStudentId === child.student_id
-                        ? 'border-b-2 border-optio-purple text-optio-purple'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                    style={{ fontFamily: 'Poppins, sans-serif' }}
-                  >
-                    <UserIcon className="w-5 h-5" />
-                    {child.student_first_name} {child.student_last_name}
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">13+</span>
-                  </button>
-                ))}
+                {children.map((child) => {
+                  // Calculate age if date_of_birth is available
+                  const age = child.date_of_birth ? calculateAge(child.date_of_birth) : null;
+                  const showAgeIcon = age !== null && age < 13;
+
+                  return (
+                    <button
+                      key={child.student_id}
+                      onClick={() => setSelectedStudentId(child.student_id)}
+                      className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
+                        selectedStudentId === child.student_id
+                          ? 'border-b-2 border-optio-purple text-optio-purple'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                      style={{ fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      <UserIcon className="w-5 h-5" />
+                      {child.student_first_name} {child.student_last_name}
+                      {showAgeIcon && (
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Under 13</span>
+                      )}
+                    </button>
+                  );
+                })}
 
                 {/* Dependents (under 13) */}
                 {dependents.map((dependent) => {

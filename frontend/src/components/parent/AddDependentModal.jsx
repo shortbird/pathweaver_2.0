@@ -154,10 +154,10 @@ const AddDependentModal = ({ isOpen, onClose, onSuccess }) => {
             <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-blue-800">
               <p className="mb-2">
-                <strong>Under 13:</strong> Create a dependent profile by filling out this form. You'll manage their account fully with no email/password required.
+                <strong>Under 13:</strong> Fill out the form below to create a dependent profile. You'll manage their account fully with no email/password required.
               </p>
               <p>
-                <strong>13+:</strong> If your child already has their own Optio account, please email <a href="mailto:support@optioeducation.com" className="underline font-semibold">support@optioeducation.com</a> to request a connection. They'll maintain control of their account.
+                <strong>13+ with existing account:</strong> Email <a href="mailto:support@optioeducation.com" className="underline font-semibold">support@optioeducation.com</a> to request a connection. The student maintains control of their account.
               </p>
             </div>
           </div>
