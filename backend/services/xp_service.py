@@ -20,32 +20,32 @@ logger = get_logger(__name__)
 class XPService(BaseService):
     """Service for handling XP calculations and awards."""
     
-    def calculate_task_xp(self, 
-                         user_id: str, 
-                         task_id: str, 
+    def calculate_task_xp(self,
+                         user_id: str,
+                         task_id: str,
                          quest_id: str,
-                         base_xp: int) -> Tuple[int, bool]:
+                         base_xp: int) -> int:
         """
-        Calculate XP for a task completion, including collaboration bonus.
-        
+        Calculate XP for a task completion.
+
+        Collaboration bonuses removed in Phase 1 refactoring (January 2025).
+        XP is now simply the base task XP value.
+
         Args:
             user_id: User completing the task
             task_id: Task being completed
             quest_id: Quest containing the task
             base_xp: Base XP amount for the task
-            
+
         Returns:
-            Tuple of (final_xp_amount, has_collaboration_bonus)
+            Final XP amount (equals base_xp)
         """
-        # Collaboration bonus removed in Phase 1 refactoring (January 2025)
-        # XP is now simply the base task XP value
         final_xp = base_xp
-        has_collaboration = False
 
         # Log XP calculation for audit
-        self._log_xp_calculation(user_id, task_id, base_xp, final_xp, has_collaboration)
+        self._log_xp_calculation(user_id, task_id, base_xp, final_xp)
 
-        return final_xp, has_collaboration
+        return final_xp
     
     def award_xp(self,
                  user_id: str,
@@ -302,19 +302,17 @@ class XPService(BaseService):
             logger.error(f"Error checking collaboration: {str(e)}")
             return False
     
-    def _log_xp_calculation(self, 
-                           user_id: str, 
-                           task_id: str, 
-                           base_xp: int, 
-                           final_xp: int, 
-                           has_collaboration: bool):
+    def _log_xp_calculation(self,
+                           user_id: str,
+                           task_id: str,
+                           base_xp: int,
+                           final_xp: int):
         """Log XP calculation for audit purposes."""
         log_data = {
             'user_id': user_id,
             'task_id': task_id,
             'base_xp': base_xp,
             'final_xp': final_xp,
-            'has_collaboration': has_collaboration,
             'timestamp': datetime.utcnow().isoformat()
         }
         

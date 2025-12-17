@@ -243,7 +243,6 @@ def save_evidence_document(user_id: str, task_id: str):
 
         # If completing the task, award XP
         xp_awarded = 0
-        has_collaboration = False
         quest_completed = False
 
         if status == 'completed':
@@ -268,12 +267,12 @@ def save_evidence_document(user_id: str, task_id: str):
                 logger.info(f"[EVIDENCE_DOC] Creating new completion record: task_id={task_id[:8]}, base_xp={base_xp}")
                 logger.info(f"[EVIDENCE_DOC] Completion record will have: user_id={user_id[:8]}, quest_id={quest_id[:8]}, task_id={task_id[:8]}, user_quest_task_id={task_id[:8]}")
 
-                # Calculate XP with collaboration bonus if applicable
-                final_xp, has_collaboration = xp_service.calculate_task_xp(
+                # Calculate XP (collaboration bonuses removed in Phase 1)
+                final_xp = xp_service.calculate_task_xp(
                     user_id, task_id, quest_id, base_xp
                 )
 
-                logger.info(f"[EVIDENCE_DOC] XP calculated: final_xp={final_xp}, has_collaboration={has_collaboration}")
+                logger.info(f"[EVIDENCE_DOC] XP calculated: final_xp={final_xp}")
 
                 # Create task completion record using V3 system
                 # NOTE: In quest_task_completions table:
@@ -340,7 +339,6 @@ def save_evidence_document(user_id: str, task_id: str):
             'document_id': document_id,
             'status': status,
             'xp_awarded': xp_awarded,
-            'has_collaboration_bonus': has_collaboration,
             'quest_completed': quest_completed,
             'blocks': saved_blocks_response.data or []
         })
@@ -567,7 +565,6 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
 
         # If completing the task, award XP
         xp_awarded = 0
-        has_collaboration = False
         quest_completed = False
 
         if status == 'completed':
@@ -583,8 +580,8 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
                 task_data = task_check.data[0]
                 base_xp = task_data.get('xp_value', 0)
 
-                # Calculate XP with collaboration bonus if applicable
-                final_xp, has_collaboration = xp_service.calculate_task_xp(
+                # Calculate XP (collaboration bonuses removed in Phase 1)
+                final_xp = xp_service.calculate_task_xp(
                     user_id, task_id, quest_id, base_xp
                 )
 
@@ -635,7 +632,6 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
             'document_id': document_id,
             'status': status,
             'xp_awarded': xp_awarded,
-            'has_collaboration_bonus': has_collaboration,
             'quest_completed': quest_completed
         }
 

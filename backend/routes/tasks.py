@@ -238,8 +238,7 @@ def complete_task(user_id: str, task_id: str):
 
         # Task collaborations removed in Phase 1 refactoring (January 2025)
         # Table task_collaborations no longer exists
-        # No collaboration bonus - all students earn base XP
-        has_collaboration = False
+        # All students earn base XP
         final_xp = base_xp
 
         # Create task completion record using repository
@@ -264,7 +263,7 @@ def complete_task(user_id: str, task_id: str):
         logger.debug(f"=== TASK COMPLETION XP DEBUG ===")
         logger.info(f"Task ID: {task_id}, User ID: {effective_user_id}")
         print(f"Task pillar: {task_data.get('pillar')}")
-        logger.info(f"Base XP: {base_xp}, Final XP: {final_xp}, Has Collaboration: {has_collaboration}")
+        logger.info(f"Base XP: {base_xp}, Final XP: {final_xp}")
         if acting_as_dependent_id:
             logger.info(f"Parent {user_id[:8]} completing for dependent {acting_as_dependent_id[:8]}")
         logger.info("================================")
@@ -401,7 +400,6 @@ def complete_task(user_id: str, task_id: str):
             'success': True,
             'message': f'Task completed! Earned {final_xp} XP',
             'xp_awarded': final_xp,
-            'has_collaboration_bonus': has_collaboration,
             'quest_completed': quest_completed,
             'completion': completion_data
         })
