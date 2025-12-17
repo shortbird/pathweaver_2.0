@@ -230,56 +230,68 @@ def upload_evidence_inline(user_id):
                         'error': 'URL or file is required'
                     }), 400
 
+        # Get task quest_id
+        task_quest = admin_client.table('user_quest_tasks')\
+            .select('quest_id')\
+            .eq('id', task_id)\
+            .single()\
+            .execute()
+
+        quest_id = task_quest.data['quest_id']
+
         # Get or create evidence document for task
-        evidence_doc = admin_client.table('evidence_documents')\
-            .select('id, blocks')\
-            .eq('user_quest_task_id', task_id)\
+        evidence_doc = admin_client.table('user_task_evidence_documents')\
+            .select('id')\
+            .eq('task_id', task_id)\
             .eq('user_id', student_id)\
             .execute()
 
         if evidence_doc.data:
-            # Append to existing document
+            # Use existing document
             doc_id = evidence_doc.data[0]['id']
-            existing_blocks = evidence_doc.data[0].get('blocks', [])
-
-            new_block = {
-                'id': f"block_{len(existing_blocks) + 1}",
-                'type': evidence_type,
-                'content': evidence_content,
-                'uploaded_by_parent': True,
-                'uploaded_by': user_id,
-                'uploaded_at': datetime.utcnow().isoformat()
-            }
-
-            existing_blocks.append(new_block)
-
-            admin_client.table('evidence_documents')\
-                .update({
-                    'blocks': existing_blocks,
-                    'updated_at': datetime.utcnow().isoformat()
-                })\
-                .eq('id', doc_id)\
-                .execute()
         else:
             # Create new evidence document
-            new_block = {
-                'id': 'block_1',
-                'type': evidence_type,
-                'content': evidence_content,
-                'uploaded_by_parent': True,
-                'uploaded_by': user_id,
-                'uploaded_at': datetime.utcnow().isoformat()
-            }
-
-            admin_client.table('evidence_documents')\
+            doc_insert = admin_client.table('user_task_evidence_documents')\
                 .insert({
                     'user_id': student_id,
-                    'user_quest_task_id': task_id,
-                    'blocks': [new_block],
-                    'created_at': datetime.utcnow().isoformat(),
-                    'updated_at': datetime.utcnow().isoformat()
+                    'quest_id': quest_id,
+                    'task_id': task_id,
+                    'status': 'draft'
                 })\
                 .execute()
+
+            if not doc_insert.data:
+                raise Exception("Failed to create evidence document")
+
+            doc_id = doc_insert.data[0]['id']
+
+        # Get current max order_index
+        blocks_response = admin_client.table('evidence_document_blocks')\
+            .select('order_index')\
+            .eq('document_id', doc_id)\
+            .order('order_index', desc=True)\
+            .limit(1)\
+            .execute()
+
+        next_order = 0
+        if blocks_response.data:
+            next_order = blocks_response.data[0]['order_index'] + 1
+
+        # Create evidence block
+        block_data = {
+            'id': str(uuid.uuid4()),
+            'document_id': doc_id,
+            'block_type': evidence_type,
+            'content': evidence_content,
+            'order_index': next_order,
+            'is_private': False,
+            'uploaded_by_user_id': user_id,
+            'uploaded_by_role': 'parent'
+        }
+
+        admin_client.table('evidence_document_blocks')\
+            .insert(block_data)\
+            .execute()
 
         logger.info(f"Parent {user_id[:8]} uploaded {evidence_type} evidence for student {student_id[:8]} task {task_id[:8]}")
 
