@@ -9,7 +9,7 @@ import { getMyDependents } from '../services/dependentAPI';
 import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
-  UserGroupIcon,
+  UserIcon,
   XMarkIcon,
   PlusIcon
 } from '@heroicons/react/24/outline';
@@ -24,6 +24,7 @@ const ParentDashboardPage = () => {
   const [selectedStudentId, setSelectedStudentId] = useState(studentId || null);
   const [children, setChildren] = useState([]);
   const [dependents, setDependents] = useState([]);
+  const [dashboardDataCache, setDashboardDataCache] = useState({}); // Cache by student ID
   const [dashboardData, setDashboardData] = useState(null);
   const [progressData, setProgressData] = useState(null);
   const [creditData, setCreditData] = useState(null);
@@ -132,6 +133,17 @@ const ParentDashboardPage = () => {
         return;
       }
 
+      // Check cache first for instant switching
+      if (dashboardDataCache[selectedStudentId]) {
+        const cached = dashboardDataCache[selectedStudentId];
+        setDashboardData(cached.dashboard);
+        setProgressData(cached.progress);
+        setCreditData(cached.credits);
+        setCompletedQuests(cached.completed);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
         // Load only overview data
@@ -142,10 +154,23 @@ const ParentDashboardPage = () => {
           parentAPI.getCompletedQuests(selectedStudentId)
         ]);
 
-        setDashboardData(dashboard.data);
-        setProgressData(progress.data);
-        setCreditData(credits.data.transcript);
-        setCompletedQuests(completed.data.quests || []);
+        const data = {
+          dashboard: dashboard.data,
+          progress: progress.data,
+          credits: credits.data.transcript,
+          completed: completed.data.quests || []
+        };
+
+        // Store in cache
+        setDashboardDataCache(prev => ({
+          ...prev,
+          [selectedStudentId]: data
+        }));
+
+        setDashboardData(data.dashboard);
+        setProgressData(data.progress);
+        setCreditData(data.credits);
+        setCompletedQuests(data.completed);
         setError(null);
       } catch (error) {
         console.error('Error loading dashboard:', error);
@@ -518,53 +543,69 @@ const ParentDashboardPage = () => {
                     }`}
                     style={{ fontFamily: 'Poppins, sans-serif' }}
                   >
-                    <UserGroupIcon className="w-5 h-5" />
+                    <UserIcon className="w-5 h-5" />
                     {child.student_first_name} {child.student_last_name}
                     <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">13+</span>
                   </button>
                 ))}
 
-                {/* Dependents (under 13) with "Act As" button */}
+                {/* Dependents (under 13) */}
                 {dependents.map((dependent) => {
-                  const age = dependent.age || calculateAge(dependent.date_of_birth);
-                  const isUnder13 = age !== null && age < 13;
                   const isSelected = selectedStudentId === dependent.id;
-                  const firstName = dependent.display_name?.split(' ')[0] || dependent.display_name;
 
                   return (
-                    <div key={dependent.id} className="flex items-center gap-3">
-                      <button
-                        onClick={() => setSelectedStudentId(dependent.id)}
-                        className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
-                          isSelected
-                            ? 'border-b-2 border-optio-purple text-optio-purple'
-                            : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                        style={{ fontFamily: 'Poppins, sans-serif' }}
-                      >
-                        <UserGroupIcon className="w-5 h-5" />
-                        {dependent.display_name}
-                      </button>
-
-                      {/* "Act As" button for under-13 dependents */}
-                      {isUnder13 && isSelected && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleActAsDependent(dependent);
-                          }}
-                          className="px-3 py-1 text-xs font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity shadow-sm whitespace-nowrap"
-                          style={{ fontFamily: 'Poppins, sans-serif' }}
-                        >
-                          Act As {firstName}
-                        </button>
-                      )}
-                    </div>
+                    <button
+                      key={dependent.id}
+                      onClick={() => setSelectedStudentId(dependent.id)}
+                      className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
+                        isSelected
+                          ? 'border-b-2 border-optio-purple text-optio-purple'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                      style={{ fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      <UserIcon className="w-5 h-5" />
+                      {dependent.display_name}
+                    </button>
                   );
                 })}
               </nav>
             </div>
           )}
+
+          {/* Act As Banner for Under-13 Dependents */}
+          {(() => {
+            const selectedDependent = dependents.find(d => d.id === selectedStudentId);
+            if (!selectedDependent) return null;
+
+            const age = selectedDependent.age || calculateAge(selectedDependent.date_of_birth);
+            const isUnder13 = age !== null && age < 13;
+            const firstName = selectedDependent.display_name?.split(' ')[0] || selectedDependent.display_name;
+
+            if (!isUnder13) return null;
+
+            return (
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-l-4 border-optio-purple px-4 sm:px-6 py-3 mb-6 rounded-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900 text-sm sm:text-base" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      Managing {firstName}'s Profile (Under 13)
+                    </p>
+                    <p className="text-xs sm:text-sm text-gray-600 mt-0.5" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      You're viewing as parent. Switch to full management mode to complete tasks on their behalf.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleActAsDependent(selectedDependent)}
+                    className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg text-sm font-semibold hover:opacity-90 shadow-sm whitespace-nowrap self-start sm:self-center"
+                    style={{ fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    Act As {firstName}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Overview Content */}
           <div className="space-y-6">
