@@ -26,6 +26,10 @@ export const ActingAsProvider = ({ children }) => {
         const parsed = JSON.parse(stored);
         setActingAsDependent(parsed);
         setActingAsToken(storedToken);
+
+        // CRITICAL: Restore token to tokenStore so it gets included in Authorization header
+        tokenStore.setTokens(storedToken, tokenStore.getRefreshToken() || '');
+        console.log('[ActingAsContext] Restored acting-as token from localStorage');
       } catch (error) {
         console.error('Failed to parse acting_as_dependent from localStorage:', error);
         localStorage.removeItem('acting_as_dependent');
