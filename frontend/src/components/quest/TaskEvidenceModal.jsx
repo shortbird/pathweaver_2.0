@@ -122,7 +122,7 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
             </div>
 
             {/* Add Content Block Section with Submit Button or Completion Indicator */}
-            <div className="px-8 py-6 border-b border-gray-200 bg-gray-50">
+            <div className="sticky top-0 z-10 px-8 py-6 border-b border-gray-200 bg-gray-50">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-semibold text-gray-700" style={{ fontFamily: 'Poppins' }}>Add new content block</span>
                 {!isTaskCompleted && (
