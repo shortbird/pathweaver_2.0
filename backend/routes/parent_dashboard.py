@@ -1236,6 +1236,50 @@ def get_student_quest_view(user_id, student_id, quest_id):
             evidence_type = 'legacy_text'
             is_confidential = False
 
+            # Check for evidence document (draft or completed)
+            evidence_doc_response = supabase.table('user_task_evidence_documents')\
+                .select('id')\
+                .eq('task_id', task_id)\
+                .eq('user_id', student_id)\
+                .execute()
+
+            if evidence_doc_response.data:
+                # Fetch evidence blocks
+                doc_id = evidence_doc_response.data[0]['id']
+                blocks_response = supabase.table('evidence_document_blocks')\
+                    .select('id, block_type, content, order_index, is_private, uploaded_by_user_id, uploaded_by_role, created_at')\
+                    .eq('document_id', doc_id)\
+                    .order('order_index')\
+                    .execute()
+
+                if blocks_response.data:
+                    # Enrich blocks with uploader names
+                    enriched_blocks = []
+                    for block in blocks_response.data:
+                        enriched_block = dict(block)
+
+                        # Get uploader name if available
+                        if block.get('uploaded_by_user_id'):
+                            uploader_response = supabase.table('users')\
+                                .select('display_name, first_name, last_name')\
+                                .eq('id', block['uploaded_by_user_id'])\
+                                .single()\
+                                .execute()
+
+                            if uploader_response.data:
+                                uploader_data = uploader_response.data
+                                enriched_block['uploaded_by_name'] = (
+                                    uploader_data.get('display_name') or
+                                    f"{uploader_data.get('first_name', '')} {uploader_data.get('last_name', '')}".strip() or
+                                    'Unknown'
+                                )
+
+                        enriched_blocks.append(enriched_block)
+
+                    evidence_blocks = enriched_blocks
+                    evidence_type = 'multi_format'
+
+            # Also check legacy completion evidence
             if completion:
                 evidence_text = completion.get('evidence_text')
                 evidence_url = completion.get('evidence_url')
@@ -1244,8 +1288,8 @@ def get_student_quest_view(user_id, student_id, quest_id):
                 # Check if evidence_text contains multi-format document reference
                 document_id = parse_document_id_from_evidence_text(evidence_text)
 
-                if document_id:
-                    # Fetch blocks directly by document ID
+                if document_id and not evidence_blocks:
+                    # Fetch blocks directly by document ID (fallback for legacy format)
                     logger.info(f"Fetching evidence blocks for task {task_id} via document ID: {document_id}")
                     blocks, doc_confidential, doc_owner = fetch_evidence_blocks_by_document_id(
                         supabase, document_id, filter_private=False, viewer_user_id=user_id
