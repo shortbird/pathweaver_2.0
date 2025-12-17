@@ -113,7 +113,7 @@ const ParentDashboardPage = () => {
     if (user?.role === 'parent' || user?.role === 'admin') {
       loadChildrenAndDependents();
     }
-  }, [user, actingAsDependent]);
+  }, [user]); // Removed actingAsDependent from dependencies - early return handles it
 
 
   // Load dashboard data when student selected and children/dependents are loaded
@@ -182,7 +182,7 @@ const ParentDashboardPage = () => {
     };
 
     loadDashboardData();
-  }, [selectedStudentId, children.length, dependents.length, user, actingAsDependent]);
+  }, [selectedStudentId, children.length, dependents.length, user]); // Removed actingAsDependent - early return handles it
 
   // Helper to calculate age from date_of_birth
   const calculateAge = (dateOfBirth) => {
