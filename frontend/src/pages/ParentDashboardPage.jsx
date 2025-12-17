@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useActingAs } from '../contexts/ActingAsContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import { parentAPI } from '../services/api';
 import api from '../services/api';
@@ -26,6 +27,7 @@ import RequestStudentConnectionModal from '../components/parent/RequestStudentCo
 
 const ParentDashboardPage = () => {
   const { user } = useAuth();
+  const { setActingAs } = useActingAs();
   const navigate = useNavigate();
   const { studentId } = useParams(); // Get student ID from URL if multi-child
   const [selectedStudentId, setSelectedStudentId] = useState(studentId || null);
@@ -167,12 +169,14 @@ const ParentDashboardPage = () => {
   // Handle profile switching (parent <-> dependent)
   const handleProfileChange = (profile) => {
     if (profile.is_dependent) {
-      // Switching to dependent: redirect to quest hub to manage their quests
+      // Switching to dependent: store in context and redirect to quest hub
+      setActingAs(profile);
       toast.info(`Switching to ${profile.display_name}'s profile...`);
       navigate('/quest-hub');
       window.location.reload(); // Reload to update acting context
     } else {
-      // Switching back to parent: stay on parent dashboard
+      // Switching back to parent: clear acting-as state and stay on parent dashboard
+      setActingAs(null);
       setCurrentProfile(profile);
       if (children.length > 0) {
         setSelectedStudentId(children[0].student_id);

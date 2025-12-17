@@ -6,10 +6,12 @@ import { HelmetProvider } from 'react-helmet-async'
 import { AuthProvider } from './contexts/AuthContext'
 import { DemoProvider } from './contexts/DemoContext'
 import { OrganizationProvider } from './contexts/OrganizationContext'
+import { ActingAsProvider, useActingAs } from './contexts/ActingAsContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { warmupBackend } from './utils/retryHelper'
 import { tokenStore } from './services/api'
 import MasqueradeBanner from './components/admin/MasqueradeBanner'
+import ActingAsBanner from './components/parent/ActingAsBanner'
 import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
 import api from './services/api'
 import toast from 'react-hot-toast'
@@ -93,10 +95,11 @@ const queryClient = new QueryClient({
   },
 })
 
-// Inner component that uses masquerade banner (must be inside Router)
+// Inner component that uses banners (must be inside Router and ActingAsProvider)
 function AppContent() {
   const navigate = useNavigate();
   const [masqueradeState, setMasqueradeState] = useState(null);
+  const { actingAsDependent, clearActingAs } = useActingAs();
 
   // Check masquerade state on mount and periodically
   useEffect(() => {
@@ -157,6 +160,13 @@ function AppContent() {
     }
   };
 
+  const handleSwitchBackToParent = () => {
+    clearActingAs();
+    toast.info('Switched back to parent view');
+    navigate('/parent/dashboard');
+    window.location.reload();
+  };
+
   return (
     <>
       <ScrollToTop />
@@ -164,6 +174,12 @@ function AppContent() {
         <MasqueradeBanner
           targetUser={masqueradeState.target_user}
           onExit={handleExitMasquerade}
+        />
+      )}
+      {actingAsDependent && (
+        <ActingAsBanner
+          dependent={actingAsDependent}
+          onSwitchBack={handleSwitchBackToParent}
         />
       )}
     </>
@@ -199,9 +215,10 @@ function App() {
       <HelmetProvider>
         <QueryClientProvider client={queryClient}>
           <Router>
-          <AppContent />
           <AuthProvider>
             <OrganizationProvider>
+            <ActingAsProvider>
+            <AppContent />
             <Toaster
             position="top-right"
             toastOptions={{
@@ -293,6 +310,7 @@ function App() {
             <Route path="public/diploma/:userId" element={<DiplomaPage />} />
           </Routes>
           </Suspense>
+            </ActingAsProvider>
             </OrganizationProvider>
         </AuthProvider>
         </Router>
