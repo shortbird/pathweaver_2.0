@@ -1,4 +1,10 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Uses JobScheduler, QualityMonitor, and AIQuestMaintenanceService (service layer)
+- Job management functionality (scheduling, monitoring, execution)
+- Service layer essential for complex job orchestration
+- No direct database calls for business logic - delegated to services
+
 Admin AI Jobs Routes
 Endpoints for managing AI content generation and quality monitoring jobs.
 """

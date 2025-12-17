@@ -1,4 +1,13 @@
 """
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- Direct database calls for quest review queue operations
+- Could create QuestReviewRepository with methods:
+  - get_review_queue(filters, pagination)
+  - approve_quest(quest_id, admin_id, notes)
+  - reject_quest(quest_id, admin_id, reason)
+  - get_review_history(quest_id)
+- Simple CRUD operations suitable for repository abstraction
+
 AI Quest Review Queue Routes
 Allows admins to review and approve/reject AI-generated quests
 """

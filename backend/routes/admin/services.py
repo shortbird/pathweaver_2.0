@@ -1,4 +1,16 @@
 """
+REPOSITORY MIGRATION: MIGRATION CANDIDATE
+- Direct database calls for 'services' table CRUD operations
+- Inquiry management functionality
+- Could create ServicesRepository with methods:
+  - get_all_services()
+  - get_service_by_id(service_id)
+  - create_service(service_data)
+  - update_service(service_id, service_data)
+  - delete_service(service_id)
+  - manage_service_inquiries()
+- Simple admin CRUD suitable for repository abstraction
+
 Admin API routes for service management
 Handles CRUD operations for services and inquiry management
 Requires admin authentication

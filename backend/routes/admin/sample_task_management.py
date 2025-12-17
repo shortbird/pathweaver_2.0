@@ -1,4 +1,10 @@
 """
+REPOSITORY MIGRATION: NO MIGRATION NEEDED
+- Uses generate_sample_tasks and validate_sample_tasks_quality services (lines 11)
+- AI-driven sample task generation for quests
+- Service layer essential for complex AI generation logic
+- Direct DB calls exist for CRUD but acceptable for admin task management
+
 Admin Sample Task Management Routes
 ====================================
 
