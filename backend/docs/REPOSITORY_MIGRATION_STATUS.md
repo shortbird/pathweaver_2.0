@@ -74,9 +74,26 @@ This document tracks the progress of migrating route files from direct database 
 - `get_next_block_order_index(document_id)`: Calculates next block position
 - `create_helper_block()`: Creates blocks with uploader metadata for advisors/parents
 
+### ✅ backend/routes/community.py
+**Status**: COMPLETE
+**Date**: 2025-12-18
+**Changes**:
+- Migrated all 5 friendship endpoints to use FriendshipRepository:
+  - `get_friends()`: Already using FriendshipRepository + UserRepository (no changes needed)
+  - `send_friend_request()`: Now uses FriendshipRepository.create_request() + UserRepository
+  - `accept_friend_request()`: Uses FriendshipRepository.accept_request()
+  - `decline_friend_request()`: Uses FriendshipRepository.reject_request()
+  - `cancel_friend_request()`: Uses FriendshipRepository.cancel_request()
+- Eliminated 15+ direct database calls
+- Improved error handling with NotFoundError and PermissionError exceptions
+- Duplicate friendship checks now handled in repository layer
+- Reduced file size by 75 lines (217 removed, 142 added)
+
+**Impact**: All core friendship operations now use repository pattern. Remaining direct DB access is intentional (activity logging, complex JOINs for activity feed).
+
 ## In Progress
 
-### 🔄 auth.py, quests.py, and 48 other route files
+### 🔄 auth.py, quests.py, and 47 other route files
 **Status**: PENDING
 **Reason**: Complex business logic with filtering, pagination, and optimization services. Requires careful refactoring to avoid breaking changes.
 
@@ -103,11 +120,11 @@ This document tracks the progress of migrating route files from direct database 
 
 ## Migration Statistics
 - **Total route files with direct DB access**: ~74
-- **Files fully migrated**: 3 (tasks.py, settings.py, helper_evidence.py)
+- **Files fully migrated**: 4 (tasks.py, settings.py, helper_evidence.py, community.py)
 - **Files using services (best practice)**: ~15 (badges.py, badge_claiming.py, etc.)
-- **Files remaining**: ~56
-- **Completion**: ~4% (direct migration) + ~20% (service layer) = ~24% overall adherence to pattern
-- **Database calls eliminated**: 24+ direct calls replaced with repository methods
+- **Files remaining**: ~55
+- **Completion**: ~5.4% (direct migration) + ~20% (service layer) = ~25.4% overall adherence to pattern
+- **Database calls eliminated**: 39+ direct calls replaced with repository methods (24 from previous + 15 from community.py)
 
 ## Next Steps
 1. ✅ Document migration guidelines (this file)
