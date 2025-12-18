@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { BadgePillarIcon } from '../badges/BadgePillarIcon';
 import { useNavigate } from 'react-router-dom';
 import { Crown } from 'lucide-react';
@@ -16,7 +16,7 @@ import { getPillarGradient } from '../../config/pillars';
  * - Paid feature indicator for free tier users
  * - Entire card is clickable
  */
-export default function BadgeCarouselCard({ badge }) {
+const BadgeCarouselCard = memo(({ badge }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -150,4 +150,8 @@ export default function BadgeCarouselCard({ badge }) {
       </div>
     </div>
   );
-}
+});
+
+BadgeCarouselCard.displayName = 'BadgeCarouselCard';
+
+export default BadgeCarouselCard;

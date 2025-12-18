@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import Button from '../../ui/Button';
 import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings';
 
-const TaskCard = ({ task, index, isCompleted, isEnrolled, onComplete, hasCollaboration }) => {
+const TaskCard = memo(({ task, index, isCompleted, isEnrolled, onComplete, hasCollaboration }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Get pillar data safely
@@ -178,6 +178,8 @@ const TaskCard = ({ task, index, isCompleted, isEnrolled, onComplete, hasCollabo
       )}
     </div>
   );
-};
+});
+
+TaskCard.displayName = 'TaskCard';
 
 export default TaskCard;

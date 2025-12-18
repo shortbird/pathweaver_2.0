@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { memo } from 'react'
 import { EyeIcon, UserGroupIcon } from '@heroicons/react/24/outline'
 
 // Pillar icon mapping
@@ -16,10 +16,10 @@ const PILLAR_COLORS = {
   'Life & Wellness': '#B3393F',
   'Language & Communication': '#58A55C',
   'Society & Culture': '#BE6B27',
-  'Arts & Creativity': '#59189C',
+  'Arts & Creativity': '🎨',
 }
 
-const ConnectionCard = ({ connection, onViewJourney, onTeamUp }) => {
+const ConnectionCard = memo(({ connection, onViewJourney, onTeamUp }) => {
   // Get first initial for avatar
   const initial = connection.first_name?.charAt(0)?.toUpperCase() || '?'
 
@@ -98,6 +98,8 @@ const ConnectionCard = ({ connection, onViewJourney, onTeamUp }) => {
       </div>
     </div>
   )
-}
+});
+
+ConnectionCard.displayName = 'ConnectionCard';
 
 export default ConnectionCard

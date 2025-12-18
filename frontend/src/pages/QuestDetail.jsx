@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { flushSync } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -8,17 +8,26 @@ import { handleApiResponse } from '../utils/errorHandling';
 import api from '../services/api';
 import { getPillarData, normalizePillarKey } from '../utils/pillarMappings';
 import { queryKeys } from '../utils/queryKeys';
-import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
-import TaskDetailModal from '../components/quest/TaskDetailModal';
-import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
-import QuestCompletionCelebration from '../components/quest/QuestCompletionCelebration';
 import SampleTaskCard from '../components/quest/SampleTaskCard';
-import TaskTimeline from '../components/quest/TaskTimeline';
-import TaskWorkspace from '../components/quest/TaskWorkspace';
-import RestartQuestModal from '../components/quest/RestartQuestModal';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
 import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus, ArrowLeft, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+// Lazy load heavy components to reduce initial bundle size
+const TaskEvidenceModal = lazy(() => import('../components/quest/TaskEvidenceModal'));
+const TaskDetailModal = lazy(() => import('../components/quest/TaskDetailModal'));
+const QuestPersonalizationWizard = lazy(() => import('../components/quests/QuestPersonalizationWizard'));
+const QuestCompletionCelebration = lazy(() => import('../components/quest/QuestCompletionCelebration'));
+const TaskTimeline = lazy(() => import('../components/quest/TaskTimeline'));
+const TaskWorkspace = lazy(() => import('../components/quest/TaskWorkspace'));
+const RestartQuestModal = lazy(() => import('../components/quest/RestartQuestModal'));
+
+// Loading spinner component
+const LoadingFallback = () => (
+  <div className="flex justify-center items-center h-64">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
+  </div>
+);
 
 const QuestDetail = () => {
   const { id } = useParams();
@@ -788,26 +797,30 @@ const QuestDetail = () => {
 
             {/* Left Column: Task Timeline (22%) */}
             <div className="w-full md:w-[22%] bg-white rounded-xl shadow-md overflow-hidden hidden md:block">
-              <TaskTimeline
-                tasks={quest.quest_tasks}
-                selectedTaskId={selectedTask?.id}
-                onTaskSelect={handleTaskSelect}
-                onTaskReorder={handleTaskReorder}
-                onAddTask={() => setShowPersonalizationWizard(true)}
-                onRemoveTask={handleDropTask}
-                displayMode={displayMode}
-                onDisplayModeChange={handleDisplayModeChange}
-              />
+              <Suspense fallback={<LoadingFallback />}>
+                <TaskTimeline
+                  tasks={quest.quest_tasks}
+                  selectedTaskId={selectedTask?.id}
+                  onTaskSelect={handleTaskSelect}
+                  onTaskReorder={handleTaskReorder}
+                  onAddTask={() => setShowPersonalizationWizard(true)}
+                  onRemoveTask={handleDropTask}
+                  displayMode={displayMode}
+                  onDisplayModeChange={handleDisplayModeChange}
+                />
+              </Suspense>
             </div>
 
             {/* Right Column: Task Workspace (78%) */}
             <div className="flex-1 bg-white rounded-xl shadow-md overflow-hidden">
-              <TaskWorkspace
-                task={selectedTask}
-                questId={quest.id}
-                onTaskComplete={handleTaskCompletion}
-                onClose={() => setSelectedTask(null)}
-              />
+              <Suspense fallback={<LoadingFallback />}>
+                <TaskWorkspace
+                  task={selectedTask}
+                  questId={quest.id}
+                  onTaskComplete={handleTaskCompletion}
+                  onClose={() => setSelectedTask(null)}
+                />
+              </Suspense>
             </div>
 
             {/* Mobile: Show task timeline as drawer */}
@@ -815,15 +828,17 @@ const QuestDetail = () => {
               <div className="fixed inset-0 z-50 md:hidden">
                 <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowMobileDrawer(false)} />
                 <div className="absolute left-0 top-0 bottom-0 w-80 bg-white shadow-xl">
-                  <TaskTimeline
-                    tasks={quest.quest_tasks}
-                    selectedTaskId={selectedTask?.id}
-                    onTaskSelect={handleTaskSelect}
-                    onTaskReorder={handleTaskReorder}
-                    onAddTask={() => setShowPersonalizationWizard(true)}
-                    displayMode={displayMode}
-                    onDisplayModeChange={handleDisplayModeChange}
-                  />
+                  <Suspense fallback={<LoadingFallback />}>
+                    <TaskTimeline
+                      tasks={quest.quest_tasks}
+                      selectedTaskId={selectedTask?.id}
+                      onTaskSelect={handleTaskSelect}
+                      onTaskReorder={handleTaskReorder}
+                      onAddTask={() => setShowPersonalizationWizard(true)}
+                      displayMode={displayMode}
+                      onDisplayModeChange={handleDisplayModeChange}
+                    />
+                  </Suspense>
                 </div>
               </div>
             )}
@@ -960,23 +975,27 @@ const QuestDetail = () => {
 
       {/* Modals */}
       {showTaskModal && selectedTask && (
-        <TaskEvidenceModal
-          task={selectedTask}
-          questId={quest.id}
-          onComplete={handleTaskCompletion}
-          onClose={() => setShowTaskModal(false)}
-        />
+        <Suspense fallback={<LoadingFallback />}>
+          <TaskEvidenceModal
+            task={selectedTask}
+            questId={quest.id}
+            onComplete={handleTaskCompletion}
+            onClose={() => setShowTaskModal(false)}
+          />
+        </Suspense>
       )}
 
       {showTaskDetailModal && (
-        <TaskDetailModal
-          task={taskDetailToShow}
-          isOpen={showTaskDetailModal}
-          onClose={() => {
-            setShowTaskDetailModal(false);
-            setTaskDetailToShow(null);
-          }}
-        />
+        <Suspense fallback={<LoadingFallback />}>
+          <TaskDetailModal
+            task={taskDetailToShow}
+            isOpen={showTaskDetailModal}
+            onClose={() => {
+              setShowTaskDetailModal(false);
+              setTaskDetailToShow(null);
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Team-up modal removed in Phase 3 refactoring (January 2025) */}
@@ -984,40 +1003,46 @@ const QuestDetail = () => {
       {showPersonalizationWizard && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
-            <QuestPersonalizationWizard
-              questId={quest.id}
-              questTitle={quest.title}
-              onComplete={handlePersonalizationComplete}
-              onCancel={handlePersonalizationCancel}
-            />
+            <Suspense fallback={<LoadingFallback />}>
+              <QuestPersonalizationWizard
+                questId={quest.id}
+                questTitle={quest.title}
+                onComplete={handlePersonalizationComplete}
+                onCancel={handlePersonalizationCancel}
+              />
+            </Suspense>
           </div>
         </div>
       )}
 
       {showQuestCompletionCelebration && quest && (
-        <QuestCompletionCelebration
-          quest={quest}
-          completedTasksCount={quest.progress?.completed_tasks || 0}
-          totalXP={
-            quest.quest_tasks
-              ?.filter(task => task.is_completed)
-              .reduce((sum, task) => sum + (task.xp_value || 0), 0) || 0
-          }
-          onAddMoreTasks={handleAddMoreTasks}
-          onFinishQuest={handleFinishQuestFromCelebration}
-          onClose={() => setShowQuestCompletionCelebration(false)}
-        />
+        <Suspense fallback={<LoadingFallback />}>
+          <QuestCompletionCelebration
+            quest={quest}
+            completedTasksCount={quest.progress?.completed_tasks || 0}
+            totalXP={
+              quest.quest_tasks
+                ?.filter(task => task.is_completed)
+                .reduce((sum, task) => sum + (task.xp_value || 0), 0) || 0
+            }
+            onAddMoreTasks={handleAddMoreTasks}
+            onFinishQuest={handleFinishQuestFromCelebration}
+            onClose={() => setShowQuestCompletionCelebration(false)}
+          />
+        </Suspense>
       )}
 
       {/* Restart Quest Modal */}
-      <RestartQuestModal
-        isOpen={showRestartModal}
-        questTitle={restartModalData.questTitle}
-        previousTaskCount={restartModalData.previousTaskCount}
-        onLoadPreviousTasks={handleLoadPreviousTasks}
-        onStartFresh={handleStartFresh}
-        onClose={() => setShowRestartModal(false)}
-      />
+      <Suspense fallback={<LoadingFallback />}>
+        <RestartQuestModal
+          isOpen={showRestartModal}
+          questTitle={restartModalData.questTitle}
+          previousTaskCount={restartModalData.previousTaskCount}
+          onLoadPreviousTasks={handleLoadPreviousTasks}
+          onStartFresh={handleStartFresh}
+          onClose={() => setShowRestartModal(false)}
+        />
+      </Suspense>
 
     </div>
   );

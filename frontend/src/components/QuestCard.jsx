@@ -1,8 +1,8 @@
-import React from 'react'
+import React, { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { getPillarName, getPillarColor } from '../utils/pillarMappings'
 
-const QuestCard = ({ quest, isCompleted }) => {
+const QuestCard = memo(({ quest, isCompleted }) => {
   const totalXP = quest.quest_skill_xp?.reduce((sum, award) => sum + award.xp_amount, 0) || 0
   
   const getIntensityBadge = (level) => {
@@ -130,6 +130,8 @@ const QuestCard = ({ quest, isCompleted }) => {
       </div>
     </Link>
   )
-}
+});
+
+QuestCard.displayName = 'QuestCard';
 
 export default QuestCard

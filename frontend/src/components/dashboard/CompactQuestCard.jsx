@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { getPillarData, getPillarGradient } from '../../utils/pillarMappings';
 import { CheckCircleIcon, PlayIcon } from '@heroicons/react/24/solid';
 
-const CompactQuestCard = ({ quest }) => {
+const CompactQuestCard = memo(({ quest }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -95,6 +95,8 @@ const CompactQuestCard = ({ quest }) => {
       </button>
     </div>
   );
-};
+});
+
+CompactQuestCard.displayName = 'CompactQuestCard';
 
 export default CompactQuestCard;

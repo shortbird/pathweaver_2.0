@@ -1,11 +1,20 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useCalendar, useCalendarPreferences, useUpdatePreferences } from '../hooks/api/useCalendar'
-import CalendarView from '../components/calendar/CalendarView'
-import ListView from '../components/calendar/ListView'
 import ViewToggle from '../components/calendar/ViewToggle'
 import WhatDoIDoNext from '../components/calendar/WhatDoIDoNext'
 import ScheduleSidebar from '../components/calendar/ScheduleSidebar'
+
+// Lazy load heavy calendar components (FullCalendar library is 175KB)
+const CalendarView = lazy(() => import('../components/calendar/CalendarView'))
+const ListView = lazy(() => import('../components/calendar/ListView'))
+
+// Loading spinner component
+const LoadingFallback = () => (
+  <div className="flex justify-center items-center h-64">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
+  </div>
+)
 
 const CalendarPage = () => {
   const { user } = useAuth()
@@ -78,19 +87,21 @@ const CalendarPage = () => {
       <div className="flex gap-6 mt-8">
         {/* Calendar/List View */}
         <div className="flex-1 min-w-0">
-          {viewMode === 'calendar' ? (
-            <CalendarView
-              data={calendarData}
-              userId={user?.id}
-              selectedPillar={selectedPillarFilter}
-            />
-          ) : (
-            <ListView
-              data={calendarData}
-              userId={user?.id}
-              selectedPillar={selectedPillarFilter}
-            />
-          )}
+          <Suspense fallback={<LoadingFallback />}>
+            {viewMode === 'calendar' ? (
+              <CalendarView
+                data={calendarData}
+                userId={user?.id}
+                selectedPillar={selectedPillarFilter}
+              />
+            ) : (
+              <ListView
+                data={calendarData}
+                userId={user?.id}
+                selectedPillar={selectedPillarFilter}
+              />
+            )}
+          </Suspense>
         </div>
 
         {/* Unscheduled Items Sidebar */}

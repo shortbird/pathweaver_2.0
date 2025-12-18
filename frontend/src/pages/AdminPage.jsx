@@ -1,21 +1,30 @@
-import React, { memo } from 'react'
+import React, { memo, lazy, Suspense } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import AdminOverview from '../components/admin/AdminOverview'
-import AdminQuests from '../components/admin/AdminQuests'
-import AdminBadges from '../components/admin/AdminBadges'
-import AdminUsers from '../components/admin/AdminUsers'
-import AdminConnections from '../components/admin/AdminConnections'
-import AdminDashboard from '../components/admin/AdminDashboard'
-import SiteSettings from '../components/admin/SiteSettings'
-import FlaggedTasksPanel from '../components/admin/FlaggedTasksPanel'
-import UserActivityLogPage from './admin/UserActivityLogPage'
-import SparkLogsPanel from '../components/admin/SparkLogsPanel'
-import CRMPage from './CRMPage'
-import CourseImport from '../components/admin/CourseImport'
-import SubjectReviewPage from './admin/SubjectReviewPage'
-import OrganizationDashboard from './admin/OrganizationDashboard'
-import OrganizationManagement from './admin/OrganizationManagement'
+
+// Lazy load all admin components to reduce initial bundle size
+const AdminOverview = lazy(() => import('../components/admin/AdminOverview'))
+const AdminQuests = lazy(() => import('../components/admin/AdminQuests'))
+const AdminBadges = lazy(() => import('../components/admin/AdminBadges'))
+const AdminUsers = lazy(() => import('../components/admin/AdminUsers'))
+const AdminConnections = lazy(() => import('../components/admin/AdminConnections'))
+const AdminDashboard = lazy(() => import('../components/admin/AdminDashboard'))
+const SiteSettings = lazy(() => import('../components/admin/SiteSettings'))
+const FlaggedTasksPanel = lazy(() => import('../components/admin/FlaggedTasksPanel'))
+const UserActivityLogPage = lazy(() => import('./admin/UserActivityLogPage'))
+const SparkLogsPanel = lazy(() => import('../components/admin/SparkLogsPanel'))
+const CRMPage = lazy(() => import('./CRMPage'))
+const CourseImport = lazy(() => import('../components/admin/CourseImport'))
+const SubjectReviewPage = lazy(() => import('./admin/SubjectReviewPage'))
+const OrganizationDashboard = lazy(() => import('./admin/OrganizationDashboard'))
+const OrganizationManagement = lazy(() => import('./admin/OrganizationManagement'))
+
+// Loading spinner component
+const LoadingFallback = () => (
+  <div className="flex justify-center items-center h-64">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
+  </div>
+)
 
 const AdminPage = () => {
   const location = useLocation()
@@ -122,23 +131,25 @@ const AdminPage = () => {
         )}
       </div>
 
-      <Routes>
-        <Route index element={<AdminOverview />} />
-        <Route path="quests" element={<AdminQuests />} />
-        <Route path="analytics" element={<AdminDashboard />} />
-        <Route path="badges" element={<AdminBadges />} />
-        <Route path="users" element={<AdminUsers />} />
-        <Route path="connections" element={<AdminConnections />} />
-        <Route path="settings" element={<SiteSettings />} />
-        <Route path="flagged-tasks" element={<FlaggedTasksPanel />} />
-        <Route path="user/:userId/activity" element={<UserActivityLogPage />} />
-        <Route path="lms-logs" element={<SparkLogsPanel />} />
-        <Route path="crm" element={<CRMPage />} />
-        <Route path="course-import" element={<CourseImport />} />
-        <Route path="subject-review" element={<SubjectReviewPage />} />
-        <Route path="organizations" element={<OrganizationDashboard />} />
-        <Route path="organizations/:orgId" element={<OrganizationManagement />} />
-      </Routes>
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
+          <Route index element={<AdminOverview />} />
+          <Route path="quests" element={<AdminQuests />} />
+          <Route path="analytics" element={<AdminDashboard />} />
+          <Route path="badges" element={<AdminBadges />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="connections" element={<AdminConnections />} />
+          <Route path="settings" element={<SiteSettings />} />
+          <Route path="flagged-tasks" element={<FlaggedTasksPanel />} />
+          <Route path="user/:userId/activity" element={<UserActivityLogPage />} />
+          <Route path="lms-logs" element={<SparkLogsPanel />} />
+          <Route path="crm" element={<CRMPage />} />
+          <Route path="course-import" element={<CourseImport />} />
+          <Route path="subject-review" element={<SubjectReviewPage />} />
+          <Route path="organizations" element={<OrganizationDashboard />} />
+          <Route path="organizations/:orgId" element={<OrganizationManagement />} />
+        </Routes>
+      </Suspense>
     </div>
   )
 }
