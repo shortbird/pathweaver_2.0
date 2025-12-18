@@ -6,26 +6,8 @@ import {
   Bot, MessageCircle, TrendingUp
 } from 'lucide-react';
 import InfoModal from './InfoModal';
-// Chart imports - using dynamic import to avoid build issues
-import { Radar } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  RadialLinearScale,
-  PointElement,
-  LineElement,
-  Filler,
-  Tooltip,
-  Legend
-} from 'chart.js';
-
-ChartJS.register(
-  RadialLinearScale,
-  PointElement,
-  LineElement,
-  Filler,
-  Tooltip,
-  Legend
-);
+// Chart imports - using recharts (already installed)
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts';
 
 const DiplomaDemoDisplay = () => {
   const { demoState } = useDemo();
@@ -121,49 +103,14 @@ const DiplomaDemoDisplay = () => {
   const maxXP = Math.max(...Object.values(xpData), 100);
   const radarMax = Math.ceil(maxXP / 100) * 100; // Round up to nearest 100
 
-  // Radar chart data
-  const radarData = {
-    labels: [
-      'STEM',
-      'Wellness',
-      'Comm.',
-      'Civics',
-      'Art'
-    ],
-    datasets: [{
-      label: 'Skills',
-      data: [
-        xpData.stem,
-        xpData.wellness,
-        xpData.communication,
-        xpData.civics,
-        xpData.art
-      ],
-      backgroundColor: 'rgba(239, 89, 123, 0.2)',
-      borderColor: 'rgba(239, 89, 123, 1)',
-      borderWidth: 2,
-      pointBackgroundColor: 'rgba(109, 70, 155, 1)',
-      pointBorderColor: '#fff',
-      pointHoverBackgroundColor: '#fff',
-      pointHoverBorderColor: 'rgba(109, 70, 155, 1)'
-    }]
-  };
-
-  const radarOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false }
-    },
-    scales: {
-      r: {
-        beginAtZero: true,
-        max: radarMax,
-        ticks: { display: false },
-        grid: { color: 'rgba(0, 0, 0, 0.1)' }
-      }
-    }
-  };
+  // Radar chart data for recharts
+  const radarData = [
+    { skill: 'STEM', value: xpData.stem, fullMark: radarMax },
+    { skill: 'Wellness', value: xpData.wellness, fullMark: radarMax },
+    { skill: 'Comm.', value: xpData.communication, fullMark: radarMax },
+    { skill: 'Civics', value: xpData.civics, fullMark: radarMax },
+    { skill: 'Art', value: xpData.art, fullMark: radarMax }
+  ];
 
   const demoUser = {
     name: "Alex Thompson",
@@ -275,7 +222,21 @@ const DiplomaDemoDisplay = () => {
         <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
           <h3 className="font-bold text-base sm:text-lg text-text-primary mb-4">Skills Development</h3>
           <div className="h-48 sm:h-56 lg:h-64">
-            <Radar data={radarData} options={radarOptions} />
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart data={radarData}>
+                <PolarGrid stroke="#e5e7eb" />
+                <PolarAngleAxis dataKey="skill" tick={{ fontSize: 12, fill: '#6b7280' }} />
+                <PolarRadiusAxis angle={90} domain={[0, radarMax]} tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                <Radar
+                  name="Skills"
+                  dataKey="value"
+                  stroke="#ef597b"
+                  fill="#ef597b"
+                  fillOpacity={0.6}
+                  strokeWidth={2}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
