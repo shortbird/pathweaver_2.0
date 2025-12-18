@@ -59,7 +59,9 @@ export default defineConfig(({ mode }) => ({
           // Vendor chunks for better caching
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'ui-vendor': ['@heroicons/react', 'lucide-react', 'framer-motion'],
-          'chart-vendor': ['chart.js', 'react-chartjs-2', 'recharts', 'd3'],
+          // Split heavy chart libraries by usage context (P1-PERF-1)
+          'student-charts-vendor': ['recharts'], // DiplomaPage, CompactSidebar (115 KB)
+          'calendar-vendor': ['@fullcalendar/react', '@fullcalendar/daygrid', '@fullcalendar/interaction'], // CalendarPage (175 KB)
           'utils-vendor': ['axios', 'date-fns', 'clsx'],
         },
       },
