@@ -3,15 +3,19 @@
  *
  * Handles authentication using secure httpOnly cookies instead of localStorage.
  * Provides methods for login, logout, registration, and session management.
+ *
+ * ✅ SECURITY FIX (P1-SEC-3): httpOnly CSRF token pattern
+ * - CSRF tokens stored in memory via csrfTokenStore
+ * - No non-httpOnly cookies (prevents XSS token theft)
+ * - Flask-WTF validates headers against httpOnly session
  */
-import api, { tokenStore } from './api'
+import api, { tokenStore, csrfTokenStore } from './api'
 
 class AuthService {
   constructor() {
     this.user = null
     this.isAuthenticated = false
     this.listeners = new Set()
-    this.csrfToken = null
 
     // Initialize CSRF token on service creation
     this.initializeCSRF()
@@ -47,13 +51,21 @@ class AuthService {
 
   /**
    * Initialize CSRF token for secure requests
+   *
+   * ✅ SECURITY FIX (P1-SEC-3): Store CSRF token in memory (not cookies)
+   * - Fetches token from API endpoint
+   * - Stores in memory via csrfTokenStore
+   * - Token sent in X-CSRF-Token header by request interceptor
+   * - Flask-WTF validates against httpOnly session cookie
    */
   async initializeCSRF() {
     try {
-      const response = await api.get('/csrf-token')
-      this.csrfToken = response.data.csrf_token
+      const response = await api.get('/api/auth/csrf-token')
+      const token = response.data.csrf_token
+      csrfTokenStore.set(token)
+      console.log('[AuthService] CSRF token initialized (stored in memory)')
     } catch (error) {
-      console.warn('Failed to initialize CSRF token:', error)
+      console.warn('[AuthService] Failed to initialize CSRF token:', error)
     }
   }
 
@@ -61,10 +73,12 @@ class AuthService {
    * Get current CSRF token, refresh if needed
    */
   async getCSRFToken() {
-    if (!this.csrfToken) {
+    let token = csrfTokenStore.get()
+    if (!token) {
       await this.initializeCSRF()
+      token = csrfTokenStore.get()
     }
-    return this.csrfToken
+    return token
   }
 
   /**
@@ -223,7 +237,7 @@ class AuthService {
       // Always clear local state regardless of API success
       this.user = null
       this.isAuthenticated = false
-      this.csrfToken = null
+      csrfTokenStore.clear()  // ✅ SECURITY FIX (P1-SEC-3): Clear CSRF token from memory
 
       this.notifyListeners()
     }

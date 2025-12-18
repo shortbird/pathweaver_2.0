@@ -142,24 +142,27 @@ api.interceptors.request.use(
   }
 )
 
-// Function to get CSRF token from meta tag or cookie
+// ✅ SECURITY FIX (P1-SEC-3): httpOnly CSRF token pattern
+// - CSRF token stored in memory (not cookies)
+// - Token fetched from API and sent in headers
+// - Flask-WTF validates against httpOnly session cookie
+let csrfToken = null
+
+// Function to get CSRF token from memory
 function getCsrfToken() {
-  // First try to get from meta tag (if set by server)
-  const metaTag = document.querySelector('meta[name="csrf-token"]')
-  if (metaTag) {
-    return metaTag.getAttribute('content')
-  }
+  return csrfToken
+}
 
-  // Fallback to reading from cookie (double-submit pattern)
-  const cookies = document.cookie.split(';')
-  for (let cookie of cookies) {
-    const [name, value] = cookie.trim().split('=')
-    if (name === 'csrf_token') {
-      return decodeURIComponent(value)
-    }
-  }
+// Function to set CSRF token in memory (called after fetching from API)
+function setCsrfToken(token) {
+  csrfToken = token
+}
 
-  return null
+// Export CSRF token management
+export const csrfTokenStore = {
+  get: getCsrfToken,
+  set: setCsrfToken,
+  clear: () => { csrfToken = null }
 }
 
 /**

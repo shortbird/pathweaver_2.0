@@ -999,7 +999,15 @@ def resend_verification():
 
 @bp.route('/csrf-token', methods=['GET'])
 def get_csrf_token_endpoint():
-    """Get CSRF token for frontend requests"""
+    """
+    Get CSRF token for frontend requests.
+
+    ✅ SECURITY FIX (P1-SEC-3): httpOnly double-submit pattern
+    - Token stored in Flask session (httpOnly cookie) by Flask-WTF
+    - Token returned in response body for frontend to send in headers
+    - No non-httpOnly cookie needed (prevents XSS token theft)
+    - Flask-WTF validates header token against session token
+    """
     try:
         token = get_csrf_token()
 
@@ -1008,22 +1016,12 @@ def get_csrf_token_endpoint():
             import secrets
             token = secrets.token_urlsafe(32)
 
-        response = make_response(jsonify({
+        # Return token in response body only (no non-httpOnly cookie)
+        # Frontend will store this in memory and send in X-CSRF-Token header
+        # Flask-WTF validates header against its session (httpOnly cookie)
+        return jsonify({
             'csrf_token': token
-        }), 200)
-
-        # Set CSRF token in cookie for double-submit pattern
-        response.set_cookie(
-            'csrf_token',
-            token,
-            max_age=3600,  # 1 hour
-            httponly=False,  # JavaScript needs to read this
-            secure=os.getenv('FLASK_ENV') == 'production',
-            samesite='Lax',  # Use Lax for incognito mode compatibility
-            path='/'
-        )
-
-        return response
+        }), 200
 
     except Exception as e:
         logger.error(f"Error generating CSRF token: {str(e)}")
