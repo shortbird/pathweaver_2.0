@@ -17,6 +17,9 @@ def _get_logger():
         _logger = get_logger(__name__)
     return _logger
 
+# Import log scrubbing utility for PII protection (P1-SEC-4)
+from utils.log_scrubber import mask_token, should_log_sensitive_data
+
 def _get_client_options() -> ClientOptions:
     """
     Create Supabase client options with connection pooling configuration.
@@ -157,17 +160,21 @@ def get_user_client(token: Optional[str] = None) -> Client:
 
             # First, try to get token from httpOnly cookie (primary auth method)
             token = request.cookies.get('access_token')
-            _get_logger().info(f"[GET_USER_CLIENT] JWT from cookie: {bool(token)}")
-            if token:
-                _get_logger().info(f"[GET_USER_CLIENT] Token preview: {token[:50]}...")
-                _get_logger().info(f"[GET_USER_CLIENT] Token has 3 parts: {len(token.split('.')) == 3}")
+
+            # Only log token details in development (P1-SEC-4: GDPR compliance)
+            if should_log_sensitive_data():
+                _get_logger().debug(f"[GET_USER_CLIENT] JWT from cookie: {bool(token)}")
+                if token:
+                    _get_logger().debug(f"[GET_USER_CLIENT] Token preview: {mask_token(token)}")
+                    _get_logger().debug(f"[GET_USER_CLIENT] Token has 3 parts: {len(token.split('.')) == 3}")
 
             # Fallback to Authorization header if cookie not present
             if not token:
                 auth_header = request.headers.get('Authorization', '')
                 if auth_header.startswith('Bearer '):
                     token = auth_header.replace('Bearer ', '')
-                    _get_logger().info(f"[GET_USER_CLIENT] JWT from header: {bool(token)}")
+                    if should_log_sensitive_data():
+                        _get_logger().debug(f"[GET_USER_CLIENT] JWT from header: {bool(token)}")
         except (RuntimeError, AttributeError) as e:
             # Handle cases where request context is invalid or request is a dict
             _get_logger().warning(f"WARNING: Cannot access request context: {e}")
@@ -187,10 +194,11 @@ def get_user_client(token: Optional[str] = None) -> Client:
         # UUIDs have 4 dashes (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
         # JWTs have 2 dots (format: header.payload.signature)
         if '-' in token and '.' not in token:
+            # P1-SEC-4: Limit token exposure in logs (max 8 chars)
             _get_logger().error(
                 f"CRITICAL ERROR: get_user_client received a UUID instead of a JWT token. "
                 f"This is a code bug - check BaseService.get_user_supabase() callers. "
-                f"Token preview: {token[:8]}..."
+                f"Token preview: {mask_token(token)}"
             )
             # Return anonymous client as fallback
             client = get_supabase_client()
@@ -210,7 +218,8 @@ def get_user_client(token: Optional[str] = None) -> Client:
             # Create client with user's JWT token for RLS enforcement
             # IMPORTANT: ClientOptions headers don't work for auth context in supabase-py
             # We must use postgrest.auth() to set the token for RLS policies
-            _get_logger().info(f"[GET_USER_CLIENT] Creating client with JWT token for RLS")
+            # P1-SEC-4: Move sensitive logging to DEBUG level
+            _get_logger().debug(f"[GET_USER_CLIENT] Creating client with JWT token for RLS")
             options = _get_client_options()
             client = create_client(
                 Config.SUPABASE_URL,
@@ -220,14 +229,15 @@ def get_user_client(token: Optional[str] = None) -> Client:
             # Set auth token on postgrest client for RLS to work with auth.uid()
             # This is the correct way to enable RLS in supabase-py
             client.postgrest.auth(token)
-            _get_logger().info(f"[GET_USER_CLIENT] Client created with postgrest.auth() and connection pool for RLS")
+            _get_logger().debug(f"[GET_USER_CLIENT] Client created with postgrest.auth() and connection pool for RLS")
             # Cache in Flask g context for this request
             setattr(g, cache_key, client)
             return client
         except AttributeError as e:
             # This can occur if options object is mishandled by supabase-py library
+            # P1-SEC-4: Mask token in error logs
             _get_logger().error(f"ERROR: AttributeError creating client (supabase-py version issue?): {e}")
-            _get_logger().error(f"Token format: {len(token.split('.'))} parts, first 10 chars: {token[:10]}")
+            _get_logger().error(f"Token format: {len(token.split('.'))} parts, preview: {mask_token(token)}")
             # Return anonymous client if token setup fails
             client = get_supabase_client()
             setattr(g, cache_key, client)

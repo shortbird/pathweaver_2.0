@@ -28,6 +28,8 @@ from utils.auth.token_utils import verify_token
 from utils.validation import validate_registration_data, sanitize_input
 from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit
+# P1-SEC-4: Import log scrubbing utilities for GDPR compliance
+from utils.log_scrubber import mask_user_id, mask_email, should_log_sensitive_data
 from middleware.error_handler import ValidationError, AuthenticationError, ExternalServiceError, ConflictError
 from middleware.csrf_protection import get_csrf_token
 from utils.retry_handler import retry_database_operation
@@ -247,12 +249,13 @@ def register():
         date_of_birth = data.get('date_of_birth')  # Optional date of birth for age verification
         parent_email = data.get('parent_email')  # Required if user is under 13
 
-        logger.debug(f"[REGISTRATION] Processing registration for email: {email[:3]}***")
+        # P1-SEC-4: Mask email in logs
+        logger.debug(f"[REGISTRATION] Processing registration for email: {mask_email(email)}")
         
         # Log the registration attempt (without password or PII)
-        # Only log in development mode
-        if os.getenv('FLASK_ENV') == 'development':
-            logger.info(f"Registration attempt for email: {email[:3]}***")
+        # P1-SEC-4: Only log sensitive data in development mode with masking
+        if should_log_sensitive_data():
+            logger.debug(f"Registration attempt for email: {mask_email(email)}")
         
         # Use admin client for registration to bypass RLS
         from database import get_supabase_admin_client
@@ -542,14 +545,14 @@ def login():
 
     email = data['email'].strip().lower()
 
-    # Log login attempt (without PII)
-    logger.info(f"Login attempt for email: {email[:3]}***")
+    # Log login attempt with masked email (P1-SEC-4: GDPR compliance)
+    logger.info(f"Login attempt for email: {mask_email(email)}")
 
     # Check if account is locked due to too many failed attempts
     is_locked, retry_after, attempt_count = check_account_lockout(email)
     if is_locked:
         minutes_remaining = retry_after // 60
-        logger.warning(f"Login blocked for locked account: {email[:3]}*** ({minutes_remaining} minutes remaining)")
+        logger.warning(f"Login blocked for locked account: {mask_email(email)} ({minutes_remaining} minutes remaining)")
         return jsonify({
             'error': f'Account temporarily locked due to too many failed login attempts. Please try again in {minutes_remaining} minutes or use "Forgot Password?" to reset your password.',
             'retry_after': retry_after,
@@ -650,8 +653,8 @@ def login():
             # Reset login attempts after successful login
             reset_login_attempts(email)
 
-            # Log successful login
-            logger.info(f"Successful login for {email[:3]}*** (user_id: {auth_response.user.id})")
+            # Log successful login (P1-SEC-4: mask PII)
+            logger.info(f"Successful login for {mask_email(email)} (user_id: {mask_user_id(auth_response.user.id)})")
 
             # Update last_active timestamp
             try:
@@ -677,7 +680,7 @@ def login():
                     admin_client.table('users').update({
                         'welcome_email_sent': True
                     }).eq('id', auth_response.user.id).execute()
-                    logger.info(f"Triggered email_confirmed event for user {auth_response.user.id}")
+                    logger.info(f"Triggered email_confirmed event for user {mask_user_id(auth_response.user.id)}")
                 except Exception as automation_error:
                     logger.error(f"Warning: Failed to process email_confirmed event: {automation_error}")
 
@@ -708,15 +711,15 @@ def login():
             return response
         else:
             # Success = False but no exception thrown (shouldn't happen with Supabase)
-            logger.warning(f"Login failed for {email} without exception - auth_response.user is None")
+            logger.warning(f"Login failed for {mask_email(email)} without exception - auth_response.user is None")
             return jsonify({'error': 'Incorrect email or password. Please check your credentials and try again.'}), 401
             
     except Exception as e:
         error_message = str(e)
 
-        # Log with more context for debugging
-        logger.error(f"Login error for {email[:3]}***: {error_message}", extra={
-            'email_prefix': email[:3],
+        # Log with more context for debugging (P1-SEC-4: mask email)
+        logger.error(f"Login error for {mask_email(email)}: {error_message}", extra={
+            'email_masked': mask_email(email),
             'error_type': type(e).__name__,
             'has_response': hasattr(e, 'response') if hasattr(e, '__dict__') else False
         })
@@ -729,14 +732,14 @@ def login():
             is_now_locked, attempts_remaining, lockout_minutes = record_failed_login(email)
 
             if is_now_locked:
-                logger.warning(f"Account locked for {email[:3]}*** after too many failed attempts")
+                logger.warning(f"Account locked for {mask_email(email)} after too many failed attempts")
                 return jsonify({
                     'error': f'Too many failed login attempts. Your account has been temporarily locked for {lockout_minutes} minutes. Please try again later or use "Forgot Password" to reset your password.',
                     'locked': True,
                     'lockout_duration': lockout_minutes
                 }), 429
             else:
-                logger.info(f"Invalid credentials for {email[:3]}***: {attempts_remaining} attempts remaining")
+                logger.info(f"Invalid credentials for {mask_email(email)}: {attempts_remaining} attempts remaining")
                 # Provide more helpful error message based on attempts remaining
                 if attempts_remaining <= 2:
                     return jsonify({
@@ -750,7 +753,7 @@ def login():
                         'attempts_remaining': attempts_remaining
                     }), 401
         elif "email not confirmed" in error_lower or "email confirmation" in error_lower:
-            logger.info(f"Login attempt with unconfirmed email: {email[:3]}***")
+            logger.info(f"Login attempt with unconfirmed email: {mask_email(email)}")
             return jsonify({
                 'error': 'Please verify your email address before logging in. Check your inbox (and spam folder) for a confirmation email. If you need a new verification email, contact support.',
                 'email_not_confirmed': True
@@ -758,13 +761,13 @@ def login():
         elif "user not found" in error_lower:
             # Record failed login attempt even for non-existent users (prevent username enumeration)
             record_failed_login(email)
-            logger.info(f"Login attempt with non-existent email: {email[:3]}***")
+            logger.info(f"Login attempt with non-existent email: {mask_email(email)}")
             return jsonify({
                 'error': 'No account found with this email address. Please check your email spelling or create a new account.',
                 'user_not_found': True
             }), 401
         elif "rate limit" in error_lower or "too many requests" in error_lower:
-            logger.warning(f"Rate limit hit for {email[:3]}***")
+            logger.warning(f"Rate limit hit for {mask_email(email)}")
             import re
             wait_match = re.search(r'after (\d+) seconds', error_message)
             if wait_match:
@@ -773,17 +776,17 @@ def login():
             else:
                 return jsonify({'error': 'Too many login attempts. Please wait a minute before trying again.'}), 429
         elif "invalid api key" in error_lower:
-            logger.error(f"Invalid API key error during login for {email[:3]}***")
+            logger.error(f"Invalid API key error during login for {mask_email(email)}")
             return jsonify({'error': 'Server configuration error. Please contact support.'}), 500
         elif "connection" in error_lower or "timeout" in error_lower:
-            logger.error(f"Connection error during login for {email[:3]}***")
+            logger.error(f"Connection error during login for {mask_email(email)}")
             return jsonify({'error': 'Connection error. Please check your internet connection and try again.'}), 503
         elif "password" in error_lower and "invalid" not in error_lower:
-            logger.info(f"Password error for {email[:3]}***")
+            logger.info(f"Password error for {mask_email(email)}")
             return jsonify({'error': 'Incorrect password. Please check your password and try again, or click "Forgot Password?" below to reset it.'}), 401
         else:
             # Generic error but still informative
-            logger.warning(f"Unhandled login error for {email[:3]}***: {error_message}")
+            logger.warning(f"Unhandled login error for {mask_email(email)}: {error_message}")
             return jsonify({
                 'error': 'Login failed. Please check your email and password. If you continue having trouble, try using "Forgot Password?" or contact support.',
                 'generic_error': True
@@ -812,7 +815,7 @@ def logout():
             admin_client.table('users').update({
                 'last_logout_at': datetime.utcnow().isoformat()
             }).eq('id', user_id).execute()
-            logger.info(f"[LOGOUT] Invalidated all tokens for user {user_id[:8]}... via last_logout_at timestamp")
+            logger.info(f"[LOGOUT] Invalidated all tokens for user {mask_user_id(user_id)} via last_logout_at timestamp")
 
         # Attempt to sign out from Supabase if token exists
         # But don't fail logout if this fails
@@ -870,7 +873,7 @@ def refresh_token():
 
             # If token was issued before logout, reject it
             if token_issued_at < last_logout_at:
-                logger.warning(f"[REFRESH] Rejecting token for user {user_id[:8]}... - issued before logout (token: {token_issued_at.isoformat()}, logout: {last_logout_at.isoformat()})")
+                logger.warning(f"[REFRESH] Rejecting token for user {mask_user_id(user_id)} - issued before logout (token: {token_issued_at.isoformat()}, logout: {last_logout_at.isoformat()})")
                 return jsonify({'error': 'Session invalidated. Please log in again.'}), 401
 
     except Exception as logout_check_error:
@@ -960,8 +963,8 @@ def resend_verification():
         
         # Resend verification email using Supabase Auth
         try:
-            # Use Supabase's resend functionality
-            logger.info(f"[RESEND_VERIFICATION] Attempting to resend for {email}")
+            # Use Supabase's resend functionality (P1-SEC-4: mask email)
+            logger.info(f"[RESEND_VERIFICATION] Attempting to resend for {mask_email(email)}")
             result = supabase.auth.resend(email=email, type='signup')
             
             # Log the result for debugging
@@ -1037,7 +1040,9 @@ def forgot_password():
         logger.info("[FORGOT_PASSWORD] === Starting password reset request ===")
         data = request.json
         email = data.get('email')
-        logger.info(f"[FORGOT_PASSWORD] Received request for email: {email}")
+        # P1-SEC-4: Mask email in logs
+        if should_log_sensitive_data():
+            logger.debug(f"[FORGOT_PASSWORD] Received request for email: {mask_email(email)}")
 
         if not email:
             logger.warning("[FORGOT_PASSWORD] No email provided")
@@ -1045,12 +1050,15 @@ def forgot_password():
 
         # Sanitize email input
         email = sanitize_input(email.lower().strip())
-        logger.info(f"[FORGOT_PASSWORD] Sanitized email: {email}")
+        # P1-SEC-4: Only log in development with masking
+        if should_log_sensitive_data():
+            logger.debug(f"[FORGOT_PASSWORD] Sanitized email: {mask_email(email)}")
 
         # Validate email format
         email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         if not re.match(email_regex, email):
-            logger.warning(f"[FORGOT_PASSWORD] Invalid email format: {email}")
+            # P1-SEC-4: Mask email in logs
+            logger.warning(f"[FORGOT_PASSWORD] Invalid email format: {mask_email(email)}")
             return jsonify({'error': 'Invalid email format'}), 400
 
         from database import get_supabase_admin_client
@@ -1059,12 +1067,16 @@ def forgot_password():
 
         # Check if user exists in auth.users (the source of truth for authentication)
         # Use admin client to query auth.users directly
-        logger.info(f"[FORGOT_PASSWORD] Looking up user in auth.users: {email}")
+        # P1-SEC-4: Only log in development with masking
+        if should_log_sensitive_data():
+            logger.debug(f"[FORGOT_PASSWORD] Looking up user in auth.users: {mask_email(email)}")
 
         try:
             # Use Supabase Admin API to list users and find by email
             # Note: We can't query auth.users directly via PostgREST, must use Admin API
-            logger.info(f"[FORGOT_PASSWORD] Looking up user by email using Admin API: {email}")
+            # P1-SEC-4: Only log in development with masking
+            if should_log_sensitive_data():
+                logger.debug(f"[FORGOT_PASSWORD] Looking up user by email using Admin API: {mask_email(email)}")
 
             # Use Admin API's list_users with pagination to find user by email
             # This is more efficient than list_users() without params
@@ -1098,7 +1110,8 @@ def forgot_password():
                 else:
                     user_name = 'there'
 
-                logger.info(f"[FORGOT_PASSWORD] Found user: {user_id}, name: {user_name}, auth email: {matching_user.email}")
+                # P1-SEC-4: Mask user_id and email in logs
+                logger.info(f"[FORGOT_PASSWORD] Found user: {mask_user_id(user_id)}, name: {user_name}, auth email: {mask_email(matching_user.email)}")
 
                 try:
                     # Generate secure token
@@ -1139,9 +1152,10 @@ def forgot_password():
                     logger.info(f"[FORGOT_PASSWORD] Email send result: {email_sent}")
 
                     if email_sent:
-                        logger.info(f"[FORGOT_PASSWORD] ✓ Password reset email SUCCESSFULLY sent to {auth_email}")
+                        # P1-SEC-4: Mask email in logs
+                        logger.info(f"[FORGOT_PASSWORD] ✓ Password reset email SUCCESSFULLY sent to {mask_email(auth_email)}")
                     else:
-                        logger.error(f"[FORGOT_PASSWORD] ✗ FAILED to send email to {auth_email}")
+                        logger.error(f"[FORGOT_PASSWORD] ✗ FAILED to send email to {mask_email(auth_email)}")
 
                 except Exception as reset_error:
                     logger.error(f"[FORGOT_PASSWORD] ✗ Exception during reset token generation or email send: {str(reset_error)}")
@@ -1150,7 +1164,8 @@ def forgot_password():
                     logger.error(f"[FORGOT_PASSWORD] Traceback: {traceback.format_exc()}")
                     # Still return success to avoid revealing user existence
             else:
-                logger.info(f"[FORGOT_PASSWORD] No user found with email: {email}")
+                # P1-SEC-4: Mask email in logs
+                logger.info(f"[FORGOT_PASSWORD] No user found with email: {mask_email(email)}")
         except Exception as lookup_error:
             logger.error(f"[FORGOT_PASSWORD] Error looking up user in auth.users: {str(lookup_error)}")
             # Continue to return generic success message
@@ -1228,7 +1243,8 @@ def reset_password():
                 return jsonify({'error': 'User not found'}), 404
 
             auth_email = auth_user.user.email
-            logger.info(f"[RESET_PASSWORD] Found user in auth.users: {auth_email}")
+            # P1-SEC-4: Mask email in logs
+            logger.info(f"[RESET_PASSWORD] Found user in auth.users: {mask_email(auth_email)}")
 
             # Update password using Supabase Admin API
             supabase_client = get_supabase_client()
@@ -1246,7 +1262,8 @@ def reset_password():
                 if profile_check.data:
                     current_profile_email = profile_check.data[0]['email']
                     if current_profile_email.lower() != auth_email.lower():
-                        logger.warning(f"[RESET_PASSWORD] Email mismatch detected: auth={auth_email}, profile={current_profile_email}")
+                        # P1-SEC-4: Mask emails in logs
+                        logger.warning(f"[RESET_PASSWORD] Email mismatch detected: auth={mask_email(auth_email)}, profile={mask_email(current_profile_email)}")
                         logger.info(f"[RESET_PASSWORD] Syncing profile email to match auth.users")
                         admin_client.table('users').update({
                             'email': auth_email
@@ -1264,7 +1281,8 @@ def reset_password():
             # Clear any account lockouts for this user
             reset_login_attempts(auth_email)
 
-            logger.info(f"[RESET_PASSWORD] Password successfully reset for {auth_email}")
+            # P1-SEC-4: Mask email in logs
+            logger.info(f"[RESET_PASSWORD] Password successfully reset for {mask_email(auth_email)}")
 
             return jsonify({
                 'message': 'Password reset successful. You can now login with your new password.',
