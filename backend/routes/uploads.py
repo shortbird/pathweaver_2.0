@@ -25,75 +25,17 @@ from werkzeug.utils import secure_filename
 import base64
 import uuid
 import mimetypes
-import magic  # python-magic is now required
 import os
 from datetime import datetime
+
+# Import enhanced file validator (P1-SEC-1)
+from utils.file_validator import validate_file, MAX_FILE_SIZE
 
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 bp = Blueprint('uploads', __name__)
-
-# Allowed MIME types (checked via magic bytes)
-ALLOWED_MIME_TYPES = {
-    # Images
-    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-    # Documents
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/plain',
-    # Videos
-    'video/mp4', 'video/webm', 'video/quicktime',
-    # Audio
-    'audio/mpeg', 'audio/wav', 'audio/ogg'
-}
-
-# Allowed file extensions (as secondary check)
-ALLOWED_EXTENSIONS = {
-    'jpg', 'jpeg', 'png', 'gif', 'webp',  # Images
-    'pdf', 'doc', 'docx', 'txt',          # Documents
-    'mp4', 'webm', 'mov',                 # Videos
-    'mp3', 'wav', 'ogg'                   # Audio
-}
-
-# Maximum file size: 10MB
-MAX_FILE_SIZE = 10 * 1024 * 1024
-
-def validate_file_type(filename: str, file_content: bytes) -> tuple[bool, str]:
-    """
-    Validate file type using magic bytes (MIME type detection)
-    Security: Prevents file extension spoofing attacks
-
-    Args:
-        filename: Original filename
-        file_content: File binary content
-
-    Returns:
-        Tuple of (is_valid, error_message)
-    """
-    if not filename or '.' not in filename:
-        return False, "File must have an extension"
-
-    extension = filename.rsplit('.', 1)[1].lower()
-
-    # Check extension is allowed
-    if extension not in ALLOWED_EXTENSIONS:
-        return False, f"File extension '.{extension}' not allowed"
-
-    # Validate using magic bytes (required - no try/except)
-    try:
-        # Read first 2048 bytes for MIME detection
-        mime_type = magic.from_buffer(file_content[:2048], mime=True)
-    except Exception as e:
-        return False, f"Failed to detect file type: {str(e)}"
-
-    # Check MIME type is allowed
-    if mime_type not in ALLOWED_MIME_TYPES:
-        return False, f"File type '{mime_type}' not allowed"
-
-    return True, None
 
 def sanitize_filename(filename: str) -> str:
     """
@@ -172,17 +114,33 @@ def upload_evidence(user_id):
             except ValidationError as e:
                 return jsonify({'error': str(e)}), 400
 
-            # Validate file type using magic bytes
-            is_valid, error_msg = validate_file_type(safe_filename, file_content)
-            if not is_valid:
-                return jsonify({'error': f'File {safe_filename}: {error_msg}'}), 400
+            # Enhanced file validation (P1-SEC-1: full file scan, polyglot detection, virus scan)
+            validation_result = validate_file(
+                filename=safe_filename,
+                file_content=file_content,
+                claimed_content_type=file.content_type
+            )
+
+            if not validation_result.is_valid:
+                logger.warning(
+                    f"[Upload] File validation failed - "
+                    f"user={user_id}, file={safe_filename}, reason={validation_result.error_message}"
+                )
+                return jsonify({'error': f'File {safe_filename}: {validation_result.error_message}'}), 400
+
+            # Log warnings if any (e.g., Content-Type mismatch, suspicious patterns)
+            if validation_result.warnings:
+                logger.warning(
+                    f"[Upload] File validation warnings - "
+                    f"user={user_id}, file={safe_filename}, warnings={validation_result.warnings}"
+                )
             
             # Generate unique filename
             file_extension = safe_filename.rsplit('.', 1)[1].lower() if '.' in safe_filename else ''
             unique_filename = f"{user_id}/{uuid.uuid4()}.{file_extension}"
             
-            # Determine content type
-            content_type = file.content_type or mimetypes.guess_type(file.filename)[0] or 'application/octet-stream'
+            # Use detected MIME type from validation (more secure than trusting client)
+            content_type = validation_result.detected_mime
 
             # Upload to Supabase Storage (use file_content we already read)
             response = supabase.storage.from_('quest-evidence').upload(
@@ -198,8 +156,9 @@ def upload_evidence(user_id):
                 'original_name': file.filename,
                 'stored_name': unique_filename,
                 'url': url_response,
-                'size': len(file_content),
+                'size': validation_result.file_size,
                 'content_type': content_type,
+                'sha256_hash': validation_result.sha256_hash,
                 'uploaded_at': datetime.utcnow().isoformat()
             })
         
@@ -207,9 +166,10 @@ def upload_evidence(user_id):
             'files': uploaded_files,
             'count': len(uploaded_files)
         }), 200
-        
+
     except Exception as e:
-        # Log upload error internally
+        # Log upload error with details (P1-QUAL-1: specific exception handling)
+        logger.error(f"[Upload] Upload failed for user {user_id}: {e}", exc_info=True)
         return jsonify({'error': 'Upload failed. Please try again.'}), 500
 
 @bp.route('/evidence/base64', methods=['POST'])
@@ -257,20 +217,39 @@ def upload_evidence_base64(user_id):
             except ValidationError as e:
                 return jsonify({'error': str(e)}), 400
 
-            # Validate file type using magic bytes
-            is_valid, error_msg = validate_file_type(safe_filename, file_content)
-            if not is_valid:
-                return jsonify({'error': f'File {safe_filename}: {error_msg}'}), 400
+            # Enhanced file validation (P1-SEC-1: full file scan, polyglot detection, virus scan)
+            validation_result = validate_file(
+                filename=safe_filename,
+                file_content=file_content,
+                claimed_content_type=content_type
+            )
+
+            if not validation_result.is_valid:
+                logger.warning(
+                    f"[Upload] Base64 file validation failed - "
+                    f"user={user_id}, file={safe_filename}, reason={validation_result.error_message}"
+                )
+                return jsonify({'error': f'File {safe_filename}: {validation_result.error_message}'}), 400
+
+            # Log warnings if any (e.g., Content-Type mismatch, suspicious patterns)
+            if validation_result.warnings:
+                logger.warning(
+                    f"[Upload] Base64 file validation warnings - "
+                    f"user={user_id}, file={safe_filename}, warnings={validation_result.warnings}"
+                )
             
             # Generate unique filename
             file_extension = safe_filename.rsplit('.', 1)[1].lower() if '.' in safe_filename else ''
             unique_filename = f"{user_id}/{uuid.uuid4()}.{file_extension}"
-            
+
+            # Use detected MIME type from validation (more secure than trusting client)
+            validated_content_type = validation_result.detected_mime
+
             # Upload to Supabase Storage
             response = supabase.storage.from_('quest-evidence').upload(
                 path=unique_filename,
                 file=file_content,
-                file_options={"content-type": content_type}
+                file_options={"content-type": validated_content_type}
             )
             
             # Get public URL for the uploaded file
@@ -280,16 +259,18 @@ def upload_evidence_base64(user_id):
                 'original_name': filename,
                 'stored_name': unique_filename,
                 'url': url_response,
-                'size': len(file_content),
-                'content_type': content_type,
+                'size': validation_result.file_size,
+                'content_type': validated_content_type,
+                'sha256_hash': validation_result.sha256_hash,
                 'uploaded_at': datetime.utcnow().isoformat()
             })
-        
+
         return jsonify({
             'files': uploaded_files,
             'count': len(uploaded_files)
         }), 200
-        
+
     except Exception as e:
-        # Log upload error internally
+        # Log upload error with details (P1-QUAL-1: specific exception handling)
+        logger.error(f"[Upload] Base64 upload failed for user {user_id}: {e}", exc_info=True)
         return jsonify({'error': 'Upload failed. Please try again.'}), 500
