@@ -204,7 +204,7 @@ class AIQuestMaintenanceService(BaseService):
                     })
 
             except Exception as e:
-                print(f"Error analyzing quest {quest['id']}: {e}")
+                logger.error(f"Error analyzing quest {quest['id']}: {e}")
                 continue
 
         # Sort flagged quests by severity

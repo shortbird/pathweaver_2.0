@@ -739,7 +739,7 @@ def batch_generate_badge_images(user_id):
 
             except Exception as e:
                 failed += 1
-                print(f"Error processing badge {badge['id']}: {str(e)}")
+                logger.error(f"Error processing badge {badge['id']}: {str(e)}")
                 results.append({
                     'badge_id': badge['id'],
                     'name': badge['name'],

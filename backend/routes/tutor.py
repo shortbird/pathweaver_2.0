@@ -45,6 +45,7 @@ from services.ai_tutor_service import AITutorService, TutorContext, Conversation
 from services.safety_service import SafetyService, SafetyLevel
 from services.tutor_tier_service import tutor_tier_service
 from middleware.error_handler import ValidationError, AuthorizationError
+from middleware.rate_limiter import rate_limit
 from utils.validation.validators import validate_required_fields, validate_string_length
 from utils.api_response import success_response, error_response
 
@@ -66,9 +67,9 @@ def get_tutor_service():
             logger.info("Initializing AITutorService...")
             logger.info("TUTOR SERVICE: Initializing AITutorService...")
             logger.info(f"GEMINI_API_KEY present: {'GEMINI_API_KEY' in os.environ}")
-            print(f"TUTOR SERVICE: GEMINI_API_KEY present: {'GEMINI_API_KEY' in os.environ}")
+            logger.debug(f"TUTOR SERVICE: GEMINI_API_KEY present: {'GEMINI_API_KEY' in os.environ}")
             logger.info(f"GOOGLE_API_KEY present: {'GOOGLE_API_KEY' in os.environ}")
-            print(f"TUTOR SERVICE: GOOGLE_API_KEY present: {'GOOGLE_API_KEY' in os.environ}")
+            logger.debug(f"TUTOR SERVICE: GOOGLE_API_KEY present: {'GOOGLE_API_KEY' in os.environ}")
             tutor_service = AITutorService()
             logger.info("AITutorService initialized successfully")
             logger.info("TUTOR SERVICE: AITutorService initialized successfully")
@@ -81,12 +82,12 @@ def get_tutor_service():
             logger.error(f"TUTOR SERVICE: Exception args: {e.args}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
-            traceback.print_exc()
             raise Exception(f"Tutor service unavailable: {e}")
     return tutor_service
 
 # Using repository pattern for database access
 @bp.route('/chat', methods=['POST'])
+@rate_limit(limit=50, per=3600)  # 50 per hour (per P1-SEC-2)
 @require_auth
 def send_message(user_id: str):
     """Send a message to AI tutor and get response"""
@@ -166,7 +167,6 @@ def send_message(user_id: str):
             logger.error(f"TUTOR DEBUG: Exception during tutor service call: {e}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
-            traceback.print_exc()
             raise
 
         logger.info("Checking tutor response success status...")
@@ -878,7 +878,6 @@ def get_parent_tutor_conversations(user_id: str, student_id: str):
     except Exception as e:
         logger.error(f"Error getting parent tutor conversations: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get tutor conversations'}), 500
 
 
@@ -948,7 +947,6 @@ def get_parent_conversation_messages(user_id: str, conversation_id: str):
     except Exception as e:
         logger.error(f"Error getting conversation messages: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get conversation messages'}), 500
 
 
@@ -1011,7 +1009,6 @@ def get_parent_safety_reports(user_id: str, student_id: str):
     except Exception as e:
         logger.error(f"Error getting safety reports: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get safety reports'}), 500
 
 
@@ -1065,7 +1062,6 @@ def get_parent_monitoring_settings(user_id: str, student_id: str):
     except Exception as e:
         logger.error(f"Error getting parent monitoring settings: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get monitoring settings'}), 500
 
 
@@ -1135,7 +1131,6 @@ def update_parent_monitoring_settings(user_id: str, student_id: str):
     except Exception as e:
         logger.error(f"Error updating parent monitoring settings: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to update monitoring settings'}), 500
 
 

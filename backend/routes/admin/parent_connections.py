@@ -110,7 +110,6 @@ def get_connection_requests(user_id):
     except Exception as e:
         logger.error(f"Error getting connection requests: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get connection requests'}), 500
 
 
@@ -195,7 +194,6 @@ def approve_connection_request(user_id, request_id):
     except Exception as e:
         logger.error(f"Error approving connection request: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to approve connection request'}), 500
 
 
@@ -258,7 +256,6 @@ def reject_connection_request(user_id, request_id):
     except Exception as e:
         logger.error(f"Error rejecting connection request: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to reject connection request'}), 500
 
 
@@ -339,7 +336,6 @@ def get_active_links(user_id):
     except Exception as e:
         logger.error(f"Error getting active links: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get active links'}), 500
 
 
@@ -380,7 +376,6 @@ def disconnect_link(user_id, link_id):
     except Exception as e:
         logger.error(f"Error disconnecting link: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to disconnect link'}), 500
 
 
@@ -453,5 +448,4 @@ def create_manual_link(user_id):
     except Exception as e:
         logger.error(f"Error creating manual link: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to create manual link'}), 500

@@ -247,7 +247,7 @@ def list_quests():
         # DEBUG: Log all quests to verify pillar_breakdown is in response
         if quests:
             for idx, q in enumerate(quests[:5]):  # Log first 5 quests
-                print(f"[API RESPONSE] Quest {idx}: id={q.get('id', 'no-id')[:8]}, title={q.get('title', 'No title')[:30]}, pillar_breakdown={q.get('pillar_breakdown', {})}, has_enrollment={bool(q.get('user_enrollment') or q.get('completed_enrollment'))}")
+                logger.info(f"[API RESPONSE] Quest {idx}: id={q.get('id', 'no-id')[:8]}, title={q.get('title', 'No title')[:30]}, pillar_breakdown={q.get('pillar_breakdown', {})}, has_enrollment={bool(q.get('user_enrollment') or q.get('completed_enrollment'))}")
 
         # Calculate if there are more pages
         total_pages = (result.count + per_page - 1) // per_page if result.count else 0
@@ -321,7 +321,7 @@ def get_quest_detail(user_id: str, quest_id: str):
         enrollments_data = all_enrollments.data or []
         logger.info(f"[QUEST DETAIL] All enrollments found: {len(enrollments_data)}")
         for enrollment in enrollments_data:
-            print(f"[QUEST DETAIL] Enrollment: id={enrollment.get('id')}, is_active={enrollment.get('is_active')}, completed_at={enrollment.get('completed_at')}, personalization_completed={enrollment.get('personalization_completed')}")
+            logger.info(f"[QUEST DETAIL] Enrollment: id={enrollment.get('id')}, is_active={enrollment.get('is_active')}, completed_at={enrollment.get('completed_at')}, personalization_completed={enrollment.get('personalization_completed')}")
         
         # Find active or completed enrollment
         active_enrollment = None
@@ -389,7 +389,7 @@ def get_quest_detail(user_id: str, quest_id: str):
             # Debug: Check raw pillar values from database
             logger.info(f"[QUEST_DETAIL] Raw tasks from DB for quest {quest_id}:")
             for i, task in enumerate(user_tasks.data or []):
-                print(f"  Task {i}: '{task.get('title')}' - pillar='{task.get('pillar')}'")
+                logger.info(f"  Task {i}: '{task.get('title')}' - pillar='{task.get('pillar')}'")
 
             # Mark tasks as completed and map field names for frontend compatibility
             quest_tasks = user_tasks.data or []
@@ -423,7 +423,7 @@ def get_quest_detail(user_id: str, quest_id: str):
                         pillar_key = normalize_pillar_name(task['pillar'])
                     except ValueError:
                         pillar_key = 'art'  # Default fallback
-                    print(f"[QUEST_DETAIL] Task '{task.get('title')}': DB pillar='{original_pillar}' -> sending key='{pillar_key}' to frontend")
+                    logger.info(f"[QUEST_DETAIL] Task '{task.get('title')}': DB pillar='{original_pillar}' -> sending key='{pillar_key}' to frontend")
                     task['pillar'] = pillar_key  # Send key, not display name
 
             quest_data['quest_tasks'] = quest_tasks
@@ -865,7 +865,6 @@ def enroll_in_quest(user_id: str, quest_id: str):
     except Exception as e:
         logger.error(f"Unexpected error enrolling in quest {quest_id} for user {user_id}: {str(e)}", exc_info=True)
         import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': 'Failed to enroll in quest'
@@ -1273,7 +1272,6 @@ def end_quest(user_id: str, quest_id: str):
     except Exception as e:
         logger.error(f"Error ending quest: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e)

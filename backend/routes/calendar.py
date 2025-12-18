@@ -249,7 +249,6 @@ def get_calendar_items(user_id):
     except Exception as e:
         logger.error(f"Error fetching calendar items: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to fetch calendar items'}), 500
 
 
@@ -506,7 +505,6 @@ def get_next_up(user_id):
     except Exception as e:
         logger.error(f"Error fetching next-up items: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to fetch next-up items'}), 500
 
 

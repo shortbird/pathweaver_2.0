@@ -462,7 +462,7 @@ def get_public_diploma_by_user_id(user_id):
         logger.info(f"Found {len(evidence_documents_response.data) if evidence_documents_response.data else 0} evidence documents")
         if evidence_documents_response.data:
             for doc in evidence_documents_response.data:
-                print(f"Doc {doc.get('id')}: task_id={doc.get('task_id')}, blocks={len(doc.get('evidence_document_blocks', []))}")
+                logger.info(f"Doc {doc.get('id')}: task_id={doc.get('task_id')}, blocks={len(doc.get('evidence_document_blocks', []))}")
         logger.info(f"================================")
 
         # Create a lookup map for quick evidence document access by task_id
@@ -485,7 +485,7 @@ def get_public_diploma_by_user_id(user_id):
                             'is_confidential': doc.get('is_confidential', False),
                             'owner_user_id': doc.get('user_id')
                         }
-                        print(f"Mapped evidence doc for task {task_id}: {len(public_blocks)} public blocks (out of {len(all_blocks)} total)")
+                        logger.info(f"Mapped evidence doc for task {task_id}: {len(public_blocks)} public blocks (out of {len(all_blocks)} total)")
 
         # Get user's in-progress quests (active with at least one task submitted)
         in_progress_quests = supabase.table('user_quests').select(
@@ -560,7 +560,7 @@ def get_public_diploma_by_user_id(user_id):
                     task_id = tc.get('task_id')
 
                     logger.debug(f"Looking up evidence for task_id={task_id}, task_title='{task_title}', available keys: {list(evidence_docs_map.keys())[:5]}")
-                    print(f"Looking up evidence for task_id={task_id}, task_title='{task_title}'")
+                    logger.info(f"Looking up evidence for task_id={task_id}, task_title='{task_title}'")
 
                     # Get XP for this specific task from user_quest_tasks (not completions)
                     task_xp = task_info.get('xp_value', 0)
@@ -568,14 +568,14 @@ def get_public_diploma_by_user_id(user_id):
 
                     # Check for multi-format evidence using our lookup map
                     evidence_doc = evidence_docs_map.get(task_id)
-                    print(f"  Found evidence_doc: {evidence_doc is not None}, blocks: {len(evidence_doc.get('blocks', [])) if evidence_doc else 0}")
+                    logger.info(f"  Found evidence_doc: {evidence_doc is not None}, blocks: {len(evidence_doc.get('blocks', [])) if evidence_doc else 0}")
 
                     if evidence_doc and evidence_doc.get('blocks'):
                         # Use new multi-format evidence
                         blocks = evidence_doc.get('blocks', [])
                         is_confidential = evidence_doc.get('is_confidential', False)
                         owner_user_id = evidence_doc.get('owner_user_id')
-                        print(f"Task '{task_title}' has {len(blocks)} evidence blocks, confidential: {is_confidential}")
+                        logger.info(f"Task '{task_title}' has {len(blocks)} evidence blocks, confidential: {is_confidential}")
 
                         task_evidence[task_title] = {
                             'evidence_type': 'multi_format',
@@ -651,10 +651,10 @@ def get_public_diploma_by_user_id(user_id):
                         'status': 'completed'
                     }
 
-                    print(f"Quest '{quest.get('title')}': {len(task_evidence)} tasks, {total_quest_xp} XP")
+                    logger.info(f"Quest '{quest.get('title')}': {len(task_evidence)} tasks, {total_quest_xp} XP")
                     achievements.append(achievement)
                 else:
-                    print(f"Skipping quest '{quest.get('title')}' - no public evidence available")
+                    logger.info(f"Skipping quest '{quest.get('title')}' - no public evidence available")
 
         # Add in-progress quests with at least one submitted task
         if in_progress_quests.data:
@@ -764,7 +764,7 @@ def get_public_diploma_by_user_id(user_id):
                     }
                 }
 
-                print(f"In-progress quest '{quest.get('title')}': {completed_tasks}/{total_tasks} tasks, {total_quest_xp} XP")
+                logger.info(f"In-progress quest '{quest.get('title')}': {completed_tasks}/{total_tasks} tasks, {total_quest_xp} XP")
 
                 achievements.append(achievement)
 

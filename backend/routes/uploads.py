@@ -20,6 +20,7 @@ from backend.repositories import (
     AnalyticsRepository
 )
 from middleware.error_handler import ValidationError
+from middleware.rate_limiter import rate_limit
 from werkzeug.utils import secure_filename
 import base64
 import uuid
@@ -131,6 +132,7 @@ def sanitize_filename(filename: str) -> str:
 
 # Using repository pattern for database access
 @bp.route('/evidence', methods=['POST'])
+@rate_limit(limit=10, per=3600)  # 10 per hour (per P1-SEC-2)
 @require_auth
 def upload_evidence(user_id):
     """
@@ -211,6 +213,7 @@ def upload_evidence(user_id):
         return jsonify({'error': 'Upload failed. Please try again.'}), 500
 
 @bp.route('/evidence/base64', methods=['POST'])
+@rate_limit(limit=10, per=3600)  # 10 per hour (per P1-SEC-2)
 @require_auth
 def upload_evidence_base64(user_id):
     """

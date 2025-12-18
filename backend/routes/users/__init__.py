@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 bp = Blueprint('users', __name__)
 
 # Register sub-blueprints
-bp.register_blueprint(profile_bp)
-bp.register_blueprint(dashboard_bp)
-bp.register_blueprint(transcript_bp)
-bp.register_blueprint(completed_quests_bp)
+bp.register_bluelogger.info(profile_bp)
+bp.register_bluelogger.info(dashboard_bp)
+bp.register_bluelogger.info(transcript_bp)
+bp.register_bluelogger.info(completed_quests_bp)

@@ -233,14 +233,14 @@ class PersonalizationService(BaseService):
             # Debug: Log AI-generated pillar values BEFORE validation
             logger.info(f"[PERSONALIZATION] AI generated {len(tasks_data)} tasks for quest {quest_id}")
             for i, task in enumerate(tasks_data):
-                print(f"  Task {i}: '{task.get('title')}' - AI returned pillar: '{task.get('pillar')}'")
+                logger.info(f"  Task {i}: '{task.get('title')}' - AI returned pillar: '{task.get('pillar')}'")
 
             tasks_data = self._validate_tasks(tasks_data, interests, cross_curricular_subjects)
 
             # Debug: Log pillar values AFTER validation
             logger.info(f"[PERSONALIZATION] After validation:")
             for i, task in enumerate(tasks_data):
-                print(f"  Task {i}: '{task.get('title')}' - Validated pillar: '{task.get('pillar')}'")
+                logger.info(f"  Task {i}: '{task.get('title')}' - Validated pillar: '{task.get('pillar')}'")
 
             # Ensure 50%+ tasks are 100 XP
             tasks_data = self._enforce_xp_distribution(tasks_data)
@@ -270,7 +270,6 @@ class PersonalizationService(BaseService):
         except Exception as e:
             logger.error(f"Error generating task suggestions: {e}")
             import traceback
-            traceback.print_exc()
             return {
                 'success': False,
                 'error': str(e)
@@ -407,7 +406,7 @@ class PersonalizationService(BaseService):
                 description = task.get('description', '')
 
                 pillar_value = task.get('pillar', 'STEM & Logic')
-                print(f"[FINALIZE] Task {index}: '{task.get('title')}' - Pillar from task: {pillar_value}")
+                logger.info(f"[FINALIZE] Task {index}: '{task.get('title')}' - Pillar from task: {pillar_value}")
 
                 # Convert pillar display name to new pillar key
                 # AI returns display names like "STEM", we normalize to lowercase keys like 'stem'
@@ -418,8 +417,8 @@ class PersonalizationService(BaseService):
 
                 # Use the new pillar key directly - database now uses single-word lowercase keys
                 db_pillar = pillar_key
-                print(f"[FINALIZE] Pillar conversion: '{pillar_value}' -> normalized key: '{pillar_key}' -> storing as: '{db_pillar}'")
-                print(f"[FINALIZE] Pillar conversion: '{pillar_value}' -> normalized key: '{pillar_key}' -> storing as: '{db_pillar}'")
+                logger.info(f"[FINALIZE] Pillar conversion: '{pillar_value}' -> normalized key: '{pillar_key}' -> storing as: '{db_pillar}'")
+                logger.info(f"[FINALIZE] Pillar conversion: '{pillar_value}' -> normalized key: '{pillar_key}' -> storing as: '{db_pillar}'")
 
                 # Handle diploma_subjects - ensure proper format
                 diploma_subjects = task.get('diploma_subjects', {})
@@ -462,13 +461,13 @@ class PersonalizationService(BaseService):
                     'approval_status': 'approved',
                     'created_at': datetime.utcnow().isoformat()
                 }
-                print(f"[FINALIZE] Final pillar value being saved: {user_task['pillar']}")
+                logger.info(f"[FINALIZE] Final pillar value being saved: {user_task['pillar']}")
                 user_tasks.append(user_task)
 
             # Debug: Log what we're about to insert
             logger.info(f"[FINALIZE] Inserting {len(user_tasks)} tasks to database:")
             for i, ut in enumerate(user_tasks):
-                print(f"  Task {i}: '{ut['title']}' - pillar='{ut['pillar']}'")
+                logger.info(f"  Task {i}: '{ut['title']}' - pillar='{ut['pillar']}'")
 
             # Insert user tasks
             result = self.supabase.table('user_quest_tasks')\
@@ -478,7 +477,7 @@ class PersonalizationService(BaseService):
             # Debug: Log what was actually inserted
             logger.info(f"[FINALIZE] Database INSERT result - {len(result.data)} tasks created:")
             for i, task_result in enumerate(result.data):
-                print(f"  Task {i}: ID={task_result['id']}, title='{task_result['title']}', pillar='{task_result['pillar']}'")
+                logger.info(f"  Task {i}: ID={task_result['id']}, title='{task_result['title']}', pillar='{task_result['pillar']}'")
 
             # Prepare new tasks for library sanitization
             library_service = TaskLibraryService()
@@ -548,7 +547,6 @@ class PersonalizationService(BaseService):
         except Exception as e:
             logger.error(f"Error finalizing personalization: {e}")
             import traceback
-            traceback.print_exc()
             return {
                 'success': False,
                 'error': str(e)

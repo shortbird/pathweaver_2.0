@@ -97,7 +97,7 @@ def create_quest_v3_clean(user_id):
             # Try to fetch image based on quest title and description (AI-enhanced)
             quest_desc = data.get('big_idea', '').strip() or data.get('description', '').strip()
             image_url = search_quest_image(data['title'].strip(), quest_desc)
-            print(f"Auto-fetched image for quest '{data['title']}': {image_url}")
+            logger.info(f"Auto-fetched image for quest '{data['title']}': {image_url}")
 
         # Determine is_active and is_public values based on role
         # Admins can set is_active=True and is_public=True (publish immediately)
@@ -132,7 +132,7 @@ def create_quest_v3_clean(user_id):
             return jsonify({'success': False, 'error': 'Failed to create quest'}), 500
 
         quest_id = quest_result.data[0]['id']
-        print(f"Successfully created quest {quest_id}: {quest_data['title']}")
+        logger.info(f"Successfully created quest {quest_id}: {quest_data['title']}")
 
         return jsonify({
             'success': True,
@@ -816,7 +816,7 @@ def bulk_generate_images(user_id):
 
             except Exception as e:
                 failed += 1
-                print(f"Error processing quest {quest['id']}: {str(e)}")
+                logger.error(f"Error processing quest {quest['id']}: {str(e)}")
                 results.append({
                     'quest_id': quest['id'],
                     'title': quest['title'],

@@ -84,7 +84,7 @@ class XPService(BaseService):
         try:
             # Normalize to new single-word format (art, stem, communication, civics, wellness)
             db_pillar = normalize_pillar_name(pillar)
-            print(f"Mapped pillar from '{original_pillar}' to database key '{db_pillar}' for storage")
+            logger.info(f"Mapped pillar from '{original_pillar}' to database key '{db_pillar}' for storage")
         except ValueError as e:
             raise ValidationError(f"Invalid pillar name: {pillar} - {str(e)}")
 

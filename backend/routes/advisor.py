@@ -50,7 +50,7 @@ def get_students(user_id):
         }), 200
 
     except Exception as e:
-        print(f"Error fetching students: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error fetching students: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch students'
@@ -75,7 +75,7 @@ def assign_student(user_id, student_id):
             'error': str(e)
         }), 400
     except Exception as e:
-        print(f"Error assigning student: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error assigning student: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to assign student'
@@ -100,7 +100,7 @@ def get_student_progress(user_id, student_id):
             'error': str(e)
         }), 403
     except Exception as e:
-        print(f"Error fetching student progress: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error fetching student progress: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch student progress'
@@ -123,7 +123,7 @@ def get_custom_badges(user_id):
         }), 200
 
     except Exception as e:
-        print(f"Error fetching custom badges: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error fetching custom badges: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch custom badges'
@@ -193,7 +193,7 @@ def create_custom_badge(user_id):
             'error': str(e)
         }), 400
     except Exception as e:
-        print(f"Error creating custom badge: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error creating custom badge: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to create custom badge'
@@ -249,7 +249,7 @@ def update_custom_badge(user_id, badge_id):
             'error': str(e)
         }), 403
     except Exception as e:
-        print(f"Error updating custom badge: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error updating custom badge: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to update badge'
@@ -274,7 +274,7 @@ def delete_custom_badge(user_id, badge_id):
             'error': str(e)
         }), 403
     except Exception as e:
-        print(f"Error deleting custom badge: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error deleting custom badge: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to delete badge'
@@ -317,7 +317,7 @@ def assign_badge(user_id, badge_id):
             'error': str(e)
         }), 400
     except Exception as e:
-        print(f"Error assigning badge: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error assigning badge: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to assign badge'
@@ -356,7 +356,7 @@ def get_advisor_dashboard(user_id):
         }), 200
 
     except Exception as e:
-        print(f"Error fetching advisor dashboard: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error fetching advisor dashboard: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch dashboard data'
@@ -391,9 +391,8 @@ def get_student_quests_with_tasks(user_id, student_id):
         }), 403
 
     except Exception as e:
-        print(f"Error fetching student quests with tasks: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error fetching student quests with tasks: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': 'Failed to fetch student quests'

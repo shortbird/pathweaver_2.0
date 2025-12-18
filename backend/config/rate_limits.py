@@ -25,18 +25,24 @@ RATE_LIMITS = {
 
     # File upload endpoints
     'upload': {
-        'production': {'requests': 10, 'window': 300},  # 10 per 5 minutes
-        'development': {'requests': 20, 'window': 300},  # 20 per 5 minutes
+        'production': {'requests': 10, 'window': 3600},  # 10 per hour (per P1-SEC-2)
+        'development': {'requests': 20, 'window': 3600},  # 20 per hour
     },
     'evidence_upload': {
-        'production': {'requests': 20, 'window': 300},  # 20 per 5 minutes
-        'development': {'requests': 40, 'window': 300},  # 40 per 5 minutes
+        'production': {'requests': 10, 'window': 3600},  # 10 per hour (per P1-SEC-2)
+        'development': {'requests': 20, 'window': 3600},  # 20 per hour
     },
 
     # API endpoints - general
     'api_default': {
         'production': {'requests': 60, 'window': 60},  # 60 per minute
         'development': {'requests': 100, 'window': 60},  # 100 per minute
+    },
+
+    # Write operations - general (per P1-SEC-2)
+    'api_write': {
+        'production': {'requests': 100, 'window': 3600},  # 100 per hour
+        'development': {'requests': 200, 'window': 3600},  # 200 per hour
     },
 
     # Quest operations
@@ -65,8 +71,8 @@ RATE_LIMITS = {
 
     # AI Tutor - token-intensive operations
     'tutor_chat': {
-        'production': {'requests': 20, 'window': 60},  # 20 per minute
-        'development': {'requests': 40, 'window': 60},  # 40 per minute
+        'production': {'requests': 50, 'window': 3600},  # 50 per hour (per P1-SEC-2)
+        'development': {'requests': 100, 'window': 3600},  # 100 per hour
     },
 
     # Social features

@@ -76,7 +76,7 @@ Return ONLY the search term with concrete objects/actions, nothing else.
 
         # Validate it's not too long
         if len(search_term.split()) > 6:
-            print(f"AI term too long, rejecting: '{search_term}'")
+            logger.info(f"AI term too long, rejecting: '{search_term}'")
             return None
 
         # Check for abstract/metaphorical words that cause bad results
@@ -90,10 +90,10 @@ Return ONLY the search term with concrete objects/actions, nothing else.
             if word in search_lower:
                 # Check if it's being used metaphorically (not in quest title)
                 if word.lower() not in quest_title.lower():
-                    print(f"AI term contains metaphorical word '{word}', rejecting: '{search_term}'")
+                    logger.info(f"AI term contains metaphorical word '{word}', rejecting: '{search_term}'")
                     return None
 
-        print(f"AI generated search term: '{search_term}' for quest: {quest_title}")
+        logger.info(f"AI generated search term: '{search_term}' for quest: {quest_title}")
         return search_term
 
     except Exception as e:
@@ -128,7 +128,7 @@ def extract_key_nouns(quest_title: str) -> Optional[str]:
     key_nouns = ' '.join(nouns[:4])
 
     if key_nouns and len(key_nouns) > 3:
-        print(f"Extracted key nouns: '{key_nouns}' from title: {quest_title}")
+        logger.info(f"Extracted key nouns: '{key_nouns}' from title: {quest_title}")
         return key_nouns
 
     return None
@@ -193,10 +193,10 @@ Return ONLY the search term starting with "teenage teen student", nothing else.
 
         # Validate it's not too long
         if len(search_term.split()) > 8:
-            print(f"AI term too long, rejecting: '{search_term}'")
+            logger.info(f"AI term too long, rejecting: '{search_term}'")
             return None
 
-        print(f"AI generated badge search term: '{search_term}' for badge: {badge_name}")
+        logger.info(f"AI generated badge search term: '{search_term}' for badge: {badge_name}")
         return search_term
 
     except Exception as e:
@@ -278,11 +278,11 @@ def search_badge_image(badge_name: str, identity_statement: str, pillar: Optiona
                 data = response.json()
                 if data.get('photos') and len(data['photos']) > 0:
                     # Return the medium-sized image URL
-                    print(f"Found image for badge '{badge_name}' using term: '{search_term}'")
+                    logger.info(f"Found image for badge '{badge_name}' using term: '{search_term}'")
                     return data['photos'][0]['src']['medium']
 
         except requests.RequestException as e:
-            print(f"Pexels API error for '{search_term}': {str(e)}")
+            logger.info(f"Pexels API error for '{search_term}': {str(e)}")
             continue
 
     return None
@@ -355,11 +355,11 @@ def search_quest_image(quest_title: str, quest_description: Optional[str] = None
                 data = response.json()
                 if data.get('photos') and len(data['photos']) > 0:
                     # Return the medium-sized image URL
-                    print(f"Found image for '{quest_title}' using term: '{search_term}'")
+                    logger.info(f"Found image for '{quest_title}' using term: '{search_term}'")
                     return data['photos'][0]['src']['medium']
 
         except requests.RequestException as e:
-            print(f"Pexels API error for '{search_term}': {str(e)}")
+            logger.info(f"Pexels API error for '{search_term}': {str(e)}")
             continue
 
     return None
@@ -418,7 +418,7 @@ def get_pexels_image_info(quest_title: str, pillar: Optional[str] = None) -> Opt
                     }
 
         except requests.RequestException as e:
-            print(f"Pexels API error for '{search_term}': {str(e)}")
+            logger.info(f"Pexels API error for '{search_term}': {str(e)}")
             continue
 
     return None

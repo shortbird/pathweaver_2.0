@@ -60,7 +60,7 @@ def get_subject_notes(user_id, subject_id):
         }), 200
 
     except Exception as e:
-        print(f"Error fetching advisor notes: {str(e)}")
+        logger.error(f"Error fetching advisor notes: {str(e)}")
         return jsonify({'error': f'Failed to fetch notes: {str(e)}'}), 500
 
 
@@ -146,7 +146,7 @@ def create_note(user_id):
         }), 201
 
     except Exception as e:
-        print(f"Error creating advisor note: {str(e)}")
+        logger.error(f"Error creating advisor note: {str(e)}")
         return jsonify({'error': f'Failed to create note: {str(e)}'}), 500
 
 
@@ -199,7 +199,7 @@ def update_note(user_id, note_id):
         }), 200
 
     except Exception as e:
-        print(f"Error updating advisor note: {str(e)}")
+        logger.error(f"Error updating advisor note: {str(e)}")
         return jsonify({'error': f'Failed to update note: {str(e)}'}), 500
 
 
@@ -240,5 +240,5 @@ def delete_note(user_id, note_id):
             return jsonify({'error': 'Failed to delete note'}), 500
 
     except Exception as e:
-        print(f"Error deleting advisor note: {str(e)}")
+        logger.error(f"Error deleting advisor note: {str(e)}")
         return jsonify({'error': f'Failed to delete note: {str(e)}'}), 500

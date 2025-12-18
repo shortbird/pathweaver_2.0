@@ -176,7 +176,7 @@ def calculate_xp_from_quests(supabase, user_id: str) -> Tuple[int, Dict[str, int
                         for category, amount in quest_xp_map[quest_id]:
                             skill_breakdown[category] += amount
                             total_xp += amount
-                            print(f"Quest '{quest_title}': {category} +{amount} XP")
+                            logger.info(f"Quest '{quest_title}': {category} +{amount} XP")
                         
                 logger.info(f"Total XP from skill awards: {total_xp}")
         except:

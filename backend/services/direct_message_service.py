@@ -115,7 +115,6 @@ class DirectMessageService(BaseService):
         except Exception as e:
             print(f"[can_message_user] ERROR: {str(e)}", file=sys.stderr, flush=True)
             import traceback
-            traceback.print_exc()
             return False
 
     # ==================== Conversation Management ====================

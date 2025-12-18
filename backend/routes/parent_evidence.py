@@ -315,7 +315,6 @@ def upload_evidence_inline(user_id):
     except Exception as e:
         logger.error(f"Error uploading parent evidence: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': 'Failed to upload evidence'
@@ -413,7 +412,6 @@ def upload_parent_evidence(user_id, student_id):
     except Exception as e:
         logger.error(f"Error uploading parent evidence: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to upload evidence'}), 500
 
 
@@ -492,7 +490,6 @@ def get_pending_evidence(user_id, student_id):
     except Exception as e:
         logger.error(f"Error getting pending evidence: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get pending evidence'}), 500
 
 
@@ -596,7 +593,6 @@ def approve_parent_evidence(user_id, evidence_id):
     except Exception as e:
         logger.error(f"Error approving parent evidence: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to approve evidence'}), 500
 
 

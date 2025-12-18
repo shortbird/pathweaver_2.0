@@ -87,7 +87,7 @@ def get_overview_metrics(user_id):
             total_users_result = supabase.table('users').select('id', count='exact').execute()
             total_users = total_users_result.count or 0
         except Exception as e:
-            print(f"Error getting total users: {e}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting total users: {e}")
             total_users = 0
 
         # Get new users this week with error handling
@@ -96,7 +96,7 @@ def get_overview_metrics(user_id):
                 .gte('created_at', week_ago.isoformat()).execute()
             new_users_count = new_users_week.count or 0
         except Exception as e:
-            print(f"Error getting new users: {e}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting new users: {e}")
             new_users_count = 0
 
         # Get active users (active within 7 days) - use created_at since updated_at doesn't exist
@@ -105,7 +105,7 @@ def get_overview_metrics(user_id):
                 .gte('created_at', week_ago.isoformat()).execute()
             active_users = active_users_result.count or 0
         except Exception as e:
-            print(f"Error getting active users: {e}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting active users: {e}")
             active_users = 0
 
         # Get quest completions this week
@@ -114,7 +114,7 @@ def get_overview_metrics(user_id):
                 .gte('completed_at', week_ago.isoformat()).execute()
             completions_week = quest_completions.count or 0
         except Exception as e:
-            print(f"Error getting quest completions week: {e}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting quest completions week: {e}")
             completions_week = 0
 
         # Get quest completions today
@@ -123,7 +123,7 @@ def get_overview_metrics(user_id):
                 .gte('completed_at', today.isoformat()).execute()
             completions_today = quest_completions_today.count or 0
         except Exception as e:
-            print(f"Error getting quest completions today: {e}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting quest completions today: {e}")
             completions_today = 0
 
         # Get total XP earned from task completions this week
@@ -155,9 +155,9 @@ def get_overview_metrics(user_id):
                         task_id = completion['task_id']
                         total_xp_week += xp_map.get(task_id, 0)
 
-            print(f"DEBUG: Found {len(completions.data) if completions.data else 0} completions with total XP: {total_xp_week}", file=sys.stderr, flush=True)
+            logger.debug(f"DEBUG: Found {len(completions.data) if completions.data else 0} completions with total XP: {total_xp_week}")
         except Exception as e:
-            print(f"Error getting XP week data: {e}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting XP week data: {e}")
             total_xp_week = 0
 
         # Quest submissions feature removed - users can create their own quests directly
@@ -169,7 +169,7 @@ def get_overview_metrics(user_id):
                 .eq('is_flagged', True).execute()
             flagged_tasks_count = flagged_tasks.count or 0
         except Exception as e:
-            print(f"Error getting flagged tasks: {e}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting flagged tasks: {e}")
             flagged_tasks_count = 0
 
         # Subscription tiers removed in Phase 1 refactoring (January 2025)
@@ -199,7 +199,7 @@ def get_overview_metrics(user_id):
         return jsonify({'success': True, 'data': result_data})
 
     except Exception as e:
-        print(f"Error getting overview metrics: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error getting overview metrics: {str(e)}")
         # Return default data instead of 500 error when database is unavailable
         return jsonify({
             'success': True,
@@ -248,7 +248,7 @@ def get_recent_activity(user_id):
                     if completion.get('user_id'):
                         user_ids_needed.add(completion['user_id'])
         except Exception as e:
-            print(f"Error getting recent completions: {e}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting recent completions: {e}")
             recent_completions = type('obj', (object,), {'data': []})()
 
         # Get recent user signups
@@ -264,7 +264,7 @@ def get_recent_activity(user_id):
                     if user.get('id'):
                         user_ids_needed.add(user['id'])
         except Exception as e:
-            print(f"Error getting recent users: {e}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting recent users: {e}")
             recent_users = type('obj', (object,), {'data': []})()
 
         # Quest submissions feature removed - users can create their own quests directly
@@ -293,7 +293,7 @@ def get_recent_activity(user_id):
                         else:
                             user_names[user_id] = 'Student'
             except Exception as e:
-                print(f"Error fetching user names: {e}", file=sys.stderr, flush=True)
+                logger.error(f"Error fetching user names: {e}")
 
         # Format activity feed with proper user names
         activities = []
@@ -333,7 +333,7 @@ def get_recent_activity(user_id):
         return jsonify({'success': True, 'data': result_data})
 
     except Exception as e:
-        print(f"Error getting recent activity: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error getting recent activity: {str(e)}")
         # Return empty activity data instead of 500 error
         return jsonify({
             'success': True,
@@ -431,10 +431,10 @@ def get_trends_data(user_id):
                 elif pillar == 'Arts & Creativity':
                     pillar_totals['art'] += xp_amount
 
-            print(f"DEBUG: XP by pillar: {pillar_totals}", file=sys.stderr, flush=True)
+            logger.debug(f"DEBUG: XP by pillar: {pillar_totals}")
 
         except Exception as e:
-            print(f"Error getting XP data: {e}", file=sys.stderr, flush=True)
+            logger.error(f"Error getting XP data: {e}")
             # Keep default zeros if there's an error
 
         # Get most popular quests (simplified - just return empty for now to avoid foreign key issues)
@@ -457,7 +457,7 @@ def get_trends_data(user_id):
         return jsonify({'success': True, 'data': result_data})
 
     except Exception as e:
-        print(f"Error getting trends data: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error getting trends data: {str(e)}")
         # Return empty trends data instead of 500 error
         return jsonify({
             'success': True,
@@ -555,7 +555,7 @@ def get_system_health(user_id):
         })
 
     except Exception as e:
-        print(f"Error getting system health: {str(e)}", file=sys.stderr, flush=True)
+        logger.error(f"Error getting system health: {str(e)}")
         # Return default health data instead of 500 error
         return jsonify({
             'success': True,

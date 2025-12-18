@@ -226,7 +226,6 @@ def upload_evidence_for_student(user_id):
     except Exception as e:
         logger.error(f"Error uploading helper evidence: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'success': False, 'error': 'Failed to upload evidence'}), 500
 
 
@@ -319,5 +318,4 @@ def get_student_tasks_for_evidence(user_id, student_id):
     except Exception as e:
         logger.error(f"Error getting student tasks: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'success': False, 'error': 'Failed to get student tasks'}), 500

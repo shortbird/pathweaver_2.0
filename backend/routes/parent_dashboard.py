@@ -403,7 +403,6 @@ def get_parent_dashboard(user_id, student_id):
     except Exception as e:
         logger.error(f"Error getting parent dashboard: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get parent dashboard'}), 500
 
 
@@ -500,7 +499,6 @@ def get_student_calendar(user_id, student_id):
     except Exception as e:
         logger.error(f"Error getting student calendar: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get student calendar'}), 500
 
 
@@ -594,7 +592,6 @@ def get_task_details(user_id, student_id, task_id):
     except Exception as e:
         logger.error(f"Error getting task details: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get task details'}), 500
 
 
@@ -675,7 +672,6 @@ def get_student_progress(user_id, student_id):
     except Exception as e:
         logger.error(f"Error getting student progress: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get student progress'}), 500
 
 
@@ -849,7 +845,6 @@ def get_learning_insights(user_id, student_id):
     except Exception as e:
         logger.error(f"Error getting learning insights: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get learning insights'}), 500
 
 
@@ -963,7 +958,6 @@ def get_recent_completions(user_id, student_id):
     except Exception as e:
         logger.error(f"Error getting recent completions: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get recent completions'}), 500
 
 
@@ -1030,7 +1024,6 @@ def get_student_communications(user_id, student_id):
     except Exception as e:
         logger.error(f"Error getting student communications: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get student communications'}), 500
 
 
@@ -1191,7 +1184,6 @@ def get_completed_quests(user_id, student_id):
     except Exception as e:
         logger.error(f"Error getting completed quests: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get completed quests'}), 500
 
 
@@ -1383,5 +1375,4 @@ def get_student_quest_view(user_id, student_id, quest_id):
     except Exception as e:
         logger.error(f"Error getting student quest view: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'error': 'Failed to get quest details'}), 500

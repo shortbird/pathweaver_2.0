@@ -247,7 +247,6 @@ def create_student_task(user_id, target_user_id, quest_id):
     except Exception as e:
         logger.error(f"Error creating student task: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': f'Failed to create task: {str(e)}'
@@ -375,7 +374,6 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
     except Exception as e:
         logger.error(f"Error batch copying tasks: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': f'Failed to copy tasks: {str(e)}'
@@ -458,7 +456,6 @@ def get_student_quest_tasks(user_id, target_user_id, quest_id):
     except Exception as e:
         logger.error(f"Error getting student quest tasks: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': f'Failed to get tasks: {str(e)}'
@@ -581,7 +578,6 @@ def update_student_task(user_id, target_user_id, quest_id, task_id):
     except Exception as e:
         logger.error(f"Error updating student task: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': f'Failed to update task: {str(e)}'
@@ -651,7 +647,6 @@ def delete_student_task(user_id, target_user_id, quest_id, task_id):
     except Exception as e:
         logger.error(f"Error deleting student task: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': f'Failed to delete task: {str(e)}'
@@ -725,7 +720,6 @@ def reorder_student_tasks(user_id, target_user_id, quest_id):
     except Exception as e:
         logger.error(f"Error reordering student tasks: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': f'Failed to reorder tasks: {str(e)}'

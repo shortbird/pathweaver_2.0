@@ -456,7 +456,6 @@ def submit_connection_requests(user_id):
     except Exception as e:
         logger.error(f"Error submitting connection requests: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'success': False, 'error': 'Failed to submit connection requests'}), 500
 
 
@@ -512,7 +511,6 @@ def get_pending_requests(user_id):
     except Exception as e:
         logger.error(f"Error getting pending requests: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'success': False, 'error': 'Failed to fetch pending requests'}), 500
 
 
@@ -566,7 +564,6 @@ def approve_connection_request(user_id, link_id):
     except Exception as e:
         logger.error(f"Error approving connection request: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'success': False, 'error': 'Failed to approve connection request'}), 500
 
 
@@ -620,5 +617,4 @@ def reject_connection_request(user_id, link_id):
     except Exception as e:
         logger.error(f"Error rejecting connection request: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({'success': False, 'error': 'Failed to reject connection request'}), 500

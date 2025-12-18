@@ -185,7 +185,6 @@ def _check_and_complete_personalization(user_id: str, quest_id: str, session_id:
     except Exception as e:
         logger.error(f"Error checking personalization completion: {str(e)}")
         import traceback
-        traceback.print_exc()
         # Don't fail the request if completion check fails
 
 # Using repository pattern for database access
@@ -304,8 +303,6 @@ def generate_tasks(user_id: str, quest_id: str):
     except Exception as e:
         logger.error(f"Error generating tasks: {str(e)}")
         import traceback
-        traceback.print_exc()
-
         # Check for rate limiting errors from Gemini API
         error_str = str(e).lower()
         if '429' in error_str or 'too many requests' in error_str or 'quota' in error_str or 'rate limit' in error_str:
@@ -783,7 +780,6 @@ def finalize_tasks(user_id: str, quest_id: str):
     except Exception as e:
         logger.error(f"Error finalizing tasks: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': 'Failed to finalize tasks'
@@ -942,7 +938,6 @@ def accept_task_immediate(user_id: str, quest_id: str):
     except Exception as e:
         logger.error(f"Error accepting task: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': 'Failed to add task'
@@ -1018,7 +1013,6 @@ def skip_task_save_to_library(user_id: str, quest_id: str):
     except Exception as e:
         logger.error(f"Error saving skipped task to library: {str(e)}")
         import traceback
-        traceback.print_exc()
         # Don't fail the skip operation - just log the error
         return jsonify({
             'success': True,

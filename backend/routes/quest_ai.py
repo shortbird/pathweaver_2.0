@@ -119,7 +119,6 @@ def generate_quest_from_topic(user_id: str):
     except Exception as e:
         logger.error(f"Error generating quest: {str(e)}")
         import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': 'Failed to generate quest'

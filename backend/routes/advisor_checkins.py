@@ -206,8 +206,8 @@ def get_checkin_analytics(user_id):
 
     except Exception as e:
         import traceback
-        print(f"Error in get_checkin_analytics: {str(e)}")
-        print(traceback.format_exc())
+        logger.error(f"Error in get_checkin_analytics: {str(e)}")
+        logger.info(traceback.format_exc())
         return jsonify({'error': f'Failed to fetch analytics: {str(e)}'}), 500
 
 

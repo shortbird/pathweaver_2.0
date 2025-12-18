@@ -269,7 +269,7 @@ def complete_task(user_id: str, task_id: str):
         # Award XP to user
         logger.debug(f"=== TASK COMPLETION XP DEBUG ===")
         logger.info(f"Task ID: {task_id}, User ID: {effective_user_id}")
-        print(f"Task pillar: {task_data.get('pillar')}")
+        logger.info(f"Task pillar: {task_data.get('pillar')}")
         logger.info(f"Base XP: {base_xp}, Final XP: {final_xp}")
         if acting_as_dependent_id:
             logger.info(f"Parent {user_id[:8]} completing for dependent {acting_as_dependent_id[:8]}")
