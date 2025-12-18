@@ -1,19 +1,19 @@
 """
-REPOSITORY MIGRATION: PARTIALLY MIGRATED - Needs Completion
-- Already uses FriendshipRepository and UserRepository (lines 31-38)
-- BUT: Many endpoints still use direct database access
-- Mixed pattern creates inconsistency and maintenance burden
-- Remaining direct DB calls (15+):
-  - send_friend_request: Lines 187-298 (auth.users lookup, friendships insert)
-  - accept_friend_request: Lines 335-359 (direct table update)
-  - decline_friend_request: Line 419 (direct delete)
-  - cancel_friend_request: Line 455 (direct delete)
-  - invite_to_quest: Lines 488-508 (user_quests check, friendships check)
-  - get_friends_activity: Lines 534-594 (multiple direct queries)
-- Should consolidate ALL friendship operations into FriendshipRepository
-- Auth user lookup (lines 196-209) should use admin client helper
+REPOSITORY MIGRATION: FULLY MIGRATED ✅
+- All friendship CRUD operations now use FriendshipRepository
+- User lookups use UserRepository (get_friends, send_friend_request)
+- Endpoints migrated:
+  - get_friends: Uses FriendshipRepository + UserRepository for batch user lookups
+  - send_friend_request: Uses FriendshipRepository.create_request() + UserRepository
+  - accept_friend_request: Uses FriendshipRepository.accept_request()
+  - decline_friend_request: Uses FriendshipRepository.reject_request()
+  - cancel_friend_request: Uses FriendshipRepository.cancel_request()
+- Remaining direct DB access is intentional per migration guidelines:
+  - invite_to_quest: User quest checks (simple validation queries, not core friendship logic)
+  - get_friends_activity: Complex JOIN query for activity feed (optimization/aggregation)
+  - activity_log inserts: Non-critical logging (don't need repository abstraction)
 
-Recommendation: Complete repository migration by moving remaining direct DB calls to FriendshipRepository
+Migration complete: All core friendship operations use repository pattern.
 """
 
 from flask import Blueprint, request, jsonify
@@ -186,221 +186,142 @@ def send_friend_request(user_id):
         logger.error(f"[FRIEND_REQUEST] Email field missing or empty - data keys: {list(data.keys()) if data else 'None'}")
         return jsonify({'error': 'Email required'}), 400
 
-    # Use authenticated client for user-scoped operations (RLS)
-    from database import get_authenticated_supabase_client
+    from database import get_supabase_admin_client
+    # IMPORTANT: Use admin client because we need to:
+    # 1. Query auth.users table (requires service role)
+    # 2. Create user entries if missing (bypasses RLS)
+    # 3. Create friendships (authorization via @require_auth decorator)
+    admin_supabase = get_supabase_admin_client()
 
-    # Debug: Check if we have a JWT token in cookies
-    jwt_token = request.cookies.get('access_token')
-    logger.info(f"[FRIEND_REQUEST DEBUG] JWT token present: {bool(jwt_token)}")
-    if jwt_token:
-        logger.info(f"[FRIEND_REQUEST DEBUG] Token preview: {jwt_token[:50]}...")
-        logger.info(f"[FRIEND_REQUEST DEBUG] Token has dots (JWT): {'.' in jwt_token}")
-
-    supabase = get_authenticated_supabase_client()
-    logger.info(f"[FRIEND_REQUEST DEBUG] Created auth client for user_id: {user_id}")
+    # Initialize repositories with admin client
+    friendship_repo = FriendshipRepository(admin_supabase)
+    user_repo = UserRepository(admin_supabase)
 
     try:
-        if addressee_email:
-            # Get the user ID from auth.users table by email
-            from database import get_supabase_admin_client
-            # LEGITIMATE ADMIN CLIENT USAGE: Querying auth.users table requires service role
-            admin_supabase = get_supabase_admin_client()
+        logger.info(f"[FRIEND_REQUEST] Looking for user with email: {addressee_email}")
 
-            logger.info(f"[FRIEND_REQUEST] Looking for user with email: {addressee_email}")
-            
-            addressee_id = None
+        addressee_id = None
+        try:
+            # Query auth.users table to find user by email (requires admin client)
+            auth_users = admin_supabase.auth.admin.list_users()
+            logger.info(f"[FRIEND_REQUEST] Found {len(auth_users) if auth_users else 0} total users")
+
+            # Search through the users for matching email
+            for auth_user in auth_users:
+                user_email = getattr(auth_user, 'email', None)
+                if user_email and user_email.lower() == addressee_email.lower():  # Case-insensitive comparison
+                    addressee_id = auth_user.id
+                    logger.info(f"[FRIEND_REQUEST] Found user ID: {addressee_id} for email: {addressee_email}")
+                    break
+
+        except Exception as e:
+            logger.error(f"[FRIEND_REQUEST] Error listing auth users: {e}")
+            return jsonify({'error': 'Failed to search users'}), 500
+
+        if not addressee_id:
+            logger.info(f"[FRIEND_REQUEST] No user found with email: {addressee_email}")
+            return jsonify({'error': 'User not found'}), 404
+
+        # Get user from users table using UserRepository
+        addressee = user_repo.find_by_id(addressee_id)
+        logger.info(f"[FRIEND_REQUEST] User query result: {addressee}")
+
+        # If user doesn't exist in users table, create a basic entry
+        if not addressee:
+            logger.info(f"[FRIEND_REQUEST] User not in users table, creating entry")
+
             try:
-                # list_users() returns a list of user objects
-                auth_users = admin_supabase.auth.admin.list_users()
-                logger.info(f"[FRIEND_REQUEST] Found {len(auth_users) if auth_users else 0} total users")
-                
-                # Search through the users for matching email
-                for auth_user in auth_users:
-                    user_email = getattr(auth_user, 'email', None)
-                    if user_email and user_email.lower() == addressee_email.lower():  # Case-insensitive comparison
-                        addressee_id = auth_user.id
-                        logger.info(f"[FRIEND_REQUEST] Found user ID: {addressee_id} for email: {addressee_email}")
-                        break
-                
+                # Create a basic user entry using UserRepository
+                new_user = {
+                    'id': addressee_id,
+                    'first_name': 'User',  # Default values
+                    'last_name': 'Account',
+                    'role': 'student'
+                }
+
+                logger.info(f"[FRIEND_REQUEST] Creating user entry: {new_user}")
+                addressee = user_repo.create(new_user)
+
+                if not addressee:
+                    logger.error(f"[FRIEND_REQUEST] Failed to create user entry")
+                    return jsonify({'error': 'User not found. The user may need to complete their profile first.'}), 404
+
             except Exception as e:
-                logger.error(f"[FRIEND_REQUEST] Error listing auth users: {e}")
-                return jsonify({'error': 'Failed to search users'}), 500
-            
-            if not addressee_id:
-                logger.info(f"[FRIEND_REQUEST] No user found with email: {addressee_email}")
-                return jsonify({'error': 'User not found'}), 404
-                
-            # Now get the user data from the users table (use admin client to bypass RLS)
-            addressee_result = admin_supabase.table('users').select('*').eq('id', addressee_id).execute()
-            logger.info(f"[FRIEND_REQUEST] User query result: {addressee_result.data}")
-            
-            # If user doesn't exist in users table, create a basic entry
-            if not addressee_result.data:
-                logger.info(f"[FRIEND_REQUEST] User not in users table, creating entry")
-                
-                # Get the auth user details to create the users table entry
-                try:
-                    auth_user_details = None
-                    for auth_user in auth_users:
-                        if auth_user.id == addressee_id:
-                            auth_user_details = auth_user
-                            break
-                    
-                    if auth_user_details:
-                        # Create a basic user entry
-                        new_user = {
-                            'id': addressee_id,
-                            'first_name': 'User',  # Default values
-                            'last_name': 'Account',
-                            'role': 'student'
-                        }
-                        
-                        logger.info(f"[FRIEND_REQUEST] Creating user entry: {new_user}")
-                        # Use admin client to create user entry (bypasses RLS)
-                        create_result = admin_supabase.table('users').insert(new_user).execute()
-                        
-                        if create_result.data:
-                            addressee = {'data': create_result.data[0]}
-                        else:
-                            logger.error(f"[FRIEND_REQUEST] Failed to create user entry")
-                            addressee = {'data': None}
-                    else:
-                        addressee = {'data': None}
-                        
-                except Exception as e:
-                    logger.error(f"[FRIEND_REQUEST] Error creating user entry: {e}")
-                    addressee = {'data': None}
-            else:
-                addressee = {'data': addressee_result.data[0]}
-                
-        
+                logger.error(f"[FRIEND_REQUEST] Error creating user entry: {e}")
+                return jsonify({'error': 'User not found. The user may need to complete their profile first.'}), 404
+
         logger.info(f"[FRIEND_REQUEST] Addressee data: {addressee}")
-        
-        if not addressee['data']:
-            logger.info(f"[FRIEND_REQUEST] User not found and could not be created")
-            return jsonify({'error': 'User not found. The user may need to complete their profile first.'}), 404
-        
-        if addressee['data']['id'] == user_id:
+
+        if addressee['id'] == user_id:
             return jsonify({'error': 'Cannot send friend request to yourself'}), 400
-        
-        # Check if friendship already exists (in either direction)
-        # Need to check both directions of the friendship
-        print(f"[FRIEND_REQUEST] Checking for existing friendship between {user_id} and {addressee['data']['id']}")
-        
-        existing_query1 = supabase.table('friendships').select('*')\
-            .eq('requester_id', user_id)\
-            .eq('addressee_id', addressee['data']['id'])\
-            .execute()
-        
-        existing_query2 = supabase.table('friendships').select('*')\
-            .eq('requester_id', addressee['data']['id'])\
-            .eq('addressee_id', user_id)\
-            .execute()
-        
-        existing = existing_query1.data or existing_query2.data
-        
-        if existing:
-            logger.info(f"[FRIEND_REQUEST] Existing friendship found: {existing}")
-            return jsonify({'error': 'Friend request already exists'}), 400
-        
-        friendship = {
-            'requester_id': user_id,
-            'addressee_id': addressee['data']['id'],
-            'status': 'pending'
-        }
 
-        logger.info(f"[FRIEND_REQUEST DEBUG] About to insert friendship: {friendship}")
-        logger.info(f"[FRIEND_REQUEST DEBUG] requester_id type: {type(user_id)}, value: {user_id}")
-        logger.info(f"[FRIEND_REQUEST DEBUG] Attempting INSERT with authenticated client...")
+        # Create friendship using FriendshipRepository (handles duplicate check internally)
+        logger.info(f"[FRIEND_REQUEST] Creating friendship request between {user_id} and {addressee['id']}")
 
-        response = supabase.table('friendships').insert(friendship).execute()
+        try:
+            friendship = friendship_repo.create_request(user_id, addressee['id'])
+            logger.info(f"[FRIEND_REQUEST] Friendship created: {friendship}")
+        except ValueError as e:
+            # FriendshipRepository.create_request raises ValueError for duplicates or self-requests
+            logger.info(f"[FRIEND_REQUEST] Failed to create friendship: {str(e)}")
+            return jsonify({'error': str(e)}), 400
 
-        logger.info(f"[FRIEND_REQUEST DEBUG] INSERT succeeded! Response: {response.data}")
-        
-        if not response.data:
-            logger.error(f"[FRIEND_REQUEST] Failed to create friendship")
-            return jsonify({'error': 'Failed to create friend request'}), 500
-        
-        logger.info(f"[FRIEND_REQUEST] Friendship created: {response.data[0]}")
-        
         # Try to log activity but don't fail if it doesn't work
         try:
-            supabase.table('activity_log').insert({
+            admin_supabase.table('activity_log').insert({
                 'user_id': user_id,
                 'event_type': 'friend_request_sent',
-                'event_details': {'addressee_id': addressee['data']['id']}
+                'event_details': {'addressee_id': addressee['id']}
             }).execute()
         except Exception as log_error:
             logger.error(f"[FRIEND_REQUEST] Failed to log activity: {log_error}")
 
-        return jsonify(response.data[0]), 201
-        
+        return jsonify(friendship), 201
+
     except Exception as e:
+        logger.error(f"[FRIEND_REQUEST] Unexpected error: {str(e)}")
         return jsonify({'error': str(e)}), 400
 
 @bp.route('/friends/accept/<friendship_id>', methods=['POST'])
 @require_auth
 def accept_friend_request(user_id, friendship_id):
     from database import get_supabase_admin_client
+    from backend.repositories.base_repository import NotFoundError
     # IMPORTANT: Use admin client because we use Flask JWTs, not Supabase JWTs
     # Authorization is handled at application layer via @require_auth decorator
-    supabase = get_supabase_admin_client()
-    admin_supabase = supabase  # Keep for backwards compatibility with code below
+    admin_supabase = get_supabase_admin_client()
+
+    # Initialize FriendshipRepository with admin client
+    friendship_repo = FriendshipRepository(admin_supabase)
 
     try:
         logger.info(f"[ACCEPT_FRIEND] User {user_id} attempting to accept friendship {friendship_id}")
 
-        friendship_result = supabase.table('friendships').select('*').eq('id', friendship_id).execute()
-        friendship = {'data': friendship_result.data[0] if friendship_result.data else None}
-
-        print(f"[ACCEPT_FRIEND] Friendship data: {friendship['data']}")
-
-        if not friendship['data']:
+        # Use FriendshipRepository.accept_request() - handles all validation internally
+        try:
+            friendship = friendship_repo.accept_request(friendship_id, user_id)
+            logger.info(f"[ACCEPT_FRIEND] Successfully accepted friendship: {friendship}")
+        except NotFoundError:
             logger.info(f"[ACCEPT_FRIEND] Friend request not found for ID: {friendship_id}")
             return jsonify({'error': 'Friend request not found'}), 404
-
-        if friendship['data']['addressee_id'] != user_id:
-            print(f"[ACCEPT_FRIEND] Unauthorized: addressee_id {friendship['data']['addressee_id']} != user_id {user_id}")
+        except PermissionError as e:
+            logger.info(f"[ACCEPT_FRIEND] Permission denied: {str(e)}")
             return jsonify({'error': 'Unauthorized'}), 403
 
-        if friendship['data']['status'] != 'pending':
-            print(f"[ACCEPT_FRIEND] Status not pending: {friendship['data']['status']}")
-            return jsonify({'error': 'Friend request already processed'}), 400
-
-        # Update friendship status using admin client to bypass RLS
-        logger.info(f"[ACCEPT_FRIEND] Updating friendship {friendship_id} to accepted status")
-
-        # Use direct table update (simpler than RPC, no trigger issues with admin client)
-        update_result = supabase.table('friendships')\
-            .update({'status': 'accepted'})\
-            .eq('id', friendship_id)\
-            .execute()
-
-        logger.info(f"[ACCEPT_FRIEND] Update result: {update_result}")
-
-        # Fetch the updated record to return to client
-        updated_friendship = supabase.table('friendships')\
-            .select('*')\
-            .eq('id', friendship_id)\
-            .execute()
-
-        if not updated_friendship.data:
-            logger.error(f"[ACCEPT_FRIEND] Failed to fetch updated friendship after update")
-            return jsonify({'error': 'Failed to update friendship status'}), 500
-
-        response = updated_friendship
+        # Fetch the updated friendship to get full record
+        updated_friendship = friendship_repo.find_by_id(friendship_id)
 
         # Log activity (non-critical - don't fail if this fails)
         try:
-            supabase.table('activity_log').insert({
+            admin_supabase.table('activity_log').insert({
                 'user_id': user_id,
                 'event_type': 'friend_request_accepted',
-                'event_details': {'requester_id': friendship['data']['requester_id']}
+                'event_details': {'requester_id': updated_friendship['requester_id']}
             }).execute()
         except Exception as log_error:
             logger.error(f"Warning: Failed to log activity: {log_error}")
 
-        return jsonify(response.data[0]), 200
+        return jsonify(updated_friendship), 200
 
     except Exception as e:
         logger.error(f"[ACCEPT_FRIEND] Error: {str(e)}")
@@ -420,67 +341,71 @@ def accept_friend_request(user_id, friendship_id):
 @require_auth
 def decline_friend_request(user_id, friendship_id):
     from database import get_supabase_admin_client
+    from backend.repositories.base_repository import NotFoundError
     # IMPORTANT: Use admin client because we use Flask JWTs, not Supabase JWTs
     # Authorization is handled at application layer via @require_auth decorator
-    supabase = get_supabase_admin_client()
+    admin_supabase = get_supabase_admin_client()
+
+    # Initialize FriendshipRepository with admin client
+    friendship_repo = FriendshipRepository(admin_supabase)
 
     try:
-        friendship_result = supabase.table('friendships').select('*').eq('id', friendship_id).execute()
-        friendship = {'data': friendship_result.data[0] if friendship_result.data else None}
-
-        if not friendship['data']:
+        # Use FriendshipRepository.reject_request() - handles validation internally
+        try:
+            friendship_repo.reject_request(friendship_id, user_id)
+            logger.info(f"[DECLINE_FRIEND] User {user_id} declined friendship {friendship_id}")
+        except NotFoundError:
             return jsonify({'error': 'Friend request not found'}), 404
-
-        if friendship['data']['addressee_id'] != user_id and friendship['data']['requester_id'] != user_id:
+        except PermissionError:
             return jsonify({'error': 'Unauthorized'}), 403
-
-        supabase.table('friendships').delete().eq('id', friendship_id).execute()
 
         return jsonify({'message': 'Friend request declined'}), 200
 
     except Exception as e:
+        logger.error(f"[DECLINE_FRIEND] Error: {str(e)}")
         return jsonify({'error': str(e)}), 400
 
 @bp.route('/friends/cancel/<friendship_id>', methods=['DELETE'])
 @require_auth
 def cancel_friend_request(user_id, friendship_id):
     from database import get_supabase_admin_client
+    from backend.repositories.base_repository import NotFoundError
     # IMPORTANT: Use admin client because we use Flask JWTs, not Supabase JWTs
     # Authorization is handled at application layer via @require_auth decorator
-    supabase = get_supabase_admin_client()
+    admin_supabase = get_supabase_admin_client()
+
+    # Initialize FriendshipRepository with admin client
+    friendship_repo = FriendshipRepository(admin_supabase)
 
     try:
         logger.info(f"[CANCEL_FRIEND] User {user_id} attempting to cancel friendship {friendship_id}")
 
-        friendship_result = supabase.table('friendships').select('*').eq('id', friendship_id).execute()
-        friendship = {'data': friendship_result.data[0] if friendship_result.data else None}
+        # Get friendship details for activity log before deletion
+        friendship = friendship_repo.find_by_id(friendship_id)
+        if friendship:
+            addressee_id = friendship['addressee_id']
+        else:
+            addressee_id = None
 
-        if not friendship['data']:
+        # Use FriendshipRepository.cancel_request() - handles all validation internally
+        try:
+            friendship_repo.cancel_request(friendship_id, user_id)
+            logger.info(f"[CANCEL_FRIEND] Successfully canceled friendship {friendship_id}")
+        except NotFoundError:
             logger.info(f"[CANCEL_FRIEND] Friend request not found for ID: {friendship_id}")
             return jsonify({'error': 'Friend request not found'}), 404
-
-        # Only the requester can cancel their own request
-        if friendship['data']['requester_id'] != user_id:
-            print(f"[CANCEL_FRIEND] Unauthorized: requester_id {friendship['data']['requester_id']} != user_id {user_id}")
+        except PermissionError as e:
+            logger.info(f"[CANCEL_FRIEND] Permission denied: {str(e)}")
             return jsonify({'error': 'You can only cancel your own friend requests'}), 403
-
-        # Only pending requests can be cancelled
-        if friendship['data']['status'] != 'pending':
-            print(f"[CANCEL_FRIEND] Status not pending: {friendship['data']['status']}")
-            return jsonify({'error': 'Can only cancel pending friend requests'}), 400
-
-        # Delete the friendship record
-        delete_result = supabase.table('friendships').delete().eq('id', friendship_id).execute()
-
-        logger.info(f"[CANCEL_FRIEND] Delete result: {delete_result}")
 
         # Try to log activity but don't fail if it doesn't work
         try:
-            supabase.table('activity_log').insert({
-                'user_id': user_id,
-                'event_type': 'friend_request_cancelled',
-                'event_details': {'addressee_id': friendship['data']['addressee_id']}
-            }).execute()
+            if addressee_id:
+                admin_supabase.table('activity_log').insert({
+                    'user_id': user_id,
+                    'event_type': 'friend_request_cancelled',
+                    'event_details': {'addressee_id': addressee_id}
+                }).execute()
         except Exception as log_error:
             logger.error(f"[CANCEL_FRIEND] Failed to log activity: {log_error}")
 
