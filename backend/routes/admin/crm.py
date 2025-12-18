@@ -902,5 +902,5 @@ def get_campaign_analytics(user_id, campaign_id):
 # Register blueprint
 def register_crm_routes(app):
     """Register CRM blueprint with app"""
-    app.register_bluelogger.info(crm_bp)
+    app.register_blueprint(crm_bp)
     logger.info("CRM routes registered at /api/admin/crm")
