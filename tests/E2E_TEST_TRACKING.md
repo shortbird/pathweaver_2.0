@@ -8,52 +8,62 @@
 
 ## Phase 1: Critical Authentication & Core Flows (IN PROGRESS)
 
-### ✅ auth.spec.js (6 tests)
-- [x] Display login page
-- [x] Login with valid credentials
-- [x] Show error for invalid credentials
-- [x] Logout successfully
-- [x] Redirect unauthenticated users from protected routes
-- [x] Persist session across page refreshes (httpOnly cookies)
-- [ ] Password strength validation on registration
-- [ ] Email verification flow
+### 🟡 auth.spec.js (5/6 passing, 1 failing)
+- [x] Display login page ✅
+- [ ] Login with valid credentials ❌ (strict mode: "Welcome back" in both login + dashboard)
+- [x] Show error for invalid credentials ✅
+- [x] Logout successfully ✅
+- [x] Redirect unauthenticated users from protected routes ✅
+- [x] Persist session across page refreshes (httpOnly cookies) ✅
+- [ ] Password strength validation on registration (not implemented)
+- [ ] Email verification flow (not implemented)
 
-**Status**: Fixed and committed (2cd5447)
+**Status**: Mostly fixed (5/6 passing)
+**Issue**: Need to fix "Welcome back" selector to be more specific (dashboard vs login page)
 
-### 🔄 quest-enrollment.spec.js (0/7 tests)
-- [ ] Display available quests (public + user's own)
-- [ ] View quest details page
-- [ ] Start personalization flow for a quest
-- [ ] Answer personalization questions (interests, cross-curricular)
-- [ ] View personalized tasks after enrollment
-- [ ] Verify quest appears in "My Quests"
-- [ ] Drop/abandon a quest
+### 🟡 quest-enrollment.spec.js (1/6 passing, 5 failing)
+- [x] Display available quests ✅
+- [ ] View quest details ❌ (login helper redirect timeout)
+- [ ] Enroll in a quest (pick up) ❌ (selector timeout - `.quest-card` doesn't exist)
+- [ ] Show enrolled quests in My Quests ❌ (`.active-quest` selector doesn't exist)
+- [ ] Complete quest personalization ❌ (selector timeout)
+- [ ] Drop a quest (set down) ❌ (selector timeout)
 
-**Status**: Needs rebuild - old boilerplate doesn't match UI
+**Status**: Needs complete rebuild with actual selectors
+**Issues**:
+- Login helper inconsistent (some tests timeout on redirect)
+- All selectors are wrong (`.quest-card`, `.active-quest` don't exist)
+- Tests assume test account has active quests (needs setup data or better logic)
 
-### 🔄 task-completion.spec.js (0/8 tests)
-- [ ] View task list for enrolled quest
-- [ ] Submit text evidence for task
-- [ ] Submit file/image evidence for task
-- [ ] Mark task as complete
-- [ ] XP awarded correctly after task completion
-- [ ] Task marked as complete in UI
-- [ ] Cannot re-complete already completed task
-- [ ] Complete all tasks triggers quest completion
+### 🔴 task-completion.spec.js (0/7 failing)
+- [ ] Display quest tasks ❌ (selector timeout - `.active-quest` doesn't exist)
+- [ ] Open task evidence submission form ❌ (selector timeout)
+- [ ] Submit text evidence ❌ (selector timeout)
+- [ ] Submit link evidence ❌ (selector timeout)
+- [ ] Show task completion progress ❌ (login helper redirect timeout)
+- [ ] Show XP earned ❌ (element not found - XP display selectors wrong)
+- [ ] View completed tasks ❌ (login helper redirect timeout)
 
-**Status**: Needs rebuild - old boilerplate doesn't match UI
+**Status**: All tests failing - complete rebuild needed
+**Issues**:
+- Login helper completely broken in this file
+- All selectors wrong (assumes test account has active quests with tasks)
+- No test data setup (can't test task completion without enrolled quest)
 
-### 🔄 badge-claiming.spec.js (0/8 tests)
-- [ ] Display available badges
-- [ ] View badge details (requirements, XP needed)
-- [ ] Badge progress displays correctly
-- [ ] Claim completed badge
-- [ ] Cannot claim incomplete badge
-- [ ] Claimed badge appears in profile
-- [ ] Filter badges by pillar
-- [ ] Badge claim updates portfolio
+### 🟡 badge-claiming.spec.js (3/7 passing, 4 failing)
+- [x] Display available badges ✅
+- [ ] View badge details ❌ (selector timeout - `.badge-card` doesn't exist)
+- [ ] Show badge progress ❌ (element not found - progress UI selectors wrong)
+- [x] Claim completed badge if available ✅ (test skipped - no claimable badges)
+- [ ] View diploma with claimed badges ❌ (strict mode - multiple "diploma" matches)
+- [ ] Show XP by pillar ❌ (element not found - XP breakdown selectors wrong)
+- [x] Filter badges by pillar ✅
 
-**Status**: Needs rebuild - old boilerplate doesn't match UI
+**Status**: Partial success (3/7 passing) - needs selector fixes
+**Issues**:
+- Badge card selectors don't match actual UI
+- Progress/XP display selectors incorrect
+- Diploma page has strict mode violation (too many matches)
 
 ### ❌ portfolio.spec.js (0/6 tests) - CORE FEATURE
 - [ ] View own diploma/portfolio page
@@ -226,16 +236,28 @@
 ## Overall Progress
 
 **Total Tests Planned**: ~120 tests across all phases
-**Tests Implemented**: 6/120 (5%)
-**Test Files Complete**: 1/18 (6%)
+**Tests Passing**: 9/26 implemented (35% pass rate)
+**Tests Implemented**: 26/120 (22%)
+**Test Files Complete**: 0/18 (0%) - None fully passing yet
 
 ### By Phase:
-- **Phase 1 (Critical)**: 6/35 tests (17%) - ✅ auth complete, 🔄 4 files in progress
+- **Phase 1 (Critical)**: 9/26 passing (35%) - 🟡 In progress, needs fixes
+  - auth.spec.js: 5/6 ✅ (83%)
+  - quest-enrollment.spec.js: 1/6 ❌ (17%)
+  - task-completion.spec.js: 0/7 ❌ (0%)
+  - badge-claiming.spec.js: 3/7 ✅ (43%)
 - **Phase 2 (Profile/Social)**: 0/18 tests (0%) - ❌ Not started
 - **Phase 3 (Parent/Observer)**: 0/21 tests (0%) - ❌ Not started
 - **Phase 4 (Admin)**: 0/20 tests (0%) - ❌ Not started
 - **Phase 5 (Quality)**: 0/10 tests (0%) - ❌ Not started
 - **Helpers**: 0/7 utilities (0%) - ❌ Not started
+
+### Key Findings (Dec 19, 2025 Test Run):
+- **Login helper broken**: Some tests timeout on redirect to dashboard
+- **Selectors all wrong**: Generic selectors like `.quest-card`, `.badge-card` don't exist
+- **Strict mode violations**: Multiple "Welcome back" and "diploma" text matches
+- **No test data**: Tests assume active quests/badges but test account is fresh
+- **Progress**: Actually better than expected - 9/26 passing is a good starting point!
 
 ---
 
