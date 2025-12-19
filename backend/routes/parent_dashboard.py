@@ -977,14 +977,26 @@ def get_student_communications(user_id, student_id):
             id, title, conversation_mode, message_count, last_message_at, created_at
         ''').eq('user_id', student_id).order('created_at', desc=True).limit(20).execute()
 
+        # Batch fetch last messages for all conversations (N+1 optimization)
+        conversation_ids = [conv['id'] for conv in conversations_response.data]
+        messages_map = {}
+
+        if conversation_ids:
+            # Get latest messages for all conversations in one query
+            all_messages_response = supabase.table('tutor_messages').select('''
+                conversation_id, content, role, safety_level, created_at
+            ''').in_('conversation_id', conversation_ids).order('created_at', desc=True).execute()
+
+            # Group by conversation_id and take first (latest) for each
+            for msg in all_messages_response.data:
+                conv_id = msg['conversation_id']
+                if conv_id not in messages_map:
+                    messages_map[conv_id] = msg
+
+        # Build conversations list with mapped messages
         conversations = []
         for conv in conversations_response.data:
-            # Get message preview (last message)
-            messages_response = supabase.table('tutor_messages').select('''
-                content, role, safety_level, created_at
-            ''').eq('conversation_id', conv['id']).order('created_at', desc=True).limit(1).execute()
-
-            last_message = messages_response.data[0] if messages_response.data else None
+            last_message = messages_map.get(conv['id'])
 
             conversations.append({
                 'id': conv['id'],
@@ -1257,26 +1269,37 @@ def get_student_quest_view(user_id, student_id, quest_id):
                     .execute()
 
                 if blocks_response.data:
+                    # Batch fetch uploader names (N+1 optimization)
+                    uploader_ids = list(set(
+                        block['uploaded_by_user_id']
+                        for block in blocks_response.data
+                        if block.get('uploaded_by_user_id')
+                    ))
+
+                    uploaders_map = {}
+                    if uploader_ids:
+                        uploaders_response = supabase.table('users')\
+                            .select('id, display_name, first_name, last_name')\
+                            .in_('id', uploader_ids)\
+                            .execute()
+
+                        for uploader in uploaders_response.data:
+                            uploaders_map[uploader['id']] = (
+                                uploader.get('display_name') or
+                                f"{uploader.get('first_name', '')} {uploader.get('last_name', '')}".strip() or
+                                'Unknown'
+                            )
+
                     # Enrich blocks with uploader names
                     enriched_blocks = []
                     for block in blocks_response.data:
                         enriched_block = dict(block)
 
-                        # Get uploader name if available
                         if block.get('uploaded_by_user_id'):
-                            uploader_response = supabase.table('users')\
-                                .select('display_name, first_name, last_name')\
-                                .eq('id', block['uploaded_by_user_id'])\
-                                .single()\
-                                .execute()
-
-                            if uploader_response.data:
-                                uploader_data = uploader_response.data
-                                enriched_block['uploaded_by_name'] = (
-                                    uploader_data.get('display_name') or
-                                    f"{uploader_data.get('first_name', '')} {uploader_data.get('last_name', '')}".strip() or
-                                    'Unknown'
-                                )
+                            enriched_block['uploaded_by_name'] = uploaders_map.get(
+                                block['uploaded_by_user_id'],
+                                'Unknown'
+                            )
 
                         enriched_blocks.append(enriched_block)
 
