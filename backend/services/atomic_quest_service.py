@@ -9,6 +9,7 @@ import math
 from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional
 from services.base_service import BaseService
+from database import get_supabase_admin_client
 
 from utils.logger import get_logger
 
@@ -18,8 +19,10 @@ logger = get_logger(__name__)
 class AtomicQuestService(BaseService):
     """Service to handle quest completion with race condition protection"""
 
-    def __init__(self, user_id: Optional[str] = None):
-        super().__init__(user_id)
+    def __init__(self):
+        super().__init__()
+        # Use admin client for race condition handling (needs direct DB access)
+        self.supabase = get_supabase_admin_client()
 
     def complete_task_atomically(
         self,

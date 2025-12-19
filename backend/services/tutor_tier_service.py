@@ -38,9 +38,10 @@ class TierLimits:
 class TutorTierService(BaseService):
     """Service for managing tutor subscription tier access and limits"""
 
-    def __init__(self, user_id: Optional[str] = None):
+    def __init__(self):
         """Initialize tier service with predefined limits"""
-        super().__init__(user_id)
+        super().__init__()
+        self.supabase = get_supabase_admin_client()
         self.tier_limits = self._define_tier_limits()
         self.tier_mappings = self._define_tier_mappings()
 

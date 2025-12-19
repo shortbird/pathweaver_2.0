@@ -10,16 +10,18 @@ from typing import Dict, List, Optional, Any, Tuple
 import google.generativeai as genai
 
 from services.base_service import BaseService
+from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 class QuestAIService(BaseService):
     """Service for AI-powered quest generation using Gemini API"""
-    
-    def __init__(self, prompt_version: Optional[str] = None, user_id: Optional[str] = None):
+
+    def __init__(self, prompt_version: Optional[str] = None):
         """Initialize the AI service with Gemini configuration"""
-        super().__init__(user_id)
+        super().__init__()
+        self.supabase = get_supabase_admin_client()
         self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
         self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
 

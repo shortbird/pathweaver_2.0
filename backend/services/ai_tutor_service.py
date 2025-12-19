@@ -8,6 +8,7 @@ import re
 import os
 from typing import Dict, List, Optional, Any, Tuple
 from services.base_service import BaseService
+from database import get_supabase_admin_client
 from dataclasses import dataclass
 from enum import Enum
 import google.generativeai as genai
@@ -51,9 +52,10 @@ class TutorResponse:
 class AITutorService(BaseService):
     """AI-powered educational tutor service"""
 
-    def __init__(self, user_id: Optional[str] = None):
+    def __init__(self):
         """Initialize AI tutor service"""
-        super().__init__(user_id)
+        super().__init__()
+        self.supabase = get_supabase_admin_client()
         self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
         self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
 

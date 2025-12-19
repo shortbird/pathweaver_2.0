@@ -8,6 +8,7 @@ import json
 import logging
 from typing import Dict, List, Optional, Tuple, Any
 from services.base_service import BaseService
+from database import get_supabase_admin_client
 from dataclasses import dataclass
 from enum import Enum
 
@@ -36,9 +37,10 @@ class SafetyResult:
 class SafetyService(BaseService):
     """Service for content safety and moderation in AI tutor interactions"""
 
-    def __init__(self, user_id: Optional[str] = None):
+    def __init__(self):
         """Initialize safety service with filtering rules and patterns"""
-        super().__init__(user_id)
+        super().__init__()
+        self.supabase = get_supabase_admin_client()
         self.blocked_patterns = self._load_blocked_patterns()
         self.warning_patterns = self._load_warning_patterns()
         self.educational_topics = self._load_educational_topics()

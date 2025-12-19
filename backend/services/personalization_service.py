@@ -11,6 +11,7 @@ import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from services.base_service import BaseService
+from database import get_supabase_admin_client
 from utils.pillar_mapping import normalize_pillar_name
 
 from utils.logger import get_logger
@@ -23,8 +24,9 @@ from services.task_library_service import TaskLibraryService
 class TaskCacheService(BaseService):
     """Caching service for AI-generated tasks"""
 
-    def __init__(self, user_id: Optional[str] = None):
-        super().__init__(user_id)
+    def __init__(self):
+        super().__init__()
+        self.supabase = get_supabase_admin_client()
 
     def build_cache_key(self, interests: List[str], cross_curricular: List[str]) -> str:
         """Build a cache key from interests and cross-curricular subjects"""
@@ -83,13 +85,14 @@ class TaskCacheService(BaseService):
 class PersonalizationService(BaseService):
     """Main service for quest personalization"""
 
-    def __init__(self, user_id: Optional[str] = None):
-        super().__init__(user_id)
-        self.cache = TaskCacheService(user_id)
+    def __init__(self):
+        super().__init__()
+        self.supabase = get_supabase_admin_client()
+        self.cache = TaskCacheService()
 
         # Import AI service lazily to avoid circular imports
         from services.quest_ai_service import QuestAIService
-        self.ai_service = QuestAIService(user_id)
+        self.ai_service = QuestAIService()
 
     def start_personalization_session(
         self,

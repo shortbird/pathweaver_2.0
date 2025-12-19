@@ -15,6 +15,7 @@ import os
 import json
 from typing import Dict, List, Optional, Tuple
 from services.base_service import BaseService
+from database import get_supabase_admin_client
 from datetime import datetime
 
 from utils.logger import get_logger
@@ -25,9 +26,10 @@ logger = get_logger(__name__)
 class StudentAIAssistantService(BaseService):
     """Service for AI-powered student assistance with quest ideas."""
 
-    def __init__(self, user_id: Optional[str] = None):
+    def __init__(self):
         """Initialize the service with Gemini API."""
-        super().__init__(user_id)
+        super().__init__()
+        self.supabase = get_supabase_admin_client()
         api_key = os.getenv('GEMINI_API_KEY')
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
