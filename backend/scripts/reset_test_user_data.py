@@ -15,19 +15,21 @@ Use --preserve-enrollments to keep 1 enrolled quest:
     python backend/scripts/reset_test_user_data.py --preserve-enrollments
 """
 
-import sys
 import os
 import argparse
-
-# Add backend to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from database import get_supabase_admin_client
+from supabase import create_client
 
 
 def reset_test_user_data(preserve_enrollments=False):
     """Reset test user data to clean state."""
-    supabase = get_supabase_admin_client()
+    # Create Supabase admin client directly
+    supabase_url = os.environ.get('SUPABASE_URL')
+    supabase_service_key = os.environ.get('SUPABASE_SERVICE_KEY')
+
+    if not supabase_url or not supabase_service_key:
+        raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables are required")
+
+    supabase = create_client(supabase_url, supabase_service_key)
 
     email = 'test@optioeducation.com'
 

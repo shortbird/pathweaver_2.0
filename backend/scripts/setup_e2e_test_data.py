@@ -11,19 +11,21 @@ Run from project root:
     python backend/scripts/setup_e2e_test_data.py
 """
 
-import sys
 import os
-
-# Add backend to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from database import get_supabase_admin_client
 from datetime import datetime
+from supabase import create_client
 
 
 def setup_e2e_test_data():
     """Setup test data for E2E tests."""
-    supabase = get_supabase_admin_client()
+    # Create Supabase admin client directly
+    supabase_url = os.environ.get('SUPABASE_URL')
+    supabase_service_key = os.environ.get('SUPABASE_SERVICE_KEY')
+
+    if not supabase_url or not supabase_service_key:
+        raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables are required")
+
+    supabase = create_client(supabase_url, supabase_service_key)
 
     email = 'test@optioeducation.com'
 
