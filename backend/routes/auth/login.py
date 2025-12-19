@@ -232,7 +232,6 @@ def get_current_user():
 
                 if payload and payload.get('iat'):
                     # Make token_issued_at timezone-aware (UTC) for comparison
-                    from datetime import timezone
                     token_issued_at = datetime.fromtimestamp(payload.get('iat'), tz=timezone.utc)
 
                     # Use admin client to check last logout

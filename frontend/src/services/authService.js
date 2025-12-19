@@ -226,7 +226,8 @@ class AuthService {
       }
 
       // Step 5: Now call backend logout (this clears cookies)
-      await api.post('/api/auth/logout')
+      // IMPORTANT: Must include empty body {} for CSRF validation
+      await api.post('/api/auth/logout', {})
 
     } catch (error) {
       console.warn('[AuthService] Logout API call failed, but local cleanup completed:', error)
