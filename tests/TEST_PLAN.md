@@ -60,15 +60,15 @@ Tests are organized by user journey and feature area, prioritized by:
 - [x] Task details show pillar and XP badges
 - [x] Evidence editor with multi-format support
 
-### `badge-claiming.spec.js`
-- [ ] Display available badges
-- [ ] View badge details (requirements, XP needed)
-- [ ] Badge progress displays correctly
-- [ ] Claim completed badge
-- [ ] Cannot claim incomplete badge
-- [ ] Claimed badge appears in profile
-- [ ] Filter badges by pillar
-- [ ] Badge claim updates portfolio
+### `badge-claiming.spec.js` ✅ (Complete)
+- [x] Display available badges
+- [x] View badge details (requirements, XP needed)
+- [x] Badge progress displays correctly (for active badges)
+- [x] Show "Start This Badge" button for unselected badges
+- [x] View diploma page
+- [x] Show earned badges on diploma
+- [x] Show XP by pillar on diploma
+- [x] Show related quests on badge detail page
 
 ---
 
