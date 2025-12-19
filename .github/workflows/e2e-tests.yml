@@ -8,10 +8,35 @@ on:
   workflow_dispatch: # Allow manual trigger
 
 jobs:
+  setup:
+    name: Setup Test Data
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          pip install supabase python-dotenv
+
+      - name: Setup E2E test data
+        run: python backend/scripts/setup_e2e_test_data.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
   test:
     name: Playwright E2E Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: setup  # Wait for test data setup to complete
 
     strategy:
       fail-fast: false
