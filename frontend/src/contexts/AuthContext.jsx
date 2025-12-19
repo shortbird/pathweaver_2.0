@@ -292,7 +292,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('user')
 
       // Step 4: Now call backend logout (this clears cookies)
-      await api.post('/api/auth/logout')
+      await api.post('/api/auth/logout', {})
 
     } catch (error) {
       // Continue with logout even if backend call fails
