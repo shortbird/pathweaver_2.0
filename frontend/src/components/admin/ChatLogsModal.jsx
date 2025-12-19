@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { X, MessageSquare, Calendar, User, Bot } from 'lucide-react'
+import { MessageSquare, Calendar, User, Bot } from 'lucide-react'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import { renderMarkdown } from '../../utils/markdownRenderer'
+import { Modal } from '../ui'
 
 const ChatLogsModal = ({ user, onClose }) => {
   const [conversations, setConversations] = useState([])
@@ -73,28 +74,24 @@ const ChatLogsModal = ({ user, onClose }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b">
-          <div className="flex items-center space-x-3">
-            <MessageSquare className="w-6 h-6 text-optio-purple" />
-            <div>
-              <h2 className="text-2xl font-bold">Chat Logs</h2>
-              <p className="text-gray-600">
-                {user.first_name} {user.last_name} ({user.email})
-              </p>
-            </div>
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      size="xl"
+      header={
+        <div className="flex items-center gap-3">
+          <MessageSquare className="w-6 h-6 text-white" />
+          <div>
+            <h2 className="text-2xl font-bold text-white">Chat Logs</h2>
+            <p className="text-white/80 text-sm">
+              {user.first_name} {user.last_name} ({user.email})
+            </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <X className="w-6 h-6" />
-          </button>
         </div>
-
-        <div className="flex-1 flex overflow-hidden">
+      }
+      bodyClassName="p-0"
+    >
+      <div className="flex h-[70vh] overflow-hidden">
           {/* Conversations List */}
           <div className="w-1/3 border-r bg-gray-50 flex flex-col">
             <div className="p-4 border-b">
@@ -237,7 +234,7 @@ const ChatLogsModal = ({ user, onClose }) => {
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 

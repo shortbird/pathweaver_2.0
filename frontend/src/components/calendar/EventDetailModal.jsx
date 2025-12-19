@@ -1,8 +1,9 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { XMarkIcon, CheckCircleIcon, CalendarIcon } from '@heroicons/react/24/outline'
+import { CheckCircleIcon, CalendarIcon } from '@heroicons/react/24/outline'
 import { getPillarColor } from '../../hooks/api/useCalendar'
 import UnifiedEvidenceDisplay from '../evidence/UnifiedEvidenceDisplay'
+import { Modal } from '../ui'
 
 const EventDetailModal = ({ event, onClose }) => {
   if (!event) return null
@@ -24,39 +25,23 @@ const EventDetailModal = ({ event, onClose }) => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto" onClick={onClose}>
-      <div className="flex min-h-screen items-center justify-center p-4">
-        {/* Backdrop */}
-        <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" />
-
-        {/* Modal */}
-        <div
-          className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="relative">
-            {/* Quest Image */}
-            {props.questImage && (
-              <img
-                src={props.questImage}
-                alt=""
-                className="w-full h-48 object-cover rounded-t-lg"
-              />
-            )}
-
-            {/* Close Button */}
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 p-2 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-colors"
-              aria-label="Close modal"
-            >
-              <XMarkIcon className="w-5 h-5 text-gray-600" />
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="p-6">
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      size="md"
+      showCloseButton={true}
+      header={
+        props.questImage && (
+          <img
+            src={props.questImage}
+            alt=""
+            className="w-full h-48 object-cover rounded-t-lg -m-6 mb-0"
+          />
+        )
+      }
+      headerClassName={props.questImage ? "p-0" : ""}
+    >
+      <div className="space-y-6">
             {/* Status Badge */}
             {isCompleted && (
               <div className="flex items-center gap-2 mb-4 text-green-700">
@@ -136,25 +121,23 @@ const EventDetailModal = ({ event, onClose }) => {
               </div>
             )}
 
-            {/* Actions */}
-            <div className="flex gap-3">
-              <Link
-                to={`/quests/${props.quest_id}`}
-                className="flex-1 px-4 py-2 bg-gradient-primary text-white rounded-lg text-center font-medium hover:opacity-90 transition-opacity"
-              >
-                View Quest Details
-              </Link>
-              <button
-                onClick={onClose}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
+        {/* Actions */}
+        <div className="flex gap-3">
+          <Link
+            to={`/quests/${props.quest_id}`}
+            className="flex-1 px-4 py-2 bg-gradient-primary text-white rounded-lg text-center font-medium hover:opacity-90 transition-opacity"
+          >
+            View Quest Details
+          </Link>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+          >
+            Close
+          </button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
