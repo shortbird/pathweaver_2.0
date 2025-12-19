@@ -160,8 +160,8 @@ All critical issues have been resolved. The platform now has:
    - Net reduction: ~450 lines of duplicate documentation
    - Date completed: December 19, 2025
 
-8. **[P2-DUP-2] Frontend Component Duplication** - COMPLETE ✅
-   - Status: UI component library created in `frontend/src/components/ui/`
+8. **[P2-DUP-2] Frontend Component Duplication** - PHASE 1 COMPLETE ✅
+   - Status: UI component library established, incremental migration ongoing (pragmatic approach)
    - Components created (7 total):
      - Modal.jsx - Replaces 68+ modal wrapper patterns (slot-based architecture)
      - Alert.jsx - Replaces 57+ alert/notification patterns (5 variants)
@@ -170,14 +170,29 @@ All critical issues have been resolved. The platform now has:
      - FormField.jsx - Wraps label+input patterns with error handling
      - FormFooter.jsx - Replaces 20+ cancel/submit button layouts
      - index.js - Barrel exports for clean imports
-   - Components refactored (2 examples):
-     - frontend/src/components/parent/AddDependentModal.jsx - Eliminated 100+ duplicate classNames
-     - frontend/src/components/badges/BadgeInfoModal.jsx - Eliminated 50+ duplicate classNames
-   - Documentation: `frontend/src/components/ui/README.md` (185 lines with API reference, examples, migration guide)
-   - Total impact: 400+ duplicate className patterns → 7 reusable components
-   - Brand consistency: All components use optio-purple/optio-pink colors
-   - Remaining work: 34 modals, Button enforcement (169+ hardcoded instances)
-   - Date completed: December 19, 2025
+   - Components refactored (14 examples - 31% of modals):
+     - AddDependentModal.jsx, BadgeInfoModal.jsx, BulkEmailModal.jsx
+     - ChatLogsModal.jsx, TaskEditModal.jsx, EventDetailModal.jsx
+     - AddLearningPartnerModal.jsx, AddObserverModal.jsx, InviteParentModal.jsx
+     - CreateQuestModal.jsx, InfoModal.jsx, QuestBadgeInfoModal.jsx
+     - AccreditedDiplomaModal.jsx, EvidenceViewerModal.jsx
+   - Documentation (extensive):
+     - `frontend/src/components/ui/README.md` (185 lines - API reference, examples)
+     - `frontend/src/components/ui/MIGRATION_GUIDE.md` (300 lines - complete migration guide)
+     - `frontend/scripts/refactor-modals.js` - Automated refactoring helper
+   - Enforcement strategy (same as repository pattern):
+     - All NEW modals/alerts/forms MUST use UI components (enforced in code reviews)
+     - Old components: migrate incrementally when touched for other work
+     - NO dedicated migration sprints - follow pragmatic approach
+   - Progress tracking:
+     - Modal migration: 14/45 complete (31%), 31 remaining
+     - Button enforcement: 0/169 instances (pending incremental migration)
+     - Estimated 12-17 hours remaining (spread over natural file touches)
+   - Impact already achieved:
+     - ~200 lines of duplicate code eliminated
+     - Brand consistency enforced (optio-purple/optio-pink)
+     - Foundation for 100% coverage established
+   - Date Phase 1 completed: December 19, 2025
 
 #### Architecture (0/4 Complete)
 9. **[P2-ARCH-1] Mega-File Anti-Pattern** - 4 files exceed 1,000 lines:
@@ -355,11 +370,12 @@ After migrating 4 exemplar files, we determined:
 - [x] Architecture Decision Records: 3 ADRs created (P2-DOC-1)
 - [x] Constants consolidation: Single source of truth (P2-CFG-1)
 - [x] JUSTIFICATION comments: ALL replaced - 30 comments across 13 files, ~450 lines removed (P2-DUP-1)
-- [x] UI component library: 7 primitives created, 2 components refactored, 400+ patterns eliminated (P2-DUP-2)
+- [x] UI component library Phase 1: 7 primitives created, 14 modals refactored, foundation established (P2-DUP-2)
 
 ### In Progress
 - [ ] Frontend test coverage: 0% → 60% (Month 1-6) - NOT STARTED
 - [ ] Repository pattern: 5.4% direct migration → incremental (as files are touched)
+- [ ] UI component migration: 14/45 modals (31%), 0/169 buttons (0%) → incremental (P2-DUP-2)
 - [ ] PII scrubbing: 2 files → 42 files (incremental)
 - [ ] Backend test organization: Move tests to backend/tests/ (P2-TEST-2)
 
