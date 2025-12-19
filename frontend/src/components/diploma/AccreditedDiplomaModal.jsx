@@ -156,9 +156,8 @@ const AccreditedDiplomaModal = ({ isOpen, onClose }) => {
                   </div>
                 </div>
               </div>
+            </div>
           </div>
-        </div>
-      </div>
     </Modal>
   );
 };
