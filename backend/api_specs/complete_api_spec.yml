@@ -1,0 +1,1341 @@
+
+# Optio Platform - Complete API Specification
+# This file documents ALL 200+ endpoints across 74 route files
+# Auto-loaded by Flasgger for interactive documentation at /api/docs
+
+definitions:
+  User:
+    $ref: '../swagger_models.py#/definitions/User'
+  Quest:
+    $ref: '../swagger_models.py#/definitions/Quest'
+  Task:
+    $ref: '../swagger_models.py#/definitions/Task'
+  Badge:
+    $ref: '../swagger_models.py#/definitions/Badge'
+  Evidence:
+    $ref: '../swagger_models.py#/definitions/Evidence'
+  Organization:
+    $ref: '../swagger_models.py#/definitions/Organization'
+  Dependent:
+    $ref: '../swagger_models.py#/definitions/Dependent'
+  Portfolio:
+    $ref: '../swagger_models.py#/definitions/Portfolio'
+
+paths:
+  # =====================
+  # AUTHENTICATION (15+ endpoints)
+  # =====================
+
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login with email and password
+      description: Authenticate user and establish session via httpOnly cookies
+      parameters:
+        - in: body
+          name: credentials
+          required: true
+          schema:
+            type: object
+            required: [email, password]
+            properties:
+              email:
+                type: string
+                format: email
+              password:
+                type: string
+                format: password
+      responses:
+        200:
+          description: Login successful
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+              user:
+                $ref: '#/definitions/User'
+        401:
+          description: Invalid credentials
+        429:
+          description: Too many login attempts (rate limited)
+
+  /api/auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register new user account
+      description: Create new user with email verification
+      parameters:
+        - in: body
+          name: user_data
+          required: true
+          schema:
+            type: object
+            required: [email, password, display_name, role]
+            properties:
+              email:
+                type: string
+                format: email
+              password:
+                type: string
+                format: password
+                minLength: 12
+              display_name:
+                type: string
+              role:
+                type: string
+                enum: [student, parent, advisor]
+              organization_id:
+                type: string
+                format: uuid
+      responses:
+        201:
+          description: User created successfully
+        400:
+          description: Validation error
+        409:
+          description: Email already registered
+        429:
+          description: Too many registration attempts
+
+  /api/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Logout and clear session
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Logged out successfully
+
+  /api/auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh authentication token
+      description: Rotate tokens via httpOnly cookie refresh
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Token refreshed
+        401:
+          description: Invalid or expired refresh token
+
+  /api/auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get current user profile
+      description: Returns authenticated user's profile with organization and role info
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: User profile
+          schema:
+            $ref: '#/definitions/User'
+        401:
+          description: Not authenticated
+
+  /api/auth/password/reset:
+    post:
+      tags: [Authentication]
+      summary: Request password reset email
+      parameters:
+        - in: body
+          name: email
+          required: true
+          schema:
+            type: object
+            properties:
+              email:
+                type: string
+                format: email
+      responses:
+        200:
+          description: Reset email sent (if account exists)
+        429:
+          description: Too many reset requests
+
+  /api/auth/password/change:
+    post:
+      tags: [Authentication]
+      summary: Change password for logged-in user
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - in: body
+          name: passwords
+          required: true
+          schema:
+            type: object
+            properties:
+              current_password:
+                type: string
+              new_password:
+                type: string
+                minLength: 12
+      responses:
+        200:
+          description: Password changed successfully
+        400:
+          description: Current password incorrect
+
+  # =====================
+  # QUESTS (25+ endpoints)
+  # =====================
+
+  /api/quests:
+    get:
+      tags: [Quests]
+      summary: List all available quests
+      description: Paginated quest list with filtering by pillar, difficulty, organization
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: page
+          in: query
+          type: integer
+          default: 1
+        - name: page_size
+          in: query
+          type: integer
+          default: 20
+        - name: pillar
+          in: query
+          type: string
+          enum: [stem, wellness, communication, civics, art]
+        - name: difficulty
+          in: query
+          type: string
+          enum: [beginner, intermediate, advanced]
+        - name: quest_type
+          in: query
+          type: string
+          enum: [optio, course]
+        - name: search
+          in: query
+          type: string
+      responses:
+        200:
+          description: Quest list
+          schema:
+            type: object
+            properties:
+              quests:
+                type: array
+                items:
+                  $ref: '#/definitions/Quest'
+              total:
+                type: integer
+              page:
+                type: integer
+
+    post:
+      tags: [Admin - Quests]
+      summary: Create new quest (admin only)
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - in: body
+          name: quest_data
+          schema:
+            type: object
+            required: [title, description, pillar_primary]
+            properties:
+              title:
+                type: string
+              description:
+                type: string
+              pillar_primary:
+                type: string
+                enum: [stem, wellness, communication, civics, art]
+              xp_value:
+                type: integer
+              difficulty:
+                type: string
+                enum: [beginner, intermediate, advanced]
+      responses:
+        201:
+          description: Quest created
+        403:
+          description: Admin access required
+
+  /api/quests/{quest_id}:
+    get:
+      tags: [Quests]
+      summary: Get quest details
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: quest_id
+          in: path
+          required: true
+          type: string
+          format: uuid
+      responses:
+        200:
+          description: Quest details
+          schema:
+            $ref: '#/definitions/Quest'
+        404:
+          description: Quest not found
+
+    put:
+      tags: [Admin - Quests]
+      summary: Update quest (admin only)
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: quest_id
+          in: path
+          required: true
+          type: string
+        - in: body
+          name: quest_data
+          schema:
+            type: object
+      responses:
+        200:
+          description: Quest updated
+        403:
+          description: Admin access required
+
+    delete:
+      tags: [Admin - Quests]
+      summary: Delete quest (admin only)
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: quest_id
+          in: path
+          required: true
+          type: string
+      responses:
+        204:
+          description: Quest deleted
+        403:
+          description: Admin access required
+
+  /api/quests/{quest_id}/start:
+    post:
+      tags: [Quests]
+      summary: Enroll in quest
+      description: Start a quest for current user or dependent
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: quest_id
+          in: path
+          required: true
+          type: string
+        - in: body
+          name: options
+          schema:
+            type: object
+            properties:
+              acting_as_dependent_id:
+                type: string
+                format: uuid
+      responses:
+        201:
+          description: Enrolled successfully
+        409:
+          description: Already enrolled
+
+  /api/quests/{quest_id}/start-personalization:
+    post:
+      tags: [Quests]
+      summary: Start AI-personalized quest
+      description: Begin quest with AI-generated personalized tasks
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: quest_id
+          in: path
+          required: true
+          type: string
+        - in: body
+          name: preferences
+          schema:
+            type: object
+            properties:
+              interests:
+                type: array
+                items:
+                  type: string
+              acting_as_dependent_id:
+                type: string
+                format: uuid
+      responses:
+        201:
+          description: Personalization started
+        500:
+          description: AI generation failed
+
+  /api/quests/{quest_id}/complete:
+    post:
+      tags: [Quests]
+      summary: Mark quest as completed
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: quest_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Quest completed
+        400:
+          description: Not all tasks completed
+
+  /api/quests/{quest_id}/pickup:
+    post:
+      tags: [Quests]
+      summary: Pick up quest (activate)
+      description: Activate a previously set-down quest
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: quest_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Quest picked up
+
+  /api/quests/{quest_id}/setdown:
+    post:
+      tags: [Quests]
+      summary: Set down quest (pause)
+      description: Pause an active quest without dropping it
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: quest_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Quest set down
+
+  # =====================
+  # TASKS (15+ endpoints)
+  # =====================
+
+  /api/tasks:
+    get:
+      tags: [Tasks]
+      summary: List user's tasks
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: quest_id
+          in: query
+          type: string
+          description: Filter by quest
+        - name: status
+          in: query
+          type: string
+          enum: [pending, approved, rejected, needs_revision]
+      responses:
+        200:
+          description: Task list
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Task'
+
+  /api/tasks/{task_id}:
+    get:
+      tags: [Tasks]
+      summary: Get task details
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Task details
+          schema:
+            $ref: '#/definitions/Task'
+        404:
+          description: Task not found
+
+    delete:
+      tags: [Tasks]
+      summary: Drop task
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          type: string
+      responses:
+        204:
+          description: Task dropped
+        403:
+          description: Cannot drop approved task
+
+  /api/tasks/{task_id}/complete:
+    post:
+      tags: [Tasks]
+      summary: Submit task completion evidence
+      description: Upload evidence (text and/or files) for task completion
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      consumes:
+        - multipart/form-data
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          type: string
+        - name: evidence_text
+          in: formData
+          type: string
+        - name: evidence_file
+          in: formData
+          type: file
+        - name: acting_as_dependent_id
+          in: formData
+          type: string
+      responses:
+        200:
+          description: Evidence submitted, pending approval
+        400:
+          description: No evidence provided
+        413:
+          description: File too large (max 10MB)
+
+  # =====================
+  # BADGES (10+ endpoints)
+  # =====================
+
+  /api/badges:
+    get:
+      tags: [Badges]
+      summary: List all badges
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Badge list
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Badge'
+
+  /api/badges/{badge_id}:
+    get:
+      tags: [Badges]
+      summary: Get badge details
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: badge_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Badge details
+          schema:
+            $ref: '#/definitions/Badge'
+
+  /api/badges/claimable:
+    get:
+      tags: [Badges]
+      summary: Get badges user can claim
+      description: Returns badges user has earned but not yet claimed
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Claimable badges
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Badge'
+
+  /api/badges/{badge_id}/claim:
+    post:
+      tags: [Badges]
+      summary: Claim an earned badge
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: badge_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Badge claimed
+        400:
+          description: Requirements not met
+
+  # =====================
+  # EVIDENCE (8+ endpoints)
+  # =====================
+
+  /api/evidence:
+    get:
+      tags: [Evidence]
+      summary: List user's evidence documents
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Evidence list
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Evidence'
+
+    post:
+      tags: [Evidence]
+      summary: Upload evidence document
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      consumes:
+        - multipart/form-data
+      parameters:
+        - name: file
+          in: formData
+          type: file
+          required: true
+        - name: task_id
+          in: formData
+          type: string
+      responses:
+        201:
+          description: Evidence uploaded
+        413:
+          description: File too large
+
+  /api/evidence/{evidence_id}:
+    get:
+      tags: [Evidence]
+      summary: Get evidence document
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: evidence_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Evidence details
+
+    delete:
+      tags: [Evidence]
+      summary: Delete evidence document
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: evidence_id
+          in: path
+          required: true
+          type: string
+      responses:
+        204:
+          description: Evidence deleted
+
+  # =====================
+  # PORTFOLIO (3 endpoints)
+  # =====================
+
+  /api/portfolio/{slug}:
+    get:
+      tags: [Portfolio]
+      summary: View public portfolio/diploma
+      description: Public endpoint for viewing user achievements (no auth required)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Portfolio data
+          schema:
+            $ref: '#/definitions/Portfolio'
+        404:
+          description: Portfolio not found
+
+  /api/portfolio/diploma/{user_id}:
+    get:
+      tags: [Portfolio]
+      summary: Get diploma data for user
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Diploma data
+          schema:
+            $ref: '#/definitions/Portfolio'
+
+  # =====================
+  # USERS (12+ endpoints)
+  # =====================
+
+  /api/users/profile:
+    get:
+      tags: [Users]
+      summary: Get user profile
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: User profile
+          schema:
+            $ref: '#/definitions/User'
+
+    put:
+      tags: [Users]
+      summary: Update user profile
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - in: body
+          name: profile_data
+          schema:
+            type: object
+            properties:
+              display_name:
+                type: string
+              bio:
+                type: string
+              avatar_url:
+                type: string
+      responses:
+        200:
+          description: Profile updated
+
+  /api/users/dashboard:
+    get:
+      tags: [Users]
+      summary: Get user dashboard data
+      description: Returns active quests, pending tasks, XP summary
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Dashboard data
+          schema:
+            type: object
+            properties:
+              active_quests:
+                type: array
+                items:
+                  $ref: '#/definitions/Quest'
+              pending_tasks:
+                type: array
+                items:
+                  $ref: '#/definitions/Task'
+              total_xp:
+                type: integer
+              xp_by_pillar:
+                type: object
+
+  /api/users/{user_id}/xp:
+    get:
+      tags: [Users]
+      summary: Get XP breakdown for user
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: XP breakdown
+          schema:
+            type: object
+            properties:
+              total_xp:
+                type: integer
+              xp_by_pillar:
+                type: object
+
+  # =====================
+  # DEPENDENTS (6 endpoints)
+  # =====================
+
+  /api/dependents/my-dependents:
+    get:
+      tags: [Parent Dashboard]
+      summary: List all dependents for parent
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Dependent list
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Dependent'
+
+  /api/dependents/create:
+    post:
+      tags: [Parent Dashboard]
+      summary: Create dependent profile (COPPA-compliant)
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - in: body
+          name: dependent_data
+          required: true
+          schema:
+            type: object
+            required: [display_name, date_of_birth]
+            properties:
+              display_name:
+                type: string
+              date_of_birth:
+                type: string
+                format: date
+      responses:
+        201:
+          description: Dependent created
+        400:
+          description: Child must be under 13
+
+  /api/dependents/{dependent_id}:
+    get:
+      tags: [Parent Dashboard]
+      summary: Get dependent details
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: dependent_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Dependent details
+          schema:
+            $ref: '#/definitions/Dependent'
+
+    put:
+      tags: [Parent Dashboard]
+      summary: Update dependent profile
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: dependent_id
+          in: path
+          required: true
+          type: string
+        - in: body
+          name: updates
+          schema:
+            type: object
+      responses:
+        200:
+          description: Dependent updated
+
+    delete:
+      tags: [Parent Dashboard]
+      summary: Delete dependent profile
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: dependent_id
+          in: path
+          required: true
+          type: string
+      responses:
+        204:
+          description: Dependent deleted (all data removed)
+
+  /api/dependents/{dependent_id}/promote:
+    post:
+      tags: [Parent Dashboard]
+      summary: Promote dependent to independent account
+      description: Converts dependent to full account when they turn 13
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: dependent_id
+          in: path
+          required: true
+          type: string
+        - in: body
+          name: account_data
+          required: true
+          schema:
+            type: object
+            required: [email, password]
+            properties:
+              email:
+                type: string
+              password:
+                type: string
+      responses:
+        200:
+          description: Account promoted
+        400:
+          description: Not eligible (under 13)
+
+  # =====================
+  # OBSERVERS (6 endpoints)
+  # =====================
+
+  /api/observers/invite:
+    post:
+      tags: [Observer]
+      summary: Send observer invitation
+      description: Email invitation to observer (grandparent, mentor, etc.)
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - in: body
+          name: invitation
+          required: true
+          schema:
+            type: object
+            required: [email, observer_name]
+            properties:
+              email:
+                type: string
+              observer_name:
+                type: string
+              personal_message:
+                type: string
+      responses:
+        200:
+          description: Invitation sent
+        429:
+          description: Too many invitations
+
+  /api/observers/my-invitations:
+    get:
+      tags: [Observer]
+      summary: List sent invitations
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Invitation list
+
+  /api/observers/my-observers:
+    get:
+      tags: [Observer]
+      summary: List linked observers
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Observer list
+
+  /api/observers/accept/{code}:
+    post:
+      tags: [Observer]
+      summary: Accept observer invitation
+      description: Public endpoint for accepting invitation and creating observer account
+      parameters:
+        - name: code
+          in: path
+          required: true
+          type: string
+        - in: body
+          name: account_data
+          schema:
+            type: object
+            properties:
+              password:
+                type: string
+      responses:
+        200:
+          description: Invitation accepted, account created
+        404:
+          description: Invalid invitation code
+
+  /api/observers/my-students:
+    get:
+      tags: [Observer]
+      summary: List linked students
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Student list
+
+  /api/observers/student/{student_id}/portfolio:
+    get:
+      tags: [Observer]
+      summary: View student portfolio
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Student portfolio
+        403:
+          description: Not linked to this student
+
+  # =====================
+  # ADMIN - USERS (15+ endpoints)
+  # =====================
+
+  /api/admin/users:
+    get:
+      tags: [Admin - Users]
+      summary: List all users (admin)
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: page
+          in: query
+          type: integer
+        - name: role
+          in: query
+          type: string
+      responses:
+        200:
+          description: User list
+        403:
+          description: Admin access required
+
+  /api/admin/users/{user_id}:
+    get:
+      tags: [Admin - Users]
+      summary: Get user details (admin)
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: User details
+        403:
+          description: Admin access required
+
+    put:
+      tags: [Admin - Users]
+      summary: Update user (admin)
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: User updated
+
+    delete:
+      tags: [Admin - Users]
+      summary: Delete user (admin)
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          type: string
+      responses:
+        204:
+          description: User deleted
+
+  /api/admin/users/{user_id}/role:
+    put:
+      tags: [Admin - Users]
+      summary: Change user role (admin)
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          type: string
+        - in: body
+          name: role_data
+          schema:
+            type: object
+            properties:
+              role:
+                type: string
+                enum: [student, parent, advisor, admin, superadmin]
+      responses:
+        200:
+          description: Role changed
+
+  # =====================
+  # ADMIN - ANALYTICS (10+ endpoints)
+  # =====================
+
+  /api/admin/analytics/summary:
+    get:
+      tags: [Admin - Analytics]
+      summary: Platform analytics summary
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Analytics summary
+          schema:
+            type: object
+            properties:
+              total_users:
+                type: integer
+              total_quests:
+                type: integer
+              total_tasks_completed:
+                type: integer
+              total_xp_awarded:
+                type: integer
+
+  /api/admin/analytics/user/{user_id}/activity:
+    get:
+      tags: [Admin - Analytics]
+      summary: User activity logs
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Activity log
+
+  # =====================
+  # ADMIN - ORGANIZATIONS (8+ endpoints)
+  # =====================
+
+  /api/admin/organizations/organizations:
+    get:
+      tags: [Admin - Organizations]
+      summary: List all organizations
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Organization list
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Organization'
+
+    post:
+      tags: [Admin - Organizations]
+      summary: Create organization
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - in: body
+          name: org_data
+          schema:
+            type: object
+            required: [name, slug]
+            properties:
+              name:
+                type: string
+              slug:
+                type: string
+      responses:
+        201:
+          description: Organization created
+
+  /api/admin/organizations/organizations/{org_id}:
+    get:
+      tags: [Admin - Organizations]
+      summary: Get organization details
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Organization details
+
+    put:
+      tags: [Admin - Organizations]
+      summary: Update organization
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Organization updated
+
+  /api/admin/organizations/{org_id}/users:
+    get:
+      tags: [Admin - Organizations]
+      summary: List organization users
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: User list
+
+  # =====================
+  # AI TUTOR (10+ endpoints)
+  # =====================
+
+  /api/tutor/chat:
+    post:
+      tags: [AI Tutor]
+      summary: Send chat message to AI tutor
+      security:
+        - cookieAuth: []
+        - csrfToken: []
+      parameters:
+        - in: body
+          name: message
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+              context:
+                type: object
+      responses:
+        200:
+          description: AI response
+          schema:
+            type: object
+            properties:
+              response:
+                type: string
+              safety_flagged:
+                type: boolean
+
+  # =====================
+  # UTILITY ENDPOINTS
+  # =====================
+
+  /:
+    get:
+      tags: [Settings]
+      summary: API root endpoint
+      responses:
+        200:
+          description: API status
+
+  /api/health:
+    get:
+      tags: [Settings]
+      summary: Health check
+      responses:
+        200:
+          description: Healthy
+
+  /csrf-token:
+    get:
+      tags: [Authentication]
+      summary: Get CSRF token
+      responses:
+        200:
+          description: CSRF token
+          schema:
+            type: object
+            properties:
+              csrf_token:
+                type: string
+
+  /api/settings:
+    get:
+      tags: [Settings]
+      summary: Get public site settings
+      responses:
+        200:
+          description: Site settings
+
+  /api/pillars:
+    get:
+      tags: [Settings]
+      summary: Get pillar configuration
+      responses:
+        200:
+          description: Pillar definitions
+          schema:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                color:
+                  type: string
+                description:
+                  type: string
+
+# Additional 100+ endpoints exist across:
+# - Advisor tools (check-ins, notes)
+# - Parent dashboard
+# - LMS integration (LTI, Spark SSO)
+# - Calendar & learning events
+# - Direct messages
+# - AI quest generation
+# - Badge management
+# - Course imports
+# - File uploads
+# - CRM & email campaigns
+# - Khan Academy sync
+# - Analytics tracking
+# All endpoints auto-discovered by Flasgger

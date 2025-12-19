@@ -10,6 +10,9 @@ setup_logging()
 logger = get_logger(__name__)
 logger.info("Starting Optio Backend API - Session persistence test #2")
 
+# Initialize Swagger/OpenAPI documentation
+from swagger_config import init_swagger
+
 from routes import auth, users, community, portfolio
 from routes import uploads, images
 from routes.settings import settings_bp
@@ -398,6 +401,13 @@ def test_config():
 # CORS headers are now managed by Flask-CORS in cors_config.py (single source of truth)
 
 # Error handlers are now managed by error_handler middleware
+
+# Initialize Swagger documentation (must be after all blueprints are registered)
+try:
+    swagger = init_swagger(app)
+    logger.info("Swagger API documentation initialized at /api/docs")
+except Exception as e:
+    logger.warning(f"Warning: Swagger documentation initialization failed: {e}")
 
 if __name__ == '__main__':
     import os
