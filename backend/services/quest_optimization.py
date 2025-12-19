@@ -7,6 +7,7 @@ to eliminate the N+1 problem identified in quest_v3.py.
 
 from typing import Dict, List, Optional, Set, Any
 from services.base_service import BaseService
+from database import get_supabase_admin_client
 from utils.pillar_mapping import normalize_pillar_name
 
 from utils.logger import get_logger
@@ -17,8 +18,10 @@ logger = get_logger(__name__)
 class QuestOptimizationService(BaseService):
     """Service to optimize quest queries and eliminate N+1 problems"""
 
-    def __init__(self, user_id: Optional[str] = None):
-        super().__init__(user_id)
+    def __init__(self):
+        super().__init__()
+        # Use admin client for efficiency (no RLS overhead) since methods filter by user_id
+        self.supabase = get_supabase_admin_client()
 
     def get_user_enrollments_batch(self, user_id: str, quest_ids: List[str]) -> Dict[str, Dict]:
         """
