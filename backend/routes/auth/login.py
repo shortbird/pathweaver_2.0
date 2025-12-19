@@ -218,10 +218,16 @@ def get_current_user():
         # CRITICAL FIX: Check if token was issued before last logout
         # This prevents automatic re-login after logout when token is still valid
         try:
-            # Get token from Authorization header
+            # Get token from either Authorization header or cookie
+            token = None
             auth_header = request.headers.get('Authorization', '')
             if auth_header.startswith('Bearer '):
                 token = auth_header.replace('Bearer ', '')
+            else:
+                # Try to get token from cookie
+                token = request.cookies.get('access_token')
+
+            if token:
                 payload = session_manager.verify_access_token(token)
 
                 if payload and payload.get('iat'):
@@ -236,7 +242,7 @@ def get_current_user():
 
                         # If token was issued before logout, reject it
                         if token_issued_at < last_logout_at:
-                            logger.warning(f"[ME] Rejecting token for user {mask_user_id(user_id)} - issued before logout")
+                            logger.warning(f"[ME] Rejecting token for user {mask_user_id(user_id)} - issued before logout (token: {token_issued_at.isoformat()}, logout: {last_logout_at.isoformat()})")
                             return jsonify({'error': 'Session invalidated. Please log in again.'}), 401
         except Exception as logout_check_error:
             logger.error(f"[ME] Error checking last_logout_at: {logout_check_error}")
