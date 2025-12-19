@@ -1,9 +1,17 @@
-import React from 'react'
+import React, { createContext } from 'react'
 import { render } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AuthProvider } from '../contexts/AuthContext'
 import { OrganizationProvider } from '../contexts/OrganizationContext'
+
+// Create a mock AuthContext for testing
+// This is used by tests instead of the real AuthContext
+const MockAuthContext = createContext()
+
+// Mock AuthProvider that accepts a value prop for testing
+function MockAuthProvider({ children, value }) {
+  return <MockAuthContext.Provider value={value}>{children}</MockAuthContext.Provider>
+}
 
 /**
  * Custom render function that wraps components with common providers
@@ -61,11 +69,11 @@ export function renderWithProviders(
     return (
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <AuthProvider value={authValue}>
+          <MockAuthProvider value={authValue}>
             <OrganizationProvider value={organizationValue}>
               {children}
             </OrganizationProvider>
-          </AuthProvider>
+          </MockAuthProvider>
         </BrowserRouter>
       </QueryClientProvider>
     )

@@ -14,9 +14,22 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
-describe('QuestCardSimple', () => {
-  const mockUser = createMockUser()
+// Mock useAuth hook
+const mockUser = createMockUser()
+const mockAuthValue = {
+  user: mockUser,
+  isAuthenticated: true,
+  loading: false,
+  login: vi.fn(),
+  logout: vi.fn(),
+  register: vi.fn(),
+}
 
+vi.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => mockAuthValue,
+}))
+
+describe('QuestCardSimple', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -87,7 +100,10 @@ describe('QuestCardSimple', () => {
         })
 
         expect(screen.getByText('Quest description')).toBeInTheDocument()
-        expect(screen.queryByText(/continue/i)).not.toBeInTheDocument()
+        // Check that Continue button doesn't exist (exact match, not in "Current Task:")
+        expect(screen.queryByText((content, element) => {
+          return element.tagName === 'SPAN' && content === 'Continue'
+        })).not.toBeInTheDocument()
         expect(screen.queryByText(/view on diploma/i)).not.toBeInTheDocument()
       })
     })
@@ -109,7 +125,10 @@ describe('QuestCardSimple', () => {
 
         expect(screen.getByText('3/10 TASKS COMPLETED')).toBeInTheDocument()
         expect(screen.getByText('30%')).toBeInTheDocument()
-        expect(screen.getByText(/continue/i)).toBeInTheDocument()
+        // Check for Continue button (exact text match in span element)
+        expect(screen.getByText((content, element) => {
+          return element.tagName === 'SPAN' && content === 'Continue'
+        })).toBeInTheDocument()
       })
 
       it('shows current task title', () => {
@@ -161,8 +180,9 @@ describe('QuestCardSimple', () => {
         // Check percentage is rounded
         expect(screen.getByText('63%')).toBeInTheDocument()
 
-        // Check progress bar width
-        const progressBar = container.querySelector('.bg-gradient-primary')
+        // Check progress bar width (query within the gray progress container to avoid matching the background gradient)
+        const progressContainer = container.querySelector('.bg-gray-200.rounded-full.h-2')
+        const progressBar = progressContainer.querySelector('.bg-gradient-primary')
         expect(progressBar).toHaveStyle({ width: '62.5%' })
       })
 
@@ -196,7 +216,10 @@ describe('QuestCardSimple', () => {
         })
 
         expect(screen.getByText(/view on diploma/i)).toBeInTheDocument()
-        expect(screen.queryByText(/continue/i)).not.toBeInTheDocument()
+        // Check that Continue button doesn't exist (exact match)
+        expect(screen.queryByText((content, element) => {
+          return element.tagName === 'SPAN' && content === 'Continue'
+        })).not.toBeInTheDocument()
       })
 
       it('shows diploma button when quest is 100% complete', () => {
@@ -444,7 +467,10 @@ describe('QuestCardSimple', () => {
         authValue: { user: mockUser, isAuthenticated: true }
       })
 
-      const continueButton = screen.getByText(/continue/i)
+      // Find Continue button by exact text match in span element
+      const continueButton = screen.getByText((content, element) => {
+        return element.tagName === 'SPAN' && content === 'Continue'
+      })
       await user.click(continueButton)
 
       // Continue button doesn't stopPropagation, so it triggers card click
