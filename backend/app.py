@@ -13,7 +13,8 @@ logger.info("Starting Optio Backend API - Session persistence test #2")
 # Initialize Swagger/OpenAPI documentation
 from swagger_config import init_swagger
 
-from routes import auth, users, community, portfolio
+from backend.routes.auth import register_auth_routes
+from routes import users, community, portfolio
 from routes import uploads, images
 from routes.settings import settings_bp
 from routes.promo import promo_bp
@@ -79,7 +80,8 @@ memory_monitor.init_app(app)
 activity_tracker.init_app(app)
 
 # Register existing routes
-app.register_blueprint(auth.bp, url_prefix='/api/auth')
+# Auth routes - refactored from mega-file (1,523 lines) to 4 focused modules (P2-ARCH-1)
+register_auth_routes(app)
 # subscription_requests.bp removed in Phase 1 refactoring (January 2025)
 app.register_blueprint(users.bp, url_prefix='/api/users')
 app.register_blueprint(community.bp, url_prefix='/api/community')
