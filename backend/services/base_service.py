@@ -1,7 +1,11 @@
 """
 Base Service Class
 Provides common functionality for all service classes including
-error handling, logging, retry logic, and database access patterns.
+error handling, logging, retry logic, and input validation.
+
+NOTE (Dec 2025 - P1-ARCH-4): Database access removed from BaseService.
+Services should use repositories for database operations, not direct client access.
+See SERVICE_CLASSIFICATION.md for migration guide.
 """
 
 from typing import Optional, Callable, Any, Dict
@@ -9,8 +13,11 @@ from functools import wraps
 import time
 import logging
 from flask import current_app
-from database import get_supabase_admin_client, get_user_client
 from app_config import Config
+
+# NOTE: Database clients removed from BaseService (Dec 2025 - P1-ARCH-4)
+# Services should use repositories for database access, not direct client calls
+# from database import get_supabase_admin_client, get_user_client  # Removed
 
 from utils.logger import get_logger
 
@@ -53,8 +60,31 @@ class BaseService:
     - Consistent error handling
     - Logging of operations
     - Retry logic for transient failures
-    - Database client management
     - Operation timing/performance tracking
+    - Input validation utilities
+
+    ARCHITECTURAL DECISION (Dec 2025 - P1-ARCH-4):
+    Services should NOT access database directly. Use repositories instead.
+
+    OLD PATTERN (deprecated):
+        class MyService(BaseService):
+            def my_operation(self):
+                data = self.supabase.table('users').select('*')  # ❌ Direct DB access
+
+    NEW PATTERN (established):
+        class MyService(BaseService):
+            def __init__(self, user_repo: UserRepository):
+                super().__init__()
+                self.user_repo = user_repo
+
+            def my_operation(self):
+                data = self.user_repo.find_all()  # ✅ Use repository
+
+    MIGRATION STRATEGY:
+    - Pattern established with exemplar services (organization_service.py, checkin_service.py)
+    - All NEW services MUST follow repository pattern
+    - Old services: migrate incrementally when touched for other work
+    - See: backend/docs/SERVICE_CLASSIFICATION.md for full migration plan
 
     Usage:
         class MyService(BaseService):
@@ -67,49 +97,20 @@ class BaseService:
                 )
     """
 
-    def __init__(self, user_id: Optional[str] = None):
+    def __init__(self):
         """
         Initialize service.
 
-        Args:
-            user_id: Optional user ID for RLS-enabled database operations
+        IMPORTANT: Services should receive repositories via constructor.
+        Database access should ONLY happen through repositories.
+
+        Example:
+            def __init__(self, user_repo: UserRepository, task_repo: TaskRepository):
+                super().__init__()
+                self.user_repo = user_repo
+                self.task_repo = task_repo
         """
-        self.user_id = user_id
-        self._admin_client = None
-        self._user_client = None
-
-    @property
-    def supabase(self):
-        """Get admin Supabase client (no RLS)."""
-        if self._admin_client is None:
-            self._admin_client = get_supabase_admin_client()
-        return self._admin_client
-
-    def get_user_supabase(self, user_id: Optional[str] = None):
-        """
-        Get user-authenticated Supabase client (RLS enforced).
-
-        IMPORTANT: This method extracts the JWT token from the Flask request context.
-        Do NOT pass user_id to get_user_client() - it expects a JWT token, not a UUID.
-
-        Args:
-            user_id: User ID for validation (uses instance user_id if not provided)
-                     This is used to verify we have a user context, but the actual
-                     JWT token is extracted from the request headers by get_user_client()
-
-        Returns:
-            User-authenticated Supabase client
-
-        Raises:
-            ValueError: If no user_id provided
-        """
-        uid = user_id or self.user_id
-        if not uid:
-            raise ValueError("user_id required for RLS-enabled operations")
-
-        # CRITICAL FIX: get_user_client() extracts JWT from Flask request headers
-        # It does NOT accept user_id as a parameter - that would be a UUID, not a token
-        return get_user_client()
+        pass  # No client management - use repositories instead
 
     def execute(
         self,
@@ -286,42 +287,11 @@ class BaseService:
                 f"{field_name} must be one of {allowed_values}, got: {value}"
             )
 
-    def get_or_404(self, table: str, id_value: str, id_field: str = "id") -> Dict:
-        """
-        Get a single record or raise NotFoundError.
-
-        Args:
-            table: Table name
-            id_value: ID value to search for
-            id_field: ID field name (default: "id")
-
-        Returns:
-            Record data as dictionary
-
-        Raises:
-            NotFoundError: If record not found
-        """
-        result = self.supabase.table(table).select("*").eq(id_field, id_value).execute()
-
-        if not result.data or len(result.data) == 0:
-            raise NotFoundError(f"{table} with {id_field}={id_value} not found")
-
-        return result.data[0]
-
-    def exists(self, table: str, id_value: str, id_field: str = "id") -> bool:
-        """
-        Check if a record exists.
-
-        Args:
-            table: Table name
-            id_value: ID value to search for
-            id_field: ID field name (default: "id")
-
-        Returns:
-            True if record exists, False otherwise
-        """
-        result = self.supabase.table(table).select("id").eq(id_field, id_value).execute()
-        return result.data and len(result.data) > 0
+    # REMOVED (Dec 2025 - P1-ARCH-4): get_or_404() and exists() methods
+    # These methods accessed self.supabase directly, violating repository pattern.
+    # Use repository methods instead:
+    #   - repo.find_by_id(id) or repo.get_or_404(id)
+    #   - repo.exists(id)
 
 
 def with_retry(retries: int = 3, retry_delay: float = 0.5):

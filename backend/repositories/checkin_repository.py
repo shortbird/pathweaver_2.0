@@ -312,3 +312,127 @@ class CheckinRepository:
             .eq('id', checkin_id)\
             .execute()
         return len(response.data) > 0 if response.data else False
+
+    def get_student_active_quests_data(self, student_id: str) -> List[Dict]:
+        """
+        Get active quest data for a student with task completion stats.
+        Used for check-in form pre-population.
+
+        Args:
+            student_id: UUID of the student
+
+        Returns:
+            List of active quest data with completion percentages
+        """
+        # Get active quests for student
+        quests_response = self.supabase.table('user_quests')\
+            .select('quest_id, started_at, quests(id, title, description, image_url)')\
+            .eq('user_id', student_id)\
+            .eq('is_active', True)\
+            .is_('completed_at', 'null')\
+            .execute()
+
+        if not quests_response.data:
+            return []
+
+        # Extract quest IDs for bulk queries
+        quest_ids = [record['quest_id'] for record in quests_response.data]
+
+        # OPTIMIZATION: Bulk fetch all tasks for all quests at once (eliminates N+1 query)
+        all_tasks = self.supabase.table('user_quest_tasks')\
+            .select('quest_id')\
+            .eq('user_id', student_id)\
+            .in_('quest_id', quest_ids)\
+            .execute()
+
+        # OPTIMIZATION: Bulk fetch all completions for all quests at once (eliminates N+1 query)
+        all_completions = self.supabase.table('quest_task_completions')\
+            .select('quest_id')\
+            .eq('user_id', student_id)\
+            .in_('quest_id', quest_ids)\
+            .execute()
+
+        # Build lookup dictionaries for O(1) access
+        tasks_by_quest = {}
+        for task in (all_tasks.data or []):
+            qid = task['quest_id']
+            tasks_by_quest[qid] = tasks_by_quest.get(qid, 0) + 1
+
+        completions_by_quest = {}
+        for completion in (all_completions.data or []):
+            qid = completion['quest_id']
+            completions_by_quest[qid] = completions_by_quest.get(qid, 0) + 1
+
+        # Build quest data using pre-fetched counts (no additional queries)
+        quests_data = []
+        for record in quests_response.data:
+            quest = record.get('quests', {})
+            quest_id = quest.get('id')
+
+            if not quest_id:
+                continue
+
+            # Use pre-fetched counts
+            total_tasks = tasks_by_quest.get(quest_id, 0)
+            completed_tasks = completions_by_quest.get(quest_id, 0)
+
+            # Calculate completion percentage
+            completion_percent = round((completed_tasks / total_tasks * 100)) if total_tasks > 0 else 0
+
+            quests_data.append({
+                'quest_id': quest_id,
+                'title': quest.get('title', 'Untitled Quest'),
+                'description': quest.get('description', ''),
+                'image_url': quest.get('image_url'),
+                'total_tasks': total_tasks,
+                'completed_tasks': completed_tasks,
+                'completion_percent': completion_percent,
+                'started_at': record.get('started_at')
+            })
+
+        return quests_data
+
+    def get_user_role(self, user_id: str) -> Optional[str]:
+        """
+        Get user's role for permission checks.
+
+        Args:
+            user_id: UUID of the user
+
+        Returns:
+            User role (admin, advisor, student, etc.) or None if not found
+        """
+        response = self.supabase.table('users')\
+            .select('role')\
+            .eq('id', user_id)\
+            .single()\
+            .execute()
+
+        return response.data.get('role') if response.data else None
+
+    def verify_advisor_student_relationship(self, advisor_id: str, student_id: str) -> bool:
+        """
+        Verify that an active advisor-student relationship exists.
+        Admins have access to all students.
+
+        Args:
+            advisor_id: UUID of the advisor
+            student_id: UUID of the student
+
+        Returns:
+            True if relationship exists and is active (or user is admin), False otherwise
+        """
+        # Check if user is admin (admins can check in with any student)
+        user_role = self.get_user_role(advisor_id)
+        if user_role == 'admin':
+            return True
+
+        # Check for active advisor-student assignment
+        response = self.supabase.table('advisor_student_assignments')\
+            .select('id')\
+            .eq('advisor_id', advisor_id)\
+            .eq('student_id', student_id)\
+            .eq('is_active', True)\
+            .execute()
+
+        return len(response.data) > 0 if response.data else False

@@ -1,6 +1,12 @@
 """
 Service for advisor check-in business logic.
 Handles validation, data aggregation, and check-in operations.
+
+ARCHITECTURAL NOTE (Dec 2025 - P1-ARCH-4):
+This service follows the established repository pattern.
+- Uses CheckinRepository for ALL database access
+- No direct database client usage
+- Exemplar service for the target pattern
 """
 
 from typing import Dict, List, Optional
@@ -8,7 +14,6 @@ from datetime import datetime
 import logging
 from services.base_service import BaseService
 from repositories.checkin_repository import CheckinRepository
-from database import get_supabase_admin_client
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -57,8 +62,8 @@ class CheckinService(BaseService):
             ValueError: If advisor-student relationship doesn't exist
         """
         try:
-            # Verify advisor-student relationship exists
-            if not self._verify_advisor_student_relationship(advisor_id, student_id):
+            # Verify advisor-student relationship exists (uses repository)
+            if not self.repository.verify_advisor_student_relationship(advisor_id, student_id):
                 raise ValueError("Advisor-student relationship not found or inactive")
 
             checkin_data = {
@@ -93,73 +98,8 @@ class CheckinService(BaseService):
             List of active quest data with completion percentages
         """
         try:
-            # Get active quests for student
-            quests_response = self.supabase.table('user_quests')\
-                .select('quest_id, started_at, quests(id, title, description, image_url)')\
-                .eq('user_id', student_id)\
-                .eq('is_active', True)\
-                .is_('completed_at', 'null')\
-                .execute()
-
-            if not quests_response.data:
-                return []
-
-            # Extract quest IDs for bulk queries
-            quest_ids = [record['quest_id'] for record in quests_response.data]
-
-            # OPTIMIZATION: Bulk fetch all tasks for all quests at once (eliminates N+1 query)
-            all_tasks = self.supabase.table('user_quest_tasks')\
-                .select('quest_id')\
-                .eq('user_id', student_id)\
-                .in_('quest_id', quest_ids)\
-                .execute()
-
-            # OPTIMIZATION: Bulk fetch all completions for all quests at once (eliminates N+1 query)
-            all_completions = self.supabase.table('quest_task_completions')\
-                .select('quest_id')\
-                .eq('user_id', student_id)\
-                .in_('quest_id', quest_ids)\
-                .execute()
-
-            # Build lookup dictionaries for O(1) access
-            tasks_by_quest = {}
-            for task in (all_tasks.data or []):
-                qid = task['quest_id']
-                tasks_by_quest[qid] = tasks_by_quest.get(qid, 0) + 1
-
-            completions_by_quest = {}
-            for completion in (all_completions.data or []):
-                qid = completion['quest_id']
-                completions_by_quest[qid] = completions_by_quest.get(qid, 0) + 1
-
-            # Build quest data using pre-fetched counts (no additional queries)
-            quests_data = []
-            for record in quests_response.data:
-                quest = record.get('quests', {})
-                quest_id = quest.get('id')
-
-                if not quest_id:
-                    continue
-
-                # Use pre-fetched counts
-                total_tasks = tasks_by_quest.get(quest_id, 0)
-                completed_tasks = completions_by_quest.get(quest_id, 0)
-
-                # Calculate completion percentage
-                completion_percent = round((completed_tasks / total_tasks * 100)) if total_tasks > 0 else 0
-
-                quests_data.append({
-                    'quest_id': quest_id,
-                    'title': quest.get('title', 'Untitled Quest'),
-                    'description': quest.get('description', ''),
-                    'image_url': quest.get('image_url'),
-                    'total_tasks': total_tasks,
-                    'completed_tasks': completed_tasks,
-                    'completion_percent': completion_percent,
-                    'started_at': record.get('started_at')
-                })
-
-            return quests_data
+            # Delegate to repository (all DB access in one place)
+            return self.repository.get_student_active_quests_data(student_id)
 
         except Exception as e:
             self.logger.error(f"Error fetching quest data for student {student_id}: {str(e)}")
@@ -269,14 +209,10 @@ class CheckinService(BaseService):
 
             # Verify advisor has permission to view this check-in
             if checkin['advisor_id'] != advisor_id:
-                # Check if requesting user is admin
-                user_response = self.supabase.table('users')\
-                    .select('role')\
-                    .eq('id', advisor_id)\
-                    .single()\
-                    .execute()
+                # Check if requesting user is admin (uses repository)
+                user_role = self.repository.get_user_role(advisor_id)
 
-                if user_response.data and user_response.data.get('role') != 'admin':
+                if user_role != 'admin':
                     raise PermissionError("You don't have permission to view this check-in")
 
             return checkin
@@ -287,42 +223,6 @@ class CheckinService(BaseService):
             self.logger.error(f"Error fetching check-in by ID: {str(e)}")
             raise
 
-    def _verify_advisor_student_relationship(
-        self,
-        advisor_id: str,
-        student_id: str
-    ) -> bool:
-        """
-        Verify that an active advisor-student relationship exists.
-
-        Args:
-            advisor_id: UUID of the advisor
-            student_id: UUID of the student
-
-        Returns:
-            True if relationship exists and is active, False otherwise
-        """
-        try:
-            # Check if user is admin (admins can check in with any student)
-            user_response = self.supabase.table('users')\
-                .select('role')\
-                .eq('id', advisor_id)\
-                .single()\
-                .execute()
-
-            if user_response.data and user_response.data.get('role') == 'admin':
-                return True
-
-            # Check for active advisor-student assignment
-            response = self.supabase.table('advisor_student_assignments')\
-                .select('id')\
-                .eq('advisor_id', advisor_id)\
-                .eq('student_id', student_id)\
-                .eq('is_active', True)\
-                .execute()
-
-            return len(response.data) > 0 if response.data else False
-
-        except Exception as e:
-            self.logger.error(f"Error verifying advisor-student relationship: {str(e)}")
-            return False
+    # NOTE (Dec 2025 - P1-ARCH-4): _verify_advisor_student_relationship() method removed
+    # This logic moved to CheckinRepository.verify_advisor_student_relationship()
+    # Services should use repositories for database access, not implement DB queries directly
