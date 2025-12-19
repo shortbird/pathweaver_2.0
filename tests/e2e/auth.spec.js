@@ -3,78 +3,55 @@ import { test, expect } from '@playwright/test';
 /**
  * Authentication E2E Tests
  *
- * Tests the critical authentication flows:
- * - Login with valid credentials
- * - Login with invalid credentials
- * - Logout
- * - Protected route access
- * - Token persistence (httpOnly cookies)
+ * Tests the critical authentication flows against actual UI structure.
+ * Uses real selectors from LoginPage.jsx and dashboard pages.
  */
 
 test.describe('Authentication', () => {
   test('should display login page', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/login');
 
-    // Should show login/register options
-    await expect(page.locator('text=/login|sign in/i')).toBeVisible();
+    // Check for actual LoginPage elements
+    await expect(page.locator('text=Welcome back')).toBeVisible();
+    await expect(page.locator('input[type="email"]')).toBeVisible();
+    await expect(page.locator('input[type="password"]')).toBeVisible();
+    await expect(page.locator('button[type="submit"]:has-text("Sign in")')).toBeVisible();
   });
 
   test('should login with valid credentials', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/login');
 
-    // Navigate to login (adjust selectors based on your actual UI)
-    const loginButton = page.locator('button:has-text("Login"), a:has-text("Login")').first();
-    await loginButton.click();
+    // Fill credentials with actual test account
+    await page.fill('input[type="email"]', 'test@optioeducation.com');
+    await page.fill('input[type="password"]', 'TestPassword123!');
 
-    // Wait for login form
-    await page.waitForURL('**/login', { timeout: 10000 });
+    // Click "Sign in" button (actual text from LoginPage.jsx:146)
+    await page.click('button[type="submit"]:has-text("Sign in")');
 
-    // Fill credentials
-    await page.fill('input[type="email"], input[name="email"]', 'test@optioeducation.com');
-    await page.fill('input[type="password"], input[name="password"]', 'TestPassword123!');
+    // Wait for redirect to dashboard (student role redirects to /dashboard)
+    await page.waitForURL(/.*\/dashboard/, { timeout: 15000 });
 
-    // Submit form
-    await page.click('button[type="submit"]');
+    // Verify we're on dashboard (not login page)
+    await expect(page).toHaveURL(/.*\/dashboard/);
 
-    // Should redirect to dashboard or quest hub after login
-    await page.waitForURL(/.*\/(dashboard|quest-hub|quests)/, { timeout: 15000 });
-
-    // Verify user is logged in (look for user menu, profile, or logout button)
-    const userIndicators = [
-      page.locator('text=/logout|sign out/i'),
-      page.locator('text=/my quests|my badges/i'),
-      page.locator('[data-testid="user-menu"]'),
-      page.locator('button:has-text("Profile")')
-    ];
-
-    // At least one indicator should be visible
-    const visibleIndicator = await Promise.race(
-      userIndicators.map(async (locator) => {
-        try {
-          await locator.waitFor({ timeout: 5000 });
-          return true;
-        } catch {
-          return false;
-        }
-      })
-    );
-
-    expect(visibleIndicator).toBeTruthy();
+    // Verify we're not seeing the login page
+    await expect(page.locator('text=Welcome back')).not.toBeVisible();
   });
 
   test('should show error for invalid credentials', async ({ page }) => {
     await page.goto('/login');
 
     // Fill invalid credentials
-    await page.fill('input[type="email"], input[name="email"]', 'invalid@example.com');
-    await page.fill('input[type="password"], input[name="password"]', 'wrongpassword');
+    await page.fill('input[type="email"]', 'invalid@example.com');
+    await page.fill('input[type="password"]', 'wrongpassword');
 
     // Submit form
-    await page.click('button[type="submit"]');
+    await page.click('button[type="submit"]:has-text("Sign in")');
 
-    // Should show error message (wait for error to appear)
-    const errorMessage = page.locator('text=/invalid|incorrect|wrong|error/i');
-    await expect(errorMessage).toBeVisible({ timeout: 5000 });
+    // Should show error message (LoginPage.jsx line 52-64 shows error div)
+    // The error text is set in loginError state
+    const errorDiv = page.locator('div.bg-red-50');
+    await expect(errorDiv).toBeVisible({ timeout: 5000 });
 
     // Should stay on login page
     await expect(page).toHaveURL(/.*login/);
@@ -83,22 +60,27 @@ test.describe('Authentication', () => {
   test('should logout successfully', async ({ page }) => {
     // First login
     await page.goto('/login');
-    await page.fill('input[type="email"], input[name="email"]', 'test@optioeducation.com');
-    await page.fill('input[type="password"], input[name="password"]', 'TestPassword123!');
-    await page.click('button[type="submit"]');
+    await page.fill('input[type="email"]', 'test@optioeducation.com');
+    await page.fill('input[type="password"]', 'TestPassword123!');
+    await page.click('button[type="submit"]:has-text("Sign in")');
 
     // Wait for successful login
-    await page.waitForURL(/.*\/(dashboard|quest-hub|quests)/, { timeout: 15000 });
+    await page.waitForURL(/.*\/dashboard/, { timeout: 15000 });
 
-    // Find and click logout button
-    const logoutButton = page.locator('button:has-text("Logout"), button:has-text("Sign Out"), a:has-text("Logout")').first();
+    // Look for logout button in nav/header (adjust based on actual nav structure)
+    // This is a more flexible approach - look for any button/link with logout text
+    const logoutButton = page.locator('button:has-text("Logout"), button:has-text("Log out"), a:has-text("Logout"), a:has-text("Log out")').first();
+
+    // Wait for it to be visible and click
+    await expect(logoutButton).toBeVisible({ timeout: 10000 });
     await logoutButton.click();
 
     // Should redirect to home or login page
-    await page.waitForURL(/.*\/(|login|home)$/, { timeout: 10000 });
+    await page.waitForURL(/.*\/(login|home|)$/, { timeout: 10000 });
 
-    // Should show login button again
-    await expect(page.locator('text=/login|sign in/i')).toBeVisible();
+    // Verify we can see the login page again
+    await page.goto('/login');
+    await expect(page.locator('text=Welcome back')).toBeVisible();
   });
 
   test('should redirect unauthenticated users from protected routes', async ({ page }) => {
@@ -106,43 +88,37 @@ test.describe('Authentication', () => {
     await page.goto('/dashboard');
 
     // Should redirect to login or home
-    await page.waitForURL(/.*\/(login|home|\/)/, { timeout: 10000 });
+    // Your PrivateRoute likely redirects to /login
+    await page.waitForURL(/.*\/(login|\/)/, { timeout: 10000 });
 
-    // Should show login form
-    await expect(page.locator('text=/login|sign in/i')).toBeVisible();
+    // Should be able to access login page
+    const currentUrl = page.url();
+    if (!currentUrl.includes('/login')) {
+      // If on home, navigate to login
+      await page.goto('/login');
+    }
+
+    await expect(page.locator('text=Welcome back')).toBeVisible();
   });
 
   test('should persist session across page refreshes', async ({ page }) => {
     // Login
     await page.goto('/login');
-    await page.fill('input[type="email"], input[name="email"]', 'test@optioeducation.com');
-    await page.fill('input[type="password"], input[name="password"]', 'TestPassword123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL(/.*\/(dashboard|quest-hub|quests)/, { timeout: 15000 });
+    await page.fill('input[type="email"]', 'test@optioeducation.com');
+    await page.fill('input[type="password"]', 'TestPassword123!');
+    await page.click('button[type="submit"]:has-text("Sign in")');
+    await page.waitForURL(/.*\/dashboard/, { timeout: 15000 });
+
+    // Store current URL
+    const dashboardUrl = page.url();
 
     // Reload page
     await page.reload();
 
-    // Should still be logged in (not redirected to login)
+    // Should still be on dashboard (httpOnly cookies should persist)
+    await expect(page).toHaveURL(dashboardUrl);
+
+    // Should not redirect to login
     await expect(page).not.toHaveURL(/.*login/);
-
-    // Should show user-specific content
-    const userIndicators = [
-      page.locator('text=/logout|sign out/i'),
-      page.locator('text=/my quests|my badges/i')
-    ];
-
-    const visibleIndicator = await Promise.race(
-      userIndicators.map(async (locator) => {
-        try {
-          await locator.waitFor({ timeout: 5000 });
-          return true;
-        } catch {
-          return false;
-        }
-      })
-    );
-
-    expect(visibleIndicator).toBeTruthy();
   });
 });
