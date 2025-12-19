@@ -48,8 +48,8 @@ test.describe('Quest Enrollment', () => {
       await page.waitForTimeout(1000); // Wait for tab switch animation
     }
 
-    // Should show quest cards in a grid
-    const questCards = page.locator('.group.bg-white.rounded-xl.overflow-hidden.cursor-pointer');
+    // Should show quest cards in a grid (use simpler selector for reliability)
+    const questCards = page.locator('.bg-white.rounded-xl.cursor-pointer');
     await expect(questCards.first()).toBeVisible({ timeout: 15000 });
 
     // Should show at least one quest title
@@ -71,7 +71,7 @@ test.describe('Quest Enrollment', () => {
     }
 
     // Get the first quest card (clickable div)
-    const firstQuestCard = page.locator('.group.bg-white.rounded-xl.overflow-hidden.cursor-pointer').first();
+    const firstQuestCard = page.locator('.bg-white.rounded-xl.cursor-pointer').first();
     await firstQuestCard.waitFor({ state: 'visible', timeout: 15000 });
 
     // Click the card (entire card is clickable)
@@ -98,7 +98,7 @@ test.describe('Quest Enrollment', () => {
     }
 
     // Click on first quest card
-    const firstQuestCard = page.locator('.group.bg-white.rounded-xl.overflow-hidden.cursor-pointer').first();
+    const firstQuestCard = page.locator('.bg-white.rounded-xl.cursor-pointer').first();
     await firstQuestCard.waitFor({ state: 'visible', timeout: 15000 });
     await firstQuestCard.click();
     await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
@@ -138,7 +138,7 @@ test.describe('Quest Enrollment', () => {
     }
 
     // Find a quest that's not enrolled
-    const questCards = page.locator('.group.bg-white.rounded-xl.overflow-hidden.cursor-pointer');
+    const questCards = page.locator('.bg-white.rounded-xl.cursor-pointer');
     await questCards.first().waitFor({ state: 'visible', timeout: 15000 });
     const cardCount = await questCards.count();
 
@@ -218,7 +218,7 @@ test.describe('Quest Enrollment', () => {
     }
 
     // Should show at least one quest card (user should have at least one active quest)
-    const questCards = page.locator('.group.bg-white.rounded-xl.overflow-hidden.cursor-pointer');
+    const questCards = page.locator('.bg-white.rounded-xl.cursor-pointer');
     await expect(questCards.first()).toBeVisible({ timeout: 15000 });
 
     // Click on first quest to verify it's enrolled
@@ -242,7 +242,7 @@ test.describe('Quest Enrollment', () => {
     }
 
     // Find an enrolled quest by clicking through quest cards
-    const questCards = page.locator('.group.bg-white.rounded-xl.overflow-hidden.cursor-pointer');
+    const questCards = page.locator('.bg-white.rounded-xl.cursor-pointer');
     await questCards.first().waitFor({ state: 'visible', timeout: 15000 });
     const cardCount = await questCards.count();
 
