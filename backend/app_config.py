@@ -13,14 +13,21 @@ from config.constants import (
     MAX_FILE_SIZE,
     MAX_CONTENT_LENGTH,
     MIN_PASSWORD_LENGTH,
+    MAX_PASSWORD_LENGTH,
     PASSWORD_REQUIREMENTS,
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
     DEFAULT_QUEST_XP,
     MAX_QUEST_XP,
+    MIN_QUEST_TITLE_LENGTH,
+    MAX_QUEST_TITLE_LENGTH,
+    MIN_QUEST_DESCRIPTION_LENGTH,
+    MAX_QUEST_DESCRIPTION_LENGTH,
     SESSION_TIMEOUT,
     ACCESS_TOKEN_EXPIRY,
     REFRESH_TOKEN_EXPIRY,
+    MIN_SECRET_KEY_LENGTH,
+    ALLOWED_EXTENSIONS,
 )
 
 # Load from current directory's .env file (backend/.env)
@@ -44,8 +51,7 @@ class Config:
             # NOTE: print() used here due to circular dependency - logger not available yet
             SECRET_KEY = 'dev-secret-key-change-in-production'
 
-    # Ensure minimum length for security (64 chars = 32 bytes for HS256)
-    MIN_SECRET_KEY_LENGTH = 64
+    # Ensure minimum length for security (from centralized constants)
     if len(SECRET_KEY) < MIN_SECRET_KEY_LENGTH:
         if FLASK_ENV == 'production':
             raise ValueError(f"FLASK_SECRET_KEY must be at least {MIN_SECRET_KEY_LENGTH} characters in production (current: {len(SECRET_KEY)})")
@@ -171,22 +177,18 @@ class Config:
     
     # File Upload Settings - CONFIGURABLE
     UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'mp4', 'mov'}
-    MAX_FILE_SIZE = MAX_FILE_SIZE  # From backend.config.constants (10MB)
+    # ALLOWED_EXTENSIONS imported from backend.config.constants
+    # MAX_FILE_SIZE imported from backend.config.constants (10MB)
     MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', str(10 * 1024 * 1024)))  # 10MB default
     ALLOWED_UPLOAD_EXTENSIONS = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.mp4', '.mov']
-    
-    # Quest Settings
-    MIN_QUEST_TITLE_LENGTH = 3
-    MAX_QUEST_TITLE_LENGTH = 200
-    MIN_QUEST_DESCRIPTION_LENGTH = 10
-    MAX_QUEST_DESCRIPTION_LENGTH = 5000
-    DEFAULT_QUEST_XP = DEFAULT_QUEST_XP  # From backend.config.constants
-    MAX_QUEST_XP = MAX_QUEST_XP  # From backend.config.constants
-    
+
+    # Quest Settings - imported from centralized constants
+    # MIN_QUEST_TITLE_LENGTH, MAX_QUEST_TITLE_LENGTH imported from backend.config.constants
+    # MIN_QUEST_DESCRIPTION_LENGTH, MAX_QUEST_DESCRIPTION_LENGTH imported from backend.config.constants
+    # DEFAULT_QUEST_XP, MAX_QUEST_XP imported from backend.config.constants
+
     # User Settings - Strong password policy - imported from centralized constants
-    MIN_PASSWORD_LENGTH = MIN_PASSWORD_LENGTH  # From backend.config.constants (12 chars)
-    MAX_PASSWORD_LENGTH = 128
+    # MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH imported from backend.config.constants
     PASSWORD_REQUIRE_UPPERCASE = PASSWORD_REQUIREMENTS['require_uppercase']
     PASSWORD_REQUIRE_LOWERCASE = PASSWORD_REQUIREMENTS['require_lowercase']
     PASSWORD_REQUIRE_NUMBER = PASSWORD_REQUIREMENTS['require_digit']
@@ -227,7 +229,7 @@ class Config:
             if cls.SECRET_KEY == 'dev-secret-key-CHANGE-IN-PRODUCTION':
                 raise RuntimeError("FLASK_SECRET_KEY must be set in production")
 
-            MIN_SECRET_KEY_LENGTH = 64
+            # Use centralized constant
             if len(cls.SECRET_KEY) < MIN_SECRET_KEY_LENGTH:
                 raise RuntimeError(f"FLASK_SECRET_KEY must be at least {MIN_SECRET_KEY_LENGTH} characters (current: {len(cls.SECRET_KEY)})")
 

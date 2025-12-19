@@ -46,9 +46,8 @@ logger = get_logger(__name__)
 
 bp = Blueprint('auth', __name__)
 
-# Account lockout constants
-MAX_LOGIN_ATTEMPTS = 5
-LOCKOUT_DURATION_MINUTES = 30
+# Import account lockout constants from centralized config
+from backend.config.constants import MAX_LOGIN_ATTEMPTS, LOCKOUT_DURATION_MINUTES
 
 def check_account_lockout(email):
     """

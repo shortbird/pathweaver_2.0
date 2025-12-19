@@ -45,10 +45,12 @@ bp = Blueprint('tasks', __name__, url_prefix='/api/tasks')
 evidence_service = EvidenceService()
 xp_service = XPService()
 
+# Import file upload configuration from centralized config
+from backend.config.constants import MAX_IMAGE_SIZE, ALLOWED_IMAGE_EXTENSIONS
+
 # File upload configuration
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads/evidence')
-MAX_FILE_SIZE = int(os.getenv('MAX_IMAGE_UPLOAD_SIZE', 10485760))  # 10MB default for images
-ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+MAX_FILE_SIZE = int(os.getenv('MAX_IMAGE_UPLOAD_SIZE', MAX_IMAGE_SIZE))  # Use centralized constant as default
 
 # Using repository pattern for database access
 @bp.route('/<task_id>/complete', methods=['POST'])

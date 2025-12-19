@@ -17,7 +17,14 @@ XP_THRESHOLDS = {
 # File Upload Limits
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
+MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB for images
+MAX_DOCUMENT_SIZE = 10 * 1024 * 1024  # 10MB for documents (PDFs, etc.)
+
+# Allowed File Extensions (by type)
 ALLOWED_FILE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.pdf', '.mp4', '.doc', '.docx', '.txt', '.webp', '.mov', '.webm', '.mp3', '.wav', '.ogg'}
+ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'mp4', 'mov'}  # Legacy compatibility
 
 # Rate Limiting
 RATE_LIMITS = {
@@ -38,13 +45,18 @@ CACHE_TIMES = {
 
 # Password Policy
 MIN_PASSWORD_LENGTH = 12
+MAX_PASSWORD_LENGTH = 128
 PASSWORD_REQUIREMENTS = {
     'min_length': MIN_PASSWORD_LENGTH,
+    'max_length': MAX_PASSWORD_LENGTH,
     'require_uppercase': True,
     'require_lowercase': True,
     'require_digit': True,
     'require_special': True,
 }
+
+# Security Configuration
+MIN_SECRET_KEY_LENGTH = 64  # Minimum length for Flask SECRET_KEY (for HS256 JWT)
 
 # Session Configuration
 SESSION_TIMEOUT = 24 * 60 * 60  # 24 hours in seconds
@@ -54,11 +66,18 @@ ACCESS_TOKEN_EXPIRY = 15 * 60  # 15 minutes in seconds
 # Account Lockout
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_DURATION = 30 * 60  # 30 minutes in seconds
+LOCKOUT_DURATION_MINUTES = 30  # Legacy compatibility (same as LOCKOUT_DURATION / 60)
 
 # Default XP Values
 DEFAULT_TASK_XP = 50
 DEFAULT_QUEST_XP = 100
 MAX_QUEST_XP = 1000
+
+# Quest Validation
+MIN_QUEST_TITLE_LENGTH = 3
+MAX_QUEST_TITLE_LENGTH = 200
+MIN_QUEST_DESCRIPTION_LENGTH = 10
+MAX_QUEST_DESCRIPTION_LENGTH = 5000
 
 # Bonus XP (marked for Phase 2 removal)
 COMPLETION_BONUS_MULTIPLIER = 0.5  # 50% bonus for completing all tasks

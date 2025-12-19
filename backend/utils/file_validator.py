@@ -24,7 +24,13 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Allowed MIME types (checked via magic bytes)
+# Import file validation constants from centralized config
+from backend.config.constants import MAX_FILE_SIZE, ALLOWED_FILE_EXTENSIONS
+
+# Convert set of extensions with dots to set without dots for comparison
+ALLOWED_EXTENSIONS = {ext.lstrip('.') for ext in ALLOWED_FILE_EXTENSIONS}
+
+# Allowed MIME types (checked via magic bytes) - file validator specific
 ALLOWED_MIME_TYPES = {
     # Images
     'image/jpeg', 'image/png', 'image/gif', 'image/webp',
@@ -38,17 +44,6 @@ ALLOWED_MIME_TYPES = {
     # Audio
     'audio/mpeg', 'audio/wav', 'audio/ogg'
 }
-
-# Allowed file extensions (as secondary check)
-ALLOWED_EXTENSIONS = {
-    'jpg', 'jpeg', 'png', 'gif', 'webp',  # Images
-    'pdf', 'doc', 'docx', 'txt',          # Documents
-    'mp4', 'webm', 'mov',                 # Videos
-    'mp3', 'wav', 'ogg'                   # Audio
-}
-
-# Maximum file size: 10MB
-MAX_FILE_SIZE = 10 * 1024 * 1024
 
 # Suspicious patterns in files (potential XSS/scripting)
 SUSPICIOUS_PATTERNS = [

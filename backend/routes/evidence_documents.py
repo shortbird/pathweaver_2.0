@@ -43,12 +43,16 @@ bp = Blueprint('evidence_documents', __name__, url_prefix='/api/evidence')
 evidence_service = EvidenceService()
 xp_service = XPService()
 
+# Import file upload configuration from centralized config
+from backend.config.constants import (
+    MAX_IMAGE_SIZE,
+    MAX_DOCUMENT_SIZE,
+    ALLOWED_IMAGE_EXTENSIONS,
+    ALLOWED_DOCUMENT_EXTENSIONS
+)
+
 # File upload configuration
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads/evidence')
-MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB for images
-MAX_DOCUMENT_SIZE = 10 * 1024 * 1024  # 10MB for documents (PDFs, etc.)
-ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
-ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
 
 # Using repository pattern for database access
 @bp.route('/documents/<task_id>', methods=['GET'])
