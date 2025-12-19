@@ -16,7 +16,7 @@ from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit
 from utils.log_scrubber import mask_user_id, mask_email
 from middleware.error_handler import ValidationError, AuthenticationError
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 
 from utils.logger import get_logger
