@@ -1,4 +1,5 @@
-import { X, Zap, CheckCircle, Trophy, Info } from 'lucide-react';
+import { Zap, CheckCircle, Trophy, Info } from 'lucide-react';
+import { Modal, Alert, Card, CardTitle } from '../ui';
 
 /**
  * BadgeInfoModal - Explains badge requirements and XP system
@@ -9,38 +10,31 @@ import { X, Zap, CheckCircle, Trophy, Info } from 'lucide-react';
  * - Badge completion bonus (500 XP)
  */
 export default function BadgeInfoModal({ isOpen, onClose, badge }) {
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-primary p-2 rounded-lg">
-              <Info className="w-5 h-5 text-white" />
-            </div>
-            <h2 className="text-2xl font-bold">How to Earn This Badge</h2>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="lg"
+      header={
+        <div className="flex items-center gap-3">
+          <div className="bg-white/20 p-2 rounded-lg">
+            <Info className="w-5 h-5 text-white" />
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Close modal"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <h2 className="text-2xl font-bold text-white">How to Earn This Badge</h2>
         </div>
+      }
+    >
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="space-y-6">
           {/* Requirements Section */}
           <div>
             <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
               <Trophy className="w-5 h-5 text-optio-purple" />
               Badge Requirements
             </h3>
-            <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4">
-              <p className="text-gray-700 mb-4">
+            <Alert variant="purple">
+              <p className="mb-4">
                 To earn <span className="font-semibold text-purple-700">{badge.name}</span>, you must meet <strong>BOTH</strong> of these requirements:
               </p>
               <div className="space-y-3">
@@ -67,7 +61,7 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
                   </div>
                 </div>
               </div>
-            </div>
+            </Alert>
           </div>
 
           {/* XP System Explanation */}
@@ -122,21 +116,17 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
           </div>
 
           {/* Example Calculation */}
-          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-            <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-              <Info className="w-4 h-4" />
-              Example
-            </h4>
-            <p className="text-sm text-gray-700">
+          <Alert variant="info" title="Example">
+            <p className="text-sm mb-2">
               If you complete tasks worth 1,800 XP across 6 quests, and finish all tasks in each quest, you'll earn:
             </p>
-            <ul className="text-sm text-gray-700 mt-2 space-y-1 ml-4">
+            <ul className="text-sm space-y-1 ml-4">
               <li>• 1,800 XP from tasks</li>
               <li>• ~900 XP from quest completion bonuses (50% of 1,800)</li>
               <li>• 500 XP badge completion bonus</li>
               <li className="font-semibold text-blue-900 pt-1">= 3,200 XP total!</li>
             </ul>
-          </div>
+          </Alert>
 
           {/* Close Button */}
           <button
@@ -146,7 +136,6 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
             Got It!
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
