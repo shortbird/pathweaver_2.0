@@ -231,7 +231,9 @@ def get_current_user():
                 payload = session_manager.verify_access_token(token)
 
                 if payload and payload.get('iat'):
-                    token_issued_at = datetime.fromtimestamp(payload.get('iat'))
+                    # Make token_issued_at timezone-aware (UTC) for comparison
+                    from datetime import timezone
+                    token_issued_at = datetime.fromtimestamp(payload.get('iat'), tz=timezone.utc)
 
                     # Use admin client to check last logout
                     admin_client = get_supabase_admin_client()
