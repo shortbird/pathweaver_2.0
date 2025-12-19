@@ -233,7 +233,6 @@ const ChatLogsModal = ({ user, onClose }) => {
             )}
           </div>
         </div>
-      </div>
     </Modal>
   )
 }
