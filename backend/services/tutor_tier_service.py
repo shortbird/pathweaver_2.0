@@ -41,9 +41,17 @@ class TutorTierService(BaseService):
     def __init__(self):
         """Initialize tier service with predefined limits"""
         super().__init__()
-        self.supabase = get_supabase_admin_client()
+        # Lazy-initialize client to avoid Flask context issues at import time
+        self._supabase = None
         self.tier_limits = self._define_tier_limits()
         self.tier_mappings = self._define_tier_mappings()
+
+    @property
+    def supabase(self):
+        """Lazy-load Supabase admin client on first access."""
+        if self._supabase is None:
+            self._supabase = get_supabase_admin_client()
+        return self._supabase
 
     def _define_tier_limits(self) -> Dict[TutorTier, TierLimits]:
         """Define limits and features for each tier"""

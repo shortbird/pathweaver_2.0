@@ -26,7 +26,15 @@ class TaskCacheService(BaseService):
 
     def __init__(self):
         super().__init__()
-        self.supabase = get_supabase_admin_client()
+        # Lazy-initialize client to avoid Flask context issues at import time
+        self._supabase = None
+
+    @property
+    def supabase(self):
+        """Lazy-load Supabase admin client on first access."""
+        if self._supabase is None:
+            self._supabase = get_supabase_admin_client()
+        return self._supabase
 
     def build_cache_key(self, interests: List[str], cross_curricular: List[str]) -> str:
         """Build a cache key from interests and cross-curricular subjects"""
@@ -87,12 +95,20 @@ class PersonalizationService(BaseService):
 
     def __init__(self):
         super().__init__()
-        self.supabase = get_supabase_admin_client()
+        # Lazy-initialize client to avoid Flask context issues at import time
+        self._supabase = None
         self.cache = TaskCacheService()
 
         # Import AI service lazily to avoid circular imports
         from services.quest_ai_service import QuestAIService
         self.ai_service = QuestAIService()
+
+    @property
+    def supabase(self):
+        """Lazy-load Supabase admin client on first access."""
+        if self._supabase is None:
+            self._supabase = get_supabase_admin_client()
+        return self._supabase
 
     def start_personalization_session(
         self,

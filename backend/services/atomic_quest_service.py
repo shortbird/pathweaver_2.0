@@ -21,8 +21,16 @@ class AtomicQuestService(BaseService):
 
     def __init__(self):
         super().__init__()
-        # Use admin client for race condition handling (needs direct DB access)
-        self.supabase = get_supabase_admin_client()
+        # Lazy-initialize client to avoid Flask context issues at import time
+        self._supabase = None
+
+    @property
+    def supabase(self):
+        """Lazy-load Supabase admin client on first access."""
+        if self._supabase is None:
+            # Use admin client for race condition handling (needs direct DB access)
+            self._supabase = get_supabase_admin_client()
+        return self._supabase
 
     def complete_task_atomically(
         self,
