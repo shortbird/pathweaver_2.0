@@ -28,7 +28,7 @@ test.describe('WebKit Diagnostics', () => {
 
     // Navigate to quest hub
     console.log('Step 2: Navigating to quest hub...');
-    await page.goto(`${BASE_URL}/quest-hub`);
+    await page.goto(`${BASE_URL}/quests`);
     console.log(`  ✓ Navigated to: ${page.url()}`);
 
     // Wait for network idle
@@ -192,7 +192,7 @@ test.describe('WebKit Diagnostics', () => {
 
     // Login and navigate
     await login(page);
-    await page.goto(`${BASE_URL}/quest-hub`);
+    await page.goto(`${BASE_URL}/quests`);
     await page.waitForLoadState('networkidle');
 
     // Wait for quest API to be called
