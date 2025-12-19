@@ -220,3 +220,137 @@ def authenticated_client(client, test_user):
         session['user_id'] = test_user['id']
 
     return client
+
+# Additional Fixtures for Optio Platform
+
+@pytest.fixture
+def sample_organization():
+    """Sample organization data"""
+    return {
+        'id': str(uuid.uuid4()),
+        'name': 'Test High School',
+        'slug': 'test-high-school',
+        'quest_visibility_policy': 'all',
+        'is_active': True,
+        'branding_config': {
+            'primary_color': '#8B5CF6',
+            'logo_url': None
+        }
+    }
+
+@pytest.fixture
+def sample_badge():
+    """Sample badge data"""
+    return {
+        'id': str(uuid.uuid4()),
+        'name': 'STEM Explorer',
+        'description': 'Complete STEM quests to earn this badge',
+        'pillar_primary': 'stem',
+        'min_quests': 3,
+        'min_xp': 300,
+        'image_url': 'https://example.com/badge.png'
+    }
+
+@pytest.fixture
+def sample_task():
+    """Sample task data"""
+    return {
+        'id': str(uuid.uuid4()),
+        'quest_id': 'quest-123',
+        'user_id': 'test-user-123',
+        'title': 'Complete the assignment',
+        'description': 'Submit your work',
+        'pillar': 'stem',
+        'xp_value': 100,
+        'approval_status': 'pending',
+        'is_required': True
+    }
+
+@pytest.fixture
+def sample_task_completion():
+    """Sample task completion data"""
+    return {
+        'id': str(uuid.uuid4()),
+        'user_id': 'test-user-123',
+        'quest_id': 'quest-123',
+        'task_id': 'task-123',
+        'xp_awarded': 100,
+        'completed_at': datetime.utcnow().isoformat(),
+        'evidence_text': 'Here is my completed work',
+        'evidence_url': 'https://example.com/evidence.pdf'
+    }
+
+@pytest.fixture
+def parent_user():
+    """Sample parent user data"""
+    return {
+        'id': 'parent-user-123',
+        'email': 'parent@example.com',
+        'display_name': 'Parent User',
+        'role': 'parent',
+        'created_at': '2024-01-01T00:00:00Z'
+    }
+
+@pytest.fixture
+def observer_user():
+    """Sample observer user data (NEW Jan 2025)"""
+    return {
+        'id': 'observer-user-123',
+        'email': 'observer@example.com',
+        'display_name': 'Observer User',
+        'role': 'observer',
+        'created_at': '2025-01-01T00:00:00Z'
+    }
+
+@pytest.fixture
+def sample_dependent():
+    """Sample dependent profile data (NEW Jan 2025)"""
+    return {
+        'id': 'dependent-user-123',
+        'display_name': 'Child User',
+        'role': 'student',
+        'is_dependent': True,
+        'managed_by_parent_id': 'parent-user-123',
+        'date_of_birth': '2015-06-15',
+        'promotion_eligible_at': '2028-06-15',  # Age 13
+        'created_at': '2024-01-01T00:00:00Z'
+    }
+
+@pytest.fixture
+def sample_parent_student_link():
+    """Sample parent-student relationship"""
+    return {
+        'id': str(uuid.uuid4()),
+        'parent_id': 'parent-user-123',
+        'student_id': 'test-user-123',
+        'relationship_type': 'parent',
+        'created_at': '2024-01-01T00:00:00Z'
+    }
+
+@pytest.fixture
+def sample_friendship():
+    """Sample friendship/connection data"""
+    return {
+        'id': str(uuid.uuid4()),
+        'requester_id': 'test-user-123',
+        'addressee_id': 'test-user-456',
+        'status': 'pending',
+        'created_at': '2024-01-01T00:00:00Z'
+    }
+
+@pytest.fixture
+def mock_gemini_response():
+    """Mock Gemini AI response"""
+    return {
+        'success': True,
+        'message': 'This is a helpful response from the AI tutor.',
+        'safety_flag': False,
+        'tokens_used': 150
+    }
+
+@pytest.fixture
+def mock_email_service():
+    """Mock email service"""
+    with patch('services.email_service.EmailService.send_templated_email') as mock:
+        mock.return_value = {'success': True, 'message_id': 'test-message-123'}
+        yield mock
