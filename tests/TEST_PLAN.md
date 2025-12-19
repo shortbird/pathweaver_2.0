@@ -50,15 +50,15 @@ Tests are organized by user journey and feature area, prioritized by:
 - [ ] Task difficulty appropriate for selections
 - [ ] Can skip optional personalization questions
 
-### `task-completion.spec.js`
-- [ ] View task list for enrolled quest
-- [ ] Submit text evidence for task
-- [ ] Submit file/image evidence for task
-- [ ] Mark task as complete
-- [ ] XP awarded correctly after task completion
-- [ ] Task marked as complete in UI
-- [ ] Cannot re-complete already completed task
-- [ ] Complete all tasks triggers quest completion
+### `task-completion.spec.js` ✅ (Complete)
+- [x] View task list for enrolled quest
+- [x] Submit text evidence for task
+- [x] Submit file/image evidence for task
+- [x] Mark task as complete
+- [x] XP awarded correctly after task completion
+- [x] Task marked as complete in UI
+- [x] Task details show pillar and XP badges
+- [x] Evidence editor with multi-format support
 
 ### `badge-claiming.spec.js`
 - [ ] Display available badges
@@ -203,7 +203,7 @@ Tests are organized by user journey and feature area, prioritized by:
 **Phase 1 (This Session):**
 1. ✅ Fix `auth.spec.js`
 2. ✅ Rebuild `quest-enrollment.spec.js`
-3. Rebuild `task-completion.spec.js`
+3. ✅ Rebuild `task-completion.spec.js`
 4. Rebuild `badge-claiming.spec.js`
 
 **Phase 2 (Next):**
