@@ -89,9 +89,7 @@ def complete_task(user_id: str, task_id: str):
 
         # Use user client for user operations (RLS enforcement)
         supabase = get_user_client()
-        # JUSTIFICATION: Admin client only for Supabase storage and XP operations
-        # Storage operations and XP awards require elevated privileges
-        # All user-scoped database operations use user client with proper RLS enforcement
+        # Admin client: Storage and XP operations only (ADR-002, Rule 2)
         admin_supabase = get_supabase_admin_client()
 
         # Initialize repositories with user client for RLS

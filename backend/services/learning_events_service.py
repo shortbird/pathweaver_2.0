@@ -85,9 +85,7 @@ class LearningEventsService(BaseService):
             Dictionary with success status and events list
         """
         try:
-            # JUSTIFICATION: Admin client used for authenticated learning events endpoint
-            # The route already validates user authentication via @require_auth decorator
-            # Using admin client here for reliable data fetching with user_id filter
+            # Admin client: Auth verified by decorator (ADR-002, Rule 3)
             supabase = get_supabase_admin_client()
 
             # Fetch events

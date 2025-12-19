@@ -63,11 +63,7 @@ def get_evidence_document(user_id: str, task_id: str):
     Returns the document with all content blocks.
     """
     try:
-        # JUSTIFICATION: Using admin client for evidence retrieval because:
-        # 1. User authentication already validated by @require_auth decorator
-        # 2. Spark SSO users don't have Supabase auth.users entries (only public.users)
-        # 3. RLS policies check auth.uid() which doesn't exist for Spark users
-        # 4. We validate user_id matches request below (security check)
+        # Admin client: Spark SSO compatibility (ADR-002, Rule 4)
         supabase = get_supabase_admin_client()
 
         # Get the evidence document
@@ -128,11 +124,7 @@ def save_evidence_document(user_id: str, task_id: str):
     This is used for auto-save and manual save operations.
     """
     try:
-        # JUSTIFICATION: Using admin client for evidence operations because:
-        # 1. User authentication already validated by @require_auth decorator
-        # 2. Spark SSO users don't have Supabase auth.users entries (only public.users)
-        # 3. RLS policies check auth.uid() which doesn't exist for Spark users
-        # 4. We validate user_id matches task owner below (lines 126-130)
+        # Admin client: Spark SSO compatibility (ADR-002, Rule 4)
         admin_supabase = get_supabase_admin_client()
 
         data = request.get_json()
@@ -368,11 +360,7 @@ def upload_block_file(user_id: str, block_id: str):
     Upload a file for a specific content block (image or document).
     """
     try:
-        # JUSTIFICATION: Using admin client for evidence operations because:
-        # 1. User authentication already validated by @require_auth decorator
-        # 2. Spark SSO users don't have Supabase auth.users entries (only public.users)
-        # 3. RLS policies check auth.uid() which doesn't exist for Spark users
-        # 4. We validate user_id matches block owner below (line 315-319)
+        # Admin client: Spark SSO compatibility (ADR-002, Rule 4)
         admin_supabase = get_supabase_admin_client()
 
         # Validate the block exists and belongs to the user
@@ -511,7 +499,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
     Process evidence document completion - extracted from save_evidence_document
     """
     try:
-        # JUSTIFICATION: Using admin client for evidence operations (Spark SSO users)
+        # Admin client: Spark SSO compatibility (ADR-002, Rule 4)
         admin_supabase = get_supabase_admin_client()
 
         # Validate task exists and user is enrolled (V3 personalized task system)
@@ -798,7 +786,7 @@ def delete_block_file(user_id: str, block_id: str):
     """
     try:
         supabase = get_user_client()
-        # JUSTIFICATION: Admin client only for Supabase storage operations
+        # Admin client: Storage operations only (ADR-002, Rule 2)
         admin_supabase = get_supabase_admin_client()
 
         # Validate the block exists and belongs to the user
