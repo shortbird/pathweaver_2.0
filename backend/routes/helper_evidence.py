@@ -34,7 +34,7 @@ bp = Blueprint('helper_evidence', __name__, url_prefix='/api/evidence/helper')
 
 def verify_advisor_access(advisor_user_id, student_user_id):
     """Verify advisor has access to student"""
-    # ADMIN CLIENT JUSTIFIED: Verifying role and advisor-student relationship (not user-specific data query)
+    # Admin client: Cross-user access verification (ADR-002, Rule 5)
     user_repo = UserRepository()
 
     # Verify advisor role
@@ -60,7 +60,7 @@ def verify_advisor_access(advisor_user_id, student_user_id):
 
 def verify_parent_access(parent_user_id, student_user_id):
     """Verify parent has active access to student"""
-    # ADMIN CLIENT JUSTIFIED: Verifying role and parent-student relationship (not user-specific data query)
+    # Admin client: Cross-user access verification (ADR-002, Rule 5)
     user_repo = UserRepository()
     supabase = get_supabase_admin_client()
     parent_repo = ParentRepository(client=supabase)
@@ -84,7 +84,7 @@ def verify_parent_access(parent_user_id, student_user_id):
 
 def get_or_create_evidence_document(student_user_id, task_id, quest_id):
     """Get existing evidence document ID or create a new one"""
-    # ADMIN CLIENT JUSTIFIED: Creating evidence document for student (verified access in calling function)
+    # Admin client: Cross-user data creation (ADR-002, Rule 5)
     supabase = get_supabase_admin_client()
     evidence_repo = EvidenceDocumentRepository()
     evidence_repo._client = supabase  # Use admin client since we already verified access
@@ -108,7 +108,7 @@ def upload_evidence_for_student(user_id):
     }
     """
     try:
-        # ADMIN CLIENT JUSTIFIED: Helper uploading evidence for student (access verified below)
+        # Admin client: Parent/advisor cross-user access (ADR-002, Rule 5)
         supabase = get_supabase_admin_client()
         user_repo = UserRepository()
         task_repo = TaskRepository()
@@ -237,7 +237,7 @@ def get_student_tasks_for_evidence(user_id, student_id):
     Only returns tasks from active quests that are not yet completed.
     """
     try:
-        # ADMIN CLIENT JUSTIFIED: Helper accessing student task list (access verified below)
+        # Admin client: Parent/advisor cross-user access (ADR-002, Rule 5)
         supabase = get_supabase_admin_client()
         user_repo = UserRepository()
 

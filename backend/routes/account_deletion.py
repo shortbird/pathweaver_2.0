@@ -49,7 +49,7 @@ def request_account_deletion(current_user):
         reason = data.get('reason', '')
         user_id = current_user['id']
 
-        # ADMIN CLIENT JUSTIFIED: Account deletion requires cross-table cleanup and audit logging
+        # Admin client: Admin operations for cross-table cleanup (ADR-002, Rule 2)
         supabase = get_supabase_admin_client()
 
         # Get user data for logging
@@ -220,7 +220,7 @@ def export_user_data(current_user):
         logger.info(f"[EXPORT] Starting data export for user: {current_user}")
         user_id = current_user['id']
         logger.info(f"[EXPORT] User ID: {user_id}")
-        # ADMIN CLIENT JUSTIFIED: GDPR data export requires cross-table reads from all user data
+        # Admin client: Admin operations for GDPR export (ADR-002, Rule 2)
         supabase = get_supabase_admin_client()
         logger.info(f"[EXPORT] Got supabase client")
 

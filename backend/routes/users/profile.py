@@ -23,7 +23,7 @@ profile_bp = Blueprint('profile', __name__)
 @require_auth
 def get_profile(user_id):
     """Get user profile with XP breakdown"""
-    # Use admin client - user authentication enforced by @require_auth
+    # Admin client: Auth verified by decorator (ADR-002, Rule 3)
     from database import get_supabase_admin_client
     supabase = get_supabase_admin_client()
 
@@ -71,7 +71,7 @@ def get_profile(user_id):
 @require_auth
 def update_profile(user_id):
     """Update user profile"""
-    # Use admin client - user authentication enforced by @require_auth
+    # Admin client: Auth verified by decorator (ADR-002, Rule 3)
     from database import get_supabase_admin_client
     supabase = get_supabase_admin_client()
 

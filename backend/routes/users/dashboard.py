@@ -39,7 +39,7 @@ dashboard_bp = Blueprint('dashboard', __name__)
 @require_auth
 def get_user_subject_xp(user_id):
     """Get user's XP by school subject for diploma credits"""
-    # Use admin client - user authentication enforced by @require_auth
+    # Admin client: Auth verified by decorator (ADR-002, Rule 3)
     supabase = get_supabase_admin_client()
 
     try:
@@ -69,7 +69,7 @@ def get_user_subject_xp(user_id):
 @require_auth
 def get_dashboard(user_id):
     """Get user dashboard data including active quests and XP stats"""
-    # Use admin client - user authentication enforced by @require_auth
+    # Admin client: Auth verified by decorator (ADR-002, Rule 3)
     supabase = get_supabase_admin_client()
 
     try:

@@ -22,7 +22,7 @@ settings_bp = Blueprint('settings', __name__)
 def get_settings():
     """Get site settings (public endpoint)"""
     try:
-        # ADMIN CLIENT JUSTIFIED: Reading public site-wide settings (not user-specific data)
+        # Admin client: Public site settings access (ADR-002, Rule 2)
         settings_repo = SiteSettingsRepository()
         settings = settings_repo.get_settings()
         return jsonify(settings), 200
@@ -42,7 +42,7 @@ def update_settings(current_user):
     """Update site settings (admin only)"""
     try:
         data = request.get_json()
-        # ADMIN CLIENT JUSTIFIED: Admin-only endpoint for updating site-wide settings
+        # Admin client: Admin operations (ADR-002, Rule 2)
         settings_repo = SiteSettingsRepository()
         updated_settings = settings_repo.upsert_settings(data)
         return jsonify(updated_settings), 200
@@ -68,7 +68,7 @@ def upload_logo(current_user):
         file_ext = logo_file.filename.rsplit('.', 1)[1].lower() if '.' in logo_file.filename else 'png'
         filename = f"logo_{uuid.uuid4().hex}.{file_ext}"
 
-        # ADMIN CLIENT JUSTIFIED: Admin-only endpoint for uploading site-wide assets
+        # Admin client: Admin operations (ADR-002, Rule 2)
         file_data = logo_file.read()
         supabase = get_supabase_admin_client()
 

@@ -58,7 +58,7 @@ def promo_signup():
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid teen age'}), 400
 
-        # Use admin client for public form submissions
+        # Admin client: Public form submission (ADR-002, Rule 2)
         supabase = get_supabase_admin_client()
         
         # Insert promo signup data
@@ -121,7 +121,7 @@ def consultation_request():
         if '@' not in email or '.' not in email:
             return jsonify({'error': 'Invalid email format'}), 400
 
-        # Use admin client for public form submissions
+        # Admin client: Public form submission (ADR-002, Rule 2)
         supabase = get_supabase_admin_client()
 
         # Insert consultation request data
@@ -181,7 +181,7 @@ def credit_tracker_signup():
         if '@' not in email or '.' not in email:
             return jsonify({'error': 'Invalid email format'}), 400
 
-        # Use admin client for public form submissions
+        # Admin client: Public form submission (ADR-002, Rule 2)
         supabase = get_supabase_admin_client()
 
         # Store curriculum info in activity field
@@ -257,7 +257,7 @@ def homeschool_portfolio_signup():
         if '@' not in email or '.' not in email:
             return jsonify({'error': 'Invalid email format'}), 400
 
-        # Use admin client for public form submissions
+        # Admin client: Public form submission (ADR-002, Rule 2)
         supabase = get_supabase_admin_client()
 
         # Insert signup data
@@ -323,7 +323,7 @@ def teacher_consultation_signup():
         if '@' not in email or '.' not in email:
             return jsonify({'error': 'Invalid email format'}), 400
 
-        # Use admin client for public form submissions
+        # Admin client: Public form submission (ADR-002, Rule 2)
         supabase = get_supabase_admin_client()
 
         # Store goals and phone in activity field for admin review

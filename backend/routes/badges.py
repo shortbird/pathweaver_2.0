@@ -288,7 +288,7 @@ def get_user_badges_public(target_user_id):
         }
     """
     try:
-        # ADMIN CLIENT JUSTIFIED: Public endpoint for viewing user badges (diploma page)
+        # Admin client: Public endpoint access (ADR-002, Rule 2)
         from database import get_supabase_admin_client
 
         supabase = get_supabase_admin_client()

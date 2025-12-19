@@ -57,7 +57,7 @@ def create_observer_request(user_id, user_role):
                 'error': f'Invalid relationship. Must be one of: {", ".join(valid_relationships)}'
             }), 400
 
-        # Use admin client to bypass RLS for creation
+        # Admin client: Cross-user invitation creation (ADR-002, Rule 5)
         supabase = get_supabase_admin_client()
 
         # Check for duplicate pending requests

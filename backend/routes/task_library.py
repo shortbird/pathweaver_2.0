@@ -94,7 +94,7 @@ def select_library_task(user_id, quest_id):
         # Get the library task details
         library_service = TaskLibraryService()
 
-        # Use admin client since we already validated user via @require_auth decorator
+        # Admin client: Auth verified by decorator (ADR-002, Rule 3)
         from database import get_supabase_admin_client
         supabase = get_supabase_admin_client()
 
