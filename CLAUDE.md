@@ -5,6 +5,10 @@
 ## Critical Rules
 
 1. **NEVER run locally** - Test at https://optio-dev-frontend.onrender.com
+   - DO NOT run `npm run dev`, `flask run`, or ANY local servers
+   - DO NOT run `npx playwright test` or ANY E2E tests locally
+   - E2E tests run automatically via GitHub Actions on push to develop
+   - Use deployed dev environment for all testing
 2. **ALWAYS commit to `develop`** - Auto-commit unless told otherwise (don't push without permission)
 3. **NEVER use emojis** - Professional tone only
 4. **Verify database schema** - Use Supabase MCP before ANY query (table names change)
