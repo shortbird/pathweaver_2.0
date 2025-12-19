@@ -21,7 +21,8 @@ async function login(page) {
   await page.fill('input[type="email"]', 'test@optioeducation.com');
   await page.fill('input[type="password"]', 'TestPassword123!');
   await page.click('button[type="submit"]');
-  await page.waitForURL(/.*\/(dashboard|quest-hub|quests)/, { timeout: 15000 });
+  // Test user is a student, redirects to /dashboard
+  await page.waitForURL(/.*\/dashboard/, { timeout: 15000 });
 }
 
 test.describe('Badge System', () => {

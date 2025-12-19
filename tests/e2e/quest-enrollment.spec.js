@@ -23,8 +23,8 @@ async function login(page) {
   await page.fill('input[type="password"]', 'TestPassword123!');
   await page.click('button[type="submit"]');
 
-  // Wait for successful login (redirects to quest-hub)
-  await page.waitForURL(/.*\/(quest-hub|quests|dashboard)/, { timeout: 15000 });
+  // Test user is a student, redirects to /dashboard
+  await page.waitForURL(/.*\/dashboard/, { timeout: 15000 });
 }
 
 test.describe('Quest Enrollment', () => {
