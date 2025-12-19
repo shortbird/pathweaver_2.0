@@ -1,53 +1,79 @@
 import { test, expect } from '@playwright/test';
-import {
-  login,
-  setupQuestHub,
-  waitForQuestCards,
-  BASE_URL
-} from './helpers.js';
 
 /**
- * Task Completion E2E Tests (WebKit-Fixed Version)
+ * Task Completion E2E Tests
  *
- * Tests the task completion flow with WebKit-optimized wait strategies:
+ * Tests the task completion flow:
  * - View quest tasks
  * - Submit task evidence (text, link, image)
  * - View task completion status
  * - Track XP progress
  *
- * CHANGES FROM ORIGINAL:
- * - Use helper functions with robust wait strategies
- * - Increased timeouts for WebKit compatibility
- * - Better handling of async state updates
+ * IMPORTANT: These tests are built against the actual UI at https://optio-dev-frontend.onrender.com
+ * Last verified: December 2025
  */
 
-test.describe('Task Completion (WebKit-Fixed)', () => {
+const BASE_URL = 'https://optio-dev-frontend.onrender.com';
+
+// Helper function to login
+async function login(page) {
+  await page.goto(`${BASE_URL}/login`);
+  await page.fill('input[type="email"]', 'test@optioeducation.com');
+  await page.fill('input[type="password"]', 'TestPassword123!');
+  await page.click('button[type="submit"]');
+  // Test user is a student, redirects to /dashboard
+  await page.waitForURL(/.*\/dashboard/, { timeout: 15000 });
+}
+
+test.describe('Task Completion', () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
   });
 
   test('should display quest tasks', async ({ page }) => {
-    await setupQuestHub(page);
+    // Navigate to quest hub
+    await page.goto(`${BASE_URL}/quests`);
+    await page.waitForLoadState('networkidle');
+
+    // Switch to QUESTS tab
+    const questsTab = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+    if (await questsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await questsTab.click();
+      await page.waitForTimeout(1000);
+    }
+
+    // Find an enrolled quest (one that shows "Continue" or progress bar)
+    const questCards = page.locator('.bg-white.rounded-xl.cursor-pointer');
+    await questCards.first().waitFor({ state: 'visible', timeout: 15000 });
 
     // Click on first quest
-    const questCards = await waitForQuestCards(page);
     await questCards.first().click();
     await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
 
-    // Should show task workspace indicators
+    // Should show task workspace indicators (from TaskWorkspace component)
     const taskIndicators = page.locator('text=/Your Evidence|Select a task to get started/i');
     await expect(taskIndicators.first()).toBeVisible({ timeout: 10000 });
   });
 
   test('should show task details and evidence editor', async ({ page }) => {
-    await setupQuestHub(page);
+    // Navigate to quest hub
+    await page.goto(`${BASE_URL}/quests`);
+    await page.waitForLoadState('networkidle');
+
+    // Switch to QUESTS tab
+    const questsTab = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+    if (await questsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await questsTab.click();
+      await page.waitForTimeout(1000);
+    }
 
     // Click on enrolled quest
-    const questCards = await waitForQuestCards(page);
+    const questCards = page.locator('.bg-white.rounded-xl.cursor-pointer');
+    await questCards.first().waitFor({ state: 'visible', timeout: 15000 });
     await questCards.first().click();
     await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
 
-    // Should show "Your Evidence" section
+    // Should show "Your Evidence" section (indicates TaskWorkspace is loaded)
     const evidenceSection = page.locator('text=/Your Evidence|Add Content/i');
     const hasEvidenceSection = await evidenceSection.isVisible({ timeout: 10000 }).catch(() => false);
 
@@ -62,14 +88,24 @@ test.describe('Task Completion (WebKit-Fixed)', () => {
   });
 
   test('should submit text evidence using multi-format editor', async ({ page }) => {
-    await setupQuestHub(page);
+    // Navigate to quest hub
+    await page.goto(`${BASE_URL}/quests`);
+    await page.waitForLoadState('networkidle');
+
+    // Switch to QUESTS tab
+    const questsTab = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+    if (await questsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await questsTab.click();
+      await page.waitForTimeout(1000);
+    }
 
     // Click on enrolled quest
-    const questCards = await waitForQuestCards(page);
+    const questCards = page.locator('.bg-white.rounded-xl.cursor-pointer');
+    await questCards.first().waitFor({ state: 'visible', timeout: 15000 });
     await questCards.first().click();
     await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
 
-    // Check if "Add Content" button exists
+    // Check if "Add Content" button exists (indicates evidence editor)
     const addContentButton = page.getByRole('button', { name: /Add Content/i });
     const hasEditor = await addContentButton.isVisible({ timeout: 5000 }).catch(() => false);
 
@@ -85,14 +121,14 @@ test.describe('Task Completion (WebKit-Fixed)', () => {
         await textOption.click();
         await page.waitForTimeout(1000);
 
-        // Find the textarea
+        // Find the textarea in the evidence editor (should be visible after adding text block)
         const textarea = page.locator('textarea').first();
         const hasTextarea = await textarea.isVisible({ timeout: 3000 }).catch(() => false);
 
         if (hasTextarea) {
           // Fill in evidence
           await textarea.fill('This is my E2E test evidence. I completed this task successfully and learned about automated testing.');
-          await page.waitForTimeout(2000); // Wait for autosave (increased for WebKit)
+          await page.waitForTimeout(1000); // Wait for autosave
 
           // Should show "Saved" indicator
           const savedIndicator = page.locator('text=/Saved|Autosaved/i');
@@ -100,16 +136,26 @@ test.describe('Task Completion (WebKit-Fixed)', () => {
         }
       }
     } else {
-      // No editor available
+      // No editor available - might be a completed task or not enrolled
       test.skip();
     }
   });
 
   test('should mark task as completed', async ({ page }) => {
-    await setupQuestHub(page);
+    // Navigate to quest hub
+    await page.goto(`${BASE_URL}/quests`);
+    await page.waitForLoadState('networkidle');
+
+    // Switch to QUESTS tab
+    const questsTab = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+    if (await questsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await questsTab.click();
+      await page.waitForTimeout(1000);
+    }
 
     // Click on enrolled quest
-    const questCards = await waitForQuestCards(page);
+    const questCards = page.locator('.bg-white.rounded-xl.cursor-pointer');
+    await questCards.first().waitFor({ state: 'visible', timeout: 15000 });
     await questCards.first().click();
     await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
 
@@ -121,7 +167,9 @@ test.describe('Task Completion (WebKit-Fixed)', () => {
       // Click the button
       await markCompleteButton.click();
 
-      // Should show completion indicators
+      // Should show either:
+      // 1. "Task Completed! +X XP Earned" message
+      // 2. "Marking Complete..." loading state
       const completionIndicators = page.locator('text=/Task Completed|Marking Complete|XP Earned/i');
       await expect(completionIndicators.first()).toBeVisible({ timeout: 10000 });
     } else {
@@ -136,23 +184,43 @@ test.describe('Task Completion (WebKit-Fixed)', () => {
   });
 
   test('should show task completion progress in quest stats', async ({ page }) => {
-    await setupQuestHub(page);
+    // Navigate to quest hub
+    await page.goto(`${BASE_URL}/quests`);
+    await page.waitForLoadState('networkidle');
+
+    // Switch to QUESTS tab
+    const questsTab = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+    if (await questsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await questsTab.click();
+      await page.waitForTimeout(1000);
+    }
 
     // Click on enrolled quest
-    const questCards = await waitForQuestCards(page);
+    const questCards = page.locator('.bg-white.rounded-xl.cursor-pointer');
+    await questCards.first().waitFor({ state: 'visible', timeout: 15000 });
     await questCards.first().click();
     await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
 
-    // Should show stats: "X/Y Tasks"
+    // Should show stats: "X/Y Tasks" and "Z XP Earned"
     const taskStats = page.locator('text=/\\d+\\/\\d+ TASKS|Tasks/i');
     await expect(taskStats.first()).toBeVisible({ timeout: 10000 });
   });
 
   test('should show XP earned in quest stats', async ({ page }) => {
-    await setupQuestHub(page);
+    // Navigate to quest hub
+    await page.goto(`${BASE_URL}/quests`);
+    await page.waitForLoadState('networkidle');
+
+    // Switch to QUESTS tab
+    const questsTab = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+    if (await questsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await questsTab.click();
+      await page.waitForTimeout(1000);
+    }
 
     // Click on enrolled quest
-    const questCards = await waitForQuestCards(page);
+    const questCards = page.locator('.bg-white.rounded-xl.cursor-pointer');
+    await questCards.first().waitFor({ state: 'visible', timeout: 15000 });
     await questCards.first().click();
     await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
 
@@ -162,10 +230,20 @@ test.describe('Task Completion (WebKit-Fixed)', () => {
   });
 
   test('should display task with pillar and XP badges', async ({ page }) => {
-    await setupQuestHub(page);
+    // Navigate to quest hub
+    await page.goto(`${BASE_URL}/quests`);
+    await page.waitForLoadState('networkidle');
+
+    // Switch to QUESTS tab
+    const questsTab = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+    if (await questsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await questsTab.click();
+      await page.waitForTimeout(1000);
+    }
 
     // Click on enrolled quest
-    const questCards = await waitForQuestCards(page);
+    const questCards = page.locator('.bg-white.rounded-xl.cursor-pointer');
+    await questCards.first().waitFor({ state: 'visible', timeout: 15000 });
     await questCards.first().click();
     await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
 
