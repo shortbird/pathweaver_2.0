@@ -37,21 +37,34 @@
     "recharts": "^2.15.4"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "@vitest/coverage-v8": "^4.0.16",
+    "@vitest/ui": "^4.0.16",
     "autoprefixer": "^10.4.19",
+    "happy-dom": "^20.0.11",
+    "jsdom": "^27.3.0",
     "postcss": "^8.4.39",
     "rollup-plugin-visualizer": "^5.12.0",
     "sharp": "^0.34.5",
     "tailwindcss": "^3.4.4",
-    "vite": "^5.3.3"
+    "vite": "^5.3.3",
+    "vitest": "^4.0.16"
   },
   "scripts": {
     "dev": "vite",
     "build": "vite build && cp public/_redirects dist/_redirects 2>/dev/null || true",
     "build:analyze": "vite build --mode analyze && cp public/_redirects dist/_redirects 2>/dev/null || true",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest --watch"
   },
   "eslintConfig": {
     "extends": [

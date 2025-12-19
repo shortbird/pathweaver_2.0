@@ -1,0 +1,18 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Testing Patterns Examples > Snapshot Testing > matches snapshot for default state 1`] = `
+<form>
+  <input
+    aria-label="Text input"
+    placeholder="Enter text"
+    type="text"
+    value=""
+  />
+  <button
+    disabled=""
+    type="submit"
+  >
+    Submit
+  </button>
+</form>
+`;
