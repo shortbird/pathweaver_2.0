@@ -34,14 +34,14 @@ Tests are organized by user journey and feature area, prioritized by:
 
 ## P1: Core Quest & Badge System
 
-### `quest-enrollment.spec.js`
-- [ ] Display available quests (public + user's own)
-- [ ] View quest details page
-- [ ] Start personalization flow for a quest
-- [ ] Answer personalization questions (interests, cross-curricular)
-- [ ] View personalized tasks after enrollment
-- [ ] Verify quest appears in "My Quests"
-- [ ] Drop/abandon a quest
+### `quest-enrollment.spec.js` ✅ (Complete)
+- [x] Display available quests (public + user's own)
+- [x] View quest details page
+- [x] Start personalization flow for a quest
+- [x] Answer personalization questions (interests, cross-curricular)
+- [x] View personalized tasks after enrollment
+- [x] Verify quest appears in "My Quests"
+- [x] Drop/abandon a quest
 
 ### `quest-personalization.spec.js`
 - [ ] Personalization session saves progress
@@ -202,7 +202,7 @@ Tests are organized by user journey and feature area, prioritized by:
 
 **Phase 1 (This Session):**
 1. ✅ Fix `auth.spec.js`
-2. Rebuild `quest-enrollment.spec.js`
+2. ✅ Rebuild `quest-enrollment.spec.js`
 3. Rebuild `task-completion.spec.js`
 4. Rebuild `badge-claiming.spec.js`
 

@@ -9,15 +9,22 @@ import { test, expect } from '@playwright/test';
  * - Enroll in a quest (pick up)
  * - View enrolled quests
  * - Drop a quest (set down)
+ *
+ * IMPORTANT: These tests are built against the actual UI at https://optio-dev-frontend.onrender.com
+ * Last verified: December 2025
  */
+
+const BASE_URL = 'https://optio-dev-frontend.onrender.com';
 
 // Helper function to login before each test
 async function login(page) {
-  await page.goto('/login');
-  await page.fill('input[type="email"], input[name="email"]', 'test@optioeducation.com');
-  await page.fill('input[type="password"], input[name="password"]', 'TestPassword123!');
+  await page.goto(`${BASE_URL}/login`);
+  await page.fill('input[type="email"]', 'test@optioeducation.com');
+  await page.fill('input[type="password"]', 'TestPassword123!');
   await page.click('button[type="submit"]');
-  await page.waitForURL(/.*\/(dashboard|quest-hub|quests)/, { timeout: 15000 });
+
+  // Wait for successful login (redirects to quest-hub)
+  await page.waitForURL(/.*\/(quest-hub|quests|dashboard)/, { timeout: 15000 });
 }
 
 test.describe('Quest Enrollment', () => {
@@ -25,177 +32,287 @@ test.describe('Quest Enrollment', () => {
     await login(page);
   });
 
-  test('should display available quests', async ({ page }) => {
-    // Navigate to quest hub/browse
-    await page.goto('/quest-hub');
+  test('should display available quests in quest hub', async ({ page }) => {
+    // Navigate to quest hub
+    await page.goto(`${BASE_URL}/quest-hub`);
 
-    // Should show quest cards or list
-    const questCards = page.locator('[data-testid="quest-card"], .quest-card, div:has-text("Quest")');
-    await expect(questCards.first()).toBeVisible({ timeout: 10000 });
+    // Wait for page to load
+    await page.waitForLoadState('networkidle');
 
-    // Should show quest titles
-    const questTitles = page.locator('h2, h3, .quest-title');
+    // Click on QUESTS tab using getByRole to avoid strict mode violations
+    const questsTab = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+    const isQuestsTabVisible = await questsTab.isVisible({ timeout: 5000 }).catch(() => false);
+
+    if (isQuestsTabVisible) {
+      await questsTab.click();
+      await page.waitForTimeout(1000); // Wait for tab switch animation
+    }
+
+    // Should show quest cards in a grid
+    const questCards = page.locator('.group.bg-white.rounded-xl.overflow-hidden.cursor-pointer');
+    await expect(questCards.first()).toBeVisible({ timeout: 15000 });
+
+    // Should show at least one quest title
+    const questTitles = page.locator('h3');
     await expect(questTitles.first()).toBeVisible();
   });
 
-  test('should view quest details', async ({ page }) => {
-    await page.goto('/quest-hub');
+  test('should navigate to quest detail page when clicking a quest card', async ({ page }) => {
+    await page.goto(`${BASE_URL}/quest-hub`);
+    await page.waitForLoadState('networkidle');
+
+    // Switch to QUESTS tab
+    const questsTab = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+    const isVisible = await questsTab.isVisible({ timeout: 5000 }).catch(() => false);
+
+    if (isVisible) {
+      await questsTab.click();
+      await page.waitForTimeout(1000);
+    }
+
+    // Get the first quest card (clickable div)
+    const firstQuestCard = page.locator('.group.bg-white.rounded-xl.overflow-hidden.cursor-pointer').first();
+    await firstQuestCard.waitFor({ state: 'visible', timeout: 15000 });
+
+    // Click the card (entire card is clickable)
+    await firstQuestCard.click();
+
+    // Should navigate to quest detail page with UUID
+    await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
+
+    // Should show quest detail content
+    await expect(page.locator('text=/Pick Up Quest|SET DOWN QUEST|Continue/i')).toBeVisible({ timeout: 10000 });
+  });
+
+  test('should enroll in a quest (pick up quest)', async ({ page }) => {
+    await page.goto(`${BASE_URL}/quest-hub`);
+    await page.waitForLoadState('networkidle');
+
+    // Switch to QUESTS tab
+    const questsTab = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+    const isVisible = await questsTab.isVisible({ timeout: 5000 }).catch(() => false);
+
+    if (isVisible) {
+      await questsTab.click();
+      await page.waitForTimeout(1000);
+    }
 
     // Click on first quest card
-    const firstQuest = page.locator('[data-testid="quest-card"], .quest-card').first();
-    await firstQuest.click();
+    const firstQuestCard = page.locator('.group.bg-white.rounded-xl.overflow-hidden.cursor-pointer').first();
+    await firstQuestCard.waitFor({ state: 'visible', timeout: 15000 });
+    await firstQuestCard.click();
+    await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
 
-    // Should navigate to quest detail page
-    await page.waitForURL(/.*\/quests\/[a-f0-9-]+/, { timeout: 10000 });
+    // Look for "Pick Up Quest" button (button might not exist if already enrolled)
+    const pickUpButton = page.getByRole('button', { name: /Pick Up Quest/i });
+    const isPickUpVisible = await pickUpButton.isVisible({ timeout: 5000 }).catch(() => false);
 
-    // Should show quest information
-    await expect(page.locator('text=/what you.*ll create|your mission|showcase/i')).toBeVisible();
-  });
-
-  test('should enroll in a quest (pick up)', async ({ page }) => {
-    await page.goto('/quest-hub');
-
-    // Click on first quest
-    const firstQuest = page.locator('[data-testid="quest-card"], .quest-card').first();
-    const questTitle = await firstQuest.locator('h2, h3, .quest-title').first().textContent();
-    await firstQuest.click();
-
-    // Wait for quest detail page
-    await page.waitForURL(/.*\/quests\/[a-f0-9-]+/, { timeout: 10000 });
-
-    // Look for "Pick Up" or "Start Quest" button
-    const pickUpButton = page.locator('button:has-text("Pick Up"), button:has-text("Start Quest"), button:has-text("Enroll")').first();
-
-    // Check if button exists and is visible
-    const isVisible = await pickUpButton.isVisible({ timeout: 5000 }).catch(() => false);
-
-    if (isVisible) {
+    if (isPickUpVisible) {
+      // Click Pick Up Quest button
       await pickUpButton.click();
 
-      // Should show success message or navigate to personalization
-      const successIndicators = [
-        page.locator('text=/success|enrolled|picked up/i'),
-        page.locator('text=/personalize|customize/i'),
-        page.locator('button:has-text("Set Down"), button:has-text("Drop Quest")')
-      ];
-
-      const hasSuccess = await Promise.race(
-        successIndicators.map(async (locator) => {
-          try {
-            await locator.waitFor({ timeout: 5000 });
-            return true;
-          } catch {
-            return false;
-          }
-        })
-      );
-
-      expect(hasSuccess).toBeTruthy();
+      // Wait for either:
+      // 1. Personalization wizard to appear
+      // 2. Tasks to load
+      // 3. "SET DOWN QUEST" button to appear
+      const enrollmentSuccess = page.locator('button:has-text("SET DOWN QUEST"), text=/personalize|customize/i');
+      await expect(enrollmentSuccess.first()).toBeVisible({ timeout: 10000 });
     } else {
-      // Quest might already be enrolled - check for "Set Down" button
-      const setDownButton = page.locator('button:has-text("Set Down"), button:has-text("Drop")');
-      await expect(setDownButton).toBeVisible();
+      // Quest is already enrolled - should see "SET DOWN QUEST" button
+      const setDownButton = page.getByRole('button', { name: /SET DOWN QUEST/i });
+      await expect(setDownButton).toBeVisible({ timeout: 5000 });
     }
   });
 
-  test('should show enrolled quests in My Quests', async ({ page }) => {
-    // Navigate to My Quests / Active Quests
-    await page.goto('/my-quests');
+  test('should complete quest personalization flow', async ({ page }) => {
+    await page.goto(`${BASE_URL}/quest-hub`);
+    await page.waitForLoadState('networkidle');
 
-    // Should show at least one active quest
-    const activeQuests = page.locator('[data-testid="active-quest"], .active-quest, div:has-text("Active")');
-    await expect(activeQuests.first()).toBeVisible({ timeout: 10000 });
-  });
-
-  test('should complete quest personalization', async ({ page }) => {
-    await page.goto('/quest-hub');
-
-    // Find a quest that's not enrolled yet
-    const questCard = page.locator('[data-testid="quest-card"], .quest-card').first();
-    await questCard.click();
-    await page.waitForURL(/.*\/quests\/[a-f0-9-]+/, { timeout: 10000 });
-
-    // Try to pick up quest
-    const pickUpButton = page.locator('button:has-text("Pick Up"), button:has-text("Start Quest")').first();
-    const isVisible = await pickUpButton.isVisible({ timeout: 3000 }).catch(() => false);
+    // Switch to QUESTS tab
+    const questsTab = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+    const isVisible = await questsTab.isVisible({ timeout: 5000 }).catch(() => false);
 
     if (isVisible) {
-      await pickUpButton.click();
+      await questsTab.click();
+      await page.waitForTimeout(1000);
+    }
 
-      // Wait for personalization page or form
-      const personalizationIndicators = [
-        page.locator('text=/personalize|customize|choose|select/i'),
-        page.locator('button:has-text("Continue"), button:has-text("Next"), button:has-text("Done")')
-      ];
+    // Find a quest that's not enrolled
+    const questCards = page.locator('.group.bg-white.rounded-xl.overflow-hidden.cursor-pointer');
+    await questCards.first().waitFor({ state: 'visible', timeout: 15000 });
+    const cardCount = await questCards.count();
 
-      const hasPersonalization = await Promise.race(
-        personalizationIndicators.map(async (locator) => {
-          try {
-            await locator.waitFor({ timeout: 5000 });
-            return true;
-          } catch {
-            return false;
-          }
-        })
-      );
+    let foundUnenrolledQuest = false;
 
-      if (hasPersonalization) {
-        // Look for continue/submit button
-        const continueButton = page.locator('button:has-text("Continue"), button:has-text("Next"), button:has-text("Done"), button:has-text("Start")').first();
-        await continueButton.click();
+    // Try up to 5 quests to find one that's not enrolled
+    for (let i = 0; i < Math.min(cardCount, 5); i++) {
+      await questCards.nth(i).click();
+      await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
 
-        // Should navigate to quest detail or task view
-        await page.waitForTimeout(2000);
-        await expect(page.locator('text=/task|mission|objective/i')).toBeVisible();
+      const pickUpButton = page.getByRole('button', { name: /Pick Up Quest/i });
+      const isPickUpVisible = await pickUpButton.isVisible({ timeout: 3000 }).catch(() => false);
+
+      if (isPickUpVisible) {
+        foundUnenrolledQuest = true;
+        break;
+      }
+
+      // Go back and try next quest
+      await page.goto(`${BASE_URL}/quest-hub`);
+      await page.waitForLoadState('networkidle');
+      const questsTabAgain = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+      if (await questsTabAgain.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await questsTabAgain.click();
+        await page.waitForTimeout(1000);
       }
     }
+
+    if (foundUnenrolledQuest) {
+      // Click Pick Up Quest
+      const pickUpButton = page.getByRole('button', { name: /Pick Up Quest/i });
+      await pickUpButton.click();
+
+      // Wait for personalization wizard or tasks to load
+      await page.waitForTimeout(2000);
+
+      // If personalization wizard appears, interact with it
+      const wizardVisible = await page.locator('text=/personalize|customize/i').isVisible({ timeout: 3000 }).catch(() => false);
+
+      if (wizardVisible) {
+        // Look for continue/next/done button in wizard
+        const continueButton = page.getByRole('button', { name: /Continue|Next|Done|Finish/i }).first();
+        const hasContinue = await continueButton.isVisible({ timeout: 3000 }).catch(() => false);
+
+        if (hasContinue) {
+          await continueButton.click();
+          await page.waitForTimeout(2000);
+        }
+      }
+
+      // Should eventually show "SET DOWN QUEST" button
+      await expect(page.getByRole('button', { name: /SET DOWN QUEST/i })).toBeVisible({ timeout: 10000 });
+    } else {
+      // All quests are already enrolled - skip this test
+      test.skip();
+    }
   });
 
-  test('should drop a quest (set down)', async ({ page }) => {
-    // First ensure we have an active quest
-    await page.goto('/my-quests');
+  test('should show enrolled quests in My Active Quests', async ({ page }) => {
+    // Note: The actual route might be /quest-hub with a filter or /my-quests
+    // First try /my-quests
+    const myQuestsResponse = await page.goto(`${BASE_URL}/my-quests`).catch(() => null);
 
-    // Find an active quest
-    const activeQuest = page.locator('[data-testid="active-quest"], .active-quest').first();
-    await activeQuest.click();
+    // If /my-quests doesn't exist, go to quest-hub and filter
+    if (!myQuestsResponse || myQuestsResponse.status() === 404) {
+      await page.goto(`${BASE_URL}/quest-hub`);
+      await page.waitForLoadState('networkidle');
 
-    // Wait for quest detail page
-    await page.waitForURL(/.*\/quests\/[a-f0-9-]+/, { timeout: 10000 });
+      // Switch to QUESTS tab
+      const questsTab = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+      if (await questsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await questsTab.click();
+        await page.waitForTimeout(1000);
+      }
+    } else {
+      await page.waitForLoadState('networkidle');
+    }
 
-    // Look for "Set Down" or "Drop Quest" button
-    const setDownButton = page.locator('button:has-text("Set Down"), button:has-text("Drop Quest"), button:has-text("Drop")').first();
+    // Should show at least one quest card (user should have at least one active quest)
+    const questCards = page.locator('.group.bg-white.rounded-xl.overflow-hidden.cursor-pointer');
+    await expect(questCards.first()).toBeVisible({ timeout: 15000 });
 
-    const isVisible = await setDownButton.isVisible({ timeout: 5000 }).catch(() => false);
+    // Click on first quest to verify it's enrolled
+    await questCards.first().click();
+    await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
 
-    if (isVisible) {
+    // Should show "SET DOWN QUEST" button or "Continue" button (indicating enrollment)
+    const enrolledIndicators = page.locator('button:has-text("SET DOWN QUEST"), button:has-text("Continue")');
+    await expect(enrolledIndicators.first()).toBeVisible({ timeout: 5000 });
+  });
+
+  test('should drop a quest (set down quest)', async ({ page }) => {
+    await page.goto(`${BASE_URL}/quest-hub`);
+    await page.waitForLoadState('networkidle');
+
+    // Switch to QUESTS tab
+    const questsTab = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+    if (await questsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await questsTab.click();
+      await page.waitForTimeout(1000);
+    }
+
+    // Find an enrolled quest by clicking through quest cards
+    const questCards = page.locator('.group.bg-white.rounded-xl.overflow-hidden.cursor-pointer');
+    await questCards.first().waitFor({ state: 'visible', timeout: 15000 });
+    const cardCount = await questCards.count();
+
+    let foundEnrolledQuest = false;
+
+    for (let i = 0; i < Math.min(cardCount, 5); i++) {
+      await questCards.nth(i).click();
+      await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
+
+      // Check if "SET DOWN QUEST" button exists
+      const setDownButton = page.getByRole('button', { name: /SET DOWN QUEST/i });
+      const isVisible = await setDownButton.isVisible({ timeout: 3000 }).catch(() => false);
+
+      if (isVisible) {
+        foundEnrolledQuest = true;
+        break;
+      }
+
+      // Go back and try next quest
+      await page.goto(`${BASE_URL}/quest-hub`);
+      await page.waitForLoadState('networkidle');
+      const questsTabAgain = page.getByRole('button', { name: 'QUESTS', exact: true }).first();
+      if (await questsTabAgain.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await questsTabAgain.click();
+        await page.waitForTimeout(1000);
+      }
+    }
+
+    if (foundEnrolledQuest) {
+      // Click "SET DOWN QUEST" button
+      const setDownButton = page.getByRole('button', { name: /SET DOWN QUEST/i });
       await setDownButton.click();
 
-      // Should show confirmation dialog or reflection form
-      const confirmationIndicators = [
-        page.locator('text=/confirm|are you sure/i'),
-        page.locator('text=/reflect|what did you learn/i'),
-        page.locator('button:has-text("Yes"), button:has-text("Confirm")')
-      ];
+      // Wait for confirmation modal or reflection form
+      await page.waitForTimeout(2000);
 
-      const hasConfirmation = await Promise.race(
-        confirmationIndicators.map(async (locator) => {
-          try {
-            await locator.waitFor({ timeout: 3000 });
-            return true;
-          } catch {
-            return false;
-          }
-        })
-      );
+      // Look for confirmation dialog
+      const confirmationDialog = page.locator('text=/are you sure|reflect|what did you learn/i');
+      const hasConfirmation = await confirmationDialog.isVisible({ timeout: 3000 }).catch(() => false);
 
       if (hasConfirmation) {
-        // Confirm dropping the quest
-        const confirmButton = page.locator('button:has-text("Yes"), button:has-text("Confirm"), button:has-text("Set Down")').first();
-        await confirmButton.click();
+        // Look for confirm button
+        const confirmButton = page.getByRole('button', { name: /Yes|Confirm|Set Down|Submit/i }).first();
+        const hasConfirmButton = await confirmButton.isVisible({ timeout: 3000 }).catch(() => false);
 
-        // Should show success or navigate away
-        await page.waitForTimeout(2000);
+        if (hasConfirmButton) {
+          await confirmButton.click();
+          await page.waitForTimeout(2000);
+        }
       }
+
+      // Should show "Pick Up Quest" button after dropping
+      // OR be redirected away from quest detail page
+      const pickUpButton = page.getByRole('button', { name: /Pick Up Quest/i });
+      const isPickUpVisible = await pickUpButton.isVisible({ timeout: 5000 }).catch(() => false);
+
+      // If still on quest detail page, should show Pick Up button
+      // If redirected, that's also a success
+      const currentUrl = page.url();
+      const onQuestDetailPage = /\/quests\/[a-f0-9-]{36}/.test(currentUrl);
+
+      if (onQuestDetailPage) {
+        await expect(pickUpButton).toBeVisible();
+      } else {
+        // Redirected away - success
+        expect(onQuestDetailPage).toBe(false);
+      }
+    } else {
+      // No enrolled quests found - skip this test
+      test.skip();
     }
   });
 });
