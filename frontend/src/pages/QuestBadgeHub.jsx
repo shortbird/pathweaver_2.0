@@ -31,28 +31,32 @@ const QuestBadgeHub = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // View state - determine initial tab based on route
+  // View state - BADGES DISABLED, always show quests
   const [activeTab, setActiveTab] = useState(() => {
-    // If coming from /badges route, show badges tab
+    // BADGES FEATURE DISABLED - Feature under redesign
+    // Always return 'quests' regardless of route
+    return 'quests';
+    /* DISABLED - Badge route handling
     if (location.pathname.startsWith('/badges')) {
       return 'badges';
     }
-    // If coming from /quests route, show quests tab
     if (location.pathname.startsWith('/quests')) {
       return 'quests';
     }
-    // Otherwise restore last viewed tab from localStorage
-    return localStorage.getItem('hub_active_tab') || 'badges';
+    return localStorage.getItem('hub_active_tab') || 'quests';
+    */
   });
 
   // Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
-  // Badge state
+  // BADGES DISABLED - Badge state commented out
+  /* DISABLED - Badge state
   const [badgesByPillar, setBadgesByPillar] = useState({});
   const [badgesLoading, setBadgesLoading] = useState(false);
   const [badgesError, setBadgesError] = useState('');
+  */
 
   // Quest state
   const [quests, setQuests] = useState([]);
@@ -93,12 +97,14 @@ const QuestBadgeHub = () => {
     return () => clearTimeout(timeoutId);
   }, [searchTerm]);
 
-  // Fetch badges when in badges tab
+  // BADGES DISABLED - Badge fetching commented out
+  /* DISABLED - Fetch badges when in badges tab
   useEffect(() => {
     if (activeTab === 'badges' && user !== undefined) {
       fetchBadges();
     }
   }, [activeTab, debouncedSearchTerm, user, loginTimestamp]);
+  */
 
   // Reset quest pagination when filters change (must run before fetch)
   useEffect(() => {
@@ -121,7 +127,8 @@ const QuestBadgeHub = () => {
     }
   }, [activeTab, questPage, user, loginTimestamp, debouncedSearchTerm]);
 
-  // Fetch badges from API - memoized to prevent recreation
+  // BADGES DISABLED - fetchBadges function commented out
+  /* DISABLED - Fetch badges from API
   const fetchBadges = useCallback(async () => {
     if (badgesLoading) return;
 
@@ -152,6 +159,7 @@ const QuestBadgeHub = () => {
       setBadgesLoading(false);
     }
   }, [badgesLoading, debouncedSearchTerm, safeAsync, isMounted]);
+  */
 
   // Fetch quests from API - memoized to prevent recreation
   const fetchQuests = useCallback(async (isInitial = true) => {
@@ -284,7 +292,8 @@ const QuestBadgeHub = () => {
   // All features are now free for all users (Phase 2 refactoring - January 2025)
   const canCreateQuests = !!user;
 
-  // Render helpers
+  // BADGES DISABLED - renderBadgesView function commented out
+  /* DISABLED - Render helpers for badges
   const renderBadgesView = () => {
     if (badgesLoading) {
       return (
@@ -302,9 +311,7 @@ const QuestBadgeHub = () => {
       );
     }
 
-    // Show all pillars
     const pillarsToShow = Object.keys(badgesByPillar);
-
     const hasBadges = pillarsToShow.some(pillar => badgesByPillar[pillar]?.length > 0);
 
     if (!hasBadges) {
@@ -334,6 +341,7 @@ const QuestBadgeHub = () => {
       </div>
     );
   };
+  */
 
   const renderQuestsView = () => {
     if (questsLoading) {
@@ -419,13 +427,13 @@ const QuestBadgeHub = () => {
           </h1>
           <div className="flex items-center gap-3">
             <p className="text-xl" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              {/* BADGES FEATURE DISABLED - Feature under redesign
               Choose from{' '}
               <span
                 className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full cursor-default relative group"
                 title="Long-term learning journeys"
               >
                 <strong>Badges</strong>
-                {/* Hover tooltip for Badges */}
                 <span className="
                   absolute bottom-full left-1/2 -translate-x-1/2 mb-2
                   px-3 py-2 bg-gray-900 text-white text-sm rounded-lg
@@ -441,6 +449,8 @@ const QuestBadgeHub = () => {
                 </span>
               </span>
               {' '}or{' '}
+              */}
+              Discover{' '}
               <span
                 className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full cursor-default relative group"
                 title="Individual learning adventures"
@@ -519,11 +529,13 @@ const QuestBadgeHub = () => {
               className="text-4xl font-medium bg-gradient-primary bg-clip-text text-transparent"
               style={{ fontFamily: 'Poppins, sans-serif' }}
             >
-              {activeTab === 'badges' ? 'RECOMMENDED BADGES' : 'AVAILABLE QUESTS'}
+              {/* BADGES DISABLED - Always show AVAILABLE QUESTS */}
+              AVAILABLE QUESTS
             </h2>
           </div>
 
-          {activeTab === 'badges' ? renderBadgesView() : renderQuestsView()}
+          {/* BADGES DISABLED - Always render quests view */}
+          {renderQuestsView()}
         </div>
       </div>
 

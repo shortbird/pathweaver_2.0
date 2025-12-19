@@ -2,12 +2,13 @@ import React from 'react';
 
 /**
  * TabToggle Component
- * Switches between BADGES and QUESTS view in the unified hub
- * Uses purple→pink gradient (left to right)
+ * BADGES FEATURE DISABLED - Pending redesign
+ * Currently only shows QUESTS tab
  */
 export default function TabToggle({ activeTab, onTabChange }) {
   return (
     <div className="flex items-center gap-4">
+      {/* BADGES TAB DISABLED - Feature under redesign
       <button
         onClick={() => onTabChange('badges')}
         className={`
@@ -20,6 +21,7 @@ export default function TabToggle({ activeTab, onTabChange }) {
       >
         BADGES
       </button>
+      */}
 
       <button
         onClick={() => onTabChange('quests')}
