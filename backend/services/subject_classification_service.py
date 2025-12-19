@@ -50,9 +50,9 @@ SUBJECT_DESCRIPTIONS = {
 class SubjectClassificationService(BaseService):
     """Service for classifying tasks into school subject areas using AI."""
 
-    def __init__(self, client=None):
+    def __init__(self):
         """Initialize the service."""
-        super().__init__(client)
+        super().__init__()
         self.model = None
         if GEMINI_API_KEY:
             try:

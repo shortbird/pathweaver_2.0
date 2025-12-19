@@ -6,6 +6,7 @@ Tracks token usage and estimated costs for quest generation.
 from typing import Dict, Optional
 from datetime import datetime, timedelta
 from services.base_service import BaseService
+from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -18,8 +19,9 @@ class CostTracker(BaseService):
     GEMINI_FLASH_LITE_INPUT_COST = 0.075  # per 1M tokens
     GEMINI_FLASH_LITE_OUTPUT_COST = 0.30  # per 1M tokens
 
-    def __init__(self, user_id: Optional[str] = None):
-        super().__init__(user_id)
+    def __init__(self):
+        super().__init__()
+        self.supabase = get_supabase_admin_client()
 
     def calculate_cost(self, input_tokens: int, output_tokens: int, model: str = 'gemini-2.5-flash-lite') -> Dict:
         """

@@ -30,9 +30,10 @@ logger = get_logger(__name__)
 class BatchQuestGenerationService(BaseService):
     """Service for batch quest generation with progress tracking."""
 
-    def __init__(self, user_id: Optional[str] = None):
+    def __init__(self):
         """Initialize the batch generation service."""
-        super().__init__(user_id)
+        super().__init__()
+        self.supabase = get_supabase_admin_client()
 
         self.quest_ai_service = QuestAIService()
         self.review_service = AIQuestReviewService()

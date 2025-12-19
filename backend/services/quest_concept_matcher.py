@@ -6,6 +6,7 @@ Detects similar quests through concept extraction and comparison
 import re
 from typing import Dict, List, Set, Tuple, Optional
 from services.base_service import BaseService
+from database import get_supabase_admin_client
 from collections import defaultdict
 import hashlib
 import json
@@ -17,9 +18,10 @@ logger = get_logger(__name__)
 class QuestConceptMatcher(BaseService):
     """Handles concept extraction and similarity matching for quests"""
 
-    def __init__(self, user_id: Optional[str] = None):
+    def __init__(self):
         """Initialize the concept matcher with common word lists"""
-        super().__init__(user_id)
+        super().__init__()
+        self.supabase = get_supabase_admin_client()
 
         # Common words to filter out
         self.common_words = {

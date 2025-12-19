@@ -11,6 +11,7 @@ import logging
 from typing import Dict, Any, Optional
 import google.generativeai as genai
 from .base_service import BaseService
+from database import get_supabase_admin_client
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,9 @@ logger = logging.getLogger(__name__)
 class TaskQualityService(BaseService):
     """Service for analyzing quality of student-created tasks using AI"""
 
-    def __init__(self, supabase_client=None):
-        super().__init__(supabase_client)
+    def __init__(self):
+        super().__init__()
+        self.supabase = get_supabase_admin_client()
         self.model_name = "gemini-2.0-flash-exp"
 
     def analyze_task_quality(
