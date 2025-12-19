@@ -215,6 +215,33 @@ def get_current_user():
         if not user_id:
             return jsonify({'error': 'Authentication required'}), 401
 
+        # CRITICAL FIX: Check if token was issued before last logout
+        # This prevents automatic re-login after logout when token is still valid
+        try:
+            # Get token from Authorization header
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header.startswith('Bearer '):
+                token = auth_header.replace('Bearer ', '')
+                payload = session_manager.verify_access_token(token)
+
+                if payload and payload.get('iat'):
+                    token_issued_at = datetime.fromtimestamp(payload.get('iat'))
+
+                    # Use admin client to check last logout
+                    admin_client = get_supabase_admin_client()
+                    user_data = admin_client.table('users').select('last_logout_at').eq('id', user_id).single().execute()
+
+                    if user_data.data and user_data.data.get('last_logout_at'):
+                        last_logout_at = datetime.fromisoformat(user_data.data['last_logout_at'].replace('Z', '+00:00'))
+
+                        # If token was issued before logout, reject it
+                        if token_issued_at < last_logout_at:
+                            logger.warning(f"[ME] Rejecting token for user {mask_user_id(user_id)} - issued before logout")
+                            return jsonify({'error': 'Session invalidated. Please log in again.'}), 401
+        except Exception as logout_check_error:
+            logger.error(f"[ME] Error checking last_logout_at: {logout_check_error}")
+            # Don't fail the request if we can't check - but log it
+
         # Use admin client to bypass RLS and get fresh data
         admin_client = get_supabase_admin_client()
 
