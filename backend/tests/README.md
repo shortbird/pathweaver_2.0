@@ -10,6 +10,7 @@ backend/tests/
 ├── fixtures/                # Test data files (JSON, YAML, etc.)
 ├── unit/                    # Unit tests (isolated, no external dependencies)
 │   ├── test_auth.py        # Authentication utilities
+│   ├── test_file_upload_validation.py  # File upload security validation
 │   └── test_xp_calculation.py  # XP calculation logic
 ├── integration/             # Integration tests (multiple components, real DB)
 │   ├── test_api_endpoints.py   # API endpoint integration
@@ -21,10 +22,9 @@ backend/tests/
 ├── services/                # Service layer tests
 │   ├── test_atomic_quest_service.py
 │   └── test_xp_service.py
-├── manual/                  # Manual test scripts (not pytest)
-│   ├── test_imscc_parser.py     # IMSCC file parsing (run directly)
-│   └── test_quest_generator.py  # Quest AI generation (run directly)
-└── test_file_upload_validation.py  # File upload security tests
+└── manual/                  # Manual test scripts (not pytest)
+    ├── test_imscc_parser.py     # IMSCC file parsing (run directly)
+    └── test_quest_generator.py  # Quest AI generation (run directly)
 
 ```
 
