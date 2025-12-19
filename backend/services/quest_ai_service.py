@@ -21,7 +21,8 @@ class QuestAIService(BaseService):
     def __init__(self, prompt_version: Optional[str] = None):
         """Initialize the AI service with Gemini configuration"""
         super().__init__()
-        self.supabase = get_supabase_admin_client()
+        # Lazy-initialize client to avoid Flask context issues at import time
+        self._supabase = None
         self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
         self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
 
@@ -41,6 +42,13 @@ class QuestAIService(BaseService):
         from utils.school_subjects import SCHOOL_SUBJECTS, SCHOOL_SUBJECT_DISPLAY_NAMES
         self.school_subjects = SCHOOL_SUBJECTS
         self.school_subject_display_names = SCHOOL_SUBJECT_DISPLAY_NAMES
+
+    @property
+    def supabase(self):
+        """Lazy-load Supabase admin client on first access."""
+        if self._supabase is None:
+            self._supabase = get_supabase_admin_client()
+        return self._supabase
     
     def generate_quest_concept(self, avoid_titles: Optional[List[str]] = None) -> Dict[str, Any]:
         """

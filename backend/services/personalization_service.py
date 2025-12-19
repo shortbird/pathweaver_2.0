@@ -97,11 +97,8 @@ class PersonalizationService(BaseService):
         super().__init__()
         # Lazy-initialize client to avoid Flask context issues at import time
         self._supabase = None
+        self._ai_service = None
         self.cache = TaskCacheService()
-
-        # Import AI service lazily to avoid circular imports
-        from services.quest_ai_service import QuestAIService
-        self.ai_service = QuestAIService()
 
     @property
     def supabase(self):
@@ -109,6 +106,15 @@ class PersonalizationService(BaseService):
         if self._supabase is None:
             self._supabase = get_supabase_admin_client()
         return self._supabase
+
+    @property
+    def ai_service(self):
+        """Lazy-load AI service on first access to avoid Flask context issues."""
+        if self._ai_service is None:
+            # Import AI service lazily to avoid circular imports
+            from services.quest_ai_service import QuestAIService
+            self._ai_service = QuestAIService()
+        return self._ai_service
 
     def start_personalization_session(
         self,
