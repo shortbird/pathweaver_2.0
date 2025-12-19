@@ -30,16 +30,9 @@ test.describe('Badge System', () => {
   });
 
   test('should display available badges', async ({ page }) => {
-    // Navigate to quest hub
-    await page.goto(`${BASE_URL}/quest-hub`);
+    // Navigate to badges page (QuestBadgeHub shows BADGES tab by default on /badges route)
+    await page.goto(`${BASE_URL}/badges`);
     await page.waitForLoadState('networkidle');
-
-    // Switch to BADGES tab
-    const badgesTab = page.getByRole('button', { name: 'BADGES', exact: true }).first();
-    if (await badgesTab.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await badgesTab.click();
-      await page.waitForTimeout(1000);
-    }
 
     // Should show badge carousel cards
     // BadgeCarouselCard uses classes: w-72 bg-white rounded-xl cursor-pointer
@@ -48,15 +41,8 @@ test.describe('Badge System', () => {
   });
 
   test('should view badge details', async ({ page }) => {
-    await page.goto(`${BASE_URL}/quest-hub`);
+    await page.goto(`${BASE_URL}/badges`);
     await page.waitForLoadState('networkidle');
-
-    // Switch to BADGES tab
-    const badgesTab = page.getByRole('button', { name: 'BADGES', exact: true }).first();
-    if (await badgesTab.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await badgesTab.click();
-      await page.waitForTimeout(1000);
-    }
 
     // Click on first badge
     const firstBadge = page.locator('.w-72.bg-white.rounded-xl.cursor-pointer').first();
@@ -72,15 +58,8 @@ test.describe('Badge System', () => {
   });
 
   test('should show badge progress if badge is active', async ({ page }) => {
-    await page.goto(`${BASE_URL}/quest-hub`);
+    await page.goto(`${BASE_URL}/badges`);
     await page.waitForLoadState('networkidle');
-
-    // Switch to BADGES tab
-    const badgesTab = page.getByRole('button', { name: 'BADGES', exact: true }).first();
-    if (await badgesTab.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await badgesTab.click();
-      await page.waitForTimeout(1000);
-    }
 
     // Click on first badge
     const firstBadge = page.locator('.w-72.bg-white.rounded-xl.cursor-pointer').first();
@@ -103,15 +82,8 @@ test.describe('Badge System', () => {
   });
 
   test('should show "Start This Badge" button for unselected badges', async ({ page }) => {
-    await page.goto(`${BASE_URL}/quest-hub`);
+    await page.goto(`${BASE_URL}/badges`);
     await page.waitForLoadState('networkidle');
-
-    // Switch to BADGES tab
-    const badgesTab = page.getByRole('button', { name: 'BADGES', exact: true }).first();
-    if (await badgesTab.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await badgesTab.click();
-      await page.waitForTimeout(1000);
-    }
 
     // Try to find an unselected badge
     const badgeCards = page.locator('.w-72.bg-white.rounded-xl.cursor-pointer');
@@ -136,13 +108,8 @@ test.describe('Badge System', () => {
       }
 
       // Go back and try next badge
-      await page.goto(`${BASE_URL}/quest-hub`);
+      await page.goto(`${BASE_URL}/badges`);
       await page.waitForLoadState('networkidle');
-      const badgesTabAgain = page.getByRole('button', { name: 'BADGES', exact: true }).first();
-      if (await badgesTabAgain.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await badgesTabAgain.click();
-        await page.waitForTimeout(1000);
-      }
     }
 
     if (!foundUnselectBadge) {
@@ -165,20 +132,22 @@ test.describe('Badge System', () => {
     await page.goto(`${BASE_URL}/diploma`);
     await page.waitForLoadState('networkidle');
 
-    // Look for badges button/section in sidebar
-    const badgesButton = page.getByRole('button', { name: /badges|Earned Badges/i });
-    const hasBadgesButton = await badgesButton.isVisible({ timeout: 5000 }).catch(() => false);
+    // Look for "View All Badges" button specifically (only appears if > 3 earned badges)
+    const viewAllButton = page.getByRole('button', { name: /View All.*Badges/i });
+    const hasViewAllButton = await viewAllButton.isVisible({ timeout: 5000 }).catch(() => false);
 
-    if (hasBadgesButton) {
+    if (hasViewAllButton) {
       // Click to view all badges
-      await badgesButton.click();
+      await viewAllButton.click();
 
       // Should show modal with earned badges
       const badgeModal = page.locator('text=/Earned Badges/i');
       await expect(badgeModal).toBeVisible({ timeout: 5000 });
     } else {
-      // No badges earned yet - that's okay
-      console.log('No badges earned yet - expected for new accounts');
+      // No "View All" button means < 4 badges earned
+      // Just verify the Badges section exists
+      const badgesSection = page.locator('text=/Badges \\(\\d+\\)/i');
+      await expect(badgesSection).toBeVisible({ timeout: 5000 });
     }
   });
 
@@ -192,15 +161,8 @@ test.describe('Badge System', () => {
   });
 
   test('should show related quests on badge detail page', async ({ page }) => {
-    await page.goto(`${BASE_URL}/quest-hub`);
+    await page.goto(`${BASE_URL}/badges`);
     await page.waitForLoadState('networkidle');
-
-    // Switch to BADGES tab
-    const badgesTab = page.getByRole('button', { name: 'BADGES', exact: true }).first();
-    if (await badgesTab.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await badgesTab.click();
-      await page.waitForTimeout(1000);
-    }
 
     // Click on first badge
     const firstBadge = page.locator('.w-72.bg-white.rounded-xl.cursor-pointer').first();

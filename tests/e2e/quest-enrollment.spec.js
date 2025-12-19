@@ -80,8 +80,8 @@ test.describe('Quest Enrollment', () => {
     // Should navigate to quest detail page with UUID
     await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
 
-    // Should show quest detail content
-    await expect(page.locator('text=/Pick Up Quest|SET DOWN QUEST|Continue/i')).toBeVisible({ timeout: 10000 });
+    // Should show quest detail content (use .first() to avoid strict mode violation)
+    await expect(page.locator('text=/Pick Up Quest|SET DOWN QUEST|Continue/i').first()).toBeVisible({ timeout: 10000 });
   });
 
   test('should enroll in a quest (pick up quest)', async ({ page }) => {

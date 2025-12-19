@@ -34,8 +34,8 @@ test.describe('Authentication', () => {
     // Verify we're on dashboard (not login page)
     await expect(page).toHaveURL(/.*\/dashboard/);
 
-    // Verify we're not seeing the login page
-    await expect(page.locator('text=Welcome back')).not.toBeVisible();
+    // Verify dashboard content is visible (positive assertion instead of negative)
+    await expect(page.locator('text=/Active Quests|Quest Hub/i').first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should show error for invalid credentials', async ({ page }) => {

@@ -49,8 +49,8 @@ test.describe('Task Completion', () => {
     await questCards.first().click();
     await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
 
-    // Should show task stats or task workspace
-    const taskIndicators = page.locator('text=/\\d+\\/\\d+ Tasks|Your Evidence|Mark Task as Completed/i');
+    // Should show task workspace indicators (from TaskWorkspace component)
+    const taskIndicators = page.locator('text=/Your Evidence|Select a task to get started/i');
     await expect(taskIndicators.first()).toBeVisible({ timeout: 10000 });
   });
 
