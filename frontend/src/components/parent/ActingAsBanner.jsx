@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserCircle, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { UserCircleIcon, XMarkIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 /**
  * ActingAsBanner - Floating badge shown when parent is managing a dependent's account
@@ -24,11 +24,11 @@ const ActingAsBanner = ({ dependent, onSwitchBack }) => {
           onClick={() => setIsExpanded(true)}
           className="flex items-center gap-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white px-3 py-2 sm:px-4 sm:py-3 rounded-lg shadow-lg hover:shadow-xl transition-all hover:scale-105"
         >
-          <UserCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+          <UserCircleIcon className="w-4 h-4 sm:w-5 sm:h-5" />
           <span className="font-semibold text-xs sm:text-sm">
             Acting as {dependent.display_name?.split(' ')[0] || 'Child'}
           </span>
-          <ChevronUp className="w-3 h-3 sm:w-4 sm:h-4" />
+          <ChevronUpIcon className="w-3 h-3 sm:w-4 sm:h-4" />
         </button>
       )}
 
@@ -37,7 +37,7 @@ const ActingAsBanner = ({ dependent, onSwitchBack }) => {
         <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg shadow-lg p-3 sm:p-4 min-w-[260px] sm:min-w-[300px] max-w-[90vw]">
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-2">
-              <UserCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <UserCircleIcon className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
               <span className="font-semibold text-xs sm:text-sm">
                 Parent Mode
               </span>
@@ -46,7 +46,7 @@ const ActingAsBanner = ({ dependent, onSwitchBack }) => {
               onClick={() => setIsExpanded(false)}
               className="text-white/80 hover:text-white transition-colors"
             >
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDownIcon className="w-4 h-4" />
             </button>
           </div>
 
@@ -61,7 +61,7 @@ const ActingAsBanner = ({ dependent, onSwitchBack }) => {
                 />
               ) : (
                 <div className="w-8 h-8 rounded-full border-2 border-white bg-white/20 flex items-center justify-center">
-                  <UserCircle className="w-5 h-5 text-white" />
+                  <UserCircleIcon className="w-5 h-5 text-white" />
                 </div>
               )}
               <div className="flex-1 min-w-0">
@@ -82,7 +82,7 @@ const ActingAsBanner = ({ dependent, onSwitchBack }) => {
               onClick={onSwitchBack}
               className="w-full flex items-center justify-center gap-2 bg-white text-optio-purple hover:bg-purple-50 px-3 py-2 rounded-lg font-semibold transition-colors shadow-md text-sm"
             >
-              <X className="w-4 h-4" />
+              <XMarkIcon className="w-4 h-4" />
               <span>Back to Parent View</span>
             </button>
           )}
