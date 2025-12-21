@@ -203,9 +203,9 @@ def get_my_observers(user_id: str):
         200: List of linked observers with relationship details
     """
     try:
-        supabase = get_user_client()
+        supabase = get_supabase_admin_client()
 
-        # Get observer links
+        # Get observer links for this student
         links = supabase.table('observer_student_links') \
             .select('*') \
             .eq('student_id', user_id) \
@@ -410,9 +410,9 @@ def get_my_students():
     user_id = request.user_id
 
     try:
-        supabase = get_user_client()
+        supabase = get_supabase_admin_client()
 
-        # Get student links
+        # Get student links for this observer
         links = supabase.table('observer_student_links') \
             .select('*') \
             .eq('observer_id', user_id) \
@@ -571,7 +571,7 @@ def get_student_comments(student_id):
     user_id = request.user_id
 
     try:
-        supabase = get_user_client()
+        supabase = get_supabase_admin_client()
 
         # Check if user is the student or an observer
         if user_id != student_id:
@@ -634,7 +634,7 @@ def get_pending_invitations_for_observer():
     user_id = request.user_id
 
     try:
-        supabase = get_user_client()
+        supabase = get_supabase_admin_client()
 
         # Get user's email
         user = supabase.table('users') \
