@@ -6,7 +6,7 @@ import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings'
 // tierMapping import removed - Phase 2 refactoring (January 2025)
 import { CheckCircle, Lock, User, Clock } from 'lucide-react';
 
-const QuestListItem = ({ quest, onEnroll, onTeamUp }) => {
+const QuestListItem = ({ quest, onEnroll }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -42,15 +42,6 @@ const QuestListItem = ({ quest, onEnroll, onTeamUp }) => {
     } catch (error) {
       // Error handling
     }
-  };
-
-  const handleTeamUpClick = (e) => {
-    e.stopPropagation();
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    onTeamUp(quest);
   };
 
   const handleCardClick = () => {
@@ -153,23 +144,14 @@ const QuestListItem = ({ quest, onEnroll, onTeamUp }) => {
                     <span>Continue Quest</span>
                   </Button>
                 ) : (
-                  <>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="!min-w-[100px]"
-                      onClick={handleEnroll}
-                    >
-                      <span>Start Quest</span>
-                    </Button>
-                    <button
-                      onClick={handleTeamUpClick}
-                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
-                      title="Team up for bonus XP!"
-                    >
-                      <User className="w-4 h-4 text-gray-600" />
-                    </button>
-                  </>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="!min-w-[100px]"
+                    onClick={handleEnroll}
+                  >
+                    <span>Start Quest</span>
+                  </Button>
                 )}
               </div>
             </div>

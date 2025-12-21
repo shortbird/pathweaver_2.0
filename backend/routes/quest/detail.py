@@ -230,9 +230,6 @@ def get_quest_detail(user_id: str, quest_id: str):
             quest_data['sample_tasks'] = []
             quest_data['preset_tasks'] = []
 
-        # Note: Quest-level collaboration has been replaced by task-level collaboration
-        # Task collaboration status is handled at the task level in the frontend
-
         return jsonify({
             'success': True,
             'quest': quest_data

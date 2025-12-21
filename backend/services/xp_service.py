@@ -274,34 +274,6 @@ class XPService(BaseService):
             logger.error(f"Error getting leaderboard: {str(e)}")
             return []
     
-    def _check_active_collaboration(self, user_id: str, quest_id: str) -> bool:
-        """Check if user has an active collaboration for this quest."""
-        try:
-            # Check as requester
-            collab_as_requester = self.supabase.table('quest_collaborations')\
-                .select('id')\
-                .eq('quest_id', quest_id)\
-                .eq('requester_id', user_id)\
-                .eq('status', 'accepted')\
-                .execute()
-            
-            if collab_as_requester.data:
-                return True
-            
-            # Check as partner
-            collab_as_partner = self.supabase.table('quest_collaborations')\
-                .select('id')\
-                .eq('quest_id', quest_id)\
-                .eq('partner_id', user_id)\
-                .eq('status', 'accepted')\
-                .execute()
-            
-            return bool(collab_as_partner.data)
-            
-        except Exception as e:
-            logger.error(f"Error checking collaboration: {str(e)}")
-            return False
-    
     def _log_xp_calculation(self,
                            user_id: str,
                            task_id: str,

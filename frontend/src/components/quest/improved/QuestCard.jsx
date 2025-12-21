@@ -6,7 +6,7 @@ import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings'
 // tierMapping import removed - Phase 2 refactoring (January 2025)
 import { CheckCircle, Lock } from 'lucide-react';
 
-const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
+const QuestCard = ({ quest, onEnroll }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isEnrolling, setIsEnrolling] = useState(false);
@@ -41,7 +41,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
       navigate('/login');
       return;
     }
-    
+
     setIsEnrolling(true);
     try {
       await onEnroll(quest.id);
@@ -50,15 +50,6 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
     } finally {
       setIsEnrolling(false);
     }
-  };
-
-  const handleTeamUpClick = (e) => {
-    e.stopPropagation();
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    onTeamUp(quest);
   };
 
   const handleCardClick = () => {
@@ -190,29 +181,16 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
               <span className="truncate">Continue</span>
             </Button>
           ) : (
-            // Quest not started - show start and team up buttons
-            <>
-              <Button
-                variant="primary"
-                size="md"
-                className="flex-1 !min-h-[48px] touch-manipulation"
-                onClick={handleEnroll}
-                loading={isEnrolling}
-              >
-                <span className="truncate">Start Quest</span>
-              </Button>
-
-              <button
-                onClick={handleTeamUpClick}
-                className="p-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors group/team min-h-[48px] min-w-[48px] flex items-center justify-center touch-manipulation"
-                title="Team up for bonus XP!"
-                aria-label="Team up for bonus XP"
-              >
-                <svg className="w-5 h-5 text-gray-600 group-hover/team:text-optio-purple" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-                </svg>
-              </button>
-            </>
+            // Quest not started - show start button
+            <Button
+              variant="primary"
+              size="md"
+              className="w-full !min-h-[48px] touch-manipulation"
+              onClick={handleEnroll}
+              loading={isEnrolling}
+            >
+              <span className="truncate">Start Quest</span>
+            </Button>
           )}
         </div>
 

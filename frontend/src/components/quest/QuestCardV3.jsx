@@ -2,11 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
-const QuestCardV3 = ({ quest, onEnroll, onTeamUp }) => {
+const QuestCardV3 = ({ quest, onEnroll }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isEnrolling, setIsEnrolling] = useState(false);
-  const [showTeamUp, setShowTeamUp] = useState(false);
 
   // Calculate total XP and pillar breakdown
   const totalXP = quest.total_xp || 0;
@@ -32,7 +31,7 @@ const QuestCardV3 = ({ quest, onEnroll, onTeamUp }) => {
       navigate('/login');
       return;
     }
-    
+
     setIsEnrolling(true);
     try {
       await onEnroll(quest.id);
@@ -41,16 +40,6 @@ const QuestCardV3 = ({ quest, onEnroll, onTeamUp }) => {
     } finally {
       setIsEnrolling(false);
     }
-  };
-
-  const handleTeamUpClick = (e) => {
-    e.stopPropagation();
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    setShowTeamUp(true);
-    onTeamUp(quest);
   };
 
   const handleCardClick = () => {
@@ -148,19 +137,9 @@ const QuestCardV3 = ({ quest, onEnroll, onTeamUp }) => {
               <button
                 onClick={handleEnroll}
                 disabled={isEnrolling}
-                className="flex-1 bg-gradient-primary text-white py-2 px-4 rounded-[20px] hover:shadow-[0_4px_15px_rgba(239,89,123,0.2)] hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold"
+                className="w-full bg-gradient-primary text-white py-2 px-4 rounded-[20px] hover:shadow-[0_4px_15px_rgba(239,89,123,0.2)] hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold"
               >
                 {isEnrolling ? 'Enrolling...' : 'Start Quest'}
-              </button>
-              
-              <button
-                onClick={handleTeamUpClick}
-                className="bg-primary text-white py-2 px-4 rounded-[20px] hover:bg-primary-dark hover:-translate-y-0.5 transition-all duration-300 text-sm font-semibold shadow-[0_2px_10px_rgba(109,70,155,0.15)]"
-                title="Team up with a friend for 2x XP!"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-                </svg>
               </button>
             </>
           ) : (

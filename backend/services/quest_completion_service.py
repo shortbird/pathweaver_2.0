@@ -66,7 +66,6 @@ Return a valid JSON object with EXACTLY this structure:
     "links": ["array of helpful links"]
   },
   "core_competencies": ["array of skills practiced"],
-  "collaboration_spark": "string - ideas for working with others",
   "real_world_bonus": [
     {"description": "bonus challenge", "xp_amount": 50}
   ],
@@ -76,7 +75,6 @@ Return a valid JSON object with EXACTLY this structure:
     {"skill_category": "pillar_name", "xp_amount": number}
   ],
   "total_xp": number,
-  "collaboration_bonus": "2x XP when working with others",
   "quest_banner_image": null
 }"""
 
@@ -192,12 +190,7 @@ Return ONLY a valid JSON object with all quest fields completed. Ensure all arra
                 completed_quest['helpful_resources'] = {'tools': [], 'materials': [], 'links': []}
             elif not isinstance(completed_quest['helpful_resources'], dict):
                 completed_quest['helpful_resources'] = {'tools': [], 'materials': [], 'links': []}
-            
-            # Set default values for optional fields
-            if 'collaboration_bonus' not in completed_quest:
-                completed_quest['collaboration_bonus'] = '2x XP when working with others'
-            
-            
+
             return completed_quest
             
         except Exception as e:
