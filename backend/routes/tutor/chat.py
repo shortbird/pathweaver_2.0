@@ -58,7 +58,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize services (lazy loading to prevent module-level errors)
 tutor_service = None
-safety_service = SafetyService()
+safety_service = None
 
 def get_tutor_service():
     """Get tutor service with lazy initialization"""
@@ -86,6 +86,13 @@ def get_tutor_service():
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise Exception(f"Tutor service unavailable: {e}")
     return tutor_service
+
+def get_safety_service():
+    """Get safety service with lazy initialization"""
+    global safety_service
+    if safety_service is None:
+        safety_service = SafetyService()
+    return safety_service
 
 # Using repository pattern for database access
 @bp.route('/chat', methods=['POST'])
