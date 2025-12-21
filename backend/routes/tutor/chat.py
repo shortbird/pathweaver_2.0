@@ -8,7 +8,6 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED
 - Uses SafetyService for content moderation
 - Already uses TutorRepository for data persistence (lines 12-17)
 - Service layer is essential for complex AI tutor interactions
-- Tier service integration for feature gating (tutor_tier_service)
 - Proper encapsulation of conversation state and AI model management
 
 AI Tutor API routes for chat functionality.
@@ -47,7 +46,6 @@ from backend.repositories import (
 from utils.auth.decorators import require_auth
 from services.ai_tutor_service import AITutorService, TutorContext, ConversationMode
 from services.safety_service import SafetyService, SafetyLevel
-from services.tutor_tier_service import tutor_tier_service
 from middleware.error_handler import ValidationError, AuthorizationError
 from middleware.rate_limiter import rate_limit
 from utils.validation.validators import validate_required_fields, validate_string_length
@@ -111,22 +109,6 @@ def send_message(user_id: str):
             raise ValidationError("Message cannot be empty")
 
         validate_string_length(message, 'message', max_length=2000)
-
-        # Check daily message limit and tier access
-        message_check = tutor_tier_service.can_send_message(user_id)
-        if not message_check['can_send']:
-            upgrade_suggestions = tutor_tier_service.get_upgrade_suggestions(user_id)
-            return error_response(
-                f"Daily message limit reached ({message_check['limit']} messages). Upgrade your subscription for more messages.",
-                "rate_limit_exceeded",
-                status_code=429,
-                details={
-                    'upgrade_url': '/subscription',
-                    'current_tier': message_check['tier'],
-                    'messages_remaining': message_check['messages_remaining'],
-                    'upgrade_suggestions': upgrade_suggestions['suggestions']
-                }
-            )
 
         supabase = get_supabase_admin_client()
 
@@ -197,16 +179,6 @@ def send_message(user_id: str):
             logger.info(f"AI message stored successfully with ID: {ai_message['id']}")
         except Exception as e:
             logger.error(f"Failed to store AI message: {e}")
-            raise
-
-        logger.info("Incrementing message usage...")
-        # Increment message usage through tier service
-        try:
-            supabase_admin = get_supabase_admin_client()
-            supabase_admin.rpc('increment_message_usage', {'p_user_id': user_id}).execute()
-            logger.info("Message usage incremented successfully")
-        except Exception as e:
-            logger.error(f"Failed to increment message usage: {e}")
             raise
 
         # Award XP bonus if eligible
@@ -523,26 +495,12 @@ def get_usage_stats(user_id: str):
     try:
         logger.info(f"Getting usage stats for user: {user_id}")
 
-        # Get usage stats from tier service
-        logger.info("Calling tutor_tier_service.can_send_message...")
-        message_status = tutor_tier_service.can_send_message(user_id)
-        logger.info(f"Message status result: {message_status}")
-
-        logger.info("Calling tutor_tier_service.get_feature_access...")
-        feature_access = tutor_tier_service.get_feature_access(user_id)
-        logger.info(f"Feature access result: {feature_access}")
-
-        logger.info("Getting Supabase client...")
         supabase = get_supabase_admin_client()
 
-        logger.info("Building usage data...")
         usage_data = {
-            'daily_limit': message_status['limit'],
-            'messages_used_today': message_status.get('messages_used', 0),
-            'messages_remaining': message_status['messages_remaining'],
-            'tier_name': message_status['tier'],
-            'tier_features': message_status.get('tier_features', []),
-            'feature_access': feature_access,
+            'daily_limit': None,  # No tier limits anymore
+            'messages_used_today': 0,
+            'messages_remaining': None,  # Unlimited
             'topics_discussed': [],
             'learning_pillars_covered': [],
             'engagement_score': 0.0,
@@ -553,14 +511,11 @@ def get_usage_stats(user_id: str):
         try:
             logger.info("Fetching today's analytics...")
             today = date.today().isoformat()
-            logger.info(f"Today's date: {today}")
             today_analytics = supabase.table('tutor_analytics').select('*').eq(
                 'user_id', user_id
             ).eq('date', today).execute()
-            logger.info(f"Analytics query result: {len(today_analytics.data) if today_analytics.data else 0} records")
 
             if today_analytics.data and len(today_analytics.data) > 0:
-                logger.info("Adding analytics data...")
                 analytics_data = today_analytics.data[0]
                 usage_data.update({
                     'topics_discussed': analytics_data.get('topics_discussed', []),
@@ -588,8 +543,6 @@ def get_usage_stats(user_id: str):
         logger.error(f"ERROR in get_usage_stats: {str(e)}")
         logger.error(f"Exception type: {type(e).__name__}")
         logger.error(f"TRACEBACK: {traceback.format_exc()}")
-        logger.error(f"ERROR in get_usage_stats: {str(e)}")
-        logger.info(f"TRACEBACK: {traceback.format_exc()}")
         return error_response(f"Failed to get usage stats: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/debug', methods=['GET'])
@@ -600,17 +553,12 @@ def debug_tutor_service(user_id: str):
         # Test 1: Basic response
         logger.debug(f"DEBUG: Testing endpoint for user {user_id}")
 
-        # Test 2: Test tutor_tier_service
-        logger.debug("DEBUG: Testing tutor_tier_service...")
-        message_status = tutor_tier_service.can_send_message(user_id)
-        logger.debug(f"DEBUG: Tier service works: {message_status}")
-
-        # Test 3: Test AITutorService initialization
+        # Test 2: Test AITutorService initialization
         logger.debug("DEBUG: Testing AITutorService initialization...")
         test_service = get_tutor_service()
         logger.debug("DEBUG: AITutorService initialized successfully")
 
-        # Test 4: Test context building
+        # Test 3: Test context building
         logger.debug("DEBUG: Testing context building...")
         supabase = get_supabase_admin_client()
         context = _build_tutor_context(supabase, user_id)
@@ -619,7 +567,6 @@ def debug_tutor_service(user_id: str):
         return success_response({
             'debug': 'All tests passed',
             'user_id': user_id,
-            'message_status': message_status,
             'context_mode': context.conversation_mode.value
         })
 
@@ -629,42 +576,8 @@ def debug_tutor_service(user_id: str):
         logger.debug(f"DEBUG TRACEBACK: {traceback.format_exc()}")
         return error_response(f"Debug failed: {str(e)}", status_code=500, error_code="debug_error")
 
-@bp.route('/tier-info', methods=['GET'])
-@require_auth
-def get_tier_info(user_id: str):
-    """Get user's subscription tier information and available features"""
-    try:
-        feature_access = tutor_tier_service.get_feature_access(user_id)
-        upgrade_suggestions = tutor_tier_service.get_upgrade_suggestions(user_id)
-        message_status = tutor_tier_service.can_send_message(user_id)
-
-        return success_response({
-            'tier_info': {
-                'current_tier': feature_access['tier_name'],
-                'daily_message_limit': feature_access['daily_limit'],
-                'max_conversations': feature_access['max_conversations'],
-                'messages_remaining': message_status['messages_remaining'],
-                'can_send_message': message_status['can_send']
-            },
-            'features': {
-                'basic_chat': feature_access['basic_chat'],
-                'advanced_explanations': feature_access['advanced_explanations'],
-                'quest_integration': feature_access['quest_integration'],
-                'conversation_modes': feature_access['conversation_modes'],
-                'learning_analytics': feature_access['learning_analytics'],
-                'priority_support': feature_access['priority_support'],
-                'unlimited_chat': feature_access['unlimited_chat'],
-                'custom_learning_paths': feature_access['custom_learning_paths']
-            },
-            'upgrade_options': upgrade_suggestions['suggestions']
-        })
-
-    except Exception as e:
-        return error_response(f"Failed to get tier info: {str(e)}", status_code=500, error_code="internal_error")
-
 # Helper functions
 
-# Note: Message limit checking and usage tracking now handled by tutor_tier_service
 
 def _get_conversation(supabase, conversation_id: str, user_id: str) -> Optional[Dict]:
     """Get conversation by ID if user owns it"""
@@ -1192,7 +1105,6 @@ def test_tutor_service(user_id: str):
 
 # Helper functions
 
-# Note: Message limit checking and usage tracking now handled by tutor_tier_service
 
 def _get_conversation(supabase, conversation_id: str, user_id: str) -> Optional[Dict]:
     """Get conversation by ID if user owns it"""
