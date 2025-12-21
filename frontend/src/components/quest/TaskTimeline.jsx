@@ -31,9 +31,9 @@ const TaskCard = ({ task, index, isSelected, displayMode, onClick, onRemove }) =
   const status = isCompleted ? 'completed' : hasEvidence ? 'in_progress' : 'not_started';
 
   const statusConfig = {
-    not_started: { icon: Circle, label: 'Not started', color: 'text-gray-400' },
-    in_progress: { icon: TrendingUp, label: 'In progress', color: pillarData.text },
-    completed: { icon: CheckCircle, label: 'Completed', color: 'text-green-600' }
+    not_started: { icon: ClockIcon, label: 'Not started', color: 'text-gray-400' },
+    in_progress: { icon: ArrowTrendingUpIcon, label: 'In progress', color: pillarData.text },
+    completed: { icon: CheckCircleIcon, label: 'Completed', color: 'text-green-600' }
   };
 
   const StatusIcon = statusConfig[status].icon;
