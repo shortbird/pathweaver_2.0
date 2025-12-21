@@ -205,13 +205,34 @@ def get_my_observers(user_id: str):
     try:
         supabase = get_user_client()
 
-        # Note: Using raw query since Supabase Python client doesn't support joins well
+        # Get observer links
         links = supabase.table('observer_student_links') \
-            .select('*, observer:observer_id(id, email, first_name, last_name)') \
+            .select('*') \
             .eq('student_id', user_id) \
             .execute()
 
-        return jsonify({'observers': links.data}), 200
+        # Fetch observer details separately to avoid PostgREST relationship issues
+        observer_ids = [link['observer_id'] for link in links.data]
+
+        observers_data = []
+        if observer_ids:
+            observers = supabase.table('users') \
+                .select('id, email, first_name, last_name, display_name') \
+                .in_('id', observer_ids) \
+                .execute()
+
+            # Create lookup map
+            observer_map = {obs['id']: obs for obs in observers.data}
+
+            # Merge link data with observer details
+            for link in links.data:
+                observer_info = observer_map.get(link['observer_id'], {})
+                observers_data.append({
+                    **link,
+                    'observer': observer_info
+                })
+
+        return jsonify({'observers': observers_data}), 200
 
     except Exception as e:
         logger.error(f"Failed to fetch observers: {str(e)}", exc_info=True)
@@ -391,12 +412,34 @@ def get_my_students():
     try:
         supabase = get_user_client()
 
+        # Get student links
         links = supabase.table('observer_student_links') \
-            .select('*, student:student_id(id, first_name, last_name, portfolio_slug, avatar_url)') \
+            .select('*') \
             .eq('observer_id', user_id) \
             .execute()
 
-        return jsonify({'students': links.data}), 200
+        # Fetch student details separately to avoid PostgREST relationship issues
+        student_ids = [link['student_id'] for link in links.data]
+
+        students_data = []
+        if student_ids:
+            students = supabase.table('users') \
+                .select('id, first_name, last_name, display_name, portfolio_slug, avatar_url') \
+                .in_('id', student_ids) \
+                .execute()
+
+            # Create lookup map
+            student_map = {student['id']: student for student in students.data}
+
+            # Merge link data with student details
+            for link in links.data:
+                student_info = student_map.get(link['student_id'], {})
+                students_data.append({
+                    **link,
+                    'student': student_info
+                })
+
+        return jsonify({'students': students_data}), 200
 
     except Exception as e:
         logger.error(f"Failed to fetch students: {str(e)}", exc_info=True)
@@ -544,12 +587,29 @@ def get_student_comments(student_id):
 
         # Fetch comments
         comments = supabase.table('observer_comments') \
-            .select('*, observer:observer_id(first_name, last_name)') \
+            .select('*') \
             .eq('student_id', student_id) \
             .order('created_at', desc=True) \
             .execute()
 
-        return jsonify({'comments': comments.data}), 200
+        # Fetch observer details separately
+        observer_ids = list(set([comment['observer_id'] for comment in comments.data]))
+
+        comments_data = comments.data
+        if observer_ids:
+            observers = supabase.table('users') \
+                .select('id, first_name, last_name, display_name') \
+                .in_('id', observer_ids) \
+                .execute()
+
+            # Create lookup map
+            observer_map = {obs['id']: obs for obs in observers.data}
+
+            # Add observer details to each comment
+            for comment in comments_data:
+                comment['observer'] = observer_map.get(comment['observer_id'], {})
+
+        return jsonify({'comments': comments_data}), 200
 
     except Exception as e:
         logger.error(f"Failed to fetch comments: {str(e)}", exc_info=True)
@@ -589,12 +649,29 @@ def get_pending_invitations_for_observer():
 
         # Find pending invitations
         invitations = supabase.table('observer_invitations') \
-            .select('*, student:student_id(first_name, last_name)') \
+            .select('*') \
             .eq('observer_email', email) \
             .eq('status', 'pending') \
             .execute()
 
-        return jsonify({'invitations': invitations.data}), 200
+        # Fetch student details separately
+        student_ids = list(set([inv['student_id'] for inv in invitations.data]))
+
+        invitations_data = invitations.data
+        if student_ids:
+            students = supabase.table('users') \
+                .select('id, first_name, last_name, display_name') \
+                .in_('id', student_ids) \
+                .execute()
+
+            # Create lookup map
+            student_map = {student['id']: student for student in students.data}
+
+            # Add student details to each invitation
+            for invitation in invitations_data:
+                invitation['student'] = student_map.get(invitation['student_id'], {})
+
+        return jsonify({'invitations': invitations_data}), 200
 
     except Exception as e:
         logger.error(f"Failed to fetch pending invitations: {str(e)}", exc_info=True)
