@@ -11,7 +11,6 @@ See SERVICE_CLASSIFICATION.md for migration guide.
 from typing import Optional, Callable, Any, Dict
 from functools import wraps
 import time
-import logging
 from flask import current_app
 from app_config import Config
 
@@ -21,10 +20,8 @@ from app_config import Config
 
 from utils.logger import get_logger
 
+# Use structured logger (P3-STYLE-3)
 logger = get_logger(__name__)
-
-# Configure logging
-logger = logging.getLogger(__name__)
 
 
 class ServiceError(Exception):

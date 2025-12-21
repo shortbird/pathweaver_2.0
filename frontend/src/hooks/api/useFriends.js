@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { friendsAPI } from '../../services/api'
 import { queryKeys, mutationKeys } from '../../utils/queryKeys'
 import toast from 'react-hot-toast'
+import logger from '../../utils/logger'
 
 /**
  * Hook for fetching friends data
@@ -11,13 +12,13 @@ export const useFriends = (userId, options = {}) => {
     queryKey: queryKeys.social.friends(userId),
     queryFn: async () => {
       try {
-        console.log('[USE_FRIENDS] Fetching friends for userId:', userId)
+        logger.debug('[USE_FRIENDS] Fetching friends for userId:', userId)
         const response = await friendsAPI.getFriends()
-        console.log('[USE_FRIENDS] API response:', response)
+        logger.debug('[USE_FRIENDS] API response:', response)
         return response.data
       } catch (error) {
-        console.error('[USE_FRIENDS] Error fetching friends:', error)
-        console.error('[USE_FRIENDS] Error response:', error.response)
+        logger.error('[USE_FRIENDS] Error fetching friends:', error)
+        logger.error('[USE_FRIENDS] Error response:', error.response)
         throw error
       }
     },

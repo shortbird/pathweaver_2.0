@@ -3,6 +3,7 @@ import { Award, Type, Image, Video, Link2, FileText, AlertCircle, CheckCircle, B
 import confetti from 'canvas-confetti';
 import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
 import { getPillarData } from '../../utils/pillarMappings';
+import logger from '../../utils/logger';
 
 const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
   const [error, setError] = useState('');
@@ -13,7 +14,7 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
 
   // Debug: Log task prop changes
   useEffect(() => {
-    console.log('[TASK_WORKSPACE] Task prop changed:', {
+    logger.debug('[TASK_WORKSPACE] Task prop changed:', {
       id: task?.id?.substring(0, 8),
       title: task?.title,
       is_completed: task?.is_completed,
@@ -85,7 +86,7 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
       // when the evidence document is actually saved with status='completed'
       // Calling it here causes the task to be marked complete in UI before save
     } catch (err) {
-      console.error('Error completing task:', err);
+      logger.error('Error completing task:', err);
       setError(err.message || 'Failed to complete task');
     } finally {
       setIsCompleting(false);

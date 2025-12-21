@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { MessageSquare, Calendar, Clock, ArrowLeft } from 'lucide-react'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
+import logger from '../../utils/logger'
 
 const ConversationHistory = ({ onSelectConversation, onBack, onCreateNew }) => {
   const [conversations, setConversations] = useState([])
@@ -18,10 +19,10 @@ const ConversationHistory = ({ onSelectConversation, onBack, onCreateNew }) => {
       // Backend wraps response in {data: {...}, success: true}
       const data = response.data?.data || response.data
       setConversations(data.conversations || [])
-      console.log('ConversationHistory: Fetched conversations:', data.conversations?.length || 0)
+      logger.debug('ConversationHistory: Fetched conversations:', data.conversations?.length || 0)
     } catch (error) {
-      console.error('ConversationHistory: Error fetching conversations:', error)
-      console.error('ConversationHistory: Error response:', error.response)
+      logger.error('ConversationHistory: Error fetching conversations:', error)
+      logger.error('ConversationHistory: Error response:', error.response)
       toast.error('Failed to load conversation history')
     } finally {
       setLoading(false)

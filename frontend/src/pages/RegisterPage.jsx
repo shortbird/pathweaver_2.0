@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
 import PasswordStrengthMeter from '../components/auth/PasswordStrengthMeter'
+import logger from '../utils/logger'
 
 const RegisterPage = () => {
   const { register: registerField, handleSubmit, formState: { errors }, watch } = useForm()
@@ -18,7 +19,7 @@ const RegisterPage = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && user && !authLoading) {
-      console.log('[RegisterPage] User already authenticated, redirecting to dashboard')
+      logger.debug('[RegisterPage] User already authenticated, redirecting to dashboard')
       const redirectPath = user.role === 'parent' ? '/parent/dashboard' : '/dashboard'
       navigate(redirectPath, { replace: true })
     }

@@ -1,4 +1,5 @@
 import api from './api';
+import logger from '../utils/logger';
 
 // Use the centralized authenticated API client
 // This ensures Authorization headers are added via interceptors
@@ -16,7 +17,7 @@ export const evidenceDocumentService = {
       const response = await evidenceApi.get(`/documents/${taskId}`);
       return response.data;
     } catch (error) {
-      console.error('Error fetching evidence document:', error);
+      logger.error('Error fetching evidence document:', error);
       throw error;
     }
   },
@@ -30,7 +31,7 @@ export const evidenceDocumentService = {
       });
       return response.data;
     } catch (error) {
-      console.error('Error saving evidence document:', error);
+      logger.error('Error saving evidence document:', error);
       throw error;
     }
   },
@@ -44,7 +45,7 @@ export const evidenceDocumentService = {
       });
       return response.data;
     } catch (error) {
-      console.error('Error updating evidence document:', error);
+      logger.error('Error updating evidence document:', error);
       throw error;
     }
   },
@@ -55,7 +56,7 @@ export const evidenceDocumentService = {
       const response = await evidenceApi.post(`/documents/${taskId}/complete`);
       return response.data;
     } catch (error) {
-      console.error('Error completing task:', error);
+      logger.error('Error completing task:', error);
       throw error;
     }
   },
@@ -73,7 +74,7 @@ export const evidenceDocumentService = {
       });
       return response.data;
     } catch (error) {
-      console.error('Error uploading file:', error);
+      logger.error('Error uploading file:', error);
       throw error;
     }
   },
@@ -84,7 +85,7 @@ export const evidenceDocumentService = {
       const response = await evidenceApi.delete(`/blocks/${blockId}/file`);
       return response.data;
     } catch (error) {
-      console.error('Error deleting file:', error);
+      logger.error('Error deleting file:', error);
       throw error;
     }
   },
@@ -100,7 +101,7 @@ export const evidenceDocumentService = {
     return {
       autoSave: (blocks) => {
         if (isDisabled) {
-          console.log('[AUTO-SAVE] Skipping - auto-save is disabled');
+          logger.debug('[AUTO-SAVE] Skipping - auto-save is disabled');
           return;
         }
 
@@ -119,12 +120,12 @@ export const evidenceDocumentService = {
 
         saveTimeout = setTimeout(async () => {
           if (isDisabled) {
-            console.log('[AUTO-SAVE] Skipping - auto-save was disabled while timeout pending');
+            logger.debug('[AUTO-SAVE] Skipping - auto-save was disabled while timeout pending');
             return;
           }
 
           try {
-            console.log('[AUTO-SAVE] Executing auto-save with status: draft');
+            logger.debug('[AUTO-SAVE] Executing auto-save with status: draft');
             const result = await this.saveDocument(taskId, blocks, 'draft');
             lastSaveTime = Date.now();
             if (onSaveSuccess) {

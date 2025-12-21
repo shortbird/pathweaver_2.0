@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { useIsMounted, useObserver, useDebounceWithCleanup, useSafeAsync } from '../hooks/useMemoryLeakFix';
 import { Info } from 'lucide-react';
+import logger from '../utils/logger';
 
 // Import hub components
 import TabToggle from '../components/hub/TabToggle';
@@ -119,10 +120,10 @@ const QuestBadgeHub = () => {
   // Fetch quests when in quests tab
   useEffect(() => {
     if (activeTab === 'quests' && user !== undefined && questPage === 1) {
-      console.log('[HUB] Fetching initial quests...');
+      logger.debug('[HUB] Fetching initial quests...');
       fetchQuests(true);
     } else if (activeTab === 'quests' && user !== undefined && questPage > 1) {
-      console.log(`[HUB] Fetching page ${questPage}...`);
+      logger.debug(`[HUB] Fetching page ${questPage}...`);
       fetchQuests(false);
     }
   }, [activeTab, questPage, user, loginTimestamp, debouncedSearchTerm]);
@@ -164,11 +165,11 @@ const QuestBadgeHub = () => {
   // Fetch quests from API - memoized to prevent recreation
   const fetchQuests = useCallback(async (isInitial = true) => {
     if (isLoadingRef.current) {
-      console.log('[HUB] Fetch blocked - already loading');
+      logger.debug('[HUB] Fetch blocked - already loading');
       return;
     }
 
-    console.log(`[HUB] fetchQuests called - isInitial: ${isInitial}, page: ${questPage}`);
+    logger.debug(`[HUB] fetchQuests called - isInitial: ${isInitial}, page: ${questPage}`);
     isLoadingRef.current = true;
 
     if (isInitial) {
@@ -191,19 +192,19 @@ const QuestBadgeHub = () => {
         params.append('search', debouncedSearchTerm.trim());
       }
 
-      console.log(`[HUB] Fetching: /api/quests?${params}`);
+      logger.debug(`[HUB] Fetching: /api/quests?${params}`);
       const response = await api.get(`/api/quests?${params}`, {
         signal,
         headers: { 'Cache-Control': 'no-cache' }
       });
 
-      console.log(`[HUB] Response:`, response.data);
+      logger.debug(`[HUB] Response:`, response.data);
       return response.data;
     });
 
     if (result.success && isMounted()) {
       const data = result.data;
-      console.log(`[HUB] Success - Got ${data.quests?.length || 0} quests, total: ${data.total}`);
+      logger.debug(`[HUB] Success - Got ${data.quests?.length || 0} quests, total: ${data.total}`);
 
       if (isInitial) {
         setQuests(data.quests || []);

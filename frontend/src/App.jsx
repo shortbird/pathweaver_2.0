@@ -13,6 +13,7 @@ import { tokenStore } from './services/api'
 import MasqueradeBanner from './components/admin/MasqueradeBanner'
 import ActingAsBanner from './components/parent/ActingAsBanner'
 import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
+import logger from './utils/logger'
 import api from './services/api'
 import { toast } from 'react-hot-toast'
 
@@ -111,7 +112,7 @@ function AppContent() {
         // Wait for token to be available (fixes race condition after page reload)
         const token = tokenStore.getAccessToken();
         if (!token) {
-          console.log('[Masquerade] Waiting for token to be restored before checking masquerade status');
+          logger.debug('[Masquerade] Waiting for token to be restored before checking masquerade status');
           // Don't clear state yet, just wait for next check
           return;
         }

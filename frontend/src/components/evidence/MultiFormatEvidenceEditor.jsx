@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, forwardRef, useImperat
 import { flushSync } from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { evidenceDocumentService } from '../../services/evidenceDocumentService';
+import logger from '../../utils/logger';
 
 const MultiFormatEvidenceEditor = forwardRef(({
   taskId,
@@ -92,7 +93,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
           }
         },
         (error) => {
-          console.error('Auto-save failed:', error);
+          logger.error('Auto-save failed:', error);
           setSaveStatus('unsaved');
           if (onError) {
             onError('Auto-save failed. Your changes may not be saved.');
@@ -136,7 +137,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
   // Auto-save when blocks change (but NOT if task is completed)
   useEffect(() => {
     // Debug logging for auto-save behavior
-    console.log('[EVIDENCE] Auto-save check:', {
+    logger.debug('[EVIDENCE] Auto-save check:', {
       isLoading,
       hasAutoSaver: !!autoSaverRef.current,
       blocksLength: blocks.length,
@@ -147,12 +148,12 @@ const MultiFormatEvidenceEditor = forwardRef(({
     // Don't auto-save if task is already completed - this prevents
     // overwriting the 'completed' status back to 'draft'
     if (!isLoading && autoSaverRef.current && blocks.length > 0 && documentStatus !== 'completed') {
-      console.log('[EVIDENCE] Triggering auto-save with status: draft');
+      logger.debug('[EVIDENCE] Triggering auto-save with status: draft');
       setSaveStatus('unsaved');
       const cleanedBlocks = cleanBlocksForSave(blocks);
       autoSaverRef.current.autoSave(cleanedBlocks);
     } else if (documentStatus === 'completed') {
-      console.log('[EVIDENCE] Skipping auto-save - task is completed');
+      logger.debug('[EVIDENCE] Skipping auto-save - task is completed');
       setSaveStatus('saved'); // Mark as saved when auto-save is disabled due to completion
     }
   }, [blocks, isLoading, documentStatus]);
@@ -235,7 +236,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
               setSaveStatus('saved');
               setLastSaved(new Date());
             } catch (saveError) {
-              console.error('Failed to save legacy evidence:', saveError);
+              logger.error('Failed to save legacy evidence:', saveError);
               // Don't show error to user - they can still edit and it will save on next change
               setSaveStatus('saved'); // Pretend it's saved to avoid confusing the user
             }
@@ -252,7 +253,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
         }
       }
     } catch (error) {
-      console.error('Error loading document:', error);
+      logger.error('Error loading document:', error);
       if (onError) {
         onError('Failed to load evidence document.');
       }
@@ -277,10 +278,10 @@ const MultiFormatEvidenceEditor = forwardRef(({
       // CRITICAL: Disable auto-save permanently BEFORE sending the completion request
       // This prevents any pending auto-save from overwriting the 'completed' status with 'draft'
       if (autoSaverRef.current && autoSaverRef.current.disableAutoSave) {
-        console.log('[EVIDENCE] Disabling auto-save permanently to prevent race condition');
+        logger.debug('[EVIDENCE] Disabling auto-save permanently to prevent race condition');
         autoSaverRef.current.disableAutoSave();
       } else if (autoSaverRef.current) {
-        console.log('[EVIDENCE] Clearing auto-save (disableAutoSave not available)');
+        logger.debug('[EVIDENCE] Clearing auto-save (disableAutoSave not available)');
         autoSaverRef.current.clearAutoSave();
       }
 
@@ -292,19 +293,19 @@ const MultiFormatEvidenceEditor = forwardRef(({
 
       // Save and complete the task (files are already uploaded)
       const cleanedBlocks = cleanBlocksForSave(blocks);
-      console.log('[EVIDENCE] Submitting task completion with status: completed');
-      console.log('[EVIDENCE] documentStatus set to completed before request');
+      logger.debug('[EVIDENCE] Submitting task completion with status: completed');
+      logger.debug('[EVIDENCE] documentStatus set to completed before request');
 
       const completeResponse = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, 'completed');
 
       if (completeResponse.success) {
-        console.log('[EVIDENCE] Task completion successful');
+        logger.debug('[EVIDENCE] Task completion successful');
 
         // Set save status
         flushSync(() => {
           setSaveStatus('saved');
         });
-        console.log('[EVIDENCE] State updated - task marked as completed');
+        logger.debug('[EVIDENCE] State updated - task marked as completed');
 
         if (onComplete) {
           onComplete({
@@ -322,7 +323,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
         }
       }
     } catch (error) {
-      console.error('Error completing task:', error);
+      logger.error('Error completing task:', error);
       if (onError) {
         onError('Failed to complete task.');
       }
@@ -506,7 +507,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
       });
 
     } catch (error) {
-      console.error(`Failed to upload file for block ${blockId}:`, error);
+      logger.error(`Failed to upload file for block ${blockId}:`, error);
       setUploadErrors(prev => ({
         ...prev,
         [blockId]: error.message || 'Upload failed'
@@ -553,7 +554,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
 
       return fileInfo;
     } catch (error) {
-      console.error('File preparation error:', error);
+      logger.error('File preparation error:', error);
       if (onError && !error.message.includes('too large')) {
         onError(`Failed to prepare file: ${error.message}`);
       }

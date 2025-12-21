@@ -22,6 +22,8 @@
  * - Necessary workaround for Safari ITP (Intelligent Tracking Prevention)
  */
 
+import logger from '../utils/logger'
+
 const DB_NAME = 'optio_secure_storage'
 const DB_VERSION = 1
 const STORE_NAME = 'auth_tokens'
@@ -276,7 +278,7 @@ async function migrateFromLocalStorage() {
       return // Nothing to migrate
     }
 
-    console.log('[SecureTokenStore] Migrating tokens from localStorage to encrypted IndexedDB')
+    logger.debug('[SecureTokenStore] Migrating tokens from localStorage to encrypted IndexedDB')
 
     // Store in IndexedDB
     if (accessToken) {
@@ -290,7 +292,7 @@ async function migrateFromLocalStorage() {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
 
-    console.log('[SecureTokenStore] Migration complete')
+    logger.debug('[SecureTokenStore] Migration complete')
   } catch (error) {
     console.error('[SecureTokenStore] Migration failed:', error)
   }
@@ -321,7 +323,7 @@ export const secureTokenStore = {
       // Migrate existing tokens from localStorage
       await migrateFromLocalStorage()
 
-      console.log('[SecureTokenStore] Initialized successfully')
+      logger.debug('[SecureTokenStore] Initialized successfully')
       return true
     } catch (error) {
       console.error('[SecureTokenStore] Initialization failed:', error)

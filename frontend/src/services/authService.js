@@ -10,6 +10,7 @@
  * - Flask-WTF validates headers against httpOnly session
  */
 import api, { tokenStore, csrfTokenStore } from './api'
+import logger from '../utils/logger'
 
 class AuthService {
   constructor() {
@@ -63,7 +64,7 @@ class AuthService {
       const response = await api.get('/api/auth/csrf-token')
       const token = response.data.csrf_token
       csrfTokenStore.set(token)
-      console.log('[AuthService] CSRF token initialized (stored in memory)')
+      logger.debug('[AuthService] CSRF token initialized (stored in memory)')
     } catch (error) {
       console.warn('[AuthService] Failed to initialize CSRF token:', error)
     }

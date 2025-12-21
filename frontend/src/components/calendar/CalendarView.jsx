@@ -5,6 +5,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import { useUpdateDeadline, getPillarColor } from '../../hooks/api/useCalendar'
 import { useQueryClient } from '@tanstack/react-query'
 import EventDetailModal from './EventDetailModal'
+import logger from '../../utils/logger'
 
 const CalendarView = ({ data, userId, selectedPillar }) => {
   const calendarRef = useRef(null)
@@ -78,13 +79,13 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
       // Revert cache and UI on error
       queryClient.setQueryData(['calendar', userId], previousData)
       info.revert()
-      console.error('Failed to update deadline:', error)
+      logger.error('Failed to update deadline:', error)
     }
   }
 
   // Handle date click (selecting a date)
   const handleDateClick = (info) => {
-    console.log('Date clicked:', info.dateStr)
+    logger.debug('Date clicked:', info.dateStr)
     // Could open a modal to select tasks to schedule on this date
   }
 
@@ -96,7 +97,7 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
       const newDate = info.dateStr
 
       if (!eventData.id) {
-        console.error('No event data found')
+        logger.error('No event data found')
         return
       }
 
@@ -107,7 +108,7 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
         scheduledDate: newDate
       })
     } catch (error) {
-      console.error('Failed to schedule item:', error)
+      logger.error('Failed to schedule item:', error)
     }
   }
 

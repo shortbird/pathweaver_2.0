@@ -12,6 +12,7 @@ import SampleTaskCard from '../components/quest/SampleTaskCard';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
 import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus, ArrowLeft, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
+import logger from '../utils/logger';
 
 // Lazy load heavy components to reduce initial bundle size
 const TaskEvidenceModal = lazy(() => import('../components/quest/TaskEvidenceModal'));
@@ -75,7 +76,7 @@ const QuestDetail = () => {
   // Handle navigation from task library - refetch data when tasks were added
   useEffect(() => {
     if (location.state?.tasksAdded) {
-      console.log('[QUEST_DETAIL] Returning from task library, refetching quest data');
+      logger.debug('[QUEST_DETAIL] Returning from task library, refetching quest data');
 
       // Optimistically update cache to mark quest as active (in case it was completed)
       queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
@@ -107,7 +108,7 @@ const QuestDetail = () => {
   // Auto-select first task when quest loads
   useEffect(() => {
     if (quest?.quest_tasks?.length > 0 && !selectedTask && quest.user_enrollment) {
-      console.log('[QUEST_DETAIL] Auto-selecting first task:', {
+      logger.debug('[QUEST_DETAIL] Auto-selecting first task:', {
         id: quest.quest_tasks[0]?.id?.substring(0, 8),
         title: quest.quest_tasks[0]?.title,
         is_completed: quest.quest_tasks[0]?.is_completed
@@ -119,7 +120,7 @@ const QuestDetail = () => {
   // Debug: Log whenever quest data changes
   useEffect(() => {
     if (quest?.quest_tasks) {
-      console.log('[QUEST_DETAIL] Quest data updated, tasks:', quest.quest_tasks.map(t => ({
+      logger.debug('[QUEST_DETAIL] Quest data updated, tasks:', quest.quest_tasks.map(t => ({
         id: t.id.substring(0, 8),
         title: t.title?.substring(0, 20),
         is_completed: t.is_completed
@@ -129,7 +130,7 @@ const QuestDetail = () => {
 
   // Debug: Log whenever selectedTask changes
   useEffect(() => {
-    console.log('[QUEST_DETAIL] selectedTask changed:', {
+    logger.debug('[QUEST_DETAIL] selectedTask changed:', {
       id: selectedTask?.id?.substring(0, 8),
       title: selectedTask?.title,
       is_completed: selectedTask?.is_completed
@@ -291,9 +292,9 @@ const QuestDetail = () => {
   };
 
   const handleTaskCompletion = async (completionData) => {
-    console.log('[QUEST_DETAIL] ========== TASK COMPLETION HANDLER START ==========');
-    console.log('[QUEST_DETAIL] completionData:', completionData);
-    console.log('[QUEST_DETAIL] selectedTask BEFORE update:', {
+    logger.debug('[QUEST_DETAIL] ========== TASK COMPLETION HANDLER START ==========');
+    logger.debug('[QUEST_DETAIL] completionData:', completionData);
+    logger.debug('[QUEST_DETAIL] selectedTask BEFORE update:', {
       id: selectedTask?.id?.substring(0, 8),
       title: selectedTask?.title,
       is_completed: selectedTask?.is_completed
@@ -302,36 +303,36 @@ const QuestDetail = () => {
     // Task is already completed by MultiFormatEvidenceEditor
     // Update the cache with confirmed completion status
     if (selectedTask) {
-      console.log('[QUEST_DETAIL] About to call flushSync for state + cache update');
+      logger.debug('[QUEST_DETAIL] About to call flushSync for state + cache update');
 
       // Use flushSync to synchronously update both state and cache before any re-renders
       // This prevents React Query from refetching and overwriting our optimistic updates
       flushSync(() => {
-        console.log('[QUEST_DETAIL] Inside flushSync - updating selectedTask state');
+        logger.debug('[QUEST_DETAIL] Inside flushSync - updating selectedTask state');
         // CRITICAL: Update selectedTask state FIRST to ensure TaskWorkspace sees the completed status
         // This prevents the UI from showing incomplete state while React Query cache updates
         setSelectedTask(prev => {
           const updated = prev ? { ...prev, is_completed: true } : null;
-          console.log('[QUEST_DETAIL] selectedTask state updated to:', {
+          logger.debug('[QUEST_DETAIL] selectedTask state updated to:', {
             id: updated?.id?.substring(0, 8),
             is_completed: updated?.is_completed
           });
           return updated;
         });
 
-        console.log('[QUEST_DETAIL] Inside flushSync - updating React Query cache');
+        logger.debug('[QUEST_DETAIL] Inside flushSync - updating React Query cache');
         queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
           if (!oldData) {
-            console.log('[QUEST_DETAIL] No oldData in cache, returning null');
+            logger.debug('[QUEST_DETAIL] No oldData in cache, returning null');
             return oldData;
           }
 
-          console.log('[QUEST_DETAIL] Old cache data quest_tasks count:', oldData.quest_tasks?.length);
-          console.log('[QUEST_DETAIL] Updating task in cache:', selectedTask.id.substring(0, 8));
+          logger.debug('[QUEST_DETAIL] Old cache data quest_tasks count:', oldData.quest_tasks?.length);
+          logger.debug('[QUEST_DETAIL] Updating task in cache:', selectedTask.id.substring(0, 8));
 
           const updatedTasks = oldData.quest_tasks?.map(task => {
             if (task.id === selectedTask.id) {
-              console.log('[QUEST_DETAIL] Found matching task, marking is_completed=true');
+              logger.debug('[QUEST_DETAIL] Found matching task, marking is_completed=true');
               return { ...task, is_completed: true };
             }
             return task;
@@ -343,7 +344,7 @@ const QuestDetail = () => {
           const newProgressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
           const isNewlyCompleted = newProgressPercentage === 100 && !oldData.completed_enrollment;
 
-          console.log('[QUEST_DETAIL] Cache update complete:', {
+          logger.debug('[QUEST_DETAIL] Cache update complete:', {
             completedCount,
             totalCount,
             progressPercentage: newProgressPercentage,
@@ -352,7 +353,7 @@ const QuestDetail = () => {
 
           // Show celebration if quest just completed
           if (isNewlyCompleted) {
-            console.log('[QUEST_DETAIL] Quest newly completed - showing celebration');
+            logger.debug('[QUEST_DETAIL] Quest newly completed - showing celebration');
             setTimeout(() => {
               setShowQuestCompletionCelebration(true);
             }, 500);
@@ -372,14 +373,14 @@ const QuestDetail = () => {
         });
       });
 
-      console.log('[QUEST_DETAIL] flushSync completed - all updates should be synchronous');
+      logger.debug('[QUEST_DETAIL] flushSync completed - all updates should be synchronous');
     }
 
-    console.log('[QUEST_DETAIL] Closing modal and clearing selectedTask');
+    logger.debug('[QUEST_DETAIL] Closing modal and clearing selectedTask');
     setShowTaskModal(false);
     setSelectedTask(null);
 
-    console.log('[QUEST_DETAIL] ========== TASK COMPLETION HANDLER END ==========');
+    logger.debug('[QUEST_DETAIL] ========== TASK COMPLETION HANDLER END ==========');
     // Do NOT refetch - the cache update above is sufficient and accurate
     // Refetching causes race conditions with database commits
   };

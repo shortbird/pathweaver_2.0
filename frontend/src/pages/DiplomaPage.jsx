@@ -13,6 +13,7 @@ import CompactSidebar from '../components/diploma/CompactSidebar';
 import { SkeletonDiplomaHeader, SkeletonStats, SkeletonAchievementGrid } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 import { formatErrorMessage } from '../utils/errorMessages';
+import logger from '../utils/logger';
 import {
   getAllCreditProgress,
   calculateTotalCredits,
@@ -225,7 +226,7 @@ const DiplomaPage = () => {
       const response = await api.get(`/api/portfolio/diploma/${userId}`);
       const data = response.data;
 
-      console.log('Public diploma data received:', data);
+      logger.debug('Public diploma data received:', data);
 
       // Set diploma state with the full response
       setDiploma(data);
@@ -460,7 +461,7 @@ const DiplomaPage = () => {
   const isOwner = !isPublicRoute && Boolean(effectiveUser && (!slug && (!userId || effectiveUser.id === userId)));
 
   // Debug logging for public viewer issue
-  console.log('DiplomaPage render - isOwner:', isOwner, 'isPublicRoute:', isPublicRoute, 'user:', !!user, 'slug:', slug, 'userId:', userId);
+  logger.debug('DiplomaPage render - isOwner:', isOwner, 'isPublicRoute:', isPublicRoute, 'user:', !!user, 'slug:', slug, 'userId:', userId);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {

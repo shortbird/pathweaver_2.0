@@ -7,6 +7,7 @@ import { retryWithBackoff } from '../utils/retryHelper'
 import { queryKeys } from '../utils/queryKeys'
 import { isSafari, isIOS, shouldUseAuthHeaders, setAuthMethodPreference, testCookieSupport, logBrowserInfo } from '../utils/browserDetection'
 import { clearMasqueradeData } from '../services/masqueradeService'
+import logger from '../utils/logger'
 
 const AuthContext = createContext()
 
@@ -86,7 +87,7 @@ export const AuthProvider = ({ children }) => {
             // ✅ SAFARI FIX: Cookie auth failed - this is expected on Safari
             // User needs to log in, and we'll use auth headers automatically
             if (isSafari() || isIOS()) {
-              console.log('[AuthContext] Safari/iOS detected - will use Authorization headers on next login')
+              logger.debug('[AuthContext] Safari/iOS detected - will use Authorization headers on next login')
             }
             setSession(null)
           }

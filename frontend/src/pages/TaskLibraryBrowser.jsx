@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, CheckCircle, BookOpen, Eye, X } from 'lucide-react';
 import api from '../services/api';
 import { getPillarData } from '../utils/pillarMappings';
 import toast from 'react-hot-toast';
+import logger from '../utils/logger';
 
 export default function TaskLibraryBrowser() {
   const { questId } = useParams();
@@ -30,7 +31,7 @@ export default function TaskLibraryBrowser() {
       const libraryResponse = await api.get(`/api/quests/${questId}/task-library`);
       setLibraryTasks(libraryResponse.data.tasks || []);
     } catch (error) {
-      console.error('Error fetching library:', error);
+      logger.error('Error fetching library:', error);
       toast.error('Failed to load task library');
     } finally {
       setLoading(false);
@@ -50,18 +51,18 @@ export default function TaskLibraryBrowser() {
         const libraryTask = libraryTasks.find(t => t.id === taskId);
         if (!libraryTask) {
           toast.error('Task not found in library');
-          console.error('Library task not found:', taskId);
+          logger.error('Library task not found:', taskId);
           return;
         }
 
-        console.log('Attempting to remove task:', {
+        logger.debug('Attempting to remove task:', {
           sampleTaskId: taskId,
           title: libraryTask.title
         });
 
         // Get fresh quest data to find the user task
         const questResponse = await api.get(`/api/quests/${questId}`);
-        console.log('Quest tasks:', questResponse.data.quest_tasks?.map(t => ({
+        logger.debug('Quest tasks:', questResponse.data.quest_tasks?.map(t => ({
           id: t.id,
           title: t.title
         })));
@@ -71,8 +72,8 @@ export default function TaskLibraryBrowser() {
         );
 
         if (!userTask) {
-          console.error('User task not found. Looking for title:', libraryTask.title);
-          console.error('Available tasks:', questResponse.data.quest_tasks?.map(t => t.title));
+          logger.error('User task not found. Looking for title:', libraryTask.title);
+          logger.error('Available tasks:', questResponse.data.quest_tasks?.map(t => t.title));
           toast.error('Task not found in your quest. It may have already been removed.');
 
           // Remove from local state anyway since it's not in the quest
@@ -84,7 +85,7 @@ export default function TaskLibraryBrowser() {
           return;
         }
 
-        console.log('Deleting user task:', userTask.id);
+        logger.debug('Deleting user task:', userTask.id);
 
         // Delete the task
         await api.delete(`/api/tasks/${userTask.id}`);
@@ -105,7 +106,7 @@ export default function TaskLibraryBrowser() {
 
         toast.success('Task removed from your quest');
       } catch (error) {
-        console.error('Error removing task:', error);
+        logger.error('Error removing task:', error);
         toast.error(error.response?.data?.error || 'Failed to remove task');
       }
 
@@ -135,7 +136,7 @@ export default function TaskLibraryBrowser() {
         setAddedTasks(prev => new Set([...prev, taskId]));
         toast.success('Task added to your quest!');
       } catch (error) {
-        console.error('Error adding task:', error);
+        logger.error('Error adding task:', error);
         toast.error(error.response?.data?.error || 'Failed to add task');
 
         // Remove from selection on error
@@ -418,7 +419,7 @@ export default function TaskLibraryBrowser() {
                               toast.success('Task added to your quest!');
                               setDetailsModalTask(null);
                             } catch (error) {
-                              console.error('Error adding task:', error);
+                              logger.error('Error adding task:', error);
                               toast.error(error.response?.data?.error || 'Failed to add task');
                             }
                           }}

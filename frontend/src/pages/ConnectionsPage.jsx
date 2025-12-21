@@ -10,6 +10,7 @@ import {
   useDeclineFriendRequest,
   useCancelFriendRequest,
 } from '../hooks/api/useFriends'
+import logger from '../utils/logger'
 
 // Import new components
 import ConnectionsHeader from '../components/connections/ConnectionsHeader'
@@ -46,10 +47,10 @@ const ConnectionsPage = () => {
   const sentRequests = friendsData?.sent_requests || []
 
   // Debug logging
-  console.log('[CONNECTIONS PAGE] friendsData:', friendsData)
-  console.log('[CONNECTIONS PAGE] friends:', friends)
-  console.log('[CONNECTIONS PAGE] pendingRequests:', pendingRequests)
-  console.log('[CONNECTIONS PAGE] sentRequests:', sentRequests)
+  logger.debug('[CONNECTIONS PAGE] friendsData:', friendsData)
+  logger.debug('[CONNECTIONS PAGE] friends:', friends)
+  logger.debug('[CONNECTIONS PAGE] pendingRequests:', pendingRequests)
+  logger.debug('[CONNECTIONS PAGE] sentRequests:', sentRequests)
 
   // Loading state
   const loading = loadingFriends
@@ -131,7 +132,7 @@ const ConnectionsPage = () => {
       toast.success('Observer request submitted for admin review')
       setShowAddObserverModal(false)
     } catch (error) {
-      console.error('Error submitting observer request:', error)
+      logger.error('Error submitting observer request:', error)
       toast.error(error.response?.data?.error || 'Failed to submit observer request')
     }
   }

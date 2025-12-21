@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { crmAPI } from '../../../services/crmAPI'
 import toast from 'react-hot-toast'
 import ReactMarkdown from 'react-markdown'
+import logger from '../../../utils/logger'
 
 const TemplateEditor = ({ template, onClose, onSave }) => {
   const [templateKey, setTemplateKey] = useState('')
@@ -144,7 +145,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       // Convert markdown to template_data structure
       const templateData = convertMarkdownToTemplateData()
 
-      console.log('🔍 Preview Debug:', {
+      logger.debug('🔍 Preview Debug:', {
         templateKey,
         subject,
         templateData,
@@ -153,7 +154,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
         sampleDataValues: Object.values(sampleData),
         markdownLength: markdownContent.length
       })
-      console.log('📊 Full Sample Data:', JSON.stringify(sampleData, null, 2))
+      logger.debug('📊 Full Sample Data:', JSON.stringify(sampleData, null, 2))
 
       // Call preview API
       const response = await crmAPI.previewTemplate(templateKey, {
@@ -162,15 +163,15 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
         sample_data: sampleData
       })
 
-      console.log('✅ Preview Response:', {
+      logger.debug('✅ Preview Response:', {
         hasHtml: !!response.data.html,
         htmlLength: (response.data.html || '').length
       })
 
       setPreviewHtml(response.data.html || '')
     } catch (error) {
-      console.error('❌ Preview error:', error)
-      console.error('Error response:', error.response?.data)
+      logger.error('❌ Preview error:', error)
+      logger.error('Error response:', error.response?.data)
       // Don't show error toast for auto-preview
       if (!autoPreview) {
         toast.error('Failed to generate preview')
@@ -312,7 +313,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
 
       onSave()
     } catch (error) {
-      console.error('Save error:', error)
+      logger.error('Save error:', error)
       toast.error(error.response?.data?.error || 'Failed to save template')
     } finally {
       setLoading(false)

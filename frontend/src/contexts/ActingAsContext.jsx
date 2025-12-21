@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, startTransition } from 'react';
 import { useAuth } from './AuthContext';
 import api, { tokenStore } from '../services/api';
+import logger from '../utils/logger';
 
 const ActingAsContext = createContext();
 
@@ -34,7 +35,7 @@ export const ActingAsProvider = ({ children }) => {
           startTransition(() => {
             setActingAsDependent(parsed);
             setActingAsToken(storedToken);
-            console.log('[ActingAsContext] Restored acting-as token from sessionStorage');
+            logger.debug('[ActingAsContext] Restored acting-as token from sessionStorage');
           });
         } catch (error) {
           console.error('Failed to parse acting_as_dependent from sessionStorage:', error);
@@ -62,7 +63,7 @@ export const ActingAsProvider = ({ children }) => {
       // Clean up temporary parent token storage
       sessionStorage.removeItem('parent_access_token');
       sessionStorage.removeItem('parent_refresh_token');
-      console.log('[ActingAsContext] Restored parent tokens');
+      logger.debug('[ActingAsContext] Restored parent tokens');
     } else {
       console.warn('[ActingAsContext] No saved parent tokens found to restore');
     }
@@ -71,7 +72,7 @@ export const ActingAsProvider = ({ children }) => {
     startTransition(() => {
       setActingAsDependent(null);
       setActingAsToken(null);
-      console.log('[ActingAsContext] Cleared acting-as state');
+      logger.debug('[ActingAsContext] Cleared acting-as state');
     });
   }, []);
 
@@ -92,7 +93,7 @@ export const ActingAsProvider = ({ children }) => {
         if (parentAccess && parentRefresh) {
           sessionStorage.setItem('parent_access_token', parentAccess);
           sessionStorage.setItem('parent_refresh_token', parentRefresh);
-          console.log('[ActingAsContext] Saved parent tokens before switching');
+          logger.debug('[ActingAsContext] Saved parent tokens before switching');
         }
 
         // Request acting-as token from backend
@@ -110,7 +111,7 @@ export const ActingAsProvider = ({ children }) => {
         startTransition(() => {
           setActingAsDependent(dependent);
           setActingAsToken(acting_as_token);
-          console.log('[ActingAsContext] Now acting as dependent:', dependent.display_name);
+          logger.debug('[ActingAsContext] Now acting as dependent:', dependent.display_name);
         });
       } catch (error) {
         console.error('[ActingAsContext] Failed to generate acting-as token:', error);

@@ -4,6 +4,7 @@
  */
 import { useState, useEffect } from 'react'
 import api from '../services/api'
+import logger from '../utils/logger'
 
 const CACHE_KEY = 'optio_homepage_images'
 const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
@@ -34,18 +35,18 @@ export const useHomepageImages = (options = {}) => {
 
           // Check if cache is still valid
           if (now - timestamp < CACHE_DURATION) {
-            console.log('[Homepage Images] Using cached images')
+            logger.debug('[Homepage Images] Using cached images')
             setImages(data)
             setLoading(false)
             return
           } else {
-            console.log('[Homepage Images] Cache expired, fetching fresh images')
+            logger.debug('[Homepage Images] Cache expired, fetching fresh images')
           }
         }
       }
 
       // Fetch from API
-      console.log('[Homepage Images] Fetching images from API')
+      logger.debug('[Homepage Images] Fetching images from API')
 
       const params = {}
       if (options.section) params.section = options.section
@@ -62,10 +63,10 @@ export const useHomepageImages = (options = {}) => {
           timestamp: Date.now()
         }))
 
-        console.log(`[Homepage Images] Fetched ${response.data.total_found}/${response.data.total_requested} images`)
+        logger.debug(`[Homepage Images] Fetched ${response.data.total_found}/${response.data.total_requested} images`)
 
         if (response.data.errors && response.data.errors.length > 0) {
-          console.warn('[Homepage Images] Some images failed to fetch:', response.data.errors)
+          logger.warn('[Homepage Images] Some images failed to fetch:', response.data.errors)
         }
 
         setImages(imageData)
@@ -73,14 +74,14 @@ export const useHomepageImages = (options = {}) => {
         throw new Error(response.data.error || 'Failed to fetch homepage images')
       }
     } catch (err) {
-      console.error('[Homepage Images] Error fetching images:', err)
+      logger.error('[Homepage Images] Error fetching images:', err)
       setError(err.message || 'Failed to load images')
 
       // Try to use cached images as fallback even if expired
       const cached = localStorage.getItem(CACHE_KEY)
       if (cached) {
         const { data } = JSON.parse(cached)
-        console.log('[Homepage Images] Using stale cache as fallback')
+        logger.debug('[Homepage Images] Using stale cache as fallback')
         setImages(data)
       }
     } finally {
@@ -126,5 +127,5 @@ export const preloadImages = (images) => {
       img.src = image.url
     }
   })
-  console.log(`[Homepage Images] Preloading ${Object.keys(images).length} images`)
+  logger.debug(`[Homepage Images] Preloading ${Object.keys(images).length} images`)
 }

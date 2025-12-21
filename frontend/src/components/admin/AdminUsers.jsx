@@ -4,6 +4,7 @@ import api from '../../services/api'
 import toast from 'react-hot-toast'
 import UserDetailsModal from './UserDetailsModal'
 import BulkEmailModal from './BulkEmailModal'
+import logger from '../../utils/logger'
 // import { useAdminSubscriptionTiers } from '../../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const AdminUsers = () => {
@@ -61,7 +62,7 @@ const AdminUsers = () => {
       const response = await api.get(`/api/admin/users?${queryParams}`)
 
       // Debug logging - check if emails are in the response
-      console.log('API Response Sample:', response.data.users?.slice(0, 3))
+      logger.debug('API Response Sample:', response.data.users?.slice(0, 3))
 
       setUsers(response.data.users || [])
       setTotalPages(Math.ceil((response.data.total || 0) / usersPerPage))

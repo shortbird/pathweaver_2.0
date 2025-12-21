@@ -4,6 +4,7 @@ import { X, Check, Flag, BookOpen } from 'lucide-react';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
 import ManualTaskCreator from './ManualTaskCreator';
+import logger from '../../utils/logger';
 
 const INTEREST_OPTIONS = [
   { id: 'sports', label: 'Sports & Athletics', icon: '⚽' },
@@ -66,7 +67,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
         setStep(3); // Go directly to manual task creation
       }
     } catch (err) {
-      console.error('Failed to start session:', err);
+      logger.error('Failed to start session:', err);
       setError(err.response?.data?.error || err.message || 'Failed to start personalization');
     } finally {
       setLoading(false);
@@ -82,7 +83,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
 
     if (!sessionId) {
       setError('No session ID found. Please restart the wizard.');
-      console.error('Missing session_id:', sessionId);
+      logger.error('Missing session_id:', sessionId);
       return;
     }
 
@@ -112,7 +113,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
       setAcceptedTasks([]);
       setStep(4); // Move to one-at-a-time review for AI path
     } catch (err) {
-      console.error('Failed to generate tasks:', err);
+      logger.error('Failed to generate tasks:', err);
 
       // Handle rate limiting errors with user-friendly message
       const errorMessage = err.response?.data?.error || err.message || 'Failed to generate tasks';
@@ -130,7 +131,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
 
   // Handle manual task creation completion
   const handleManualTasksCreated = (response) => {
-    console.log('Manual tasks created:', response);
+    logger.debug('Manual tasks created:', response);
     onComplete(response);
   };
 
@@ -160,7 +161,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
         }
       }
     } catch (err) {
-      console.error('Failed to accept task:', err);
+      logger.error('Failed to accept task:', err);
       setError(err.response?.data?.error || 'Failed to add task');
     } finally {
       setLoading(false);
@@ -177,10 +178,10 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
         session_id: sessionId,
         task: currentTask
       });
-      console.log('Skipped task saved to library:', currentTask.title);
+      logger.debug('Skipped task saved to library:', currentTask.title);
     } catch (err) {
       // Don't block the user if library save fails
-      console.warn('Failed to save skipped task to library:', err);
+      logger.warn('Failed to save skipped task to library:', err);
     }
 
     // Move to next task or complete wizard
@@ -201,7 +202,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
     try {
       // Flag the task (assuming we need to save it to library first to get an ID)
       // For now, we'll just log it and move on
-      console.log('Task flagged:', currentTask.title, 'Reason:', flagReason);
+      logger.debug('Task flagged:', currentTask.title, 'Reason:', flagReason);
 
       // TODO: Send flag to backend once task is in library
       // await api.post(`/api/quests/${questId}/task-library/${taskId}/flag`, {
@@ -213,7 +214,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
 
       // User can still skip or accept after flagging
     } catch (err) {
-      console.error('Failed to flag task:', err);
+      logger.error('Failed to flag task:', err);
       setError('Failed to flag task');
     } finally {
       setLoading(false);

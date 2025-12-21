@@ -4,6 +4,7 @@
  */
 
 import { tokenStore } from './api.js';
+import logger from '../utils/logger';
 
 const MASQUERADE_STORAGE_KEY = 'masquerade_state';
 const ADMIN_TOKEN_STORAGE_KEY = 'original_admin_token';
@@ -46,7 +47,7 @@ export const startMasquerade = async (userId, reason = '', apiCall) => {
         access_token: currentToken,
         refresh_token: currentRefreshToken
       }));
-      console.log('[Masquerade] Backed up admin tokens before masquerading');
+      logger.debug('[Masquerade] Backed up admin tokens before masquerading');
     }
 
     // Call masquerade API
@@ -58,7 +59,7 @@ export const startMasquerade = async (userId, reason = '', apiCall) => {
 
     // Store masquerade token using tokenStore (fixes localStorage key mismatch bug)
     await tokenStore.setTokens(masquerade_token, null);
-    console.log('[Masquerade] Masquerade token stored in tokenStore');
+    logger.debug('[Masquerade] Masquerade token stored in tokenStore');
 
     // Store masquerade state
     const masqueradeState = {
@@ -70,7 +71,7 @@ export const startMasquerade = async (userId, reason = '', apiCall) => {
     };
 
     localStorage.setItem(MASQUERADE_STORAGE_KEY, JSON.stringify(masqueradeState));
-    console.log('[Masquerade] Started masquerading as:', target_user.display_name || target_user.email);
+    logger.debug('[Masquerade] Started masquerading as:', target_user.display_name || target_user.email);
 
     return {
       success: true,
@@ -85,7 +86,7 @@ export const startMasquerade = async (userId, reason = '', apiCall) => {
       const { access_token, refresh_token } = JSON.parse(originalTokens);
       await tokenStore.setTokens(access_token, refresh_token);
       localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
-      console.log('[Masquerade] Restored admin tokens after failed masquerade attempt');
+      logger.debug('[Masquerade] Restored admin tokens after failed masquerade attempt');
     }
 
     return {
@@ -109,12 +110,12 @@ export const exitMasquerade = async (apiCall) => {
 
     // Restore admin tokens using tokenStore
     await tokenStore.setTokens(access_token, refresh_token);
-    console.log('[Masquerade] Admin tokens restored from backend response');
+    logger.debug('[Masquerade] Admin tokens restored from backend response');
 
     // Clear masquerade state
     localStorage.removeItem(MASQUERADE_STORAGE_KEY);
     localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
-    console.log('[Masquerade] Exited masquerade session, returned to admin identity');
+    logger.debug('[Masquerade] Exited masquerade session, returned to admin identity');
 
     return {
       success: true,
@@ -130,7 +131,7 @@ export const exitMasquerade = async (apiCall) => {
       await tokenStore.setTokens(access_token, refresh_token);
       localStorage.removeItem(MASQUERADE_STORAGE_KEY);
       localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
-      console.log('[Masquerade] Restored admin tokens from backup after exit error');
+      logger.debug('[Masquerade] Restored admin tokens from backup after exit error');
 
       // Force page reload to refresh with admin token
       window.location.href = '/admin/users';
@@ -173,7 +174,7 @@ export const clearMasqueradeData = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
 
-    console.log('[Masquerade] Cleared masquerade data and tokens');
+    logger.debug('[Masquerade] Cleared masquerade data and tokens');
 
     // Verify cleanup
     const accessToken = localStorage.getItem('access_token');

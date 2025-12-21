@@ -2,6 +2,7 @@
  * Browser detection and cookie compatibility utilities
  * Used to detect Safari and implement automatic fallbacks
  */
+import logger from './logger'
 
 /**
  * Detect if the browser is Safari
@@ -68,7 +69,7 @@ export const testCookieSupport = async (apiInstance) => {
       recommendations: data.recommendations || []
     }
   } catch (error) {
-    console.error('[BrowserDetection] Failed to test cookie support:', error)
+    logger.error('[BrowserDetection] Failed to test cookie support:', error)
     return {
       cookiesWorking: false,
       authHeaderWorking: false,
@@ -109,7 +110,7 @@ export const setAuthMethodPreference = (method) => {
   try {
     sessionStorage.setItem('auth_method_preference', method)
   } catch (error) {
-    console.warn('[BrowserDetection] Failed to store auth method preference:', error)
+    logger.warn('[BrowserDetection] Failed to store auth method preference:', error)
   }
 }
 
@@ -132,7 +133,7 @@ export const getBrowserInfo = () => {
  */
 export const logBrowserInfo = () => {
   if (import.meta.env.DEV) {
-    console.log('[BrowserDetection] Browser Info:', getBrowserInfo())
-    console.log('[BrowserDetection] Should use auth headers:', shouldUseAuthHeaders())
+    logger.debug('[BrowserDetection] Browser Info:', getBrowserInfo())
+    logger.debug('[BrowserDetection] Should use auth headers:', shouldUseAuthHeaders())
   }
 }

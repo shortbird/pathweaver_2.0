@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { secureTokenStore } from './secureTokenStore'
+import logger from '../utils/logger'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
@@ -27,7 +28,7 @@ export const tokenStore = {
   init: async () => {
     try {
       await secureTokenStore.init()
-      console.log('[TokenStore] Secure token store initialized')
+      logger.debug('[TokenStore] Secure token store initialized')
     } catch (error) {
       console.error('[TokenStore] Failed to initialize secure token store:', error)
     }
@@ -42,7 +43,7 @@ export const tokenStore = {
       if (storedAccess && storedRefresh) {
         accessToken = storedAccess
         refreshToken = storedRefresh
-        console.log('[TokenStore] Tokens restored from encrypted IndexedDB')
+        logger.debug('[TokenStore] Tokens restored from encrypted IndexedDB')
         return true
       }
     } catch (error) {
@@ -60,7 +61,7 @@ export const tokenStore = {
     // Also store in encrypted IndexedDB for page refresh persistence
     try {
       await secureTokenStore.setTokens(access, refresh)
-      console.log('[TokenStore] Tokens stored in memory and encrypted IndexedDB')
+      logger.debug('[TokenStore] Tokens stored in memory and encrypted IndexedDB')
     } catch (error) {
       console.error('[TokenStore] Failed to store tokens in encrypted IndexedDB:', error)
     }
@@ -81,7 +82,7 @@ export const tokenStore = {
     // Clear from encrypted IndexedDB
     try {
       await secureTokenStore.clearTokens()
-      console.log('[TokenStore] Tokens cleared from memory and encrypted IndexedDB')
+      logger.debug('[TokenStore] Tokens cleared from memory and encrypted IndexedDB')
     } catch (error) {
       console.error('[TokenStore] Failed to clear tokens from encrypted IndexedDB:', error)
     }
