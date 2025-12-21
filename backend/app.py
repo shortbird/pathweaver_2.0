@@ -331,11 +331,10 @@ except Exception as e:
 
 # Register Parent Dashboard blueprints (refactored from parent_dashboard.py mega-file to 4 modules - P2-ARCH-1)
 try:
-    from routes import parent_linking, parent_evidence
+    from routes import parent_linking
     from routes.parent import register_parent_blueprints
     app.register_blueprint(parent_linking.bp)  # /api/parents
     register_parent_blueprints(app)  # /api/parent (dashboard, quests, evidence, analytics modules)
-    app.register_blueprint(parent_evidence.bp)  # /api/parent (evidence endpoints)
 
     # Register dependent profiles blueprint (January 2025 - COPPA-compliant dependent profiles)
     from routes import dependents
