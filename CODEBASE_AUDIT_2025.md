@@ -54,6 +54,7 @@ The Optio Platform is a **well-architected, professionally documented codebase**
 **Developer Experience:**
 12. ✅ Icon library consolidation (lucide-react → heroicons, 117 files migrated)
 13. ✅ Drag-drop library migration (react-beautiful-dnd → @dnd-kit)
+14. ✅ Removed unused package imports (react-markdown)
 
 ---
 
