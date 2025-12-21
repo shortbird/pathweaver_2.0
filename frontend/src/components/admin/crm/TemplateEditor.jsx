@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { crmAPI } from '../../../services/crmAPI'
 import toast from 'react-hot-toast'
-import ReactMarkdown from 'react-markdown'
 import logger from '../../../utils/logger'
 
 const TemplateEditor = ({ template, onClose, onSave }) => {
