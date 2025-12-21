@@ -134,7 +134,7 @@ def get_my_observer_invitations():
     user_id = request.user_id
 
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()
 
         invitations = supabase.table('observer_invitations') \
             .select('*') \
@@ -165,7 +165,7 @@ def cancel_observer_invitation(invitation_id):
     user_id = request.user_id
 
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()
 
         # Verify invitation belongs to student and is pending
         invitation = supabase.table('observer_invitations') \
@@ -195,16 +195,17 @@ def cancel_observer_invitation(invitation_id):
 
 @bp.route('/api/observers/my-observers', methods=['GET'])
 @require_auth
-def get_my_observers(user_id: str):
+def get_my_observers():
     """
     Student views linked observers
 
     Returns:
         200: List of linked observers with relationship details
     """
+    user_id = request.user_id
 
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()
 
         # Note: Using raw query since Supabase Python client doesn't support joins well
         links = supabase.table('observer_student_links') \
@@ -235,7 +236,7 @@ def remove_observer(link_id):
     user_id = request.user_id
 
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()
 
         # Verify link belongs to student
         link = supabase.table('observer_student_links') \
@@ -390,7 +391,7 @@ def get_my_students():
     user_id = request.user_id
 
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()
 
         links = supabase.table('observer_student_links') \
             .select('*, student:student_id(id, first_name, last_name, portfolio_slug, avatar_url)') \
@@ -529,7 +530,7 @@ def get_student_comments(student_id):
     user_id = request.user_id
 
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()
 
         # Check if user is the student or an observer
         if user_id != student_id:
@@ -575,7 +576,7 @@ def get_pending_invitations_for_observer():
     user_id = request.user_id
 
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()
 
         # Get user's email
         user = supabase.table('users') \
