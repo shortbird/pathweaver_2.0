@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PencilSquareIcon, TrashIcon, CheckCircleIcon, ChevronDownIcon, ChevronUpIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { Bars3Icon, CheckCircleIcon, ChevronDownIcon, ChevronUpIcon, EllipsisHorizontalCircleIcon, PencilSquareIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import TaskEditModal from './TaskEditModal';
 import AddEvidenceModal from './AddEvidenceModal';
 
@@ -187,14 +187,14 @@ export default function StudentTasksPanel({ quest, studentId, studentName, onTas
                   <div className="flex items-start space-x-3 flex-1">
                     {/* Drag Handle */}
                     {!task.completed && (
-                      <GripVertical className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1 cursor-grab active:cursor-grabbing" />
+                      <Bars3Icon className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1 cursor-grab active:cursor-grabbing" />
                     )}
 
                     {/* Completion Status Icon */}
                     {task.completed ? (
                       <CheckCircleIcon className="w-5 h-5 text-green-500 flex-shrink-0 mt-1" />
                     ) : (
-                      <Circle className="w-5 h-5 text-gray-300 flex-shrink-0 mt-1" />
+                      <EllipsisHorizontalCircleIcon className="w-5 h-5 text-gray-300 flex-shrink-0 mt-1" />
                     )}
 
                     {/* Task Info */}

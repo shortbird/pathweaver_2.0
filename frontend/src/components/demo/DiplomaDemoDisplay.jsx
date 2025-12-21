@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
-import { TrophyIcon, GlobeAltIcon, LockClosedIcon, EyeIcon, EyeSlashIcon, UserIcon, CalendarIcon, FireIcon, InformationCircleIcon, ArrowTopRightOnSquareIcon, CheckCircleIcon, ChatBubbleLeftIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline';
+import { ArrowTopRightOnSquareIcon, ArrowTrendingUpIcon, CalendarIcon, ChatBubbleLeftEllipsisIcon, ChatBubbleLeftIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon, FireIcon, GlobeAltIcon, InformationCircleIcon, LockClosedIcon, TrophyIcon, UserIcon } from '@heroicons/react/24/outline';
 import InfoModal from './InfoModal';
 // Chart imports - using recharts (already installed)
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts';
@@ -139,7 +139,7 @@ const DiplomaDemoDisplay = () => {
                 <span>Joined {demoUser.joined}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Trophy className="w-4 h-4 flex-shrink-0" />
+                <TrophyIcon className="w-4 h-4 flex-shrink-0" />
                 <span>{totalXP} Total XP</span>
               </div>
               <div className="flex items-center gap-2">
@@ -268,7 +268,7 @@ const DiplomaDemoDisplay = () => {
       {/* AI Tutor Preview */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <h3 className="font-bold text-lg text-text-primary mb-4 flex items-center gap-2">
-          <Bot className="w-5 h-5 text-optio-purple" />
+          <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-optio-purple" />
           AI Tutor Helped You
         </h3>
         <div className="space-y-4">
@@ -289,7 +289,7 @@ const DiplomaDemoDisplay = () => {
             {/* AI Response */}
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center text-white flex-shrink-0">
-                <Bot className="w-5 h-5" />
+                <ChatBubbleLeftEllipsisIcon className="w-5 h-5" />
               </div>
               <div className="flex-1 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3 border border-purple-100">
                 <p className="text-sm text-gray-800 leading-relaxed">

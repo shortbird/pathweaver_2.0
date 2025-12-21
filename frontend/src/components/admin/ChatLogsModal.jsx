@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { ChatBubbleLeftRightIcon, CalendarIcon, UserIcon } from '@heroicons/react/24/outline'
+import { CalendarIcon, ChatBubbleLeftEllipsisIcon, ChatBubbleLeftRightIcon, UserIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import { renderMarkdown } from '../../utils/markdownRenderer'
@@ -195,7 +195,7 @@ const ChatLogsModal = ({ user, onClose }) => {
                         >
                           <div className="flex items-start space-x-2">
                             {message.role === 'assistant' && (
-                              <Bot className="w-4 h-4 text-optio-purple flex-shrink-0 mt-0.5" />
+                              <ChatBubbleLeftEllipsisIcon className="w-4 h-4 text-optio-purple flex-shrink-0 mt-0.5" />
                             )}
                             {message.role === 'user' && (
                               <UserIcon className="w-4 h-4 text-white flex-shrink-0 mt-0.5" />

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import api, { adminParentConnectionsAPI } from '../../services/api'
 import toast from 'react-hot-toast'
-import { XMarkIcon, UsersIcon, MagnifyingGlassIcon, CheckCircleIcon, XCircleIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline'
+import { CheckCircleIcon, ChevronDownIcon, ChevronUpIcon, MagnifyingGlassIcon, TrashIcon, UserPlusIcon, UsersIcon, XCircleIcon, XMarkIcon } from '@heroicons/react/24/outline'
 
 const AdminConnections = () => {
   const [loading, setLoading] = useState(true)
@@ -291,7 +291,7 @@ const AdminConnections = () => {
 
         <div className="bg-gradient-to-r from-optio-pink to-optio-purple p-6 rounded-lg text-white shadow-md">
           <div className="flex items-center gap-3">
-            <UserPlus className="w-10 h-10" />
+            <UserPlusIcon className="w-10 h-10" />
             <div>
               <p className="text-sm opacity-90" style={{ fontFamily: 'Poppins, sans-serif' }}>Parent-Student</p>
               <p className="text-3xl font-bold" style={{ fontFamily: 'Poppins, sans-serif' }}>{parentLinks.length}</p>
@@ -362,7 +362,7 @@ const AdminConnections = () => {
                         className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium text-sm"
                         style={{ fontFamily: 'Poppins, sans-serif' }}
                       >
-                        <UserPlus className="w-4 h-4" />
+                        <UserPlusIcon className="w-4 h-4" />
                         Assign Student
                       </button>
                     </div>
@@ -421,7 +421,7 @@ const AdminConnections = () => {
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
-            <UserPlus className="w-5 h-5" />
+            <UserPlusIcon className="w-5 h-5" />
             Add Parent-Student Connection
           </button>
         </div>
@@ -446,7 +446,7 @@ const AdminConnections = () => {
           <h4 className="font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>Active Connections</h4>
           {filteredParentLinks.length === 0 ? (
             <div className="text-center py-12 bg-gray-50 rounded-lg">
-              <UserPlus className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <UserPlusIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>No active connections found</p>
             </div>
           ) : (

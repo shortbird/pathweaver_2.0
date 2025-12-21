@@ -1,5 +1,5 @@
 import React from 'react'
-import { UserIcon, MagnifyingGlassIcon, UsersIcon, EyeIcon } from '@heroicons/react/24/outline'
+import { AcademicCapIcon, ChatBubbleLeftEllipsisIcon, EyeIcon, MagnifyingGlassIcon, MapPinIcon, UserIcon, UsersIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import { useQuery } from '@tanstack/react-query'
 import { parentAPI, friendsAPI, observerAPI } from '../../services/api'
@@ -183,7 +183,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
         <div className="relative flex-shrink-0">
           {conversation.type === 'bot' ? (
             <div className={`w-12 h-12 ${bgColor} rounded-full flex items-center justify-center`}>
-              <Bot className={`w-6 h-6 ${iconColor}`} />
+              <ChatBubbleLeftEllipsisIcon className={`w-6 h-6 ${iconColor}`} />
             </div>
           ) : conversation.other_user?.avatar_url ? (
             <img
@@ -198,7 +198,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
           )}
           {isPinned && (
             <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-              <Pin className="w-3 h-3 text-white" />
+              <MapPinIcon className="w-3 h-3 text-white" />
             </div>
           )}
           {conversation.unread_count > 0 && (
@@ -261,7 +261,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
           <div>
             <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
               <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center">
-                <Pin className="w-3 h-3 mr-1" />
+                <MapPinIcon className="w-3 h-3 mr-1" />
                 Pinned
               </h4>
             </div>
@@ -306,7 +306,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
           <div>
             <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
               <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center">
-                <GraduationCap className="w-3 h-3 mr-1" />
+                <AcademicCapIcon className="w-3 h-3 mr-1" />
                 {user?.role === 'student' ? 'Advisor' : 'Students'}
               </h4>
             </div>

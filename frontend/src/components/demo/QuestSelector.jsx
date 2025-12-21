@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
-import { BookOpenIcon, CodeBracketIcon, CameraIcon, HeartIcon, PaintBrushIcon, BriefcaseIcon, GlobeAltIcon, PlusIcon, CheckIcon, InformationCircleIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { BookOpenIcon, BriefcaseIcon, CameraIcon, CheckIcon, CodeBracketIcon, GlobeAltIcon, HeartIcon, InformationCircleIcon, MagnifyingGlassIcon, PaintBrushIcon, PlusIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import InfoModal from './InfoModal';
 
 const QuestSelector = () => {
@@ -17,7 +17,7 @@ const QuestSelector = () => {
   }, []);
 
   const questIcons = {
-    'family-recipes': <ChefHat className="w-6 h-6" />,
+    'family-recipes': <SparklesIcon className="w-6 h-6" />,
     'music-composition': <PaintBrushIcon className="w-6 h-6" />,
     'small-business': <BriefcaseIcon className="w-6 h-6" />,
     'volunteer-impact': <HeartIcon className="w-6 h-6" />

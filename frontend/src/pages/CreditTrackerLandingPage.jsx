@@ -1,4 +1,4 @@
-import { TrophyIcon, BookOpenIcon, DocumentTextIcon, BoltIcon } from '@heroicons/react/24/outline'
+import { AcademicCapIcon, BoltIcon, BookOpenIcon, DocumentTextIcon, TrophyIcon } from '@heroicons/react/24/outline'
 import LandingPageHero from '../components/landing/LandingPageHero'
 import LandingPageForm from '../components/landing/LandingPageForm'
 import FeatureGrid from '../components/landing/FeatureGrid'
@@ -42,12 +42,12 @@ const CreditTrackerLandingPage = () => {
       description: 'Generate professional transcripts that translate your diverse learning into traditional credit hours colleges recognize.',
     },
     {
-      icon: <GraduationCap className="w-8 h-8 text-white" />,
+      icon: <AcademicCapIcon className="w-8 h-8 text-white" />,
       title: 'Multi-Source Integration',
       description: 'Combine learning from Khan Academy, Coursera, YouTube, textbooks, and real-world experiences in one place.',
     },
     {
-      icon: <Trophy className="w-8 h-8 text-white" />,
+      icon: <TrophyIcon className="w-8 h-8 text-white" />,
       title: 'Achievement System',
       description: 'Earn XP, unlock badges, and level up as you complete courses. Make learning addictive and rewarding.',
     },

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusIcon, CheckCircleIcon, BookOpenIcon, HomeIcon } from '@heroicons/react/24/outline';
+import { BookOpenIcon, CheckCircleIcon, HomeIcon, PlusIcon, TrophyIcon } from '@heroicons/react/24/outline';
 import confetti from 'canvas-confetti';
 
 const QuestCompletionCelebration = ({
@@ -83,7 +83,7 @@ const QuestCompletionCelebration = ({
           {/* Trophy icon */}
           <div className="flex justify-center mb-6">
             <div className="w-24 h-24 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
-              <Trophy className="w-14 h-14 text-white" />
+              <TrophyIcon className="w-14 h-14 text-white" />
             </div>
           </div>
 

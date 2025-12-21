@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { XMarkIcon, PlusIcon, PencilSquareIcon, TrashIcon, DocumentTextIcon } from '@heroicons/react/24/outline'
+import { ArrowDownTrayIcon, DocumentTextIcon, PencilSquareIcon, PlusIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 
 const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
@@ -235,7 +235,7 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
                           disabled={!editingText.trim() || submitting}
                           className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-1 transition-colors"
                         >
-                          <Save size={16} />
+                          <ArrowDownTrayIcon size={16} />
                           Save
                         </button>
                       </div>

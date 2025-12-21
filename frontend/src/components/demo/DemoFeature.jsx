@@ -8,7 +8,7 @@ import ParentDashboardPreview from './ParentDashboardPreview';
 import FamilyEngagementPreview from './FamilyEngagementPreview';
 import DiplomaDemoDisplay from './DiplomaDemoDisplay';
 import JoinJourney from './JoinJourney';
-import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 const DemoFeature = () => {
   const { demoState, actions } = useDemo();
@@ -92,7 +92,7 @@ const DemoFeature = () => {
                   onClick={actions.resetDemo}
                   className="flex items-center gap-1 text-sm text-optio-purple hover:underline py-1 px-2 -mx-2 rounded touch-manipulation"
                 >
-                  <RotateCcw className="w-4 h-4 flex-shrink-0" />
+                  <ArrowPathIcon className="w-4 h-4 flex-shrink-0" />
                   <span>Restart</span>
                 </button>
               </div>

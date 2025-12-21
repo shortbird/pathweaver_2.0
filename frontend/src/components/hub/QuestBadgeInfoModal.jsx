@@ -1,5 +1,5 @@
 import React from 'react';
-import { FireIcon, SparklesIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, FireIcon, SparklesIcon, TrophyIcon } from '@heroicons/react/24/outline';
 import { Modal } from '../ui';
 
 /**
@@ -31,7 +31,7 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
         <div className="bg-gradient-to-r from-[#6d469b]/10 to-[#ef597b]/10 rounded-xl p-6 border border-optio-purple/20">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-gradient-primary rounded-lg">
-              <Trophy className="w-6 h-6 text-white" />
+              <TrophyIcon className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1">
               <h4 className="text-2xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>

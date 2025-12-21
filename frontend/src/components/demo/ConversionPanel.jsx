@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
 import { useNavigate } from 'react-router-dom';
-import { RocketLaunchIcon, GiftIcon, ShieldCheckIcon, StarIcon, ArrowRightIcon, CheckCircleIcon, XMarkIcon, UsersIcon, CalendarIcon, SparklesIcon, LockClosedIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
+import { AcademicCapIcon, ArrowRightIcon, CalendarIcon, CheckCircleIcon, GiftIcon, GlobeAltIcon, LockClosedIcon, RocketLaunchIcon, ShieldCheckIcon, SparklesIcon, StarIcon, UsersIcon, XMarkIcon } from '@heroicons/react/24/outline';
 // import { useSubscriptionTiers, getTierByKey, formatPrice } from '../../hooks/useSubscriptionTiers'; // REMOVED - Phase 3 refactoring (January 2025)
 
 const ConversionPanel = () => {
@@ -212,7 +212,7 @@ const ConversionPanel = () => {
           
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-lg">
-              <GraduationCap className="w-8 h-8 text-optio-pink" />
+              <AcademicCapIcon className="w-8 h-8 text-optio-pink" />
             </div>
             <h4 className="font-semibold text-text-primary mb-2">Diploma Day 1</h4>
             <p className="text-sm text-gray-600">

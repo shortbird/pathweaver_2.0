@@ -1,5 +1,5 @@
 import React from 'react';
-import { SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPreviousTasks, onStartFresh, onClose }) => {
   if (!isOpen) return null;
@@ -16,7 +16,7 @@ const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPrevio
             <XMarkIcon className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-3 mb-2">
-            <RotateCcw className="w-8 h-8" />
+            <ArrowPathIcon className="w-8 h-8" />
             <h2 className="text-2xl font-bold" style={{ fontFamily: 'Poppins' }}>
               Restart Quest
             </h2>
@@ -58,7 +58,7 @@ const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPrevio
               className="w-full bg-gradient-to-r from-optio-purple to-optio-pink text-white p-4 rounded-lg hover:shadow-lg transition-all duration-300 text-left group"
             >
               <div className="flex items-start gap-3">
-                <RotateCcw className="w-6 h-6 flex-shrink-0 group-hover:rotate-180 transition-transform duration-500" />
+                <ArrowPathIcon className="w-6 h-6 flex-shrink-0 group-hover:rotate-180 transition-transform duration-500" />
                 <div>
                   <div className="font-bold mb-1" style={{ fontFamily: 'Poppins' }}>
                     Load Previous Tasks

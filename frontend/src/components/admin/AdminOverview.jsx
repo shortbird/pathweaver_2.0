@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
-import { UsersIcon, BookOpenIcon, TrophyIcon, ExclamationCircleIcon, PlusIcon, DocumentTextIcon } from '@heroicons/react/24/outline'
+import { BookOpenIcon, DocumentTextIcon, ExclamationCircleIcon, PlusIcon, TrophyIcon, UserPlusIcon, UsersIcon } from '@heroicons/react/24/outline'
 
 const AdminOverview = () => {
   const navigate = useNavigate()
@@ -99,7 +99,7 @@ const AdminOverview = () => {
             color="purple"
           />
           <QuickActionButton
-            icon={<UserPlus className="w-5 h-5" />}
+            icon={<UserPlusIcon className="w-5 h-5" />}
             label="Add User"
             onClick={() => navigate('/admin/users')}
             color="blue"
@@ -227,7 +227,7 @@ const ActivityItem = ({ event }) => {
       case 'quest_completion':
         return <BookOpenIcon className="w-5 h-5 text-green-600" />
       case 'user_signup':
-        return <UserPlus className="w-5 h-5 text-blue-600" />
+        return <UserPlusIcon className="w-5 h-5 text-blue-600" />
       case 'badge_earned':
         return <TrophyIcon className="w-5 h-5 text-optio-purple" />
       default:

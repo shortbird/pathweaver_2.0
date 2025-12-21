@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, ChatBubbleLeftEllipsisIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import ChatInterface from './ChatInterface';
 
 const CONVERSATION_MODES = [
@@ -65,7 +65,7 @@ const OptioBotModal = ({
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-primary rounded-t-2xl">
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
-              <Bot className="w-7 h-7 text-optio-purple" />
+              <ChatBubbleLeftEllipsisIcon className="w-7 h-7 text-optio-purple" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">OptioBot</h2>
@@ -84,7 +84,7 @@ const OptioBotModal = ({
                 className="bg-white/20 text-white px-3 py-2 rounded-full text-sm hover:bg-white/30 transition-colors flex items-center space-x-1"
                 title="Start new conversation"
               >
-                <RotateCcw className="w-4 h-4" />
+                <ArrowPathIcon className="w-4 h-4" />
                 <span>New Chat</span>
               </button>
             )}

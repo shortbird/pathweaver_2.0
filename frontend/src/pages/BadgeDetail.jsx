@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { CheckCircleIcon, ArrowLeftIcon, FireIcon, BoltIcon, InformationCircleIcon, LockClosedIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, BoltIcon, CheckCircleIcon, EllipsisHorizontalCircleIcon, FireIcon, InformationCircleIcon, LockClosedIcon, TrophyIcon } from '@heroicons/react/24/outline';
 import { BadgePillarIcon } from '../components/badges/BadgePillarIcon';
 import BadgeInfoModal from '../components/badges/BadgeInfoModal';
 import { useAuth } from '../contexts/AuthContext';
@@ -186,7 +186,7 @@ export default function BadgeDetail() {
                 {/* Status Badge - Moved here */}
                 {isCompleted && (
                   <div className="bg-green-500 text-white px-5 py-2 rounded-full font-bold text-sm shadow-lg flex items-center gap-2">
-                    <Trophy className="w-4 h-4" />
+                    <TrophyIcon className="w-4 h-4" />
                     COMPLETED
                   </div>
                 )}
@@ -311,7 +311,7 @@ export default function BadgeDetail() {
           ) : (
             <div className="text-center py-12">
               <div className="text-gray-400 mb-2">
-                <Circle className="w-16 h-16 mx-auto" />
+                <EllipsisHorizontalCircleIcon className="w-16 h-16 mx-auto" />
               </div>
               <p className="text-gray-500">No quests linked to this badge yet.</p>
               <p className="text-gray-400 text-sm mt-1">Check back soon for new learning opportunities!</p>
@@ -337,7 +337,7 @@ function QuestListItem({ quest, index, isCompleted, onClick }) {
           </div>
         ) : (
           <div className="bg-gray-100 rounded-full p-2 group-hover:bg-purple-50 transition-colors">
-            <Circle className="w-6 h-6 text-gray-400 group-hover:text-purple-400" />
+            <EllipsisHorizontalCircleIcon className="w-6 h-6 text-gray-400 group-hover:text-purple-400" />
           </div>
         )}
       </div>

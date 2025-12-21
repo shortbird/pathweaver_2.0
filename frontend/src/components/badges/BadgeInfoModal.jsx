@@ -1,4 +1,4 @@
-import { BoltIcon, CheckCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { BoltIcon, CheckCircleIcon, InformationCircleIcon, TrophyIcon } from '@heroicons/react/24/outline';
 import { Modal, Alert, Card, CardTitle } from '../ui';
 
 /**
@@ -30,7 +30,7 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
           {/* Requirements Section */}
           <div>
             <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-optio-purple" />
+              <TrophyIcon className="w-5 h-5 text-optio-purple" />
               Badge Requirements
             </h3>
             <Alert variant="purple">
@@ -104,7 +104,7 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
                   <div className="flex-1">
                     <p className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
                       Badge Completion Bonus
-                      <Trophy className="w-4 h-4 text-yellow-500" />
+                      <TrophyIcon className="w-4 h-4 text-yellow-500" />
                     </p>
                     <p className="text-sm text-gray-700">
                       When you earn this badge, you'll receive a <strong className="text-optio-purple">500 XP bonus</strong> in the {badge.pillar_primary} pillar. This is <em>in addition to</em> all the XP you earned from completing tasks!

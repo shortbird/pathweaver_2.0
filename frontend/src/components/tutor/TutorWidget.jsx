@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChatBubbleLeftRightIcon, XMarkIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftEllipsisIcon, ChatBubbleLeftRightIcon, QuestionMarkCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import ChatInterface from './ChatInterface';
 import OptioBotModal from './OptioBotModal';
 import api from '../../services/api';
@@ -101,7 +101,7 @@ const TutorWidget = ({
       <div className={`fixed ${getPositionClasses()} z-40 ${className}`}>
         <div className="bg-white rounded-lg shadow-lg p-3 max-w-xs mb-4">
           <div className="flex items-center space-x-2">
-            <Bot className="w-5 h-5 text-optio-purple" />
+            <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-optio-purple" />
             <div className="flex-1">
               <p className="text-sm text-gray-600">Daily chat limit reached!</p>
               <button
@@ -127,7 +127,7 @@ const TutorWidget = ({
           className="w-14 h-14 rounded-full shadow-lg transition-all duration-300 bg-gradient-primary hover:shadow-xl hover:scale-105 flex items-center justify-center relative"
           title="Chat with OptioBot"
         >
-          <Bot className="w-6 h-6 text-white" />
+          <ChatBubbleLeftEllipsisIcon className="w-6 h-6 text-white" />
 
           {/* Notification indicator */}
           {hasNewSuggestions && (
@@ -204,7 +204,7 @@ export const QuestTutorHelper = ({ quest, currentTask }) => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center">
-              <Bot className="w-5 h-5 text-white" />
+              <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-white" />
             </div>
             <div>
               <p className="text-sm font-medium text-gray-800">Need help with this task?</p>
@@ -226,7 +226,7 @@ export const QuestTutorHelper = ({ quest, currentTask }) => {
     <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
-          <Bot className="w-5 h-5 text-optio-purple" />
+          <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-optio-purple" />
           <span className="font-medium text-gray-800">Quick Help</span>
         </div>
         <button

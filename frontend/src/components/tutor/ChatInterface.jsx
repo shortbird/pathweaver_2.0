@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { PaperAirplaneIcon, UserIcon, ExclamationTriangleIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftEllipsisIcon, ChatBubbleLeftRightIcon, ClockIcon, ExclamationTriangleIcon, PaperAirplaneIcon, UserIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import { renderMarkdown } from '../../utils/markdownRenderer';
 import ConversationHistory from './ConversationHistory';
@@ -283,7 +283,7 @@ const ChatInterface = ({
         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-primary rounded-t-lg">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-              <Bot className="w-6 h-6 text-optio-purple" />
+              <ChatBubbleLeftEllipsisIcon className="w-6 h-6 text-optio-purple" />
             </div>
             <div>
               <h3 className="text-white font-semibold">OptioBot</h3>
@@ -312,7 +312,7 @@ const ChatInterface = ({
               className="bg-white/20 text-white p-2 rounded-lg hover:bg-white/30 transition-colors"
               title="View conversation history"
             >
-              <History className="w-4 h-4" />
+              <ClockIcon className="w-4 h-4" />
             </button>
 
             {/* Mode Selector */}
@@ -386,7 +386,7 @@ const ChatInterface = ({
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <div className="text-center py-8">
-            <Bot className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <ChatBubbleLeftEllipsisIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 mb-4">
               Hi there! I'm OptioBot, your learning companion. What are you curious about today?
             </p>
@@ -407,7 +407,7 @@ const ChatInterface = ({
             >
               <div className="flex items-start space-x-2">
                 {message.role === 'assistant' && (
-                  <Bot className="w-5 h-5 text-optio-purple flex-shrink-0 mt-0.5" />
+                  <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-optio-purple flex-shrink-0 mt-0.5" />
                 )}
                 <div className="flex-1">
                   <div className="prose prose-sm max-w-none">
@@ -440,7 +440,7 @@ const ChatInterface = ({
           <div className="flex justify-start">
             <div className="bg-gray-100 rounded-r-2xl rounded-tl-2xl p-3 shadow-sm max-w-[80%]">
               <div className="flex items-center space-x-2">
-                <Bot className="w-5 h-5 text-optio-purple" />
+                <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-optio-purple" />
                 <div className="flex space-x-1">
                   <div className="w-2 h-2 bg-optio-purple rounded-full animate-bounce"></div>
                   <div className="w-2 h-2 bg-optio-purple rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>

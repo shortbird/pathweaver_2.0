@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { PlusIcon, CheckCircleIcon, ArrowTrendingUpIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowTrendingUpIcon, Bars3Icon, CheckCircleIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { getPillarData } from '../../utils/pillarMappings';
 import TaskDisplayModeToggle from './TaskDisplayModeToggle';
 import toast from 'react-hot-toast';
@@ -72,7 +72,7 @@ const TaskCard = ({ task, index, isSelected, displayMode, onClick, onRemove }) =
         className="absolute left-1 top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded"
         onClick={(e) => e.stopPropagation()}
       >
-        <GripVertical className="w-4 h-4 text-gray-400" />
+        <Bars3Icon className="w-4 h-4 text-gray-400" />
       </div>
 
       <div className="pl-6">

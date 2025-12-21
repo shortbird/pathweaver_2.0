@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UsersIcon, EyeIcon, EyeSlashIcon, TrophyIcon, DocumentTextIcon, CheckCircleIcon, XCircleIcon, ArrowRightIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { AcademicCapIcon, ArrowRightIcon, CheckCircleIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, InformationCircleIcon, TrophyIcon, UsersIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import InfoModal from './InfoModal';
 
 const ValidationComparison = () => {
@@ -100,7 +100,7 @@ const ValidationComparison = () => {
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <School className="w-5 h-5 text-red-500" />
+                      <AcademicCapIcon className="w-5 h-5 text-red-500" />
                       <span className="text-xs font-semibold text-red-500 uppercase">Teacher Validation</span>
                     </div>
                     <h3 className="font-bold text-xl text-text-primary">{comp.traditional.title}</h3>

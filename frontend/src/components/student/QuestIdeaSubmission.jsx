@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { XMarkIcon, LightBulbIcon, SparklesIcon, ArrowPathIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline'
+import { ArrowPathIcon, CheckCircleIcon, ExclamationCircleIcon, LightBulbIcon, SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import QuestIdeaSuggestions from '../ai/QuestIdeaSuggestions'
@@ -382,7 +382,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
           {step === 'success' && submissionResult && (
             <div className="text-center py-12">
               <div className="mb-4">
-                <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto" />
+                <CheckCircleIcon className="h-12 w-12 text-green-500 mx-auto" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Quest Idea Submitted!</h3>
               <p className="text-gray-600 mb-6">
