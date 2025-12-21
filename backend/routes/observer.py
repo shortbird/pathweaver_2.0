@@ -31,7 +31,7 @@ from datetime import datetime, timedelta
 import secrets
 
 from database import get_supabase_admin_client, get_user_client
-from utils.auth.decorators import require_auth
+from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.rate_limiter import rate_limit
 import logging
 
@@ -151,6 +151,7 @@ def get_my_observer_invitations():
 
 @bp.route('/api/observers/invitations/<invitation_id>/cancel', methods=['DELETE'])
 @require_auth
+@validate_uuid_param('invitation_id')
 def cancel_observer_invitation(invitation_id):
     """
     Student cancels pending invitation
@@ -241,6 +242,7 @@ def get_my_observers(user_id: str):
 
 @bp.route('/api/observers/<link_id>/remove', methods=['DELETE'])
 @require_auth
+@validate_uuid_param('link_id')
 def remove_observer(link_id):
     """
     Student removes observer access
@@ -448,6 +450,7 @@ def get_my_students():
 
 @bp.route('/api/observers/student/<student_id>/portfolio', methods=['GET'])
 @require_auth
+@validate_uuid_param('student_id')
 def get_student_portfolio_for_observer(student_id):
     """
     Observer views student portfolio (read-only)
@@ -553,6 +556,7 @@ def post_observer_comment():
 
 @bp.route('/api/observers/student/<student_id>/comments', methods=['GET'])
 @require_auth
+@validate_uuid_param('student_id')
 def get_student_comments(student_id):
     """
     Get all observer comments for a student

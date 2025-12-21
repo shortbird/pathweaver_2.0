@@ -308,7 +308,8 @@ def require_advisor_for_student(f):
 def require_superadmin(f):
     """
     Decorator to require superadmin role.
-    Superadmin is defined as role='admin' AND email='tannerbowman@gmail.com'
+    Superadmin is defined as role='admin' AND email matches Config.SUPERADMIN_EMAIL
+    (configured via SUPERADMIN_EMAIL environment variable, defaults to tannerbowman@gmail.com)
 
     Uses httpOnly cookies exclusively for enhanced security.
     When masquerading, this checks the ACTUAL admin identity, not the masquerade target.
@@ -330,12 +331,13 @@ def require_superadmin(f):
 
         # Verify superadmin status (use admin client to bypass RLS)
         from database import get_supabase_admin_client
+        from app_config import Config
         supabase = get_supabase_admin_client()
 
         try:
             user = supabase.table('users').select('role, email').eq('id', user_id).single().execute()
 
-            if not user.data or user.data['role'] != 'admin' or user.data['email'] != 'tannerbowman@gmail.com':
+            if not user.data or user.data['role'] != 'admin' or user.data['email'] != Config.SUPERADMIN_EMAIL:
                 raise AuthorizationError('Superadmin access required')
 
             return f(user_id, *args, **kwargs)
@@ -377,6 +379,7 @@ def require_org_admin(f):
 
         # Verify org admin or superadmin status (use admin client to bypass RLS)
         from database import get_supabase_admin_client
+        from app_config import Config
         supabase = get_supabase_admin_client()
 
         try:
@@ -392,7 +395,7 @@ def require_org_admin(f):
             # Check if superadmin
             is_superadmin = (
                 user.data['role'] == 'admin' and
-                user.data['email'] == 'tannerbowman@gmail.com'
+                user.data['email'] == Config.SUPERADMIN_EMAIL
             )
 
             # Check if org admin

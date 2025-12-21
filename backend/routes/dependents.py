@@ -18,7 +18,7 @@ from datetime import datetime
 from database import get_supabase_admin_client
 from backend.repositories.dependent_repository import DependentRepository
 from backend.repositories.base_repository import NotFoundError, PermissionError, ValidationError as RepoValidationError
-from utils.auth.decorators import require_auth
+from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.session_manager import session_manager
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError as RouteNotFoundError
 import logging
@@ -147,6 +147,7 @@ def create_dependent(user_id):
 
 @bp.route('/<dependent_id>', methods=['GET'])
 @require_auth
+@validate_uuid_param('dependent_id')
 def get_dependent(user_id, dependent_id):
     """
     Get a specific dependent profile.
@@ -182,6 +183,7 @@ def get_dependent(user_id, dependent_id):
 
 @bp.route('/<dependent_id>', methods=['PUT'])
 @require_auth
+@validate_uuid_param('dependent_id')
 def update_dependent(user_id, dependent_id):
     """
     Update a dependent profile.
@@ -245,6 +247,7 @@ def update_dependent(user_id, dependent_id):
 
 @bp.route('/<dependent_id>', methods=['DELETE'])
 @require_auth
+@validate_uuid_param('dependent_id')
 def delete_dependent(user_id, dependent_id):
     """
     Delete a dependent profile.
@@ -285,6 +288,7 @@ def delete_dependent(user_id, dependent_id):
 
 @bp.route('/<dependent_id>/promote', methods=['POST'])
 @require_auth
+@validate_uuid_param('dependent_id')
 def promote_dependent(user_id, dependent_id):
     """
     Promote a dependent to an independent account (when they turn 13).
@@ -358,6 +362,7 @@ def promote_dependent(user_id, dependent_id):
 
 @bp.route('/<string:dependent_id>/act-as', methods=['POST'])
 @require_auth
+@validate_uuid_param('dependent_id')
 def generate_acting_as_token(user_id, dependent_id):
     """
     Generate an acting-as token for a parent to act as their dependent.

@@ -206,7 +206,10 @@ class Config:
     # Logging - CONFIGURABLE
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'WARNING')
     LOG_FORMAT = os.getenv('LOG_FORMAT', 'json')  # 'json' or 'text'
-    
+
+    # Platform Superadmin - SINGLE platform-wide admin
+    SUPERADMIN_EMAIL = os.getenv('SUPERADMIN_EMAIL', 'tannerbowman@gmail.com')
+
     @classmethod
     def validate(cls) -> None:
         """Validate required configuration on startup"""

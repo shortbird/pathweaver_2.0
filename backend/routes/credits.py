@@ -58,30 +58,111 @@ def get_my_transcript(user_id):
 
 
 @bp.route('/transcript/<target_user_id>', methods=['GET'])
-def get_transcript(target_user_id):
+@require_auth
+def get_transcript(user_id, target_user_id):
     """
-    Get academic transcript for a specific user (public or advisor access).
+    Get academic transcript for a specific user.
 
     Path params:
         target_user_id: User ID to get transcript for
 
     Query params:
         - format: 'json', 'html', or 'pdf' (default: 'json')
+
+    Authorization:
+        - User viewing their own transcript
+        - Advisor assigned to this student
+        - Admin/superadmin
+        - Observer linked to this student
+        - Parent if target is their dependent
+        - Public access if portfolio is set to public
     """
+    from database import get_supabase_admin_client
+    from middleware.error_handler import AuthorizationError
+
     format_type = request.args.get('format', 'json')
+    supabase = get_supabase_admin_client()
 
-    # TODO: Add permission check - only allow if:
-    # - User is viewing their own transcript
-    # - User is an advisor for this student
-    # - User is an admin
-    # - Transcript is set to public in portfolio settings
+    # Check if user is viewing their own transcript
+    if user_id == target_user_id:
+        transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
+        return jsonify({'success': True, 'transcript': transcript}), 200
 
-    transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
+    # Get requesting user's role
+    requesting_user = supabase.table('users').select('role, organization_id').eq('id', user_id).single().execute()
 
-    return jsonify({
-        'success': True,
-        'transcript': transcript
-    }), 200
+    if not requesting_user.data:
+        raise AuthorizationError('Unauthorized access')
+
+    user_role = requesting_user.data.get('role')
+
+    # Admin/superadmin always has access
+    if user_role in ['admin', 'educator']:
+        transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
+        return jsonify({'success': True, 'transcript': transcript}), 200
+
+    # Check if advisor is assigned to this student
+    if user_role == 'advisor':
+        assignment = supabase.table('advisor_student_assignments')\
+            .select('id')\
+            .eq('advisor_id', user_id)\
+            .eq('student_id', target_user_id)\
+            .eq('is_active', True)\
+            .execute()
+
+        if assignment.data and len(assignment.data) > 0:
+            transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
+            return jsonify({'success': True, 'transcript': transcript}), 200
+
+    # Check if observer is linked to this student
+    if user_role == 'observer':
+        link = supabase.table('observer_student_links')\
+            .select('id')\
+            .eq('observer_id', user_id)\
+            .eq('student_id', target_user_id)\
+            .eq('status', 'active')\
+            .execute()
+
+        if link.data and len(link.data) > 0:
+            transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
+            return jsonify({'success': True, 'transcript': transcript}), 200
+
+    # Check if parent and target is their dependent
+    if user_role == 'parent':
+        dependent = supabase.table('users')\
+            .select('id')\
+            .eq('id', target_user_id)\
+            .eq('is_dependent', True)\
+            .eq('managed_by_parent_id', user_id)\
+            .execute()
+
+        if dependent.data and len(dependent.data) > 0:
+            transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
+            return jsonify({'success': True, 'transcript': transcript}), 200
+
+        # Also check parent_links table for non-dependent children
+        link = supabase.table('parent_links')\
+            .select('id')\
+            .eq('parent_id', user_id)\
+            .eq('student_id', target_user_id)\
+            .eq('status', 'accepted')\
+            .execute()
+
+        if link.data and len(link.data) > 0:
+            transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
+            return jsonify({'success': True, 'transcript': transcript}), 200
+
+    # Check if target user's portfolio is public
+    target_user = supabase.table('users').select('preferences').eq('id', target_user_id).single().execute()
+
+    if target_user.data:
+        preferences = target_user.data.get('preferences', {})
+        if preferences.get('portfolio_public', False):
+            transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
+            return jsonify({'success': True, 'transcript': transcript}), 200
+
+    # No permission found
+    raise AuthorizationError('You do not have permission to view this transcript')
 
 
 @bp.route('/requirements', methods=['GET'])
