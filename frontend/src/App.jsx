@@ -144,8 +144,8 @@ function AppContent() {
 
     checkMasquerade();
 
-    // Check every 5 seconds in case state changes (also retries if token wasn't ready)
-    const interval = setInterval(checkMasquerade, 5000);
+    // Check every 60 seconds to reduce unnecessary polling (optimized from 5s)
+    const interval = setInterval(checkMasquerade, 60000);
 
     return () => clearInterval(interval);
   }, []);

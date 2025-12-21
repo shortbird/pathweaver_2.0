@@ -304,48 +304,93 @@ def complete_task(user_id: str, task_id: str):
                 'Business': 'cte', 'Music': 'fine_arts'
             }
 
+            # Optimize: Fetch all existing subject XP records in a single query
+            subject_names = []
+            xp_updates = {}
+
             for subject, subject_xp in subject_xp_distribution.items():
                 # Normalize subject name to match database enum
                 normalized_subject = SUBJECT_NORMALIZATION.get(subject, subject.lower().replace(' ', '_'))
+                subject_names.append(normalized_subject)
+                xp_updates[normalized_subject] = subject_xp
 
-                try:
-                    # Update or insert subject XP
-                    existing_subject_xp = admin_supabase.table('user_subject_xp')\
-                        .select('id, xp_amount')\
-                        .eq('user_id', effective_user_id)\
-                        .eq('school_subject', normalized_subject)\
-                        .execute()
+            try:
+                # Single query to fetch all existing subject XP records
+                existing_records = admin_supabase.table('user_subject_xp')\
+                    .select('school_subject, xp_amount')\
+                    .eq('user_id', effective_user_id)\
+                    .in_('school_subject', subject_names)\
+                    .execute()
 
-                    if existing_subject_xp.data:
-                        # Update existing record
-                        current_xp = existing_subject_xp.data[0]['xp_amount']
-                        new_total = current_xp + subject_xp
+                # Build maps for existing vs new subjects
+                existing_map = {record['school_subject']: record['xp_amount'] for record in existing_records.data}
 
-                        admin_supabase.table('user_subject_xp')\
-                            .update({
-                                'xp_amount': new_total,
-                                'updated_at': datetime.utcnow().isoformat()
-                            })\
-                            .eq('user_id', effective_user_id)\
-                            .eq('school_subject', normalized_subject)\
-                            .execute()
+                # Prepare batch operations
+                records_to_update = []
+                records_to_insert = []
 
-                        logger.info(f"Updated {normalized_subject}: {current_xp} + {subject_xp} = {new_total} XP")
+                for subject, new_xp in xp_updates.items():
+                    if subject in existing_map:
+                        # Existing record - will update
+                        current_xp = existing_map[subject]
+                        new_total = current_xp + new_xp
+                        records_to_update.append({
+                            'user_id': effective_user_id,
+                            'school_subject': subject,
+                            'xp_amount': new_total,
+                            'updated_at': datetime.utcnow().isoformat()
+                        })
+                        logger.info(f"Will update {subject}: {current_xp} + {new_xp} = {new_total} XP")
                     else:
-                        # Create new record
-                        admin_supabase.table('user_subject_xp')\
-                            .insert({
-                                'user_id': effective_user_id,
-                                'school_subject': normalized_subject,
-                                'xp_amount': subject_xp,
-                                'updated_at': datetime.utcnow().isoformat()
-                            })\
+                        # New record - will insert
+                        records_to_insert.append({
+                            'user_id': effective_user_id,
+                            'school_subject': subject,
+                            'xp_amount': new_xp,
+                            'updated_at': datetime.utcnow().isoformat()
+                        })
+                        logger.info(f"Will create {subject}: {new_xp} XP")
+
+                # Batch insert new records
+                if records_to_insert:
+                    admin_supabase.table('user_subject_xp').insert(records_to_insert).execute()
+                    logger.info(f"Batch inserted {len(records_to_insert)} new subject XP records")
+
+                # Batch upsert updated records (upsert handles conflicts automatically)
+                if records_to_update:
+                    admin_supabase.table('user_subject_xp').upsert(records_to_update).execute()
+                    logger.info(f"Batch updated {len(records_to_update)} existing subject XP records")
+
+            except Exception as e:
+                logger.error(f"Batch operation failed, falling back to individual operations: {e}")
+                # Fallback to original N-query approach if batch fails
+                for subject, subject_xp in xp_updates.items():
+                    try:
+                        existing_subject_xp = admin_supabase.table('user_subject_xp')\
+                            .select('id, xp_amount')\
+                            .eq('user_id', effective_user_id)\
+                            .eq('school_subject', subject)\
                             .execute()
 
-                        logger.info(f"Created {normalized_subject}: {subject_xp} XP")
-
-                except Exception as e:
-                    logger.error(f"Warning: Failed to award subject XP for {subject} (normalized: {normalized_subject}): {e}")
+                        if existing_subject_xp.data:
+                            current_xp = existing_subject_xp.data[0]['xp_amount']
+                            new_total = current_xp + subject_xp
+                            admin_supabase.table('user_subject_xp')\
+                                .update({'xp_amount': new_total, 'updated_at': datetime.utcnow().isoformat()})\
+                                .eq('user_id', effective_user_id)\
+                                .eq('school_subject', subject)\
+                                .execute()
+                        else:
+                            admin_supabase.table('user_subject_xp')\
+                                .insert({
+                                    'user_id': effective_user_id,
+                                    'school_subject': subject,
+                                    'xp_amount': subject_xp,
+                                    'updated_at': datetime.utcnow().isoformat()
+                                })\
+                                .execute()
+                    except Exception as inner_e:
+                        logger.error(f"Failed to process {subject}: {inner_e}")
 
             logger.info("==========================")
         else:

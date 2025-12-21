@@ -45,16 +45,10 @@ export const useDiploma = (slug, userId) => {
     try {
       // Fetch both completed quests and user XP data using api service with cookies
       const [questsResponse, dashboardResponse] = await Promise.all([
-        api.get(`/api/quests/completed?t=${Date.now()}`, {
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
-        }).catch(error => ({ error, status: error.response?.status })),
-        api.get(`/api/users/dashboard?t=${Date.now()}`, {
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
-        }).catch(error => ({ error, status: error.response?.status }))
+        api.get('/api/quests/completed')
+          .catch(error => ({ error, status: error.response?.status })),
+        api.get('/api/users/dashboard')
+          .catch(error => ({ error, status: error.response?.status }))
       ]);
 
       // Handle quests response

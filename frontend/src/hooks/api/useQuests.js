@@ -25,10 +25,12 @@ export const useQuestDetail = (questId, options = {}) => {
   return useQuery({
     queryKey: queryKeys.quests.detail(questId),
     queryFn: async () => {
-      const response = await api.get(`/api/quests/${questId}?t=${Date.now()}`)
+      const response = await api.get(`/api/quests/${questId}`)
       return response.data.quest
     },
     enabled: !!questId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    cacheTime: 10 * 60 * 1000, // 10 minutes
     ...options,
   })
 }

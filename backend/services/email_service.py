@@ -170,15 +170,19 @@ class EmailService(BaseService):
 
     def _process_copy_strings(self, data: Any, context: Dict[str, Any]) -> Any:
         """
-        Recursively process YAML copy data to substitute variables using Python string formatting.
+        Recursively process YAML copy data to substitute variables using Jinja2 (secure autoescaping).
         Handles {variable_name} syntax in YAML strings.
         """
         if isinstance(data, str):
-            # Use Python string formatting for {variable_name} syntax
+            # Use Jinja2 with autoescape instead of Python .format() for security
             try:
-                return data.format(**context)
-            except KeyError:
-                # If a variable is missing, return the string as-is
+                # Convert {variable} to {{ variable }} for Jinja2 syntax
+                jinja_str = data.replace('{', '{{').replace('}', '}}')
+                template = self.jinja_env.from_string(jinja_str)
+                return template.render(**context)
+            except Exception as e:
+                # If rendering fails, return the string as-is
+                logger.warning(f"Failed to render template string: {e}")
                 return data
         elif isinstance(data, dict):
             return {key: self._process_copy_strings(value, context) for key, value in data.items()}
@@ -264,12 +268,10 @@ class EmailService(BaseService):
         Returns:
             Dictionary with 'subject', 'html_body', 'text_body', 'sender_name'
         """
-        from jinja2 import Template
-
         try:
-            # Render subject
+            # Render subject with autoescape
             subject = subject_override or template.get('subject', 'Message from Optio')
-            subject_template = Template(subject)
+            subject_template = self.jinja_env.from_string(subject)
             rendered_subject = subject_template.render(**variables)
 
             # Get template data
@@ -317,8 +319,6 @@ class EmailService(BaseService):
         Returns:
             Rendered HTML using crm_generic.html template with full styling
         """
-        from jinja2 import Template
-
         try:
             # Load the generic CRM wrapper template
             generic_template = self.jinja_env.get_template('email/crm_generic.html')
@@ -332,22 +332,22 @@ class EmailService(BaseService):
             # Process greeting or salutation (YAML templates use 'salutation')
             greeting_value = template_data.get('greeting') or template_data.get('salutation')
             if greeting_value:
-                logger.info(f"🎯 Rendering greeting: '{greeting_value}' with variables: {variables}")
-                greeting_template = Template(greeting_value)
+                logger.info(f"Rendering greeting: '{greeting_value}' with variables: {variables}")
+                greeting_template = self.jinja_env.from_string(greeting_value)
                 rendered_greeting = greeting_template.render(**variables)
-                logger.info(f"✅ Rendered greeting: '{rendered_greeting}'")
+                logger.info(f"Rendered greeting: '{rendered_greeting}'")
                 render_context['greeting'] = rendered_greeting
 
             # Process body_html (custom templates) or paragraphs (YAML templates)
             if 'body_html' in template_data:
-                # Custom template - render body_html with variables
-                body_template = Template(template_data['body_html'])
+                # Custom template - render body_html with variables and autoescape
+                body_template = self.jinja_env.from_string(template_data['body_html'])
                 render_context['body_html'] = body_template.render(**variables)
             elif 'paragraphs' in template_data:
                 # YAML template - render paragraphs as HTML (NOT closing_paragraphs - those go after highlight box)
                 rendered_paragraphs = []
                 for para in template_data['paragraphs']:
-                    para_template = Template(para)
+                    para_template = self.jinja_env.from_string(para)
                     rendered_para = para_template.render(**variables)
                     rendered_paragraphs.append(f'<p class="text">{rendered_para}</p>')
 
@@ -357,33 +357,33 @@ class EmailService(BaseService):
                 if 'closing_paragraphs' in template_data:
                     rendered_closing = []
                     for para in template_data['closing_paragraphs']:
-                        para_template = Template(para)
+                        para_template = self.jinja_env.from_string(para)
                         rendered_para = para_template.render(**variables)
                         rendered_closing.append(f'<p class="text">{rendered_para}</p>')
                     render_context['closing_html'] = ''.join(rendered_closing)
 
-            # Process CTA button
+            # Process CTA button with autoescape
             if 'cta' in template_data:
                 cta = template_data['cta']
-                cta_text_template = Template(cta.get('text', 'Click here'))
-                cta_url_template = Template(cta.get('url', '#'))
+                cta_text_template = self.jinja_env.from_string(cta.get('text', 'Click here'))
+                cta_url_template = self.jinja_env.from_string(cta.get('url', '#'))
                 render_context['cta'] = {
                     'text': cta_text_template.render(**variables),
                     'url': cta_url_template.render(**variables)
                 }
 
-            # Process highlight box (if exists)
+            # Process highlight box (if exists) with autoescape
             highlight_data = template_data.get('highlight') or template_data.get('highlight_box')
             if highlight_data:
                 highlight_context = {
                     'title': highlight_data.get('title', ''),
-                    'content': Template(highlight_data.get('content', '')).render(**variables) if highlight_data.get('content') else ''
+                    'content': self.jinja_env.from_string(highlight_data.get('content', '')).render(**variables) if highlight_data.get('content') else ''
                 }
                 # Render bullet points if they exist
                 if 'bullet_points' in highlight_data and highlight_data['bullet_points']:
                     rendered_bullets = []
                     for bullet in highlight_data['bullet_points']:
-                        bullet_template = Template(bullet)
+                        bullet_template = self.jinja_env.from_string(bullet)
                         rendered_bullets.append(bullet_template.render(**variables))
                     highlight_context['bullet_points'] = rendered_bullets
                 render_context['highlight'] = highlight_context
@@ -417,30 +417,28 @@ class EmailService(BaseService):
 
     def _generate_basic_html_fallback(self, template_data: Dict[str, Any], variables: Dict[str, Any]) -> str:
         """Emergency fallback - generate very basic HTML if wrapper template fails"""
-        from jinja2 import Template
-
         html_parts = ['<html><body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">']
 
-        # Greeting
+        # Greeting with autoescape
         if 'greeting' in template_data or 'salutation' in template_data:
             greeting_value = template_data.get('greeting') or template_data.get('salutation')
-            greeting_template = Template(greeting_value)
+            greeting_template = self.jinja_env.from_string(greeting_value)
             html_parts.append(f'<h2 style="color: #6D469B;">{greeting_template.render(**variables)}</h2>')
 
-        # Paragraphs or body_html
+        # Paragraphs or body_html with autoescape
         if 'body_html' in template_data:
-            body_template = Template(template_data['body_html'])
+            body_template = self.jinja_env.from_string(template_data['body_html'])
             html_parts.append(body_template.render(**variables))
         elif 'paragraphs' in template_data:
             for para in template_data['paragraphs']:
-                para_template = Template(para)
+                para_template = self.jinja_env.from_string(para)
                 html_parts.append(f'<p style="line-height: 1.6; color: #333;">{para_template.render(**variables)}</p>')
 
-        # CTA button
+        # CTA button with autoescape
         if 'cta' in template_data:
             cta = template_data['cta']
-            cta_text_template = Template(cta.get('text', 'Click here'))
-            cta_url_template = Template(cta.get('url', '#'))
+            cta_text_template = self.jinja_env.from_string(cta.get('text', 'Click here'))
+            cta_url_template = self.jinja_env.from_string(cta.get('url', '#'))
             html_parts.append(
                 f'<div style="text-align: center; margin: 30px 0;">'
                 f'<a href="{cta_url_template.render(**variables)}" '
