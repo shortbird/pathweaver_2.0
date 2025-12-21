@@ -23,7 +23,8 @@ from routes.admin.services import admin_services_bp
 from routes.observer_requests import observer_requests_bp
 
 # Import routes
-from routes import quests, tasks, admin_core, evidence_documents, analytics as analytics_routes
+from routes import tasks, admin_core, evidence_documents, analytics as analytics_routes
+from routes.quest import register_quest_blueprints  # Refactored quest routes (P2-ARCH-1)
 from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management
 from cors_config import configure_cors
 from middleware.security import security_middleware
@@ -110,8 +111,10 @@ except Exception as e:
     # Re-raise to see full traceback in production logs
     raise
 
-# Register routes
-app.register_blueprint(quests.bp)  # /api/quests (blueprint has url_prefix='/api/quests')
+# Register quest routes (refactored from quests.py mega-file to 4 modules - P2-ARCH-1)
+register_quest_blueprints(app)  # /api/quests (listing, detail, enrollment, completion modules)
+
+# Register other routes
 app.register_blueprint(tasks.bp)      # /api/tasks (blueprint has url_prefix='/api/tasks')
 app.register_blueprint(evidence_documents.bp)  # /api/evidence (blueprint has url_prefix='/api/evidence')
 

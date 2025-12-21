@@ -1,0 +1,267 @@
+"""
+Quest Listing API endpoints.
+Handles quest listing, filtering, and pagination with organization-aware visibility.
+
+Part of the quests.py refactoring (P2-ARCH-1).
+"""
+
+from flask import Blueprint, request, jsonify
+from database import get_supabase_client, get_supabase_admin_client
+from backend.repositories.quest_repository import QuestRepository
+from utils.source_utils import get_quest_header_image
+from services.quest_optimization import quest_optimization_service
+from utils.validation.sanitizers import sanitize_search_input, sanitize_integer
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+bp = Blueprint('quest_listing', __name__, url_prefix='/api/quests')
+
+
+@bp.route('', methods=['GET'])
+def list_quests():
+    """
+    List all active quests with their tasks.
+    Public endpoint - no auth required.
+    Includes user enrollment data if authenticated.
+    """
+    try:
+        # Check if user is authenticated
+        auth_header = request.headers.get('Authorization')
+        user_id = None
+        if auth_header and auth_header.startswith('Bearer '):
+            try:
+                from utils.auth.token_utils import verify_token
+                token = auth_header.split(' ')[1]
+                user_id = verify_token(token)
+            except Exception as e:
+                logger.error(f"Auth check failed: {e}")
+                pass  # Continue without auth
+        supabase = get_supabase_client()
+
+        # Get pagination parameters with sanitization
+        page = sanitize_integer(request.args.get('page', 1), default=1, min_val=1)
+        per_page = sanitize_integer(request.args.get('per_page', 12), default=12, min_val=1, max_val=100)
+        search = sanitize_search_input(request.args.get('search', ''))
+        pillar_filter = sanitize_search_input(request.args.get('pillar', ''), max_length=50)
+        subject_filter = sanitize_search_input(request.args.get('subject', ''), max_length=50)
+
+        # Log search parameter for debugging
+        if search:
+            logger.info(f"[SEARCH DEBUG] Search term received: '{search}'")
+
+        # Calculate offset
+        offset = (page - 1) * per_page
+
+        # Build base query with joins for filtering
+        # First, we need to filter quests based on their tasks
+        filtered_quest_ids = None
+
+        # Use optimized filtering service
+        filtered_quest_ids = quest_optimization_service.get_quest_filtering_optimization(
+            pillar_filter, subject_filter
+        )
+
+        # Handle empty filter results
+        if filtered_quest_ids is not None and len(filtered_quest_ids) == 0:
+            return jsonify({
+                'success': True,
+                'quests': [],
+                'total': 0,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': 0,
+                'has_more': False
+            })
+
+        # Build main quest query
+        # Note: In V3 personalized system, quests don't have quest_tasks
+        # Users get personalized tasks when they enroll
+
+        # Apply organization-aware visibility filter
+        if user_id:
+            # Authenticated user: Use repository method for organization-aware filtering
+            quest_repo = QuestRepository(user_id=user_id)
+
+            # Prepare filters for repository method
+            filters = {}
+            if pillar_filter:
+                filters['pillar'] = pillar_filter
+            if search:
+                filters['search'] = search
+
+            # Use organization-aware filtering from repository
+            # This respects the user's organization quest visibility policy
+            org_result = quest_repo.get_quests_for_user(
+                user_id=user_id,
+                filters=filters,
+                page=page,
+                limit=per_page
+            )
+
+            # Return the organization-filtered result
+            # Process quest data the same way
+            quests = []
+            for quest in org_result['quests']:
+                quest['total_xp'] = 0
+                quest['task_count'] = 0
+
+                # Add source header image if no custom header exists
+                if not quest.get('header_image_url') and quest.get('source'):
+                    source_header = get_quest_header_image(quest)
+                    if source_header:
+                        quest['header_image_url'] = source_header
+
+                quests.append(quest)
+
+            # Add user enrollment data
+            if quests:
+                logger.info(f"[OPTIMIZATION] Using batch queries for {len(quests)} quests")
+                quests = quest_optimization_service.enrich_quests_with_user_data(quests, user_id)
+
+            # Calculate pagination
+            total_pages = (org_result['total'] + per_page - 1) // per_page if org_result['total'] else 0
+            has_more = page < total_pages
+
+            return jsonify({
+                'success': True,
+                'quests': quests,
+                'total': org_result['total'],
+                'page': page,
+                'per_page': per_page,
+                'total_pages': total_pages,
+                'has_more': has_more
+            })
+
+        # Anonymous user: only show global public quests
+        query = supabase.table('quests')\
+            .select('*', count='exact')\
+            .eq('is_active', True)\
+            .eq('is_public', True)\
+            .is_('organization_id', 'null')
+
+        # Apply quest ID filter if we have filters applied
+        if filtered_quest_ids is not None:
+            quest_ids_list = list(filtered_quest_ids)
+            if quest_ids_list:
+                query = query.in_('id', quest_ids_list)
+            else:
+                # No matching quests - return empty
+                return jsonify({
+                    'success': True,
+                    'quests': [],
+                    'total': 0,
+                    'page': page,
+                    'per_page': per_page,
+                    'total_pages': 0,
+                    'has_more': False
+                })
+
+        # Apply search filter if provided (search in title only for simplicity)
+        if search:
+            logger.info(f"[SEARCH DEBUG] Applying search filter: '{search}'")
+            # Search title only (simple, works with infinite scroll)
+            query = query.ilike('title', f'%{search}%')
+            logger.info(f"[SEARCH DEBUG] Query after filter applied")
+
+        # Apply ordering
+        query = query.order('created_at', desc=True)
+
+        # Apply pagination with error handling
+        try:
+            query = query.range(offset, offset + per_page - 1)
+            result = query.execute()
+        except Exception as e:
+            # Handle 416 "Requested Range Not Satisfiable" errors
+            if "416" in str(e) or "Requested Range Not Satisfiable" in str(e):
+                # Return empty results when offset exceeds total count
+                return jsonify({
+                    'success': True,
+                    'quests': [],
+                    'total': 0,
+                    'page': page,
+                    'per_page': per_page,
+                    'total_pages': 0,
+                    'has_more': False
+                })
+            else:
+                # Re-raise other exceptions
+                raise e
+
+        # Process quest data
+        quests = []
+        for quest in result.data:
+            # In V3 personalized system, XP/tasks are user-specific
+            # We'll show placeholders here and populate with actual data
+            # when user enrolls
+            quest['total_xp'] = 0  # Will be calculated when user personalizes
+            quest['task_count'] = 0  # Will be set during personalization
+            # DON'T initialize pillar_breakdown here - it will be set by optimization service
+            # for enrolled quests only. Unenrolled quests won't have pillar_breakdown since
+            # tasks are personalized and don't exist until enrollment.
+
+            # Add source header image if no custom header exists
+            if not quest.get('header_image_url') and quest.get('source'):
+                source_header = get_quest_header_image(quest)
+                if source_header:
+                    quest['header_image_url'] = source_header
+
+            # Add quest to list (user enrollment data will be added in batch)
+            quests.append(quest)
+
+        # OPTIMIZATION: Add user enrollment data using batch queries instead of N+1
+        if user_id and quests:
+            logger.info(f"[OPTIMIZATION] Using batch queries for {len(quests)} quests instead of {len(quests) * 2} individual queries")
+            quests = quest_optimization_service.enrich_quests_with_user_data(quests, user_id)
+
+        # DEBUG: Log all quests to verify pillar_breakdown is in response
+        if quests:
+            for idx, q in enumerate(quests[:5]):  # Log first 5 quests
+                logger.info(f"[API RESPONSE] Quest {idx}: id={q.get('id', 'no-id')[:8]}, title={q.get('title', 'No title')[:30]}, pillar_breakdown={q.get('pillar_breakdown', {})}, has_enrollment={bool(q.get('user_enrollment') or q.get('completed_enrollment'))}")
+
+        # Calculate if there are more pages
+        total_pages = (result.count + per_page - 1) // per_page if result.count else 0
+        has_more = page < total_pages
+
+        return jsonify({
+            'success': True,
+            'quests': quests,
+            'total': result.count,
+            'page': page,
+            'per_page': per_page,
+            'total_pages': total_pages,
+            'has_more': has_more
+        })
+
+    except Exception as e:
+        logger.error(f"Error listing quests: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch quests'
+        }), 500
+
+
+@bp.route('/sources', methods=['GET'])
+def get_quest_sources():
+    """
+    Public endpoint to get quest sources with their header images.
+    Used by frontend to display source-based header images.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get all sources with their header images (only public data)
+        response = supabase.table('quest_sources')\
+            .select('id, name, header_image_url')\
+            .execute()
+
+        sources = response.data if response.data else []
+
+        return jsonify({
+            'sources': sources,
+            'total': len(sources)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching public quest sources: {str(e)}")
+        return jsonify({'error': 'Failed to fetch quest sources'}), 500
