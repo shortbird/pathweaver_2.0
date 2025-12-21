@@ -1,8 +1,33 @@
 import React, { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { flushSync } from 'react-dom';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { evidenceDocumentService } from '../../services/evidenceDocumentService';
 import logger from '../../utils/logger';
+
+// Sortable Block Wrapper Component
+const SortableBlock = ({ block, index, children, isDragging }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: block.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  // Clone children with drag props
+  return React.cloneElement(children, {
+    ref: setNodeRef,
+    style,
+    dragHandleProps: { ...attributes, ...listeners },
+  });
+};
 
 const MultiFormatEvidenceEditor = forwardRef(({
   taskId,
@@ -27,6 +52,21 @@ const MultiFormatEvidenceEditor = forwardRef(({
   const [hasLegacyEvidence, setHasLegacyEvidence] = useState(false); // Track if we loaded legacy Spark evidence
   const fileInputRef = useRef(null);
   const autoSaverRef = useRef(null);
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 6,
+      },
+    })
+  );
 
   const blockTypes = {
     text: {
@@ -416,20 +456,23 @@ const MultiFormatEvidenceEditor = forwardRef(({
     setBlocks(reorderedBlocks);
   };
 
-  const handleDragEnd = (result) => {
-    if (!result.destination) return;
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
 
-    const newBlocks = Array.from(blocks);
-    const [reorderedItem] = newBlocks.splice(result.source.index, 1);
-    newBlocks.splice(result.destination.index, 0, reorderedItem);
+    if (!over || active.id === over.id) return;
 
-    // Update order indices
-    const reorderedBlocks = newBlocks.map((block, index) => ({
-      ...block,
-      order: index
-    }));
+    setBlocks((items) => {
+      const oldIndex = items.findIndex((item) => item.id === active.id);
+      const newIndex = items.findIndex((item) => item.id === over.id);
 
-    setBlocks(reorderedBlocks);
+      const newBlocks = arrayMove(items, oldIndex, newIndex);
+
+      // Update order indices
+      return newBlocks.map((block, index) => ({
+        ...block,
+        order: index
+      }));
+    });
   };
 
   const uploadFileImmediately = async (file, blockId, blockType) => {
@@ -800,48 +843,45 @@ const MultiFormatEvidenceEditor = forwardRef(({
     </div>
   );
 
-  const renderBlock = (block, index) => {
+  const renderBlock = (block, index, dragHandleProps = {}, style = {}) => {
     const config = blockTypes[block.type];
     const isCollapsed = collapsedBlocks.has(block.id);
     const isUploading = uploadingBlocks.has(block.id);
     const hasUploadError = uploadErrors[block.id];
 
     return (
-      <Draggable key={block.id} draggableId={block.id} index={index}>
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.draggableProps}
-            className={`
-              relative group bg-white border-2 rounded-xl p-4 transition-all
-              ${activeBlock === block.id ? config.borderColor : 'border-gray-200'}
-              ${snapshot.isDragging ? 'shadow-lg rotate-2' : 'hover:border-gray-300'}
-              ${isCollapsed ? 'bg-gray-50' : ''}
-            `}
-          >
-            {/* Upload Status Overlay */}
-            {isUploading && (
-              <div className="absolute top-2 right-2 z-10 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium flex items-center gap-2">
-                <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                Uploading...
-              </div>
-            )}
-            {hasUploadError && (
-              <div className="absolute top-2 right-2 z-10 px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium flex items-center gap-2">
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-                Upload failed
-              </div>
-            )}
+      <div
+        style={style}
+        className={`
+          relative group bg-white border-2 rounded-xl p-4 transition-all
+          ${activeBlock === block.id ? config.borderColor : 'border-gray-200'}
+          hover:border-gray-300
+          ${isCollapsed ? 'bg-gray-50' : ''}
+        `}
+      >
+        {/* Upload Status Overlay */}
+        {isUploading && (
+          <div className="absolute top-2 right-2 z-10 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium flex items-center gap-2">
+            <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            Uploading...
+          </div>
+        )}
+        {hasUploadError && (
+          <div className="absolute top-2 right-2 z-10 px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium flex items-center gap-2">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            Upload failed
+          </div>
+        )}
 
-            {/* Block Header */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2 flex-1">
-                <div
-                  {...provided.dragHandleProps}
-                  className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-gray-100"
-                >
+        {/* Block Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 flex-1">
+            <div
+              {...dragHandleProps}
+              className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-gray-100"
+            >
                   <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9h8M8 15h8" />
                   </svg>
@@ -870,7 +910,6 @@ const MultiFormatEvidenceEditor = forwardRef(({
                     setBlocks(prevBlocks => prevBlocks.map(b =>
                       b.id === block.id ? { ...b, is_private: !b.is_private } : b
                     ));
-                    triggerAutoSave();
                   }}
                   className={`ml-2 p-1 rounded transition-colors ${
                     block.is_private
@@ -929,26 +968,24 @@ const MultiFormatEvidenceEditor = forwardRef(({
               </div>
             )}
 
-            {/* Retry Button for Failed Uploads */}
-            {hasUploadError && !isCollapsed && (
-              <div className="mt-3">
-                <button
-                  onClick={() => {
-                    const file = block.content._retryFile;
-                    if (file) {
-                      uploadFileImmediately(file, block.id, block.type);
-                    }
-                  }}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-                >
-                  Retry Upload
-                </button>
-                <p className="text-xs text-red-600 mt-1">{hasUploadError}</p>
-              </div>
-            )}
+        {/* Retry Button for Failed Uploads */}
+        {hasUploadError && !isCollapsed && (
+          <div className="mt-3">
+            <button
+              onClick={() => {
+                const file = block.content._retryFile;
+                if (file) {
+                  uploadFileImmediately(file, block.id, block.type);
+                }
+              }}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+            >
+              Retry Upload
+            </button>
+            <p className="text-xs text-red-600 mt-1">{hasUploadError}</p>
           </div>
         )}
-      </Draggable>
+      </div>
     );
   };
 
@@ -1013,16 +1050,24 @@ const MultiFormatEvidenceEditor = forwardRef(({
       )}
 
       {/* Evidence Blocks */}
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="evidence-blocks">
-          {(provided) => (
-            <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
-              {blocks.map((block, index) => renderBlock(block, index))}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
-      </DragDropContext>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={blocks.map(b => b.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="space-y-4">
+            {blocks.map((block, index) => (
+              <SortableBlock key={block.id} block={block} index={index}>
+                {renderBlock(block, index)}
+              </SortableBlock>
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       {/* Hidden file input */}
       <input
