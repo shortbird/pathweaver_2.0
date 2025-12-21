@@ -1,5 +1,5 @@
 import React from 'react'
-import { Bot, User, Pin, Search, Users, Eye, GraduationCap } from 'lucide-react'
+import { UserIcon, MagnifyingGlassIcon, UsersIcon, EyeIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import { useQuery } from '@tanstack/react-query'
 import { parentAPI, friendsAPI, observerAPI } from '../../services/api'
@@ -243,7 +243,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
       {/* Search */}
       <div className="p-4 border-b border-gray-200">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
             placeholder="Search conversations..."
@@ -276,7 +276,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
           <div>
             <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
               <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center">
-                <Users className="w-3 h-3 mr-1" />
+                <UsersIcon className="w-3 h-3 mr-1" />
                 Learning Partners
               </h4>
             </div>
@@ -336,7 +336,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
           <div>
             <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
               <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center">
-                <Eye className="w-3 h-3 mr-1" />
+                <EyeIcon className="w-3 h-3 mr-1" />
                 Observers
               </h4>
             </div>
@@ -367,7 +367,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
           <div>
             <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
               <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center">
-                <Users className="w-3 h-3 mr-1" />
+                <UsersIcon className="w-3 h-3 mr-1" />
                 Children
               </h4>
             </div>
@@ -411,7 +411,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
         {/* Empty State */}
         {filteredFriends.length === 0 && pinnedConversations.length === 0 && (
           <div className="flex flex-col items-center justify-center h-64 p-4 text-center">
-            <User className="w-16 h-16 text-gray-300 mb-4" />
+            <UserIcon className="w-16 h-16 text-gray-300 mb-4" />
             <h3 className="text-lg font-medium text-gray-700 mb-2">No conversations yet</h3>
             <p className="text-sm text-gray-500">
               Start chatting with OptioBot or connect with friends to begin

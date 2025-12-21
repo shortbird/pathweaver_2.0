@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
-import {
-  BookOpen, Code, Camera, Heart, Palette, Calculator,
-  ChefHat, Briefcase, Globe, Plus, Check, Info, Search
-} from 'lucide-react';
+import { BookOpenIcon, CodeBracketIcon, CameraIcon, HeartIcon, PaintBrushIcon, BriefcaseIcon, GlobeAltIcon, PlusIcon, CheckIcon, InformationCircleIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import InfoModal from './InfoModal';
 
 const QuestSelector = () => {
@@ -21,9 +18,9 @@ const QuestSelector = () => {
 
   const questIcons = {
     'family-recipes': <ChefHat className="w-6 h-6" />,
-    'music-composition': <Palette className="w-6 h-6" />,
-    'small-business': <Briefcase className="w-6 h-6" />,
-    'volunteer-impact': <Heart className="w-6 h-6" />
+    'music-composition': <PaintBrushIcon className="w-6 h-6" />,
+    'small-business': <BriefcaseIcon className="w-6 h-6" />,
+    'volunteer-impact': <HeartIcon className="w-6 h-6" />
   };
 
   const pillars = {
@@ -109,7 +106,7 @@ const QuestSelector = () => {
               {selected && (
                 <div className="absolute -top-2 -right-2 z-10">
                   <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
-                    <Check className="w-5 h-5 text-white" />
+                    <CheckIcon className="w-5 h-5 text-white" />
                   </div>
                 </div>
               )}
@@ -193,7 +190,7 @@ const QuestSelector = () => {
           onClick={() => setShowLibraryModal(true)}
           className="inline-flex items-center gap-2 px-6 py-3 bg-white border-2 border-optio-purple text-optio-purple rounded-lg font-semibold hover:bg-optio-purple/10 transition-all"
         >
-          <Search className="w-5 h-5" />
+          <MagnifyingGlassIcon className="w-5 h-5" />
           Browse 100+ More Quests
         </button>
       </div>
@@ -201,7 +198,7 @@ const QuestSelector = () => {
       {/* Info Box */}
       <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-6">
         <div className="flex items-start gap-3">
-          <Info className="w-5 h-5 text-optio-purple mt-0.5" />
+          <InformationCircleIcon className="w-5 h-5 text-optio-purple mt-0.5" />
           <div className="space-y-2">
             <p className="text-sm text-gray-700">
               Every quest is an adventure. Pick what sparks your curiosity—there's no wrong choice.

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Phone, Calendar, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { EnvelopeIcon, PhoneIcon, CalendarIcon, CheckCircleIcon, ClockIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 
 const ServiceInquiries = () => {
@@ -173,7 +173,7 @@ const ServiceInquiries = () => {
                     </div>
                     <div className="flex items-center gap-4 text-sm text-gray-600">
                       <span className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
+                        <CalendarIcon className="w-4 h-4" />
                         {formatDate(inquiry.created_at)}
                       </span>
                     </div>
@@ -205,7 +205,7 @@ const ServiceInquiries = () => {
                 {/* Contact Info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                   <div className="flex items-center gap-2 text-sm">
-                    <Mail className="w-4 h-4 text-gray-400" />
+                    <EnvelopeIcon className="w-4 h-4 text-gray-400" />
                     <span className="text-gray-700">{inquiry.name}</span>
                     <a href={`mailto:${inquiry.email}`} className="text-optio-purple hover:underline">
                       {inquiry.email}
@@ -213,7 +213,7 @@ const ServiceInquiries = () => {
                   </div>
                   {inquiry.phone && (
                     <div className="flex items-center gap-2 text-sm">
-                      <Phone className="w-4 h-4 text-gray-400" />
+                      <PhoneIcon className="w-4 h-4 text-gray-400" />
                       <a href={`tel:${inquiry.phone}`} className="text-gray-700 hover:underline">
                         {inquiry.phone}
                       </a>

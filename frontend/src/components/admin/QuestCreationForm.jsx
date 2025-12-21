@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Plus, Trash2, ChevronDown, ChevronUp, Save, AlertCircle, Sparkles } from 'lucide-react'
+import { XMarkIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ExclamationCircleIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 
@@ -422,7 +422,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full"
           >
-            <X size={24} />
+            <XMarkIcon size={24} />
           </button>
         </div>
         
@@ -439,7 +439,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                 onClick={() => setShowAIModal(true)}
                 className="flex items-center space-x-2 bg-gradient-primary text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
               >
-                <Sparkles className="h-4 w-4" />
+                <SparklesIcon className="h-4 w-4" />
                 <span>AI Assist</span>
               </button>
             )}
@@ -466,7 +466,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
               {errors.title && (
                 <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <p className="text-red-700 text-sm flex items-center">
-                    <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+                    <ExclamationCircleIcon size={16} className="mr-2 flex-shrink-0" />
                     {errors.title}
                   </p>
                   <p className="text-red-600 text-xs mt-1 ml-6">
@@ -518,7 +518,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                       onClick={() => setShowNewSourceForm(true)}
                       className="px-3 py-2 bg-optio-purple text-white rounded-lg hover:bg-purple-700"
                     >
-                      <Plus size={20} />
+                      <PlusIcon size={20} />
                     </button>
                   </div>
                 )}
@@ -560,7 +560,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                       className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                       title="Remove this task"
                     >
-                      <Trash2 size={20} />
+                      <TrashIcon size={20} />
                     </button>
                   )}
                 </div>
@@ -579,7 +579,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     {errors[`task_${index}_title`] && (
                       <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                         <p className="text-red-700 text-sm flex items-center">
-                          <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+                          <ExclamationCircleIcon size={16} className="mr-2 flex-shrink-0" />
                           {errors[`task_${index}_title`]}
                         </p>
                       </div>
@@ -604,7 +604,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                       {errors[`task_${index}_pillar`] && (
                         <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                           <p className="text-red-700 text-sm flex items-center">
-                            <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+                            <ExclamationCircleIcon size={16} className="mr-2 flex-shrink-0" />
                             {errors[`task_${index}_pillar`]}
                           </p>
                         </div>
@@ -701,7 +701,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                       {errors[`task_${index}_school_subjects`] && (
                         <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                           <p className="text-red-700 text-sm flex items-center">
-                            <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+                            <ExclamationCircleIcon size={16} className="mr-2 flex-shrink-0" />
                             {errors[`task_${index}_school_subjects`]}
                           </p>
                         </div>
@@ -725,7 +725,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                       {errors[`task_${index}_xp`] && (
                         <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                           <p className="text-red-700 text-sm flex items-center">
-                            <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+                            <ExclamationCircleIcon size={16} className="mr-2 flex-shrink-0" />
                             {errors[`task_${index}_xp`]}
                           </p>
                         </div>
@@ -741,7 +741,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     onClick={() => toggleTaskExpansion(index)}
                     className="flex items-center text-sm text-gray-600 hover:text-gray-800 transition-colors mb-3"
                   >
-                    {expandedTasks[index] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    {expandedTasks[index] ? <ChevronUpIcon size={16} /> : <ChevronDownIcon size={16} />}
                     <span className="ml-1">
                       {expandedTasks[index] ? 'Hide' : 'Show'} additional options
                     </span>
@@ -794,7 +794,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                                 onClick={() => removeMaterial(index, mIndex)}
                                 className="ml-2 text-optio-purple hover:text-purple-800 transition-colors"
                               >
-                                <X size={14} />
+                                <XMarkIcon size={14} />
                               </button>
                             </span>
                           ))}
@@ -806,7 +806,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                           onClick={() => addMaterial(index)}
                           className="px-4 py-2 bg-optio-purple text-white rounded-lg hover:bg-purple-700 transition-all text-sm"
                         >
-                          <Plus size={16} className="inline mr-1" /> Add Material
+                          <PlusIcon size={16} className="inline mr-1" /> Add Material
                         </button>
                         <p className="text-xs text-gray-500 mt-1">
                           List any physical items or resources students will need
@@ -825,7 +825,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                 onClick={addTask}
                 className="px-6 py-3 bg-gradient-primary text-white rounded-lg hover:opacity-90 transition-all shadow-md hover:shadow-lg"
               >
-                <Plus size={20} className="inline mr-2" />
+                <PlusIcon size={20} className="inline mr-2" />
                 Add Another Task
               </button>
             </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, AlertCircle, Sparkles } from 'lucide-react'
+import { XMarkIcon, ExclamationCircleIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 
@@ -128,7 +128,7 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full"
           >
-            <X size={24} />
+            <XMarkIcon size={24} />
           </button>
         </div>
 
@@ -159,7 +159,7 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
               {errors.title && (
                 <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <p className="text-red-700 text-sm flex items-center">
-                    <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+                    <ExclamationCircleIcon size={16} className="mr-2 flex-shrink-0" />
                     {errors.title}
                   </p>
                 </div>
@@ -209,7 +209,7 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
                   className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
                   disabled={cleanupLoading || loading}
                 >
-                  <Sparkles size={18} />
+                  <SparklesIcon size={18} />
                   {cleanupLoading ? 'Cleaning...' : 'AI Cleanup'}
                 </button>
               )}

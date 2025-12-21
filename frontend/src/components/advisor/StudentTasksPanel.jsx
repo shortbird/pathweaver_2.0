@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Edit2, Trash2, CheckCircle, Circle, ChevronDown, ChevronUp, GripVertical, Plus } from 'lucide-react';
+import { PencilSquareIcon, TrashIcon, CheckCircleIcon, ChevronDownIcon, ChevronUpIcon, PlusIcon } from '@heroicons/react/24/outline';
 import TaskEditModal from './TaskEditModal';
 import AddEvidenceModal from './AddEvidenceModal';
 
@@ -147,9 +147,9 @@ export default function StudentTasksPanel({ quest, studentId, studentName, onTas
             </div>
           </div>
           {isExpanded ? (
-            <ChevronUp className="w-5 h-5 text-gray-500" />
+            <ChevronUpIcon className="w-5 h-5 text-gray-500" />
           ) : (
-            <ChevronDown className="w-5 h-5 text-gray-500" />
+            <ChevronDownIcon className="w-5 h-5 text-gray-500" />
           )}
         </button>
         <button
@@ -157,7 +157,7 @@ export default function StudentTasksPanel({ quest, studentId, studentName, onTas
           className="ml-3 px-3 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity flex items-center space-x-1"
           title="Add evidence for student"
         >
-          <Plus className="w-4 h-4" />
+          <PlusIcon className="w-4 h-4" />
           <span>Add Evidence</span>
         </button>
       </div>
@@ -192,7 +192,7 @@ export default function StudentTasksPanel({ quest, studentId, studentName, onTas
 
                     {/* Completion Status Icon */}
                     {task.completed ? (
-                      <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-1" />
+                      <CheckCircleIcon className="w-5 h-5 text-green-500 flex-shrink-0 mt-1" />
                     ) : (
                       <Circle className="w-5 h-5 text-gray-300 flex-shrink-0 mt-1" />
                     )}
@@ -235,7 +235,7 @@ export default function StudentTasksPanel({ quest, studentId, studentName, onTas
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                         title="Edit task"
                       >
-                        <Edit2 className="w-4 h-4" />
+                        <PencilSquareIcon className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteTask(task)}
@@ -243,7 +243,7 @@ export default function StudentTasksPanel({ quest, studentId, studentName, onTas
                         className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
                         title="Delete task"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <TrashIcon className="w-4 h-4" />
                       </button>
                     </div>
                   )}

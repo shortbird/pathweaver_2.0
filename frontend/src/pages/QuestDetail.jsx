@@ -10,7 +10,7 @@ import { getPillarData, normalizePillarKey } from '../utils/pillarMappings';
 import { queryKeys } from '../utils/queryKeys';
 import SampleTaskCard from '../components/quest/SampleTaskCard';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
-import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus, ArrowLeft, Plus } from 'lucide-react';
+import { MapPinIcon, CalendarIcon, ArrowTopRightOnSquareIcon, ClockIcon, TrophyIcon, UsersIcon, CheckCircleIcon, FireIcon, BookOpenIcon, LockClosedIcon, ArrowLeftIcon, PlusIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 
@@ -598,7 +598,7 @@ const QuestDetail = () => {
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
               style={{ fontFamily: 'Poppins' }}
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeftIcon className="w-4 h-4" />
               BACK
             </button>
 
@@ -609,7 +609,7 @@ const QuestDetail = () => {
                 className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm text-optio-purple border-2 border-purple-200 rounded-full hover:bg-white hover:border-purple-300 hover:shadow-lg transition-all font-semibold"
                 style={{ fontFamily: 'Poppins' }}
               >
-                <BookOpen className="w-4 h-4" />
+                <BookOpenIcon className="w-4 h-4" />
                 VIEW ON DIPLOMA
               </button>
             )}
@@ -633,7 +633,7 @@ const QuestDetail = () => {
                 className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg hover:scale-105 transition-all duration-300 font-semibold text-base w-full sm:w-auto justify-center"
                 style={{ fontFamily: 'Poppins' }}
               >
-                <ExternalLink className="w-5 h-5" />
+                <ArrowTopRightOnSquareIcon className="w-5 h-5" />
                 VISIT COURSE
               </a>
             )}
@@ -644,14 +644,14 @@ const QuestDetail = () => {
             <div className="flex flex-wrap gap-4 items-center text-sm mb-4">
               {locationDisplay && (
                 <div className="flex items-center gap-2 text-gray-700">
-                  <MapPin className="w-4 h-4" />
+                  <MapPinIcon className="w-4 h-4" />
                   <span>{locationDisplay}</span>
                 </div>
               )}
 
               {seasonalDisplay && (
                 <div className="flex items-center gap-2 text-gray-700">
-                  <Calendar className="w-4 h-4" />
+                  <CalendarIcon className="w-4 h-4" />
                   <span>{seasonalDisplay}</span>
                 </div>
               )}
@@ -758,7 +758,7 @@ const QuestDetail = () => {
                 disabled={isEnrolling}
                 className="flex-1 bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Target className="w-5 h-5 inline mr-2" />
+                <FireIcon className="w-5 h-5 inline mr-2" />
                 {isEnrolling ? 'Picking Up...' : 'Pick Up Quest'}
               </button>
             ) : quest.user_enrollment && totalTasks === 0 ? (
@@ -766,7 +766,7 @@ const QuestDetail = () => {
                 onClick={() => setShowPersonalizationWizard(true)}
                 className="flex-1 bg-gradient-to-r from-[#6d469b] to-[#8b5cf6] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(109,70,155,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg"
               >
-                <Target className="w-5 h-5 inline mr-2" />
+                <FireIcon className="w-5 h-5 inline mr-2" />
                 Personalize Quest
               </button>
             ) : !quest.user_enrollment ? (
@@ -775,7 +775,7 @@ const QuestDetail = () => {
                 disabled={isEnrolling}
                 className="flex-1 bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Target className="w-5 h-5 inline mr-2" />
+                <FireIcon className="w-5 h-5 inline mr-2" />
                 {isEnrolling ? 'Picking Up...' : 'Pick Up Quest'}
               </button>
             ) : null}
@@ -849,7 +849,7 @@ const QuestDetail = () => {
         {/* Enrollment flow for users without tasks - show personalization prompt for BOTH quest types if no tasks loaded */}
         {quest.quest_tasks && quest.quest_tasks.length === 0 && quest.user_enrollment && !showPersonalizationWizard ? (
           <div className="text-center py-12 bg-white rounded-xl shadow-md">
-            <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+            <BookOpenIcon className="w-12 h-12 mx-auto mb-4 text-gray-400" />
             <p className="text-lg text-gray-600 mb-2" style={{ fontFamily: 'Poppins' }}>
               Ready to personalize this quest?
             </p>
@@ -963,7 +963,7 @@ const QuestDetail = () => {
                 </div>
               ) : (
                 <div className="text-center py-12 bg-white rounded-xl shadow-md text-gray-500">
-                  <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <BookOpenIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p className="text-lg">Start this quest to see tasks</p>
                 </div>
               )}

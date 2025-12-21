@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, Sparkles, CheckCircle } from 'lucide-react';
+import { ArrowRightIcon, SparklesIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 
 const JoinJourney = () => {
@@ -44,11 +44,11 @@ const JoinJourney = () => {
       {/* Hero Section */}
       <div className="text-center space-y-4">
         <div className="inline-flex items-center justify-center gap-2">
-          <Sparkles className="w-8 h-8 text-optio-purple animate-pulse" />
+          <SparklesIcon className="w-8 h-8 text-optio-purple animate-pulse" />
           <h2 className="text-4xl font-bold text-text-primary">
             Ready to Give Your Child This Experience?
           </h2>
-          <Sparkles className="w-8 h-8 text-optio-pink animate-pulse" />
+          <SparklesIcon className="w-8 h-8 text-optio-pink animate-pulse" />
         </div>
 
         <p className="text-xl text-gray-700 max-w-2xl mx-auto">
@@ -93,7 +93,7 @@ const JoinJourney = () => {
             className="w-full bg-gradient-primary text-white font-bold text-lg px-8 py-4 rounded-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2"
           >
             <span>Create Your Free Account</span>
-            <ArrowRight className="w-6 h-6" />
+            <ArrowRightIcon className="w-6 h-6" />
           </button>
         </form>
 

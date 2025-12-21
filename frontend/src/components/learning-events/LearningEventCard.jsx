@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar } from 'lucide-react';
+import { CalendarIcon } from '@heroicons/react/24/outline';
 import LearningEventDetailModal from './LearningEventDetailModal';
 
 const LearningEventCard = ({ event }) => {
@@ -30,7 +30,7 @@ const LearningEventCard = ({ event }) => {
         className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer">
       {/* Date */}
       <div className="flex items-center gap-2 text-gray-500 text-sm mb-3">
-        <Calendar className="w-4 h-4" />
+        <CalendarIcon className="w-4 h-4" />
         <span>{formatDate(event.created_at)}</span>
       </div>
 

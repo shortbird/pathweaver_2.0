@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRightIcon } from '@heroicons/react/24/outline';
 import { Modal } from '../ui';
 
 const InfoModal = ({ isOpen, onClose, title, children, actionText = "Got It", onAction }) => {
@@ -16,7 +16,7 @@ const InfoModal = ({ isOpen, onClose, title, children, actionText = "Got It", on
             className="px-6 py-3 bg-gradient-primary text-white font-semibold rounded-lg hover:shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2"
           >
             {actionText}
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRightIcon className="w-4 h-4" />
           </button>
         </div>
       }

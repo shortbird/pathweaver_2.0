@@ -4,7 +4,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import Button from '../../ui/Button';
 import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings';
 // tierMapping import removed - Phase 2 refactoring (January 2025)
-import { CheckCircle, Lock } from 'lucide-react';
+import { CheckCircleIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 
 const QuestCard = ({ quest, onEnroll }) => {
   const navigate = useNavigate();
@@ -161,7 +161,7 @@ const QuestCard = ({ quest, onEnroll }) => {
                 navigate('/diploma');
               }}
             >
-              <CheckCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+              <CheckCircleIcon className="w-4 h-4 mr-2 flex-shrink-0" />
               <span className="truncate">View on Diploma</span>
             </Button>
           ) : isEnrolled ? (

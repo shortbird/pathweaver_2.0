@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { Send } from 'lucide-react'
+import { PaperAirplaneIcon } from '@heroicons/react/24/outline'
 
 const MessageInput = ({ onSendMessage, disabled = false, placeholder = "Type a message..." }) => {
   const [message, setMessage] = useState('')
@@ -62,7 +62,7 @@ const MessageInput = ({ onSendMessage, disabled = false, placeholder = "Type a m
           disabled={!message.trim() || disabled}
           className="bg-gradient-primary text-white p-3 rounded-lg hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
         >
-          <Send className="w-5 h-5" />
+          <PaperAirplaneIcon className="w-5 h-5" />
         </button>
       </div>
     </form>

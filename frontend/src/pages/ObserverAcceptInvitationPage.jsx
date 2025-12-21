@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import toast from 'react-hot-toast'
-import { Sparkles, Heart, MessageCircle, Image, CheckCircle } from 'lucide-react'
+import { SparklesIcon, HeartIcon, ChatBubbleLeftIcon, PhotoIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 
 export default function ObserverAcceptInvitationPage() {
   const { invitationCode } = useParams()
@@ -58,7 +58,7 @@ export default function ObserverAcceptInvitationPage() {
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-8 text-white text-center">
-            <Sparkles className="w-16 h-16 mx-auto mb-4" />
+            <SparklesIcon className="w-16 h-16 mx-auto mb-4" />
             <h1 className="text-3xl font-bold mb-2">You've Been Invited!</h1>
             <p className="text-purple-100 text-lg">
               A student has invited you to follow their learning journey on Optio
@@ -81,28 +81,28 @@ export default function ObserverAcceptInvitationPage() {
               <h3 className="text-xl font-bold text-gray-800 mb-4">As an Observer, you'll be able to:</h3>
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
-                  <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" />
+                  <CheckCircleIcon className="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold text-gray-800">View completed quests and tasks</p>
                     <p className="text-gray-600 text-sm">See what the student is working on and celebrating</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <Image className="w-6 h-6 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <PhotoIcon className="w-6 h-6 text-blue-500 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold text-gray-800">See evidence of their work</p>
                     <p className="text-gray-600 text-sm">Photos, videos, and documents they upload</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <MessageCircle className="w-6 h-6 text-purple-500 flex-shrink-0 mt-0.5" />
+                  <ChatBubbleLeftIcon className="w-6 h-6 text-purple-500 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold text-gray-800">Leave encouraging comments</p>
                     <p className="text-gray-600 text-sm">Support their learning with positive feedback</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <Heart className="w-6 h-6 text-pink-500 flex-shrink-0 mt-0.5" />
+                  <HeartIcon className="w-6 h-6 text-pink-500 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold text-gray-800">Celebrate milestones and achievements</p>
                     <p className="text-gray-600 text-sm">Be part of their learning journey</p>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, TrendingUp, Heart } from 'lucide-react';
+import { ClockIcon, ArrowTrendingUpIcon, HeartIcon } from '@heroicons/react/24/outline';
 
 const PhilosophyCard = ({ 
   icon: Icon,

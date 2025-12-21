@@ -1,5 +1,5 @@
 import React from 'react';
-import { RotateCcw, Sparkles, X } from 'lucide-react';
+import { SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPreviousTasks, onStartFresh, onClose }) => {
   if (!isOpen) return null;
@@ -13,7 +13,7 @@ const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPrevio
             onClick={onClose}
             className="absolute top-4 right-4 text-white hover:bg-white/20 rounded-full p-1 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <XMarkIcon className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-3 mb-2">
             <RotateCcw className="w-8 h-8" />
@@ -76,7 +76,7 @@ const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPrevio
               className="w-full bg-white border-2 border-gray-300 text-gray-900 p-4 rounded-lg hover:border-optio-purple hover:bg-purple-50 transition-all duration-300 text-left group"
             >
               <div className="flex items-start gap-3">
-                <Sparkles className="w-6 h-6 flex-shrink-0 text-optio-purple group-hover:scale-110 transition-transform" />
+                <SparklesIcon className="w-6 h-6 flex-shrink-0 text-optio-purple group-hover:scale-110 transition-transform" />
                 <div>
                   <div className="font-bold mb-1" style={{ fontFamily: 'Poppins' }}>
                     Start Fresh

@@ -1,10 +1,6 @@
 import React, { useState } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
-import {
-  Award, Globe, Lock, Eye, EyeOff, User,
-  Calendar, Trophy, Target, Info, ExternalLink, CheckCircle,
-  Bot, MessageCircle, TrendingUp
-} from 'lucide-react';
+import { TrophyIcon, GlobeAltIcon, LockClosedIcon, EyeIcon, EyeSlashIcon, UserIcon, CalendarIcon, FireIcon, InformationCircleIcon, ArrowTopRightOnSquareIcon, CheckCircleIcon, ChatBubbleLeftIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline';
 import InfoModal from './InfoModal';
 // Chart imports - using recharts (already installed)
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts';
@@ -139,7 +135,7 @@ const DiplomaDemoDisplay = () => {
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 text-sm">
               <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 flex-shrink-0" />
+                <CalendarIcon className="w-4 h-4 flex-shrink-0" />
                 <span>Joined {demoUser.joined}</span>
               </div>
               <div className="flex items-center gap-2">
@@ -147,7 +143,7 @@ const DiplomaDemoDisplay = () => {
                 <span>{totalXP} Total XP</span>
               </div>
               <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 flex-shrink-0" />
+                <FireIcon className="w-4 h-4 flex-shrink-0" />
                 <span>{selectedQuests.length} Active Quests</span>
               </div>
             </div>
@@ -157,7 +153,7 @@ const DiplomaDemoDisplay = () => {
             onClick={() => setShowDiplomaModal(true)}
             className="flex items-center justify-center gap-2 px-4 py-3 bg-white/20 rounded-lg hover:bg-white/30 transition-colors min-h-[44px] touch-manipulation text-sm sm:text-base whitespace-nowrap"
           >
-            <ExternalLink className="w-4 h-4 flex-shrink-0" />
+            <ArrowTopRightOnSquareIcon className="w-4 h-4 flex-shrink-0" />
             <span>View Full Diploma</span>
           </button>
         </div>
@@ -166,7 +162,7 @@ const DiplomaDemoDisplay = () => {
       {/* Learning Journey Timeline */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <h3 className="font-bold text-lg text-text-primary mb-4 flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-optio-purple" />
+          <ArrowTrendingUpIcon className="w-5 h-5 text-optio-purple" />
           Your Learning Journey
         </h3>
         <div className="relative">
@@ -281,7 +277,7 @@ const DiplomaDemoDisplay = () => {
             {/* User Message */}
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 flex-shrink-0">
-                <User className="w-5 h-5" />
+                <UserIcon className="w-5 h-5" />
               </div>
               <div className="flex-1 bg-gray-100 rounded-lg p-3">
                 <p className="text-sm text-gray-800">
@@ -331,7 +327,7 @@ const DiplomaDemoDisplay = () => {
                     <h4 className="font-bold text-base sm:text-lg text-text-primary leading-tight">{quest.title}</h4>
                     <p className="text-sm text-gray-600 mt-1 leading-relaxed">{quest.description}</p>
                   </div>
-                  <Award className="w-6 h-6 sm:w-8 sm:h-8 text-optio-purple flex-shrink-0" />
+                  <TrophyIcon className="w-6 h-6 sm:w-8 sm:h-8 text-optio-purple flex-shrink-0" />
                 </div>
 
                 {/* Tasks & Submitted Work */}
@@ -349,7 +345,7 @@ const DiplomaDemoDisplay = () => {
                             {visibility === 'public' ? (
                               <div className="bg-blue-50 rounded-lg p-3">
                                 <div className="flex items-start gap-2">
-                                  <Globe className="w-4 h-4 text-blue-600 mt-0.5" />
+                                  <GlobeAltIcon className="w-4 h-4 text-blue-600 mt-0.5" />
                                   <div className="flex-1">
                                     <p className="text-sm text-gray-700">{work.work}</p>
                                     <p className="text-xs text-blue-600 mt-1">Public submission</p>
@@ -359,7 +355,7 @@ const DiplomaDemoDisplay = () => {
                             ) : (
                               <div className="bg-orange-50 rounded-lg p-3">
                                 <div className="flex items-start gap-2">
-                                  <Lock className="w-4 h-4 text-orange-600 mt-0.5" />
+                                  <LockClosedIcon className="w-4 h-4 text-orange-600 mt-0.5" />
                                   <div className="flex-1">
                                     <p className="text-sm text-gray-700 italic">
                                       Student chose to keep this work confidential.
@@ -399,7 +395,7 @@ const DiplomaDemoDisplay = () => {
       <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-6">
         <div className="text-center space-y-3">
           <div className="inline-flex items-center justify-center gap-2 text-optio-purple">
-            <CheckCircle className="w-6 h-6" />
+            <CheckCircleIcon className="w-6 h-6" />
             <h4 className="font-bold text-lg">Everything Captured Automatically</h4>
           </div>
           <p className="text-gray-700 max-w-2xl mx-auto">
@@ -428,23 +424,23 @@ const DiplomaDemoDisplay = () => {
             <h4 className="font-semibold">What others see:</h4>
             <ul className="space-y-2 text-sm text-gray-700">
               <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
+                <CheckCircleIcon className="w-4 h-4 text-green-500" />
                 <span>All your completed quests</span>
               </li>
               <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
+                <CheckCircleIcon className="w-4 h-4 text-green-500" />
                 <span>Public submitted work</span>
               </li>
               <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
+                <CheckCircleIcon className="w-4 h-4 text-green-500" />
                 <span>Your skills radar chart</span>
               </li>
               <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
+                <CheckCircleIcon className="w-4 h-4 text-green-500" />
                 <span>Total XP and achievements</span>
               </li>
               <li className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-orange-500" />
+                <LockClosedIcon className="w-4 h-4 text-orange-500" />
                 <span>"Contact for details" on confidential work</span>
               </li>
             </ul>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
-import { CheckCircle, Sparkles } from 'lucide-react';
+import { CheckCircleIcon, SparklesIcon } from '@heroicons/react/24/outline';
 
 const MiniQuestExperience = () => {
   const { demoState, actions } = useDemo();
@@ -154,7 +154,7 @@ const MiniQuestExperience = () => {
               {/* Completion Checkmark */}
               {taskComplete && (
                 <div className="flex items-center justify-center gap-2 text-green-600 font-semibold mt-4">
-                  <CheckCircle className="w-6 h-6" />
+                  <CheckCircleIcon className="w-6 h-6" />
                   <span>CAPTURED ✓</span>
                 </div>
               )}
@@ -167,9 +167,9 @@ const MiniQuestExperience = () => {
       {showCelebration && (
         <div className="bg-gradient-primary rounded-xl p-6 text-white text-center space-y-4 animate-fadeIn">
           <div className="flex items-center justify-center gap-2">
-            <Sparkles className="w-8 h-8 animate-spin" />
+            <SparklesIcon className="w-8 h-8 animate-spin" />
             <h3 className="text-2xl font-bold">Amazing!</h3>
-            <Sparkles className="w-8 h-8 animate-spin" />
+            <SparklesIcon className="w-8 h-8 animate-spin" />
           </div>
 
           <p className="text-lg">

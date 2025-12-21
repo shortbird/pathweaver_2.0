@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X } from 'lucide-react';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -214,7 +214,7 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
             onClick={() => updateBlock(block.id, { url: '', alt: '', caption: '' })}
             className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
           >
-            <X className="w-4 h-4" />
+            <XMarkIcon className="w-4 h-4" />
           </button>
         </div>
       ) : (
@@ -295,7 +295,7 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
             onClick={() => updateBlock(block.id, { url: '', title: '', filename: '' })}
             className="p-1 text-red-600 hover:bg-red-50 rounded"
           >
-            <X className="w-4 h-4" />
+            <XMarkIcon className="w-4 h-4" />
           </button>
         </div>
       ) : (
@@ -336,7 +336,7 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
               onClick={handleClose}
               className="text-white hover:text-gray-200 transition-colors"
             >
-              <X className="w-6 h-6" />
+              <XMarkIcon className="w-6 h-6" />
             </button>
           </div>
         </div>
@@ -381,7 +381,7 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
                           onClick={() => deleteBlock(block.id)}
                           className="text-red-600 hover:text-red-800"
                         >
-                          <X className="w-4 h-4" />
+                          <XMarkIcon className="w-4 h-4" />
                         </button>
                       </div>
                       {block.block_type === 'text' && renderTextBlock(block)}

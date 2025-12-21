@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Flag, Users } from 'lucide-react';
+import { PlusIcon, FlagIcon, UsersIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
 
@@ -141,7 +141,7 @@ export default function TaskLibraryView({ questId, onTaskAdded, onGenerateCustom
               {/* Usage Count */}
               {task.usage_count > 0 && (
                 <div className="flex items-center gap-1 text-xs text-gray-500 mb-3">
-                  <Users className="w-3 h-3" />
+                  <UsersIcon className="w-3 h-3" />
                   <span>Used by {task.usage_count} student{task.usage_count !== 1 ? 's' : ''}</span>
                 </div>
               )}
@@ -158,7 +158,7 @@ export default function TaskLibraryView({ questId, onTaskAdded, onGenerateCustom
                     'Adding...'
                   ) : (
                     <>
-                      <Plus className="w-4 h-4" />
+                      <PlusIcon className="w-4 h-4" />
                       Add Task
                     </>
                   )}
@@ -168,7 +168,7 @@ export default function TaskLibraryView({ questId, onTaskAdded, onGenerateCustom
                   className="px-3 py-2 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition-all"
                   title="Flag inappropriate content"
                 >
-                  <Flag className="w-4 h-4 text-gray-500" />
+                  <FlagIcon className="w-4 h-4 text-gray-500" />
                 </button> */}
               </div>
             </div>

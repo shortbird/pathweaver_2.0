@@ -1,4 +1,4 @@
-import { Atom, Heart, MessageSquare, Globe, Palette } from 'lucide-react';
+import { HeartIcon, ChatBubbleLeftRightIcon, GlobeAltIcon, PaintBrushIcon } from '@heroicons/react/24/outline';
 
 /**
  * Maps pillar names to their corresponding Lucide React icons

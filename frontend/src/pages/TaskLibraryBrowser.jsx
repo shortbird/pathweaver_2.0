@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, CheckCircle, BookOpen, Eye, X } from 'lucide-react';
+import { ArrowLeftIcon, PlusIcon, CheckCircleIcon, BookOpenIcon, EyeIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import api from '../services/api';
 import { getPillarData } from '../utils/pillarMappings';
 import toast from 'react-hot-toast';
@@ -177,7 +177,7 @@ export default function TaskLibraryBrowser() {
             className="flex items-center gap-2 text-gray-600 hover:text-optio-purple mb-4 transition-colors"
             style={{ fontFamily: 'Poppins' }}
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeftIcon className="w-5 h-5" />
             Back to Quest
           </button>
 
@@ -190,7 +190,7 @@ export default function TaskLibraryBrowser() {
 
           {/* Progress Indicator */}
           <div className="flex items-center gap-3 p-4 bg-white rounded-lg shadow-sm">
-            <CheckCircle className="w-5 h-5 text-green-500" />
+            <CheckCircleIcon className="w-5 h-5 text-green-500" />
             <span className="text-gray-700" style={{ fontFamily: 'Poppins' }}>
               <span className="font-semibold">{addedTasks.size}</span> task{addedTasks.size !== 1 ? 's' : ''} added to quest
             </span>
@@ -200,7 +200,7 @@ export default function TaskLibraryBrowser() {
         {/* Library Grid */}
         {libraryTasks.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-xl shadow-sm">
-            <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <BookOpenIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
               No library tasks available yet
             </h3>
@@ -253,7 +253,7 @@ export default function TaskLibraryBrowser() {
                             style={{ fontFamily: 'Poppins' }}
                             title="Click to remove this task"
                           >
-                            <CheckCircle className="w-4 h-4" />
+                            <CheckCircleIcon className="w-4 h-4" />
                             Added (click to remove)
                           </button>
                         ) : (
@@ -315,7 +315,7 @@ export default function TaskLibraryBrowser() {
                           className="flex items-center gap-1 text-sm text-gray-600 hover:text-optio-purple transition-colors"
                           style={{ fontFamily: 'Poppins' }}
                         >
-                          <Eye className="w-4 h-4" />
+                          <EyeIcon className="w-4 h-4" />
                           Details
                         </button>
                       </div>
@@ -352,7 +352,7 @@ export default function TaskLibraryBrowser() {
                 onClick={() => setDetailsModalTask(null)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <X className="w-6 h-6 text-gray-500" />
+                <XMarkIcon className="w-6 h-6 text-gray-500" />
               </button>
             </div>
 

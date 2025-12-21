@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { User } from 'lucide-react'
+import { UserIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 
 const MessageThread = ({ messages, otherUser, isLoading }) => {
@@ -42,7 +42,7 @@ const MessageThread = ({ messages, otherUser, isLoading }) => {
   if (!messages || messages.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-8">
-        <User className="w-16 h-16 text-gray-300 mb-4" />
+        <UserIcon className="w-16 h-16 text-gray-300 mb-4" />
         <p className="text-gray-500 text-center">
           No messages yet. Start the conversation!
         </p>

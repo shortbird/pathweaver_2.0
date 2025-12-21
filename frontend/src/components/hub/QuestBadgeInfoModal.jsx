@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Target, Sparkles, CheckCircle } from 'lucide-react';
+import { FireIcon, SparklesIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { Modal } from '../ui';
 
 /**
@@ -43,19 +43,19 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
               </p>
               <div className="space-y-2">
                 <div className="flex items-start gap-2">
-                  <CheckCircle className="w-5 h-5 text-optio-purple mt-0.5 flex-shrink-0" />
+                  <CheckCircleIcon className="w-5 h-5 text-optio-purple mt-0.5 flex-shrink-0" />
                   <p className="text-gray-700">
                     <strong>Structured Growth:</strong> Follow a recommended sequence of quests designed to build skills progressively
                   </p>
                 </div>
                 <div className="flex items-start gap-2">
-                  <CheckCircle className="w-5 h-5 text-optio-purple mt-0.5 flex-shrink-0" />
+                  <CheckCircleIcon className="w-5 h-5 text-optio-purple mt-0.5 flex-shrink-0" />
                   <p className="text-gray-700">
                     <strong>Multiple Quests:</strong> Requires completing several related quests to earn the badge
                   </p>
                 </div>
                 <div className="flex items-start gap-2">
-                  <CheckCircle className="w-5 h-5 text-optio-purple mt-0.5 flex-shrink-0" />
+                  <CheckCircleIcon className="w-5 h-5 text-optio-purple mt-0.5 flex-shrink-0" />
                   <p className="text-gray-700">
                     <strong>Achievement Recognition:</strong> Displays on your diploma as a significant accomplishment
                   </p>
@@ -69,7 +69,7 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
         <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-gradient-primary rounded-lg">
-              <Target className="w-6 h-6 text-white" />
+              <FireIcon className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1">
               <h4 className="text-2xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
@@ -81,19 +81,19 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
               </p>
               <div className="space-y-2">
                 <div className="flex items-start gap-2">
-                  <CheckCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                  <CheckCircleIcon className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
                   <p className="text-gray-700">
                     <strong>Flexible Exploration:</strong> Choose any quest that interests you, in any order
                   </p>
                 </div>
                 <div className="flex items-start gap-2">
-                  <CheckCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                  <CheckCircleIcon className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
                   <p className="text-gray-700">
                     <strong>Standalone Tasks:</strong> Complete a quest and move on, or pursue multiple at once
                   </p>
                 </div>
                 <div className="flex items-start gap-2">
-                  <CheckCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                  <CheckCircleIcon className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
                   <p className="text-gray-700">
                     <strong>Immediate Progress:</strong> See results quickly and build momentum with each completion
                   </p>
@@ -106,7 +106,7 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
         {/* Choosing Your Path Section */}
         <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
           <div className="flex items-start gap-3 mb-4">
-            <Sparkles className="w-6 h-6 text-optio-purple mt-1" />
+            <SparklesIcon className="w-6 h-6 text-optio-purple mt-1" />
             <h4 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
               Choosing Your Path
             </h4>

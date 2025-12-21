@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
 import { useNavigate } from 'react-router-dom';
-import {
-  Rocket, Gift, Shield, Star, ArrowRight, CheckCircle, X,
-  Users, Calendar, Trophy, Sparkles, Lock, Globe, GraduationCap
-} from 'lucide-react';
+import { RocketLaunchIcon, GiftIcon, ShieldCheckIcon, StarIcon, ArrowRightIcon, CheckCircleIcon, XMarkIcon, UsersIcon, CalendarIcon, SparklesIcon, LockClosedIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
 // import { useSubscriptionTiers, getTierByKey, formatPrice } from '../../hooks/useSubscriptionTiers'; // REMOVED - Phase 3 refactoring (January 2025)
 
 const ConversionPanel = () => {
@@ -132,7 +129,7 @@ const ConversionPanel = () => {
             {tier.badge && (
               <div className="absolute -top-3 right-4">
                 <div className="flex items-center gap-1 px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full">
-                  <Shield className="w-3 h-3" />
+                  <ShieldCheckIcon className="w-3 h-3" />
                   {tier.badge}
                 </div>
               </div>
@@ -156,7 +153,7 @@ const ConversionPanel = () => {
               <ul className="space-y-3">
                 {tier.features.slice(tier.features[0]?.includes('Everything in') ? 1 : 0).map((feature, index) => (
                   <li key={index} className="flex items-start">
-                    <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <CheckCircleIcon className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
                     <span className={`text-gray-700 ${feature.includes('TWO diplomas') || feature.includes('Optio Portfolio Diploma') ? 'font-semibold' : ''}`}>
                       {feature}
                     </span>
@@ -166,7 +163,7 @@ const ConversionPanel = () => {
                 {/* Limitations */}
                 {tier.limitations.map((limitation, index) => (
                   <li key={`limit-${index}`} className="flex items-start">
-                    <X className="w-5 h-5 text-gray-400 mr-2 flex-shrink-0 mt-0.5" />
+                    <XMarkIcon className="w-5 h-5 text-gray-400 mr-2 flex-shrink-0 mt-0.5" />
                     <span className="text-gray-500 line-through">
                       {limitation}
                     </span>
@@ -189,7 +186,7 @@ const ConversionPanel = () => {
             {selectedTier === tier.id && (
               <div className="absolute top-4 right-4">
                 <div className="w-8 h-8 bg-optio-purple rounded-full flex items-center justify-center">
-                  <CheckCircle className="w-5 h-5 text-white" />
+                  <CheckCircleIcon className="w-5 h-5 text-white" />
                 </div>
               </div>
             )}
@@ -205,7 +202,7 @@ const ConversionPanel = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-lg">
-              <Globe className="w-8 h-8 text-optio-purple" />
+              <GlobeAltIcon className="w-8 h-8 text-optio-purple" />
             </div>
             <h4 className="font-semibold text-text-primary mb-2">Public Portfolio</h4>
             <p className="text-sm text-gray-600">
@@ -225,7 +222,7 @@ const ConversionPanel = () => {
           
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-lg">
-              <Users className="w-8 h-8 text-optio-purple" />
+              <UsersIcon className="w-8 h-8 text-optio-purple" />
             </div>
             <h4 className="font-semibold text-text-primary mb-2">Self-Accountability</h4>
             <p className="text-sm text-gray-600">
@@ -266,9 +263,9 @@ const ConversionPanel = () => {
                 ? 'bg-gradient-primary text-white hover:shadow-xl transform hover:scale-[1.02]' 
                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
           >
-            <Rocket className="w-6 h-6" />
+            <RocketLaunchIcon className="w-6 h-6" />
             Get Your Diploma Today
-            <ArrowRight className="w-6 h-6" />
+            <ArrowRightIcon className="w-6 h-6" />
           </button>
           
           <p className="text-xs text-gray-500 text-center">
@@ -280,17 +277,17 @@ const ConversionPanel = () => {
       {/* Trust Indicators */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
         <div className="text-center">
-          <Gift className="w-10 h-10 text-optio-purple mx-auto mb-2" />
+          <GiftIcon className="w-10 h-10 text-optio-purple mx-auto mb-2" />
           <p className="font-semibold text-gray-700">30-Day Guarantee</p>
           <p className="text-sm text-gray-600">Full refund if not satisfied</p>
         </div>
         <div className="text-center">
-          <Shield className="w-10 h-10 text-green-500 mx-auto mb-2" />
+          <ShieldCheckIcon className="w-10 h-10 text-green-500 mx-auto mb-2" />
           <p className="font-semibold text-gray-700">Student Privacy</p>
           <p className="text-sm text-gray-600">You control what's public</p>
         </div>
         <div className="text-center">
-          <Users className="w-10 h-10 text-optio-pink mx-auto mb-2" />
+          <UsersIcon className="w-10 h-10 text-optio-pink mx-auto mb-2" />
           <p className="font-semibold text-gray-700">5,000+ Students</p>
           <p className="text-sm text-gray-600">Building impressive portfolios</p>
         </div>

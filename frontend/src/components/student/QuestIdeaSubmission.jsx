@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { X, Lightbulb, Sparkles, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { XMarkIcon, LightBulbIcon, SparklesIcon, ArrowPathIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import QuestIdeaSuggestions from '../ai/QuestIdeaSuggestions'
@@ -126,7 +126,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-xl">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-gradient-primary rounded-lg">
-              <Lightbulb className="h-5 w-5 text-white" />
+              <LightBulbIcon className="h-5 w-5 text-white" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-900">Submit Quest Idea</h2>
@@ -137,7 +137,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
             onClick={handleClose}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <X className="h-5 w-5 text-gray-500" />
+            <XMarkIcon className="h-5 w-5 text-gray-500" />
           </button>
         </div>
 
@@ -147,7 +147,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
             <div className="space-y-6">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-start space-x-3">
-                  <Lightbulb className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <LightBulbIcon className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
                   <div>
                     <h3 className="font-medium text-blue-900">Got a learning quest idea?</h3>
                     <p className="text-sm text-blue-700 mt-1">
@@ -211,7 +211,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
                     className="w-full bg-purple-50 border border-purple-200 rounded-lg p-4 hover:bg-purple-100 transition-colors text-left flex items-center justify-between"
                   >
                     <div className="flex items-center space-x-3">
-                      <Sparkles className="h-5 w-5 text-optio-purple" />
+                      <SparklesIcon className="h-5 w-5 text-optio-purple" />
                       <div>
                         <span className="font-medium text-purple-900">Get AI Suggestions</span>
                         <p className="text-sm text-purple-700">Improve your quest idea with AI feedback</p>
@@ -245,7 +245,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
                   />
                   <div className="flex-1">
                     <label htmlFor="ai-enhancement" className="font-medium text-purple-900 cursor-pointer">
-                      <Sparkles className="h-4 w-4 inline mr-2" />
+                      <SparklesIcon className="h-4 w-4 inline mr-2" />
                       Use AI Enhancement
                     </label>
                     <p className="text-sm text-purple-700 mt-1">
@@ -262,12 +262,12 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
               >
                 {loading ? (
                   <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <ArrowPathIcon className="h-5 w-5 animate-spin" />
                     <span>Processing...</span>
                   </>
                 ) : formData.use_ai_enhancement ? (
                   <>
-                    <Sparkles className="h-5 w-5" />
+                    <SparklesIcon className="h-5 w-5" />
                     <span>Preview with AI Enhancement</span>
                   </>
                 ) : (
@@ -281,7 +281,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
             <div className="space-y-6">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <div className="flex items-center space-x-2">
-                  <Sparkles className="h-5 w-5 text-green-600" />
+                  <SparklesIcon className="h-5 w-5 text-green-600" />
                   <span className="font-medium text-green-800">AI Enhancement Complete!</span>
                 </div>
                 <p className="text-sm text-green-700 mt-1">
@@ -370,7 +370,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
           {step === 'submitting' && (
             <div className="text-center py-12">
               <div className="mb-4">
-                <Loader2 className="h-12 w-12 text-purple-500 mx-auto animate-spin" />
+                <ArrowPathIcon className="h-12 w-12 text-purple-500 mx-auto animate-spin" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Submitting Your Quest Idea</h3>
               <p className="text-gray-600">
@@ -392,7 +392,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
               {submissionResult.ai_suggestions && (
                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6 text-left">
                   <div className="flex items-center space-x-2 mb-2">
-                    <Sparkles className="h-5 w-5 text-optio-purple" />
+                    <SparklesIcon className="h-5 w-5 text-optio-purple" />
                     <span className="font-medium text-purple-900">AI Enhancement Included</span>
                   </div>
                   <p className="text-sm text-purple-700">
@@ -403,7 +403,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                 <div className="flex items-start space-x-3">
-                  <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <ExclamationCircleIcon className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
                   <div className="text-left">
                     <h4 className="font-medium text-blue-900">What happens next?</h4>
                     <ul className="text-sm text-blue-700 mt-1 space-y-1">

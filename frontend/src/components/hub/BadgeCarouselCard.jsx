@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { BadgePillarIcon } from '../badges/BadgePillarIcon';
 import { useNavigate } from 'react-router-dom';
-import { Crown } from 'lucide-react';
+import { TrophyIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../contexts/AuthContext';
 import { getPillarGradient } from '../../config/pillars';
 
@@ -93,7 +93,7 @@ const BadgeCarouselCard = memo(({ badge }) => {
         {/* Paid Feature Badge - Top Right */}
         {isFreeTier && (
           <div className="absolute top-3 right-3 bg-amber-500/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-lg">
-            <Crown className="w-3.5 h-3.5" />
+            <TrophyIcon className="w-3.5 h-3.5" />
             PAID
           </div>
         )}

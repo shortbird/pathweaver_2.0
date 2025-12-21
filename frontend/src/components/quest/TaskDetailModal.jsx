@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Award, BookOpen } from 'lucide-react';
+import { XMarkIcon, TrophyIcon, BookOpenIcon } from '@heroicons/react/24/outline';
 import { getPillarData } from '../../utils/pillarMappings';
 
 const TaskDetailModal = ({ task, isOpen, onClose }) => {
@@ -34,7 +34,7 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                 <h3 className="text-3xl font-bold text-white mb-4" style={{ fontFamily: 'Poppins' }}>{task.title}</h3>
                 <div className="flex items-center gap-3">
                   <div className="px-6 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full text-lg font-bold flex items-center gap-2" style={{ fontFamily: 'Poppins' }}>
-                    <Award className="w-5 h-5" />
+                    <TrophyIcon className="w-5 h-5" />
                     {task.xp_amount || task.xp_value} XP
                   </div>
                 </div>
@@ -43,7 +43,7 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                 onClick={onClose}
                 className="ml-4 text-white hover:text-white/80 transition-colors"
               >
-                <X className="w-8 h-8" />
+                <XMarkIcon className="w-8 h-8" />
               </button>
             </div>
           </div>
@@ -60,7 +60,7 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                 }}
               >
                 <h4 className="font-bold text-lg mb-3 flex items-center gap-2" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>
-                  <BookOpen className="w-5 h-5" />
+                  <BookOpenIcon className="w-5 h-5" />
                   Description
                 </h4>
                 <p className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>{task.description}</p>

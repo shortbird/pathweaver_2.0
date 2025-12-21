@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { Sparkles, TrendingUp, Target } from 'lucide-react';
+import { SparklesIcon, ArrowTrendingUpIcon, FireIcon } from '@heroicons/react/24/outline';
 import { getPillarGradient } from '../../config/pillars';
 
 export default function BadgeRecommendations({ userId }) {
@@ -43,7 +43,7 @@ export default function BadgeRecommendations({ userId }) {
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-white" />
+            <SparklesIcon className="w-5 h-5 text-white" />
           </div>
           <h2 className="text-xl font-bold text-gray-900">Recommended Learning Paths</h2>
         </div>
@@ -59,7 +59,7 @@ export default function BadgeRecommendations({ userId }) {
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-white" />
+            <SparklesIcon className="w-5 h-5 text-white" />
           </div>
           <h2 className="text-xl font-bold text-gray-900">Recommended Learning Paths</h2>
         </div>
@@ -83,7 +83,7 @@ export default function BadgeRecommendations({ userId }) {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-white" />
+            <SparklesIcon className="w-5 h-5 text-white" />
           </div>
           <h2 className="text-xl font-bold text-gray-900">Recommended Learning Paths</h2>
         </div>
@@ -126,14 +126,14 @@ function BadgeRecommendationCard({ badge, onClick }) {
 
   // Determine match level based on score
   let matchLevel = 'Good Match';
-  let matchIcon = <Target className="w-4 h-4" />;
+  let matchIcon = <FireIcon className="w-4 h-4" />;
 
   if (score >= 0.8) {
     matchLevel = 'Perfect Match';
-    matchIcon = <Sparkles className="w-4 h-4" />;
+    matchIcon = <SparklesIcon className="w-4 h-4" />;
   } else if (score >= 0.6) {
     matchLevel = 'Great Match';
-    matchIcon = <TrendingUp className="w-4 h-4" />;
+    matchIcon = <ArrowTrendingUpIcon className="w-4 h-4" />;
   }
 
   return (

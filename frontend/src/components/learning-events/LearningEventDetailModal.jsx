@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Calendar } from 'lucide-react';
+import { XMarkIcon, CalendarIcon } from '@heroicons/react/24/outline';
 
 const LearningEventDetailModal = ({ event, isOpen, onClose }) => {
   if (!isOpen || !event) return null;
@@ -142,7 +142,7 @@ const LearningEventDetailModal = ({ event, isOpen, onClose }) => {
             <div>
               <h2 className="text-2xl font-bold mb-2">Learning Moment</h2>
               <div className="flex items-center gap-2 text-white/90 text-sm">
-                <Calendar className="w-4 h-4" />
+                <CalendarIcon className="w-4 h-4" />
                 <span>{formatDate(event.created_at)}</span>
               </div>
             </div>
@@ -150,7 +150,7 @@ const LearningEventDetailModal = ({ event, isOpen, onClose }) => {
               onClick={onClose}
               className="text-white hover:text-gray-200 transition-colors"
             >
-              <X className="w-6 h-6" />
+              <XMarkIcon className="w-6 h-6" />
             </button>
           </div>
         </div>

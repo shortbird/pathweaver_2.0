@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
-import { Sparkles, Award, TrendingUp } from 'lucide-react';
+import { SparklesIcon, TrophyIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline';
 
 const BadgeUnlock = () => {
   const { demoState, actions } = useDemo();
@@ -60,11 +60,11 @@ const BadgeUnlock = () => {
       {/* Header */}
       <div className="text-center space-y-2">
         <div className="flex items-center justify-center gap-2">
-          <TrendingUp className="w-8 h-8 text-optio-purple" />
+          <ArrowTrendingUpIcon className="w-8 h-8 text-optio-purple" />
           <h2 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             You're Growing!
           </h2>
-          <TrendingUp className="w-8 h-8 text-optio-pink" />
+          <ArrowTrendingUpIcon className="w-8 h-8 text-optio-pink" />
         </div>
         <p className="text-gray-600">Watch your skills take shape</p>
       </div>
@@ -91,7 +91,7 @@ const BadgeUnlock = () => {
                     >
                       {pillar.value > 0 && (
                         <div className="absolute top-1 left-1/2 transform -translate-x-1/2">
-                          <Sparkles className="w-4 h-4 text-white animate-pulse" />
+                          <SparklesIcon className="w-4 h-4 text-white animate-pulse" />
                         </div>
                       )}
                     </div>
@@ -138,9 +138,9 @@ const BadgeUnlock = () => {
 
           <div className="relative z-10">
             <div className="inline-flex items-center justify-center gap-3 mb-4">
-              <Award className="w-10 h-10" />
+              <TrophyIcon className="w-10 h-10" />
               <h3 className="text-3xl font-bold">BADGE UNLOCKED!</h3>
-              <Award className="w-10 h-10" />
+              <TrophyIcon className="w-10 h-10" />
             </div>
 
             {/* Badge Display */}

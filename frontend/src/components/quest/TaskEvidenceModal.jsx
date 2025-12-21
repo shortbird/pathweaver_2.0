@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Award, Type, Image, Video, Link2, FileText, AlertCircle } from 'lucide-react';
+import { TrophyIcon, PhotoIcon, VideoCameraIcon, LinkIcon, DocumentTextIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
 import ModalErrorBoundary from '../ModalErrorBoundary';
 import { getPillarData } from '../../utils/pillarMappings';
@@ -82,7 +82,7 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
                         fontFamily: 'Poppins'
                       }}
                     >
-                      <Award className="w-4 h-4" />
+                      <TrophyIcon className="w-4 h-4" />
                       {task.xp_amount} XP
                     </div>
                   </div>
@@ -133,7 +133,7 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
                       className="px-6 py-2 bg-gradient-primary text-white rounded-lg font-bold hover:shadow-lg transition-all flex items-center gap-2"
                       style={{ fontFamily: 'Poppins' }}
                     >
-                      <Award className="w-4 h-4" />
+                      <TrophyIcon className="w-4 h-4" />
                       Submit for XP
                     </button>
                   )}
@@ -218,7 +218,7 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
                 }}
               >
                 <h4 className="font-bold text-lg mb-3 flex items-center gap-2" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>
-                  <AlertCircle className="w-5 h-5" />
+                  <ExclamationCircleIcon className="w-5 h-5" />
                   Your Evidence Is Public
                 </h4>
                 <p className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>

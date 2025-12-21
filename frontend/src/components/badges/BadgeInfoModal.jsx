@@ -1,4 +1,4 @@
-import { Zap, CheckCircle, Trophy, Info } from 'lucide-react';
+import { BoltIcon, CheckCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { Modal, Alert, Card, CardTitle } from '../ui';
 
 /**
@@ -18,7 +18,7 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
       header={
         <div className="flex items-center gap-3">
           <div className="bg-white/20 p-2 rounded-lg">
-            <Info className="w-5 h-5 text-white" />
+            <InformationCircleIcon className="w-5 h-5 text-white" />
           </div>
           <h2 className="text-2xl font-bold text-white">How to Earn This Badge</h2>
         </div>
@@ -40,7 +40,7 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
                   <div className="bg-optio-purple text-white rounded-full p-1 mt-0.5">
-                    <CheckCircle className="w-4 h-4" />
+                    <CheckCircleIcon className="w-4 h-4" />
                   </div>
                   <div>
                     <p className="font-semibold text-purple-900">Complete {badge.min_quests} Quests</p>
@@ -51,7 +51,7 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
                 </div>
                 <div className="flex items-start gap-3">
                   <div className="bg-optio-purple text-white rounded-full p-1 mt-0.5">
-                    <CheckCircle className="w-4 h-4" />
+                    <CheckCircleIcon className="w-4 h-4" />
                   </div>
                   <div>
                     <p className="font-semibold text-purple-900">Earn {badge.min_xp} XP</p>
@@ -67,7 +67,7 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
           {/* XP System Explanation */}
           <div>
             <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-              <Zap className="w-5 h-5 text-yellow-500" />
+              <BoltIcon className="w-5 h-5 text-yellow-500" />
               How XP Works
             </h3>
             <div className="space-y-4">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 
 /**
  * Modal Component - Reusable modal wrapper with slot-based architecture
@@ -86,7 +86,7 @@ export const Modal = ({
                 className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors ml-4"
                 aria-label="Close modal"
               >
-                <X size={24} />
+                <XMarkIcon size={24} />
               </button>
             )}
           </div>

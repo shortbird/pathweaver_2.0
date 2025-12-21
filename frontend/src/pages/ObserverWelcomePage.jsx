@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { Heart, Sparkles, Target, Users, ArrowRight, MessageCircle } from 'lucide-react'
+import { HeartIcon, SparklesIcon, FireIcon, UsersIcon, ArrowRightIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/outline'
 
 export default function ObserverWelcomePage() {
   return (
@@ -9,7 +9,7 @@ export default function ObserverWelcomePage() {
         {/* Hero Section */}
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full mb-6">
-            <Heart className="w-10 h-10 text-white" />
+            <HeartIcon className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
             Welcome to Optio!
@@ -23,7 +23,7 @@ export default function ObserverWelcomePage() {
         <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
           <div className="flex items-start gap-4 mb-6">
             <div className="flex-shrink-0">
-              <Sparkles className="w-8 h-8 text-optio-purple" />
+              <SparklesIcon className="w-8 h-8 text-optio-purple" />
             </div>
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-3">The Process Is The Goal</h2>
@@ -43,7 +43,7 @@ export default function ObserverWelcomePage() {
         <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
           <div className="flex items-start gap-4 mb-6">
             <div className="flex-shrink-0">
-              <Target className="w-8 h-8 text-optio-pink" />
+              <FireIcon className="w-8 h-8 text-optio-pink" />
             </div>
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-3">Your Important Role</h2>
@@ -89,7 +89,7 @@ export default function ObserverWelcomePage() {
         <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
           <div className="flex items-start gap-4 mb-6">
             <div className="flex-shrink-0">
-              <Users className="w-8 h-8 text-blue-500" />
+              <UsersIcon className="w-8 h-8 text-blue-500" />
             </div>
             <div className="w-full">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">What You Can Do</h2>
@@ -97,7 +97,7 @@ export default function ObserverWelcomePage() {
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="bg-purple-50 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <MessageCircle className="w-5 h-5 text-optio-purple" />
+                    <ChatBubbleLeftIcon className="w-5 h-5 text-optio-purple" />
                     <h3 className="font-semibold text-gray-900">Leave Comments</h3>
                   </div>
                   <p className="text-gray-700 text-sm">
@@ -107,7 +107,7 @@ export default function ObserverWelcomePage() {
 
                 <div className="bg-pink-50 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Heart className="w-5 h-5 text-optio-pink" />
+                    <HeartIcon className="w-5 h-5 text-optio-pink" />
                     <h3 className="font-semibold text-gray-900">React to Achievements</h3>
                   </div>
                   <p className="text-gray-700 text-sm">
@@ -117,7 +117,7 @@ export default function ObserverWelcomePage() {
 
                 <div className="bg-blue-50 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Sparkles className="w-5 h-5 text-blue-500" />
+                    <SparklesIcon className="w-5 h-5 text-blue-500" />
                     <h3 className="font-semibold text-gray-900">View Their Feed</h3>
                   </div>
                   <p className="text-gray-700 text-sm">
@@ -127,7 +127,7 @@ export default function ObserverWelcomePage() {
 
                 <div className="bg-green-50 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Target className="w-5 h-5 text-green-500" />
+                    <FireIcon className="w-5 h-5 text-green-500" />
                     <h3 className="font-semibold text-gray-900">Stay Updated</h3>
                   </div>
                   <p className="text-gray-700 text-sm">
@@ -146,7 +146,7 @@ export default function ObserverWelcomePage() {
             className="inline-flex items-center gap-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold py-4 px-8 rounded-xl hover:shadow-lg transition-all duration-200"
           >
             View Student Feed
-            <ArrowRight className="w-5 h-5" />
+            <ArrowRightIcon className="w-5 h-5" />
           </Link>
           <p className="text-gray-600 text-sm mt-4">
             You can always access this page from your profile menu

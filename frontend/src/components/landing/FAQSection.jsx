@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Minus } from 'lucide-react'
+import { PlusIcon, MinusIcon } from '@heroicons/react/24/outline'
 
 const FAQSection = ({ faqs = [], title = 'Frequently Asked Questions' }) => {
   const [openIndex, setOpenIndex] = useState(null)
@@ -36,9 +36,9 @@ const FAQSection = ({ faqs = [], title = 'Frequently Asked Questions' }) => {
                 </span>
                 <div className="flex-shrink-0">
                   {openIndex === index ? (
-                    <Minus className="w-5 h-5 text-optio-pink" />
+                    <MinusIcon className="w-5 h-5 text-optio-pink" />
                   ) : (
-                    <Plus className="w-5 h-5 text-optio-purple" />
+                    <PlusIcon className="w-5 h-5 text-optio-purple" />
                   )}
                 </div>
               </button>

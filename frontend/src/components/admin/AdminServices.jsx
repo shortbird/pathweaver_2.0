@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Eye, EyeOff } from 'lucide-react';
+import { PlusIcon, PencilSquareIcon, TrashIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import ServiceFormModal from './ServiceFormModal';
 
@@ -100,7 +100,7 @@ const AdminServices = () => {
           onClick={handleCreate}
           className="bg-gradient-to-r from-optio-purple to-optio-pink text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
         >
-          <Plus className="w-5 h-5" />
+          <PlusIcon className="w-5 h-5" />
           Add Service
         </button>
       </div>
@@ -176,21 +176,21 @@ const AdminServices = () => {
                           className="text-gray-600 hover:text-gray-900"
                           title={service.is_active ? 'Deactivate' : 'Activate'}
                         >
-                          {service.is_active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                          {service.is_active ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
                         </button>
                         <button
                           onClick={() => handleEdit(service)}
                           className="text-optio-purple hover:text-purple-900"
                           title="Edit"
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <PencilSquareIcon className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(service.id)}
                           className="text-red-600 hover:text-red-900"
                           title="Delete"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <TrashIcon className="w-4 h-4" />
                         </button>
                       </div>
                     </td>

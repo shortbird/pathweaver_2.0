@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Play, X, BookOpen, Users, CheckCircle, Heart, Sparkles, Target, Zap, ArrowRight, ChevronDown } from 'lucide-react'
+import { PlayIcon, XMarkIcon, BookOpenIcon, UsersIcon, CheckCircleIcon, HeartIcon, SparklesIcon, FireIcon, BoltIcon, ArrowRightIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import { PhilosophySection } from '../components/ui/PhilosophyCard'
 import LandingPageHero from '../components/landing/LandingPageHero'
 import { useHomepageImages, getImageUrl } from '../hooks/useHomepageImages'
@@ -126,7 +126,7 @@ const HomePage = () => {
             <div className="space-y-6">
               <div className="flex items-center space-x-3">
                 <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center">
-                  <BookOpen className="w-6 h-6 text-white" />
+                  <BookOpenIcon className="w-6 h-6 text-white" />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                   Automatic Portfolio Building
@@ -136,7 +136,7 @@ const HomePage = () => {
                 Every project, essay, and creation automatically captured. No manual uploads, no friction, just learning that builds itself into proof. Your child's work flows seamlessly into a professional showcase ready to share with colleges and employers.
               </p>
               <div className="flex items-center space-x-2 text-optio-purple font-semibold">
-                <Sparkles className="w-5 h-5" />
+                <SparklesIcon className="w-5 h-5" />
                 <span style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Zero extra work required</span>
               </div>
             </div>
@@ -153,7 +153,7 @@ const HomePage = () => {
             <div className="space-y-6 md:order-1 order-2">
               <div className="flex items-center space-x-3">
                 <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center">
-                  <Target className="w-6 h-6 text-white" />
+                  <FireIcon className="w-6 h-6 text-white" />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                   Gamified Learning Journey
@@ -199,7 +199,7 @@ const HomePage = () => {
             <div className="space-y-6">
               <div className="flex items-center space-x-3">
                 <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center">
-                  <Heart className="w-6 h-6 text-white" />
+                  <HeartIcon className="w-6 h-6 text-white" />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                   Parent Dashboard & Family Engagement
@@ -343,7 +343,7 @@ const HomePage = () => {
               className="inline-flex items-center bg-gradient-primary text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
-              <BookOpen className="mr-2 w-5 h-5" />
+              <BookOpenIcon className="mr-2 w-5 h-5" />
               Create Free Account
             </Link>
           </div>
@@ -381,7 +381,7 @@ const HomePage = () => {
 
               <div className="space-y-4">
                 <div className="flex items-start">
-                  <CheckCircle className="w-6 h-6 text-optio-purple flex-shrink-0 mt-1 mr-4" />
+                  <CheckCircleIcon className="w-6 h-6 text-optio-purple flex-shrink-0 mt-1 mr-4" />
                   <div>
                     <h3 className="font-bold text-gray-900 text-lg mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                       Earn an official high school diploma
@@ -393,7 +393,7 @@ const HomePage = () => {
                 </div>
 
                 <div className="flex items-start">
-                  <CheckCircle className="w-6 h-6 text-optio-purple flex-shrink-0 mt-1 mr-4" />
+                  <CheckCircleIcon className="w-6 h-6 text-optio-purple flex-shrink-0 mt-1 mr-4" />
                   <div>
                     <h3 className="font-bold text-gray-900 text-lg mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                       College admissions ready
@@ -405,7 +405,7 @@ const HomePage = () => {
                 </div>
 
                 <div className="flex items-start">
-                  <CheckCircle className="w-6 h-6 text-optio-purple flex-shrink-0 mt-1 mr-4" />
+                  <CheckCircleIcon className="w-6 h-6 text-optio-purple flex-shrink-0 mt-1 mr-4" />
                   <div>
                     <h3 className="font-bold text-gray-900 text-lg mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                       Portfolio meets transcript
@@ -427,7 +427,7 @@ const HomePage = () => {
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
               Start Your Accredited Journey
-              <ArrowRight className="ml-2 w-5 h-5" />
+              <ArrowRightIcon className="ml-2 w-5 h-5" />
             </Link>
           </div>
         </div>
@@ -452,27 +452,27 @@ const HomePage = () => {
             <h3 className="text-xl font-bold mb-4 text-center" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>What You Get:</h3>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="flex items-start">
-                <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
+                <CheckCircleIcon className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
                 <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Automatic portfolio building with zero friction</span>
               </div>
               <div className="flex items-start">
-                <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
+                <CheckCircleIcon className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
                 <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Gamified quests, XP, and achievement badges</span>
               </div>
               <div className="flex items-start">
-                <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
+                <CheckCircleIcon className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
                 <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Parent dashboard for rhythm tracking</span>
               </div>
               <div className="flex items-start">
-                <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
+                <CheckCircleIcon className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
                 <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Family observer access for extended support</span>
               </div>
               <div className="flex items-start">
-                <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
+                <CheckCircleIcon className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
                 <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>24/7 AI tutor for learning support</span>
               </div>
               <div className="flex items-start">
-                <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
+                <CheckCircleIcon className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
                 <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Professional showcase pages for colleges</span>
               </div>
             </div>
@@ -484,7 +484,7 @@ const HomePage = () => {
               className="inline-flex items-center bg-white text-optio-purple hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
-              <BookOpen className="mr-2 w-5 h-5" />
+              <BookOpenIcon className="mr-2 w-5 h-5" />
               Create Free Account
             </Link>
 
@@ -514,7 +514,7 @@ const HomePage = () => {
                 <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                   How does the automatic portfolio work?
                 </h3>
-                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 0 ? 'rotate-180' : ''}`} />
+                <ChevronDownIcon className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 0 ? 'rotate-180' : ''}`} />
               </button>
               {openFaq === 0 && (
                 <div className="px-6 pb-4">
@@ -534,7 +534,7 @@ const HomePage = () => {
                 <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                   What are quests and how do we create them?
                 </h3>
-                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 1 ? 'rotate-180' : ''}`} />
+                <ChevronDownIcon className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 1 ? 'rotate-180' : ''}`} />
               </button>
               {openFaq === 1 && (
                 <div className="px-6 pb-4">
@@ -554,7 +554,7 @@ const HomePage = () => {
                 <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                   Can extended family members see my child's work?
                 </h3>
-                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 2 ? 'rotate-180' : ''}`} />
+                <ChevronDownIcon className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 2 ? 'rotate-180' : ''}`} />
               </button>
               {openFaq === 2 && (
                 <div className="px-6 pb-4">
@@ -574,7 +574,7 @@ const HomePage = () => {
                 <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                   How do we use this if we're already homeschooling?
                 </h3>
-                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 3 ? 'rotate-180' : ''}`} />
+                <ChevronDownIcon className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 3 ? 'rotate-180' : ''}`} />
               </button>
               {openFaq === 3 && (
                 <div className="px-6 pb-4">
@@ -594,7 +594,7 @@ const HomePage = () => {
                 <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                   What happens to the work my child has already done?
                 </h3>
-                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 4 ? 'rotate-180' : ''}`} />
+                <ChevronDownIcon className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 4 ? 'rotate-180' : ''}`} />
               </button>
               {openFaq === 4 && (
                 <div className="px-6 pb-4">
@@ -651,7 +651,7 @@ const HomePage = () => {
                 className="bg-gradient-primary text-white hover:shadow-lg text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center transform hover:scale-105"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
-                <BookOpen className="mr-2 w-5 h-5" aria-hidden="true" />
+                <BookOpenIcon className="mr-2 w-5 h-5" aria-hidden="true" />
                 Create Free Account
               </Link>
               <Link
@@ -659,7 +659,7 @@ const HomePage = () => {
                 className="bg-white border-2 border-optio-purple text-optio-purple hover:bg-optio-purple hover:text-white text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
-                <Play className="mr-2 w-5 h-5" aria-hidden="true" />
+                <PlayIcon className="mr-2 w-5 h-5" aria-hidden="true" />
                 Try Demo First
               </Link>
             </div>
@@ -678,7 +678,7 @@ const HomePage = () => {
                 className="text-gray-500 hover:text-gray-700"
                 aria-label="Close modal"
               >
-                <X className="w-6 h-6" />
+                <XMarkIcon className="w-6 h-6" />
               </button>
             </div>
 

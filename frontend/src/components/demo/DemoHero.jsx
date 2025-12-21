@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Sparkles } from 'lucide-react';
+import { PlayIcon, SparklesIcon } from '@heroicons/react/24/outline';
 
 const DemoHero = ({ onStart }) => {
   return (
@@ -29,7 +29,7 @@ const DemoHero = ({ onStart }) => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100">
             <div className="w-12 h-12 mx-auto mb-3 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
+              <SparklesIcon className="w-6 h-6 text-white" />
             </div>
             <h3 className="font-bold text-lg text-text-primary mb-2">Choose Quests</h3>
             <p className="text-sm text-gray-600">
@@ -39,7 +39,7 @@ const DemoHero = ({ onStart }) => {
 
           <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100">
             <div className="w-12 h-12 mx-auto mb-3 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
+              <SparklesIcon className="w-6 h-6 text-white" />
             </div>
             <h3 className="font-bold text-lg text-text-primary mb-2">Create Evidence</h3>
             <p className="text-sm text-gray-600">
@@ -49,7 +49,7 @@ const DemoHero = ({ onStart }) => {
 
           <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100">
             <div className="w-12 h-12 mx-auto mb-3 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
+              <SparklesIcon className="w-6 h-6 text-white" />
             </div>
             <h3 className="font-bold text-lg text-text-primary mb-2">Celebrate Growth</h3>
             <p className="text-sm text-gray-600">
@@ -67,7 +67,7 @@ const DemoHero = ({ onStart }) => {
                      hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
           >
             <span className="flex items-center gap-3">
-              <Play className="w-6 h-6 group-hover:animate-pulse" />
+              <PlayIcon className="w-6 h-6 group-hover:animate-pulse" />
               Start Your 2-Minute Adventure
             </span>
 

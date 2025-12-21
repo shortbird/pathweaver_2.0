@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Search, ChevronRight, Loader } from 'lucide-react'
+import { XMarkIcon, MagnifyingGlassIcon, ChevronRightIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import AdvisorTaskForm from './AdvisorTaskForm'
@@ -84,14 +84,14 @@ const QuestSelectionModal = ({ student, onClose }) => {
             onClick={onClose}
             className="p-2 hover:bg-white/20 rounded-full text-white"
           >
-            <X size={24} />
+            <XMarkIcon size={24} />
           </button>
         </div>
 
         {/* Search Bar */}
         <div className="p-4 border-b bg-gray-50">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
               placeholder="Search quests..."
@@ -106,7 +106,7 @@ const QuestSelectionModal = ({ student, onClose }) => {
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader className="animate-spin text-optio-purple" size={32} />
+              <ArrowPathIcon className="animate-spin text-optio-purple" size={32} />
             </div>
           ) : (
             <div className="space-y-6">
@@ -146,7 +146,7 @@ const QuestSelectionModal = ({ student, onClose }) => {
                               )}
                             </div>
                           </div>
-                          <ChevronRight className="text-optio-purple group-hover:translate-x-1 transition-transform" size={20} />
+                          <ChevronRightIcon className="text-optio-purple group-hover:translate-x-1 transition-transform" size={20} />
                         </div>
                       </div>
                     ))}
@@ -179,7 +179,7 @@ const QuestSelectionModal = ({ student, onClose }) => {
                               Student will be auto-enrolled when you add tasks
                             </p>
                           </div>
-                          <ChevronRight className="text-gray-400 group-hover:text-optio-purple group-hover:translate-x-1 transition-all" size={20} />
+                          <ChevronRightIcon className="text-gray-400 group-hover:text-optio-purple group-hover:translate-x-1 transition-all" size={20} />
                         </div>
                       </div>
                     ))}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Sparkles, Lightbulb, TrendingUp, AlertCircle, CheckCircle, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
+import { SparklesIcon, LightBulbIcon, ArrowTrendingUpIcon, ExclamationCircleIcon, CheckCircleIcon, ArrowPathIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { toast } from 'react-hot-toast'
 
@@ -123,7 +123,7 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
   if (!title?.trim() || !description?.trim()) {
     return (
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-        <Lightbulb className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+        <LightBulbIcon className="h-8 w-8 text-gray-400 mx-auto mb-2" />
         <p className="text-gray-600 text-sm">
           Fill in the title and description to get AI-powered suggestions
         </p>
@@ -142,12 +142,12 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
         >
           {loading ? (
             <>
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <ArrowPathIcon className="h-5 w-5 animate-spin" />
               <span>Getting AI Suggestions...</span>
             </>
           ) : (
             <>
-              <Sparkles className="h-5 w-5" />
+              <SparklesIcon className="h-5 w-5" />
               <span>Get AI Suggestions</span>
             </>
           )}
@@ -158,7 +158,7 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
       {loading && suggestions === null && (
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
           <div className="flex items-center space-x-3">
-            <Loader2 className="h-5 w-5 text-optio-purple animate-spin" />
+            <ArrowPathIcon className="h-5 w-5 text-optio-purple animate-spin" />
             <span className="text-purple-800 font-medium">Analyzing your quest idea...</span>
           </div>
         </div>
@@ -168,7 +168,7 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
       {suggestions && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-start space-x-3">
-            <Lightbulb className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <LightBulbIcon className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
             <div>
               <h4 className="font-medium text-blue-900 mb-1">AI Assessment</h4>
               <p className="text-sm text-blue-700">{suggestions.overall_assessment}</p>
@@ -181,7 +181,7 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
       {suggestions?.strengths && suggestions.strengths.length > 0 && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <div className="flex items-start space-x-3">
-            <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+            <CheckCircleIcon className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
             <div className="flex-1">
               <h4 className="font-medium text-green-900 mb-2">What's Great</h4>
               <ul className="space-y-1">
@@ -205,13 +205,13 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
             className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
           >
             <div className="flex items-center space-x-2">
-              <TrendingUp className="h-5 w-5 text-optio-purple" />
+              <ArrowTrendingUpIcon className="h-5 w-5 text-optio-purple" />
               <h4 className="font-medium text-gray-900">Suggested Improvements</h4>
             </div>
             {expandedSections.improvements ? (
-              <ChevronUp className="h-5 w-5 text-gray-400" />
+              <ChevronUpIcon className="h-5 w-5 text-gray-400" />
             ) : (
-              <ChevronDown className="h-5 w-5 text-gray-400" />
+              <ChevronDownIcon className="h-5 w-5 text-gray-400" />
             )}
           </button>
 
@@ -269,13 +269,13 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
             className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
           >
             <div className="flex items-center space-x-2">
-              <Sparkles className="h-5 w-5 text-optio-purple" />
+              <SparklesIcon className="h-5 w-5 text-optio-purple" />
               <h4 className="font-medium text-gray-900">Learning Pillar Recommendations</h4>
             </div>
             {expandedSections.pillars ? (
-              <ChevronUp className="h-5 w-5 text-gray-400" />
+              <ChevronUpIcon className="h-5 w-5 text-gray-400" />
             ) : (
-              <ChevronDown className="h-5 w-5 text-gray-400" />
+              <ChevronDownIcon className="h-5 w-5 text-gray-400" />
             )}
           </button>
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { XMarkIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 
 const ServiceFormModal = ({ service, isCreating, onClose }) => {
@@ -114,7 +114,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
           aria-label="Close modal"
         >
-          <X className="w-6 h-6" />
+          <XMarkIcon className="w-6 h-6" />
         </button>
 
         <h2 className="text-2xl font-bold text-gray-900 mb-6">
@@ -263,7 +263,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
                     onClick={() => handleRemoveFeature(index)}
                     className="text-red-600 hover:text-red-800"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <TrashIcon className="w-4 h-4" />
                   </button>
                 </div>
               ))}
@@ -288,7 +288,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
                   onClick={handleAddFeature}
                   className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
                 >
-                  <Plus className="w-5 h-5" />
+                  <PlusIcon className="w-5 h-5" />
                 </button>
               </div>
             </div>

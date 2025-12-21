@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import api, { adminParentConnectionsAPI } from '../../services/api'
 import toast from 'react-hot-toast'
-import { X, UserPlus, Users, Search, CheckCircle, XCircle, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { XMarkIcon, UsersIcon, MagnifyingGlassIcon, CheckCircleIcon, XCircleIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline'
 
 const AdminConnections = () => {
   const [loading, setLoading] = useState(true)
@@ -280,7 +280,7 @@ const AdminConnections = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 rounded-lg text-white shadow-md">
           <div className="flex items-center gap-3">
-            <Users className="w-10 h-10" />
+            <UsersIcon className="w-10 h-10" />
             <div>
               <p className="text-sm opacity-90" style={{ fontFamily: 'Poppins, sans-serif' }}>Advisor-Student</p>
               <p className="text-3xl font-bold" style={{ fontFamily: 'Poppins, sans-serif' }}>{advisors.length}</p>
@@ -310,7 +310,7 @@ const AdminConnections = () => {
 
         {advisors.length === 0 ? (
           <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
-            <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <UsersIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
             <p style={{ fontFamily: 'Poppins, sans-serif' }}>No advisors or admins found</p>
             <p className="text-sm mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>Create users with the "advisor" or "admin" role first</p>
           </div>
@@ -343,9 +343,9 @@ const AdminConnections = () => {
                       {advisor.assigned_students_count || 0} students
                     </span>
                     {expandedAdvisorId === advisor.id ? (
-                      <ChevronUp className="w-5 h-5 text-gray-400" />
+                      <ChevronUpIcon className="w-5 h-5 text-gray-400" />
                     ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-400" />
+                      <ChevronDownIcon className="w-5 h-5 text-gray-400" />
                     )}
                   </div>
                 </button>
@@ -429,7 +429,7 @@ const AdminConnections = () => {
         {/* Search Bar */}
         <div className="mb-6">
           <div className="relative">
-            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               value={searchTerm}
@@ -499,7 +499,7 @@ const AdminConnections = () => {
                           className="inline-flex items-center px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
                           style={{ fontFamily: 'Poppins, sans-serif' }}
                         >
-                          <Trash2 className="w-4 h-4 mr-1" />
+                          <TrashIcon className="w-4 h-4 mr-1" />
                           Disconnect
                         </button>
                       </td>
@@ -520,7 +520,7 @@ const AdminConnections = () => {
         >
           <div className="px-6 py-4 border-b">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
                 value={searchTerm}
@@ -608,7 +608,7 @@ const AdminConnections = () => {
                 ) : (
                   <>
                     <div className="relative mb-3">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <input
                         type="text"
                         value={searchTerm}
@@ -672,7 +672,7 @@ const AdminConnections = () => {
                                 onClick={() => toggleStudentSelection(student.id)}
                                 className="text-red-600 hover:text-red-800"
                               >
-                                <X className="w-3 h-3" />
+                                <XMarkIcon className="w-3 h-3" />
                               </button>
                             </span>
                           ))}
@@ -680,7 +680,7 @@ const AdminConnections = () => {
                     </div>
                   )}
                   <div className="relative mb-3">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="text"
                       value={searchTerm}
@@ -717,7 +717,7 @@ const AdminConnections = () => {
                                 : 'border-gray-300'
                             }`}>
                               {selectedStudentIds.includes(student.id) && (
-                                <CheckCircle className="w-4 h-4 text-white" />
+                                <CheckCircleIcon className="w-4 h-4 text-white" />
                               )}
                             </div>
                             <div className="flex-1">
@@ -818,7 +818,7 @@ const Modal = ({ title, children, onClose, onConfirm, confirmText, confirmClass 
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
-            <X className="w-5 h-5" />
+            <XMarkIcon className="w-5 h-5" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">

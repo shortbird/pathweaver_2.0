@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, AlertCircle } from 'lucide-react'
+import { XMarkIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 
@@ -112,7 +112,7 @@ const BadgeForm = ({ mode = 'create', badge = null, onClose, onSuccess }) => {
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full"
           >
-            <X size={24} />
+            <XMarkIcon size={24} />
           </button>
         </div>
 
@@ -153,7 +153,7 @@ const BadgeForm = ({ mode = 'create', badge = null, onClose, onSuccess }) => {
               {errors.name && (
                 <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <p className="text-red-700 text-sm flex items-center">
-                    <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+                    <ExclamationCircleIcon size={16} className="mr-2 flex-shrink-0" />
                     {errors.name}
                   </p>
                 </div>
@@ -185,7 +185,7 @@ const BadgeForm = ({ mode = 'create', badge = null, onClose, onSuccess }) => {
               {errors.identity_statement && (
                 <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <p className="text-red-700 text-sm flex items-center">
-                    <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+                    <ExclamationCircleIcon size={16} className="mr-2 flex-shrink-0" />
                     {errors.identity_statement}
                   </p>
                 </div>
@@ -217,7 +217,7 @@ const BadgeForm = ({ mode = 'create', badge = null, onClose, onSuccess }) => {
               {errors.description && (
                 <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <p className="text-red-700 text-sm flex items-center">
-                    <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+                    <ExclamationCircleIcon size={16} className="mr-2 flex-shrink-0" />
                     {errors.description}
                   </p>
                 </div>

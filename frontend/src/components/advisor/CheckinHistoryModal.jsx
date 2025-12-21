@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X } from 'lucide-react'
+import { XMarkIcon } from '@heroicons/react/24/outline'
 import { checkinAPI } from '../../services/api'
 
 const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
@@ -60,7 +60,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
               onClick={onClose}
               className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
             >
-              <X size={24} />
+              <XMarkIcon size={24} />
             </button>
           </div>
         </div>

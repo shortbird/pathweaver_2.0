@@ -1,4 +1,4 @@
-import { BookOpen, Calendar, CheckCircle, Clock, MessageSquare, Target, UserCheck, Users } from 'lucide-react'
+import { BookOpenIcon, CalendarIcon, CheckCircleIcon, ClockIcon, ChatBubbleLeftRightIcon, FireIcon, UsersIcon } from '@heroicons/react/24/outline'
 import LandingPageHero from '../components/landing/LandingPageHero'
 import LandingPageForm from '../components/landing/LandingPageForm'
 import FeatureGrid from '../components/landing/FeatureGrid'
@@ -21,27 +21,27 @@ const TeacherConsultationPage = () => {
       description: 'Work with experienced, state-licensed educators who understand both traditional and alternative learning approaches.',
     },
     {
-      icon: <Target className="w-8 h-8 text-white" />,
+      icon: <FireIcon className="w-8 h-8 text-white" />,
       title: 'Personalized Curriculum Planning',
       description: 'Get a custom learning plan tailored to your child\'s interests, goals, learning style, and family schedule.',
     },
     {
-      icon: <BookOpen className="w-8 h-8 text-white" />,
+      icon: <BookOpenIcon className="w-8 h-8 text-white" />,
       title: 'Resource Recommendations',
       description: 'Discover the best curricula, online courses, books, and activities for your student\'s unique needs.',
     },
     {
-      icon: <Calendar className="w-8 h-8 text-white" />,
+      icon: <CalendarIcon className="w-8 h-8 text-white" />,
       title: 'Flexible Scheduling',
       description: 'Create realistic learning schedules that work with your family\'s lifestyle, not against it.',
     },
     {
-      icon: <CheckCircle className="w-8 h-8 text-white" />,
+      icon: <CheckCircleIcon className="w-8 h-8 text-white" />,
       title: 'Progress Monitoring Support',
       description: 'Learn strategies to track progress, assess learning, and adjust your plan as your student grows.',
     },
     {
-      icon: <MessageSquare className="w-8 h-8 text-white" />,
+      icon: <ChatBubbleLeftRightIcon className="w-8 h-8 text-white" />,
       title: 'Ongoing Advisor Access',
       description: 'Continue working with your advisor through Optio for check-ins, adjustments, and continued support (premium feature).',
     },
@@ -170,7 +170,7 @@ const TeacherConsultationPage = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <Clock className="w-12 h-12 text-optio-purple mb-4" />
+              <ClockIcon className="w-12 h-12 text-optio-purple mb-4" />
               <h3
                 className="text-xl text-gray-900 mb-3"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
@@ -186,7 +186,7 @@ const TeacherConsultationPage = () => {
             </div>
 
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <Target className="w-12 h-12 text-optio-pink mb-4" />
+              <FireIcon className="w-12 h-12 text-optio-pink mb-4" />
               <h3
                 className="text-xl text-gray-900 mb-3"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
@@ -202,7 +202,7 @@ const TeacherConsultationPage = () => {
             </div>
 
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <Users className="w-12 h-12 text-optio-purple mb-4" />
+              <UsersIcon className="w-12 h-12 text-optio-purple mb-4" />
               <h3
                 className="text-xl text-gray-900 mb-3"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
@@ -218,7 +218,7 @@ const TeacherConsultationPage = () => {
             </div>
 
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <CheckCircle className="w-12 h-12 text-optio-pink mb-4" />
+              <CheckCircleIcon className="w-12 h-12 text-optio-pink mb-4" />
               <h3
                 className="text-xl text-gray-900 mb-3"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}

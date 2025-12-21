@@ -1,4 +1,4 @@
-import { BarChart3, BookCheck, Calendar, Eye, FileText, FolderOpen, Layout, Link2, Sparkles, Users } from 'lucide-react'
+import { CalendarIcon, EyeIcon, DocumentTextIcon, FolderOpenIcon, ViewColumnsIcon, LinkIcon, SparklesIcon, UsersIcon } from '@heroicons/react/24/outline'
 import LandingPageHero from '../components/landing/LandingPageHero'
 import LandingPageForm from '../components/landing/LandingPageForm'
 import FeatureGrid from '../components/landing/FeatureGrid'
@@ -16,32 +16,32 @@ const HomeschoolPortfolioPage = () => {
 
   const features = [
     {
-      icon: <Layout className="w-8 h-8 text-white" />,
+      icon: <ViewColumnsIcon className="w-8 h-8 text-white" />,
       title: 'Unified Learning Dashboard',
       description: 'One beautiful place to track all learning activities, from Khan Academy to nature walks to piano lessons.',
     },
     {
-      icon: <Link2 className="w-8 h-8 text-white" />,
+      icon: <LinkIcon className="w-8 h-8 text-white" />,
       title: 'Multi-Source Integration',
       description: 'Combine online courses, textbooks, field trips, volunteer work, and real-world projects into one coherent portfolio.',
     },
     {
-      icon: <FolderOpen className="w-8 h-8 text-white" />,
+      icon: <FolderOpenIcon className="w-8 h-8 text-white" />,
       title: 'Evidence Upload System',
       description: 'Upload photos, videos, documents, and links as evidence. Build rich documentation of your child\'s learning journey.',
     },
     {
-      icon: <Eye className="w-8 h-8 text-white" />,
+      icon: <EyeIcon className="w-8 h-8 text-white" />,
       title: 'Parent Oversight Tools',
       description: 'Monitor progress, review completed work, and guide your student\'s learning without micromanaging.',
     },
     {
-      icon: <FileText className="w-8 h-8 text-white" />,
+      icon: <DocumentTextIcon className="w-8 h-8 text-white" />,
       title: 'Automatic Transcript Generation',
       description: 'Generate professional transcripts that translate your diverse homeschool curriculum into traditional credits.',
     },
     {
-      icon: <Sparkles className="w-8 h-8 text-white" />,
+      icon: <SparklesIcon className="w-8 h-8 text-white" />,
       title: 'Beautiful Public Portfolio',
       description: 'Share a stunning portfolio with colleges showcasing projects, skills, and evidence of learning.',
     },
@@ -51,12 +51,12 @@ const HomeschoolPortfolioPage = () => {
       description: 'Visualize learning across five skill pillars (STEM, Arts, Communication, Wellness, Civics) with XP and badges.',
     },
     {
-      icon: <Calendar className="w-8 h-8 text-white" />,
+      icon: <CalendarIcon className="w-8 h-8 text-white" />,
       title: 'Learning Calendar',
       description: 'Plan upcoming activities, set goals, and track completion of quests and projects over time.',
     },
     {
-      icon: <Users className="w-8 h-8 text-white" />,
+      icon: <UsersIcon className="w-8 h-8 text-white" />,
       title: 'Family Engagement',
       description: 'Invite grandparents, advisors, and tutors to follow along and celebrate your student\'s progress.',
     },

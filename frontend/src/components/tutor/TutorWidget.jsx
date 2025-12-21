@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, MessageSquare, X, HelpCircle } from 'lucide-react';
+import { ChatBubbleLeftRightIcon, XMarkIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 import ChatInterface from './ChatInterface';
 import OptioBotModal from './OptioBotModal';
 import api from '../../services/api';
@@ -233,7 +233,7 @@ export const QuestTutorHelper = ({ quest, currentTask }) => {
           onClick={() => setShowInlineHelp(false)}
           className="text-gray-400 hover:text-gray-600"
         >
-          <X className="w-4 h-4" />
+          <XMarkIcon className="w-4 h-4" />
         </button>
       </div>
 

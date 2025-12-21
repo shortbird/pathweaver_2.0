@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Plus, CheckCircle, Circle, TrendingUp, X } from 'lucide-react';
+import { PlusIcon, CheckCircleIcon, ArrowTrendingUpIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { getPillarData } from '../../utils/pillarMappings';
 import TaskDisplayModeToggle from './TaskDisplayModeToggle';
 import toast from 'react-hot-toast';
@@ -88,7 +88,7 @@ const TaskCard = ({ task, index, isSelected, displayMode, onClick, onRemove }) =
                 `}
                 style={!isCompleted ? { backgroundColor: pillarData.color } : {}}
               >
-                {isCompleted ? <CheckCircle className="w-4 h-4" /> : index + 1}
+                {isCompleted ? <CheckCircleIcon className="w-4 h-4" /> : index + 1}
               </div>
             ) : (
               // Flexible mode: Show status icon
@@ -117,7 +117,7 @@ const TaskCard = ({ task, index, isSelected, displayMode, onClick, onRemove }) =
               className="flex-shrink-0 ml-2 p-1 rounded-full hover:bg-red-100 transition-colors group"
               title="Remove task"
             >
-              <X className="w-4 h-4 text-gray-400 group-hover:text-red-600" />
+              <XMarkIcon className="w-4 h-4 text-gray-400 group-hover:text-red-600" />
             </button>
           )}
         </div>
@@ -261,7 +261,7 @@ const TaskTimeline = ({
           className="w-full py-3 border-2 border-dashed border-gray-400 rounded-lg hover:border-optio-purple hover:bg-purple-50 transition-all flex items-center justify-center gap-2 text-gray-700 hover:text-optio-purple"
           style={{ fontFamily: 'Poppins' }}
         >
-          <Plus className="w-5 h-5" />
+          <PlusIcon className="w-5 h-5" />
           <span className="font-semibold">Add Task</span>
         </button>
       </div>

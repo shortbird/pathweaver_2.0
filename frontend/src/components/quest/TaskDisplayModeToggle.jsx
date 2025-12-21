@@ -1,4 +1,4 @@
-import { ArrowDownUp, Grid3x3 } from 'lucide-react';
+;
 
 const TaskDisplayModeToggle = ({ mode, onModeChange }) => {
   return (

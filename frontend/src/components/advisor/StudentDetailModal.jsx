@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, User, TrendingUp, Target, Loader } from 'lucide-react';
+import { XMarkIcon, UserIcon, ArrowTrendingUpIcon, FireIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import StudentTasksPanel from './StudentTasksPanel';
 import api from '../../services/api';
 
@@ -133,7 +133,7 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
               />
             ) : (
               <div className="w-12 h-12 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center">
-                <User className="w-6 h-6 text-white" />
+                <UserIcon className="w-6 h-6 text-white" />
               </div>
             )}
             <div>
@@ -146,7 +146,7 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
             className="text-gray-400 hover:text-gray-600 transition-colors"
             aria-label="Close modal"
           >
-            <X className="w-6 h-6" />
+            <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
 
@@ -188,7 +188,7 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-4 text-white">
                   <div className="flex items-center space-x-3">
-                    <Target className="w-8 h-8" />
+                    <FireIcon className="w-8 h-8" />
                     <div>
                       <p className="text-sm opacity-90">Total XP</p>
                       <p className="text-2xl font-bold">{student.total_xp || 0}</p>
@@ -198,7 +198,7 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
 
                 <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-4 text-white">
                   <div className="flex items-center space-x-3">
-                    <TrendingUp className="w-8 h-8" />
+                    <ArrowTrendingUpIcon className="w-8 h-8" />
                     <div>
                       <p className="text-sm opacity-90">Quests Completed</p>
                       <p className="text-2xl font-bold">{student.quest_count || 0}</p>
@@ -208,7 +208,7 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
 
                 <div className="bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg p-4 text-white">
                   <div className="flex items-center space-x-3">
-                    <User className="w-8 h-8" />
+                    <UserIcon className="w-8 h-8" />
                     <div>
                       <p className="text-sm opacity-90">Level</p>
                       <p className="text-2xl font-bold">{student.level || 1}</p>
@@ -247,7 +247,7 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
             <div className="space-y-4">
               {loading && (
                 <div className="flex items-center justify-center py-12">
-                  <Loader className="w-8 h-8 text-optio-purple animate-spin" />
+                  <ArrowPathIcon className="w-8 h-8 text-optio-purple animate-spin" />
                 </div>
               )}
 

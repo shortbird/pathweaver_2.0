@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { Alert } from './Alert'
-import { Star } from 'lucide-react'
+import { StarIcon } from '@heroicons/react/24/outline'
 
 describe('Alert Component', () => {
   describe('Basic Rendering', () => {
@@ -84,7 +84,7 @@ describe('Alert Component', () => {
 
     it('renders custom icon when provided', () => {
       const { container } = render(
-        <Alert icon={<Star data-testid="custom-icon" />}>
+        <Alert icon={<StarIcon data-testid="custom-icon" />}>
           Custom icon alert
         </Alert>
       )

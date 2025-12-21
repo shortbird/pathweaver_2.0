@@ -1,5 +1,5 @@
 import React from 'react';
-import { Heart, Calendar, MessageCircle, TrendingUp } from 'lucide-react';
+import { HeartIcon, CalendarIcon, ChatBubbleLeftIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline';
 
 const ParentDashboardPreview = () => {
   const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -10,7 +10,7 @@ const ParentDashboardPreview = () => {
       {/* Header */}
       <div className="text-center space-y-2">
         <div className="flex items-center justify-center gap-2">
-          <Heart className="w-8 h-8 text-green-500" />
+          <HeartIcon className="w-8 h-8 text-green-500" />
           <h2 className="text-3xl font-bold text-text-primary">
             Parents Can Cheer You On
           </h2>
@@ -29,7 +29,7 @@ const ParentDashboardPreview = () => {
               <p className="text-sm opacity-90">Parent View</p>
               <h3 className="text-xl font-bold">Sarah's Learning Journey</h3>
             </div>
-            <Heart className="w-6 h-6" />
+            <HeartIcon className="w-6 h-6" />
           </div>
         </div>
 
@@ -40,7 +40,7 @@ const ParentDashboardPreview = () => {
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center animate-pulse">
                 <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-green-500" />
+                  <ArrowTrendingUpIcon className="w-5 h-5 text-green-500" />
                 </div>
               </div>
               <div>
@@ -74,7 +74,7 @@ const ParentDashboardPreview = () => {
           {/* Activity Calendar */}
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <Calendar className="w-5 h-5 text-optio-purple" />
+              <CalendarIcon className="w-5 h-5 text-optio-purple" />
               <h4 className="font-semibold text-gray-800">This Week's Activity</h4>
             </div>
             <div className="grid grid-cols-7 gap-3">
@@ -103,7 +103,7 @@ const ParentDashboardPreview = () => {
           {/* Conversation Starter */}
           <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100">
             <div className="flex items-start gap-3">
-              <MessageCircle className="w-6 h-6 text-optio-purple mt-1" />
+              <ChatBubbleLeftIcon className="w-6 h-6 text-optio-purple mt-1" />
               <div>
                 <h4 className="font-semibold text-gray-800 mb-2">
                   💬 Conversation Starter

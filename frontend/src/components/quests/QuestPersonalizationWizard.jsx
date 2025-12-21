@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Check, Flag, BookOpen } from 'lucide-react';
+import { XMarkIcon, CheckIcon, FlagIcon, BookOpenIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
 import ManualTaskCreator from './ManualTaskCreator';
@@ -333,7 +333,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
               className="w-full p-6 border-2 border-gray-300 rounded-xl hover:border-blue-500 hover:shadow-xl transition-all text-left disabled:opacity-50 group"
             >
               <div className="flex items-center gap-4">
-                <BookOpen className="w-10 h-10 text-blue-500 group-hover:scale-110 transition-transform" />
+                <BookOpenIcon className="w-10 h-10 text-blue-500 group-hover:scale-110 transition-transform" />
                 <div>
                   <h3 className="text-xl font-bold mb-1 group-hover:text-blue-600 transition-colors" style={{ fontFamily: 'Poppins' }}>
                     Add from Task Library
@@ -486,7 +486,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
               className="absolute top-3 left-3 sm:top-6 sm:left-6 p-2 hover:bg-yellow-50 rounded-lg transition-all disabled:opacity-50 group"
               title="Flag this task as inappropriate"
             >
-              <Flag className="w-5 h-5 text-gray-400 group-hover:text-yellow-500 transition-colors" />
+              <FlagIcon className="w-5 h-5 text-gray-400 group-hover:text-yellow-500 transition-colors" />
             </button>
 
             <div className="mb-6 pr-20 sm:pr-24 pl-10 sm:pl-12">
@@ -516,7 +516,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
               disabled={loading}
               className="flex flex-col items-center justify-center p-6 border-2 border-red-300 bg-red-50 rounded-xl hover:bg-red-100 hover:border-red-400 transition-all disabled:opacity-50"
             >
-              <X className="w-12 h-12 text-red-600 mb-2" />
+              <XMarkIcon className="w-12 h-12 text-red-600 mb-2" />
               <span className="font-bold text-lg text-red-700" style={{ fontFamily: 'Poppins' }}>
                 Skip
               </span>
@@ -528,7 +528,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
               disabled={loading}
               className="flex flex-col items-center justify-center p-6 border-2 border-green-300 bg-green-50 rounded-xl hover:bg-green-100 hover:border-green-400 transition-all disabled:opacity-50"
             >
-              <Check className="w-12 h-12 text-green-600 mb-2" />
+              <CheckIcon className="w-12 h-12 text-green-600 mb-2" />
               <span className="font-bold text-lg text-green-700" style={{ fontFamily: 'Poppins' }}>
                 {loading ? 'Adding...' : 'Add'}
               </span>

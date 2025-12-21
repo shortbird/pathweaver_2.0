@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { useIsMounted, useObserver, useDebounceWithCleanup, useSafeAsync } from '../hooks/useMemoryLeakFix';
-import { Info } from 'lucide-react';
+import { InformationCircleIcon } from '@heroicons/react/24/outline';
 import logger from '../utils/logger';
 
 // Import hub components
@@ -483,7 +483,7 @@ const QuestBadgeHub = () => {
               aria-label="Learn about badges and quests"
               title="Learn more about badges and quests"
             >
-              <Info className="w-5 h-5 text-white" />
+              <InformationCircleIcon className="w-5 h-5 text-white" />
             </button>
           </div>
         </div>

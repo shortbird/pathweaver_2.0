@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import { X, Mail } from 'lucide-react';
+import { XMarkIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 
 const RequestStudentConnectionModal = ({ isOpen, onClose }) => {
   if (!isOpen) {
@@ -18,7 +18,7 @@ const RequestStudentConnectionModal = ({ isOpen, onClose }) => {
             onClick={onClose}
             className="text-white hover:text-gray-200 transition-colors"
           >
-            <X className="w-6 h-6" />
+            <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
 
@@ -27,7 +27,7 @@ const RequestStudentConnectionModal = ({ isOpen, onClose }) => {
           {/* Email Icon */}
           <div className="flex justify-center mb-4">
             <div className="w-16 h-16 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
-              <Mail className="w-8 h-8 text-white" />
+              <EnvelopeIcon className="w-8 h-8 text-white" />
             </div>
           </div>
 

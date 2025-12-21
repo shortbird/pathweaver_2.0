@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, Star, Sparkles } from 'lucide-react';
+import { CheckCircleIcon, StarIcon, SparklesIcon } from '@heroicons/react/24/outline';
 
 const ServiceCard = ({ service, onInquire, isFeatured = false }) => {
   return (
@@ -35,9 +35,9 @@ const ServiceCard = ({ service, onInquire, isFeatured = false }) => {
               return (
                 <li key={index} className="flex items-start gap-2">
                   {isProBenefit ? (
-                    <Star className="w-5 h-5 text-[#EF597B] flex-shrink-0 mt-0.5 fill-current" />
+                    <StarIcon className="w-5 h-5 text-[#EF597B] flex-shrink-0 mt-0.5 fill-current" />
                   ) : (
-                    <CheckCircle className="w-5 h-5 text-[#6D469B] flex-shrink-0 mt-0.5" />
+                    <CheckCircleIcon className="w-5 h-5 text-[#6D469B] flex-shrink-0 mt-0.5" />
                   )}
                   <span
                     className={`text-sm ${isProBenefit ? 'text-[#EF597B] font-semibold' : 'text-gray-700'}`}

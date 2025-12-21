@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, LogOut, ChevronUp, ChevronDown } from 'lucide-react';
+import { ExclamationTriangleIcon, ArrowLeftOnRectangleIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 /**
  * MasqueradeBanner - Floating badge shown during admin masquerade sessions
@@ -20,11 +20,11 @@ const MasqueradeBanner = ({ targetUser, onExit }) => {
           onClick={() => setIsExpanded(true)}
           className="flex items-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-4 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all hover:scale-105"
         >
-          <AlertTriangle className="w-5 h-5 animate-pulse" />
+          <ExclamationTriangleIcon className="w-5 h-5 animate-pulse" />
           <span className="font-semibold text-sm">
             Masquerading
           </span>
-          <ChevronUp className="w-4 h-4" />
+          <ChevronUpIcon className="w-4 h-4" />
         </button>
       )}
 
@@ -33,7 +33,7 @@ const MasqueradeBanner = ({ targetUser, onExit }) => {
         <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg shadow-lg p-4 min-w-[280px] sm:min-w-[320px]">
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+              <ExclamationTriangleIcon className="w-5 h-5 flex-shrink-0" />
               <span className="font-semibold text-sm">
                 Masquerade Mode
               </span>
@@ -42,7 +42,7 @@ const MasqueradeBanner = ({ targetUser, onExit }) => {
               onClick={() => setIsExpanded(false)}
               className="text-white/80 hover:text-white transition-colors"
             >
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDownIcon className="w-4 h-4" />
             </button>
           </div>
 
@@ -71,7 +71,7 @@ const MasqueradeBanner = ({ targetUser, onExit }) => {
             onClick={onExit}
             className="w-full flex items-center justify-center gap-2 bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 rounded-lg font-semibold transition-colors shadow-md"
           >
-            <LogOut className="w-4 h-4" />
+            <ArrowLeftOnRectangleIcon className="w-4 h-4" />
             <span>Exit Masquerade</span>
           </button>
         </div>

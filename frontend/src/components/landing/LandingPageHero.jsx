@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRightIcon } from '@heroicons/react/24/outline'
 
 const LandingPageHero = ({
   title,
@@ -149,7 +149,7 @@ const LandingPageHero = ({
             style={{ fontFamily: 'Poppins', fontWeight: 700 }}
           >
             {ctaText}
-            <ArrowRight className="ml-2 w-4 h-4 md:w-5 md:h-5" />
+            <ArrowRightIcon className="ml-2 w-4 h-4 md:w-5 md:h-5" />
           </button>
 
           {secondaryCta && (

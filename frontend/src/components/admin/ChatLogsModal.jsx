@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { MessageSquare, Calendar, User, Bot } from 'lucide-react'
+import { ChatBubbleLeftRightIcon, CalendarIcon, UserIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import { renderMarkdown } from '../../utils/markdownRenderer'
@@ -80,7 +80,7 @@ const ChatLogsModal = ({ user, onClose }) => {
       size="xl"
       header={
         <div className="flex items-center gap-3">
-          <MessageSquare className="w-6 h-6 text-white" />
+          <ChatBubbleLeftRightIcon className="w-6 h-6 text-white" />
           <div>
             <h2 className="text-2xl font-bold text-white">Chat Logs</h2>
             <p className="text-white/80 text-sm">
@@ -108,7 +108,7 @@ const ChatLogsModal = ({ user, onClose }) => {
                 </div>
               ) : conversations.length === 0 ? (
                 <div className="text-center p-8">
-                  <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <ChatBubbleLeftRightIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500">No conversations found</p>
                 </div>
               ) : (
@@ -131,11 +131,11 @@ const ChatLogsModal = ({ user, onClose }) => {
                       </div>
                       <div className="text-xs text-gray-500 space-y-1">
                         <div className="flex items-center space-x-1">
-                          <Calendar className="w-3 h-3" />
+                          <CalendarIcon className="w-3 h-3" />
                           <span>{formatDate(conv.created_at)}</span>
                         </div>
                         <div className="flex items-center space-x-1">
-                          <MessageSquare className="w-3 h-3" />
+                          <ChatBubbleLeftRightIcon className="w-3 h-3" />
                           <span>{conv.message_count || 0} messages</span>
                         </div>
                         {!conv.is_active && (
@@ -177,7 +177,7 @@ const ChatLogsModal = ({ user, onClose }) => {
                     </div>
                   ) : messages.length === 0 ? (
                     <div className="text-center py-12">
-                      <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                      <ChatBubbleLeftRightIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                       <p className="text-gray-500">No messages in this conversation</p>
                     </div>
                   ) : (
@@ -198,7 +198,7 @@ const ChatLogsModal = ({ user, onClose }) => {
                               <Bot className="w-4 h-4 text-optio-purple flex-shrink-0 mt-0.5" />
                             )}
                             {message.role === 'user' && (
-                              <User className="w-4 h-4 text-white flex-shrink-0 mt-0.5" />
+                              <UserIcon className="w-4 h-4 text-white flex-shrink-0 mt-0.5" />
                             )}
                             <div className="flex-1">
                               <div className="prose prose-sm max-w-none">
@@ -225,7 +225,7 @@ const ChatLogsModal = ({ user, onClose }) => {
             ) : (
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
-                  <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <ChatBubbleLeftRightIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Conversation</h3>
                   <p className="text-gray-500">Choose a conversation from the list to view messages</p>
                 </div>

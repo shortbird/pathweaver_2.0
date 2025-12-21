@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
-import { Users, BookOpen, Award, AlertCircle, Plus, UserPlus, FileText } from 'lucide-react'
+import { UsersIcon, BookOpenIcon, TrophyIcon, ExclamationCircleIcon, PlusIcon, DocumentTextIcon } from '@heroicons/react/24/outline'
 
 const AdminOverview = () => {
   const navigate = useNavigate()
@@ -63,25 +63,25 @@ const AdminOverview = () => {
         <StatCard
           title="Total Students"
           value={stats?.total_users || 0}
-          icon={<Users className="w-8 h-8" />}
+          icon={<UsersIcon className="w-8 h-8" />}
           gradient="from-blue-500 to-blue-600"
         />
         <StatCard
           title="Active Quests"
           value={stats?.active_quests || 0}
-          icon={<BookOpen className="w-8 h-8" />}
+          icon={<BookOpenIcon className="w-8 h-8" />}
           gradient="from-purple-500 to-purple-600"
         />
         <StatCard
           title="Badges Created"
           value={stats?.total_badges || 0}
-          icon={<Award className="w-8 h-8" />}
+          icon={<TrophyIcon className="w-8 h-8" />}
           gradient="from-pink-500 to-optio-pink"
         />
         <StatCard
           title="Pending Reviews"
           value={stats?.pending_submissions || 0}
-          icon={<AlertCircle className="w-8 h-8" />}
+          icon={<ExclamationCircleIcon className="w-8 h-8" />}
           gradient="from-orange-500 to-orange-600"
         />
       </div>
@@ -93,7 +93,7 @@ const AdminOverview = () => {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <QuickActionButton
-            icon={<Plus className="w-5 h-5" />}
+            icon={<PlusIcon className="w-5 h-5" />}
             label="Create Quest"
             onClick={() => navigate('/admin/quests')}
             color="purple"
@@ -105,7 +105,7 @@ const AdminOverview = () => {
             color="blue"
           />
           <QuickActionButton
-            icon={<FileText className="w-5 h-5" />}
+            icon={<DocumentTextIcon className="w-5 h-5" />}
             label="Review Suggestions"
             onClick={() => navigate('/admin/quests')}
             color="green"
@@ -168,7 +168,7 @@ const AdminOverview = () => {
                   onClick={item.action}
                 >
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-orange-600 mt-0.5" />
+                    <ExclamationCircleIcon className="w-5 h-5 text-orange-600 mt-0.5" />
                     <p className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
                       {item.title}
                     </p>
@@ -225,13 +225,13 @@ const ActivityItem = ({ event }) => {
   const getEventIcon = (type) => {
     switch (type) {
       case 'quest_completion':
-        return <BookOpen className="w-5 h-5 text-green-600" />
+        return <BookOpenIcon className="w-5 h-5 text-green-600" />
       case 'user_signup':
         return <UserPlus className="w-5 h-5 text-blue-600" />
       case 'badge_earned':
-        return <Award className="w-5 h-5 text-optio-purple" />
+        return <TrophyIcon className="w-5 h-5 text-optio-purple" />
       default:
-        return <AlertCircle className="w-5 h-5 text-gray-600" />
+        return <ExclamationCircleIcon className="w-5 h-5 text-gray-600" />
     }
   }
 

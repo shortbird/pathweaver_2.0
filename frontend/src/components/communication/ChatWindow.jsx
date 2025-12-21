@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Bot, User } from 'lucide-react'
+import { UserIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import { useConversationMessages, useSendMessage, useMarkAsRead } from '../../hooks/api/useDirectMessages'
 import ChatInterface from '../tutor/ChatInterface'
@@ -64,7 +64,7 @@ const ChatWindow = ({ conversation, onConversationCreate }) => {
   if (!conversation) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-gray-50">
-        <User className="w-20 h-20 text-gray-300 mb-4" />
+        <UserIcon className="w-20 h-20 text-gray-300 mb-4" />
         <h2 className="text-xl font-semibold text-gray-700 mb-2">No conversation selected</h2>
         <p className="text-gray-500">
           Select a conversation from the list to start messaging

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Plus, Trash2, Check, X as XIcon } from 'lucide-react'
+import { XMarkIcon, PlusIcon, TrashIcon, CheckIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 
@@ -106,7 +106,7 @@ const BadgeQuestManager = ({ badge, onClose, onUpdate }) => {
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full"
           >
-            <X size={24} />
+            <XMarkIcon size={24} />
           </button>
         </div>
 
@@ -117,7 +117,7 @@ const BadgeQuestManager = ({ badge, onClose, onUpdate }) => {
               onClick={() => setShowQuestSelector(!showQuestSelector)}
               className="w-full bg-gradient-primary text-white px-6 py-3 rounded-lg hover:opacity-90 font-semibold flex items-center justify-center gap-2"
             >
-              <Plus size={20} />
+              <PlusIcon size={20} />
               Add Quest to Badge
             </button>
           </div>
@@ -171,7 +171,7 @@ const BadgeQuestManager = ({ badge, onClose, onUpdate }) => {
                         onClick={() => handleLinkQuest(quest.id)}
                         className="ml-4 px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors font-medium text-sm flex items-center gap-2"
                       >
-                        <Plus size={16} />
+                        <PlusIcon size={16} />
                         Add
                       </button>
                     </div>
@@ -245,7 +245,7 @@ const BadgeQuestManager = ({ badge, onClose, onUpdate }) => {
                           >
                             {badgeQuest.is_required ? (
                               <>
-                                <Check size={14} className="mr-1" />
+                                <CheckIcon size={14} className="mr-1" />
                                 Required
                               </>
                             ) : (
@@ -258,7 +258,7 @@ const BadgeQuestManager = ({ badge, onClose, onUpdate }) => {
                             onClick={() => handleUnlinkQuest(badgeQuest.quest_id)}
                             className="text-red-600 hover:text-red-900 inline-flex items-center gap-1"
                           >
-                            <Trash2 size={16} />
+                            <TrashIcon size={16} />
                             Remove
                           </button>
                         </td>

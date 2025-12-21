@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRightIcon } from '@heroicons/react/24/outline';
 
 const ServiceHero = ({ onScrollToServices }) => {
   return (
@@ -40,7 +40,7 @@ const ServiceHero = ({ onScrollToServices }) => {
             style={{ fontFamily: 'Poppins', fontWeight: 600 }}
           >
             Explore Services
-            <ArrowRight className="w-5 h-5" />
+            <ArrowRightIcon className="w-5 h-5" />
           </button>
           <a
             href="/"

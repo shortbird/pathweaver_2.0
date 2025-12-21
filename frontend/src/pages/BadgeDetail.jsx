@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { CheckCircle, Circle, ArrowLeft, Trophy, Target, Zap, Info, Lock } from 'lucide-react';
+import { CheckCircleIcon, ArrowLeftIcon, FireIcon, BoltIcon, InformationCircleIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { BadgePillarIcon } from '../components/badges/BadgePillarIcon';
 import BadgeInfoModal from '../components/badges/BadgeInfoModal';
 import { useAuth } from '../contexts/AuthContext';
@@ -125,7 +125,7 @@ export default function BadgeDetail() {
             onClick={() => navigate('/badges')}
             className="flex items-center text-white hover:text-gray-100 mb-8 transition-colors group"
           >
-            <ArrowLeft className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform" />
+            <ArrowLeftIcon className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform" />
             Back to Badges
           </button>
 
@@ -153,7 +153,7 @@ export default function BadgeDetail() {
                 </div>
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-1">
-                    <Zap className="w-5 h-5" />
+                    <BoltIcon className="w-5 h-5" />
                     <div className="text-3xl font-bold">{badge.min_xp}</div>
                   </div>
                   <div className="text-sm opacity-80">Minimum XP</div>
@@ -179,7 +179,7 @@ export default function BadgeDetail() {
                   className="inline-flex items-center gap-2 bg-white text-purple-700 hover:bg-purple-50 px-4 py-2 rounded-full text-sm font-semibold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                   aria-label="How to earn this badge"
                 >
-                  <Info className="w-4 h-4" />
+                  <InformationCircleIcon className="w-4 h-4" />
                   How to Earn
                 </button>
 
@@ -192,7 +192,7 @@ export default function BadgeDetail() {
                 )}
                 {isActive && !isCompleted && (
                   <div className="bg-green-500 text-white px-5 py-2 rounded-full font-bold text-sm shadow-lg flex items-center gap-2">
-                    <Target className="w-4 h-4" />
+                    <FireIcon className="w-4 h-4" />
                     IN PROGRESS
                   </div>
                 )}
@@ -215,7 +215,7 @@ export default function BadgeDetail() {
         {isActive && userProgress && (
           <div className="bg-white rounded-xl shadow-lg p-8 mb-8 border border-gray-100">
             <div className="flex items-center gap-3 mb-6">
-              <Target className="w-6 h-6 text-optio-purple" />
+              <FireIcon className="w-6 h-6 text-optio-purple" />
               <h2 className="text-2xl font-bold">Your Progress</h2>
             </div>
 
@@ -333,7 +333,7 @@ function QuestListItem({ quest, index, isCompleted, onClick }) {
       <div className="flex-shrink-0 mr-4">
         {isCompleted ? (
           <div className="bg-green-100 rounded-full p-2">
-            <CheckCircle className="w-6 h-6 text-green-600" />
+            <CheckCircleIcon className="w-6 h-6 text-green-600" />
           </div>
         ) : (
           <div className="bg-gray-100 rounded-full p-2 group-hover:bg-purple-50 transition-colors">
@@ -355,7 +355,7 @@ function QuestListItem({ quest, index, isCompleted, onClick }) {
           )}
           {quest.xp_contributed > 0 && (
             <span className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full font-medium flex items-center gap-1">
-              <Zap className="w-3 h-3" />
+              <BoltIcon className="w-3 h-3" />
               {quest.xp_contributed} XP
             </span>
           )}

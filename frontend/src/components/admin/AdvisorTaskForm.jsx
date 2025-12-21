@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Plus, Check, Eye, AlertCircle, Loader } from 'lucide-react'
+import { XMarkIcon, PlusIcon, CheckIcon, EyeIcon, ExclamationCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 
@@ -212,7 +212,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
             onClick={onClose}
             className="p-2 hover:bg-white/20 rounded-full text-white"
           >
-            <X size={24} />
+            <XMarkIcon size={24} />
           </button>
         </div>
 
@@ -228,7 +228,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
             <div className="flex-1 overflow-y-auto p-4">
               {loadingTemplates ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader className="animate-spin text-optio-purple" size={32} />
+                  <ArrowPathIcon className="animate-spin text-optio-purple" size={32} />
                 </div>
               ) : templates.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
@@ -255,7 +255,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                               : 'border-gray-300'
                           }`}>
                             {selectedTemplates.has(template.id) && (
-                              <Check size={14} className="text-white" />
+                              <CheckIcon size={14} className="text-white" />
                             )}
                           </div>
                         </div>
@@ -287,7 +287,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                           className="text-optio-purple hover:text-purple-800 p-1"
                           title="Preview task details"
                         >
-                          <Eye size={18} />
+                          <EyeIcon size={18} />
                         </button>
                       </div>
                     </div>
@@ -335,7 +335,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                   />
                   {errors.title && (
                     <p className="text-red-600 text-sm mt-1 flex items-center">
-                      <AlertCircle size={14} className="mr-1" />
+                      <ExclamationCircleIcon size={14} className="mr-1" />
                       {errors.title}
                     </p>
                   )}
@@ -376,7 +376,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                   </select>
                   {errors.pillar && (
                     <p className="text-red-600 text-sm mt-1 flex items-center">
-                      <AlertCircle size={14} className="mr-1" />
+                      <ExclamationCircleIcon size={14} className="mr-1" />
                       {errors.pillar}
                     </p>
                   )}
@@ -405,7 +405,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                   </p>
                   {errors.xp && (
                     <p className="text-red-600 text-sm mt-1 flex items-center">
-                      <AlertCircle size={14} className="mr-1" />
+                      <ExclamationCircleIcon size={14} className="mr-1" />
                       {errors.xp}
                     </p>
                   )}
@@ -419,7 +419,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                 disabled={loading || !customTask.title.trim()}
                 className="w-full bg-gradient-primary text-white py-2 rounded-lg hover:opacity-90 disabled:opacity-50"
               >
-                <Plus size={18} className="inline mr-2" />
+                <PlusIcon size={18} className="inline mr-2" />
                 Add Custom Task
               </button>
             </div>
@@ -462,7 +462,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                 onClick={() => setPreviewTask(null)}
                 className="p-2 hover:bg-gray-100 rounded-full"
               >
-                <X size={20} />
+                <XMarkIcon size={20} />
               </button>
             </div>
 

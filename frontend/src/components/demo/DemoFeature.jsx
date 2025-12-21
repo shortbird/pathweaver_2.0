@@ -8,7 +8,7 @@ import ParentDashboardPreview from './ParentDashboardPreview';
 import FamilyEngagementPreview from './FamilyEngagementPreview';
 import DiplomaDemoDisplay from './DiplomaDemoDisplay';
 import JoinJourney from './JoinJourney';
-import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 const DemoFeature = () => {
   const { demoState, actions } = useDemo();
@@ -122,7 +122,7 @@ const DemoFeature = () => {
                   onClick={actions.previousStep}
                   className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all bg-white text-optio-purple border-2 border-optio-purple hover:bg-optio-purple/10 min-h-[48px] touch-manipulation order-2 sm:order-1"
                 >
-                  <ChevronLeft className="w-5 h-5 flex-shrink-0" />
+                  <ChevronLeftIcon className="w-5 h-5 flex-shrink-0" />
                   <span>Back</span>
                 </button>
               )}
@@ -137,7 +137,7 @@ const DemoFeature = () => {
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
                 >
                   <span>Continue</span>
-                  <ChevronRight className="w-5 h-5 flex-shrink-0" />
+                  <ChevronRightIcon className="w-5 h-5 flex-shrink-0" />
                 </button>
               )}
             </div>

@@ -4,7 +4,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import Button from '../../ui/Button';
 import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings';
 // tierMapping import removed - Phase 2 refactoring (January 2025)
-import { CheckCircle, Lock, User, Clock } from 'lucide-react';
+import { CheckCircleIcon, LockClosedIcon, UserIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 const QuestListItem = ({ quest, onEnroll }) => {
   const navigate = useNavigate();
@@ -81,7 +81,7 @@ const QuestListItem = ({ quest, onEnroll }) => {
               {/* Meta Info */}
               <div className="flex items-center gap-4 text-xs text-gray-500">
                 <div className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
+                  <ClockIcon className="w-3 h-3" />
                   <span>{taskCount} {taskCount === 1 ? 'Task' : 'Tasks'}</span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -128,7 +128,7 @@ const QuestListItem = ({ quest, onEnroll }) => {
                       navigate('/diploma');
                     }}
                   >
-                    <CheckCircle className="w-4 h-4 mr-1" />
+                    <CheckCircleIcon className="w-4 h-4 mr-1" />
                     <span>View Diploma</span>
                   </Button>
                 ) : isEnrolled ? (
@@ -161,7 +161,7 @@ const QuestListItem = ({ quest, onEnroll }) => {
           {isCompleted ? (
             <div className="mt-3">
               <div className="flex items-center gap-2 text-xs text-emerald-600 mb-2">
-                <CheckCircle className="w-3 h-3" />
+                <CheckCircleIcon className="w-3 h-3" />
                 <span className="font-medium">Completed</span>
               </div>
               <div className="w-full bg-emerald-100 rounded-full h-1.5">

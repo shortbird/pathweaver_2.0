@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, X } from 'lucide-react';
+import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 /**
  * HubSearch Component
@@ -15,7 +15,7 @@ export default function HubSearch({ value, onChange, placeholder = "Search..." }
     <div className="relative">
       <div className="relative flex items-center">
         <div className="absolute left-3 pointer-events-none">
-          <Search className="w-5 h-5 text-gray-400" />
+          <MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />
         </div>
 
         <input
@@ -39,7 +39,7 @@ export default function HubSearch({ value, onChange, placeholder = "Search..." }
             className="absolute right-3 p-1 rounded-full hover:bg-gray-100 transition-colors"
             aria-label="Clear search"
           >
-            <X className="w-4 h-4 text-gray-500" />
+            <XMarkIcon className="w-4 h-4 text-gray-500" />
           </button>
         )}
       </div>

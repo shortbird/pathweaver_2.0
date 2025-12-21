@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import BadgeCarouselCard from './BadgeCarouselCard';
 import { getPillarDisplayName } from '../../config/pillars';
 
@@ -66,7 +66,7 @@ export default function BadgeCarousel({ pillar, badges }) {
               "
               aria-label="Scroll left"
             >
-              <ChevronLeft className="w-5 h-5 text-gray-600" />
+              <ChevronLeftIcon className="w-5 h-5 text-gray-600" />
             </button>
 
             <button
@@ -78,7 +78,7 @@ export default function BadgeCarousel({ pillar, badges }) {
               "
               aria-label="Scroll right"
             >
-              <ChevronRight className="w-5 h-5 text-gray-600" />
+              <ChevronRightIcon className="w-5 h-5 text-gray-600" />
             </button>
           </div>
         )}

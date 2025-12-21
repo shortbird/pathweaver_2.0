@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Bot, User, AlertTriangle, MessageSquare, History } from 'lucide-react';
+import { PaperAirplaneIcon, UserIcon, ExclamationTriangleIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import { renderMarkdown } from '../../utils/markdownRenderer';
 import ConversationHistory from './ConversationHistory';
@@ -365,7 +365,7 @@ const ChatInterface = ({
         <div className="p-3 bg-gray-50 border-b border-gray-200">
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center space-x-2">
-              <MessageSquare className="w-4 h-4 text-gray-500" />
+              <ChatBubbleLeftRightIcon className="w-4 h-4 text-gray-500" />
               <span className="text-gray-600">
                 {usageStats.messages_remaining} of {usageStats.daily_limit} messages left today
               </span>
@@ -425,7 +425,7 @@ const ChatInterface = ({
                         className="text-xs text-gray-400 hover:text-red-500 flex items-center space-x-1"
                         title="Report this message"
                       >
-                        <AlertTriangle className="w-3 h-3" />
+                        <ExclamationTriangleIcon className="w-3 h-3" />
                         <span>Report</span>
                       </button>
                     </div>
@@ -458,7 +458,7 @@ const ChatInterface = ({
       {error && (
         <div className="p-3 bg-red-50 border-l-4 border-red-400 m-4 rounded">
           <div className="flex items-center">
-            <AlertTriangle className="w-5 h-5 text-red-400 mr-2" />
+            <ExclamationTriangleIcon className="w-5 h-5 text-red-400 mr-2" />
             <p className="text-red-700 text-sm">{error}</p>
           </div>
         </div>
@@ -484,7 +484,7 @@ const ChatInterface = ({
             disabled={!inputMessage.trim() || isLoading || (usageStats && usageStats.messages_remaining <= 0)}
             className="bg-gradient-primary text-white p-2 rounded-full hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Send className="w-5 h-5" />
+            <PaperAirplaneIcon className="w-5 h-5" />
           </button>
         </div>
 

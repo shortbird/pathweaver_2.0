@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Heart, Star, MessageCircle } from 'lucide-react';
+import { UsersIcon, HeartIcon, StarIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/outline';
 
 const FamilyEngagementPreview = () => {
   const observerComments = [
@@ -28,7 +28,7 @@ const FamilyEngagementPreview = () => {
       {/* Header */}
       <div className="text-center space-y-2">
         <div className="flex items-center justify-center gap-2">
-          <Users className="w-8 h-8 text-optio-purple" />
+          <UsersIcon className="w-8 h-8 text-optio-purple" />
           <h2 className="text-3xl font-bold text-text-primary">
             Your Learning Community
           </h2>
@@ -61,7 +61,7 @@ const FamilyEngagementPreview = () => {
         {/* Feed Header */}
         <div className="bg-gradient-primary text-white px-6 py-4">
           <div className="flex items-center gap-2">
-            <MessageCircle className="w-5 h-5" />
+            <ChatBubbleLeftIcon className="w-5 h-5" />
             <h3 className="font-bold">Family Activity Feed</h3>
           </div>
         </div>
@@ -130,7 +130,7 @@ const FamilyEngagementPreview = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
         <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-6 text-center">
           <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-3">
-            <Heart className="w-6 h-6 text-white" />
+            <HeartIcon className="w-6 h-6 text-white" />
           </div>
           <h4 className="font-semibold text-gray-800 mb-2">
             Process Celebration
@@ -142,7 +142,7 @@ const FamilyEngagementPreview = () => {
 
         <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-6 text-center">
           <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-3">
-            <Star className="w-6 h-6 text-white" />
+            <StarIcon className="w-6 h-6 text-white" />
           </div>
           <h4 className="font-semibold text-gray-800 mb-2">
             Meaningful Feedback
@@ -154,7 +154,7 @@ const FamilyEngagementPreview = () => {
 
         <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-6 text-center">
           <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-3">
-            <Users className="w-6 h-6 text-white" />
+            <UsersIcon className="w-6 h-6 text-white" />
           </div>
           <h4 className="font-semibold text-gray-800 mb-2">
             Shared Experience

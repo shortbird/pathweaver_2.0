@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { ChevronDown, UserCircle, Plus } from 'lucide-react';
+import { ChevronDownIcon, UserCircleIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { getMyDependents } from '../../services/dependentAPI';
 
 const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) => {
@@ -89,7 +89,7 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
             className="w-8 h-8 rounded-full object-cover"
           />
         ) : (
-          <UserCircle className="w-8 h-8 text-gray-400" />
+          <UserCircleIcon className="w-8 h-8 text-gray-400" />
         )}
 
         {/* Profile Name */}
@@ -104,7 +104,7 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
         </div>
 
         {/* Dropdown Icon */}
-        <ChevronDown
+        <ChevronDownIcon
           className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
@@ -124,7 +124,7 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
                     className="w-6 h-6 rounded-full object-cover"
                   />
                 ) : (
-                  <UserCircle className="w-6 h-6 text-gray-400" />
+                  <UserCircleIcon className="w-6 h-6 text-gray-400" />
                 )}
                 <span className="font-medium text-gray-900">{currentProfile?.display_name || 'You'}</span>
                 <span className="ml-auto text-xs bg-optio-purple text-white px-2 py-1 rounded">Current</span>
@@ -154,7 +154,7 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
                       className="w-8 h-8 rounded-full object-cover"
                     />
                   ) : (
-                    <UserCircle className="w-8 h-8 text-gray-400" />
+                    <UserCircleIcon className="w-8 h-8 text-gray-400" />
                   )}
 
                   {/* Profile Info */}
@@ -187,7 +187,7 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
               onClick={handleAddDependent}
               className="w-full px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-3 text-optio-purple font-medium"
             >
-              <Plus className="w-5 h-5" />
+              <PlusIcon className="w-5 h-5" />
               <span>Add Child Profile</span>
             </button>
           </div>

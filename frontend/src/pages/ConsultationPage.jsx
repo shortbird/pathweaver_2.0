@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Users, CheckCircle, ArrowLeft } from 'lucide-react'
+import { UsersIcon, CheckCircleIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
 
 const ConsultationPage = () => {
   const [formData, setFormData] = useState({
@@ -72,7 +72,7 @@ const ConsultationPage = () => {
           to="/"
           className="inline-flex items-center text-optio-purple hover:text-optio-pink font-semibold transition-colors"
         >
-          <ArrowLeft className="w-4 h-4 mr-2" />
+          <ArrowLeftIcon className="w-4 h-4 mr-2" />
           Back to Home
         </Link>
       </div>
@@ -96,19 +96,19 @@ const ConsultationPage = () => {
               <h2 className="text-xl font-bold text-gray-900 mb-4">What to Expect:</h2>
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="flex items-start">
-                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
+                  <CheckCircleIcon className="w-5 h-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
                   <span className="text-gray-700">30-minute video or phone call with a licensed teacher</span>
                 </div>
                 <div className="flex items-start">
-                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
+                  <CheckCircleIcon className="w-5 h-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
                   <span className="text-gray-700">Discussion of your child's interests and your ideas</span>
                 </div>
                 <div className="flex items-start">
-                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
+                  <CheckCircleIcon className="w-5 h-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
                   <span className="text-gray-700">Overview of how Optio could work for your family</span>
                 </div>
                 <div className="flex items-start">
-                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
+                  <CheckCircleIcon className="w-5 h-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
                   <span className="text-gray-700">Answers to all your questions</span>
                 </div>
               </div>
@@ -210,7 +210,7 @@ const ConsultationPage = () => {
           /* Success State */
           <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 p-8 sm:p-12 text-center">
             <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="w-10 h-10 text-white" />
+              <CheckCircleIcon className="w-10 h-10 text-white" />
             </div>
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Thank You!</h2>
             <p className="text-lg text-gray-700 mb-6 max-w-xl mx-auto">

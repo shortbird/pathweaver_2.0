@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Bot, X, RotateCcw } from 'lucide-react';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 import ChatInterface from './ChatInterface';
 
 const CONVERSATION_MODES = [
@@ -128,7 +128,7 @@ const OptioBotModal = ({
               className="w-10 h-10 bg-white/20 text-white rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
               title="Close"
             >
-              <X className="w-5 h-5" />
+              <XMarkIcon className="w-5 h-5" />
             </button>
           </div>
         </div>

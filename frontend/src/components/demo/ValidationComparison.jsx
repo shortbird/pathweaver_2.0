@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
-import { 
-  School, Users, Eye, EyeOff, Award, FileText, 
-  CheckCircle, XCircle, ArrowRight, Info
-} from 'lucide-react';
+import { UsersIcon, EyeIcon, EyeSlashIcon, TrophyIcon, DocumentTextIcon, CheckCircleIcon, XCircleIcon, ArrowRightIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import InfoModal from './InfoModal';
 
 const ValidationComparison = () => {
@@ -82,7 +79,7 @@ const ValidationComparison = () => {
           onClick={() => setShowPhilosophyModal(true)}
           className="inline-flex items-center gap-1 text-sm text-optio-purple hover:underline"
         >
-          <Info className="w-4 h-4" />
+          <InformationCircleIcon className="w-4 h-4" />
           Learn about our philosophy
         </button>
       </div>
@@ -127,15 +124,15 @@ const ValidationComparison = () => {
                 {/* Validation Info */}
                 <div className="space-y-3 pt-4 border-t border-gray-100">
                   <div className="flex items-center gap-3">
-                    <EyeOff className="w-4 h-4 text-red-500" />
+                    <EyeSlashIcon className="w-4 h-4 text-red-500" />
                     <span className="text-sm text-gray-700">{comp.traditional.visibility}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <XCircle className="w-4 h-4 text-red-500" />
+                    <XCircleIcon className="w-4 h-4 text-red-500" />
                     <span className="text-sm text-gray-700">{comp.traditional.validation}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <FileText className="w-4 h-4 text-red-500" />
+                    <DocumentTextIcon className="w-4 h-4 text-red-500" />
                     <span className="text-sm text-gray-700">{comp.traditional.evidence}</span>
                   </div>
                 </div>
@@ -154,7 +151,7 @@ const ValidationComparison = () => {
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <Users className="w-5 h-5 text-green-500" />
+                      <UsersIcon className="w-5 h-5 text-green-500" />
                       <span className="text-xs font-semibold text-green-500 uppercase">Student Validation</span>
                     </div>
                     <h3 className="font-bold text-xl text-text-primary">{comp.optio.title}</h3>
@@ -170,7 +167,7 @@ const ValidationComparison = () => {
                   <ul className="space-y-1">
                     {comp.optio.details.map((detail, i) => (
                       <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
-                        <CheckCircle className="w-4 h-4 text-green-500" />
+                        <CheckCircleIcon className="w-4 h-4 text-green-500" />
                         {detail}
                       </li>
                     ))}
@@ -180,15 +177,15 @@ const ValidationComparison = () => {
                 {/* Validation Info */}
                 <div className="space-y-3 pt-4 border-t border-gray-100">
                   <div className="flex items-center gap-3">
-                    <Eye className="w-4 h-4 text-green-500" />
+                    <EyeIcon className="w-4 h-4 text-green-500" />
                     <span className="text-sm text-gray-700">{comp.optio.visibility}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <CheckCircleIcon className="w-4 h-4 text-green-500" />
                     <span className="text-sm text-gray-700">{comp.optio.validation}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Award className="w-4 h-4 text-green-500" />
+                    <TrophyIcon className="w-4 h-4 text-green-500" />
                     <span className="text-sm font-medium text-gray-700">{comp.optio.evidence}</span>
                   </div>
                 </div>
@@ -205,7 +202,7 @@ const ValidationComparison = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-lg">
-              <Eye className="w-8 h-8 text-optio-purple" />
+              <EyeIcon className="w-8 h-8 text-optio-purple" />
             </div>
             <h4 className="font-semibold text-text-primary mb-2">Public = Quality</h4>
             <p className="text-sm text-gray-600">
@@ -215,7 +212,7 @@ const ValidationComparison = () => {
           
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-lg">
-              <Award className="w-8 h-8 text-optio-pink" />
+              <TrophyIcon className="w-8 h-8 text-optio-pink" />
             </div>
             <h4 className="font-semibold text-text-primary mb-2">Real Evidence</h4>
             <p className="text-sm text-gray-600">
@@ -225,7 +222,7 @@ const ValidationComparison = () => {
           
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-lg">
-              <Users className="w-8 h-8 text-optio-purple" />
+              <UsersIcon className="w-8 h-8 text-optio-purple" />
             </div>
             <h4 className="font-semibold text-text-primary mb-2">Self-Accountability</h4>
             <p className="text-sm text-gray-600">

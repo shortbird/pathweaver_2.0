@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../services/api'
 import toast from 'react-hot-toast'
-import { Users, Calendar, Award, BookOpen, Heart, MessageCircle, Sparkles, Image as ImageIcon } from 'lucide-react'
+import { UsersIcon, CalendarIcon, TrophyIcon, BookOpenIcon, HeartIcon, ChatBubbleLeftIcon, SparklesIcon } from '@heroicons/react/24/outline'
 
 export default function ObserverFeedPage() {
   const [students, setStudents] = useState([])
@@ -43,7 +43,7 @@ export default function ObserverFeedPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
-          <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <UsersIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">No Students Yet</h2>
           <p className="text-gray-600 mb-6">
             You haven't been linked to any students yet. Wait for a student to invite you as an observer.
@@ -75,7 +75,7 @@ export default function ObserverFeedPage() {
               to="/observer/welcome"
               className="text-optio-purple hover:text-optio-pink font-medium text-sm flex items-center gap-1"
             >
-              <Sparkles className="w-4 h-4" />
+              <SparklesIcon className="w-4 h-4" />
               How to Support Students
             </Link>
           </div>
@@ -88,7 +88,7 @@ export default function ObserverFeedPage() {
           <div className="md:col-span-1">
             <div className="bg-white rounded-lg shadow p-4 sticky top-24">
               <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <Users className="w-5 h-5 text-optio-purple" />
+                <UsersIcon className="w-5 h-5 text-optio-purple" />
                 Students
               </h2>
               <div className="space-y-2">
@@ -135,7 +135,7 @@ export default function ObserverFeedPage() {
 
                 {/* Coming Soon Message */}
                 <div className="bg-white rounded-lg shadow p-8 text-center">
-                  <Sparkles className="w-16 h-16 text-optio-purple mx-auto mb-4" />
+                  <SparklesIcon className="w-16 h-16 text-optio-purple mx-auto mb-4" />
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">Activity Feed Coming Soon!</h3>
                   <p className="text-gray-600 mb-6 max-w-md mx-auto">
                     We're building a beautiful feed to show you {currentStudent.student?.first_name}'s recent achievements,
@@ -146,21 +146,21 @@ export default function ObserverFeedPage() {
                     <h4 className="font-semibold text-gray-900 mb-3">What's Coming:</h4>
                     <div className="grid md:grid-cols-2 gap-3">
                       <div className="flex items-start gap-2 bg-purple-50 p-3 rounded-lg">
-                        <Calendar className="w-5 h-5 text-optio-purple flex-shrink-0 mt-0.5" />
+                        <CalendarIcon className="w-5 h-5 text-optio-purple flex-shrink-0 mt-0.5" />
                         <div>
                           <div className="font-medium text-gray-900 text-sm">Chronological Feed</div>
                           <div className="text-gray-600 text-xs">Recent completions and achievements</div>
                         </div>
                       </div>
                       <div className="flex items-start gap-2 bg-pink-50 p-3 rounded-lg">
-                        <Heart className="w-5 h-5 text-optio-pink flex-shrink-0 mt-0.5" />
+                        <HeartIcon className="w-5 h-5 text-optio-pink flex-shrink-0 mt-0.5" />
                         <div>
                           <div className="font-medium text-gray-900 text-sm">Emoji Reactions</div>
                           <div className="text-gray-600 text-xs">Quick ways to celebrate progress</div>
                         </div>
                       </div>
                       <div className="flex items-start gap-2 bg-blue-50 p-3 rounded-lg">
-                        <MessageCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                        <ChatBubbleLeftIcon className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                         <div>
                           <div className="font-medium text-gray-900 text-sm">Conversation Starters</div>
                           <div className="text-gray-600 text-xs">Prompts to engage meaningfully</div>

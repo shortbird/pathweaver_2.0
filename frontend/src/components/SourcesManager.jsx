@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Upload, Image, X } from 'lucide-react';
+import { PlusIcon, ArrowUpTrayIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 const SourcesManager = ({ onClose }) => {
   const [sources, setSources] = useState([]);
@@ -136,7 +136,7 @@ const SourcesManager = ({ onClose }) => {
                 onClick={() => setShowNewSourceForm(true)}
                 className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 flex items-center gap-2"
               >
-                <Plus size={20} />
+                <PlusIcon size={20} />
                 Add New Source
               </button>
             )}
@@ -228,7 +228,7 @@ const SourcesManager = ({ onClose }) => {
                             : 'bg-gradient-primary text-white hover:opacity-90'
                         }`}
                       >
-                        <Upload size={18} />
+                        <ArrowUpTrayIcon size={18} />
                         {uploadingSource === source.id ? 'Uploading...' : 'Upload Image'}
                       </label>
                     </div>
@@ -253,7 +253,7 @@ const SourcesManager = ({ onClose }) => {
                   ) : (
                     <div className="mt-4 w-full h-48 bg-gray-200 rounded-lg border-2 border-dashed border-gray-400 flex items-center justify-center">
                       <div className="text-center">
-                        <Image size={48} className="text-gray-400 mx-auto mb-2" />
+                        <PhotoIcon size={48} className="text-gray-400 mx-auto mb-2" />
                         <p className="text-gray-500">No header image uploaded</p>
                         <p className="text-xs text-gray-400 mt-1">Upload an image to set as default</p>
                       </div>
@@ -304,7 +304,7 @@ const SourcesManager = ({ onClose }) => {
                                 : 'bg-gradient-primary text-white hover:opacity-90'
                             }`}
                           >
-                            <Upload size={18} />
+                            <ArrowUpTrayIcon size={18} />
                             {uploadingSource === source.id ? 'Uploading...' : 'Upload Image'}
                           </label>
                         </div>
@@ -328,7 +328,7 @@ const SourcesManager = ({ onClose }) => {
                       ) : (
                         <div className="mt-4 w-full h-48 bg-gray-200 rounded-lg border-2 border-dashed border-gray-400 flex items-center justify-center">
                           <div className="text-center">
-                            <Image size={48} className="text-gray-400 mx-auto mb-2" />
+                            <PhotoIcon size={48} className="text-gray-400 mx-auto mb-2" />
                             <p className="text-gray-500">No header image uploaded</p>
                             <p className="text-xs text-gray-400 mt-1">Upload an image to set as default</p>
                           </div>

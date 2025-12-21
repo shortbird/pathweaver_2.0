@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, CheckCircle, XCircle, Info, AlertTriangle } from 'lucide-react';
+import { ExclamationCircleIcon, CheckCircleIcon, XCircleIcon, InformationCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 /**
  * Alert Component - Reusable notification/alert box with variant system
@@ -26,35 +26,35 @@ export const Alert = ({
       bg: 'bg-blue-50',
       border: 'border-blue-200',
       text: 'text-blue-800',
-      icon: <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />,
+      icon: <InformationCircleIcon className="w-5 h-5 text-blue-600 flex-shrink-0" />,
       titleColor: 'text-blue-900'
     },
     success: {
       bg: 'bg-green-50',
       border: 'border-green-200',
       text: 'text-green-800',
-      icon: <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />,
+      icon: <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0" />,
       titleColor: 'text-green-900'
     },
     warning: {
       bg: 'bg-yellow-50',
       border: 'border-yellow-200',
       text: 'text-yellow-800',
-      icon: <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0" />,
+      icon: <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600 flex-shrink-0" />,
       titleColor: 'text-yellow-900'
     },
     error: {
       bg: 'bg-red-50',
       border: 'border-red-200',
       text: 'text-red-800',
-      icon: <XCircle className="w-5 h-5 text-red-600 flex-shrink-0" />,
+      icon: <XCircleIcon className="w-5 h-5 text-red-600 flex-shrink-0" />,
       titleColor: 'text-red-900'
     },
     purple: {
       bg: 'bg-purple-50',
       border: 'border-purple-200',
       text: 'text-purple-800',
-      icon: <AlertCircle className="w-5 h-5 text-purple-600 flex-shrink-0" />,
+      icon: <ExclamationCircleIcon className="w-5 h-5 text-purple-600 flex-shrink-0" />,
       titleColor: 'text-purple-900'
     }
   };

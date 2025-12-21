@@ -1,4 +1,4 @@
-import { Award, BookOpen, FileText, GraduationCap, Trophy, Zap } from 'lucide-react'
+import { TrophyIcon, BookOpenIcon, DocumentTextIcon, BoltIcon } from '@heroicons/react/24/outline'
 import LandingPageHero from '../components/landing/LandingPageHero'
 import LandingPageForm from '../components/landing/LandingPageForm'
 import FeatureGrid from '../components/landing/FeatureGrid'
@@ -27,17 +27,17 @@ const CreditTrackerLandingPage = () => {
 
   const features = [
     {
-      icon: <Award className="w-8 h-8 text-white" />,
+      icon: <TrophyIcon className="w-8 h-8 text-white" />,
       title: 'Automatic Credit Tracking',
       description: 'Turn your online learning into official high school credits. No matter where you learn, we help you track and document it all.',
     },
     {
-      icon: <BookOpen className="w-8 h-8 text-white" />,
+      icon: <BookOpenIcon className="w-8 h-8 text-white" />,
       title: 'Beautiful Portfolio',
       description: 'Build a stunning portfolio showcasing your learning journey with evidence, projects, and achievements that impress colleges.',
     },
     {
-      icon: <FileText className="w-8 h-8 text-white" />,
+      icon: <DocumentTextIcon className="w-8 h-8 text-white" />,
       title: 'Official Transcripts',
       description: 'Generate professional transcripts that translate your diverse learning into traditional credit hours colleges recognize.',
     },
@@ -52,7 +52,7 @@ const CreditTrackerLandingPage = () => {
       description: 'Earn XP, unlock badges, and level up as you complete courses. Make learning addictive and rewarding.',
     },
     {
-      icon: <Zap className="w-8 h-8 text-white" />,
+      icon: <BoltIcon className="w-8 h-8 text-white" />,
       title: 'Instant Recognition',
       description: 'Get your first credit free to see how easy it is. Start building your transcript today, not years from now.',
     },

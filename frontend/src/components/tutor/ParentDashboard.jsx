@@ -1,17 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Shield,
-  MessageSquare,
-  Calendar,
-  TrendingUp,
-  AlertTriangle,
-  Eye,
-  Settings,
-  Clock,
-  BookOpen,
-  BarChart3,
-  Users
-} from 'lucide-react';
+import { ShieldCheckIcon, ChatBubbleLeftRightIcon, CalendarIcon, ArrowTrendingUpIcon, ExclamationTriangleIcon, EyeIcon, Cog6ToothIcon, ClockIcon, BookOpenIcon, UsersIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 
 const ParentDashboard = ({ childUserId, childName }) => {
@@ -143,7 +131,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center space-x-3 mb-2">
-          <Shield className="w-8 h-8 text-optio-purple" />
+          <ShieldCheckIcon className="w-8 h-8 text-optio-purple" />
           <h1 className="text-3xl font-bold text-gray-900">Parent Dashboard</h1>
         </div>
         <p className="text-gray-600">Monitor {childName}'s AI tutor interactions and learning progress</p>
@@ -185,7 +173,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
                   <p className="text-sm font-medium text-gray-600">Total Conversations</p>
                   <p className="text-2xl font-bold text-gray-900">{conversations.length}</p>
                 </div>
-                <MessageSquare className="w-8 h-8 text-blue-500" />
+                <ChatBubbleLeftRightIcon className="w-8 h-8 text-blue-500" />
               </div>
             </div>
 
@@ -197,7 +185,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
                     {analytics?.messages_sent || 0}
                   </p>
                 </div>
-                <Clock className="w-8 h-8 text-green-500" />
+                <ClockIcon className="w-8 h-8 text-green-500" />
               </div>
             </div>
 
@@ -207,7 +195,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
                   <p className="text-sm font-medium text-gray-600">Safety Flags</p>
                   <p className="text-2xl font-bold text-gray-900">{safetyReports.length}</p>
                 </div>
-                <AlertTriangle className={`w-8 h-8 ${safetyReports.length > 0 ? 'text-red-500' : 'text-gray-400'}`} />
+                <ExclamationTriangleIcon className={`w-8 h-8 ${safetyReports.length > 0 ? 'text-red-500' : 'text-gray-400'}`} />
               </div>
             </div>
 
@@ -219,7 +207,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
                     {analytics?.topics_discussed?.length || 0}
                   </p>
                 </div>
-                <BookOpen className="w-8 h-8 text-purple-500" />
+                <BookOpenIcon className="w-8 h-8 text-purple-500" />
               </div>
             </div>
           </div>
@@ -343,7 +331,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
               </div>
             ) : (
               <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
-                <Eye className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <EyeIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Conversation</h3>
                 <p className="text-gray-500">Choose a conversation from the list to view messages</p>
               </div>
@@ -392,7 +380,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
                 ))
               ) : (
                 <div className="p-12 text-center">
-                  <Shield className="w-12 h-12 text-green-400 mx-auto mb-4" />
+                  <ShieldCheckIcon className="w-12 h-12 text-green-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">All Clear!</h3>
                   <p className="text-gray-500">No safety issues have been detected in the AI tutor conversations.</p>
                 </div>

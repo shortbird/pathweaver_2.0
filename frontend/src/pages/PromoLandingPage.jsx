@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, ChevronDown, ArrowRight, Users, Award, BookOpen, Star, MessageCircle, ChevronRight } from 'lucide-react'
+import { CheckIcon, ChevronDownIcon, ArrowRightIcon, UsersIcon, TrophyIcon, BookOpenIcon, StarIcon, ChatBubbleLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
 
 const PromoLandingPage = () => {
   const [currentActivity, setCurrentActivity] = useState(0)
@@ -137,11 +137,11 @@ const PromoLandingPage = () => {
               className="bg-white text-optio-pink hover:bg-gray-100 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center"
             >
               Get Your First Month Free
-              <ArrowRight className="ml-2 w-5 h-5" />
+              <ArrowRightIcon className="ml-2 w-5 h-5" />
             </button>
 
             <div className="mt-8 animate-bounce">
-              <ChevronDown className="w-6 h-6 mx-auto opacity-75" />
+              <ChevronDownIcon className="w-6 h-6 mx-auto opacity-75" />
             </div>
           </div>
         </div>
@@ -249,7 +249,7 @@ const PromoLandingPage = () => {
             ) : (
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Check className="w-8 h-8 text-white" />
+                  <CheckIcon className="w-8 h-8 text-white" />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h3>
                 <p className="text-gray-600 mb-4">
@@ -269,15 +269,15 @@ const PromoLandingPage = () => {
           {/* Trust Badges */}
           <div className="flex justify-center items-center space-x-8 mt-8 text-gray-500">
             <div className="flex items-center">
-              <Award className="w-5 h-5 mr-2" />
+              <TrophyIcon className="w-5 h-5 mr-2" />
               <span className="text-sm">Accredited</span>
             </div>
             <div className="flex items-center">
-              <Users className="w-5 h-5 mr-2" />
+              <UsersIcon className="w-5 h-5 mr-2" />
               <span className="text-sm">Trusted by 1000+ Families</span>
             </div>
             <div className="flex items-center">
-              <MessageCircle className="w-5 h-5 mr-2" />
+              <ChatBubbleLeftIcon className="w-5 h-5 mr-2" />
               <span className="text-sm">Daily Support from Licensed Teachers</span>
             </div>
           </div>
@@ -299,7 +299,7 @@ const PromoLandingPage = () => {
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center p-6 bg-gradient-to-br from-optio-pink/5 to-optio-purple/5 rounded-xl">
               <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                <Award className="w-8 h-8 text-white" />
+                <TrophyIcon className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Accredited Diploma</h3>
               <p className="text-gray-600 leading-relaxed">
@@ -309,7 +309,7 @@ const PromoLandingPage = () => {
 
             <div className="text-center p-6 bg-gradient-to-br from-optio-pink/5 to-optio-purple/5 rounded-xl">
               <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                <BookOpen className="w-8 h-8 text-white" />
+                <BookOpenIcon className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Portfolio Building</h3>
               <p className="text-gray-600 leading-relaxed">
@@ -319,7 +319,7 @@ const PromoLandingPage = () => {
 
             <div className="text-center p-6 bg-gradient-to-br from-optio-pink/5 to-optio-purple/5 rounded-xl">
               <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-white" />
+                <UsersIcon className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Personalized Path</h3>
               <p className="text-gray-600 leading-relaxed">
@@ -443,7 +443,7 @@ const PromoLandingPage = () => {
             className="bg-white text-optio-pink hover:bg-gray-100 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center"
           >
             Start Your Free Month Now
-            <ChevronRight className="ml-2 w-5 h-5" />
+            <ChevronRightIcon className="ml-2 w-5 h-5" />
           </button>
 
           <p className="text-xs mt-4 opacity-75">

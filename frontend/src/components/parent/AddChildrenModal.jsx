@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { XMarkIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 
 const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
@@ -101,7 +101,7 @@ const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
             className="text-white hover:text-gray-200 transition-colors disabled:opacity-50"
             aria-label="Close modal"
           >
-            <X className="w-6 h-6" />
+            <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
 
@@ -129,7 +129,7 @@ const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
                     className="absolute top-2 right-2 text-gray-400 hover:text-red-500 transition-colors"
                     aria-label="Remove child"
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <TrashIcon className="w-5 h-5" />
                   </button>
                 )}
 
@@ -189,7 +189,7 @@ const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
               disabled={isSubmitting}
               className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-purple-500 hover:text-optio-purple transition-colors flex items-center justify-center gap-2 font-['Poppins'] font-medium disabled:opacity-50"
             >
-              <Plus className="w-5 h-5" />
+              <PlusIcon className="w-5 h-5" />
               Add Another Child
             </button>
           </form>

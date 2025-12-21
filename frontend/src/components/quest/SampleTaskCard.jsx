@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Sparkles } from 'lucide-react';
+import { PlusIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import { getPillarData } from '../../utils/pillarMappings';
 import toast from 'react-hot-toast';
 
@@ -83,7 +83,7 @@ const SampleTaskCard = ({ task, onAdd, disabled = false }) => {
             'Adding...'
           ) : (
             <>
-              <Plus className="w-4 h-4" />
+              <PlusIcon className="w-4 h-4" />
               Add to My Quest
             </>
           )}

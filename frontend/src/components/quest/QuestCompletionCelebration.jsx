@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trophy, Plus, CheckCircle, BookOpen, Home } from 'lucide-react';
+import { PlusIcon, CheckCircleIcon, BookOpenIcon, HomeIcon } from '@heroicons/react/24/outline';
 import confetti from 'canvas-confetti';
 
 const QuestCompletionCelebration = ({
@@ -137,7 +137,7 @@ const QuestCompletionCelebration = ({
               className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all"
               style={{ fontFamily: 'Poppins' }}
             >
-              <Plus className="w-5 h-5" />
+              <PlusIcon className="w-5 h-5" />
               Add More Tasks
             </button>
             <button
@@ -145,7 +145,7 @@ const QuestCompletionCelebration = ({
               className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all"
               style={{ fontFamily: 'Poppins' }}
             >
-              <CheckCircle className="w-5 h-5" />
+              <CheckCircleIcon className="w-5 h-5" />
               Finish Quest
             </button>
           </div>
@@ -157,7 +157,7 @@ const QuestCompletionCelebration = ({
               className="inline-flex items-center gap-2 text-optio-purple hover:text-optio-pink transition-colors font-medium"
               style={{ fontFamily: 'Poppins' }}
             >
-              <BookOpen className="w-4 h-4" />
+              <BookOpenIcon className="w-4 h-4" />
               View on Diploma
             </button>
           </div>
@@ -170,7 +170,7 @@ const QuestCompletionCelebration = ({
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center mx-auto mb-4">
-                <Home className="w-8 h-8 text-white" />
+                <HomeIcon className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-2xl font-bold text-gray-800 mb-2" style={{ fontFamily: 'Poppins' }}>
                 Finish This Quest?

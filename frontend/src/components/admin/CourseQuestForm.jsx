@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, GripVertical, AlertCircle } from 'lucide-react';
+import { XMarkIcon, PlusIcon, TrashIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
@@ -199,7 +199,7 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
             {mode === 'edit' ? 'Edit Course Quest' : 'Create Course Quest'}
           </h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
-            <X size={24} />
+            <XMarkIcon size={24} />
           </button>
         </div>
 
@@ -240,7 +240,7 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
               />
               {errors.title && (
                 <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
-                  <AlertCircle size={14} />
+                  <ExclamationCircleIcon size={14} />
                   {errors.title}
                 </p>
               )}
@@ -345,7 +345,7 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
                 onClick={addTask}
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 font-semibold"
               >
-                <Plus className="w-4 h-4" />
+                <PlusIcon className="w-4 h-4" />
                 Add Task
               </button>
             </div>
@@ -353,7 +353,7 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
             {errors.tasks && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-red-700 text-sm flex items-center gap-1">
-                  <AlertCircle size={16} />
+                  <ExclamationCircleIcon size={16} />
                   {errors.tasks}
                 </p>
               </div>
@@ -457,7 +457,7 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
                           className="p-2 hover:bg-red-100 rounded text-red-600"
                           title="Delete"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <TrashIcon className="w-4 h-4" />
                         </button>
                       </div>
                     </div>

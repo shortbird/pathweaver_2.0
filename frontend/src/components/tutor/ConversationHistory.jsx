@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { MessageSquare, Calendar, Clock, ArrowLeft } from 'lucide-react'
+import { ChatBubbleLeftRightIcon, CalendarIcon, ClockIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import logger from '../../utils/logger'
@@ -83,7 +83,7 @@ const ConversationHistory = ({ onSelectConversation, onBack, onCreateNew }) => {
             onClick={onBack}
             className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeftIcon className="w-5 h-5" />
           </button>
           <div>
             <h2 className="text-xl font-bold">Chat History</h2>
@@ -108,7 +108,7 @@ const ConversationHistory = ({ onSelectConversation, onBack, onCreateNew }) => {
           </div>
         ) : conversations.length === 0 ? (
           <div className="text-center p-8">
-            <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <ChatBubbleLeftRightIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No conversations yet</h3>
             <p className="text-gray-500 mb-4">
               Start your first chat to get help with your studies!
@@ -150,11 +150,11 @@ const ConversationHistory = ({ onSelectConversation, onBack, onCreateNew }) => {
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center space-x-1">
-                      <MessageSquare className="w-3 h-3" />
+                      <ChatBubbleLeftRightIcon className="w-3 h-3" />
                       <span>{conv.message_count || 0} messages</span>
                     </div>
                     <div className="flex items-center space-x-1">
-                      <Clock className="w-3 h-3" />
+                      <ClockIcon className="w-3 h-3" />
                       <span>{formatDate(conv.updated_at || conv.created_at)}</span>
                     </div>
                   </div>

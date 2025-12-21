@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Award, Type, Image, Video, Link2, FileText, AlertCircle, CheckCircle, BookOpen, ChevronDown, Plus } from 'lucide-react';
+import { TrophyIcon, PhotoIcon, VideoCameraIcon, LinkIcon, DocumentTextIcon, ExclamationCircleIcon, CheckCircleIcon, BookOpenIcon, ChevronDownIcon, PlusIcon } from '@heroicons/react/24/outline';
 import confetti from 'canvas-confetti';
 import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
 import { getPillarData } from '../../utils/pillarMappings';
@@ -26,7 +26,7 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
     return (
       <div className="h-full flex items-center justify-center text-gray-400">
         <div className="text-center">
-          <BookOpen className="w-16 h-16 mx-auto mb-4 opacity-50" />
+          <BookOpenIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
           <p className="text-lg" style={{ fontFamily: 'Poppins' }}>Select a task to get started</p>
         </div>
       </div>
@@ -146,7 +146,7 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
                 fontFamily: 'Poppins'
               }}
             >
-              <Award className="w-3.5 h-3.5" />
+              <TrophyIcon className="w-3.5 h-3.5" />
               {task.xp_amount} XP
             </div>
           </div>
@@ -192,7 +192,7 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
         {error && (
           <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
             <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <ExclamationCircleIcon className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
               <span className="text-red-700 text-sm font-medium" style={{ fontFamily: 'Poppins' }}>{error}</span>
             </div>
           </div>
@@ -224,9 +224,9 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
                   fontFamily: 'Poppins'
                 }}
               >
-                <Plus className="w-4 h-4" />
+                <PlusIcon className="w-4 h-4" />
                 Add Content
-                <ChevronDown className={`w-4 h-4 transition-transform ${showBlockMenu ? 'rotate-180' : ''}`} />
+                <ChevronDownIcon className={`w-4 h-4 transition-transform ${showBlockMenu ? 'rotate-180' : ''}`} />
               </button>
 
               {/* Dropdown Menu */}
@@ -281,7 +281,7 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
         {/* Public Evidence Notice - Subtle */}
         <div className="border-l-4 rounded-r-lg pl-4 py-3 mb-6 bg-gray-50" style={{ borderColor: pillarData.color }}>
           <p className="text-gray-600 text-xs leading-relaxed flex items-start gap-2" style={{ fontFamily: 'Poppins' }}>
-            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: pillarData.color }} />
+            <ExclamationCircleIcon className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: pillarData.color }} />
             <span>
               This evidence will appear on your <strong>public portfolio</strong>. Make sure your content showcases your best work.
             </span>
@@ -305,7 +305,7 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
               </>
             ) : (
               <>
-                <CheckCircle className="w-5 h-5" />
+                <CheckCircleIcon className="w-5 h-5" />
                 Mark Task as Completed
               </>
             )}
@@ -313,7 +313,7 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
         ) : (
           <div className="space-y-2">
             <div className="w-full py-3 bg-green-50 border-2 border-green-300 rounded-full flex items-center justify-center gap-2">
-              <CheckCircle className="w-5 h-5 text-green-600" />
+              <CheckCircleIcon className="w-5 h-5 text-green-600" />
               <span className="text-green-700 font-bold text-base" style={{ fontFamily: 'Poppins' }}>
                 Task Completed! +{task.xp_amount} XP Earned
               </span>

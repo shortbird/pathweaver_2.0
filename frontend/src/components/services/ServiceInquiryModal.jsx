@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 
 const ServiceInquiryModal = ({ service, onClose, currentUser }) => {
@@ -91,7 +91,7 @@ const ServiceInquiryModal = ({ service, onClose, currentUser }) => {
             className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
             aria-label="Close modal"
           >
-            <X className="w-6 h-6" />
+            <XMarkIcon className="w-6 h-6" />
           </button>
 
           <div className="text-center">
@@ -127,7 +127,7 @@ const ServiceInquiryModal = ({ service, onClose, currentUser }) => {
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
           aria-label="Close modal"
         >
-          <X className="w-6 h-6" />
+          <XMarkIcon className="w-6 h-6" />
         </button>
 
         <h2 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>

@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
-import { 
-  Globe, Lock, Upload, Camera, FileText, Link, 
-  AlertCircle, Eye, EyeOff, CheckCircle, Info
-} from 'lucide-react';
+import { GlobeAltIcon, LockClosedIcon, ArrowUpTrayIcon, CameraIcon, DocumentTextIcon, LinkIcon, ExclamationCircleIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import InfoModal from './InfoModal';
 
 const WorkSubmission = () => {
@@ -77,10 +74,10 @@ const WorkSubmission = () => {
   };
 
   const submissionTypes = [
-    { icon: <FileText className="w-5 h-5" />, label: 'Text Description' },
-    { icon: <Camera className="w-5 h-5" />, label: 'Photo/Video' },
-    { icon: <Link className="w-5 h-5" />, label: 'External Link' },
-    { icon: <Upload className="w-5 h-5" />, label: 'Document Upload' }
+    { icon: <DocumentTextIcon className="w-5 h-5" />, label: 'Text Description' },
+    { icon: <CameraIcon className="w-5 h-5" />, label: 'Photo/Video' },
+    { icon: <LinkIcon className="w-5 h-5" />, label: 'External Link' },
+    { icon: <ArrowUpTrayIcon className="w-5 h-5" />, label: 'Document Upload' }
   ];
 
   if (!currentQuest) {
@@ -130,7 +127,7 @@ const WorkSubmission = () => {
                       : 'bg-white text-gray-600 border border-gray-200 hover:border-optio-purple'
                 }`}
               >
-                {isSubmitted && <CheckCircle className="w-4 h-4 inline mr-1" />}
+                {isSubmitted && <CheckCircleIcon className="w-4 h-4 inline mr-1" />}
                 {task.title}
               </button>
             );
@@ -199,7 +196,7 @@ const WorkSubmission = () => {
                     onClick={() => setShowAccountabilityModal(true)}
                     className="text-sm text-optio-purple hover:underline flex items-center gap-1"
                   >
-                    <Info className="w-4 h-4" />
+                    <InformationCircleIcon className="w-4 h-4" />
                     Why this matters
                   </button>
                 </div>
@@ -218,7 +215,7 @@ const WorkSubmission = () => {
                       <div className={`p-2 rounded-lg ${
                         visibility === 'public' ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'
                       }`}>
-                        <Globe className="w-5 h-5" />
+                        <GlobeAltIcon className="w-5 h-5" />
                       </div>
                       <div className="text-left">
                         <h6 className="font-semibold text-text-primary">Public (Recommended)</h6>
@@ -242,7 +239,7 @@ const WorkSubmission = () => {
                       <div className={`p-2 rounded-lg ${
                         visibility === 'confidential' ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-600'
                       }`}>
-                        <Lock className="w-5 h-5" />
+                        <LockClosedIcon className="w-5 h-5" />
                       </div>
                       <div className="text-left">
                         <h6 className="font-semibold text-text-primary">Confidential</h6>
@@ -262,9 +259,9 @@ const WorkSubmission = () => {
                 }`}>
                   <div className="flex items-start gap-3">
                     {visibility === 'public' ? (
-                      <Eye className="w-5 h-5 text-blue-600 mt-0.5" />
+                      <EyeIcon className="w-5 h-5 text-blue-600 mt-0.5" />
                     ) : (
-                      <EyeOff className="w-5 h-5 text-orange-600 mt-0.5" />
+                      <EyeSlashIcon className="w-5 h-5 text-orange-600 mt-0.5" />
                     )}
                     <div className="text-sm">
                       <p className="font-medium text-gray-800">
@@ -300,7 +297,7 @@ const WorkSubmission = () => {
           {/* Student Validation Note */}
           <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-6">
             <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-optio-purple mt-0.5" />
+              <ExclamationCircleIcon className="w-5 h-5 text-optio-purple mt-0.5" />
               <div>
                 <h5 className="font-semibold text-text-primary mb-1">Student Validation</h5>
                 <p className="text-sm text-gray-700">
@@ -313,7 +310,7 @@ const WorkSubmission = () => {
         </div>
       ) : (
         <div className="bg-green-50 border-2 border-green-300 rounded-xl p-8 text-center">
-          <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+          <CheckCircleIcon className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h3 className="text-2xl font-bold text-green-800 mb-2">Work Submitted!</h3>
           <p className="text-green-700">
             Your work for "{currentTask.title}" has been submitted {visibility === 'public' ? 'publicly' : 'confidentially'}.
@@ -334,7 +331,7 @@ const WorkSubmission = () => {
           
           <div className="space-y-3">
             <div className="flex items-start gap-3">
-              <Globe className="w-5 h-5 text-green-500 mt-0.5" />
+              <GlobeAltIcon className="w-5 h-5 text-green-500 mt-0.5" />
               <div>
                 <h4 className="font-semibold">Public Work</h4>
                 <p className="text-sm text-gray-600">
@@ -344,7 +341,7 @@ const WorkSubmission = () => {
             </div>
             
             <div className="flex items-start gap-3">
-              <Lock className="w-5 h-5 text-orange-500 mt-0.5" />
+              <LockClosedIcon className="w-5 h-5 text-orange-500 mt-0.5" />
               <div>
                 <h4 className="font-semibold">Confidential Option</h4>
                 <p className="text-sm text-gray-600">
