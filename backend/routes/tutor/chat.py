@@ -1,4 +1,8 @@
 """
+AI Tutor - Chat Functionality.
+Part of tutor.py refactoring (P2-ARCH-1).
+"""
+"""
 REPOSITORY MIGRATION: NO MIGRATION NEEDED
 - Uses AITutorService for all AI chat functionality (service layer pattern)
 - Uses SafetyService for content moderation
@@ -1183,6 +1187,170 @@ def test_tutor_service(user_id: str):
         logger.info(f"Type: {type(e).__name__}")
         logger.info(f"Traceback: {traceback.format_exc()}")
         return error_details, 500
+
+
+
+# Helper functions
+
+# Note: Message limit checking and usage tracking now handled by tutor_tier_service
+
+def _get_conversation(supabase, conversation_id: str, user_id: str) -> Optional[Dict]:
+    """Get conversation by ID if user owns it"""
+    try:
+        result = supabase.table('tutor_conversations').select('*').eq(
+            'id', conversation_id
+        ).eq('user_id', user_id).execute()
+        if result.data and len(result.data) > 0:
+            return result.data[0]
+        return None
+    except Exception:
+        return None
+
+def _create_conversation(supabase, user_id: str, mode: str = 'teacher') -> Dict:
+    """Create new tutor conversation"""
+    conversation_data = {
+        'id': str(uuid.uuid4()),
+        'user_id': user_id,
+        'title': f"Chat Session - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        'conversation_mode': mode,
+        'created_at': datetime.utcnow().isoformat()
+    }
+
+    result = supabase.table('tutor_conversations').insert(conversation_data).execute()
+    return result.data[0]
+
+def _store_message(supabase, conversation_id: str, role: str, content: str, user_id: str, metadata: Optional[Dict] = None) -> Dict:
+    """Store message in database and update conversation metadata"""
+    message_data = {
+        'id': str(uuid.uuid4()),
+        'conversation_id': conversation_id,
+        'role': role,
+        'content': content,
+        'created_at': datetime.utcnow().isoformat()
+    }
+
+    if metadata:
+        message_data.update({
+            'safety_level': metadata.get('safety_level', 'safe'),
+            'context_data': {
+                'suggestions': metadata.get('suggestions', []),
+                'next_questions': metadata.get('next_questions', []),
+                'xp_bonus_eligible': metadata.get('xp_bonus_eligible', False)
+            }
+        })
+
+    result = supabase.table('tutor_messages').insert(message_data).execute()
+
+    # Update conversation metadata (message_count and last_message_at)
+    _update_conversation_metadata(supabase, conversation_id)
+
+    return result.data[0]
+
+def _update_conversation_metadata(supabase, conversation_id: str):
+    """Update conversation's message_count and last_message_at"""
+    try:
+        # Get message count
+        messages = supabase.table('tutor_messages').select('id', count='exact').eq(
+            'conversation_id', conversation_id
+        ).execute()
+
+        # Update conversation
+        supabase.table('tutor_conversations').update({
+            'message_count': messages.count if messages.count else 0,
+            'last_message_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat()
+        }).eq('id', conversation_id).execute()
+    except Exception as e:
+        logger.error(f"Failed to update conversation metadata: {e}")
+        # Don't raise - this is not critical enough to fail the message storage
+
+def _build_tutor_context(supabase, user_id: str, conversation: Optional[Dict] = None, conversation_mode: Optional[str] = None) -> TutorContext:
+    """Build tutor context from user data"""
+    context = TutorContext(user_id=user_id)
+
+    try:
+        # Get user settings
+        settings = supabase.table('tutor_settings').select('*').eq('user_id', user_id).execute()
+        if settings.data and len(settings.data) > 0:
+            settings_data = settings.data[0]
+            context.user_age = settings_data.get('age_verification')
+            context.learning_style = settings_data.get('learning_style')
+            if settings_data.get('preferred_mode'):
+                context.conversation_mode = ConversationMode(settings_data['preferred_mode'])
+
+        # Override with conversation_mode from request if provided (highest priority)
+        if conversation_mode:
+            try:
+                context.conversation_mode = ConversationMode(conversation_mode)
+            except ValueError:
+                logger.warning(f"Invalid conversation mode '{conversation_mode}', using default")
+
+        # Get recent messages for context
+        if conversation:
+            messages = supabase.table('tutor_messages').select('role, content').eq(
+                'conversation_id', conversation['id']
+            ).order('created_at', desc=True).limit(5).execute()
+            context.previous_messages = messages.data
+
+        # Don't automatically fetch quest context - OptioBot is now global
+        # Quest context will only be included if explicitly passed from frontend
+
+    except Exception as e:
+        # If context building fails, use defaults
+        logger.error(f"Warning: Failed to build full context for user {user_id}: {e}")
+
+    return context
+
+def _create_default_settings(supabase, user_id: str) -> Dict:
+    """Create default tutor settings for user"""
+    default_settings = {
+        'user_id': user_id,
+        'preferred_mode': 'study_buddy',
+        'daily_message_limit': 50,  # Will be updated based on subscription tier
+        'messages_used_today': 0,
+        'last_reset_date': date.today().isoformat(),
+        'parent_monitoring_enabled': True,
+        'notification_preferences': {},
+        'created_at': datetime.utcnow().isoformat()
+    }
+
+    result = supabase.table('tutor_settings').insert(default_settings).execute()
+    return result.data[0]
+
+def _award_tutor_xp_bonus(supabase, user_id: str, message_id: str):
+    """Award XP bonus for deep engagement with tutor"""
+    try:
+        # Award 25 XP bonus for thoughtful tutor interaction
+        # This would integrate with the existing XP system
+        bonus_xp = 25
+
+        # Update message to mark XP as awarded
+        supabase.table('tutor_messages').update({
+            'xp_bonus_awarded': True
+        }).eq('id', message_id).execute()
+
+        # TODO: Integrate with existing XP service
+        # from services.xp_service import award_bonus_xp
+        # award_bonus_xp(user_id, bonus_xp, 'tutor_engagement')
+
+    except Exception as e:
+        logger.error(f"Failed to award tutor XP bonus: {e}")
+
+def _schedule_parent_notification(user_id: str, conversation_id: str, message_content: str):
+    """Schedule notification to parents about concerning content"""
+    try:
+        # This would integrate with the notification system
+        # For now, just log the event
+        logger.info(f"Parent notification scheduled for user {user_id}, conversation {conversation_id}")
+
+        # TODO: Implement actual parent notification system
+        # - Check if parent monitoring is enabled
+        # - Get parent contact info
+        # - Send appropriate notification
+
+    except Exception as e:
+        logger.error(f"Failed to schedule parent notification: {e}")
+
 
 # Error handlers
 @bp.errorhandler(ValidationError)

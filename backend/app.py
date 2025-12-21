@@ -159,10 +159,10 @@ try:
 except Exception as e:
     logger.warning(f"Warning: Quest AI routes not available: {e}")
 
-# Register AI Tutor blueprint
+# Register AI Tutor blueprints (refactored from tutor.py mega-file to 2 modules - P2-ARCH-1)
 try:
-    from routes import tutor
-    app.register_blueprint(tutor.bp)  # /api/tutor
+    from routes.tutor import register_tutor_blueprints
+    register_tutor_blueprints(app)  # /api/tutor (chat, management modules)
 except Exception as e:
     logger.warning(f"Warning: AI Tutor routes not available: {e}")
 
@@ -329,11 +329,12 @@ try:
 except Exception as e:
     logger.warning(f"Warning: Learning Events routes not available: {e}")
 
-# Register Parent Dashboard blueprints
+# Register Parent Dashboard blueprints (refactored from parent_dashboard.py mega-file to 4 modules - P2-ARCH-1)
 try:
-    from routes import parent_linking, parent_dashboard, parent_evidence
+    from routes import parent_linking, parent_evidence
+    from routes.parent import register_parent_blueprints
     app.register_blueprint(parent_linking.bp)  # /api/parents
-    app.register_blueprint(parent_dashboard.bp)  # /api/parent
+    register_parent_blueprints(app)  # /api/parent (dashboard, quests, evidence, analytics modules)
     app.register_blueprint(parent_evidence.bp)  # /api/parent (evidence endpoints)
 
     # Register dependent profiles blueprint (January 2025 - COPPA-compliant dependent profiles)

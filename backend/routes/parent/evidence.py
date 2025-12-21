@@ -1,191 +1,19 @@
 """
-Parent Dashboard API routes.
-Provides read-only access to student data for linked parents.
-
-NOTE: Admin client usage justified throughout this file for cross-user data access.
-Parents viewing linked student data requires elevated privileges beyond normal RLS.
-All endpoints verify parent-student link before allowing access.
-
-REPOSITORY MIGRATION: SKIP MIGRATION - Mega-File with Complex Cross-User Queries
-- 1,375 lines violating Single Responsibility Principle (SRP)
-- Already uses ParentRepository for link verification (good)
-- Complex cross-user data aggregation (parent viewing student data)
-- Per P1-ARCH-1: Should be split before migration:
-  - parent/dashboard.py (overview, summary stats)
-  - parent/quests.py (student quest progress)
-  - parent/evidence.py (evidence viewing/uploading)
-  - parent/analytics.py (student activity, insights)
-- AFTER refactoring, create ParentDashboardService to encapsulate business logic
-- Complex aggregation queries acceptable in service layer per guidelines
+Parent Dashboard - Evidence & Task Details.
+Part of parent_dashboard.py refactoring (P2-ARCH-1).
 """
-from flask import Blueprint, request, jsonify
-from datetime import datetime, date, timedelta
+from flask import Blueprint, jsonify
+from datetime import date, timedelta
 from database import get_supabase_admin_client
-from backend.repositories import (
-    UserRepository,
-    QuestRepository,
-    BadgeRepository,
-    EvidenceRepository,
-    FriendshipRepository,
-    ParentRepository,
-    TutorRepository,
-    LMSRepository,
-    AnalyticsRepository
-)
 from utils.auth.decorators import require_auth
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
-from collections import defaultdict
-import logging
-
 from utils.logger import get_logger
-import re
-from typing import Optional, List, Dict, Any
+from .dashboard import verify_parent_access, parse_document_id_from_evidence_text, fetch_evidence_blocks_by_document_id
 
 logger = get_logger(__name__)
+bp = Blueprint("parent_evidence", __name__, url_prefix="/api/parent")
 
-logger = logging.getLogger(__name__)
-
-bp = Blueprint('parent_dashboard', __name__, url_prefix='/api/parent')
-
-
-# Helper functions for evidence display enhancement
-def parse_document_id_from_evidence_text(evidence_text: str) -> Optional[str]:
-    """
-    Extract document ID from multi-format evidence placeholder string.
-
-    Args:
-        evidence_text: Text from quest_task_completions.evidence_text
-
-    Returns:
-        Document UUID if found, None otherwise
-    """
-    if evidence_text and evidence_text.startswith('Multi-format evidence document'):
-        match = re.search(r'Document ID: ([\w-]+)', evidence_text)
-        if match:
-            return match.group(1)
-    return None
-
-
-def fetch_evidence_blocks_by_document_id(
-    supabase,
-    document_id: str,
-    filter_private: bool = False,
-    viewer_user_id: str = None
-) -> tuple[List[Dict[str, Any]], bool, str]:
-    """
-    Fetch evidence blocks directly by document ID.
-    Used as fallback when task_id matching fails.
-
-    Args:
-        supabase: Supabase client
-        document_id: UUID of user_task_evidence_documents record
-        filter_private: If True, exclude private blocks (False for parents)
-        viewer_user_id: User ID of the person viewing
-
-    Returns:
-        Tuple of (blocks list, is_confidential boolean, owner_user_id string)
-    """
-    try:
-        query = supabase.table('user_task_evidence_documents').select('''
-            id,
-            user_id,
-            is_confidential,
-            evidence_document_blocks (
-                id, block_type, content, order_index, is_private
-            )
-        ''').eq('id', document_id)
-
-        if filter_private:
-            query = query.eq('evidence_document_blocks.is_private', False)
-
-        result = query.execute()
-
-        if result.data and len(result.data) > 0:
-            doc = result.data[0]
-            is_confidential = doc.get('is_confidential', False)
-            owner_user_id = doc.get('user_id')
-
-            blocks = doc.get('evidence_document_blocks', [])
-            sorted_blocks = sorted(blocks, key=lambda b: b.get('order_index', 0))
-
-            return sorted_blocks, is_confidential, owner_user_id
-
-        logger.warning(f"No evidence blocks found for document ID: {document_id}")
-        return [], False, None
-
-    except Exception as e:
-        logger.error(f"Error fetching evidence blocks for document {document_id}: {e}")
-        return [], False, None
-
-
-def verify_parent_access(supabase, parent_user_id, student_user_id):
-    """
-    Helper function to verify parent has active access to student.
-    IMPORTANT: Accepts supabase client to avoid connection exhaustion.
-
-    Special case: Admin users can view their own student data for demo purposes.
-    Supports both dependent relationships (managed_by_parent_id) and linked students (parent_student_links).
-    Optimized to ONE database query to prevent HTTP/2 stream exhaustion.
-    """
-    try:
-        # Special case: Admin viewing their own data (self-link for demo)
-        if parent_user_id == student_user_id:
-            # Single query to verify admin role
-            user_response = supabase.table('users').select('role').eq('id', parent_user_id).single().execute()
-            if user_response.data and user_response.data.get('role') == 'admin':
-                return True
-            # If not admin, fall through to normal parent validation
-
-        # OPTIMIZED: Single query with JOIN to get user role AND link status
-        # This reduces 3 queries to 1, preventing HTTP/2 stream exhaustion
-        user_response = supabase.table('users').select('''
-            role,
-            parent_student_links!parent_student_links_parent_user_id_fkey(
-                id,
-                student_user_id
-            )
-        ''').eq('id', parent_user_id).single().execute()
-
-        if not user_response.data:
-            raise AuthorizationError("User not found")
-
-        user = user_response.data
-        user_role = user.get('role')
-
-        # Verify parent role
-        if user_role != 'parent':
-            raise AuthorizationError("Only parent accounts can access this endpoint")
-
-        # Check for link to this specific student (all links are permanent once created)
-        links = user.get('parent_student_links', [])
-        has_active_link = any(
-            link.get('student_user_id') == student_user_id
-            for link in links
-        )
-
-        if has_active_link:
-            return True
-
-        # If no link found, check if student is a dependent managed by this parent
-        student_response = supabase.table('users').select('is_dependent, managed_by_parent_id').eq('id', student_user_id).single().execute()
-        if student_response.data:
-            is_dependent = student_response.data.get('is_dependent', False)
-            managed_by = student_response.data.get('managed_by_parent_id')
-            if is_dependent and managed_by == parent_user_id:
-                return True
-
-        # No access found
-        raise AuthorizationError("You do not have access to this student's data")
-
-    except AuthorizationError:
-        raise
-    except Exception as e:
-        logger.error(f"Error in verify_parent_access: {str(e)}")
-        raise AuthorizationError("Failed to verify parent access")
-
-
-# Using repository pattern for database access
 @bp.route('/dashboard/<student_id>', methods=['GET'])
 @require_auth
 def get_parent_dashboard(user_id, student_id):
