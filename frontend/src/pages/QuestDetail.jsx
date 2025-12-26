@@ -73,6 +73,46 @@ const QuestDetail = () => {
   const [showRestartModal, setShowRestartModal] = useState(false);
   const [restartModalData, setRestartModalData] = useState({ previousTaskCount: 0, questTitle: '' });
 
+  // Memoize XP calculations to prevent expensive re-computation on every render
+  // MUST be declared before any conditional returns (Rules of Hooks)
+  const xpData = useMemo(() => {
+    if (!quest?.quest_tasks) return { baseXP: 0, totalXP: 0, earnedXP: 0 };
+
+    const tasks = quest.quest_tasks;
+    const baseXP = tasks.reduce((sum, task) => sum + (task.xp_amount || 0), 0);
+    const earnedXP = tasks
+      .filter(task => task.is_completed)
+      .reduce((sum, task) => sum + (task.xp_amount || 0), 0);
+
+    const totalXP = baseXP;
+
+    return { baseXP, totalXP, earnedXP };
+  }, [quest?.quest_tasks]);
+
+  // Memoize pillar breakdown calculation
+  const pillarBreakdown = useMemo(() => {
+    if (!quest?.quest_tasks) return {};
+
+    const breakdown = {};
+    quest.quest_tasks.forEach(task => {
+      const rawPillar = task.pillar || 'wellness';
+      // Normalize pillar key to handle legacy naming (e.g., "Arts & Creativity" -> "art")
+      const normalizedPillar = normalizePillarKey(rawPillar);
+
+      if (!breakdown[normalizedPillar]) {
+        breakdown[normalizedPillar] = 0;
+      }
+      breakdown[normalizedPillar] += task.xp_amount || 0;
+    });
+
+    return breakdown;
+  }, [quest?.quest_tasks]);
+
+  // Memoize completed tasks calculation
+  const completedTasks = useMemo(() => {
+    return quest?.quest_tasks?.filter(task => task.is_completed).length || 0;
+  }, [quest?.quest_tasks]);
+
   // Handle navigation from task library - refetch data when tasks were added
   useEffect(() => {
     if (location.state?.tasksAdded) {
@@ -455,40 +495,6 @@ const QuestDetail = () => {
     setExpandedTasks(newExpanded);
   };
 
-  // Memoize XP calculations to prevent expensive re-computation on every render
-  const xpData = useMemo(() => {
-    if (!quest?.quest_tasks) return { baseXP: 0, totalXP: 0, earnedXP: 0 };
-
-    const tasks = quest.quest_tasks;
-    const baseXP = tasks.reduce((sum, task) => sum + (task.xp_amount || 0), 0);
-    const earnedXP = tasks
-      .filter(task => task.is_completed)
-      .reduce((sum, task) => sum + (task.xp_amount || 0), 0);
-
-    const totalXP = baseXP;
-
-    return { baseXP, totalXP, earnedXP };
-  }, [quest?.quest_tasks]);
-
-  // Memoize pillar breakdown calculation
-  const pillarBreakdown = useMemo(() => {
-    if (!quest?.quest_tasks) return {};
-
-    const breakdown = {};
-    quest.quest_tasks.forEach(task => {
-      const rawPillar = task.pillar || 'wellness';
-      // Normalize pillar key to handle legacy naming (e.g., "Arts & Creativity" -> "art")
-      const normalizedPillar = normalizePillarKey(rawPillar);
-
-      if (!breakdown[normalizedPillar]) {
-        breakdown[normalizedPillar] = 0;
-      }
-      breakdown[normalizedPillar] += task.xp_amount || 0;
-    });
-
-    return breakdown;
-  }, [quest?.quest_tasks]);
-
   const getLocationDisplay = () => {
     if (!quest?.metadata) return null;
     
@@ -548,11 +554,6 @@ const QuestDetail = () => {
       </div>
     );
   }
-
-  // Memoize completed tasks calculation
-  const completedTasks = useMemo(() => {
-    return quest.quest_tasks?.filter(task => task.is_completed).length || 0;
-  }, [quest.quest_tasks]);
 
   const totalTasks = quest.quest_tasks?.length || 0;
   const progressPercentage = quest.progress?.percentage || (totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0);

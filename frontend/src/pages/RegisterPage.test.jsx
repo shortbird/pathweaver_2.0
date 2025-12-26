@@ -60,8 +60,8 @@ describe('RegisterPage', () => {
       renderWithProviders(<RegisterPage />)
 
       expect(screen.getByRole('heading', { name: /create your account/i })).toBeInTheDocument()
-      expect(screen.getByPlaceholderText(/john/i)).toBeInTheDocument() // First name
-      expect(screen.getByPlaceholderText(/doe/i)).toBeInTheDocument() // Last name
+      expect(screen.getByPlaceholderText(/^john$/i)).toBeInTheDocument() // First name (exact match)
+      expect(screen.getByPlaceholderText(/^doe$/i)).toBeInTheDocument() // Last name
       expect(screen.getByPlaceholderText(/john@example.com/i)).toBeInTheDocument() // Email
       expect(screen.getByLabelText(/date of birth/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument()
@@ -338,8 +338,8 @@ describe('RegisterPage', () => {
       renderWithProviders(<RegisterPage />)
 
       // Fill form with valid data
-      await user.type(screen.getByPlaceholderText(/john/i), 'John')
-      await user.type(screen.getByPlaceholderText(/doe/i), 'Doe')
+      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
+      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
       await user.type(screen.getByPlaceholderText(/john@example.com/i), 'john@example.com')
 
       // Set age to over 13
@@ -375,8 +375,8 @@ describe('RegisterPage', () => {
       renderWithProviders(<RegisterPage />)
 
       // Fill form with valid data
-      await user.type(screen.getByPlaceholderText(/john/i), 'Johnny')
-      await user.type(screen.getByPlaceholderText(/doe/i), 'Kid')
+      await user.type(screen.getByPlaceholderText(/^john$/i), 'Johnny')
+      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Kid')
       await user.type(screen.getByPlaceholderText(/john@example.com/i), 'johnny@example.com')
 
       // Set age to under 13
@@ -424,8 +424,8 @@ describe('RegisterPage', () => {
       renderWithProviders(<RegisterPage />)
 
       // Fill minimal valid data
-      await user.type(screen.getByPlaceholderText(/john/i), 'John')
-      await user.type(screen.getByPlaceholderText(/doe/i), 'Doe')
+      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
+      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
       await user.type(screen.getByPlaceholderText(/john@example.com/i), 'test@example.com')
 
       const today = new Date()
@@ -510,8 +510,8 @@ describe('RegisterPage', () => {
       renderWithProviders(<RegisterPage />)
 
       // Fill form
-      await user.type(screen.getByPlaceholderText(/john/i), 'John')
-      await user.type(screen.getByPlaceholderText(/doe/i), 'Doe')
+      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
+      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
       await user.type(screen.getByPlaceholderText(/john@example.com/i), 'test@example.com')
 
       const today = new Date()
