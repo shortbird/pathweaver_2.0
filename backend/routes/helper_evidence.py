@@ -17,7 +17,7 @@ from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError
-from backend.repositories import (
+from repositories import (
     UserRepository,
     TaskRepository,
     QuestRepository,

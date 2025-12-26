@@ -13,7 +13,7 @@ logger.info("Starting Optio Backend API - Session persistence test #2")
 # Initialize Swagger/OpenAPI documentation
 from swagger_config import init_swagger
 
-from backend.routes.auth import register_auth_routes
+from routes.auth import register_auth_routes
 from routes import users, community, portfolio
 from routes import uploads, images
 from routes.settings import settings_bp

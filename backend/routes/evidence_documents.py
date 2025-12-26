@@ -12,7 +12,7 @@ Handles creating, updating, and retrieving evidence documents with multiple cont
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client, get_user_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,
@@ -44,7 +44,7 @@ evidence_service = EvidenceService()
 xp_service = XPService()
 
 # Import file upload configuration from centralized config
-from backend.config.constants import (
+from config.constants import (
     MAX_IMAGE_SIZE,
     MAX_DOCUMENT_SIZE,
     ALLOWED_IMAGE_EXTENSIONS,

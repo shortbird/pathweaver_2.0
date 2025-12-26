@@ -21,7 +21,7 @@ import uuid
 import logging
 
 from utils.logger import get_logger
-from backend.repositories import (
+from repositories import (
     QuestRepository,
     TaskCompletionRepository,
     TaskRepository,
@@ -32,7 +32,7 @@ from backend.repositories import (
 logger = get_logger(__name__)
 
 from database import get_user_client, get_supabase_admin_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,

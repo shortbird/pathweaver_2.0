@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 import os
 
 from utils.logger import get_logger
-from backend.config.constants import MAX_LOGIN_ATTEMPTS, LOCKOUT_DURATION_MINUTES
+from config.constants import MAX_LOGIN_ATTEMPTS, LOCKOUT_DURATION_MINUTES
 
 logger = get_logger(__name__)
 

@@ -10,7 +10,7 @@ REPOSITORY MIGRATION: MIGRATION CANDIDATE
 
 from flask import Blueprint, jsonify, request
 from database import get_user_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,

@@ -18,7 +18,7 @@ Migration complete: All core friendship operations use repository pattern.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,
@@ -286,7 +286,7 @@ def send_friend_request(user_id):
 @require_auth
 def accept_friend_request(user_id, friendship_id):
     from database import get_supabase_admin_client
-    from backend.repositories.base_repository import NotFoundError
+    from repositories.base_repository import NotFoundError
     # IMPORTANT: Use admin client because we use Flask JWTs, not Supabase JWTs
     # Authorization is handled at application layer via @require_auth decorator
     admin_supabase = get_supabase_admin_client()
@@ -341,7 +341,7 @@ def accept_friend_request(user_id, friendship_id):
 @require_auth
 def decline_friend_request(user_id, friendship_id):
     from database import get_supabase_admin_client
-    from backend.repositories.base_repository import NotFoundError
+    from repositories.base_repository import NotFoundError
     # IMPORTANT: Use admin client because we use Flask JWTs, not Supabase JWTs
     # Authorization is handled at application layer via @require_auth decorator
     admin_supabase = get_supabase_admin_client()
@@ -369,7 +369,7 @@ def decline_friend_request(user_id, friendship_id):
 @require_auth
 def cancel_friend_request(user_id, friendship_id):
     from database import get_supabase_admin_client
-    from backend.repositories.base_repository import NotFoundError
+    from repositories.base_repository import NotFoundError
     # IMPORTANT: Use admin client because we use Flask JWTs, not Supabase JWTs
     # Authorization is handled at application layer via @require_auth decorator
     admin_supabase = get_supabase_admin_client()

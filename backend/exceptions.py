@@ -5,7 +5,7 @@ This module defines all custom exceptions used throughout the application.
 Using specific exceptions improves error handling, debugging, and error reporting.
 
 Usage:
-    from backend.exceptions import ValidationError, DatabaseError
+    from exceptions import ValidationError, DatabaseError
 
     try:
         # ... operation

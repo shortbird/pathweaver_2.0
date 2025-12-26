@@ -6,7 +6,7 @@ Handles all quest-related database queries with RLS enforcement.
 
 import logging
 from typing import Optional, Dict, List, Any
-from backend.repositories.base_repository import BaseRepository, DatabaseError, NotFoundError
+from repositories.base_repository import BaseRepository, DatabaseError, NotFoundError
 from postgrest.exceptions import APIError
 
 from utils.logger import get_logger
@@ -204,7 +204,7 @@ class QuestRepository(BaseRepository):
         try:
             # Use admin client for enrollment operations to bypass RLS
             # Enrollment is a user-initiated action that should always succeed for valid users/quests
-            from backend.database import get_supabase_admin_client
+            from database import get_supabase_admin_client
             admin_client = get_supabase_admin_client()
 
             # Check if already enrolled
@@ -513,7 +513,7 @@ class QuestRepository(BaseRepository):
             DatabaseError: If query fails
         """
         try:
-            from backend.database import get_supabase_admin_client
+            from database import get_supabase_admin_client
 
             # Get user's organization and policy
             admin = get_supabase_admin_client()

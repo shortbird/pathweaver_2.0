@@ -17,7 +17,7 @@ image management, and quest associations.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from backend.repositories import BadgeRepository, QuestRepository
+from repositories import BadgeRepository, QuestRepository
 from utils.auth.decorators import require_admin
 from services.image_service import search_badge_image
 from services.api_usage_tracker import pexels_tracker

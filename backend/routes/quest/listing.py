@@ -7,7 +7,7 @@ Part of the quests.py refactoring (P2-ARCH-1).
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_client, get_supabase_admin_client
-from backend.repositories.quest_repository import QuestRepository
+from repositories.quest_repository import QuestRepository
 from utils.source_utils import get_quest_header_image
 from services.quest_optimization import quest_optimization_service
 from utils.validation.sanitizers import sanitize_search_input, sanitize_integer

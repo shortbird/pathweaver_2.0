@@ -17,7 +17,7 @@ REPOSITORY MIGRATION: MIGRATION CANDIDATE - High Priority
 from flask import Blueprint, jsonify
 from flask_cors import cross_origin
 from database import get_supabase_client, get_supabase_admin_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,

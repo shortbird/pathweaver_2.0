@@ -6,7 +6,7 @@ Handles all user-related database queries with RLS enforcement.
 
 import logging
 from typing import Optional, Dict, List, Any
-from backend.repositories.base_repository import BaseRepository, DatabaseError, NotFoundError
+from repositories.base_repository import BaseRepository, DatabaseError, NotFoundError
 from postgrest.exceptions import APIError
 
 from utils.logger import get_logger

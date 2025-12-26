@@ -16,8 +16,8 @@ All endpoints verify parent role before allowing operations.
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import get_supabase_admin_client
-from backend.repositories.dependent_repository import DependentRepository
-from backend.repositories.base_repository import NotFoundError, PermissionError, ValidationError as RepoValidationError
+from repositories.dependent_repository import DependentRepository
+from repositories.base_repository import NotFoundError, PermissionError, ValidationError as RepoValidationError
 from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.session_manager import session_manager
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError as RouteNotFoundError

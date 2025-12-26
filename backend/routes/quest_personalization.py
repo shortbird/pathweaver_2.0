@@ -48,8 +48,8 @@ def _get_effective_user_id(parent_user_id: str, acting_as_dependent_id: str = No
     if not acting_as_dependent_id:
         return parent_user_id
 
-    from backend.repositories.dependent_repository import DependentRepository
-    from backend.repositories.base_repository import PermissionError as RepoPermissionError
+    from repositories.dependent_repository import DependentRepository
+    from repositories.base_repository import PermissionError as RepoPermissionError
 
     try:
         supabase = get_supabase_admin_client()

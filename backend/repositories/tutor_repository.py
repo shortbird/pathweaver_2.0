@@ -6,7 +6,7 @@ Handles all database operations related to AI tutor conversations, messages, set
 
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
-from backend.repositories.base_repository import BaseRepository, NotFoundError
+from repositories.base_repository import BaseRepository, NotFoundError
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

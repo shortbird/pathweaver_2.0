@@ -25,7 +25,7 @@ REPOSITORY MIGRATION: SKIP MIGRATION - Mega-File with Complex Cross-User Queries
 from flask import Blueprint, request, jsonify
 from datetime import datetime, date, timedelta
 from database import get_supabase_admin_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,

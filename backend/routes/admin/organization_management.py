@@ -14,8 +14,8 @@ Phase 2: Backend Repository & Service Layer
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_superadmin, require_org_admin
-from backend.services.organization_service import OrganizationService
-from backend.database import get_supabase_admin_client
+from services.organization_service import OrganizationService
+from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -112,7 +112,7 @@ def update_organization(superadmin_user_id, org_id):
             )
         else:
             # Use repository directly for other updates
-            from backend.repositories.organization_repository import OrganizationRepository
+            from repositories.organization_repository import OrganizationRepository
             repo = OrganizationRepository()
             org = repo.update_organization(org_id, update_data)
 
@@ -186,7 +186,7 @@ def list_organization_users(current_user_id, current_org_id, is_superadmin, org_
         if not is_superadmin and current_org_id != org_id:
             return jsonify({'error': 'Access denied'}), 403
 
-        from backend.repositories.organization_repository import OrganizationRepository
+        from repositories.organization_repository import OrganizationRepository
         repo = OrganizationRepository()
         users = repo.get_organization_users(org_id)
 
@@ -208,7 +208,7 @@ def get_organization_analytics(current_user_id, current_org_id, is_superadmin, o
         if not is_superadmin and current_org_id != org_id:
             return jsonify({'error': 'Access denied'}), 403
 
-        from backend.repositories.organization_repository import OrganizationRepository
+        from repositories.organization_repository import OrganizationRepository
         repo = OrganizationRepository()
         analytics = repo.get_organization_analytics(org_id)
 

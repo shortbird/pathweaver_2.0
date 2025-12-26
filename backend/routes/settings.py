@@ -7,7 +7,7 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from backend.repositories import SiteSettingsRepository
+from repositories import SiteSettingsRepository
 from utils.auth.decorators import require_auth, require_admin
 import uuid
 from datetime import datetime

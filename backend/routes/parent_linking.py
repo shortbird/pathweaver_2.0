@@ -23,7 +23,7 @@ Managing parent-student relationships requires cross-user operations and elevate
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import get_supabase_admin_client
-from backend.repositories import ParentRepository
+from repositories import ParentRepository
 from utils.auth.decorators import require_auth, require_admin
 from middleware.error_handler import ValidationError, NotFoundError, AuthorizationError
 import logging

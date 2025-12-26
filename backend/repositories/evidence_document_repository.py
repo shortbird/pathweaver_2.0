@@ -7,7 +7,7 @@ Handles user_task_evidence_documents and evidence_document_blocks tables.
 import logging
 from typing import Optional, Dict, List, Any
 from datetime import datetime
-from backend.repositories.base_repository import BaseRepository, DatabaseError, NotFoundError
+from repositories.base_repository import BaseRepository, DatabaseError, NotFoundError
 from postgrest.exceptions import APIError
 
 from utils.logger import get_logger

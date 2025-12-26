@@ -14,7 +14,7 @@ Handles connection request approval, rejection, and manual linking.
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import get_supabase_admin_client
-from backend.repositories import ParentRepository
+from repositories import ParentRepository
 from utils.auth.decorators import require_auth
 from middleware.error_handler import ValidationError, NotFoundError, AuthorizationError
 import uuid

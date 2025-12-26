@@ -60,7 +60,7 @@ def analyze_route_file(filepath):
         tables_used.add(match.group(1))
 
     # Check if repositories are imported
-    has_repo_imports = 'from backend.repositories import' in content
+    has_repo_imports = 'from repositories import' in content
 
     # Check if get_supabase or get_user_client is used
     has_direct_db = 'get_supabase' in content or 'get_user_client' in content

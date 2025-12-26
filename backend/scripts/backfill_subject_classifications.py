@@ -20,8 +20,8 @@ from datetime import datetime
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from backend.database import get_supabase_admin_client
-from backend.services.subject_classification_service import SubjectClassificationService
+from database import get_supabase_admin_client
+from services.subject_classification_service import SubjectClassificationService
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

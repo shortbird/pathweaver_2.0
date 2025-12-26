@@ -12,7 +12,7 @@ This module helps enforce proper database client selection to prevent
 RLS (Row Level Security) bypasses and maintain data security.
 """
 
-from backend.database import get_supabase_admin_client, get_user_client
+from database import get_supabase_admin_client, get_user_client
 
 from utils.logger import get_logger
 

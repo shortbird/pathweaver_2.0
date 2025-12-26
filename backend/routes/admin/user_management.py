@@ -16,7 +16,7 @@ user status updates, and chat log viewing for admin interface.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,
@@ -381,7 +381,7 @@ def admin_reset_password(user_id, target_user_id):
                 return jsonify({'success': False, 'error': 'Failed to update password'}), 500
 
             # Clear any account lockouts for this user
-            from backend.routes.auth import reset_login_attempts
+            from routes.auth import reset_login_attempts
             reset_login_attempts(user_email)
 
             logger.info(f"Admin {user_id} reset password for user {target_user_id}")

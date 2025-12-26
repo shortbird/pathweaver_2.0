@@ -72,7 +72,7 @@ def analyze_route_file(filepath: str) -> Dict:
             })
 
     # Check if repositories are already imported
-    has_repo_imports = 'from backend.repositories import' in content
+    has_repo_imports = 'from repositories import' in content
 
     # Check if direct DB imports exist
     has_direct_db = any([
@@ -99,7 +99,7 @@ def generate_repository_imports(repositories: List[str]) -> str:
     base_repos = {'UserRepository', 'QuestRepository', 'TaskRepository', 'TaskCompletionRepository'}
     all_repos = sorted(base_repos.union(set(repositories)))
 
-    return f"from backend.repositories import (\n    " + ",\n    ".join(all_repos) + "\n)"
+    return f"from repositories import (\n    " + ",\n    ".join(all_repos) + "\n)"
 
 
 def add_repository_imports_to_file(filepath: str, repositories: List[str]) -> str:
@@ -117,7 +117,7 @@ def add_repository_imports_to_file(filepath: str, repositories: List[str]) -> st
 
     # Check if repository imports already exist
     for i in range(import_end_line):
-        if 'from backend.repositories import' in lines[i]:
+        if 'from repositories import' in lines[i]:
             print(f"  [OK] Repository imports already exist at line {i+1}")
             return ''.join(lines)
 

@@ -15,8 +15,8 @@ from datetime import datetime, timedelta
 from services.base_service import BaseService
 from services.email_service import EmailService
 from services.email_template_service import EmailTemplateService
-from backend.repositories.crm_repository import CRMRepository
-from backend.database import get_supabase_admin_client
+from repositories.crm_repository import CRMRepository
+from database import get_supabase_admin_client
 from jinja2 import Environment, Template
 
 logger = logging.getLogger(__name__)

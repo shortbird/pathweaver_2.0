@@ -14,8 +14,8 @@ from datetime import datetime, timedelta
 from services.base_service import BaseService
 from services.crm_service import CRMService
 from services.email_template_service import EmailTemplateService
-from backend.repositories.crm_repository import CRMRepository
-from backend.database import get_supabase_admin_client
+from repositories.crm_repository import CRMRepository
+from database import get_supabase_admin_client
 
 logger = logging.getLogger(__name__)
 

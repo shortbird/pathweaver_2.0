@@ -15,7 +15,7 @@ from typing import Optional, Dict, Any, List
 from jinja2 import Environment, Template, TemplateError
 from services.base_service import BaseService
 from services.email_copy_loader import email_copy_loader
-from backend.repositories.crm_repository import CRMRepository
+from repositories.crm_repository import CRMRepository
 
 logger = logging.getLogger(__name__)
 

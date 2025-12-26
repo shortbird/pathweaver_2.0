@@ -1,7 +1,7 @@
 """Unit tests for XP calculation functionality"""
 
 import pytest
-from backend.routes.users.helpers import (
+from routes.users.helpers import (
 
 from utils.logger import get_logger
 

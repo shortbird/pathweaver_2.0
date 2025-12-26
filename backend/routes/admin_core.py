@@ -11,7 +11,7 @@ Utility and helper endpoints for admin panel
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,
@@ -382,7 +382,7 @@ def reset_user_password(admin_id, user_id):
                 return jsonify({'success': False, 'error': 'Failed to update password'}), 500
 
             # Clear any account lockouts for this user
-            from backend.routes.auth import reset_login_attempts
+            from routes.auth import reset_login_attempts
             reset_login_attempts(user_email)
 
             logger.info(f"Admin {admin_id} reset password for user {user_id}")

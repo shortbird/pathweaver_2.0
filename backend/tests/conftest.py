@@ -18,15 +18,16 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 os.environ['FLASK_ENV'] = 'testing'
 os.environ['TEST_SCHEMA'] = 'test_schema'
 
-from app import app as flask_app
-from app_config import TestingConfig
-
 @pytest.fixture
 def app():
     """Create and configure a test app instance"""
+    # Import app only when fixture is used (lazy import to avoid hanging on conftest load)
+    from app import app as flask_app
+    from app_config import TestingConfig
+
     flask_app.config.from_object(TestingConfig)
     flask_app.config['TESTING'] = True
-    
+
     # Create application context
     with flask_app.app_context():
         yield flask_app

@@ -18,7 +18,7 @@ Provides endpoints for:
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_admin
-from backend.repositories.crm_repository import CRMRepository
+from repositories.crm_repository import CRMRepository
 from services.crm_service import CRMService
 from services.email_template_service import EmailTemplateService
 from services.campaign_automation_service import CampaignAutomationService

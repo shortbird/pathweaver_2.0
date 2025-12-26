@@ -14,7 +14,7 @@ User transcript routes
 
 from flask import Blueprint, jsonify
 from database import get_user_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,

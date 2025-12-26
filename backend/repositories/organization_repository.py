@@ -1,5 +1,5 @@
 from typing import Dict, Any, List, Optional
-from backend.repositories.base_repository import BaseRepository
+from repositories.base_repository import BaseRepository
 
 
 class OrganizationRepository(BaseRepository):
@@ -112,7 +112,7 @@ class OrganizationRepository(BaseRepository):
 
     def get_organization_analytics(self, org_id: str) -> Dict[str, Any]:
         """Get analytics for organization"""
-        from backend.database import get_supabase_admin_client
+        from database import get_supabase_admin_client
 
         # Use admin client for analytics aggregation
         admin = get_supabase_admin_client()

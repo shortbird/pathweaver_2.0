@@ -25,7 +25,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 # Import file validation constants from centralized config
-from backend.config.constants import MAX_FILE_SIZE, ALLOWED_FILE_EXTENSIONS
+from config.constants import MAX_FILE_SIZE, ALLOWED_FILE_EXTENSIONS
 
 # Convert set of extensions with dots to set without dots for comparison
 ALLOWED_EXTENSIONS = {ext.lstrip('.') for ext in ALLOWED_FILE_EXTENSIONS}

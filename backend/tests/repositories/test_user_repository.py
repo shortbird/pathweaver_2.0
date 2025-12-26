@@ -13,7 +13,7 @@ import uuid
 from unittest.mock import Mock, patch
 
 from repositories.user_repository import UserRepository
-from repositories.base_repository import RepositoryError
+from repositories.base_repository import DatabaseError
 
 from utils.logger import get_logger
 

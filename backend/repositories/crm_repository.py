@@ -13,8 +13,8 @@ import logging
 from typing import Optional, Dict, List, Any
 from datetime import datetime
 from postgrest.exceptions import APIError
-from backend.repositories.base_repository import BaseRepository, DatabaseError, NotFoundError
-from backend.database import get_supabase_admin_client
+from repositories.base_repository import BaseRepository, DatabaseError, NotFoundError
+from database import get_supabase_admin_client
 
 logger = logging.getLogger(__name__)
 

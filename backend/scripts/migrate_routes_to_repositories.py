@@ -21,7 +21,7 @@ def migrate_route_file(filepath):
     modified = False
 
     # Skip if file already uses repositories extensively
-    if 'from repositories import' in content or 'from backend.repositories import' in content:
+    if 'from repositories import' in content or 'from repositories import' in content:
         print(f"[OK] {filepath.name} already uses repositories")
         return False
 
@@ -36,7 +36,7 @@ def migrate_route_file(filepath):
         # Add repository import after database imports
         content = re.sub(
             r'(from database import[^\n]+\n)',
-            r'\1from backend.repositories import (\n    UserRepository,\n    QuestRepository,\n    BadgeRepository,\n    EvidenceRepository,\n    FriendshipRepository,\n    ParentRepository,\n    TutorRepository,\n    LMSRepository,\n    AnalyticsRepository\n)\n',
+            r'\1from repositories import (\n    UserRepository,\n    QuestRepository,\n    BadgeRepository,\n    EvidenceRepository,\n    FriendshipRepository,\n    ParentRepository,\n    TutorRepository,\n    LMSRepository,\n    AnalyticsRepository\n)\n',
             content,
             count=1
         )

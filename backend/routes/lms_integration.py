@@ -18,7 +18,7 @@ from middleware.error_handler import ValidationError, AuthenticationError
 from lms_config.lms_platforms import get_supported_platforms, get_platform_config, validate_platform_config
 
 from utils.logger import get_logger
-from backend.repositories import (
+from repositories import (
     LMSRepository,
     QuestRepository,
     TaskCompletionRepository,
@@ -214,7 +214,7 @@ def grade_sync_status(user_id):
     """
     try:
         from database import get_supabase_admin_client
-        from backend.repositories import (
+        from repositories import (
             UserRepository,
             QuestRepository,
             BadgeRepository,

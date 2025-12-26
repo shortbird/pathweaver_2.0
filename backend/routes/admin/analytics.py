@@ -19,7 +19,7 @@ REPOSITORY MIGRATION: SKIP MIGRATION - Complex Analytics Queries
 
 from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,

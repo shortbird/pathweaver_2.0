@@ -14,7 +14,7 @@ User dashboard routes
 from flask import Blueprint, jsonify
 from datetime import datetime, timezone
 from database import get_supabase_admin_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,

@@ -5,7 +5,7 @@ Handles site-wide configuration like logo, site name, favicon.
 """
 
 from typing import Optional, Dict, Any
-from backend.repositories.base_repository import BaseRepository, DatabaseError
+from repositories.base_repository import BaseRepository, DatabaseError
 from postgrest.exceptions import APIError
 from datetime import datetime
 import uuid

@@ -12,7 +12,7 @@ Benefits:
 - Cleaner route handlers
 
 Usage Example:
-    from backend.repositories import UserRepository, QuestRepository
+    from repositories import UserRepository, QuestRepository
 
     # Initialize with user context for RLS enforcement
     user_repo = UserRepository(user_id=current_user_id)
@@ -23,25 +23,25 @@ Usage Example:
     quests = quest_repo.get_active_quests(limit=20)
 """
 
-from backend.repositories.base_repository import (
+from repositories.base_repository import (
     BaseRepository,
     DatabaseError,
     NotFoundError,
     ValidationError,
     PermissionError
 )
-from backend.repositories.user_repository import UserRepository
-from backend.repositories.quest_repository import QuestRepository, QuestTaskRepository
-from backend.repositories.badge_repository import BadgeRepository
-from backend.repositories.evidence_repository import EvidenceRepository
-from backend.repositories.friendship_repository import FriendshipRepository
-from backend.repositories.parent_repository import ParentRepository
-from backend.repositories.tutor_repository import TutorRepository
-from backend.repositories.lms_repository import LMSRepository
-from backend.repositories.analytics_repository import AnalyticsRepository
-from backend.repositories.task_repository import TaskRepository, TaskCompletionRepository
-from backend.repositories.evidence_document_repository import EvidenceDocumentRepository
-from backend.repositories.site_settings_repository import SiteSettingsRepository
+from repositories.user_repository import UserRepository
+from repositories.quest_repository import QuestRepository, QuestTaskRepository
+from repositories.badge_repository import BadgeRepository
+from repositories.evidence_repository import EvidenceRepository
+from repositories.friendship_repository import FriendshipRepository
+from repositories.parent_repository import ParentRepository
+from repositories.tutor_repository import TutorRepository
+from repositories.lms_repository import LMSRepository
+from repositories.analytics_repository import AnalyticsRepository
+from repositories.task_repository import TaskRepository, TaskCompletionRepository
+from repositories.evidence_document_repository import EvidenceDocumentRepository
+from repositories.site_settings_repository import SiteSettingsRepository
 
 __all__ = [
     # Base classes

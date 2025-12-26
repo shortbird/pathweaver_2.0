@@ -15,7 +15,7 @@ REPOSITORY MIGRATION: MIGRATION CANDIDATE
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta, date
 from database import get_supabase_admin_client, get_user_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,

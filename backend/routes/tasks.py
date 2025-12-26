@@ -12,7 +12,7 @@ Handles task completion with evidence upload and XP awards.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client, get_user_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,
@@ -23,7 +23,7 @@ from backend.repositories import (
     LMSRepository,
     AnalyticsRepository
 )
-from backend.repositories.base_repository import NotFoundError
+from repositories.base_repository import NotFoundError
 from utils.auth.decorators import require_auth
 from services.evidence_service import EvidenceService
 from services.xp_service import XPService
@@ -46,7 +46,7 @@ evidence_service = EvidenceService()
 xp_service = XPService()
 
 # Import file upload configuration from centralized config
-from backend.config.constants import MAX_IMAGE_SIZE, ALLOWED_IMAGE_EXTENSIONS
+from config.constants import MAX_IMAGE_SIZE, ALLOWED_IMAGE_EXTENSIONS
 
 # File upload configuration
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads/evidence')
@@ -70,8 +70,8 @@ def complete_task(user_id: str, task_id: str):
         # Determine effective user ID (handles parent -> dependent delegation)
         effective_user_id = user_id
         if acting_as_dependent_id:
-            from backend.repositories.dependent_repository import DependentRepository
-            from backend.repositories.base_repository import PermissionError as RepoPermissionError
+            from repositories.dependent_repository import DependentRepository
+            from repositories.base_repository import PermissionError as RepoPermissionError
 
             try:
                 admin_client = get_supabase_admin_client()
@@ -93,7 +93,7 @@ def complete_task(user_id: str, task_id: str):
         admin_supabase = get_supabase_admin_client()
 
         # Initialize repositories with user client for RLS
-        from backend.repositories.task_repository import TaskRepository, TaskCompletionRepository
+        from repositories.task_repository import TaskRepository, TaskCompletionRepository
         task_repo = TaskRepository(client=supabase)
         completion_repo = TaskCompletionRepository(client=supabase)
 
@@ -492,7 +492,7 @@ def drop_task(user_id: str, task_id: str):
     try:
         # Initialize repositories without user_id to use admin client
         # User authentication is already enforced by @require_auth decorator
-        from backend.repositories.task_repository import TaskRepository, TaskCompletionRepository
+        from repositories.task_repository import TaskRepository, TaskCompletionRepository
         task_repo = TaskRepository()
         completion_repo = TaskCompletionRepository()
 

@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Optional
-from backend.services.base_service import BaseService
-from backend.repositories.organization_repository import OrganizationRepository
+from services.base_service import BaseService
+from repositories.organization_repository import OrganizationRepository
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -114,7 +114,7 @@ class OrganizationService(BaseService):
             raise ValueError("Can only grant quest access for organizations with 'curated' policy")
 
         # Verify quest is a global Optio quest (organization_id IS NULL)
-        from backend.repositories.quest_repository import QuestRepository
+        from repositories.quest_repository import QuestRepository
         quest_repo = QuestRepository()
         quest = quest_repo.find_by_id(quest_id)
 

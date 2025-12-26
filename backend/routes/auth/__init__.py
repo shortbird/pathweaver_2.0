@@ -8,7 +8,7 @@ Refactored from mega-file auth.py (1,523 lines) into focused modules:
 - session.py: CSRF token management
 
 Usage in app.py:
-    from backend.routes.auth import register_auth_routes
+    from routes.auth import register_auth_routes
     register_auth_routes(app)
 """
 

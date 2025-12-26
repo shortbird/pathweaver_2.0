@@ -22,7 +22,7 @@ All endpoints verify parent-student link before allowing operations.
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import get_supabase_admin_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,

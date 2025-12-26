@@ -17,7 +17,7 @@ Handles admin review and approval of student-created manual tasks.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from backend.repositories import (
+from repositories import (
     UserRepository,
     QuestRepository,
     BadgeRepository,

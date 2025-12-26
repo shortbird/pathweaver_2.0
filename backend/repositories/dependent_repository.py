@@ -8,7 +8,7 @@ Supports COPPA-compliant dependent profiles without email/password.
 from typing import List, Dict, Optional, Any
 from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
-from backend.repositories.base_repository import BaseRepository, NotFoundError, PermissionError, ValidationError
+from repositories.base_repository import BaseRepository, NotFoundError, PermissionError, ValidationError
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -364,7 +364,7 @@ class DependentRepository(BaseRepository):
 
         try:
             # Create Supabase Auth account
-            from backend.database import get_supabase_admin_client
+            from database import get_supabase_admin_client
             admin_client = get_supabase_admin_client()
 
             auth_response = admin_client.auth.admin.create_user({

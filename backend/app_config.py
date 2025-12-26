@@ -177,18 +177,18 @@ class Config:
     
     # File Upload Settings - CONFIGURABLE
     UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
-    # ALLOWED_EXTENSIONS imported from backend.config.constants
-    # MAX_FILE_SIZE imported from backend.config.constants (10MB)
+    # ALLOWED_EXTENSIONS imported from config.constants
+    # MAX_FILE_SIZE imported from config.constants (10MB)
     MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', str(10 * 1024 * 1024)))  # 10MB default
     ALLOWED_UPLOAD_EXTENSIONS = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.mp4', '.mov']
 
     # Quest Settings - imported from centralized constants
-    # MIN_QUEST_TITLE_LENGTH, MAX_QUEST_TITLE_LENGTH imported from backend.config.constants
-    # MIN_QUEST_DESCRIPTION_LENGTH, MAX_QUEST_DESCRIPTION_LENGTH imported from backend.config.constants
-    # DEFAULT_QUEST_XP, MAX_QUEST_XP imported from backend.config.constants
+    # MIN_QUEST_TITLE_LENGTH, MAX_QUEST_TITLE_LENGTH imported from config.constants
+    # MIN_QUEST_DESCRIPTION_LENGTH, MAX_QUEST_DESCRIPTION_LENGTH imported from config.constants
+    # DEFAULT_QUEST_XP, MAX_QUEST_XP imported from config.constants
 
     # User Settings - Strong password policy - imported from centralized constants
-    # MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH imported from backend.config.constants
+    # MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH imported from config.constants
     PASSWORD_REQUIRE_UPPERCASE = PASSWORD_REQUIREMENTS['require_uppercase']
     PASSWORD_REQUIRE_LOWERCASE = PASSWORD_REQUIREMENTS['require_lowercase']
     PASSWORD_REQUIRE_NUMBER = PASSWORD_REQUIREMENTS['require_digit']

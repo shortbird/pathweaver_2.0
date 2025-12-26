@@ -17,7 +17,7 @@ from repositories.badge_repository import BadgeRepository
 from repositories.base_repository import NotFoundError, DatabaseError
 
 from utils.logger import get_logger
-from backend.repositories import (
+from repositories import (
     BadgeRepository,
     QuestRepository,
     TaskCompletionRepository,
