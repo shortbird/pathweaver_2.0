@@ -503,10 +503,11 @@ def update_display_mode(user_id: str, quest_id: str):
         if not user_quest.data:
             return jsonify({'error': 'Quest not found or not enrolled'}), 404
 
-        # Update using the primary key
+        # Update using the primary key and return the updated record
         result = supabase.table('user_quests')\
             .update({'task_display_mode': display_mode})\
             .eq('id', user_quest.data['id'])\
+            .select()\
             .execute()
 
         logger.info(f"User {user_id[:8]} set display mode to '{display_mode}' for quest {quest_id}")
