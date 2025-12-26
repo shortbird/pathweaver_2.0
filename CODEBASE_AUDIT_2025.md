@@ -30,6 +30,9 @@ The Optio Platform is a **well-architected, professionally documented codebase**
 **Icon Migration Completion:**
 - Fixed build error: Removed lucide-react from vite.config.js manual chunks
 - Fixed runtime error: Updated TaskTimeline.jsx icon references (Circle/TrendingUp/CheckCircle → ClockIcon/ArrowTrendingUpIcon/CheckCircleIcon)
+- Fixed critical runtime error: Updated TaskWorkspace.jsx icon references (Type/Image/Video/Link2/FileText → heroicons)
+  - Caused "Type is not defined" error when viewing quest details
+  - Evidence block menu now works correctly
 - Verified build succeeds locally (5.5s build time, no errors)
 - lucide-react fully eliminated from codebase
 
