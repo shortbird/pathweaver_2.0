@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
-const QuestCardV3 = ({ quest, onEnroll }) => {
+const QuestCardV3 = memo(({ quest, onEnroll }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isEnrolling, setIsEnrolling] = useState(false);
@@ -180,6 +180,6 @@ const QuestCardV3 = ({ quest, onEnroll }) => {
       </div>
     </div>
   );
-};
+});
 
 export default QuestCardV3;

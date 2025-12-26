@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { PlusIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import { getPillarData } from '../../utils/pillarMappings';
 import toast from 'react-hot-toast';
 
-const SampleTaskCard = ({ task, onAdd, disabled = false }) => {
+const SampleTaskCard = memo(({ task, onAdd, disabled = false }) => {
   const [isAdding, setIsAdding] = useState(false);
   const pillarData = getPillarData(task.pillar);
 
@@ -96,6 +96,6 @@ const SampleTaskCard = ({ task, onAdd, disabled = false }) => {
       </div>
     </div>
   );
-};
+});
 
 export default SampleTaskCard;

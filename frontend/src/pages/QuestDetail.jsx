@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { flushSync } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -455,7 +455,8 @@ const QuestDetail = () => {
     setExpandedTasks(newExpanded);
   };
 
-  const calculateXP = () => {
+  // Memoize XP calculations to prevent expensive re-computation on every render
+  const xpData = useMemo(() => {
     if (!quest?.quest_tasks) return { baseXP: 0, totalXP: 0, earnedXP: 0 };
 
     const tasks = quest.quest_tasks;
@@ -467,9 +468,10 @@ const QuestDetail = () => {
     const totalXP = baseXP;
 
     return { baseXP, totalXP, earnedXP };
-  };
+  }, [quest?.quest_tasks]);
 
-  const getPillarBreakdown = () => {
+  // Memoize pillar breakdown calculation
+  const pillarBreakdown = useMemo(() => {
     if (!quest?.quest_tasks) return {};
 
     const breakdown = {};
@@ -485,7 +487,7 @@ const QuestDetail = () => {
     });
 
     return breakdown;
-  };
+  }, [quest?.quest_tasks]);
 
   const getLocationDisplay = () => {
     if (!quest?.metadata) return null;
@@ -547,12 +549,18 @@ const QuestDetail = () => {
     );
   }
 
-  const completedTasks = quest.quest_tasks?.filter(task => task.is_completed).length || 0;
+  // Memoize completed tasks calculation
+  const completedTasks = useMemo(() => {
+    return quest.quest_tasks?.filter(task => task.is_completed).length || 0;
+  }, [quest.quest_tasks]);
+
   const totalTasks = quest.quest_tasks?.length || 0;
   const progressPercentage = quest.progress?.percentage || (totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0);
   const isQuestCompleted = quest.completed_enrollment || (quest.progress && quest.progress.percentage === 100);
-  const { baseXP, totalXP, earnedXP } = calculateXP();
-  const pillarBreakdown = getPillarBreakdown();
+
+  // Destructure memoized XP data
+  const { baseXP, totalXP, earnedXP } = xpData;
+
   const locationDisplay = getLocationDisplay();
   const seasonalDisplay = getSeasonalDisplay();
 
