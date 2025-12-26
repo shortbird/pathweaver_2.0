@@ -1,4 +1,4 @@
-;
+import { ArrowsUpDownIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
 
 const TaskDisplayModeToggle = ({ mode, onModeChange }) => {
   return (
@@ -16,7 +16,7 @@ const TaskDisplayModeToggle = ({ mode, onModeChange }) => {
           `}
           style={{ fontFamily: 'Poppins' }}
         >
-          <ArrowDownUp className="w-4 h-4" />
+          <ArrowsUpDownIcon className="w-4 h-4" />
           <span>Timeline</span>
         </button>
         <button
@@ -30,7 +30,7 @@ const TaskDisplayModeToggle = ({ mode, onModeChange }) => {
           `}
           style={{ fontFamily: 'Poppins' }}
         >
-          <Grid3x3 className="w-4 h-4" />
+          <Squares2X2Icon className="w-4 h-4" />
           <span>Flexible</span>
         </button>
       </div>

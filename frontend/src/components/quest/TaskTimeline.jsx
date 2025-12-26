@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ArrowTrendingUpIcon, Bars3Icon, CheckCircleIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowTrendingUpIcon, Bars3Icon, CheckCircleIcon, ClockIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { getPillarData } from '../../utils/pillarMappings';
 import TaskDisplayModeToggle from './TaskDisplayModeToggle';
 import toast from 'react-hot-toast';
