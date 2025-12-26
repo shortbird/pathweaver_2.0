@@ -490,10 +490,10 @@ def update_display_mode(user_id: str, quest_id: str):
         if display_mode not in ['timeline', 'flexible']:
             return jsonify({'error': 'display_mode must be "timeline" or "flexible"'}), 400
 
-        supabase = get_user_client()
+        admin = get_supabase_admin_client()
 
         # First, get the user_quest record to find its ID
-        user_quest = supabase.table('user_quests')\
+        user_quest = admin.table('user_quests')\
             .select('id')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
@@ -503,8 +503,8 @@ def update_display_mode(user_id: str, quest_id: str):
         if not user_quest.data:
             return jsonify({'error': 'Quest not found or not enrolled'}), 404
 
-        # Update using the primary key and return the updated record
-        result = supabase.table('user_quests')\
+        # Update using the primary key and admin client (bypasses RLS)
+        result = admin.table('user_quests')\
             .update({'task_display_mode': display_mode})\
             .eq('id', user_quest.data['id'])\
             .select('*')\
