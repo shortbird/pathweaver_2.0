@@ -525,6 +525,9 @@ FRONTEND_URL      # CORS config (dev/prod URLs)
 # Optional
 GEMINI_API_KEY    # AI features
 PEXELS_API_KEY    # Quest image generation
+REDIS_URL         # Redis connection string for persistent rate limiting
+                  # Falls back to in-memory if not set (local dev)
+                  # Render Key Value instance: optio-redis-rate-limiting
 ```
 
 ### Frontend (Render)
@@ -561,6 +564,7 @@ mcp__render__list_logs(resource, limit)
 # Dev Frontend: srv-d2tnvrffte5s73ae8s4g
 # Prod Backend: srv-d2to00vfte5s73ae9310
 # Prod Frontend: srv-d2to04vfte5s73ae97ag
+# Redis (Rate Limiting): red-d57cu7m3jp1c73ath0p0
 ```
 
 **IMPORTANT**: DO NOT use `text` filter parameter with `list_logs` - it causes 500 errors. Use `level` and `type` filters instead, then search results manually.
@@ -611,6 +615,11 @@ Rather than force migrations where repositories provide minimal benefit, we esta
 - ✅ Removed tokens from API response bodies
 - ✅ Strong password policy (12 chars, complexity)
 - ✅ Brand color consistency (233 replacements)
+- ✅ Redis rate limiting (Dec 2025) - Persistent rate limits across deployments
+  - Render Key Value instance: optio-redis-rate-limiting (free tier, oregon)
+  - Sorted sets for precise time-window tracking
+  - Automatic fallback to in-memory if Redis unavailable
+  - Protects against brute force attacks during deployments
 
 ### Observer Role Implementation (NEW - Jan 2025)
 - ✅ Added observer role to roles.py enum and permissions system

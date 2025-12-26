@@ -48,7 +48,7 @@ The Optio Platform is a **well-architected, professionally documented codebase**
 **Infrastructure:**
 7. ✅ Test coverage reporting configured
 
-### 60-Day Priority (5/7 Complete)
+### 60-Day Priority (6/7 Complete)
 
 **Performance:**
 8. ✅ React Query cache busting removed (proper staleTime/cacheTime)
@@ -57,14 +57,19 @@ The Optio Platform is a **well-architected, professionally documented codebase**
 
 **Security:**
 11. ✅ Email template injection fixed (Jinja2 autoescape)
+12. ✅ Redis rate limiting (December 26, 2025)
+    - Created Render Key Value instance: optio-redis-rate-limiting (free tier, oregon)
+    - Refactored RateLimiter to use Redis sorted sets for precise time-window tracking
+    - Automatic fallback to in-memory if Redis unavailable (local dev)
+    - Persistent rate limits survive deployments (prevents brute force during restarts)
 
 **Developer Experience:**
-12. ✅ Icon library consolidation (lucide-react → heroicons, 117 files migrated + build/runtime fixes)
+13. ✅ Icon library consolidation (lucide-react → heroicons, 117 files migrated + build/runtime fixes)
     - Removed lucide-react from vite.config.js manual chunks
     - Fixed TaskTimeline.jsx runtime errors (Circle/TrendingUp/CheckCircle → heroicons)
     - lucide-react fully removed from codebase
-13. ✅ Drag-drop library migration (react-beautiful-dnd → @dnd-kit)
-14. ✅ Removed unused package imports (react-markdown)
+14. ✅ Drag-drop library migration (react-beautiful-dnd → @dnd-kit)
+15. ✅ Removed unused package imports (react-markdown)
 
 ---
 
@@ -87,25 +92,19 @@ The Optio Platform is a **well-architected, professionally documented codebase**
 
 ## 🟡 High Priority Remaining Issues
 
-### 2. Redis Rate Limiting (Security)
-**Current**: In-memory rate limiting (resets on deployment)
-**Impact**: Brute force attacks possible during deployments
-**Fix**: Use Render Redis instance
-**Effort**: 4 hours
-
-### 3. Observer Audit Logging (Compliance)
+### 2. Observer Audit Logging (Compliance)
 **Current**: No audit trail for observer access to student data
 **Impact**: COPPA/FERPA compliance risk
 **Fix**: Create `observer_access_audit` table + logging middleware
 **Effort**: 4 hours
 
-### 4. Frontend Performance - Memoization
+### 3. Frontend Performance - Memoization
 **Current**: Expensive calculations run on every render
 **Impact**: Slower UI, especially with many quests/tasks
 **Fix**: Add `useMemo` to XP calculations, `React.memo` to components
 **Effort**: 4 hours
 
-### 5. Bundle Size Optimization (In Progress)
+### 4. Bundle Size Optimization
 **Current**: ~9-10MB production build
 **Target**: <3MB
 **Fix**: Code splitting, lazy loading (recharts, modals)
@@ -150,10 +149,10 @@ The Optio Platform is a **well-architected, professionally documented codebase**
 
 ## 🎯 Recommended Action Plan
 
-### This Week (8 hours)
+### This Week (4 hours remaining)
 1. ⚠️ Fix 14 failing LoginPage tests (2 hours)
 2. ⚠️ Add AuthContext tests (2 hours)
-3. ⚠️ Implement Redis rate limiting (4 hours)
+3. ✅ Redis rate limiting (COMPLETE - December 26, 2025)
 
 ### Next Week (12 hours)
 1. Add observer audit logging (4 hours)
