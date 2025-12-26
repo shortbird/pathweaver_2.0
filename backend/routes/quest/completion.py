@@ -504,10 +504,9 @@ def update_display_mode(user_id: str, quest_id: str):
             return jsonify({'error': 'Quest not found or not enrolled'}), 404
 
         # Update using the primary key and admin client (bypasses RLS)
-        result = admin.table('user_quests')\
+        admin.table('user_quests')\
             .update({'task_display_mode': display_mode})\
             .eq('id', user_quest.data['id'])\
-            .select('*')\
             .execute()
 
         logger.info(f"User {user_id[:8]} set display mode to '{display_mode}' for quest {quest_id}")
