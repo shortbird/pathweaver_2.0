@@ -1,10 +1,12 @@
-import React, { useState, useEffect, memo } from 'react'
+import React, { useState, useEffect, memo, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
-import UserDetailsModal from './UserDetailsModal'
-import BulkEmailModal from './BulkEmailModal'
 import logger from '../../utils/logger'
+
+// Lazy load large modals to reduce initial bundle size
+const UserDetailsModal = lazy(() => import('./UserDetailsModal'))
+const BulkEmailModal = lazy(() => import('./BulkEmailModal'))
 // import { useAdminSubscriptionTiers } from '../../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const AdminUsers = () => {
@@ -499,31 +501,35 @@ const AdminUsers = () => {
 
       {/* User Details Modal */}
       {showUserModal && editingUser && (
-        <UserDetailsModal
-          user={editingUser}
-          onClose={() => {
-            setShowUserModal(false)
-            setEditingUser(null)
-          }}
-          onSave={() => {
-            setShowUserModal(false)
-            setEditingUser(null)
-            fetchUsers()
-          }}
-        />
+        <Suspense fallback={<div />}>
+          <UserDetailsModal
+            user={editingUser}
+            onClose={() => {
+              setShowUserModal(false)
+              setEditingUser(null)
+            }}
+            onSave={() => {
+              setShowUserModal(false)
+              setEditingUser(null)
+              fetchUsers()
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Bulk Email Modal */}
       {showBulkEmailModal && (
-        <BulkEmailModal
-          selectedUserIds={Array.from(selectedUsers)}
-          users={users.filter(u => selectedUsers.has(u.id))}
-          onClose={() => setShowBulkEmailModal(false)}
-          onSend={() => {
-            setShowBulkEmailModal(false)
-            setSelectedUsers(new Set())
-          }}
-        />
+        <Suspense fallback={<div />}>
+          <BulkEmailModal
+            selectedUserIds={Array.from(selectedUsers)}
+            users={users.filter(u => selectedUsers.has(u.id))}
+            onClose={() => setShowBulkEmailModal(false)}
+            onSend={() => {
+              setShowBulkEmailModal(false)
+              setSelectedUsers(new Set())
+            }}
+          />
+        </Suspense>
       )}
     </div>
   )

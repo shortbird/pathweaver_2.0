@@ -11,6 +11,12 @@ export default {
         'poppins': ['Poppins', 'sans-serif'],
         'inter': ['Inter', 'sans-serif'],
       },
+      fontWeight: {
+        'normal': '400',
+        'medium': '600',
+        'semibold': '600',
+        'bold': '600',
+      },
       colors: {
         // Design System: Brand colors (PRIMARY)
         'optio-purple': '#6D469B',

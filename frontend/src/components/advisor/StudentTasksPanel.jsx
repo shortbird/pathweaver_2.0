@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { Bars3Icon, CheckCircleIcon, ChevronDownIcon, ChevronUpIcon, EllipsisHorizontalCircleIcon, PencilSquareIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import TaskEditModal from './TaskEditModal';
-import AddEvidenceModal from './AddEvidenceModal';
+
+// Lazy load large modal to reduce initial bundle size
+const AddEvidenceModal = lazy(() => import('./AddEvidenceModal'));
 
 const PILLAR_COLORS = {
   stem: 'bg-blue-500',
@@ -269,12 +271,14 @@ export default function StudentTasksPanel({ quest, studentId, studentName, onTas
 
       {/* Add Evidence Modal */}
       {showAddEvidenceModal && (
-        <AddEvidenceModal
-          isOpen={showAddEvidenceModal}
-          onClose={() => setShowAddEvidenceModal(false)}
-          studentId={studentId}
-          studentName={studentName}
-        />
+        <Suspense fallback={<div />}>
+          <AddEvidenceModal
+            isOpen={showAddEvidenceModal}
+            onClose={() => setShowAddEvidenceModal(false)}
+            studentId={studentId}
+            studentName={studentName}
+          />
+        </Suspense>
       )}
     </div>
   );

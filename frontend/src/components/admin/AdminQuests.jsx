@@ -1,11 +1,13 @@
-import React, { useState, useEffect, memo } from 'react'
+import React, { useState, useEffect, memo, lazy, Suspense } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import UnifiedQuestForm from './UnifiedQuestForm'
 import CourseQuestForm from './CourseQuestForm'
 import BulkQuestGenerator from './BulkQuestGenerator'
-import AIQuestReviewModal from './AIQuestReviewModal'
+
+// Lazy load large modal to reduce initial bundle size
+const AIQuestReviewModal = lazy(() => import('./AIQuestReviewModal'))
 
 const AdminQuests = () => {
   const { user } = useAuth()
@@ -546,13 +548,15 @@ const AdminQuests = () => {
 
       {/* AI Quest Review Modal */}
       {showAIReviewModal && (
-        <AIQuestReviewModal
-          isOpen={showAIReviewModal}
-          onClose={() => setShowAIReviewModal(false)}
-          onApprove={() => {
-            fetchQuests()
-          }}
-        />
+        <Suspense fallback={<div />}>
+          <AIQuestReviewModal
+            isOpen={showAIReviewModal}
+            onClose={() => setShowAIReviewModal(false)}
+            onApprove={() => {
+              fetchQuests()
+            }}
+          />
+        </Suspense>
       )}
     </div>
   )
