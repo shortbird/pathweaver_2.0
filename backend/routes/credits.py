@@ -145,7 +145,7 @@ def get_transcript(user_id, target_user_id):
             .select('id')\
             .eq('parent_user_id', user_id)\
             .eq('student_user_id', target_user_id)\
-            .eq('status', 'accepted')\
+            .eq('status', 'approved')\
             .execute()
 
         if link.data and len(link.data) > 0:
