@@ -140,11 +140,11 @@ def get_transcript(user_id, target_user_id):
             transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
             return jsonify({'success': True, 'transcript': transcript}), 200
 
-        # Also check parent_links table for non-dependent children
-        link = supabase.table('parent_links')\
+        # Also check parent_student_links table for non-dependent children
+        link = supabase.table('parent_student_links')\
             .select('id')\
-            .eq('parent_id', user_id)\
-            .eq('student_id', target_user_id)\
+            .eq('parent_user_id', user_id)\
+            .eq('student_user_id', target_user_id)\
             .eq('status', 'accepted')\
             .execute()
 
