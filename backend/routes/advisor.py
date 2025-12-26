@@ -28,8 +28,8 @@ advisor_bp = Blueprint('advisor', __name__)
 def get_students(user_id):
     """Get all students assigned to this advisor"""
     try:
-        # Create service instance per-request with user context
-        advisor_service = AdvisorService(user_id=user_id)
+        # Create service instance per-request
+        advisor_service = AdvisorService()
         students = advisor_service.get_advisor_students(user_id)
 
         # Add last check-in date for each student
@@ -62,7 +62,7 @@ def get_students(user_id):
 def assign_student(user_id, student_id):
     """Assign a student to this advisor"""
     try:
-        advisor_service = AdvisorService(user_id=user_id)
+        advisor_service = AdvisorService()
         success = advisor_service.assign_student_to_advisor(student_id, user_id)
         return jsonify({
             'success': True,
@@ -87,7 +87,7 @@ def assign_student(user_id, student_id):
 def get_student_progress(user_id, student_id):
     """Get comprehensive progress report for a student"""
     try:
-        advisor_service = AdvisorService(user_id=user_id)
+        advisor_service = AdvisorService()
         report = advisor_service.get_student_progress_report(student_id, user_id)
         return jsonify({
             'success': True,
@@ -114,7 +114,7 @@ def get_student_progress(user_id, student_id):
 def get_custom_badges(user_id):
     """Get all custom badges created by this advisor"""
     try:
-        advisor_service = AdvisorService(user_id=user_id)
+        advisor_service = AdvisorService()
         badges = advisor_service.get_advisor_custom_badges(user_id)
         return jsonify({
             'success': True,
@@ -162,7 +162,7 @@ def create_custom_badge(user_id):
             raise ValidationError("xp_requirement must be a non-negative integer")
 
         # Create badge
-        advisor_service = AdvisorService(user_id=user_id)
+        advisor_service = AdvisorService()
         badge = advisor_service.create_custom_badge(
             advisor_id=user_id,
             name=data['name'],
@@ -229,7 +229,7 @@ def update_custom_badge(user_id, badge_id):
                 raise ValidationError("xp_requirement must be a non-negative integer")
 
         # Update badge
-        advisor_service = AdvisorService(user_id=user_id)
+        advisor_service = AdvisorService()
         badge = advisor_service.update_custom_badge(badge_id, user_id, data)
 
         return jsonify({
@@ -261,7 +261,7 @@ def update_custom_badge(user_id, badge_id):
 def delete_custom_badge(user_id, badge_id):
     """Delete a custom badge"""
     try:
-        advisor_service = AdvisorService(user_id=user_id)
+        advisor_service = AdvisorService()
         success = advisor_service.delete_custom_badge(badge_id, user_id)
         return jsonify({
             'success': True,
@@ -293,7 +293,7 @@ def assign_badge(user_id, badge_id):
         if 'student_id' not in data:
             raise ValidationError("Missing required field: student_id")
 
-        advisor_service = AdvisorService(user_id=user_id)
+        advisor_service = AdvisorService()
         result = advisor_service.assign_badge_to_student(
             badge_id=badge_id,
             student_id=data['student_id'],
@@ -331,7 +331,7 @@ def assign_badge(user_id, badge_id):
 def get_advisor_dashboard(user_id):
     """Get advisor dashboard summary statistics"""
     try:
-        advisor_service = AdvisorService(user_id=user_id)
+        advisor_service = AdvisorService()
         students = advisor_service.get_advisor_students(user_id)
         custom_badges = advisor_service.get_advisor_custom_badges(user_id)
 
@@ -369,7 +369,7 @@ def get_advisor_dashboard(user_id):
 def get_student_quests_with_tasks(user_id, student_id):
     """Get all active quests for a student with their tasks - for task management interface"""
     try:
-        advisor_service = AdvisorService(user_id=user_id)
+        advisor_service = AdvisorService()
 
         # Get quests with tasks
         quests = advisor_service.get_student_active_quests_with_tasks(
