@@ -56,53 +56,16 @@ export default defineConfig(({ mode }) => ({
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          // Core React libraries - most used, highest priority for caching
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
-            return 'react-core';
-          }
-          if (id.includes('node_modules/react-router-dom')) {
-            return 'react-router';
-          }
-
-          // Heavy chart libraries - lazy load on demand
-          if (id.includes('node_modules/recharts')) {
-            return 'recharts';
-          }
-          if (id.includes('node_modules/@fullcalendar')) {
-            return 'fullcalendar';
-          }
-
-          // UI libraries - moderate size, frequently used
-          if (id.includes('node_modules/@heroicons/react')) {
-            return 'heroicons';
-          }
-          if (id.includes('node_modules/framer-motion')) {
-            return 'framer-motion';
-          }
-
-          // DnD libraries
-          if (id.includes('node_modules/@dnd-kit')) {
-            return 'dnd-kit';
-          }
-
-          // Utilities - small, frequently used
-          if (id.includes('node_modules/axios')) {
-            return 'axios';
-          }
-          if (id.includes('node_modules/@tanstack/react-query')) {
-            return 'react-query';
-          }
-
-          // Split large admin pages into separate chunks
-          if (id.includes('/pages/Admin')) {
-            return 'admin-pages';
-          }
-
-          // Other vendor code
-          if (id.includes('node_modules')) {
-            return 'vendor';
-          }
+        manualChunks: {
+          // Core React bundle - most stable, best for caching
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          // UI libraries
+          'ui-vendor': ['@heroicons/react', 'framer-motion'],
+          // Heavy chart libraries - lazy loaded via App.jsx already
+          'recharts': ['recharts'],
+          'fullcalendar': ['@fullcalendar/react', '@fullcalendar/daygrid', '@fullcalendar/interaction'],
+          // Utilities
+          'utils-vendor': ['axios', '@tanstack/react-query'],
         },
       },
     },
