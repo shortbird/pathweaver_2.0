@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { TrophyIcon, PhotoIcon, VideoCameraIcon, LinkIcon, DocumentTextIcon, ExclamationCircleIcon, CheckCircleIcon, BookOpenIcon, ChevronDownIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { TrophyIcon, PhotoIcon, VideoCameraIcon, LinkIcon, DocumentTextIcon, ExclamationCircleIcon, CheckCircleIcon, BookOpenIcon, ChevronDownIcon, PlusIcon, DocumentIcon } from '@heroicons/react/24/outline';
 import confetti from 'canvas-confetti';
 import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
 import { getPillarData } from '../../utils/pillarMappings';
@@ -115,11 +115,11 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
   };
 
   const blockTypes = {
-    text: { icon: Type, label: 'Text' },
-    image: { icon: Image, label: 'Image' },
-    video: { icon: Video, label: 'Video' },
-    link: { icon: Link2, label: 'Link' },
-    document: { icon: FileText, label: 'Document' }
+    text: { icon: DocumentTextIcon, label: 'Text' },
+    image: { icon: PhotoIcon, label: 'Image' },
+    video: { icon: VideoCameraIcon, label: 'Video' },
+    link: { icon: LinkIcon, label: 'Link' },
+    document: { icon: DocumentIcon, label: 'Document' }
   };
 
   return (
