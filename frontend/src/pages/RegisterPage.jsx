@@ -83,6 +83,7 @@ const RegisterPage = () => {
                   First Name
                 </label>
                 <input
+                  id="first_name"
                   {...registerField('first_name', {
                     required: 'First name is required'
                   })}
@@ -94,12 +95,13 @@ const RegisterPage = () => {
                   <p className="mt-1 text-sm text-red-600">{errors.first_name.message}</p>
                 )}
               </div>
-              
+
               <div>
                 <label htmlFor="last_name" className="block text-sm font-medium text-gray-700">
                   Last Name
                 </label>
                 <input
+                  id="last_name"
                   {...registerField('last_name', {
                     required: 'Last name is required'
                   })}
@@ -112,12 +114,13 @@ const RegisterPage = () => {
                 )}
               </div>
             </div>
-            
+
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email Address
               </label>
               <input
+                id="email"
                 {...registerField('email', {
                   required: 'Email is required',
                   pattern: {
@@ -139,6 +142,7 @@ const RegisterPage = () => {
                 Date of Birth
               </label>
               <input
+                id="date_of_birth"
                 {...registerField('date_of_birth', {
                   required: 'Date of birth is required for age verification'
                 })}
@@ -162,6 +166,7 @@ const RegisterPage = () => {
                   Parent/Guardian Email Address
                 </label>
                 <input
+                  id="parent_email"
                   {...registerField('parent_email', {
                     required: isUnder13 ? 'Parent/guardian email is required for users under 13' : false,
                     pattern: {
@@ -181,13 +186,14 @@ const RegisterPage = () => {
                 </p>
               </div>
             )}
-            
+
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
               </label>
               <div className="relative mt-1">
                 <input
+                  id="password"
                   {...registerField('password', {
                     required: 'Password is required',
                     minLength: {
@@ -238,6 +244,7 @@ const RegisterPage = () => {
               </label>
               <div className="relative mt-1">
                 <input
+                  id="confirmPassword"
                   {...registerField('confirmPassword', {
                     required: 'Please confirm your password',
                     validate: value => value === password || 'Passwords do not match'

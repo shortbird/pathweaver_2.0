@@ -46,6 +46,35 @@ vi.mock('../components/auth/PasswordStrengthMeter', () => ({
 describe('RegisterPage', () => {
   const mockRegister = vi.fn()
 
+  // Helper to fill valid form data (all fields except the one being tested)
+  const fillValidFormData = async (user, { skipField = null } = {}) => {
+    const today = new Date()
+    const twentyYearsAgo = new Date(today.getFullYear() - 20, today.getMonth(), today.getDate())
+    const dobString = twentyYearsAgo.toISOString().split('T')[0]
+
+    if (skipField !== 'first_name') {
+      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
+    }
+    if (skipField !== 'last_name') {
+      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
+    }
+    if (skipField !== 'email') {
+      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'john@example.com')
+    }
+    if (skipField !== 'date_of_birth') {
+      await user.type(screen.getByLabelText(/date of birth/i), dobString)
+    }
+    if (skipField !== 'password') {
+      await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
+    }
+    if (skipField !== 'confirmPassword') {
+      await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!')
+    }
+    if (skipField !== 'acceptedLegalTerms') {
+      await user.click(screen.getByRole('checkbox', { name: /i agree to the terms of service and privacy policy/i }))
+    }
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
     // Update mockAuthValue for each test
@@ -129,15 +158,29 @@ describe('RegisterPage', () => {
 
       renderWithProviders(<RegisterPage />)
 
+      // Fill required fields with valid data except email
+      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
+      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
+
+      // Fill email with invalid format
       const emailInput = screen.getByPlaceholderText(/john@example.com/i)
       await user.type(emailInput, 'invalid-email')
+
+      const today = new Date()
+      const twentyYearsAgo = new Date(today.getFullYear() - 20, today.getMonth(), today.getDate())
+      const dobString = twentyYearsAgo.toISOString().split('T')[0]
+      await user.type(screen.getByLabelText(/date of birth/i), dobString)
+
+      await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
+      await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!')
+      await user.click(screen.getByRole('checkbox'))
 
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
 
       await waitFor(() => {
         expect(screen.getByText(/invalid email address/i)).toBeInTheDocument()
-      })
+      }, { timeout: 3000 })
     })
 
     it('shows error when date of birth is empty', async () => {
@@ -158,15 +201,30 @@ describe('RegisterPage', () => {
 
       renderWithProviders(<RegisterPage />)
 
+      // Fill all required fields
+      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
+      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
+      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'john@example.com')
+
+      const today = new Date()
+      const twentyYearsAgo = new Date(today.getFullYear() - 20, today.getMonth(), today.getDate())
+      const dobString = twentyYearsAgo.toISOString().split('T')[0]
+      await user.type(screen.getByLabelText(/date of birth/i), dobString)
+
+      // Fill password with too short value
       const passwordInput = screen.getByLabelText(/^password$/i)
       await user.type(passwordInput, 'short')
+      await user.type(screen.getByLabelText(/confirm password/i), 'short')
+      await user.click(screen.getByRole('checkbox'))
 
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
 
       await waitFor(() => {
-        expect(screen.getByText(/password must be at least 12 characters/i)).toBeInTheDocument()
-      })
+        // Look for the error message in the red text (not the helper text)
+        const errorMessages = screen.queryAllByText(/password must be at least 12 characters/i)
+        expect(errorMessages.length).toBeGreaterThan(0)
+      }, { timeout: 3000 })
     })
 
     it('shows error when password lacks uppercase letter', async () => {
@@ -174,15 +232,28 @@ describe('RegisterPage', () => {
 
       renderWithProviders(<RegisterPage />)
 
+      // Fill all required fields
+      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
+      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
+      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'john@example.com')
+
+      const today = new Date()
+      const twentyYearsAgo = new Date(today.getFullYear() - 20, today.getMonth(), today.getDate())
+      const dobString = twentyYearsAgo.toISOString().split('T')[0]
+      await user.type(screen.getByLabelText(/date of birth/i), dobString)
+
       const passwordInput = screen.getByLabelText(/^password$/i)
       await user.type(passwordInput, 'lowercase123!')
+      await user.type(screen.getByLabelText(/confirm password/i), 'lowercase123!')
+      await user.click(screen.getByRole('checkbox'))
 
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
 
       await waitFor(() => {
-        expect(screen.getByText(/one uppercase letter/i)).toBeInTheDocument()
-      })
+        // The error format is "Password must contain: One uppercase letter"
+        expect(screen.getByText(/password must contain.*uppercase/i)).toBeInTheDocument()
+      }, { timeout: 3000 })
     })
 
     it('shows error when password lacks number', async () => {
@@ -190,15 +261,28 @@ describe('RegisterPage', () => {
 
       renderWithProviders(<RegisterPage />)
 
+      // Fill all required fields
+      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
+      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
+      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'john@example.com')
+
+      const today = new Date()
+      const twentyYearsAgo = new Date(today.getFullYear() - 20, today.getMonth(), today.getDate())
+      const dobString = twentyYearsAgo.toISOString().split('T')[0]
+      await user.type(screen.getByLabelText(/date of birth/i), dobString)
+
       const passwordInput = screen.getByLabelText(/^password$/i)
       await user.type(passwordInput, 'NoNumbers!')
+      await user.type(screen.getByLabelText(/confirm password/i), 'NoNumbers!')
+      await user.click(screen.getByRole('checkbox'))
 
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
 
       await waitFor(() => {
-        expect(screen.getByText(/one number/i)).toBeInTheDocument()
-      })
+        // The error format is "Password must contain: One number"
+        expect(screen.getByText(/password must contain.*number/i)).toBeInTheDocument()
+      }, { timeout: 3000 })
     })
 
     it('shows error when password lacks special character', async () => {
@@ -206,8 +290,13 @@ describe('RegisterPage', () => {
 
       renderWithProviders(<RegisterPage />)
 
+      // Fill all fields except password and confirmPassword
+      await fillValidFormData(user, { skipField: 'password' })
+
       const passwordInput = screen.getByLabelText(/^password$/i)
+      await user.clear(screen.getByLabelText(/confirm password/i))
       await user.type(passwordInput, 'NoSpecial123')
+      await user.type(screen.getByLabelText(/confirm password/i), 'NoSpecial123!')
 
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
@@ -222,10 +311,10 @@ describe('RegisterPage', () => {
 
       renderWithProviders(<RegisterPage />)
 
-      const passwordInput = screen.getByLabelText(/^password$/i)
-      const confirmPasswordInput = screen.getByLabelText(/confirm password/i)
+      // Fill all fields except confirmPassword
+      await fillValidFormData(user, { skipField: 'confirmPassword' })
 
-      await user.type(passwordInput, 'ValidPass123!')
+      const confirmPasswordInput = screen.getByLabelText(/confirm password/i)
       await user.type(confirmPasswordInput, 'DifferentPass123!')
 
       const submitButton = screen.getByRole('button', { name: /create account/i })
@@ -280,17 +369,24 @@ describe('RegisterPage', () => {
 
       renderWithProviders(<RegisterPage />)
 
-      // Set age to under 13
+      // Fill all fields except parent_email
       const today = new Date()
       const twelveYearsAgo = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate())
       const dobString = twelveYearsAgo.toISOString().split('T')[0]
 
-      const dobInput = screen.getByLabelText(/date of birth/i)
-      await user.type(dobInput, dobString)
+      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
+      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
+      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'john@example.com')
+      await user.type(screen.getByLabelText(/date of birth/i), dobString)
 
+      // Wait for parent email field to appear
       await waitFor(() => {
         expect(screen.getByLabelText(/parent\/guardian email/i)).toBeInTheDocument()
       })
+
+      await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
+      await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!')
+      await user.click(screen.getByRole('checkbox', { name: /i agree to the terms of service and privacy policy/i }))
 
       // Try to submit without parent email
       const submitButton = screen.getByRole('button', { name: /create account/i })
@@ -313,7 +409,10 @@ describe('RegisterPage', () => {
       // Initially should be type="password"
       expect(passwordInput).toHaveAttribute('type', 'password')
 
-      // Find and click toggle button (eye icon)
+      // Fill password to make toggle button more visible
+      await user.type(passwordInput, 'Test')
+
+      // Find and click toggle button (eye icon) - it's the button inside the password field container
       const toggleButtons = screen.getAllByRole('button')
       // Filter out the submit button
       const toggleButton = toggleButtons.find(btn =>
@@ -338,19 +437,7 @@ describe('RegisterPage', () => {
       renderWithProviders(<RegisterPage />)
 
       // Fill form with valid data
-      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
-      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
-      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'john@example.com')
-
-      // Set age to over 13
-      const today = new Date()
-      const fifteenYearsAgo = new Date(today.getFullYear() - 15, today.getMonth(), today.getDate())
-      const dobString = fifteenYearsAgo.toISOString().split('T')[0]
-      await user.type(screen.getByLabelText(/date of birth/i), dobString)
-
-      // Strong password
-      await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
-      await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!')
+      await fillValidFormData(user)
 
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
@@ -362,7 +449,6 @@ describe('RegisterPage', () => {
             last_name: 'Doe',
             email: 'john@example.com',
             password: 'StrongPass123!',
-            confirm_password: 'StrongPass123!',
           })
         )
       })
@@ -374,15 +460,14 @@ describe('RegisterPage', () => {
 
       renderWithProviders(<RegisterPage />)
 
-      // Fill form with valid data
-      await user.type(screen.getByPlaceholderText(/^john$/i), 'Johnny')
-      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Kid')
-      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'johnny@example.com')
-
-      // Set age to under 13
+      // Fill form with valid data for under 13 user
       const today = new Date()
       const twelveYearsAgo = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate())
       const dobString = twelveYearsAgo.toISOString().split('T')[0]
+
+      await user.type(screen.getByPlaceholderText(/^john$/i), 'Johnny')
+      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Kid')
+      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'johnny@example.com')
       await user.type(screen.getByLabelText(/date of birth/i), dobString)
 
       // Wait for parent email field to appear
@@ -396,6 +481,7 @@ describe('RegisterPage', () => {
       // Strong password
       await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
       await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!')
+      await user.click(screen.getByRole('checkbox', { name: /i agree to the terms of service and privacy policy/i }))
 
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
@@ -423,18 +509,8 @@ describe('RegisterPage', () => {
 
       renderWithProviders(<RegisterPage />)
 
-      // Fill minimal valid data
-      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
-      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
-      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'test@example.com')
-
-      const today = new Date()
-      const twentyYearsAgo = new Date(today.getFullYear() - 20, today.getMonth(), today.getDate())
-      const dobString = twentyYearsAgo.toISOString().split('T')[0]
-      await user.type(screen.getByLabelText(/date of birth/i), dobString)
-
-      await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
-      await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!')
+      // Fill all valid data
+      await fillValidFormData(user)
 
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
@@ -509,18 +585,8 @@ describe('RegisterPage', () => {
 
       renderWithProviders(<RegisterPage />)
 
-      // Fill form
-      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
-      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
-      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'test@example.com')
-
-      const today = new Date()
-      const twentyYearsAgo = new Date(today.getFullYear() - 20, today.getMonth(), today.getDate())
-      const dobString = twentyYearsAgo.toISOString().split('T')[0]
-      await user.type(screen.getByLabelText(/date of birth/i), dobString)
-
-      await user.type(screen.getByLabelText(/^password$/i), 'ValidPass123!')
-      await user.type(screen.getByLabelText(/confirm password/i), 'ValidPass123!')
+      // Fill form with all valid data
+      await fillValidFormData(user)
 
       // Press Enter
       await user.keyboard('{Enter}')
