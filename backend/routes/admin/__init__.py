@@ -8,6 +8,7 @@ from .analytics import bp as analytics_bp
 from .student_task_management import bp as student_task_management_bp
 from .sample_task_management import bp as sample_task_management_bp
 from .course_quest_management import bp as course_quest_management_bp
+from .observer_audit import bp as observer_audit_bp
 
 __all__ = [
     'user_management_bp',
@@ -15,5 +16,6 @@ __all__ = [
     'analytics_bp',
     'student_task_management_bp',
     'sample_task_management_bp',
-    'course_quest_management_bp'
+    'course_quest_management_bp',
+    'observer_audit_bp'
 ]

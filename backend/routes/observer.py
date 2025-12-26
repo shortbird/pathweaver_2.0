@@ -33,6 +33,7 @@ import secrets
 from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.rate_limiter import rate_limit
+from services.observer_audit_service import ObserverAuditService
 import logging
 
 logger = logging.getLogger(__name__)
@@ -485,6 +486,23 @@ def get_student_portfolio_for_observer(student_id):
         if not portfolio_data:
             return jsonify({'error': 'Student not found'}), 404
 
+        # Log observer access for COPPA/FERPA compliance
+        try:
+            audit_service = ObserverAuditService(user_id=observer_id)
+            audit_service.log_observer_access(
+                observer_id=observer_id,
+                student_id=student_id,
+                action_type='view_portfolio',
+                resource_type='portfolio',
+                metadata={
+                    'student_name': portfolio_data.get('student', {}).get('display_name'),
+                    'diploma_slug': portfolio_data.get('student', {}).get('portfolio_slug')
+                }
+            )
+        except Exception as audit_error:
+            # Don't fail the request if audit logging fails
+            logger.error(f"Failed to log observer access: {audit_error}")
+
         return jsonify(portfolio_data), 200
 
     except Exception as e:
@@ -543,6 +561,25 @@ def post_observer_comment():
         }).execute()
 
         logger.info(f"Observer comment posted: observer={observer_id}, student={data['student_id']}")
+
+        # Log observer access for COPPA/FERPA compliance
+        try:
+            audit_service = ObserverAuditService(user_id=observer_id)
+            audit_service.log_observer_access(
+                observer_id=observer_id,
+                student_id=data['student_id'],
+                action_type='post_comment',
+                resource_type='comment',
+                resource_id=comment.data[0]['id'],
+                metadata={
+                    'quest_id': data.get('quest_id'),
+                    'task_completion_id': data.get('task_completion_id'),
+                    'comment_length': len(data['comment_text'])
+                }
+            )
+        except Exception as audit_error:
+            # Don't fail the request if audit logging fails
+            logger.error(f"Failed to log observer access: {audit_error}")
 
         return jsonify({
             'status': 'success',
@@ -612,6 +649,23 @@ def get_student_comments(student_id):
             # Add observer details to each comment
             for comment in comments_data:
                 comment['observer'] = observer_map.get(comment['observer_id'], {})
+
+        # Log observer access for COPPA/FERPA compliance (only if viewer is an observer, not the student)
+        if user_id != student_id:
+            try:
+                audit_service = ObserverAuditService(user_id=user_id)
+                audit_service.log_observer_access(
+                    observer_id=user_id,
+                    student_id=student_id,
+                    action_type='view_comments',
+                    resource_type='comments',
+                    metadata={
+                        'comment_count': len(comments_data)
+                    }
+                )
+            except Exception as audit_error:
+                # Don't fail the request if audit logging fails
+                logger.error(f"Failed to log observer access: {audit_error}")
 
         return jsonify({'comments': comments_data}), 200
 

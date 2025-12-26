@@ -18,6 +18,7 @@ const CourseImport = lazy(() => import('../components/admin/CourseImport'))
 const SubjectReviewPage = lazy(() => import('./admin/SubjectReviewPage'))
 const OrganizationDashboard = lazy(() => import('./admin/OrganizationDashboard'))
 const OrganizationManagement = lazy(() => import('./admin/OrganizationManagement'))
+const ObserverAuditLog = lazy(() => import('../components/admin/ObserverAuditLog'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -117,6 +118,12 @@ const AdminPage = () => {
             >
               Organizations
             </Link>
+            <Link
+              to="/admin/observer-audit"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'observer-audit' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Observer Audit
+            </Link>
           </>
         )}
 
@@ -148,6 +155,7 @@ const AdminPage = () => {
           <Route path="subject-review" element={<SubjectReviewPage />} />
           <Route path="organizations" element={<OrganizationDashboard />} />
           <Route path="organizations/:orgId" element={<OrganizationManagement />} />
+          <Route path="observer-audit" element={<ObserverAuditLog />} />
         </Routes>
       </Suspense>
     </div>
