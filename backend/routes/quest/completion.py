@@ -478,14 +478,12 @@ def reorder_quest_tasks(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/display-mode', methods=['PUT'])
 @require_auth
-def update_display_mode(quest_id):
+def update_display_mode(user_id: str, quest_id: str):
     """
     Update the display mode for a quest (timeline or flexible).
     Body: { display_mode: 'timeline' | 'flexible' }
     """
     try:
-        user_id = g.user_id
-
         data = request.get_json()
         display_mode = data.get('display_mode')
 
