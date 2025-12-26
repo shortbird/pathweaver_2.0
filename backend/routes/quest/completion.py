@@ -492,15 +492,22 @@ def update_display_mode(user_id: str, quest_id: str):
 
         supabase = get_user_client()
 
-        # Update user_quests table with display mode preference
-        result = supabase.table('user_quests')\
-            .update({'task_display_mode': display_mode})\
+        # First, get the user_quest record to find its ID
+        user_quest = supabase.table('user_quests')\
+            .select('id')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
+            .maybe_single()\
             .execute()
 
-        if not result.data:
+        if not user_quest.data:
             return jsonify({'error': 'Quest not found or not enrolled'}), 404
+
+        # Update using the primary key
+        result = supabase.table('user_quests')\
+            .update({'task_display_mode': display_mode})\
+            .eq('id', user_quest.data['id'])\
+            .execute()
 
         logger.info(f"User {user_id[:8]} set display mode to '{display_mode}' for quest {quest_id}")
 
