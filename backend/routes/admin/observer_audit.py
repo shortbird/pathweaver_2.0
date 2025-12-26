@@ -20,7 +20,7 @@ bp = Blueprint('admin_observer_audit', __name__)
 @bp.route('/api/admin/observer-audit/logs', methods=['GET'])
 @require_auth
 @require_role('admin')
-def get_audit_logs():
+def get_audit_logs(user_id: str):
     """
     Get paginated observer audit logs with filtering.
 
@@ -106,7 +106,7 @@ def get_audit_logs():
 @bp.route('/api/admin/observer-audit/observer/<observer_id>', methods=['GET'])
 @require_auth
 @require_role('admin')
-def get_observer_activity(observer_id: str):
+def get_observer_activity(user_id: str, observer_id: str):
     """
     Get all activity for a specific observer.
 
@@ -170,7 +170,7 @@ def get_observer_activity(observer_id: str):
 @bp.route('/api/admin/observer-audit/student/<student_id>', methods=['GET'])
 @require_auth
 @require_role('admin')
-def get_student_access_history(student_id: str):
+def get_student_access_history(user_id: str, student_id: str):
     """
     Get all access history for a specific student.
 
@@ -241,7 +241,7 @@ def get_student_access_history(student_id: str):
 @bp.route('/api/admin/observer-audit/recent', methods=['GET'])
 @require_auth
 @require_role('admin')
-def get_recent_activity():
+def get_recent_activity(user_id: str):
     """
     Get recent observer activity across the platform.
 
@@ -302,7 +302,7 @@ def get_recent_activity():
 @bp.route('/api/admin/observer-audit/statistics', methods=['GET'])
 @require_auth
 @require_role('admin')
-def get_platform_statistics():
+def get_platform_statistics(user_id: str):
     """
     Get platform-wide observer audit statistics.
 
