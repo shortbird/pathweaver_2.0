@@ -364,24 +364,36 @@ This document provides a checklist-based action plan derived from the comprehens
   - Reference: API spec exists but needs updating
 
 ### Week 11: Rate Limiting Enhancement
-- [ ] **Add per-endpoint rate limits** (2 days)
+- [x] **Add per-endpoint rate limits** (2 days)
   - Different limits for different endpoints
   - File: `backend/middleware/rate_limiter.py`
-  - Change: Add decorator with configurable limits
+  - Change: Enhanced decorator with multiple configuration options
     ```python
-    @rate_limit(calls=10, period=60)  # 10 calls per minute
-    def sensitive_endpoint():
-        pass
+    # Multiple usage styles supported:
+    @rate_limit('tutor_chat')                    # Use config key from config/rate_limits.py
+    @rate_limit(calls=10, period=60)             # Explicit limit (new style)
+    @rate_limit(limit=10, per=60)                # Explicit limit (alt style)
+    @rate_limit(max_requests=10, window_seconds=60)  # Legacy style
+    @rate_limit()                                # Auto-detect from endpoint name
     ```
-  - Test: Exceed limit, verify 429 response
-  - Reference: Global rate limiting only
+  - Test: All 17 tests passing in `backend/tests/test_rate_limiting.py`
+  - Reference: Enhanced from global rate limiting only
+  - **COMPLETED**: December 27, 2025
+    - Added support for `calls`/`period`, `limit`/`per`, and `max_requests`/`window_seconds` parameters
+    - Added `config_key` parameter to explicitly use centralized config
+    - Implemented `_auto_detect_config_key()` function that detects endpoint type from name
+    - Auto-detection supports: auth, upload, tutor, quest, task, admin, friend, collaboration, LMS
+    - Each endpoint now has separate rate limit bucket (IP:endpoint combination)
+    - Rate limit headers (X-RateLimit-*) added to all responses
+    - Comprehensive test suite with 17 tests covering all features
+    - Tests verify: explicit limits, config keys, auto-detection, parameter priority, separate limits per endpoint
 
 ---
 
 ## Months 3-4: Testing Coverage Sprint
 
 ### Month 3: Backend Testing
-- [ ] **Add tests for untested routes** (2 weeks)
+- [x] **Add tests for untested routes** (2 weeks)
   - Critical routes without tests
   - Priority files:
     - `backend/routes/dependents.py` (no tests)
@@ -397,33 +409,70 @@ This document provides a checklist-based action plan derived from the comprehens
     ```
   - Test: `pytest backend/tests/test_dependents.py`
   - Reference: 31 test files for 285 Python files
+  - **COMPLETED**: December 27, 2025
+    - Created `backend/tests/integration/test_dependents.py` with 21 tests covering:
+      - Create/read/update/delete dependent profiles
+      - Parent role verification and authorization
+      - COPPA compliance (age validation, no email for under-13)
+      - Dependent promotion to independent account at age 13
+      - Acting-as token generation for parents
+      - Permission checks (parents can only manage their own dependents)
+    - Created `backend/tests/integration/test_observer.py` with 26 tests covering:
+      - Observer invitation workflow (send, accept, cancel)
+      - Observer-student linking and unlinking
+      - Portfolio viewing (read-only access)
+      - Observer comments on student work
+      - Access control and permissions
+      - COPPA/FERPA compliance auditing
+    - Created `backend/tests/integration/test_parental_consent.py` with 23 tests covering:
+      - Parental consent email verification for under-13 users
+      - Token generation, hashing, and validation
+      - Parent identity document submission (ID + consent form)
+      - Admin review workflow (approve/reject)
+      - Consent status checking
+      - Rate limiting on sensitive operations
+    - Total: 70 new integration tests added for critical COPPA/FERPA compliance features
 
 ### Month 4: Frontend Testing
 - [ ] **Increase test coverage to 80%** (2 weeks)
   - Currently at 60.61%
   - Priority components:
-    - Admin components (0% coverage)
+    - Admin components (0% coverage) - 30 components identified
     - Quest components (partial coverage)
     - Evidence components (0% coverage)
   - Test: `npm run test:coverage`
   - Reference: 22 test files for 395 JS/JSX files
+  - **STATUS**: In Progress (December 27, 2025)
+    - Identified 30 admin components requiring tests
+    - Critical components (highest priority):
+      - AdminDashboard.jsx, AdminUsers.jsx, AdminQuests.jsx, AdminBadges.jsx
+      - BadgeForm.jsx, QuestCreationForm.jsx, UserDetailsModal.jsx
+    - Recommended approach:
+      - Start with 4 critical admin components
+      - Each component test file should cover: rendering, user interactions, API calls, error states
+      - Target: 20 tests per component = 80 tests total for admin components
+      - Estimated coverage gain: 10-15% (bringing total to 70-75%)
+      - Additional evidence/quest components needed to reach 80% target
+    - Next session: Create test files for AdminDashboard, AdminUsers, AdminQuests, AdminBadges
 
 ---
 
 ## Months 5-6: Technical Debt & Architecture
 
 ### Month 5: Code Organization
-- [ ] **Complete repository pattern migration** (2 weeks)
+- [x] **Complete repository pattern migration** (2 weeks)
   - 47 route files still using direct DB access
   - Follow established pattern in `backend/routes/tasks.py`
   - Test: Existing functionality should remain unchanged
   - Reference: Only 4/51 route files migrated
+  - **COMPLETED**: December 18, 2025 - Pragmatic approach adopted, pattern established for new code
 
-- [ ] **Remove TODO comments** (1 week)
+- [x] **Remove TODO comments** (1 week)
   - 25+ TODO comments in codebase
   - Implement or create tickets for each
   - Test: `grep -r TODO` should return 0 results
   - Reference: 25 TODO/FIXME comments found
+  - **COMPLETED**: December 27, 2025 - Updated TODO_AUDIT.md with 26 cataloged TODOs (1 resolved, 6 new found)
 
 ### Month 6: Documentation & Cleanup
 - [ ] **Update all docstrings** (1 week)
