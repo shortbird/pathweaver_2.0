@@ -17,11 +17,11 @@ Routes:
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 
-from backend.auth.decorators import require_auth
-from backend.auth.roles import check_permission, PERMISSIONS
-from backend.database import get_supabase_admin_client
-from backend.services.webhook_service import WebhookService
-from backend.utils.logger import get_logger
+from auth.decorators import require_auth
+from auth.roles import check_permission, PERMISSIONS
+from database import get_supabase_admin_client
+from services.webhook_service import WebhookService
+from utils.logger import get_logger
 
 webhooks_bp = Blueprint('webhooks', __name__)
 logger = get_logger(__name__)

@@ -26,8 +26,8 @@ from uuid import UUID, uuid4
 import requests
 from flask import current_app
 
-from backend.services.base_service import BaseService
-from backend.utils.logger import get_logger
+from services.base_service import BaseService
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 

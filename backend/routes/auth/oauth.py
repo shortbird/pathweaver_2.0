@@ -26,11 +26,11 @@ import hashlib
 import base64
 from typing import Dict, Optional
 
-from backend.auth.decorators import require_auth
-from backend.auth.roles import check_permission, PERMISSIONS
-from backend.database import get_supabase_admin_client
-from backend.utils.logger import get_logger
-from backend.auth.jwt_manager import jwt_manager
+from auth.decorators import require_auth
+from auth.roles import check_permission, PERMISSIONS
+from database import get_supabase_admin_client
+from utils.logger import get_logger
+from auth.jwt_manager import jwt_manager
 
 logger = get_logger(__name__)
 
