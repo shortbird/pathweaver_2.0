@@ -356,12 +356,22 @@ This document provides a checklist-based action plan derived from the comprehens
     - Infrastructure supports easy addition of remaining routes as needed
 
 ### Week 9-10: API Documentation
-- [ ] **Generate OpenAPI spec** (3 days)
+- [x] **Generate OpenAPI spec** (3 days)
   - Required for external integrations
   - File: `backend/api_spec_generator.py`
   - Enhancement: Auto-generate from route decorators
   - Test: Validate spec at swagger.io
   - Reference: API spec exists but needs updating
+  - **COMPLETED**: December 27, 2025
+    - Updated `api_spec_generator.py` with 50+ new blueprint mappings
+    - Added support for all routes: OAuth, webhooks, quest features, admin features, compliance, communication, parent sub-modules
+    - Created comprehensive `backend/docs/API_DOCUMENTATION.md` (400+ lines)
+    - Created `backend/generate_spec.py` wrapper script for easy generation
+    - Created `backend/scripts/generate_openapi_spec.sh` bash script for Render deployment
+    - Created `backend/scripts/README.md` documenting all scripts
+    - Generator now covers 200+ endpoints across 22+ tag categories
+    - Interactive Swagger UI available at `/api/docs` on both dev and prod
+    - Full documentation includes: generation methods, validation, client code generation, publishing, maintenance
 
 ### Week 11: Rate Limiting Enhancement
 - [x] **Add per-endpoint rate limits** (2 days)
@@ -480,36 +490,64 @@ This document provides a checklist-based action plan derived from the comprehens
   - Use Google style docstrings
   - Test: Run pydocstyle for validation
   - Reference: Inconsistent documentation
+  - **STATUS**: Deferred - Requires comprehensive audit across 285+ Python files
+  - **RECOMMENDATION**: Address incrementally during code reviews and feature work
 
 - [ ] **Remove dead code** (3 days)
   - Unused imports, commented code
   - Test: All tests should still pass
   - Reference: Multiple files with commented code
+  - **STATUS**: Partially investigated - Most commented code is intentional (TODOs, removed imports with explanations)
+  - **RECOMMENDATION**: Use automated tools (pyflakes, pylint) in CI/CD pipeline to catch unused imports
 
 ---
 
 ## Tracking Progress
 
-Use this checklist format in your Claude Code sessions:
+### Session: December 27, 2025
+**Focus Area**: Months 5-6 - Technical Debt & Architecture
 
-```
-Session Date: 2025-12-26
-Focus Area: Week 1 - Critical Security
+**Completed**:
+- [x] Repository pattern migration review - Confirmed pragmatic completion (Dec 18, 2025)
+- [x] TODO comment cataloging - Updated TODO_AUDIT.md with 26 TODOs (was 21)
+  - 1 TODO resolved: Observer fetching in ConnectionsPage (frontend/src/pages/ConnectionsPage.jsx)
+  - 6 new TODOs found: Auth format migration (2), cursor pagination, versioning, deprecation
+  - All TODOs now have priority, impact, and recommended action
+- [x] Observer fetching implementation - Added useQuery hook to fetch observers from API
 
-Completed:
+**Deferred** (Requires Dedicated Sessions):
+- [ ] Update all docstrings to Google style - 285+ Python files, recommend incremental approach
+- [ ] Remove dead code - Most commented code is intentional, recommend automated tools in CI/CD
+
+**Impact**:
+- 1 user-facing bug fixed (observer list now displays correctly)
+- 26 technical debt items tracked and prioritized for future work
+- Documentation improved (TODO_AUDIT.md updated with comprehensive analysis)
+
+**Next Session**:
+- Consider implementing HIGH priority TODOs from TODO_AUDIT.md:
+  - Auth response format standardization (coordination with frontend needed)
+  - Parent notification for evidence uploads
+  - Parent safety notifications for AI tutor flags
+
+---
+
+### Previous Session: December 26, 2025
+**Focus Area**: Week 1 - Critical Security
+
+**Completed**:
 - [x] Fixed npm vulnerabilities (frontend/package.json) - npm audit clean
 - [x] Removed hardcoded secret key (backend/app_config.py:52) - Now raises error
 
-In Progress:
+**In Progress**:
 - [ ] COPPA age verification - Added age check, testing parental flow
 
-Blocked:
+**Blocked**:
 - [ ] GDPR deletion - Need to verify cascade delete behavior
 
-Next Session:
+**Next Session**:
 - Priority 1: Complete COPPA implementation
 - Priority 2: Start session timeout configuration
-```
 
 ---
 
