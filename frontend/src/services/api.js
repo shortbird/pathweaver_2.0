@@ -181,6 +181,20 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
+    // Handle 403 responses with consent_required flag for COPPA compliance
+    // This triggers the ConsentBlockedOverlay component
+    if (error.response?.status === 403 && error.response?.data?.consent_required) {
+      // Emit a custom event that App.jsx can listen to
+      window.dispatchEvent(new CustomEvent('consent-required', {
+        detail: {
+          consentStatus: error.response.data.consent_status,
+          message: error.response.data.message
+        }
+      }))
+      // Don't retry, just reject with the consent error
+      return Promise.reject(error)
+    }
+
     // Handle 401 responses by attempting token refresh
     // BUT: Don't refresh on login failures - those are genuine wrong credentials
     if (error.response?.status === 401 &&

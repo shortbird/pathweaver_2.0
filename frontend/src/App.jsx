@@ -12,6 +12,7 @@ import { warmupBackend } from './utils/retryHelper'
 import { tokenStore } from './services/api'
 import MasqueradeBanner from './components/admin/MasqueradeBanner'
 import ActingAsBanner from './components/parent/ActingAsBanner'
+import ConsentBlockedOverlay from './components/consent/ConsentBlockedOverlay'
 import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
 import logger from './utils/logger'
 import api from './services/api'
@@ -71,6 +72,8 @@ const ParentQuestView = lazy(() => import('./pages/ParentQuestView'))
 const ObserverAcceptInvitationPage = lazy(() => import('./pages/ObserverAcceptInvitationPage'))
 const ObserverWelcomePage = lazy(() => import('./pages/ObserverWelcomePage'))
 const ObserverFeedPage = lazy(() => import('./pages/ObserverFeedPage'))
+// Parental Consent (COPPA Compliance - December 2025)
+const ParentalConsentUploadPage = lazy(() => import('./pages/ParentalConsentUploadPage'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -101,6 +104,7 @@ function AppContent() {
   const navigate = useNavigate();
   const [masqueradeState, setMasqueradeState] = useState(null);
   const { actingAsDependent, clearActingAs } = useActingAs();
+  const [consentBlockData, setConsentBlockData] = useState(null);
 
   // Check masquerade state on mount and periodically
   useEffect(() => {
@@ -177,6 +181,26 @@ function AppContent() {
     window.location.href = '/parent/dashboard';
   };
 
+  // Listen for consent-required events from API interceptor (COPPA compliance)
+  useEffect(() => {
+    const handleConsentRequired = (event) => {
+      const { consentStatus, message } = event.detail;
+      setConsentBlockData({ consentStatus, message });
+    };
+
+    window.addEventListener('consent-required', handleConsentRequired);
+
+    return () => {
+      window.removeEventListener('consent-required', handleConsentRequired);
+    };
+  }, []);
+
+  const handleRetryConsent = () => {
+    // Retry by clearing the blocked state and attempting to refresh
+    setConsentBlockData(null);
+    window.location.reload();
+  };
+
   return (
     <>
       <ScrollToTop />
@@ -190,6 +214,12 @@ function AppContent() {
         <ActingAsBanner
           dependent={actingAsDependent}
           onSwitchBack={handleSwitchBackToParent}
+        />
+      )}
+      {consentBlockData && (
+        <ConsentBlockedOverlay
+          consentStatus={consentBlockData.consentStatus}
+          onRetry={handleRetryConsent}
         />
       )}
     </>
@@ -264,6 +294,7 @@ function App() {
                 <Route path="academy-agreement" element={<OptioAcademyAgreement />} />
                 <Route path="academy-handbook" element={<OptioAcademyHandbook />} />
                 <Route path="observer/accept/:invitationCode" element={<ObserverAcceptInvitationPage />} />
+                <Route path="parental-consent" element={<ParentalConsentUploadPage />} />
 
               <Route element={<PrivateRoute />}>
                 <Route path="dashboard" element={<DashboardPage />} />
