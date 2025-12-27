@@ -514,18 +514,23 @@ def get_public_diploma_by_user_id(user_id):
 
         # Build quest_id -> completions map once (O(m) instead of O(n*m) in loop)
         # This prevents Python-side filtering for each quest iteration
+        # OPTIMIZATION: Also build user_quest_id -> completions map for in-progress quests
         completions_by_quest = {}
+        completions_by_user_quest = {}
         for tc in (task_completions.data or []):
             task_info = tc.get('user_quest_tasks')
             quest_id = None
+            user_quest_id = None
 
-            # Extract quest_id from task_info (handle both dict and list formats)
+            # Extract quest_id and user_quest_id from task_info (handle both dict and list formats)
             if task_info and isinstance(task_info, dict):
                 quest_id = task_info.get('quest_id')
+                user_quest_id = task_info.get('user_quest_id')
             elif task_info and isinstance(task_info, list) and len(task_info) > 0:
                 # Flatten list structure
                 task_info_dict = task_info[0]
                 quest_id = task_info_dict.get('quest_id')
+                user_quest_id = task_info_dict.get('user_quest_id')
                 # Flatten the structure for later use
                 tc_copy = tc.copy()
                 tc_copy['user_quest_tasks'] = task_info_dict
@@ -535,6 +540,29 @@ def get_public_diploma_by_user_id(user_id):
                 if quest_id not in completions_by_quest:
                     completions_by_quest[quest_id] = []
                 completions_by_quest[quest_id].append(tc)
+
+            # OPTIMIZATION: Build separate map for user_quest_id lookups (in-progress quests)
+            if user_quest_id:
+                if user_quest_id not in completions_by_user_quest:
+                    completions_by_user_quest[user_quest_id] = []
+                completions_by_user_quest[user_quest_id].append(tc)
+
+        # OPTIMIZATION: Pre-fetch task counts for all in-progress quests (prevents N+1 queries)
+        task_counts_by_user_quest = {}
+        if in_progress_quests.data:
+            user_quest_ids = [cq.get('id') for cq in in_progress_quests.data if cq.get('id')]
+            if user_quest_ids:
+                # Fetch task counts for all user quests in one query
+                task_counts_response = supabase.table('user_quest_tasks')\
+                    .select('user_quest_id')\
+                    .in_('user_quest_id', user_quest_ids)\
+                    .execute()
+
+                # Count tasks per user_quest_id
+                for task in (task_counts_response.data or []):
+                    uq_id = task.get('user_quest_id')
+                    if uq_id:
+                        task_counts_by_user_quest[uq_id] = task_counts_by_user_quest.get(uq_id, 0) + 1
 
         # Process completed and in-progress quests for achievements format
         achievements = []
@@ -672,13 +700,9 @@ def get_public_diploma_by_user_id(user_id):
                 user_quest_id = cq.get('id')
                 quest_id = quest.get('id')
 
-                # Get task completions for this in-progress quest from pre-built map
-                # Filter by user_quest_id to show only current enrollment completions
-                quest_completions = completions_by_quest.get(quest_id, [])
-                quest_task_completions = [
-                    tc for tc in quest_completions
-                    if tc.get('user_quest_tasks', {}).get('user_quest_id') == user_quest_id
-                ]
+                # OPTIMIZATION: Use pre-built user_quest_id map instead of filtering (O(1) vs O(m))
+                # This eliminates the nested list comprehension that was creating O(n*m) complexity
+                quest_task_completions = completions_by_user_quest.get(user_quest_id, [])
 
                 # Skip if no tasks completed yet
                 if not quest_task_completions:
@@ -736,13 +760,8 @@ def get_public_diploma_by_user_id(user_id):
                             'is_legacy': True
                         }
 
-                # Get total number of tasks for this user's quest
-                total_user_tasks = supabase.table('user_quest_tasks')\
-                    .select('id', count='exact')\
-                    .eq('user_quest_id', user_quest_id)\
-                    .execute()
-
-                total_tasks = total_user_tasks.count if total_user_tasks.count else 0
+                # OPTIMIZATION: Use pre-fetched task count instead of N+1 query
+                total_tasks = task_counts_by_user_quest.get(user_quest_id, 0)
                 completed_tasks = len(task_evidence)
 
                 achievement = {

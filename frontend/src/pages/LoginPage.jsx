@@ -97,8 +97,8 @@ const LoginPage = () => {
                   {...register('password', {
                     required: 'Password is required',
                     minLength: {
-                      value: 6,
-                      message: 'Password must be at least 6 characters'
+                      value: 12,
+                      message: 'Password must be at least 12 characters'
                     }
                   })}
                   type={showPassword ? "text" : "password"}

@@ -73,6 +73,9 @@ describe('RegisterPage', () => {
     if (skipField !== 'acceptedLegalTerms') {
       await user.click(screen.getByRole('checkbox', { name: /i agree to the terms of service and privacy policy/i }))
     }
+    if (skipField !== 'acceptedPortfolioVisibility') {
+      await user.click(screen.getByRole('checkbox', { name: /i understand that my learning portfolio/i }))
+    }
   }
 
   beforeEach(() => {
@@ -173,7 +176,8 @@ describe('RegisterPage', () => {
 
       await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
       await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!')
-      await user.click(screen.getByRole('checkbox'))
+      await user.click(screen.getByRole('checkbox', { name: /i agree to the terms of service and privacy policy/i }))
+      await user.click(screen.getByRole('checkbox', { name: /i understand that my learning portfolio/i }))
 
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
@@ -215,7 +219,8 @@ describe('RegisterPage', () => {
       const passwordInput = screen.getByLabelText(/^password$/i)
       await user.type(passwordInput, 'short')
       await user.type(screen.getByLabelText(/confirm password/i), 'short')
-      await user.click(screen.getByRole('checkbox'))
+      await user.click(screen.getByRole('checkbox', { name: /i agree to the terms of service and privacy policy/i }))
+      await user.click(screen.getByRole('checkbox', { name: /i understand that my learning portfolio/i }))
 
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
@@ -245,7 +250,8 @@ describe('RegisterPage', () => {
       const passwordInput = screen.getByLabelText(/^password$/i)
       await user.type(passwordInput, 'lowercase123!')
       await user.type(screen.getByLabelText(/confirm password/i), 'lowercase123!')
-      await user.click(screen.getByRole('checkbox'))
+      await user.click(screen.getByRole('checkbox', { name: /i agree to the terms of service and privacy policy/i }))
+      await user.click(screen.getByRole('checkbox', { name: /i understand that my learning portfolio/i }))
 
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
@@ -475,6 +481,7 @@ describe('RegisterPage', () => {
       await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
       await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!')
       await user.click(screen.getByRole('checkbox', { name: /i agree to the terms of service and privacy policy/i }))
+      await user.click(screen.getByRole('checkbox', { name: /i understand that my learning portfolio/i }))
 
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
