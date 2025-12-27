@@ -68,7 +68,7 @@ services:
         destination: /index.html
     envVars:
       - key: NODE_VERSION
-        value: 20.11.0
+        value: 22.12.0
       - key: VITE_API_URL
         value: https://optio-backend-prod.onrender.com
       - key: VITE_SUPABASE_URL
@@ -93,7 +93,7 @@ services:
         destination: /index.html
     envVars:
       - key: NODE_VERSION
-        value: 20.11.0
+        value: 22.12.0
       - key: VITE_API_URL
         value: https://optio-backend-dev.onrender.com
       - key: VITE_SUPABASE_URL
