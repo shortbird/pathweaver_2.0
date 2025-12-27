@@ -33,7 +33,7 @@ from middleware.error_handler import ValidationError, NotFoundError
 from middleware.rate_limiter import rate_limit
 from utils.auth.decorators import require_auth, require_role
 from services.email_service import email_service
-from utils.roles import Role
+from utils.roles import UserRole
 from werkzeug.utils import secure_filename
 import secrets
 import hashlib
@@ -464,7 +464,7 @@ def submit_consent_documents(user_id: str):
         return jsonify({'error': 'Failed to submit consent documents'}), 500
 
 @bp.route('/admin/parental-consent/pending', methods=['GET'])
-@require_role(Role.ADMIN)
+@require_role(UserRole.ADMIN)
 def get_pending_consent_reviews():
     """
     Admin endpoint: Get all pending parental consent reviews
@@ -509,7 +509,7 @@ def get_pending_consent_reviews():
         return jsonify({'error': 'Failed to fetch pending reviews'}), 500
 
 @bp.route('/admin/parental-consent/approve/<child_id>', methods=['POST'])
-@require_role(Role.ADMIN)
+@require_role(UserRole.ADMIN)
 def approve_parental_consent(child_id):
     """
     Admin endpoint: Approve parental consent after reviewing ID documents
@@ -584,7 +584,7 @@ def approve_parental_consent(child_id):
         return jsonify({'error': 'Failed to approve parental consent'}), 500
 
 @bp.route('/admin/parental-consent/reject/<child_id>', methods=['POST'])
-@require_role(Role.ADMIN)
+@require_role(UserRole.ADMIN)
 def reject_parental_consent(child_id):
     """
     Admin endpoint: Reject parental consent (e.g., unclear documents, fraudulent)
