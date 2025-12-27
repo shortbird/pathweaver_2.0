@@ -21,7 +21,7 @@ export const submitConsentDocuments = async (idDocument, consentForm, childId = 
     formData.append('child_id', childId);
   }
 
-  const response = await api.post('/parental-consent/submit-documents', formData, {
+  const response = await api.post('/api/parental-consent/submit-documents', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -36,7 +36,7 @@ export const submitConsentDocuments = async (idDocument, consentForm, childId = 
  * @returns {Promise<Object>} Consent status details
  */
 export const getConsentStatus = async (userId) => {
-  const response = await api.get(`/parental-consent/status/${userId}`);
+  const response = await api.get(`/api/parental-consent/status/${userId}`);
   return response.data;
 };
 
@@ -46,7 +46,7 @@ export const getConsentStatus = async (userId) => {
  * @returns {Promise<Object>} Resend result
  */
 export const resendConsentEmail = async (userId) => {
-  const response = await api.post('/parental-consent/resend', { user_id: userId });
+  const response = await api.post('/api/parental-consent/resend', { user_id: userId });
   return response.data;
 };
 
@@ -57,7 +57,7 @@ export const resendConsentEmail = async (userId) => {
  * @returns {Promise<Object>} List of pending reviews
  */
 export const getPendingReviews = async () => {
-  const response = await api.get('/admin/parental-consent/pending');
+  const response = await api.get('/api/admin/parental-consent/pending');
   return response.data;
 };
 
@@ -68,7 +68,7 @@ export const getPendingReviews = async () => {
  * @returns {Promise<Object>} Approval result
  */
 export const approveConsent = async (childId, notes = '') => {
-  const response = await api.post(`/admin/parental-consent/approve/${childId}`, {
+  const response = await api.post(`/api/admin/parental-consent/approve/${childId}`, {
     notes,
   });
   return response.data;
@@ -85,7 +85,7 @@ export const rejectConsent = async (childId, reason) => {
     throw new Error('Rejection reason is required');
   }
 
-  const response = await api.post(`/admin/parental-consent/reject/${childId}`, {
+  const response = await api.post(`/api/admin/parental-consent/reject/${childId}`, {
     reason,
   });
   return response.data;
