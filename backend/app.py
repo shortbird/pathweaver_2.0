@@ -25,7 +25,7 @@ from routes.observer_requests import observer_requests_bp
 # Import routes
 from routes import tasks, admin_core, evidence_documents, analytics as analytics_routes
 from routes.quest import register_quest_blueprints  # Refactored quest routes (P2-ARCH-1)
-from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management, observer_audit
+from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management, observer_audit, ferpa_compliance
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -146,6 +146,7 @@ app.register_blueprint(crm.crm_bp)  # /api/admin/crm (CRM system for email campa
 app.register_blueprint(course_import.bp)  # /api/admin/courses (Course import from IMSCC files)
 app.register_blueprint(organization_management.bp, url_prefix='/api/admin/organizations')  # /api/admin/organizations (Multi-organization management)
 app.register_blueprint(observer_audit.bp)  # /api/admin/observer-audit (Observer access audit logging - COPPA/FERPA compliance)
+app.register_blueprint(ferpa_compliance.bp)  # /api/admin/ferpa (FERPA disclosure reporting and student access logging)
 # Register quest types routes (sample tasks, course tasks)
 try:
     from routes import quest_types

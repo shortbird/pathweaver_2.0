@@ -106,7 +106,7 @@ This document provides a checklist-based action plan derived from the comprehens
 ## Weeks 2-4: FERPA Compliance Sprint
 
 ### Week 2: Disclosure Logging Infrastructure
-- [ ] **Design student access log schema** (4 hours)
+- [x] **Design student access log schema** (4 hours)
   - Create migration file: `backend/migrations/create_student_access_logs.sql`
   - Schema:
     ```sql
@@ -126,7 +126,7 @@ This document provides a checklist-based action plan derived from the comprehens
     ```
   - Reference: [LEGAL_COMPLIANCE_AUDIT_2025.md](LEGAL_COMPLIANCE_AUDIT_2025.md#critical-ferpa-violations)
 
-- [ ] **Create AccessLogger utility** (6 hours)
+- [x] **Create AccessLogger utility** (6 hours)
   - File: `backend/utils/access_logger.py`
   - Functions:
     - `log_student_data_access(student_id, accessor_id, data_type, purpose)`
@@ -138,7 +138,7 @@ This document provides a checklist-based action plan derived from the comprehens
     - `backend/routes/admin/user_management.py` (admin viewing student data)
     - `backend/routes/observers.py` (observer viewing student feed)
 
-- [ ] **Add FERPA disclosure report endpoint** (4 hours)
+- [x] **Add FERPA disclosure report endpoint** (4 hours)
   - File: `backend/routes/admin/ferpa_compliance.py`
   - Endpoint: `GET /api/admin/ferpa/disclosure-report`
   - Returns all access logs for a date range

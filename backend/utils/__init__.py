@@ -37,6 +37,12 @@ from .retry_handler import (
     RetryableOperation
 )
 
+# FERPA compliance utilities
+from .access_logger import (
+    AccessLogger,
+    log_student_access
+)
+
 # Legacy imports removed - auth_utils no longer exists
 
 __all__ = [
@@ -65,5 +71,9 @@ __all__ = [
     'retry_database_operation',
     'retry_api_call',
     'RetryConfig',
-    'RetryableOperation'
+    'RetryableOperation',
+
+    # FERPA compliance
+    'AccessLogger',
+    'log_student_access'
 ]
