@@ -465,36 +465,38 @@ def submit_consent_documents(user_id: str):
 @require_role('admin')
 def get_pending_consent_reviews(user_id: str):
     """
-    Admin endpoint: Get all pending parental consent reviews
+    Admin endpoint: Get all pending parent identity verification reviews
+
+    Parents submit ID documents and signed consent forms to verify their identity
+    before they can create dependent profiles or link to children under 13.
     """
     try:
         supabase = get_supabase_admin_client()
 
-        # Get all users with pending consent reviews
+        # Get all PARENTS with pending identity verification
         pending_response = supabase.table('users').select(
-            'id, display_name, email, parental_consent_email, parental_consent_submitted_at, '
+            'id, display_name, email, parental_consent_submitted_at, '
             'parental_consent_id_document_url, parental_consent_signed_form_url, '
-            'parental_consent_status, date_of_birth'
-        ).eq('parental_consent_status', 'pending_review').order('parental_consent_submitted_at').execute()
+            'parental_consent_status, date_of_birth, role'
+        ).eq('parental_consent_status', 'pending_review').eq('role', 'parent').order('parental_consent_submitted_at').execute()
 
         pending_reviews = []
-        for user in pending_response.data:
+        for parent in pending_response.data:
             # Calculate age for context
             age = None
-            if user.get('date_of_birth'):
-                dob = datetime.fromisoformat(user['date_of_birth'].replace('Z', '+00:00'))
+            if parent.get('date_of_birth'):
+                dob = datetime.fromisoformat(parent['date_of_birth'].replace('Z', '+00:00'))
                 age = (datetime.now() - dob).days // 365
 
             pending_reviews.append({
-                'child_id': user['id'],
-                'child_name': user.get('display_name', 'Unknown'),
-                'child_email': user.get('email'),
-                'parent_email': user.get('parental_consent_email'),
-                'submitted_at': user.get('parental_consent_submitted_at'),
-                'id_document_url': user.get('parental_consent_id_document_url'),
-                'consent_form_url': user.get('parental_consent_signed_form_url'),
-                'child_age': age,
-                'status': user.get('parental_consent_status')
+                'parent_id': parent['id'],
+                'parent_name': parent.get('display_name', 'Unknown'),
+                'parent_email': parent.get('email'),
+                'submitted_at': parent.get('parental_consent_submitted_at'),
+                'id_document_url': parent.get('parental_consent_id_document_url'),
+                'consent_form_url': parent.get('parental_consent_signed_form_url'),
+                'parent_age': age,
+                'status': parent.get('parental_consent_status')
             })
 
         return jsonify({
@@ -506,11 +508,14 @@ def get_pending_consent_reviews(user_id: str):
         logger.error(f"Error fetching pending consent reviews: {str(e)}")
         return jsonify({'error': 'Failed to fetch pending reviews'}), 500
 
-@bp.route('/admin/parental-consent/approve/<child_id>', methods=['POST'])
+@bp.route('/admin/parental-consent/approve/<parent_id>', methods=['POST'])
 @require_role('admin')
-def approve_parental_consent(user_id: str, child_id):
+def approve_parental_consent(user_id: str, parent_id):
     """
-    Admin endpoint: Approve parental consent after reviewing ID documents
+    Admin endpoint: Approve parent identity verification after reviewing ID documents
+
+    Verifies that the parent is an adult with valid ID and has signed the consent form.
+    After approval, the parent can create dependent profiles or link to children under 13.
     """
     try:
         admin_id = user_id
@@ -519,33 +524,36 @@ def approve_parental_consent(user_id: str, child_id):
 
         supabase = get_supabase_admin_client()
 
-        # Get child info
-        child_response = supabase.table('users').select(
-            'id, display_name, parental_consent_email, parental_consent_status'
-        ).eq('id', child_id).execute()
+        # Get parent info
+        parent_response = supabase.table('users').select(
+            'id, display_name, email, parental_consent_status, role'
+        ).eq('id', parent_id).execute()
 
-        if not child_response.data:
-            raise NotFoundError("Child account not found")
+        if not parent_response.data:
+            raise NotFoundError("Parent account not found")
 
-        child = child_response.data[0]
+        parent = parent_response.data[0]
 
-        if child.get('parental_consent_status') != 'pending_review':
-            return jsonify({'error': 'Consent is not pending review'}), 400
+        if parent.get('role') != 'parent':
+            return jsonify({'error': 'User is not a parent account'}), 400
 
-        # Approve consent
+        if parent.get('parental_consent_status') != 'pending_review':
+            return jsonify({'error': 'Identity verification is not pending review'}), 400
+
+        # Approve parent identity
         supabase.table('users').update({
             'parental_consent_verified': True,
             'parental_consent_verified_at': datetime.utcnow().isoformat(),
             'parental_consent_verified_by': admin_id,
             'parental_consent_status': 'approved',
             'parental_consent_token': None  # Clear any old tokens
-        }).eq('id', child_id).execute()
+        }).eq('id', parent_id).execute()
 
         # Log admin action
         supabase.table('parental_consent_log').insert({
-            'user_id': child_id,
-            'child_email': child.get('email', ''),
-            'parent_email': child.get('parental_consent_email', ''),
+            'user_id': parent_id,
+            'child_email': '',  # Not applicable for parent identity verification
+            'parent_email': parent.get('email', ''),
             'reviewed_by_admin_id': admin_id,
             'review_action': 'approved',
             'review_notes': review_notes,
@@ -555,22 +563,21 @@ def approve_parental_consent(user_id: str, child_id):
         }).execute()
 
         # Send approval email to parent
-        if child.get('parental_consent_email'):
-            email_service.send_templated_email(
-                to_email=child.get('parental_consent_email'),
-                subject='Parental Consent Approved',
-                template_name='parent_consent_approved',
-                context={
-                    'child_name': child.get('display_name', 'Student'),
-                    'login_url': f"{os.getenv('FRONTEND_URL')}/login"
-                }
-            )
+        email_service.send_templated_email(
+            to_email=parent.get('email'),
+            subject='Identity Verification Approved - Optio Education',
+            template_name='parent_consent_approved',
+            context={
+                'parent_name': parent.get('display_name', 'Parent'),
+                'login_url': f"{os.getenv('FRONTEND_URL')}/login"
+            }
+        )
 
-        logger.info(f"Admin {admin_id} approved parental consent for child {child_id}")
+        logger.info(f"Admin {admin_id} approved parent identity verification for {parent_id}")
 
         return jsonify({
-            'message': 'Parental consent approved successfully',
-            'child_id': child_id,
+            'message': 'Parent identity verification approved successfully',
+            'parent_id': parent_id,
             'approved_by': admin_id,
             'status': 'approved'
         }), 200
@@ -578,14 +585,17 @@ def approve_parental_consent(user_id: str, child_id):
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
     except Exception as e:
-        logger.error(f"Error approving parental consent: {str(e)}")
-        return jsonify({'error': 'Failed to approve parental consent'}), 500
+        logger.error(f"Error approving parent identity: {str(e)}")
+        return jsonify({'error': 'Failed to approve parent identity verification'}), 500
 
-@bp.route('/admin/parental-consent/reject/<child_id>', methods=['POST'])
+@bp.route('/admin/parental-consent/reject/<parent_id>', methods=['POST'])
 @require_role('admin')
-def reject_parental_consent(user_id: str, child_id):
+def reject_parental_consent(user_id: str, parent_id):
     """
-    Admin endpoint: Reject parental consent (e.g., unclear documents, fraudulent)
+    Admin endpoint: Reject parent identity verification (e.g., unclear documents, fraudulent)
+
+    Rejects the parent's identity verification if documents don't meet requirements.
+    Parent can resubmit with clearer documents.
     """
     try:
         admin_id = user_id
@@ -597,33 +607,36 @@ def reject_parental_consent(user_id: str, child_id):
 
         supabase = get_supabase_admin_client()
 
-        # Get child info
-        child_response = supabase.table('users').select(
-            'id, display_name, parental_consent_email, parental_consent_status'
-        ).eq('id', child_id).execute()
+        # Get parent info
+        parent_response = supabase.table('users').select(
+            'id, display_name, email, parental_consent_status, role'
+        ).eq('id', parent_id).execute()
 
-        if not child_response.data:
-            raise NotFoundError("Child account not found")
+        if not parent_response.data:
+            raise NotFoundError("Parent account not found")
 
-        child = child_response.data[0]
+        parent = parent_response.data[0]
 
-        if child.get('parental_consent_status') != 'pending_review':
-            return jsonify({'error': 'Consent is not pending review'}), 400
+        if parent.get('role') != 'parent':
+            return jsonify({'error': 'User is not a parent account'}), 400
 
-        # Reject consent
+        if parent.get('parental_consent_status') != 'pending_review':
+            return jsonify({'error': 'Identity verification is not pending review'}), 400
+
+        # Reject parent identity verification
         supabase.table('users').update({
             'parental_consent_verified': False,
             'parental_consent_status': 'rejected',
             'parental_consent_rejection_reason': rejection_reason,
             'parental_consent_id_document_url': None,  # Clear rejected documents
             'parental_consent_signed_form_url': None
-        }).eq('id', child_id).execute()
+        }).eq('id', parent_id).execute()
 
         # Log admin action
         supabase.table('parental_consent_log').insert({
-            'user_id': child_id,
-            'child_email': child.get('email', ''),
-            'parent_email': child.get('parental_consent_email', ''),
+            'user_id': parent_id,
+            'child_email': '',  # Not applicable for parent identity verification
+            'parent_email': parent.get('email', ''),
             'reviewed_by_admin_id': admin_id,
             'review_action': 'rejected',
             'review_notes': rejection_reason,
@@ -633,23 +646,22 @@ def reject_parental_consent(user_id: str, child_id):
         }).execute()
 
         # Send rejection email to parent with reason
-        if child.get('parental_consent_email'):
-            email_service.send_templated_email(
-                to_email=child.get('parental_consent_email'),
-                subject='Parental Consent - Additional Information Needed',
-                template_name='parent_consent_rejected',
-                context={
-                    'child_name': child.get('display_name', 'Student'),
-                    'rejection_reason': rejection_reason,
-                    'resubmit_url': f"{os.getenv('FRONTEND_URL')}/parental-consent"
-                }
-            )
+        email_service.send_templated_email(
+            to_email=parent.get('email'),
+            subject='Identity Verification - Additional Information Needed',
+            template_name='parent_consent_rejected',
+            context={
+                'parent_name': parent.get('display_name', 'Parent'),
+                'rejection_reason': rejection_reason,
+                'resubmit_url': f"{os.getenv('FRONTEND_URL')}/parental-consent"
+            }
+        )
 
-        logger.info(f"Admin {admin_id} rejected parental consent for child {child_id}: {rejection_reason}")
+        logger.info(f"Admin {admin_id} rejected parent identity verification for {parent_id}: {rejection_reason}")
 
         return jsonify({
-            'message': 'Parental consent rejected',
-            'child_id': child_id,
+            'message': 'Parent identity verification rejected',
+            'parent_id': parent_id,
             'rejected_by': admin_id,
             'reason': rejection_reason,
             'status': 'rejected'
@@ -660,5 +672,5 @@ def reject_parental_consent(user_id: str, child_id):
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
     except Exception as e:
-        logger.error(f"Error rejecting parental consent: {str(e)}")
-        return jsonify({'error': 'Failed to reject parental consent'}), 500
+        logger.error(f"Error rejecting parent identity: {str(e)}")
+        return jsonify({'error': 'Failed to reject parent identity verification'}), 500
