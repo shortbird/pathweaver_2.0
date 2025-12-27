@@ -34,6 +34,14 @@ const Layout = () => {
 
   return (
     <div className="min-h-screen bg-neutral-50">
+      {/* Skip Navigation Link - Accessibility (WCAG 2.1) */}
+      <a
+        href="#main-content"
+        className="skip-link sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:bg-optio-purple focus:text-white focus:px-4 focus:py-2 focus:rounded-md focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-optio-pink"
+      >
+        Skip to main content
+      </a>
+
       {/* Top Navbar */}
       <TopNavbar
         onMenuClick={() => setSidebarOpen(true)}
@@ -49,7 +57,9 @@ const Layout = () => {
       )}
 
       {/* Main Content Area */}
-      <main className={`
+      <main
+        id="main-content"
+        className={`
         pt-28 sm:pt-16
         ${shouldShowSidebar ? 'lg:ml-64' : ''}
         min-h-[calc(100vh-4rem)]

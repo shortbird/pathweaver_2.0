@@ -190,8 +190,8 @@ This document provides a checklist-based action plan derived from the comprehens
 ## Weeks 5-7: Accessibility Compliance Sprint
 
 ### Week 5: Foundation & Navigation
-- [ ] **Add skip navigation link** (2 hours)
-  - File: `frontend/src/App.jsx` or main layout
+- [x] **Add skip navigation link** (2 hours)
+  - File: `frontend/src/components/Layout.jsx`
   - Implementation:
     ```jsx
     <a href="#main-content" className="skip-link">
@@ -216,7 +216,7 @@ This document provides a checklist-based action plan derived from the comprehens
   - Test: Tab from page load, verify skip link appears
   - Reference: [ACCESSIBILITY_AUDIT_2025.md](ACCESSIBILITY_AUDIT_2025.md#critical-skip-navigation)
 
-- [ ] **Audit and fix all image alt text** (12 hours)
+- [x] **Audit and fix all image alt text** (12 hours - PARTIAL: Fixed critical calendar and advisor components)
   - Files: All components with `<img>` or `<Image>` tags
   - Pattern:
     ```jsx
