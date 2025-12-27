@@ -31,7 +31,7 @@ from repositories import (
 )
 from middleware.error_handler import ValidationError, NotFoundError
 from middleware.rate_limiter import rate_limit
-from middleware.auth import require_auth, require_role, get_current_user_id
+from utils.auth.decorators import require_auth, require_role, get_current_user_id
 from services.email_service import email_service
 from utils.roles import Role
 from werkzeug.utils import secure_filename
