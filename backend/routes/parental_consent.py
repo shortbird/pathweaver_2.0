@@ -31,7 +31,7 @@ from repositories import (
 )
 from middleware.error_handler import ValidationError, NotFoundError
 from middleware.rate_limiter import rate_limit
-from utils.auth.decorators import require_auth, require_role, get_current_user_id
+from utils.auth.decorators import require_auth, require_role
 from services.email_service import email_service
 from utils.roles import Role
 from werkzeug.utils import secure_filename
@@ -313,13 +313,12 @@ def resend_parental_consent():
 @bp.route('/parental-consent/submit-documents', methods=['POST'])
 @require_auth
 @rate_limit(max_requests=5, window_seconds=3600)  # 5 attempts per hour
-def submit_consent_documents():
+def submit_consent_documents(user_id: str):
     """
     Parent submits ID document and signed consent form for admin review
     COPPA compliance: Admin-assisted verification
     """
     try:
-        user_id = get_current_user_id()
         supabase = get_supabase_admin_client()
 
         # Verify user is parent or the user themselves (for under-13)
@@ -516,7 +515,7 @@ def approve_parental_consent(child_id):
     Admin endpoint: Approve parental consent after reviewing ID documents
     """
     try:
-        admin_id = get_current_user_id()
+        admin_id = request.user_id
         data = request.json or {}
         review_notes = data.get('notes', '')
 
@@ -591,7 +590,7 @@ def reject_parental_consent(child_id):
     Admin endpoint: Reject parental consent (e.g., unclear documents, fraudulent)
     """
     try:
-        admin_id = get_current_user_id()
+        admin_id = request.user_id
         data = request.json or {}
         rejection_reason = data.get('reason', 'Documents did not meet verification requirements')
 
