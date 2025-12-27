@@ -146,8 +146,8 @@ This document provides a checklist-based action plan derived from the comprehens
   - Require superadmin role
 
 ### Week 3: GDPR Data Export Completion
-- [ ] **Add missing tables to user data export** (8 hours)
-  - File: `backend/routes/users.py` (find `export-data` endpoint)
+- [x] **Add missing tables to user data export** (8 hours)
+  - File: `backend/routes/account_deletion.py` (export-data endpoint)
   - Add to export:
     - `parental_consent_log` - Consent history for COPPA
     - `observer_access_logs` - Observer viewing history
@@ -160,16 +160,10 @@ This document provides a checklist-based action plan derived from the comprehens
   - Test: Export for test user with all data types, verify complete
   - Reference: [LEGAL_COMPLIANCE_AUDIT_2025.md](LEGAL_COMPLIANCE_AUDIT_2025.md#high-incomplete-data-export)
 
-- [ ] **Implement cookie consent banner** (6 hours)
-  - Create component: `frontend/src/components/CookieConsent.jsx`
-  - Features:
-    - Show on first visit (check localStorage)
-    - Explain httpOnly authentication cookies
-    - Accept/Decline buttons
-    - Link to cookie policy
-    - Store consent in localStorage
-  - Add to `App.jsx`
-  - Test: Clear localStorage, reload, verify banner shows
+- [ ] **Implement cookie consent banner** (SKIPPED - Not advertising in EU, not required)
+  - ~~Create component: `frontend/src/components/CookieConsent.jsx`~~
+  - Note: Platform uses httpOnly authentication cookies only, not tracking/marketing cookies
+  - GDPR compliance not required for US-only educational platform
   - Reference: [LEGAL_COMPLIANCE_AUDIT_2025.md](LEGAL_COMPLIANCE_AUDIT_2025.md#high-no-cookie-consent)
 
 ### Week 4: Privacy Policy & DPAs
