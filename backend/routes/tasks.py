@@ -34,6 +34,7 @@ import math
 import mimetypes
 from werkzeug.utils import secure_filename
 from typing import Dict, Any, Optional
+from utils.api_response_v1 import success_response, error_response
 
 from utils.logger import get_logger
 
@@ -82,10 +83,11 @@ def complete_task(user_id: str, task_id: str):
                 logger.info(f"Parent {user_id[:8]} completing task for dependent {acting_as_dependent_id[:8]}")
             except RepoPermissionError as e:
                 logger.warning(f"Unauthorized dependent access attempt: {str(e)}")
-                return jsonify({
-                    'success': False,
-                    'error': 'You do not have permission to manage this dependent profile'
-                }), 403
+                return error_response(
+                    code='PERMISSION_DENIED',
+                    message='You do not have permission to manage this dependent profile',
+                    status=403
+                )
 
         # Use user client for user operations (RLS enforcement)
         supabase = get_user_client()
@@ -101,35 +103,39 @@ def complete_task(user_id: str, task_id: str):
         try:
             task_data = task_repo.get_task_with_relations(task_id, effective_user_id)
         except NotFoundError:
-            return jsonify({
-                'success': False,
-                'error': 'Task not found or not owned by you'
-            }), 404
+            return error_response(
+                code='TASK_NOT_FOUND',
+                message='Task not found or not owned by you',
+                status=404
+            )
 
         quest_id = task_data['quest_id']
         user_quest_id = task_data['user_quest_id']
 
         # Verify task is approved (for manual tasks)
         if task_data.get('approval_status') != 'approved':
-            return jsonify({
-                'success': False,
-                'error': 'This task is pending approval and cannot be completed yet'
-            }), 403
+            return error_response(
+                code='TASK_NOT_APPROVED',
+                message='This task is pending approval and cannot be completed yet',
+                status=403
+            )
 
         # Check if task already completed using repository
         if completion_repo.check_existing_completion(effective_user_id, task_id):
-            return jsonify({
-                'success': False,
-                'error': 'Task already completed'
-            }), 400
-        
+            return error_response(
+                code='TASK_ALREADY_COMPLETED',
+                message='Task already completed',
+                status=400
+            )
+
         # Get evidence from request
         evidence_type = request.form.get('evidence_type')
         if not evidence_type:
-            return jsonify({
-                'success': False,
-                'error': 'Evidence type is required'
-            }), 400
+            return error_response(
+                code='VALIDATION_ERROR',
+                message='Evidence type is required',
+                status=400
+            )
 
         # Get confidential flag
         is_confidential = request.form.get('is_confidential', 'false').lower() == 'true'
@@ -150,17 +156,19 @@ def complete_task(user_id: str, task_id: str):
         elif evidence_type == 'image' or evidence_type == 'document':
             # Handle file upload to Supabase storage
             if 'file' not in request.files:
-                return jsonify({
-                    'success': False,
-                    'error': f'File is required for {evidence_type} evidence'
-                }), 400
+                return error_response(
+                    code='VALIDATION_ERROR',
+                    message=f'File is required for {evidence_type} evidence',
+                    status=400
+                )
 
             file = request.files['file']
             if file.filename == '':
-                return jsonify({
-                    'success': False,
-                    'error': 'No file selected'
-                }), 400
+                return error_response(
+                    code='VALIDATION_ERROR',
+                    message='No file selected',
+                    status=400
+                )
 
             # Validate file extension
             filename = secure_filename(file.filename)
@@ -174,16 +182,19 @@ def complete_task(user_id: str, task_id: str):
                 allowed_extensions = {'pdf', 'doc', 'docx', 'txt'}
                 max_file_size = 25 * 1024 * 1024  # 25MB for documents
             else:
-                return jsonify({
-                    'success': False,
-                    'error': f'Unsupported file evidence type: {evidence_type}'
-                }), 400
+                return error_response(
+                    code='VALIDATION_ERROR',
+                    message=f'Unsupported file evidence type: {evidence_type}',
+                    status=400
+                )
 
             if ext not in allowed_extensions:
-                return jsonify({
-                    'success': False,
-                    'error': f'Invalid {evidence_type} format. Extension "{ext}" not allowed. Allowed: {", ".join(allowed_extensions)}'
-                }), 400
+                return error_response(
+                    code='INVALID_FILE_TYPE',
+                    message=f'Invalid {evidence_type} format. Extension "{ext}" not allowed. Allowed: {", ".join(allowed_extensions)}',
+                    details={'allowed_extensions': list(allowed_extensions)},
+                    status=400
+                )
 
             # Check file size
             file.seek(0, os.SEEK_END)
@@ -191,10 +202,12 @@ def complete_task(user_id: str, task_id: str):
             file.seek(0)
 
             if file_size > max_file_size:
-                return jsonify({
-                    'success': False,
-                    'error': f'File too large. Maximum size: {max_file_size // (1024*1024)}MB'
-                }), 400
+                return error_response(
+                    code='FILE_TOO_LARGE',
+                    message=f'File too large. Maximum size: {max_file_size // (1024*1024)}MB',
+                    details={'max_size_mb': max_file_size // (1024*1024)},
+                    status=400
+                )
 
             # Upload to Supabase storage
             try:
@@ -227,18 +240,20 @@ def complete_task(user_id: str, task_id: str):
 
             except Exception as upload_error:
                 logger.error(f"Error uploading to Supabase storage: {str(upload_error)}")
-                return jsonify({
-                    'success': False,
-                    'error': 'Failed to upload image. Please try again.'
-                }), 500
-        
+                return error_response(
+                    code='UPLOAD_ERROR',
+                    message='Failed to upload image. Please try again.',
+                    status=500
+                )
+
         # Validate evidence
         is_valid, error_msg = evidence_service.validate_evidence(evidence_type, evidence_data)
         if not is_valid:
-            return jsonify({
-                'success': False,
-                'error': error_msg
-            }), 400
+            return error_response(
+                code='VALIDATION_ERROR',
+                message=error_msg,
+                status=400
+            )
         
         # Get base XP from task
         base_xp = task_data.get('xp_value', 100)
@@ -257,10 +272,11 @@ def complete_task(user_id: str, task_id: str):
                 'xp_awarded': final_xp
             })
         except ValueError as e:
-            return jsonify({
-                'success': False,
-                'error': str(e)
-            }), 500
+            return error_response(
+                code='COMPLETION_ERROR',
+                message=str(e),
+                status=500
+            )
 
         # Award XP to user
         logger.debug(f"=== TASK COMPLETION XP DEBUG ===")
@@ -444,20 +460,22 @@ def complete_task(user_id: str, task_id: str):
         else:
             quest_completed = False
 
-        return jsonify({
-            'success': True,
-            'message': f'Task completed! Earned {final_xp} XP',
-            'xp_awarded': final_xp,
-            'quest_completed': quest_completed,
-            'completion': completion_data
-        })
+        return success_response(
+            data={
+                'message': f'Task completed! Earned {final_xp} XP',
+                'xp_awarded': final_xp,
+                'quest_completed': quest_completed,
+                'completion': completion_data
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error completing task: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to complete task'
-        }), 500
+        return error_response(
+            code='TASK_COMPLETION_ERROR',
+            message='Failed to complete task',
+            status=500
+        )
 
 # REMOVED: get_task_completions endpoint (originally lines 421-482)
 # Reason: Unused - no frontend references found

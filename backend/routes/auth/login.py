@@ -21,6 +21,7 @@ import os
 
 from utils.logger import get_logger
 from config.constants import MAX_LOGIN_ATTEMPTS, LOCKOUT_DURATION_MINUTES
+from utils.api_response_v1 import success_response, error_response
 
 logger = get_logger(__name__)
 
@@ -279,7 +280,11 @@ def login():
     # Validate input
     if not data or not data.get('email') or not data.get('password'):
         logger.warning("Login attempt with missing email or password")
-        return jsonify({'error': 'Email and password are required'}), 400
+        return error_response(
+            code='VALIDATION_ERROR',
+            message='Email and password are required',
+            status=400
+        )
 
     email = data['email'].strip().lower()
 
@@ -291,11 +296,12 @@ def login():
     if is_locked:
         minutes_remaining = retry_after // 60
         logger.warning(f"Login blocked for locked account: {mask_email(email)} ({minutes_remaining} minutes remaining)")
-        return jsonify({
-            'error': f'Account temporarily locked due to too many failed login attempts. Please try again in {minutes_remaining} minutes or use "Forgot Password?" to reset your password.',
-            'retry_after': retry_after,
-            'locked': True
-        }), 429
+        return error_response(
+            code='ACCOUNT_LOCKED',
+            message=f'Account temporarily locked due to too many failed login attempts. Please try again in {minutes_remaining} minutes or use "Forgot Password?" to reset your password.',
+            details={'retry_after': retry_after, 'locked': True},
+            status=429
+        )
 
     try:
         auth_response = supabase.auth.sign_in_with_password({
@@ -406,12 +412,14 @@ def login():
             app_access_token = session_manager.generate_access_token(auth_response.user.id)
             app_refresh_token = session_manager.generate_refresh_token(auth_response.user.id)
 
-            response_data = {
+            # Use standardized v1 response format
+            data = {
                 'user': user_response_data,
                 'app_access_token': app_access_token,
                 'app_refresh_token': app_refresh_token,
             }
-            response = make_response(jsonify(response_data), 200)
+            response_json, status_code = success_response(data)
+            response = make_response(response_json, status_code)
 
             # Set httpOnly cookies for authentication (fallback for desktop browsers)
             session_manager.set_auth_cookies(response, auth_response.user.id)
@@ -419,7 +427,11 @@ def login():
             return response
         else:
             logger.warning(f"Login failed for {mask_email(email)} without exception - auth_response.user is None")
-            return jsonify({'error': 'Incorrect email or password. Please check your credentials and try again.'}), 401
+            return error_response(
+                code='INVALID_CREDENTIALS',
+                message='Incorrect email or password. Please check your credentials and try again.',
+                status=401
+            )
 
     except Exception as e:
         error_message = str(e)
@@ -439,54 +451,73 @@ def login():
 
             if is_now_locked:
                 logger.warning(f"Account locked for {mask_email(email)} after too many failed attempts")
-                return jsonify({
-                    'error': f'Too many failed login attempts. Your account has been temporarily locked for {lockout_minutes} minutes. Please try again later or use "Forgot Password" to reset your password.',
-                    'locked': True,
-                    'lockout_duration': lockout_minutes
-                }), 429
+                return error_response(
+                    code='ACCOUNT_LOCKED',
+                    message=f'Too many failed login attempts. Your account has been temporarily locked for {lockout_minutes} minutes. Please try again later or use "Forgot Password" to reset your password.',
+                    details={'locked': True, 'lockout_duration': lockout_minutes},
+                    status=429
+                )
             else:
                 logger.info(f"Invalid credentials for {mask_email(email)}: {attempts_remaining} attempts remaining")
                 # Provide more helpful error message based on attempts remaining
                 if attempts_remaining <= 2:
-                    return jsonify({
-                        'error': f'Incorrect email or password. You have {attempts_remaining} {"attempt" if attempts_remaining == 1 else "attempts"} remaining before your account is temporarily locked. If you forgot your password, click "Forgot Password?" below.',
-                        'attempts_remaining': attempts_remaining,
-                        'warning': True
-                    }), 401
+                    return error_response(
+                        code='INVALID_CREDENTIALS',
+                        message=f'Incorrect email or password. You have {attempts_remaining} {"attempt" if attempts_remaining == 1 else "attempts"} remaining before your account is temporarily locked. If you forgot your password, click "Forgot Password?" below.',
+                        details={'attempts_remaining': attempts_remaining, 'warning': True},
+                        status=401
+                    )
                 else:
-                    return jsonify({
-                        'error': f'Incorrect email or password. Please check your credentials and try again. ({attempts_remaining} {"attempt" if attempts_remaining == 1 else "attempts"} remaining)',
-                        'attempts_remaining': attempts_remaining
-                    }), 401
+                    return error_response(
+                        code='INVALID_CREDENTIALS',
+                        message=f'Incorrect email or password. Please check your credentials and try again. ({attempts_remaining} {"attempt" if attempts_remaining == 1 else "attempts"} remaining)',
+                        details={'attempts_remaining': attempts_remaining},
+                        status=401
+                    )
         elif "email not confirmed" in error_lower or "email confirmation" in error_lower:
             logger.info(f"Login attempt with unconfirmed email: {mask_email(email)}")
-            return jsonify({
-                'error': 'Please verify your email address before logging in. Check your inbox (and spam folder) for a confirmation email. If you need a new verification email, contact support.',
-                'email_not_confirmed': True
-            }), 401
+            return error_response(
+                code='EMAIL_NOT_CONFIRMED',
+                message='Please verify your email address before logging in. Check your inbox (and spam folder) for a confirmation email. If you need a new verification email, contact support.',
+                details={'email_not_confirmed': True},
+                status=401
+            )
         elif "user not found" in error_lower:
             # Record failed login attempt even for non-existent users
             record_failed_login(email)
             logger.info(f"Login attempt with non-existent email: {mask_email(email)}")
-            return jsonify({
-                'error': 'No account found with this email address. Please check your email spelling or create a new account.',
-                'user_not_found': True
-            }), 401
+            return error_response(
+                code='USER_NOT_FOUND',
+                message='No account found with this email address. Please check your email spelling or create a new account.',
+                details={'user_not_found': True},
+                status=401
+            )
         elif "rate limit" in error_lower or "too many requests" in error_lower:
             logger.warning(f"Rate limit hit for {mask_email(email)}")
             import re
             wait_match = re.search(r'after (\d+) seconds', error_message)
             if wait_match:
                 wait_time = wait_match.group(1)
-                return jsonify({'error': f'Too many login attempts. Please wait {wait_time} seconds before trying again.'}), 429
+                return error_response(
+                    code='RATE_LIMIT_EXCEEDED',
+                    message=f'Too many login attempts. Please wait {wait_time} seconds before trying again.',
+                    details={'retry_after': int(wait_time)},
+                    status=429
+                )
             else:
-                return jsonify({'error': 'Too many login attempts. Please wait a minute before trying again.'}), 429
+                return error_response(
+                    code='RATE_LIMIT_EXCEEDED',
+                    message='Too many login attempts. Please wait a minute before trying again.',
+                    status=429
+                )
         else:
             logger.warning(f"Unhandled login error for {mask_email(email)}: {error_message}")
-            return jsonify({
-                'error': 'Login failed. Please check your email and password. If you continue having trouble, try using "Forgot Password?" or contact support.',
-                'generic_error': True
-            }), 400
+            return error_response(
+                code='LOGIN_ERROR',
+                message='Login failed. Please check your email and password. If you continue having trouble, try using "Forgot Password?" or contact support.',
+                details={'generic_error': True},
+                status=400
+            )
 
 
 @bp.route('/logout', methods=['POST'])

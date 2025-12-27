@@ -30,6 +30,7 @@ from repositories import (
 )
 from datetime import datetime
 from utils.auth.decorators import require_auth
+from utils.api_response_v1 import success_response, error_response
 
 from utils.logger import get_logger
 import re
@@ -122,9 +123,13 @@ def get_public_portfolio(portfolio_slug):
         
         # Get diploma info
         diploma = supabase.table('diplomas').select('*').eq('portfolio_slug', portfolio_slug).execute()
-        
+
         if not diploma.data or not diploma.data[0]['is_public']:
-            return jsonify({'error': 'Portfolio not found or private'}), 404
+            return error_response(
+                code='PORTFOLIO_NOT_FOUND',
+                message='Portfolio not found or private',
+                status=404
+            )
         
         user_id = diploma.data[0]['user_id']
         
@@ -137,7 +142,11 @@ def get_public_portfolio(portfolio_slug):
             user = supabase.table('users').select('username, first_name, last_name').eq('id', user_id).execute()
         
         if not user.data:
-            return jsonify({'error': 'User not found'}), 404
+            return error_response(
+                code='USER_NOT_FOUND',
+                message='User not found',
+                status=404
+            )
         
         # Get user's completed quests with details
         # Get completed quests - include both explicitly completed and those with all tasks done
@@ -216,22 +225,28 @@ def get_public_portfolio(portfolio_slug):
         logger.info(f"Total XP calculated: {total_xp}")
         logger.info(f"XP by category: {xp_by_category}")
         
-        return jsonify({
-            'student': user.data[0],
-            'diploma_issued': diploma.data[0]['issued_date'],
-            'completed_quests': completed_quests.data,
-            'skill_xp': skill_xp_data,  # Use the calculated data
-            'skill_details': skill_details.data,
-            'total_quests_completed': total_quests,
-            'total_xp': total_xp,
-            'portfolio_url': f"https://optio.com/portfolio/{portfolio_slug}"
-        }), 200
+        return success_response(
+            data={
+                'student': user.data[0],
+                'diploma_issued': diploma.data[0]['issued_date'],
+                'completed_quests': completed_quests.data,
+                'skill_xp': skill_xp_data,
+                'skill_details': skill_details.data,
+                'total_quests_completed': total_quests,
+                'total_xp': total_xp,
+                'portfolio_url': f"https://optio.com/portfolio/{portfolio_slug}"
+            }
+        )
         
     except Exception as e:
         import traceback
         logger.error(f"Error fetching portfolio: {str(e)}")
         logger.info(f"Full traceback: {traceback.format_exc()}")
-        return jsonify({'error': 'Failed to fetch portfolio'}), 500
+        return error_response(
+            code='PORTFOLIO_ERROR',
+            message='Failed to fetch portfolio',
+            status=500
+        )
 
 @bp.route('/user/<user_id>', methods=['GET'])
 @cross_origin()

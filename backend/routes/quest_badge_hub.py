@@ -26,6 +26,7 @@ from utils.auth.decorators import require_auth
 from utils.validation.sanitizers import sanitize_search_input
 from services.badge_service import BadgeService
 from typing import Optional
+from utils.api_response_v1 import success_response, error_response
 
 from utils.logger import get_logger
 
@@ -134,18 +135,20 @@ def get_badges_for_hub():
         for pillar in pillar_groups:
             pillar_groups[pillar].sort(key=lambda x: x.get('name', ''))
 
-        return jsonify({
-            'success': True,
-            'badges_by_pillar': pillar_groups,
-            'total_badges': len(badges)
-        })
+        return success_response(
+            data={
+                'badges_by_pillar': pillar_groups,
+                'total_badges': len(badges)
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error fetching hub badges: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to fetch badges'
-        }), 500
+        return error_response(
+            code='BADGE_LISTING_ERROR',
+            message='Failed to fetch badges',
+            status=500
+        )
 
 
 @bp.route('/quests', methods=['GET'])

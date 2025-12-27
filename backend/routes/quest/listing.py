@@ -12,6 +12,7 @@ from utils.source_utils import get_quest_header_image
 from services.quest_optimization import quest_optimization_service
 from utils.validation.sanitizers import sanitize_search_input, sanitize_integer
 from utils.logger import get_logger
+from utils.api_response_v1 import paginated_response, error_response
 
 logger = get_logger(__name__)
 
@@ -64,15 +65,13 @@ def list_quests():
 
         # Handle empty filter results
         if filtered_quest_ids is not None and len(filtered_quest_ids) == 0:
-            return jsonify({
-                'success': True,
-                'quests': [],
-                'total': 0,
-                'page': page,
-                'per_page': per_page,
-                'total_pages': 0,
-                'has_more': False
-            })
+            return paginated_response(
+                data=[],
+                page=page,
+                per_page=per_page,
+                total=0,
+                base_url='/api/quests'
+            )
 
         # Build main quest query
         # Note: In V3 personalized system, quests don't have quest_tasks
@@ -119,19 +118,14 @@ def list_quests():
                 logger.info(f"[OPTIMIZATION] Using batch queries for {len(quests)} quests")
                 quests = quest_optimization_service.enrich_quests_with_user_data(quests, user_id)
 
-            # Calculate pagination
-            total_pages = (org_result['total'] + per_page - 1) // per_page if org_result['total'] else 0
-            has_more = page < total_pages
-
-            return jsonify({
-                'success': True,
-                'quests': quests,
-                'total': org_result['total'],
-                'page': page,
-                'per_page': per_page,
-                'total_pages': total_pages,
-                'has_more': has_more
-            })
+            # Return paginated response
+            return paginated_response(
+                data=quests,
+                page=page,
+                per_page=per_page,
+                total=org_result['total'],
+                base_url='/api/quests'
+            )
 
         # Anonymous user: only show global public quests
         query = supabase.table('quests')\
@@ -147,15 +141,13 @@ def list_quests():
                 query = query.in_('id', quest_ids_list)
             else:
                 # No matching quests - return empty
-                return jsonify({
-                    'success': True,
-                    'quests': [],
-                    'total': 0,
-                    'page': page,
-                    'per_page': per_page,
-                    'total_pages': 0,
-                    'has_more': False
-                })
+                return paginated_response(
+                    data=[],
+                    page=page,
+                    per_page=per_page,
+                    total=0,
+                    base_url='/api/quests'
+                )
 
         # Apply search filter if provided (search in title only for simplicity)
         if search:
@@ -175,15 +167,13 @@ def list_quests():
             # Handle 416 "Requested Range Not Satisfiable" errors
             if "416" in str(e) or "Requested Range Not Satisfiable" in str(e):
                 # Return empty results when offset exceeds total count
-                return jsonify({
-                    'success': True,
-                    'quests': [],
-                    'total': 0,
-                    'page': page,
-                    'per_page': per_page,
-                    'total_pages': 0,
-                    'has_more': False
-                })
+                return paginated_response(
+                    data=[],
+                    page=page,
+                    per_page=per_page,
+                    total=0,
+                    base_url='/api/quests'
+                )
             else:
                 # Re-raise other exceptions
                 raise e
@@ -219,26 +209,22 @@ def list_quests():
             for idx, q in enumerate(quests[:5]):  # Log first 5 quests
                 logger.info(f"[API RESPONSE] Quest {idx}: id={q.get('id', 'no-id')[:8]}, title={q.get('title', 'No title')[:30]}, pillar_breakdown={q.get('pillar_breakdown', {})}, has_enrollment={bool(q.get('user_enrollment') or q.get('completed_enrollment'))}")
 
-        # Calculate if there are more pages
-        total_pages = (result.count + per_page - 1) // per_page if result.count else 0
-        has_more = page < total_pages
-
-        return jsonify({
-            'success': True,
-            'quests': quests,
-            'total': result.count,
-            'page': page,
-            'per_page': per_page,
-            'total_pages': total_pages,
-            'has_more': has_more
-        })
+        # Return paginated response
+        return paginated_response(
+            data=quests,
+            page=page,
+            per_page=per_page,
+            total=result.count,
+            base_url='/api/quests'
+        )
 
     except Exception as e:
         logger.error(f"Error listing quests: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to fetch quests'
-        }), 500
+        return error_response(
+            code='QUEST_LISTING_ERROR',
+            message='Failed to fetch quests',
+            status=500
+        )
 
 
 @bp.route('/sources', methods=['GET'])
