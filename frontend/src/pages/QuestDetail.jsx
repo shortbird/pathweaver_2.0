@@ -1,20 +1,16 @@
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import React, { lazy, Suspense } from 'react';
 import { flushSync } from 'react-dom';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useQuestDetail, useEnrollQuest, useCompleteTask, useEndQuest } from '../hooks/api/useQuests';
-import { handleApiResponse } from '../utils/errorHandling';
-import api from '../services/api';
-import { getPillarData, normalizePillarKey } from '../utils/pillarMappings';
+import { useQuestDetailData } from '../hooks/useQuestDetailData';
 import { queryKeys } from '../utils/queryKeys';
-import SampleTaskCard from '../components/quest/SampleTaskCard';
-import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
-import { MapPinIcon, CalendarIcon, ArrowTopRightOnSquareIcon, ClockIcon, TrophyIcon, UsersIcon, CheckCircleIcon, FireIcon, BookOpenIcon, LockClosedIcon, ArrowLeftIcon, PlusIcon } from '@heroicons/react/24/outline';
+import api from '../services/api';
+import QuestDetailHeader from '../components/quest/QuestDetailHeader';
+import QuestEnrollment from '../components/quest/QuestEnrollment';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 
-// Lazy load heavy components to reduce initial bundle size
+// Lazy load heavy components
 const TaskEvidenceModal = lazy(() => import('../components/quest/TaskEvidenceModal'));
 const TaskDetailModal = lazy(() => import('../components/quest/TaskDetailModal'));
 const QuestPersonalizationWizard = lazy(() => import('../components/quests/QuestPersonalizationWizard'));
@@ -23,7 +19,7 @@ const TaskTimeline = lazy(() => import('../components/quest/TaskTimeline'));
 const TaskWorkspace = lazy(() => import('../components/quest/TaskWorkspace'));
 const RestartQuestModal = lazy(() => import('../components/quest/RestartQuestModal'));
 
-// Loading spinner component
+// Loading spinner
 const LoadingFallback = () => (
   <div className="flex justify-center items-center h-64">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
@@ -33,149 +29,282 @@ const LoadingFallback = () => (
 const QuestDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const { user } = useAuth();
-  const queryClient = useQueryClient();
 
-  // Use React Query hooks for data fetching
+  // Use custom hook for all data management
   const {
-    data: quest,
+    quest,
     isLoading,
     error,
-    refetch: refetchQuest
-  } = useQuestDetail(id, {
-    enabled: !!id,
-    staleTime: 30000, // Consider data fresh for 30 seconds after task completion
-    cacheTime: 300000, // Keep in cache for 5 minutes
-  });
+    refetchQuest,
+    enrollMutation,
+    endQuestMutation,
+    isEnrolling,
+    selectedTask,
+    setSelectedTask,
+    showPersonalizationWizard,
+    setShowPersonalizationWizard,
+    showQuestCompletionCelebration,
+    setShowQuestCompletionCelebration,
+    displayMode,
+    setDisplayMode,
+    showRestartModal,
+    setShowRestartModal,
+    restartModalData,
+    setRestartModalData,
+    xpData,
+    pillarBreakdown,
+    completedTasks,
+    totalTasks,
+    progressPercentage,
+    isQuestCompleted,
+    queryClient
+  } = useQuestDetailData(id);
 
-  // React Query mutations
-  const enrollMutation = useEnrollQuest();
-  const completeTaskMutation = useCompleteTask();
-  const endQuestMutation = useEndQuest();
+  // Local state for modals and UI
+  const [showTaskModal, setShowTaskModal] = React.useState(false);
+  const [showTaskDetailModal, setShowTaskDetailModal] = React.useState(false);
+  const [taskDetailToShow, setTaskDetailToShow] = React.useState(null);
+  const [droppingTaskId, setDroppingTaskId] = React.useState(null);
+  const [showMobileDrawer, setShowMobileDrawer] = React.useState(false);
 
-  // Get loading states from mutations
-  const isEnrolling = enrollMutation.isPending;
-  const isRefreshing = completeTaskMutation.isPending;
+  const { earnedXP } = xpData;
 
-  // All features are now free for all users (Phase 2 refactoring - January 2025)
-  const canStartQuests = true;
-  const [selectedTask, setSelectedTask] = useState(null);
-  const [showTaskModal, setShowTaskModal] = useState(false);
-  const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);
-  const [taskDetailToShow, setTaskDetailToShow] = useState(null);
-  const [showPersonalizationWizard, setShowPersonalizationWizard] = useState(false);
-  const [showQuestCompletionCelebration, setShowQuestCompletionCelebration] = useState(false);
-  const [expandedTasks, setExpandedTasks] = useState(new Set());
-  const [droppingTaskId, setDroppingTaskId] = useState(null);
-  const [displayMode, setDisplayMode] = useState('flexible'); // 'timeline' or 'flexible'
-  const [showMobileDrawer, setShowMobileDrawer] = useState(false);
-  const [showRestartModal, setShowRestartModal] = useState(false);
-  const [restartModalData, setRestartModalData] = useState({ previousTaskCount: 0, questTitle: '' });
+  // Handle enrollment
+  const handleEnroll = async (options = {}) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
 
-  // Memoize XP calculations to prevent expensive re-computation on every render
-  // MUST be declared before any conditional returns (Rules of Hooks)
-  const xpData = useMemo(() => {
-    if (!quest?.quest_tasks) return { baseXP: 0, totalXP: 0, earnedXP: 0 };
+    enrollMutation.mutate({ questId: id, options }, {
+      onSuccess: async (data) => {
+        queryClient.invalidateQueries(queryKeys.quests.detail(id));
+        await refetchQuest();
 
-    const tasks = quest.quest_tasks;
-    const baseXP = tasks.reduce((sum, task) => sum + (task.xp_amount || 0), 0);
-    const earnedXP = tasks
-      .filter(task => task.is_completed)
-      .reduce((sum, task) => sum + (task.xp_amount || 0), 0);
+        const skipWizard = data?.enrollment?.skip_wizard || data?.skip_wizard || data?.tasks_loaded || false;
 
-    const totalXP = baseXP;
-
-    return { baseXP, totalXP, earnedXP };
-  }, [quest?.quest_tasks]);
-
-  // Memoize pillar breakdown calculation
-  const pillarBreakdown = useMemo(() => {
-    if (!quest?.quest_tasks) return {};
-
-    const breakdown = {};
-    quest.quest_tasks.forEach(task => {
-      const rawPillar = task.pillar || 'wellness';
-      // Normalize pillar key to handle legacy naming (e.g., "Arts & Creativity" -> "art")
-      const normalizedPillar = normalizePillarKey(rawPillar);
-
-      if (!breakdown[normalizedPillar]) {
-        breakdown[normalizedPillar] = 0;
+        if (skipWizard) {
+          if (data?.tasks_loaded) {
+            toast.success(`Restarted quest with ${data.tasks_loaded} previous tasks!`);
+          } else {
+            toast.success('Enrolled! Your tasks are ready.');
+          }
+        } else {
+          setTimeout(() => {
+            setShowPersonalizationWizard(true);
+          }, 100);
+        }
+      },
+      onError: (error) => {
+        if (error.response?.status === 409 && error.response?.data?.requires_confirmation) {
+          const previousTaskCount = error.response.data.previous_task_count || 0;
+          setRestartModalData({
+            previousTaskCount: previousTaskCount,
+            questTitle: quest?.title || 'this quest'
+          });
+          setShowRestartModal(true);
+        } else {
+          console.error('Enrollment failed:', error);
+        }
       }
-      breakdown[normalizedPillar] += task.xp_amount || 0;
     });
+  };
 
-    return breakdown;
-  }, [quest?.quest_tasks]);
+  const handlePersonalizationComplete = async () => {
+    setShowPersonalizationWizard(false);
+    queryClient.invalidateQueries(queryKeys.quests.detail(id));
+    await refetchQuest();
+    toast.success('Quest personalized successfully!');
+  };
 
-  // Memoize completed tasks calculation
-  const completedTasks = useMemo(() => {
-    return quest?.quest_tasks?.filter(task => task.is_completed).length || 0;
-  }, [quest?.quest_tasks]);
+  const handlePersonalizationCancel = () => {
+    setShowPersonalizationWizard(false);
+  };
 
-  // Handle navigation from task library - refetch data when tasks were added
-  useEffect(() => {
-    if (location.state?.tasksAdded) {
-      logger.debug('[QUEST_DETAIL] Returning from task library, refetching quest data');
+  const handleLoadPreviousTasks = () => {
+    setShowRestartModal(false);
+    handleEnroll({ load_previous_tasks: true, force_new: true });
+  };
 
-      // Optimistically update cache to mark quest as active (in case it was completed)
-      queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
-        if (!oldData) return oldData;
-        return {
-          ...oldData,
-          user_enrollment: oldData.user_enrollment ? {
-            ...oldData.user_enrollment,
-            is_active: true
-          } : null,
-          completed_enrollment: false
-        };
-      });
+  const handleStartFresh = () => {
+    setShowRestartModal(false);
+    handleEnroll({ force_new: true });
+  };
 
-      // Invalidate and refetch to get fresh data from server
+  const handleDropTask = async (taskId) => {
+    if (!window.confirm('Remove this task from your active quest? You can add it back later from the task library.')) {
+      return;
+    }
+
+    setDroppingTaskId(taskId);
+
+    try {
+      await api.delete(`/api/tasks/${taskId}`);
       queryClient.invalidateQueries(queryKeys.quests.detail(id));
-      refetchQuest();
+      await refetchQuest();
+      toast.success('Task removed from your quest');
+    } catch (err) {
+      console.error('Error removing task:', err);
+      toast.error(err.response?.data?.error || 'Failed to remove task');
+    } finally {
+      setDroppingTaskId(null);
+    }
+  };
 
-      // Clear the navigation state to prevent repeated refetches
-      navigate(location.pathname, { replace: true, state: {} });
+  const handleEndQuest = async () => {
+    if (!quest?.user_enrollment) return;
 
-      // Show success message if tasks were added
-      if (location.state?.addedCount > 0) {
-        toast.success(`${location.state.addedCount} task${location.state.addedCount > 1 ? 's' : ''} added successfully!`);
+    endQuestMutation.mutate(id, {
+      onSuccess: () => {
+        toast.success('Quest completed! Returning to dashboard...');
+        navigate('/');
+      },
+      onError: (error) => {
+        console.error('Error ending quest:', error);
+        toast.error('Failed to finish quest. Please try again.');
       }
-    }
-  }, [location.state, id, queryClient, refetchQuest, navigate, location.pathname]);
-
-  // Auto-select first task when quest loads
-  useEffect(() => {
-    if (quest?.quest_tasks?.length > 0 && !selectedTask && quest.user_enrollment) {
-      logger.debug('[QUEST_DETAIL] Auto-selecting first task:', {
-        id: quest.quest_tasks[0]?.id?.substring(0, 8),
-        title: quest.quest_tasks[0]?.title,
-        is_completed: quest.quest_tasks[0]?.is_completed
-      });
-      setSelectedTask(quest.quest_tasks[0]);
-    }
-  }, [quest?.quest_tasks, quest?.user_enrollment]);
-
-  // Debug: Log whenever quest data changes
-  useEffect(() => {
-    if (quest?.quest_tasks) {
-      logger.debug('[QUEST_DETAIL] Quest data updated, tasks:', quest.quest_tasks.map(t => ({
-        id: t.id.substring(0, 8),
-        title: t.title?.substring(0, 20),
-        is_completed: t.is_completed
-      })));
-    }
-  }, [quest]);
-
-  // Debug: Log whenever selectedTask changes
-  useEffect(() => {
-    logger.debug('[QUEST_DETAIL] selectedTask changed:', {
-      id: selectedTask?.id?.substring(0, 8),
-      title: selectedTask?.title,
-      is_completed: selectedTask?.is_completed
     });
-  }, [selectedTask]);
+  };
+
+  const handleAddMoreTasks = () => {
+    setShowQuestCompletionCelebration(false);
+    setShowPersonalizationWizard(true);
+  };
+
+  const handleFinishQuestFromCelebration = () => {
+    setShowQuestCompletionCelebration(false);
+    handleEndQuest();
+  };
+
+  const handleTaskCompletion = async (completionData) => {
+    logger.debug('[QUEST_DETAIL] ========== TASK COMPLETION HANDLER START ==========');
+    logger.debug('[QUEST_DETAIL] completionData:', completionData);
+
+    if (selectedTask) {
+      logger.debug('[QUEST_DETAIL] About to call flushSync for state + cache update');
+
+      flushSync(() => {
+        logger.debug('[QUEST_DETAIL] Inside flushSync - updating selectedTask state');
+        setSelectedTask(prev => {
+          const updated = prev ? { ...prev, is_completed: true } : null;
+          logger.debug('[QUEST_DETAIL] selectedTask state updated to:', {
+            id: updated?.id?.substring(0, 8),
+            is_completed: updated?.is_completed
+          });
+          return updated;
+        });
+
+        logger.debug('[QUEST_DETAIL] Inside flushSync - updating React Query cache');
+        queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
+          if (!oldData) {
+            logger.debug('[QUEST_DETAIL] No oldData in cache, returning null');
+            return oldData;
+          }
+
+          logger.debug('[QUEST_DETAIL] Old cache data quest_tasks count:', oldData.quest_tasks?.length);
+          logger.debug('[QUEST_DETAIL] Updating task in cache:', selectedTask.id.substring(0, 8));
+
+          const updatedTasks = oldData.quest_tasks?.map(task => {
+            if (task.id === selectedTask.id) {
+              logger.debug('[QUEST_DETAIL] Found matching task, marking is_completed=true');
+              return { ...task, is_completed: true };
+            }
+            return task;
+          }) || [];
+
+          const completedCount = updatedTasks.filter(task => task.is_completed).length;
+          const totalCount = updatedTasks.length;
+          const newProgressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+          const isNewlyCompleted = newProgressPercentage === 100 && !oldData.completed_enrollment;
+
+          logger.debug('[QUEST_DETAIL] Cache update complete:', {
+            completedCount,
+            totalCount,
+            progressPercentage: newProgressPercentage,
+            isNewlyCompleted
+          });
+
+          if (isNewlyCompleted) {
+            logger.debug('[QUEST_DETAIL] Quest newly completed - showing celebration');
+            setTimeout(() => {
+              setShowQuestCompletionCelebration(true);
+            }, 500);
+          }
+
+          return {
+            ...oldData,
+            quest_tasks: updatedTasks,
+            progress: {
+              ...oldData.progress,
+              percentage: newProgressPercentage,
+              completed_tasks: completedCount,
+              total_tasks: totalCount
+            },
+            completed_enrollment: isNewlyCompleted ? true : oldData.completed_enrollment
+          };
+        });
+      });
+
+      logger.debug('[QUEST_DETAIL] flushSync completed - all updates should be synchronous');
+    }
+
+    logger.debug('[QUEST_DETAIL] Closing modal and clearing selectedTask');
+    setShowTaskModal(false);
+    setSelectedTask(null);
+
+    logger.debug('[QUEST_DETAIL] ========== TASK COMPLETION HANDLER END ==========');
+  };
+
+  const handleTaskReorder = async (oldIndex, newIndex) => {
+    if (!quest?.quest_tasks) return;
+
+    const reorderedTasks = Array.from(quest.quest_tasks);
+    const [movedTask] = reorderedTasks.splice(oldIndex, 1);
+    reorderedTasks.splice(newIndex, 0, movedTask);
+
+    const updatedTasks = reorderedTasks.map((task, index) => ({
+      ...task,
+      order_index: index
+    }));
+
+    queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
+      if (!oldData) return oldData;
+      return {
+        ...oldData,
+        quest_tasks: updatedTasks
+      };
+    });
+
+    try {
+      await api.put(`/api/quests/${id}/tasks/reorder`, {
+        task_ids: updatedTasks.map(t => t.id)
+      });
+    } catch (err) {
+      console.error('Error reordering tasks:', err);
+      toast.error('Failed to save task order');
+      refetchQuest();
+    }
+  };
+
+  const handleDisplayModeChange = async (newMode) => {
+    setDisplayMode(newMode);
+
+    try {
+      await api.put(`/api/quests/${id}/display-mode`, {
+        display_mode: newMode
+      });
+    } catch (err) {
+      console.error('Error updating display mode:', err);
+    }
+  };
+
+  const handleTaskSelect = (task) => {
+    setSelectedTask(task);
+    if (window.innerWidth < 768) {
+      setShowMobileDrawer(false);
+    }
+  };
 
   // Handle error display
   if (error) {
@@ -207,323 +336,6 @@ const QuestDetail = () => {
     );
   }
 
-  const handleEnroll = async (options = {}) => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-
-    enrollMutation.mutate({ questId: id, options }, {
-      onSuccess: async (data) => {
-
-        // Force invalidate and refetch quest data
-        queryClient.invalidateQueries(queryKeys.quests.detail(id));
-        await refetchQuest();
-
-        // Check if we should skip the personalization wizard (course quests or loaded previous tasks)
-        const skipWizard = data?.enrollment?.skip_wizard || data?.skip_wizard || data?.tasks_loaded || false;
-        const questType = data?.quest_type || 'optio';
-
-        if (skipWizard) {
-          // Tasks are already loaded (course quest or previous tasks loaded)
-          if (data?.tasks_loaded) {
-            toast.success(`Restarted quest with ${data.tasks_loaded} previous tasks!`);
-          } else {
-            toast.success('Enrolled! Your tasks are ready.');
-          }
-        } else {
-          // Optio quest - always show personalization wizard
-          setTimeout(() => {
-            setShowPersonalizationWizard(true);
-          }, 100);
-        }
-      },
-      onError: (error) => {
-        // Handle quest previously completed case (409 Conflict)
-        if (error.response?.status === 409 && error.response?.data?.requires_confirmation) {
-          const previousTaskCount = error.response.data.previous_task_count || 0;
-
-          // Show Optio modal instead of browser dialog
-          setRestartModalData({
-            previousTaskCount: previousTaskCount,
-            questTitle: quest?.title || 'this quest'
-          });
-          setShowRestartModal(true);
-        } else {
-          console.error('Enrollment failed:', error);
-        }
-      }
-    });
-  };
-
-  const handlePersonalizationComplete = async () => {
-    setShowPersonalizationWizard(false);
-    // Invalidate cache to force fresh data
-    queryClient.invalidateQueries(queryKeys.quests.detail(id));
-    await refetchQuest(); // Reload quest with personalized tasks
-    toast.success('Quest personalized successfully!');
-  };
-
-  const handlePersonalizationCancel = () => {
-    setShowPersonalizationWizard(false);
-  };
-
-  const handleLoadPreviousTasks = () => {
-    setShowRestartModal(false);
-    // User wants to load previous tasks
-    handleEnroll({ load_previous_tasks: true, force_new: true });
-  };
-
-  const handleStartFresh = () => {
-    setShowRestartModal(false);
-    // User wants to start fresh
-    handleEnroll({ force_new: true });
-  };
-
-  const handleDropTask = async (taskId) => {
-    if (!window.confirm('Remove this task from your active quest? You can add it back later from the task library.')) {
-      return;
-    }
-
-    setDroppingTaskId(taskId);
-
-    try {
-      await api.delete(`/api/tasks/${taskId}`);
-
-      // Invalidate React Query cache to force refetch
-      queryClient.invalidateQueries(queryKeys.quests.detail(id));
-
-      // Refetch quest data
-      await refetchQuest();
-
-      toast.success('Task removed from your quest');
-    } catch (err) {
-      console.error('Error removing task:', err);
-      toast.error(err.response?.data?.error || 'Failed to remove task');
-    } finally {
-      setDroppingTaskId(null);
-    }
-  };
-
-  const handleEndQuest = async () => {
-    if (!quest.user_enrollment) return;
-
-    endQuestMutation.mutate(id, {
-      onSuccess: () => {
-        toast.success('Quest completed! Returning to dashboard...');
-        navigate('/'); // Navigate to dashboard
-      },
-      onError: (error) => {
-        console.error('Error ending quest:', error);
-        toast.error('Failed to finish quest. Please try again.');
-      }
-    });
-  };
-
-  const handleAddMoreTasks = () => {
-    setShowQuestCompletionCelebration(false);
-    // Immediately open personalization wizard to add more tasks
-    setShowPersonalizationWizard(true);
-  };
-
-  const handleFinishQuestFromCelebration = () => {
-    setShowQuestCompletionCelebration(false);
-    handleEndQuest();
-  };
-
-  const handleTaskCompletion = async (completionData) => {
-    logger.debug('[QUEST_DETAIL] ========== TASK COMPLETION HANDLER START ==========');
-    logger.debug('[QUEST_DETAIL] completionData:', completionData);
-    logger.debug('[QUEST_DETAIL] selectedTask BEFORE update:', {
-      id: selectedTask?.id?.substring(0, 8),
-      title: selectedTask?.title,
-      is_completed: selectedTask?.is_completed
-    });
-
-    // Task is already completed by MultiFormatEvidenceEditor
-    // Update the cache with confirmed completion status
-    if (selectedTask) {
-      logger.debug('[QUEST_DETAIL] About to call flushSync for state + cache update');
-
-      // Use flushSync to synchronously update both state and cache before any re-renders
-      // This prevents React Query from refetching and overwriting our optimistic updates
-      flushSync(() => {
-        logger.debug('[QUEST_DETAIL] Inside flushSync - updating selectedTask state');
-        // CRITICAL: Update selectedTask state FIRST to ensure TaskWorkspace sees the completed status
-        // This prevents the UI from showing incomplete state while React Query cache updates
-        setSelectedTask(prev => {
-          const updated = prev ? { ...prev, is_completed: true } : null;
-          logger.debug('[QUEST_DETAIL] selectedTask state updated to:', {
-            id: updated?.id?.substring(0, 8),
-            is_completed: updated?.is_completed
-          });
-          return updated;
-        });
-
-        logger.debug('[QUEST_DETAIL] Inside flushSync - updating React Query cache');
-        queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
-          if (!oldData) {
-            logger.debug('[QUEST_DETAIL] No oldData in cache, returning null');
-            return oldData;
-          }
-
-          logger.debug('[QUEST_DETAIL] Old cache data quest_tasks count:', oldData.quest_tasks?.length);
-          logger.debug('[QUEST_DETAIL] Updating task in cache:', selectedTask.id.substring(0, 8));
-
-          const updatedTasks = oldData.quest_tasks?.map(task => {
-            if (task.id === selectedTask.id) {
-              logger.debug('[QUEST_DETAIL] Found matching task, marking is_completed=true');
-              return { ...task, is_completed: true };
-            }
-            return task;
-          }) || [];
-
-          // Recalculate completion status
-          const completedCount = updatedTasks.filter(task => task.is_completed).length;
-          const totalCount = updatedTasks.length;
-          const newProgressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
-          const isNewlyCompleted = newProgressPercentage === 100 && !oldData.completed_enrollment;
-
-          logger.debug('[QUEST_DETAIL] Cache update complete:', {
-            completedCount,
-            totalCount,
-            progressPercentage: newProgressPercentage,
-            isNewlyCompleted
-          });
-
-          // Show celebration if quest just completed
-          if (isNewlyCompleted) {
-            logger.debug('[QUEST_DETAIL] Quest newly completed - showing celebration');
-            setTimeout(() => {
-              setShowQuestCompletionCelebration(true);
-            }, 500);
-          }
-
-          return {
-            ...oldData,
-            quest_tasks: updatedTasks,
-            progress: {
-              ...oldData.progress,
-              percentage: newProgressPercentage,
-              completed_tasks: completedCount,
-              total_tasks: totalCount
-            },
-            completed_enrollment: isNewlyCompleted ? true : oldData.completed_enrollment
-          };
-        });
-      });
-
-      logger.debug('[QUEST_DETAIL] flushSync completed - all updates should be synchronous');
-    }
-
-    logger.debug('[QUEST_DETAIL] Closing modal and clearing selectedTask');
-    setShowTaskModal(false);
-    setSelectedTask(null);
-
-    logger.debug('[QUEST_DETAIL] ========== TASK COMPLETION HANDLER END ==========');
-    // Do NOT refetch - the cache update above is sufficient and accurate
-    // Refetching causes race conditions with database commits
-  };
-
-  const handleTaskReorder = async (oldIndex, newIndex) => {
-    if (!quest?.quest_tasks) return;
-
-    // Optimistically reorder tasks in UI
-    const reorderedTasks = Array.from(quest.quest_tasks);
-    const [movedTask] = reorderedTasks.splice(oldIndex, 1);
-    reorderedTasks.splice(newIndex, 0, movedTask);
-
-    // Update order_index for all tasks
-    const updatedTasks = reorderedTasks.map((task, index) => ({
-      ...task,
-      order_index: index
-    }));
-
-    // Optimistically update cache
-    queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
-      if (!oldData) return oldData;
-      return {
-        ...oldData,
-        quest_tasks: updatedTasks
-      };
-    });
-
-    // Persist to backend
-    try {
-      await api.put(`/api/quests/${id}/tasks/reorder`, {
-        task_ids: updatedTasks.map(t => t.id)
-      });
-    } catch (err) {
-      console.error('Error reordering tasks:', err);
-      toast.error('Failed to save task order');
-      // Revert on error
-      refetchQuest();
-    }
-  };
-
-  const handleDisplayModeChange = async (newMode) => {
-    setDisplayMode(newMode);
-
-    // Persist to backend
-    try {
-      await api.put(`/api/quests/${id}/display-mode`, {
-        display_mode: newMode
-      });
-    } catch (err) {
-      console.error('Error updating display mode:', err);
-      // Silently fail - not critical
-    }
-  };
-
-  const handleTaskSelect = (task) => {
-    setSelectedTask(task);
-    // Close mobile drawer when task is selected
-    if (window.innerWidth < 768) {
-      setShowMobileDrawer(false);
-    }
-  };
-
-  // Collaboration functions removed in Phase 3 refactoring (January 2025)
-
-  const toggleTaskExpansion = (taskId) => {
-    const newExpanded = new Set(expandedTasks);
-    if (newExpanded.has(taskId)) {
-      newExpanded.delete(taskId);
-    } else {
-      newExpanded.add(taskId);
-    }
-    setExpandedTasks(newExpanded);
-  };
-
-  const getLocationDisplay = () => {
-    if (!quest?.metadata) return null;
-    
-    const { location_type, venue_name, location_address } = quest.metadata;
-    
-    if (location_type === 'anywhere') return 'Anywhere';
-    if (location_type === 'specific_location') {
-      if (venue_name && location_address) {
-        return `${venue_name}, ${location_address}`;
-      } else if (venue_name) {
-        return venue_name;
-      } else if (location_address) {
-        return location_address;
-      }
-    }
-    
-    return null;
-  };
-
-  const getSeasonalDisplay = () => {
-    if (!quest?.metadata?.seasonal_start) return null;
-    
-    const startDate = new Date(quest.metadata.seasonal_start).toLocaleDateString();
-    const endDate = quest.metadata.seasonal_end ? 
-      new Date(quest.metadata.seasonal_end).toLocaleDateString() : 'Ongoing';
-    
-    return `${startDate} - ${endDate}`;
-  };
-
   if (isLoading) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8">
@@ -539,12 +351,12 @@ const QuestDetail = () => {
     );
   }
 
-  if (error || !quest) {
+  if (!quest) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="text-center">
-          <div className="text-red-500 text-xl mb-4">{error || 'Quest not found'}</div>
-          <button 
+          <div className="text-red-500 text-xl mb-4">Quest not found</div>
+          <button
             onClick={() => navigate('/quests')}
             className="bg-gradient-primary text-white px-6 py-3 rounded-[30px] hover:shadow-lg transition-all"
           >
@@ -555,245 +367,35 @@ const QuestDetail = () => {
     );
   }
 
-  const totalTasks = quest.quest_tasks?.length || 0;
-  const progressPercentage = quest.progress?.percentage || (totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0);
-  const isQuestCompleted = quest.completed_enrollment || (quest.progress && quest.progress.percentage === 100);
-
-  // Destructure memoized XP data
-  const { baseXP, totalXP, earnedXP } = xpData;
-
-  const locationDisplay = getLocationDisplay();
-  const seasonalDisplay = getSeasonalDisplay();
-
-  // Get quest header image
-  const questImage = quest.image_url || quest.header_image_url || getQuestHeaderImageSync(quest.quest_type);
-
-  // Check if this is a Spark LMS quest
-  const isSparkQuest = quest.lms_platform === 'spark';
-  const sparkLogoUrl = 'https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/onfire.png';
-
   return (
     <div className="min-h-screen bg-gray-50 pt-[50px] sm:pt-0">
-      {/* Hero Section with Background Image or White (Spark) */}
-      <div className="relative min-h-[500px] w-full overflow-hidden pb-8">
-        {isSparkQuest ? (
-          // Spark LMS: White background with logo on right
-          <>
-            <div className="absolute inset-0 bg-white" />
-            {/* Spark Logo - Right Side */}
-            <div
-              className="absolute right-0 top-0 bottom-0 w-1/3 bg-no-repeat bg-right bg-contain opacity-20"
-              style={{ backgroundImage: `url(${sparkLogoUrl})` }}
-            />
-          </>
-        ) : (
-          // Regular quest: Background Image
-          <>
-            <div
-              className="absolute inset-0 bg-cover bg-center"
-              style={{ backgroundImage: `url(${questImage})` }}
-            />
-            {/* Left-to-right gradient overlay (white to transparent) */}
-            <div className="absolute inset-0 bg-gradient-to-r from-white via-white/80 to-transparent" />
-          </>
-        )}
+      {/* Hero Section */}
+      <QuestDetailHeader
+        quest={quest}
+        completedTasks={completedTasks}
+        totalTasks={totalTasks}
+        progressPercentage={progressPercentage}
+        earnedXP={earnedXP}
+        pillarBreakdown={pillarBreakdown}
+        isQuestCompleted={isQuestCompleted}
+        onEndQuest={handleEndQuest}
+        endQuestMutation={endQuestMutation}
+      />
 
-        {/* Content */}
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-          {/* Back Button and View on Diploma Button */}
-          <div className="flex items-center justify-between mb-6">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              <ArrowLeftIcon className="w-4 h-4" />
-              BACK
-            </button>
-
-            {/* View on Diploma button - show if user has completed any tasks */}
-            {user && completedTasks > 0 && (
-              <button
-                onClick={() => navigate('/diploma')}
-                className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm text-optio-purple border-2 border-purple-200 rounded-full hover:bg-white hover:border-purple-300 hover:shadow-lg transition-all font-semibold"
-                style={{ fontFamily: 'Poppins' }}
-              >
-                <BookOpenIcon className="w-4 h-4" />
-                VIEW ON DIPLOMA
-              </button>
-            )}
-          </div>
-
-          {/* Quest Title and Description */}
-          <div className="max-w-2xl mb-6">
-            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins' }}>
-              {quest.title}
-            </h1>
-            <p className="text-lg text-gray-700 leading-relaxed mb-6" style={{ fontFamily: 'Poppins' }}>
-              {quest.big_idea || quest.description}
-            </p>
-
-            {/* Visit Course Button - Only show for course quests with material_link */}
-            {quest.quest_type === 'course' && quest.material_link && (
-              <a
-                href={quest.material_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg hover:scale-105 transition-all duration-300 font-semibold text-base w-full sm:w-auto justify-center"
-                style={{ fontFamily: 'Poppins' }}
-              >
-                <ArrowTopRightOnSquareIcon className="w-5 h-5" />
-                VISIT COURSE
-              </a>
-            )}
-          </div>
-
-          {/* Quest Metadata */}
-          <div className="max-w-2xl mb-6">
-            <div className="flex flex-wrap gap-4 items-center text-sm mb-4">
-              {locationDisplay && (
-                <div className="flex items-center gap-2 text-gray-700">
-                  <MapPinIcon className="w-4 h-4" />
-                  <span>{locationDisplay}</span>
-                </div>
-              )}
-
-              {seasonalDisplay && (
-                <div className="flex items-center gap-2 text-gray-700">
-                  <CalendarIcon className="w-4 h-4" />
-                  <span>{seasonalDisplay}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Pillar XP Breakdown */}
-            {Object.keys(pillarBreakdown).length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(pillarBreakdown).map(([pillar, xp]) => {
-                  const pillarData = getPillarData(pillar);
-                  return (
-                    <div
-                      key={pillar}
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${pillarData.bg} ${pillarData.text}`}
-                    >
-                      {pillarData.icon} {pillarData.name}: {xp} XP
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Progress Bar and Stats */}
-          {(quest.user_enrollment || isQuestCompleted) && (
-            <div className="max-w-2xl">
-              {/* Progress Bar */}
-              <div className="w-full bg-gray-200 rounded-full h-6 mb-4 overflow-hidden relative">
-                <div
-                  className="h-full bg-gradient-primary rounded-full transition-all duration-1000 ease-out"
-                  style={{ width: `${progressPercentage}%` }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-gray-700" style={{ fontFamily: 'Poppins' }}>
-                  {Math.round(progressPercentage)}%
-                </div>
-              </div>
-
-              {/* Stats Row with Set Down Quest Button */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="px-4 py-2 bg-green-50 border-2 border-green-200 rounded-lg text-center">
-                  <div className="text-xl font-bold text-green-700" style={{ fontFamily: 'Poppins' }}>{completedTasks}</div>
-                  <div className="text-xs text-green-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Completed</div>
-                </div>
-                <div className="px-4 py-2 bg-blue-50 border-2 border-blue-200 rounded-lg text-center">
-                  <div className="text-xl font-bold text-blue-700" style={{ fontFamily: 'Poppins' }}>{totalTasks - completedTasks}</div>
-                  <div className="text-xs text-blue-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Remaining</div>
-                </div>
-                <div className="px-4 py-2 bg-purple-50 border-2 border-purple-200 rounded-lg text-center">
-                  <div className="text-xl font-bold text-purple-700" style={{ fontFamily: 'Poppins' }}>{earnedXP}</div>
-                  <div className="text-xs text-optio-purple font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>XP Earned</div>
-                </div>
-                <div className="px-4 py-2 bg-gray-100 border-2 border-gray-300 rounded-lg text-center">
-                  <div className="text-xl font-bold text-gray-700" style={{ fontFamily: 'Poppins' }}>{completedTasks}/{totalTasks}</div>
-                  <div className="text-xs text-gray-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Tasks</div>
-                </div>
-
-                {/* Set Down Quest / Mark Completed Button - In same row as stats */}
-                {quest.user_enrollment && !isQuestCompleted && (
-                  quest.lms_platform ? (
-                    // LMS-linked quests show "Mark Quest Completed" button
-                    <button
-                      onClick={() => {
-                        if (window.confirm('⚠️ Only mark this quest as completed if you are finished with the associated LMS class.\n\nIf you submit more evidence to this quest later, it will automatically be reactivated.')) {
-                          handleEndQuest();
-                        }
-                      }}
-                      disabled={endQuestMutation.isPending}
-                      className="px-6 py-2 bg-gradient-primary text-white rounded-full hover:shadow-lg transition-all font-bold disabled:opacity-50 ml-auto"
-                      style={{ fontFamily: 'Poppins' }}
-                    >
-                      {endQuestMutation.isPending ? 'Marking Complete...' : 'MARK QUEST COMPLETED'}
-                    </button>
-                  ) : (
-                    // Optio quests show regular "Set Down Quest" button
-                    <button
-                      onClick={handleEndQuest}
-                      disabled={endQuestMutation.isPending}
-                      className="px-6 py-2 bg-gradient-primary text-white rounded-full hover:shadow-lg transition-all font-bold disabled:opacity-50 ml-auto"
-                      style={{ fontFamily: 'Poppins' }}
-                    >
-                      {endQuestMutation.isPending ? 'Setting Down...' : 'SET DOWN QUEST'}
-                    </button>
-                  )
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Main Content Container */}
+      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Enrollment and Sample/Preset Tasks */}
+        <QuestEnrollment
+          quest={quest}
+          isQuestCompleted={isQuestCompleted}
+          totalTasks={totalTasks}
+          isEnrolling={isEnrolling}
+          onEnroll={handleEnroll}
+          onShowPersonalizationWizard={() => setShowPersonalizationWizard(true)}
+        />
 
-      {/* Collaboration status removed in Phase 3 refactoring (January 2025) */}
-
-      {/* 4. Call-to-Action Buttons - Hide for LMS-linked quests (auto-enrolled via SSO) */}
-      {!quest.lms_platform && (isQuestCompleted || !quest.user_enrollment || (quest.user_enrollment && totalTasks === 0)) && (
-        <div className="bg-white rounded-xl shadow-md p-6 mb-8">
-          <div className="flex gap-4">
-            {isQuestCompleted ? (
-              // Completed quests can be picked up again
-              <button
-                onClick={() => handleEnroll()}
-                disabled={isEnrolling}
-                className="flex-1 bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FireIcon className="w-5 h-5 inline mr-2" />
-                {isEnrolling ? 'Picking Up...' : 'Pick Up Quest'}
-              </button>
-            ) : quest.user_enrollment && totalTasks === 0 ? (
-              <button
-                onClick={() => setShowPersonalizationWizard(true)}
-                className="flex-1 bg-gradient-to-r from-[#6d469b] to-[#8b5cf6] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(109,70,155,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg"
-              >
-                <FireIcon className="w-5 h-5 inline mr-2" />
-                Personalize Quest
-              </button>
-            ) : !quest.user_enrollment ? (
-              <button
-                onClick={() => handleEnroll()}
-                disabled={isEnrolling}
-                className="flex-1 bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FireIcon className="w-5 h-5 inline mr-2" />
-                {isEnrolling ? 'Picking Up...' : 'Pick Up Quest'}
-              </button>
-            ) : null}
-          </div>
-        </div>
-      )}
-
-        {/* Two-Column Task Display */}
-        {quest.user_enrollment && quest.quest_tasks && quest.quest_tasks.length > 0 ? (
+        {/* Task Display - Two Column Layout */}
+        {quest.user_enrollment && quest.quest_tasks && quest.quest_tasks.length > 0 && (
           <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-400px)] min-h-[600px]">
             {/* Mobile: Hamburger Menu Button */}
             <button
@@ -805,7 +407,7 @@ const QuestDetail = () => {
               </svg>
             </button>
 
-            {/* Left Column: Task Timeline (22%) */}
+            {/* Task Timeline (22%) */}
             <div className="w-full md:w-[22%] bg-white rounded-xl shadow-md overflow-hidden hidden md:block">
               <Suspense fallback={<LoadingFallback />}>
                 <TaskTimeline
@@ -821,7 +423,7 @@ const QuestDetail = () => {
               </Suspense>
             </div>
 
-            {/* Right Column: Task Workspace (78%) */}
+            {/* Task Workspace (78%) */}
             <div className="flex-1 bg-white rounded-xl shadow-md overflow-hidden">
               <Suspense fallback={<LoadingFallback />}>
                 <TaskWorkspace
@@ -833,7 +435,7 @@ const QuestDetail = () => {
               </Suspense>
             </div>
 
-            {/* Mobile: Show task timeline as drawer */}
+            {/* Mobile Drawer */}
             {showMobileDrawer && (
               <div className="fixed inset-0 z-50 md:hidden">
                 <div
@@ -865,135 +467,8 @@ const QuestDetail = () => {
               </div>
             )}
           </div>
-        ) : null}
-
-        {/* Enrollment flow for users without tasks - show personalization prompt for BOTH quest types if no tasks loaded */}
-        {quest.quest_tasks && quest.quest_tasks.length === 0 && quest.user_enrollment && !showPersonalizationWizard ? (
-          <div className="text-center py-12 bg-white rounded-xl shadow-md">
-            <BookOpenIcon className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-            <p className="text-lg text-gray-600 mb-2" style={{ fontFamily: 'Poppins' }}>
-              Ready to personalize this quest?
-            </p>
-            <p className="text-sm text-gray-500 mb-6" style={{ fontFamily: 'Poppins' }}>
-              {quest.quest_type === 'course'
-                ? 'This course has no preset tasks yet. Create custom tasks or browse the task library.'
-                : 'Create custom tasks, write your own, or browse the task library'}
-            </p>
-            <button
-              onClick={() => setShowPersonalizationWizard(true)}
-              className="px-6 py-3 bg-gradient-primary text-white rounded-lg font-semibold hover:opacity-90"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              Start Personalizing
-            </button>
-          </div>
-        ) : !quest.user_enrollment ? (
-            <>
-              {/* Show sample tasks for Optio quests OR preset tasks for Course quests */}
-              {quest.quest_type === 'optio' && quest.sample_tasks && quest.sample_tasks.length > 0 ? (
-                <div className="mb-8">
-                  {/* Section Header */}
-                  <div className="text-center mb-6">
-                    <h2 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
-                      Sample Tasks for Inspiration
-                    </h2>
-                    <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins' }}>
-                      These spark ideas. Choose what resonates or create your own path!
-                    </p>
-                  </div>
-
-                  {/* Sample Tasks Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {quest.sample_tasks.map((task) => (
-                      <SampleTaskCard
-                        key={task.id}
-                        task={task}
-                        onAdd={async (sampleTask) => {
-                          // User must enroll first before adding sample tasks
-                          toast.error('Please pick up this quest first, then you can add sample tasks!');
-                        }}
-                        disabled={true}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ) : quest.quest_type === 'course' && quest.preset_tasks && quest.preset_tasks.length > 0 ? (
-                <div className="mb-8">
-                  {/* Section Header */}
-                  <div className="text-center mb-6">
-                    <h2 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
-                      Required Tasks
-                    </h2>
-                    <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins' }}>
-                      This course has preset tasks aligned with the curriculum
-                    </p>
-                  </div>
-
-                  {/* Preset Tasks List */}
-                  <div className="space-y-3">
-                    {quest.preset_tasks.map((task, index) => {
-                      const pillarData = getPillarData(task.pillar);
-                      return (
-                        <div
-                          key={task.id}
-                          className="bg-white rounded-xl p-4 border-2 border-gray-100 hover:border-gray-200 transition-all"
-                        >
-                          <div className="flex items-start gap-4">
-                            {/* Order Number */}
-                            <div
-                              className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-white"
-                              style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
-                            >
-                              {index + 1}
-                            </div>
-
-                            {/* Task Content */}
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>
-                                  {task.title}
-                                </h3>
-                                <div
-                                  className="px-2 py-0.5 rounded-full text-xs font-semibold"
-                                  style={{
-                                    backgroundColor: `${pillarData.color}20`,
-                                    color: pillarData.color,
-                                    fontFamily: 'Poppins'
-                                  }}
-                                >
-                                  {pillarData.name}
-                                </div>
-                                <div
-                                  className="px-2 py-0.5 rounded-full text-xs font-bold text-white"
-                                  style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
-                                >
-                                  {task.xp_value} XP
-                                </div>
-                              </div>
-                              {task.description && (
-                                <p className="text-sm text-gray-700" style={{ fontFamily: 'Poppins' }}>
-                                  {task.description}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-white rounded-xl shadow-md text-gray-500">
-                  <BookOpenIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg">Start this quest to see tasks</p>
-                </div>
-              )}
-            </>
-          ) : null}
-
-
+        )}
       </div>
-      {/* End Main Content Container */}
 
       {/* Modals */}
       {showTaskModal && selectedTask && (
@@ -1019,8 +494,6 @@ const QuestDetail = () => {
           />
         </Suspense>
       )}
-
-      {/* Team-up modal removed in Phase 3 refactoring (January 2025) */}
 
       {showPersonalizationWizard && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1054,7 +527,6 @@ const QuestDetail = () => {
         </Suspense>
       )}
 
-      {/* Restart Quest Modal */}
       <Suspense fallback={<LoadingFallback />}>
         <RestartQuestModal
           isOpen={showRestartModal}
@@ -1065,7 +537,6 @@ const QuestDetail = () => {
           onClose={() => setShowRestartModal(false)}
         />
       </Suspense>
-
     </div>
   );
 };
