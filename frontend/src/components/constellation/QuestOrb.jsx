@@ -8,7 +8,8 @@ const QuestOrb = ({
   onHover,
   onLeave,
   onClick,
-  index
+  index,
+  isFocused = false
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -69,7 +70,7 @@ const QuestOrb = ({
   };
 
   // Small light ball for quest orb
-  const QuestLight = ({ size, color, opacity, isHovered }) => {
+  const QuestLight = ({ size, color, opacity, isHovered, isFocused }) => {
     const glowIntensity = isHovered ? 1.5 : 1.0;
 
     return (
@@ -77,6 +78,30 @@ const QuestOrb = ({
         className="relative"
         style={{ width: size, height: size }}
       >
+        {/* Keyboard Focus Indicator Ring */}
+        {isFocused && (
+          <motion.div
+            className="absolute top-1/2 left-1/2 rounded-full"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{
+              scale: [1, 1.1, 1],
+              opacity: [0.7, 1, 0.7]
+            }}
+            transition={{
+              duration: 1.2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            style={{
+              width: size * 3.5,
+              height: size * 3.5,
+              border: `2px solid ${color}`,
+              boxShadow: `0 0 15px ${color}, 0 0 30px ${color}`,
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: 'none'
+            }}
+          />
+        )}
         {/* Outer glow */}
         <div
           className="absolute top-1/2 left-1/2 rounded-full blur-md"
@@ -139,6 +164,12 @@ const QuestOrb = ({
       role="button"
       tabIndex={0}
       aria-label={`${quest.title}: ${quest.totalXP} XP`}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick?.(quest);
+        }
+      }}
     >
       <div
         style={{
@@ -155,6 +186,7 @@ const QuestOrb = ({
           color={color}
           opacity={opacity}
           isHovered={isHovered}
+          isFocused={isFocused}
         />
       </div>
     </motion.div>
