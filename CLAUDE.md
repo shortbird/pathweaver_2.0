@@ -4,11 +4,11 @@
 
 ## Critical Rules
 
-1. **USE LOCAL DEVELOPMENT for fast iteration** (Windows only) - See LOCAL_DEVELOPMENT.md for setup
-   - First time: Run `setup-local.bat` in CMD/PowerShell
-   - Daily: Run `start-local.bat` (opens 2 CMD windows)
-   - Test at http://localhost:3000 (instant hot-reload on changes)
-   - Push to `develop` for final testing and E2E tests
+1. **LOCAL VERIFICATION REQUIRED before pushing** (Windows only) - See LOCAL_DEVELOPMENT.md for setup
+   - Implement the fix/feature
+   - Start local servers: backend (`venv/Scripts/python.exe backend/app.py`) + frontend (`cd frontend && npm run dev`)
+   - User verifies at http://localhost:3000
+   - Push to `develop` ONLY after user confirms the fix works
    - DO NOT run `npx playwright test` locally (E2E tests run via GitHub Actions only)
 2. **ALWAYS commit to `develop`** - Auto-commit unless told otherwise (don't push without permission)
 3. **NEVER use emojis** - Professional tone only
@@ -76,19 +76,27 @@ NOTE: The batch files don't work well from Claude Code's bash environment. Use t
 
 ### Development Workflow
 
-1. **Make Changes Locally**:
+**MANDATORY: User must verify locally before any push to develop**
+
+1. **Implement the Fix/Feature**:
    - Edit frontend files in `frontend/src/` → Browser auto-reloads instantly
    - Edit backend files in `backend/` → Flask auto-restarts (2-3 seconds)
-   - Test immediately at http://localhost:3000
 
-2. **Test Locally**:
-   ```cmd
-   cd frontend
-   npm run test:run
+2. **Start Local Servers** (Claude Code commands):
+   ```bash
+   # Start backend (run in background)
+   cd C:/Users/tanne/Desktop/pw_v2 && venv/Scripts/python.exe backend/app.py
+
+   # Start frontend (run in background)
+   cd C:/Users/tanne/Desktop/pw_v2/frontend && npm run dev
    ```
-   - Must have 95%+ pass rate before deploying
 
-3. **Push to Develop** (when ready):
+3. **User Verification** (REQUIRED):
+   - User tests at http://localhost:3000
+   - User confirms the fix works
+   - DO NOT push until user says it's ready
+
+4. **Push to Develop** (only after user confirmation):
    ```cmd
    git add .
    git commit -m "Your message"
@@ -97,11 +105,11 @@ NOTE: The batch files don't work well from Claude Code's bash environment. Use t
    - E2E tests run automatically via GitHub Actions
    - Deploy happens automatically to https://optio-dev-frontend.onrender.com
 
-4. **Final Verification**:
+5. **Final Verification** (optional):
    - Test on deployed dev environment
    - Check GitHub Actions for E2E test results
 
-5. **Merge to Main** (for production):
+6. **Merge to Main** (for production):
    - Create PR: develop → main
    - Review and merge
    - Production deploys automatically
