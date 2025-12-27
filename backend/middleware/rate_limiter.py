@@ -263,54 +263,157 @@ class RateLimiter:
 # Global rate limiter instance
 rate_limiter = RateLimiter()
 
-def rate_limit(max_requests: int = None, window_seconds: int = None, limit: int = None, per: int = None):
+def _auto_detect_config_key(endpoint: str, method: str) -> str:
+    """
+    Auto-detect rate limit config key from endpoint name and HTTP method.
+
+    Args:
+        endpoint: Flask endpoint name (e.g., 'auth.login', 'quests.start_quest')
+        method: HTTP method (GET, POST, PUT, DELETE)
+
+    Returns:
+        str: Config key from RATE_LIMITS or None if no match
+    """
+    if not endpoint:
+        return None
+
+    endpoint_lower = endpoint.lower()
+
+    # Authentication endpoints
+    if 'auth' in endpoint_lower and method == 'POST':
+        if 'login' in endpoint_lower:
+            return 'auth_login'
+        elif 'register' in endpoint_lower:
+            return 'auth_register'
+        elif 'refresh' in endpoint_lower:
+            return 'auth_refresh'
+
+    # File upload endpoints
+    if 'upload' in endpoint_lower:
+        if 'evidence' in endpoint_lower:
+            return 'evidence_upload'
+        return 'upload'
+
+    # AI Tutor endpoints
+    if 'tutor' in endpoint_lower and 'chat' in endpoint_lower:
+        return 'tutor_chat'
+
+    # Quest operations
+    if 'quest' in endpoint_lower:
+        if 'start' in endpoint_lower or 'enroll' in endpoint_lower:
+            return 'quest_start'
+
+    # Task operations
+    if 'task' in endpoint_lower:
+        if 'complete' in endpoint_lower:
+            return 'task_complete'
+
+    # Admin operations
+    if 'admin' in endpoint_lower:
+        if method == 'POST':
+            return 'admin_create'
+        elif method in ['PUT', 'PATCH']:
+            return 'admin_update'
+        elif method == 'DELETE':
+            return 'admin_delete'
+
+    # Social features
+    if 'friend' in endpoint_lower and 'request' in endpoint_lower:
+        return 'friend_request'
+    if 'collaboration' in endpoint_lower and 'invite' in endpoint_lower:
+        return 'collaboration_invite'
+
+    # LMS Integration
+    if 'lms' in endpoint_lower:
+        if 'sync' in endpoint_lower:
+            return 'lms_sync'
+        elif 'grade' in endpoint_lower or 'passback' in endpoint_lower:
+            return 'lms_grade_passback'
+
+    # Write operations default (for POST/PUT/PATCH/DELETE without specific match)
+    if method in ['POST', 'PUT', 'PATCH', 'DELETE']:
+        return 'api_write'
+
+    # Default for all other endpoints (including GET)
+    return 'api_default'
+
+def rate_limit(config_key: str = None, max_requests: int = None, window_seconds: int = None,
+               limit: int = None, per: int = None, calls: int = None, period: int = None):
     """
     Decorator to apply rate limiting to routes
 
+    Supports multiple parameter styles:
+    - @rate_limit('tutor_chat') - Use config key from config/rate_limits.py
+    - @rate_limit(calls=10, period=60) - Explicit limit (new style)
+    - @rate_limit(limit=10, per=60) - Explicit limit (alt style)
+    - @rate_limit(max_requests=10, window_seconds=60) - Explicit limit (legacy)
+    - @rate_limit() - Auto-detect from endpoint name or use default
+
     Args:
-        max_requests: Maximum number of requests allowed (deprecated, use limit)
-        window_seconds: Time window in seconds (deprecated, use per)
-        limit: Maximum number of requests allowed (new style)
-        per: Time window in seconds (new style)
+        config_key: Key from RATE_LIMITS config (e.g., 'tutor_chat', 'upload')
+        max_requests: Maximum number of requests allowed (legacy style)
+        window_seconds: Time window in seconds (legacy style)
+        limit: Maximum number of requests allowed (alt style)
+        per: Time window in seconds (alt style)
+        calls: Maximum number of requests allowed (new style)
+        period: Time window in seconds (new style)
     """
-    # Support both old and new parameter styles
-    if limit is not None:
+    # Support multiple parameter naming conventions
+    # Priority: calls/period > limit/per > max_requests/window_seconds
+    if calls is not None:
+        max_requests = calls
+    elif limit is not None:
         max_requests = limit
-    if per is not None:
+
+    if period is not None:
+        window_seconds = period
+    elif per is not None:
         window_seconds = per
 
-    # Default values
-    if max_requests is None:
-        max_requests = 60
-    if window_seconds is None:
-        window_seconds = 60
+    # If both are still None, they'll be determined later from config or defaults
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             # CVE-OPTIO-2025-012 FIX: Use secure IP extraction to prevent spoofing
-            identifier = get_real_ip()
+            client_ip = get_real_ip()
 
             # Get environment
             environment = 'development' if os.getenv('FLASK_ENV') == 'development' else 'production'
 
-            # Determine rate limit based on endpoint type
-            if 'auth' in request.endpoint and request.method == 'POST':
-                # Authentication endpoints use centralized config
-                if 'login' in request.endpoint:
-                    limit_config = get_rate_limit('auth_login', environment)
-                elif 'register' in request.endpoint:
-                    limit_config = get_rate_limit('auth_register', environment)
-                elif 'refresh' in request.endpoint:
-                    limit_config = get_rate_limit('auth_refresh', environment)
-                else:
-                    limit_config = get_rate_limit('api_default', environment)
+            # Determine rate limit based on priority:
+            # 1. Explicit config_key parameter
+            # 2. Explicit max_requests/window_seconds parameters
+            # 3. Auto-detect from endpoint name
+            # 4. Default values
 
-                max_req = limit_config['requests']
-                window = limit_config['window']
+            determined_config_key = config_key
+            max_req = max_requests
+            window = window_seconds
+
+            # If explicit values provided, use them
+            if max_req is not None and window is not None:
+                # Use explicit decorator parameters
+                pass
             else:
-                # Use decorator parameters or default
-                max_req = max_requests
-                window = window_seconds
+                # Auto-detect config key from endpoint if not provided
+                if determined_config_key is None:
+                    determined_config_key = _auto_detect_config_key(request.endpoint, request.method)
+
+                # If we have a config key, use it
+                if determined_config_key:
+                    limit_config = get_rate_limit(determined_config_key, environment)
+                    max_req = limit_config['requests']
+                    window = limit_config['window']
+                else:
+                    # Fallback to defaults if still not set
+                    if max_req is None:
+                        max_req = 60
+                    if window is None:
+                        window = 60
+
+            # Create identifier combining IP and endpoint for per-endpoint rate limiting
+            # This allows different endpoints to have separate rate limit buckets
+            identifier = f"{client_ip}:{request.endpoint}"
 
             is_allowed, retry_after, rate_info = rate_limiter.is_allowed(identifier, max_req, window)
 

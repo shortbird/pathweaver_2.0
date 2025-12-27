@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
-import api from '../services/api'
+import api, { observerAPI } from '../services/api'
 import {
   useFriends,
   useSendFriendRequest,
@@ -35,6 +36,20 @@ const ConnectionsPage = () => {
     enabled: !!user?.id,
   })
 
+  const {
+    data: observersData,
+    isLoading: loadingObservers,
+  } = useQuery({
+    queryKey: ['observers', user?.id],
+    queryFn: async () => {
+      const response = await observerAPI.getMyObservers()
+      return response.data
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  })
+
   // Mutations
   const sendFriendRequestMutation = useSendFriendRequest()
   const acceptFriendRequestMutation = useAcceptFriendRequest()
@@ -45,15 +60,17 @@ const ConnectionsPage = () => {
   const friends = friendsData?.friends || []
   const pendingRequests = friendsData?.pending_requests || []
   const sentRequests = friendsData?.sent_requests || []
+  const observers = observersData?.observers || []
 
   // Debug logging
   logger.debug('[CONNECTIONS PAGE] friendsData:', friendsData)
   logger.debug('[CONNECTIONS PAGE] friends:', friends)
   logger.debug('[CONNECTIONS PAGE] pendingRequests:', pendingRequests)
   logger.debug('[CONNECTIONS PAGE] sentRequests:', sentRequests)
+  logger.debug('[CONNECTIONS PAGE] observers:', observers)
 
   // Loading state
-  const loading = loadingFriends
+  const loading = loadingFriends || loadingObservers
 
   // Scroll to top on mount
   useEffect(() => {
@@ -160,7 +177,7 @@ const ConnectionsPage = () => {
         onCancelPartnerRequest={handleCancelRequest}
         onConnectPartner={() => setShowAddPartnerModal(true)}
         // Observer props
-        observers={[]} // TODO: Fetch observers when API is ready
+        observers={observers}
         onRequestObserver={() => setShowAddObserverModal(true)}
       />
 
