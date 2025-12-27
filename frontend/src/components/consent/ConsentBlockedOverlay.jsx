@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { Button } from '../ui/Button';
-import { Card } from '../ui/Card';
+import Button from '../ui/Button';
+import Card from '../ui/Card';
 
 /**
  * ConsentBlockedOverlay Component
