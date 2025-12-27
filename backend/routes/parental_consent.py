@@ -464,7 +464,7 @@ def submit_consent_documents(user_id: str):
 @bp.route('/admin/parental-consent/pending', methods=['GET'])
 @require_auth
 @require_role('admin')
-def get_pending_consent_reviews():  # No parameters when using @require_auth + @require_role
+def get_pending_consent_reviews(user_id: str):
     """
     Admin endpoint: Get all pending parental consent reviews
     """
@@ -510,12 +510,12 @@ def get_pending_consent_reviews():  # No parameters when using @require_auth + @
 @bp.route('/admin/parental-consent/approve/<child_id>', methods=['POST'])
 @require_auth
 @require_role('admin')
-def approve_parental_consent(child_id):
+def approve_parental_consent(user_id: str, child_id):
     """
     Admin endpoint: Approve parental consent after reviewing ID documents
     """
     try:
-        admin_id = request.user_id
+        admin_id = user_id
         data = request.json or {}
         review_notes = data.get('notes', '')
 
@@ -586,12 +586,12 @@ def approve_parental_consent(child_id):
 @bp.route('/admin/parental-consent/reject/<child_id>', methods=['POST'])
 @require_auth
 @require_role('admin')
-def reject_parental_consent(child_id):
+def reject_parental_consent(user_id: str, child_id):
     """
     Admin endpoint: Reject parental consent (e.g., unclear documents, fraudulent)
     """
     try:
-        admin_id = request.user_id
+        admin_id = user_id
         data = request.json or {}
         rejection_reason = data.get('reason', 'Documents did not meet verification requirements')
 
