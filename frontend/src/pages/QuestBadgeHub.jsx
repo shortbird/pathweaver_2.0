@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
-import { useIsMounted, useObserver, useDebounceWithCleanup, useSafeAsync } from '../hooks/useMemoryLeakFix';
 import { InformationCircleIcon } from '@heroicons/react/24/outline';
 import logger from '../utils/logger';
 
@@ -74,9 +73,7 @@ const QuestBadgeHub = () => {
   const [showCreateQuestModal, setShowCreateQuestModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
 
-  // Memory leak prevention
-  const isMounted = useIsMounted();
-  const safeAsync = useSafeAsync();
+  // Refs for loading state and infinite scroll
   const isLoadingRef = useRef(false);
 
   // Scroll to top when switching tabs (route-based scroll handled globally by ScrollToTop component)
@@ -117,17 +114,6 @@ const QuestBadgeHub = () => {
     }
   }, [debouncedSearchTerm]);
 
-  // Fetch quests when in quests tab
-  useEffect(() => {
-    if (activeTab === 'quests' && user !== undefined && questPage === 1) {
-      logger.debug('[HUB] Fetching initial quests...');
-      fetchQuests(true);
-    } else if (activeTab === 'quests' && user !== undefined && questPage > 1) {
-      logger.debug(`[HUB] Fetching page ${questPage}...`);
-      fetchQuests(false);
-    }
-  }, [activeTab, questPage, user, loginTimestamp, debouncedSearchTerm]);
-
   // BADGES DISABLED - fetchBadges function commented out
   /* DISABLED - Fetch badges from API
   const fetchBadges = useCallback(async () => {
@@ -163,27 +149,28 @@ const QuestBadgeHub = () => {
   */
 
   // Fetch quests from API - memoized to prevent recreation
-  const fetchQuests = useCallback(async (isInitial = true) => {
+  const fetchQuests = useCallback(async (pageToFetch = 1) => {
+    const isInitial = pageToFetch === 1;
+
     if (isLoadingRef.current) {
       logger.debug('[HUB] Fetch blocked - already loading');
       return;
     }
 
-    logger.debug(`[HUB] fetchQuests called - isInitial: ${isInitial}, page: ${questPage}`);
+    logger.debug(`[HUB] fetchQuests called - page: ${pageToFetch}`);
     isLoadingRef.current = true;
 
     if (isInitial) {
       setQuestsLoading(true);
       setQuests([]);
-      setQuestPage(1);
       setHasMoreQuests(true);
     } else {
       setIsLoadingMoreQuests(true);
     }
 
-    const result = await safeAsync(async (signal) => {
+    try {
       const params = new URLSearchParams({
-        page: isInitial ? 1 : questPage,
+        page: pageToFetch,
         per_page: 12,
         t: Date.now()
       });
@@ -194,69 +181,74 @@ const QuestBadgeHub = () => {
 
       logger.debug(`[HUB] Fetching: /api/quests?${params}`);
       const response = await api.get(`/api/quests?${params}`, {
-        signal,
         headers: { 'Cache-Control': 'no-cache' }
       });
 
-      logger.debug(`[HUB] Response:`, response.data);
-      return response.data;
-    });
+      const responseData = response.data;
+      logger.debug(`[HUB] Response:`, responseData);
 
-    if (result.success && isMounted()) {
-      const responseData = result.data;
       // API v1 format: {data: [...], meta: {...}, links: {...}}
-      const quests = responseData.data || [];
+      const questsData = responseData.data || [];
       const meta = responseData.meta || {};
 
-      logger.debug(`[HUB] Success - Got ${quests.length} quests, total: ${meta.total}`);
+      logger.debug(`[HUB] Success - Got ${questsData.length} quests, total: ${meta.total}`);
 
       if (isInitial) {
-        setQuests(quests);
+        setQuests(questsData);
       } else {
-        setQuests(prev => [...prev, ...quests]);
+        setQuests(prev => [...prev, ...questsData]);
       }
 
       setTotalQuests(meta.total || 0);
-      // Check if there's a next page link to determine if more quests exist
       setHasMoreQuests(!!responseData.links?.next);
-      setQuestsError(''); // Clear any previous errors
-    } else if (result.error && !result.aborted && isMounted()) {
-      console.error('[HUB] Quest fetch error:', result.error);
-      setQuestsError('Failed to load quests. Please try again.');
-    }
-
-    if (isMounted()) {
+      setQuestsError('');
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('[HUB] Quest fetch error:', error);
+        setQuestsError('Failed to load quests. Please try again.');
+      }
+    } finally {
       isLoadingRef.current = false;
       setQuestsLoading(false);
       setIsLoadingMoreQuests(false);
     }
-  }, [questPage, debouncedSearchTerm, safeAsync, isMounted]);
+  }, [debouncedSearchTerm]);
 
-  // Debounced page increment for infinite scroll
-  const { debouncedFn: debouncedPageIncrement } = useDebounceWithCleanup(() => {
-    if (!isLoadingRef.current && isMounted()) {
-      setQuestPage(prevPage => prevPage + 1);
+  // Fetch quests when in quests tab
+  useEffect(() => {
+    if (activeTab === 'quests' && user !== undefined && questPage > 0) {
+      logger.debug(`[HUB] Fetching page ${questPage}...`);
+      fetchQuests(questPage);
     }
-  }, 100);
+  }, [activeTab, questPage, user, loginTimestamp, debouncedSearchTerm, fetchQuests]);
 
-  // Intersection observer for infinite scroll (quests only)
-  const setupObserver = useObserver((node) => {
-    return new IntersectionObserver(
+  // Intersection observer ref for cleanup
+  const observerRef = useRef(null);
+
+  // Callback ref for infinite scroll - attaches to last quest element
+  const lastQuestElementRef = useCallback(node => {
+    // Cleanup previous observer
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+
+    if (!node || isLoadingMoreQuests || questsLoading || !hasMoreQuests) {
+      return;
+    }
+
+    // Create new observer
+    observerRef.current = new IntersectionObserver(
       entries => {
-        if (entries[0].isIntersecting && hasMoreQuests && !isLoadingRef.current && isMounted()) {
-          debouncedPageIncrement();
+        if (entries[0].isIntersecting && hasMoreQuests && !isLoadingRef.current) {
+          logger.debug(`[HUB] Infinite scroll triggered - loading page ${questPage + 1}`);
+          setQuestPage(prevPage => prevPage + 1);
         }
       },
-      { rootMargin: '100px' }
+      { rootMargin: '200px' }
     );
-  });
 
-  const lastQuestElementRef = useCallback(node => {
-    if (isLoadingMoreQuests || questsLoading || !node) return;
-
-    const observer = setupObserver(node);
-    observer.observe(node);
-  }, [isLoadingMoreQuests, questsLoading, hasMoreQuests, debouncedPageIncrement, setupObserver]);
+    observerRef.current.observe(node);
+  }, [isLoadingMoreQuests, questsLoading, hasMoreQuests, questPage]);
 
   // Quest action handlers
   const handleEnroll = useCallback(async (questId) => {
@@ -292,7 +284,9 @@ const QuestBadgeHub = () => {
 
   const handleCreateQuestSuccess = useCallback((newQuest) => {
     // Refresh quests list to show the newly created quest
-    fetchQuests(1);
+    setQuests([]);
+    setQuestPage(0); // Set to 0 first
+    setTimeout(() => setQuestPage(1), 0); // Then back to 1 to trigger refetch
   }, []);
 
   // All features are now free for all users (Phase 2 refactoring - January 2025)

@@ -89,12 +89,16 @@ export const AuthProvider = ({ children }) => {
             if (isSafari() || isIOS()) {
               logger.debug('[AuthContext] Safari/iOS detected - will use Authorization headers on next login')
             }
+            // ✅ FIX: Explicitly set user to null so components know auth check is complete
+            queryClient.setQueryData(queryKeys.user.profile('current'), null)
             setSession(null)
           }
         }
       } catch (error) {
         // Token invalid/expired - clear and require login
         await tokenStore.clearTokens()
+        // ✅ FIX: Explicitly set user to null so components know auth check is complete
+        queryClient.setQueryData(queryKeys.user.profile('current'), null)
         setSession(null)
       } finally {
         setLoading(false)

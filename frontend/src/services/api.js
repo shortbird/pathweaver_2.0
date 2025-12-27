@@ -241,8 +241,9 @@ api.interceptors.response.use(
         const isPromoPage = currentPath.startsWith('/promo/') || currentPath === '/promo'
         const isConsultationPage = currentPath === '/consultation'
         const isDemoPage = currentPath === '/demo'
+        const isQuestsPage = currentPath.startsWith('/quests') || currentPath.startsWith('/badges')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isPromoPage && !isConsultationPage && !isDemoPage) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isPromoPage && !isConsultationPage && !isDemoPage && !isQuestsPage) {
           window.location.href = '/login'
         }
 

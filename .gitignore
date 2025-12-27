@@ -137,4 +137,4 @@ site/
 !yarn.lock
 !pnpm-lock.yaml
 !Pipfile.lock
-!poetry.lock
+!poetry.lock.claude/workspace/

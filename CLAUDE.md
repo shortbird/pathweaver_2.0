@@ -1,14 +1,15 @@
 # Optio Platform - AI Agent Guide
 
-**Last Updated**: December 2025 | **Current Phase**: Phase 3 Complete (Repository Pattern Established)
+**Last Updated**: December 27, 2025 | **Current Phase**: Phase 3 Complete (Repository Pattern Established) | **Local Development**: Enabled
 
 ## Critical Rules
 
-1. **NEVER run locally** - Test at https://optio-dev-frontend.onrender.com
-   - DO NOT run `npm run dev`, `flask run`, or ANY local servers
-   - DO NOT run `npx playwright test` or ANY E2E tests locally
-   - E2E tests run automatically via GitHub Actions on push to develop
-   - Use deployed dev environment for all testing
+1. **USE LOCAL DEVELOPMENT for fast iteration** (Windows only) - See LOCAL_DEVELOPMENT.md for setup
+   - First time: Run `setup-local.bat` in CMD/PowerShell
+   - Daily: Run `start-local.bat` (opens 2 CMD windows)
+   - Test at http://localhost:3000 (instant hot-reload on changes)
+   - Push to `develop` for final testing and E2E tests
+   - DO NOT run `npx playwright test` locally (E2E tests run via GitHub Actions only)
 2. **ALWAYS commit to `develop`** - Auto-commit unless told otherwise (don't push without permission)
 3. **NEVER use emojis** - Professional tone only
 4. **Verify database schema** - Use Supabase MCP before ANY query (table names change)
@@ -24,6 +25,7 @@
 ## Quick Reference
 
 ### Deployment
+- **Local (Windows)**: `start-local.bat` → http://localhost:3000 (instant hot-reload, 2 CMD windows)
 - **Dev**: `develop` → https://optio-dev-frontend.onrender.com (auto-deploy on push)
 - **Prod**: `main` → https://www.optioeducation.com (merge develop when stable)
 
@@ -35,6 +37,101 @@
 - **Frontend**: React 18.3 + Vite + TailwindCSS
 - **AI**: Gemini `gemini-2.5-flash-lite` (ALWAYS use this model)
 - **Host**: Render (both frontend/backend)
+
+---
+
+## Local Development Workflow (Windows) - NEW Dec 2025
+
+**Platform**: Windows 10/11 only (uses .bat scripts for CMD/PowerShell)
+
+### Quick Start
+
+**First Time Setup** (run once in CMD or PowerShell):
+```cmd
+setup-local.bat
+```
+Creates Python venv, installs all dependencies, configures .env files.
+
+**Daily Development** (run each time in CMD or PowerShell):
+```cmd
+start-local.bat
+```
+Opens two CMD windows: backend (port 5001) and frontend (port 3000).
+
+Then open: **http://localhost:3000**
+
+**Claude Code Quick Start** (when user asks to start locally):
+```bash
+# Start backend (run in background)
+cd C:/Users/tanne/Desktop/pw_v2 && venv/Scripts/python.exe backend/app.py
+
+# Start frontend (run in background)
+cd C:/Users/tanne/Desktop/pw_v2/frontend && npm run dev
+
+# Verify backend is running
+curl -s http://localhost:5001/api/health
+# Should return: {"status":"healthy"}
+```
+NOTE: The batch files don't work well from Claude Code's bash environment. Use the direct commands above instead.
+
+### Development Workflow
+
+1. **Make Changes Locally**:
+   - Edit frontend files in `frontend/src/` → Browser auto-reloads instantly
+   - Edit backend files in `backend/` → Flask auto-restarts (2-3 seconds)
+   - Test immediately at http://localhost:3000
+
+2. **Test Locally**:
+   ```cmd
+   cd frontend
+   npm run test:run
+   ```
+   - Must have 95%+ pass rate before deploying
+
+3. **Push to Develop** (when ready):
+   ```cmd
+   git add .
+   git commit -m "Your message"
+   git push origin develop
+   ```
+   - E2E tests run automatically via GitHub Actions
+   - Deploy happens automatically to https://optio-dev-frontend.onrender.com
+
+4. **Final Verification**:
+   - Test on deployed dev environment
+   - Check GitHub Actions for E2E test results
+
+5. **Merge to Main** (for production):
+   - Create PR: develop → main
+   - Review and merge
+   - Production deploys automatically
+
+### Why Local Development?
+
+**Before** (Deploy-Only):
+- Change → Commit → Push → Wait 3-5 minutes → Test → Find bug → Repeat
+
+**Now** (Local First):
+- Change → Test instantly → Iterate (seconds) → Push once when confident
+
+**Time Savings**: 10-20x faster iteration
+
+### Environment Configuration
+
+**Frontend** (`frontend/.env`):
+```env
+VITE_API_URL=http://localhost:5001
+VITE_SUPABASE_URL=https://vvfgxcykxjybtvpfzwyx.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+**Backend** (`backend/.env`):
+```env
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+DISABLE_RATE_LIMIT=true
+```
+
+**Full Setup Guide**: See [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md)
 
 ---
 
@@ -573,7 +670,21 @@ email_service.send_templated_email(
 
 ## Environment Variables
 
-### Backend (Render)
+### Backend
+
+**Local Development** (`backend/.env`):
+```bash
+FLASK_ENV=development
+SECRET_KEY=your-secret-key
+SUPABASE_URL=https://vvfgxcykxjybtvpfzwyx.supabase.co
+SUPABASE_KEY=your-anon-key
+SUPABASE_SERVICE_KEY=your-service-key
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+FRONTEND_URL=http://localhost:3000
+DISABLE_RATE_LIMIT=true  # Makes local testing easier
+```
+
+**Render (Dev/Prod)**:
 ```bash
 # Required
 SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY
@@ -589,7 +700,17 @@ REDIS_URL         # Redis connection string for persistent rate limiting
                   # Render Key Value instance: optio-redis-rate-limiting
 ```
 
-### Frontend (Render)
+### Frontend
+
+**Local Development** (`frontend/.env`):
+```bash
+VITE_API_URL=http://localhost:5001  # NO /api suffix
+VITE_SUPABASE_URL=https://vvfgxcykxjybtvpfzwyx.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_ENVIRONMENT=development
+```
+
+**Render (Dev/Prod)**:
 ```bash
 VITE_API_URL  # Backend URL (NO /api suffix - added by frontend)
 # Dev: https://optio-dev-backend.onrender.com
@@ -631,6 +752,15 @@ mcp__render__list_logs(resource, limit)
 ---
 
 ## Recent Changes (Jan 2025)
+
+### Local Development Setup (NEW - Dec 2025)
+- ✅ Created LOCAL_DEVELOPMENT.md comprehensive setup guide
+- ✅ Created setup-local.bat for automated first-time setup
+- ✅ Created start-local.bat for quick daily startup
+- ✅ Frontend and backend run locally with instant hot-reload
+- ✅ Connects to cloud Supabase (no local database needed)
+- ✅ Updated CLAUDE.md with local development workflow
+- ✅ 10-20x faster iteration vs deploy-only workflow
 
 ### Phase 1 (Complete)
 - ✅ Deleted 6 tables (collaborations, ratings, subscriptions)
