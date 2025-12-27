@@ -314,30 +314,29 @@ def resend_parental_consent():
 @rate_limit(max_requests=5, window_seconds=3600)  # 5 attempts per hour
 def submit_consent_documents(user_id: str):
     """
-    Parent submits ID document and signed consent form for admin review
-    COPPA compliance: Admin-assisted verification
+    Parent submits ID document for identity verification
+    Required before creating dependent profiles or linking to children
     """
     try:
         supabase = get_supabase_admin_client()
 
-        # Verify user is parent or the user themselves (for under-13)
-        child_id = request.form.get('child_id') or user_id
+        # Get user info to verify they are a parent
+        user_response = supabase.table('users').select(
+            'id, display_name, email, role, parental_consent_status, parental_consent_verified'
+        ).eq('id', user_id).execute()
 
-        # Get child's info
-        child_response = supabase.table('users').select(
-            'id, display_name, requires_parental_consent, parental_consent_verified, parental_consent_email'
-        ).eq('id', child_id).execute()
+        if not user_response.data:
+            raise NotFoundError("User account not found")
 
-        if not child_response.data:
-            raise NotFoundError("Child account not found")
+        user = user_response.data[0]
 
-        child = child_response.data[0]
+        # Verify user is a parent
+        if user.get('role') != 'parent':
+            return jsonify({'error': 'Only parent accounts can submit identity verification documents'}), 400
 
-        if not child.get('requires_parental_consent'):
-            return jsonify({'error': 'This account does not require parental consent'}), 400
-
-        if child.get('parental_consent_verified'):
-            return jsonify({'error': 'Parental consent already verified'}), 400
+        # Check if already verified
+        if user.get('parental_consent_verified'):
+            return jsonify({'error': 'Identity already verified'}), 400
 
         # Check for required files
         if 'id_document' not in request.files:
@@ -364,7 +363,7 @@ def submit_consent_documents(user_id: str):
         # Upload ID document to storage
         try:
             timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-            id_storage_path = f"parental_consent/{child_id}/id_{timestamp}_{id_filename}"
+            id_storage_path = f"parent_identity/{user_id}/id_{timestamp}_{id_filename}"
 
             id_content = id_document.read()
             id_content_type = id_document.content_type or mimetypes.guess_type(id_filename)[0] or 'application/octet-stream'
@@ -382,7 +381,7 @@ def submit_consent_documents(user_id: str):
 
         # Upload consent form to storage
         try:
-            form_storage_path = f"parental_consent/{child_id}/consent_{timestamp}_{form_filename}"
+            form_storage_path = f"parent_identity/{user_id}/consent_{timestamp}_{form_filename}"
 
             form_content = consent_form.read()
             form_content_type = consent_form.content_type or mimetypes.guess_type(form_filename)[0] or 'application/octet-stream'
@@ -398,19 +397,19 @@ def submit_consent_documents(user_id: str):
             logger.error(f"Error uploading consent form: {str(e)}")
             raise ValidationError("Failed to upload consent form")
 
-        # Update user record with documents and status
+        # Update parent's user record with documents and status
         supabase.table('users').update({
             'parental_consent_id_document_url': id_document_url,
             'parental_consent_signed_form_url': consent_form_url,
             'parental_consent_status': 'pending_review',
             'parental_consent_submitted_at': datetime.utcnow().isoformat()
-        }).eq('id', child_id).execute()
+        }).eq('id', user_id).execute()
 
         # Log submission
         supabase.table('parental_consent_log').insert({
-            'user_id': child_id,
-            'child_email': child.get('email', ''),
-            'parent_email': child.get('parental_consent_email', ''),
+            'user_id': user_id,
+            'child_email': '',  # Not applicable for parent identity verification
+            'parent_email': user.get('email', ''),
             'consent_token': None,
             'ip_address': request.remote_addr,
             'user_agent': request.headers.get('User-Agent', '')
@@ -425,33 +424,32 @@ def submit_consent_documents(user_id: str):
             for admin_email in admin_emails:
                 email_service.send_templated_email(
                     to_email=admin_email,
-                    subject='New Parental Consent Review Required',
-                    template_name='admin_consent_review_notification',
+                    subject='New Parent Identity Verification Required',
+                    template_name='admin_parent_identity_notification',
                     context={
-                        'child_name': child.get('display_name', 'Student'),
-                        'parent_email': child.get('parental_consent_email', ''),
+                        'parent_name': user.get('display_name', 'Parent'),
+                        'parent_email': user.get('email', ''),
                         'review_url': f"{os.getenv('FRONTEND_URL')}/admin/parental-consent",
-                        'child_id': child_id
+                        'parent_id': user_id
                     }
                 )
-            logger.info(f"Notified {len(admin_emails)} admins of new consent submission for child {child_id}")
+            logger.info(f"Notified {len(admin_emails)} admins of new parent identity verification for {user_id}")
 
         # Send confirmation to parent
-        if child.get('parental_consent_email'):
-            email_service.send_templated_email(
-                to_email=child.get('parental_consent_email'),
-                subject='Parental Consent Documents Received',
-                template_name='parent_consent_received',
-                context={
-                    'child_name': child.get('display_name', 'Student'),
-                    'review_time': '24-48 hours'
-                }
-            )
+        email_service.send_templated_email(
+            to_email=user.get('email'),
+            subject='Identity Verification Documents Received',
+            template_name='parent_identity_received',
+            context={
+                'parent_name': user.get('display_name', 'Parent'),
+                'review_time': '24-48 hours'
+            }
+        )
 
         return jsonify({
             'message': 'Documents submitted successfully. Review typically takes 24-48 hours.',
             'status': 'pending_review',
-            'child_id': child_id
+            'parent_id': user_id
         }), 200
 
     except ValidationError as e:
