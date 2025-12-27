@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { axe, toHaveNoViolations } from 'jest-axe'
 import { renderWithProviders, createMockUser } from '../tests/test-utils'
 import RegisterPage from './RegisterPage'
+
+expect.extend(toHaveNoViolations)
 
 // Mock useNavigate
 const mockNavigate = vi.fn()
@@ -575,6 +578,15 @@ describe('RegisterPage', () => {
       renderWithProviders(<RegisterPage />)
 
       expect(mockNavigate).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Accessibility', () => {
+    it('has no accessibility violations', async () => {
+      const { container } = renderWithProviders(<RegisterPage />)
+
+      const results = await axe(container)
+      expect(results).toHaveNoViolations()
     })
   })
 

@@ -28,6 +28,7 @@ from utils.auth.decorators import require_auth
 from middleware.idempotency import require_idempotency
 from services.evidence_service import EvidenceService
 from services.xp_service import XPService
+from services.webhook_service import WebhookService
 from services.atomic_quest_service import atomic_quest_service
 from datetime import datetime
 import os
@@ -461,6 +462,29 @@ def complete_task(user_id: str, task_id: str):
             # Users now only receive XP from individual task completions
         else:
             quest_completed = False
+
+        # Emit webhook event for task completion
+        try:
+            webhook_service = WebhookService(supabase)
+            user_data = supabase.table('users').select('organization_id').eq('id', effective_user_id).single().execute()
+            organization_id = user_data.data.get('organization_id') if user_data.data else None
+
+            webhook_service.emit_event(
+                event_type='task.completed',
+                data={
+                    'user_id': effective_user_id,
+                    'task_id': task_id,
+                    'quest_id': quest_id,
+                    'task_title': task_data.get('title', 'Unknown Task'),
+                    'xp_awarded': final_xp,
+                    'pillar': task_data.get('pillar', 'creativity'),
+                    'completed_at': datetime.utcnow().isoformat() + 'Z'
+                },
+                organization_id=organization_id
+            )
+        except Exception as webhook_error:
+            # Don't fail task completion if webhook fails
+            logger.warning(f"Failed to emit task.completed webhook: {str(webhook_error)}")
 
         return success_response(
             data={

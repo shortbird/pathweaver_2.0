@@ -14,6 +14,7 @@ logger.info("Starting Optio Backend API - Session persistence test #2")
 from swagger_config import init_swagger
 
 from routes.auth import register_auth_routes
+from routes.auth.oauth import bp as oauth_bp
 from routes import users, community, portfolio
 from routes import uploads, images
 from routes.settings import settings_bp
@@ -23,7 +24,7 @@ from routes.admin.services import admin_services_bp
 from routes.observer_requests import observer_requests_bp
 
 # Import routes
-from routes import tasks, admin_core, evidence_documents, analytics as analytics_routes
+from routes import tasks, admin_core, evidence_documents, analytics as analytics_routes, webhooks
 from routes.quest import register_quest_blueprints  # Refactored quest routes (P2-ARCH-1)
 from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management, observer_audit, ferpa_compliance
 from cors_config import configure_cors
@@ -87,6 +88,7 @@ app.after_request(add_rate_limit_headers)
 # Register existing routes
 # Auth routes - refactored from mega-file (1,523 lines) to 4 focused modules (P2-ARCH-1)
 register_auth_routes(app)
+app.register_blueprint(oauth_bp)  # /api/oauth (OAuth 2.0 authorization flow for LMS integrations)
 # subscription_requests.bp removed in Phase 1 refactoring (January 2025)
 app.register_blueprint(users.bp, url_prefix='/api/users')
 app.register_blueprint(community.bp, url_prefix='/api/community')
@@ -151,6 +153,7 @@ app.register_blueprint(course_import.bp)  # /api/admin/courses (Course import fr
 app.register_blueprint(organization_management.bp, url_prefix='/api/admin/organizations')  # /api/admin/organizations (Multi-organization management)
 app.register_blueprint(observer_audit.bp)  # /api/admin/observer-audit (Observer access audit logging - COPPA/FERPA compliance)
 app.register_blueprint(ferpa_compliance.bp)  # /api/admin/ferpa (FERPA disclosure reporting and student access logging)
+app.register_blueprint(webhooks.webhooks_bp, url_prefix='/api/webhooks')  # /api/webhooks (Webhook subscriptions for LMS integrations)
 # Register quest types routes (sample tasks, course tasks)
 try:
     from routes import quest_types

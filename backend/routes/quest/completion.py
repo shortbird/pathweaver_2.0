@@ -10,6 +10,7 @@ from datetime import datetime
 from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth
 from utils.logger import get_logger
+from services.webhook_service import WebhookService
 
 logger = get_logger(__name__)
 
@@ -406,6 +407,32 @@ def end_quest(user_id: str, quest_id: str):
 
         total_xp = sum(task.get('user_quest_tasks', {}).get('xp_value', 0) for task in (completed_tasks.data or []))
         task_count = len(completed_tasks.data or [])
+
+        # Emit webhook event for quest completion
+        try:
+            webhook_service = WebhookService(supabase)
+            user_data = supabase.table('users').select('organization_id').eq('id', user_id).single().execute()
+            organization_id = user_data.data.get('organization_id') if user_data.data else None
+
+            # Get quest details for webhook
+            quest_data = supabase.table('quests').select('title').eq('id', quest_id).single().execute()
+            quest_title = quest_data.data.get('title', 'Unknown Quest') if quest_data.data else 'Unknown Quest'
+
+            webhook_service.emit_event(
+                event_type='quest.completed',
+                data={
+                    'user_id': user_id,
+                    'quest_id': quest_id,
+                    'quest_title': quest_title,
+                    'tasks_completed': task_count,
+                    'total_xp_earned': total_xp,
+                    'completed_at': datetime.utcnow().isoformat() + 'Z'
+                },
+                organization_id=organization_id
+            )
+        except Exception as webhook_error:
+            # Don't fail quest completion if webhook fails
+            logger.warning(f"Failed to emit quest.completed webhook: {str(webhook_error)}")
 
         return jsonify({
             'success': True,

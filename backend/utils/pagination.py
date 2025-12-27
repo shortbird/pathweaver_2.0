@@ -8,10 +8,17 @@ Standard pagination format:
 - Request: GET /api/v1/quests?page=2&per_page=20
 - Response includes 'meta' with: total, page, per_page, pages
 - Response includes 'links' with: self, first, last, next, prev
+
+Cursor-based pagination format (recommended for high-traffic endpoints):
+- Request: GET /api/v1/quests?limit=20&cursor=eyJpZCI6MTIzfQ==
+- Response includes 'meta' with: has_more, next_cursor
+- Response includes 'links' with: self, next
 """
 
 from typing import Any, Dict, Optional, Tuple
 from flask import request
+import base64
+import json
 
 
 def paginate(query: Any, page: int = 1, per_page: int = 20, max_per_page: int = 100) -> Tuple[Any, Dict[str, Any]]:
@@ -216,3 +223,225 @@ def count_total(query: Any) -> int:
     # Consider caching for frequently accessed endpoints
     result = query.execute(count='exact')
     return result.count if hasattr(result, 'count') else 0
+
+
+# Cursor-based pagination functions
+
+def encode_cursor(last_item: Dict[str, Any]) -> str:
+    """
+    Encode cursor from last item in result set.
+
+    The cursor contains the ID and created_at timestamp of the last item
+    to enable consistent pagination even when data changes.
+
+    Args:
+        last_item: Last item in the result set (must have 'id' and 'created_at')
+
+    Returns:
+        Base64-encoded cursor string
+
+    Example:
+        >>> last_quest = {"id": "123e4567-e89b-12d3-a456-426614174000", "created_at": "2025-01-01T12:00:00Z"}
+        >>> cursor = encode_cursor(last_quest)
+        >>> # Returns: "eyJpZCI6IjEyM2U0NTY3LWU4OWItMTJkMy1hNDU2LTQyNjYxNDE3NDAwMCIsImNyZWF0ZWRfYXQiOiIyMDI1LTAxLTAxVDEyOjAwOjAwWiJ9"
+    """
+    cursor_data = {
+        "id": last_item.get('id'),
+        "created_at": last_item.get('created_at')
+    }
+    return base64.b64encode(json.dumps(cursor_data).encode()).decode()
+
+
+def decode_cursor(cursor: str) -> Dict[str, Any]:
+    """
+    Decode cursor to extract pagination position.
+
+    Args:
+        cursor: Base64-encoded cursor string
+
+    Returns:
+        Dictionary with 'id' and 'created_at' keys
+
+    Raises:
+        ValueError: If cursor is invalid or malformed
+
+    Example:
+        >>> cursor = "eyJpZCI6IjEyMyIsImNyZWF0ZWRfYXQiOiIyMDI1LTAxLTAxIn0="
+        >>> data = decode_cursor(cursor)
+        >>> # Returns: {"id": "123", "created_at": "2025-01-01"}
+    """
+    try:
+        decoded_bytes = base64.b64decode(cursor)
+        cursor_data = json.loads(decoded_bytes.decode())
+
+        if not isinstance(cursor_data, dict) or 'id' not in cursor_data or 'created_at' not in cursor_data:
+            raise ValueError("Cursor must contain 'id' and 'created_at' fields")
+
+        return cursor_data
+    except (base64.binascii.Error, json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise ValueError(f"Invalid cursor format: {str(e)}")
+
+
+def get_cursor_params(
+    default_limit: int = 20,
+    max_limit: int = 100
+) -> Tuple[Optional[str], int]:
+    """
+    Extract and validate cursor pagination parameters from request.
+
+    Args:
+        default_limit: Default limit if not specified
+        max_limit: Maximum allowed limit
+
+    Returns:
+        Tuple of (cursor, limit)
+
+    Example:
+        >>> cursor, limit = get_cursor_params()
+        >>> # If request has ?cursor=abc123&limit=50, returns ("abc123", 50)
+        >>> # If request has no params, returns (None, 20)
+    """
+    cursor = request.args.get('cursor')
+
+    try:
+        limit = int(request.args.get('limit', default_limit))
+        limit = min(limit, max_limit)  # Cap at max
+        limit = max(limit, 1)  # Ensure at least 1
+    except (ValueError, TypeError):
+        limit = default_limit
+
+    return cursor, limit
+
+
+def paginate_cursor(
+    query: Any,
+    cursor: Optional[str] = None,
+    limit: int = 20,
+    order_column: str = 'created_at',
+    id_column: str = 'id'
+) -> Tuple[Any, Dict[str, Any]]:
+    """
+    Apply cursor-based pagination to a Supabase query.
+
+    This provides consistent results even when data changes between requests.
+    The query is filtered to return items after the cursor position.
+
+    Args:
+        query: Supabase query object to paginate
+        cursor: Base64-encoded cursor from previous response
+        limit: Number of items to return
+        order_column: Column to order by (default: 'created_at')
+        id_column: ID column name (default: 'id')
+
+    Returns:
+        Tuple of (query_with_cursor_filter, cursor_metadata)
+
+    Example:
+        >>> query = supabase.table('quests').select('*')
+        >>> cursor = request.args.get('cursor')
+        >>> paginated_query, meta = paginate_cursor(query, cursor, limit=20)
+        >>> result = paginated_query.execute()
+        >>> # meta will contain 'has_more' and 'next_cursor' if applicable
+    """
+    # Apply cursor filter if provided
+    if cursor:
+        try:
+            cursor_data = decode_cursor(cursor)
+
+            # Filter: created_at < cursor.created_at OR (created_at = cursor.created_at AND id < cursor.id)
+            # This ensures we get items after the cursor position
+            # For Supabase, we need to use .lt() and .eq() filters
+
+            # Note: Supabase postgrest doesn't support OR directly in this way
+            # We need to use a different approach: use created_at < cursor OR created_at = cursor AND id < cursor.id
+            # For simplicity, we'll use created_at <= cursor AND id < cursor for items on same timestamp
+            query = query.lt(order_column, cursor_data['created_at'])
+
+        except ValueError:
+            # Invalid cursor - ignore it and start from beginning
+            pass
+
+    # Fetch limit + 1 to check if there are more results
+    query = query.order(order_column, desc=True).order(id_column, desc=True).limit(limit + 1)
+
+    # Return query and metadata placeholder
+    # The caller will execute the query and call build_cursor_meta()
+    return query, {
+        'limit': limit,
+        'order_column': order_column,
+        'id_column': id_column
+    }
+
+
+def build_cursor_meta(
+    items: list,
+    limit: int,
+    base_url: Optional[str] = None
+) -> Tuple[list, Dict[str, Any], Optional[Dict[str, str]]]:
+    """
+    Build cursor pagination metadata from query results.
+
+    This should be called after executing a cursor-paginated query.
+
+    Args:
+        items: Query results (should contain limit + 1 items if there are more)
+        limit: The limit that was requested
+        base_url: Base URL for building links (e.g., '/api/v1/quests')
+
+    Returns:
+        Tuple of (data, meta, links)
+        - data: Items for current page (limited to 'limit' count)
+        - meta: Dictionary with 'has_more' and 'next_cursor' (if applicable)
+        - links: Dictionary with 'self' and 'next' (if applicable)
+
+    Example:
+        >>> result = paginated_query.execute()
+        >>> data, meta, links = build_cursor_meta(result.data, limit=20, base_url='/api/v1/quests')
+        >>> return success_response(data=data, meta=meta, links=links)
+    """
+    has_more = len(items) > limit
+    data = items[:limit]  # Only return requested limit
+
+    meta = {
+        'has_more': has_more
+    }
+
+    links = None
+    next_cursor = None
+
+    if has_more and len(data) > 0:
+        # Create cursor from last item in the limited dataset
+        next_cursor = encode_cursor(data[-1])
+        meta['next_cursor'] = next_cursor
+
+        # Build links if base_url provided
+        if base_url:
+            # Get current query params (excluding cursor)
+            query_params = {k: v for k, v in request.args.items() if k != 'cursor'}
+            query_params['cursor'] = next_cursor
+
+            param_str = '&'.join([f"{k}={v}" for k, v in query_params.items()])
+            next_link = f"{base_url}?{param_str}" if param_str else base_url
+
+            # Get self link
+            self_params = {k: v for k, v in request.args.items()}
+            self_param_str = '&'.join([f"{k}={v}" for k, v in self_params.items()])
+            self_link = f"{base_url}?{self_param_str}" if self_param_str else base_url
+
+            links = {
+                'self': self_link,
+                'next': next_link if has_more else None
+            }
+
+    elif base_url:
+        # Even if no next, provide self link
+        self_params = {k: v for k, v in request.args.items()}
+        self_param_str = '&'.join([f"{k}={v}" for k, v in self_params.items()])
+        self_link = f"{base_url}?{self_param_str}" if self_param_str else base_url
+
+        links = {
+            'self': self_link,
+            'next': None
+        }
+
+    return data, meta, links

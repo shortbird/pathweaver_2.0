@@ -193,7 +193,7 @@ const AdminBadges = () => {
                     {badge.image_url ? (
                       <img
                         src={badge.image_url}
-                        alt={badge.name}
+                        alt={`Badge: ${badge.name} - ${badge.pillar_primary || 'Achievement'} badge`}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (
