@@ -214,7 +214,11 @@ def get_current_user():
         user_id = session_manager.get_effective_user_id()
 
         if not user_id:
-            return jsonify({'error': 'Authentication required'}), 401
+            return error_response(
+                code='AUTHENTICATION_REQUIRED',
+                message='Authentication required',
+                status=401
+            )
 
         # CRITICAL FIX: Check if token was issued before last logout
         # This prevents automatic re-login after logout when token is still valid
@@ -245,7 +249,11 @@ def get_current_user():
                         # If token was issued before logout, reject it
                         if token_issued_at < last_logout_at:
                             logger.warning(f"[ME] Rejecting token for user {mask_user_id(user_id)} - issued before logout (token: {token_issued_at.isoformat()}, logout: {last_logout_at.isoformat()})")
-                            return jsonify({'error': 'Session invalidated. Please log in again.'}), 401
+                            return error_response(
+                                code='SESSION_INVALIDATED',
+                                message='Session invalidated. Please log in again.',
+                                status=401
+                            )
         except Exception as logout_check_error:
             logger.error(f"[ME] Error checking last_logout_at: {logout_check_error}")
             # Don't fail the request if we can't check - but log it
@@ -258,17 +266,29 @@ def get_current_user():
             user_data = admin_client.table('users').select('*').eq('id', user_id).single().execute()
 
             if user_data.data:
-                return jsonify(user_data.data), 200
+                return success_response(data=user_data.data)
             else:
-                return jsonify({'error': 'User profile not found'}), 404
+                return error_response(
+                    code='USER_NOT_FOUND',
+                    message='User profile not found',
+                    status=404
+                )
 
         except Exception as e:
             logger.error(f"Error fetching user data: {e}")
-            return jsonify({'error': 'Failed to fetch user profile'}), 500
+            return error_response(
+                code='FETCH_USER_FAILED',
+                message='Failed to fetch user profile',
+                status=500
+            )
 
     except Exception as e:
         logger.error(f"Unexpected error in /me endpoint: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
+        return error_response(
+            code='INTERNAL_ERROR',
+            message='Internal server error',
+            status=500
+        )
 
 
 @bp.route('/login', methods=['POST'])
@@ -580,7 +600,11 @@ def refresh_token():
 
     if not refresh_result:
         logger.warning("Refresh token validation failed - token may be expired or invalid")
-        return jsonify({'error': 'Your session has expired. Please log in again to continue.'}), 401
+        return error_response(
+            code='SESSION_EXPIRED',
+            message='Your session has expired. Please log in again to continue.',
+            status=401
+        )
 
     new_access_token, new_refresh_token, user_id, token_issued_at = refresh_result
 
@@ -595,7 +619,11 @@ def refresh_token():
             # If token was issued before logout, reject it
             if token_issued_at < last_logout_at:
                 logger.warning(f"[REFRESH] Rejecting token for user {mask_user_id(user_id)} - issued before logout")
-                return jsonify({'error': 'Session invalidated. Please log in again.'}), 401
+                return error_response(
+                    code='SESSION_INVALIDATED',
+                    message='Session invalidated. Please log in again.',
+                    status=401
+                )
 
     except Exception as logout_check_error:
         logger.error(f"Error checking last_logout_at: {logout_check_error}")
@@ -622,12 +650,14 @@ def refresh_token():
         except Exception as e:
             logger.error(f"Failed to refresh Supabase session: {str(e)}")
 
-    # Return new tokens in response body
-    response = make_response(jsonify({
+    # Return new tokens in response body using standardized format
+    data = {
         'message': 'Tokens refreshed successfully',
         'access_token': new_access_token,
         'refresh_token': new_refresh_token,
-    }), 200)
+    }
+    response_json, status_code = success_response(data)
+    response = make_response(response_json, status_code)
 
     # Set httpOnly cookies for authentication
     session_manager.set_auth_cookies(response, user_id)
