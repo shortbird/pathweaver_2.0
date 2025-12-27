@@ -301,6 +301,25 @@ const RegisterPage = () => {
             {errors.acceptedLegalTerms && (
               <p className="ml-6 text-sm text-red-600">{errors.acceptedLegalTerms.message}</p>
             )}
+
+            {/* Public Portfolio Acknowledgment - FERPA Compliance */}
+            <div className="flex items-start">
+              <input
+                {...registerField('acceptedPortfolioVisibility', {
+                  required: 'You must acknowledge that your learning portfolio will be publicly visible'
+                })}
+                type="checkbox"
+                id="acceptedPortfolioVisibility"
+                className="mt-1 h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
+              />
+              <label htmlFor="acceptedPortfolioVisibility" className="ml-2 text-sm text-gray-700">
+                I understand that my learning portfolio (quests, evidence, and achievements) will be{' '}
+                <span className="font-semibold">publicly visible by default</span> and can be viewed by anyone with my portfolio URL. I can change this setting anytime on my Profile page.
+              </label>
+            </div>
+            {errors.acceptedPortfolioVisibility && (
+              <p className="ml-6 text-sm text-red-600">{errors.acceptedPortfolioVisibility.message}</p>
+            )}
           </div>
 
           {/* Optional Handbook Link - No checkbox required, signed in person */}

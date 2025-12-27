@@ -76,6 +76,17 @@ const TermsOfService = () => {
                 <li>You are responsible for ensuring your User Content does not violate any laws or third-party rights</li>
                 <li>Students working on business ventures retain all intellectual property rights to their businesses</li>
               </ul>
+              <p className="mb-4 font-semibold">Public Portfolio Visibility:</p>
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                <p className="mb-2 font-semibold text-gray-900">IMPORTANT: Your learning portfolio is PUBLIC by default.</p>
+                <ul className="list-disc ml-6 space-y-1 text-gray-800">
+                  <li>Your learning portfolio (including quests, evidence, achievements, and diplomas) is visible to anyone with your portfolio URL</li>
+                  <li>Portfolio content may be indexed by search engines and shared on social media</li>
+                  <li>Anyone on the internet can view your educational content and progress</li>
+                  <li>You can change your privacy settings at any time on your Profile page</li>
+                  <li>Privacy controls allow you to make your portfolio private or limit what information is publicly visible</li>
+                </ul>
+              </div>
               <p className="mb-4 font-semibold">Educational Credentials:</p>
               <p className="mb-4">
                 Optio Academy participants may earn accredited credentials through our program. Digital diplomas
