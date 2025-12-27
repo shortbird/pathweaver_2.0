@@ -203,17 +203,22 @@ const QuestBadgeHub = () => {
     });
 
     if (result.success && isMounted()) {
-      const data = result.data;
-      logger.debug(`[HUB] Success - Got ${data.quests?.length || 0} quests, total: ${data.total}`);
+      const responseData = result.data;
+      // API v1 format: {data: [...], meta: {...}, links: {...}}
+      const quests = responseData.data || [];
+      const meta = responseData.meta || {};
+
+      logger.debug(`[HUB] Success - Got ${quests.length} quests, total: ${meta.total}`);
 
       if (isInitial) {
-        setQuests(data.quests || []);
+        setQuests(quests);
       } else {
-        setQuests(prev => [...prev, ...(data.quests || [])]);
+        setQuests(prev => [...prev, ...quests]);
       }
 
-      setTotalQuests(data.total || 0);
-      setHasMoreQuests(data.has_more === true);
+      setTotalQuests(meta.total || 0);
+      // Check if there's a next page link to determine if more quests exist
+      setHasMoreQuests(!!responseData.links?.next);
       setQuestsError(''); // Clear any previous errors
     } else if (result.error && !result.aborted && isMounted()) {
       console.error('[HUB] Quest fetch error:', result.error);
