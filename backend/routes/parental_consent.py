@@ -462,7 +462,6 @@ def submit_consent_documents(user_id: str):
         return jsonify({'error': 'Failed to submit consent documents'}), 500
 
 @bp.route('/admin/parental-consent/pending', methods=['GET'])
-@require_auth
 @require_role('admin')
 def get_pending_consent_reviews(user_id: str):
     """
@@ -508,7 +507,6 @@ def get_pending_consent_reviews(user_id: str):
         return jsonify({'error': 'Failed to fetch pending reviews'}), 500
 
 @bp.route('/admin/parental-consent/approve/<child_id>', methods=['POST'])
-@require_auth
 @require_role('admin')
 def approve_parental_consent(user_id: str, child_id):
     """
@@ -584,7 +582,6 @@ def approve_parental_consent(user_id: str, child_id):
         return jsonify({'error': 'Failed to approve parental consent'}), 500
 
 @bp.route('/admin/parental-consent/reject/<child_id>', methods=['POST'])
-@require_auth
 @require_role('admin')
 def reject_parental_consent(user_id: str, child_id):
     """
