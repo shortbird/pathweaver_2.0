@@ -211,6 +211,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
           <button
             onClick={onClose}
             className="p-2 hover:bg-white/20 rounded-full text-white"
+            aria-label="Close modal"
           >
             <XMarkIcon size={24} />
           </button>
@@ -286,6 +287,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                           }}
                           className="text-optio-purple hover:text-purple-800 p-1"
                           title="Preview task details"
+                          aria-label="Preview task details"
                         >
                           <EyeIcon size={18} />
                         </button>
@@ -461,6 +463,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
               <button
                 onClick={() => setPreviewTask(null)}
                 className="p-2 hover:bg-gray-100 rounded-full"
+                aria-label="Close preview"
               >
                 <XMarkIcon size={20} />
               </button>

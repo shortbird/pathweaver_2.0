@@ -17,6 +17,7 @@ const RequestStudentConnectionModal = ({ isOpen, onClose }) => {
           <button
             onClick={onClose}
             className="text-white hover:text-gray-200 transition-colors"
+            aria-label="Close modal"
           >
             <XMarkIcon className="w-6 h-6" />
           </button>
