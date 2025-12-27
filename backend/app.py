@@ -225,7 +225,7 @@ except Exception as e:
 # Register Parental Consent blueprint (COPPA compliance)
 try:
     from routes import parental_consent
-    app.register_blueprint(parental_consent.bp, url_prefix='/api/auth')  # /api/auth/parental-consent
+    app.register_blueprint(parental_consent.bp, url_prefix='/api')  # /api/parental-consent, /api/admin/parental-consent
 except Exception as e:
     logger.warning(f"Warning: Parental Consent routes not available: {e}")
 
