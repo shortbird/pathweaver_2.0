@@ -25,6 +25,7 @@ from repositories import (
 )
 from repositories.base_repository import NotFoundError
 from utils.auth.decorators import require_auth
+from middleware.idempotency import require_idempotency
 from services.evidence_service import EvidenceService
 from services.xp_service import XPService
 from services.atomic_quest_service import atomic_quest_service
@@ -56,6 +57,7 @@ MAX_FILE_SIZE = int(os.getenv('MAX_IMAGE_UPLOAD_SIZE', MAX_IMAGE_SIZE))  # Use c
 # Using repository pattern for database access
 @bp.route('/<task_id>/complete', methods=['POST'])
 @require_auth
+@require_idempotency(ttl_seconds=86400)
 def complete_task(user_id: str, task_id: str):
     """
     Complete a task with evidence submission.

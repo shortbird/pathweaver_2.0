@@ -11,6 +11,7 @@ from database import get_supabase_admin_client
 from repositories.quest_repository import QuestRepository, QuestTaskRepository
 from repositories.base_repository import NotFoundError, DatabaseError
 from utils.auth.decorators import require_auth
+from middleware.idempotency import require_idempotency
 from utils.logger import get_logger
 from utils.api_response_v1 import success_response, error_response, created_response
 
@@ -21,6 +22,7 @@ bp = Blueprint('quest_enrollment', __name__, url_prefix='/api/quests')
 
 @bp.route('/<quest_id>/enroll', methods=['POST'])
 @require_auth
+@require_idempotency(ttl_seconds=86400)
 def enroll_in_quest(user_id: str, quest_id: str):
     """
     Enroll a user in a quest.

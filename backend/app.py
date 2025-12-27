@@ -80,6 +80,10 @@ memory_monitor.init_app(app)
 # Configure activity tracking middleware
 activity_tracker.init_app(app)
 
+# Configure rate limit headers for all responses
+from middleware.rate_limiter import add_rate_limit_headers
+app.after_request(add_rate_limit_headers)
+
 # Register existing routes
 # Auth routes - refactored from mega-file (1,523 lines) to 4 focused modules (P2-ARCH-1)
 register_auth_routes(app)
