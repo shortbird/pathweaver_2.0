@@ -405,12 +405,13 @@ def submit_consent_documents(user_id: str):
             'parental_consent_submitted_at': datetime.utcnow().isoformat()
         }).eq('id', user_id).execute()
 
-        # Log submission
+        # Log submission (generate a dummy token since the table requires it)
+        log_token = secrets.token_urlsafe(32)
         supabase.table('parental_consent_log').insert({
             'user_id': user_id,
             'child_email': '',  # Not applicable for parent identity verification
             'parent_email': user.get('email', ''),
-            'consent_token': None,
+            'consent_token': log_token,
             'ip_address': request.remote_addr,
             'user_agent': request.headers.get('User-Agent', '')
         }).execute()
@@ -461,8 +462,9 @@ def submit_consent_documents(user_id: str):
         return jsonify({'error': 'Failed to submit consent documents'}), 500
 
 @bp.route('/admin/parental-consent/pending', methods=['GET'])
+@require_auth
 @require_role('admin')
-def get_pending_consent_reviews():
+def get_pending_consent_reviews():  # No parameters when using @require_auth + @require_role
     """
     Admin endpoint: Get all pending parental consent reviews
     """
@@ -506,6 +508,7 @@ def get_pending_consent_reviews():
         return jsonify({'error': 'Failed to fetch pending reviews'}), 500
 
 @bp.route('/admin/parental-consent/approve/<child_id>', methods=['POST'])
+@require_auth
 @require_role('admin')
 def approve_parental_consent(child_id):
     """
@@ -581,6 +584,7 @@ def approve_parental_consent(child_id):
         return jsonify({'error': 'Failed to approve parental consent'}), 500
 
 @bp.route('/admin/parental-consent/reject/<child_id>', methods=['POST'])
+@require_auth
 @require_role('admin')
 def reject_parental_consent(child_id):
     """
