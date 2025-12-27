@@ -88,6 +88,44 @@ while IFS=: read -r file line content; do
 done <<< "$NO_ALT"
 ```
 
+**Documentation scan (claude.md):**
+```bash
+echo "=== DOCUMENTATION (claude.md) ==="
+
+# Check if claude.md exists
+CLAUDE_FILE=$(ls claude.md CLAUDE.md 2>/dev/null | head -1)
+if [ -z "$CLAUDE_FILE" ]; then
+    echo "WARNING: No claude.md found"
+    echo "{\"type\":\"documentation\",\"severity\":\"high\",\"file\":\".\",\"line\":0,\"issue\":\"missing_claude_md\",\"description\":\"claude.md file not found - AI agents need documentation\"}," >> "$FINDINGS_FILE"
+else
+    echo "Found: $CLAUDE_FILE"
+
+    # Check last updated date
+    LAST_UPDATED=$(grep -i "last updated" "$CLAUDE_FILE" 2>/dev/null | head -1)
+    echo "Last updated: $LAST_UPDATED"
+
+    # Check for outdated references
+    echo "-- Outdated markers --"
+    OUTDATED=$(grep -n "coming soon\|not yet\|pending\|TODO\|FIXME" "$CLAUDE_FILE" 2>/dev/null | head -5)
+    echo "$OUTDATED"
+
+    while IFS=: read -r line content; do
+        if [ -n "$line" ]; then
+            echo "{\"type\":\"documentation\",\"severity\":\"low\",\"file\":\"$CLAUDE_FILE\",\"line\":$line,\"issue\":\"outdated_docs\",\"description\":\"Documentation may be outdated: $content\"}," >> "$FINDINGS_FILE"
+        fi
+    done <<< "$OUTDATED"
+
+    # Check for missing file paths
+    echo "-- File path verification --"
+    for path in $(grep -oE "(backend|frontend)/[a-zA-Z0-9_/.-]+" "$CLAUDE_FILE" 2>/dev/null | sort -u | head -15); do
+        if [ ! -e "$path" ]; then
+            echo "MISSING: $path"
+            echo "{\"type\":\"documentation\",\"severity\":\"medium\",\"file\":\"$CLAUDE_FILE\",\"line\":0,\"issue\":\"invalid_path\",\"description\":\"Documented path does not exist: $path\"}," >> "$FINDINGS_FILE"
+        fi
+    done
+fi
+```
+
 **Finalize JSON:**
 ```bash
 # Remove trailing comma and close JSON

@@ -4,7 +4,7 @@ description: Creates audit tasks for worker agents. Does NOT run audits itself.
 model: sonnet
 ---
 
-Create 7 audit task files in the work queue, then stop.
+Create 8 audit task files in the work queue, then stop.
 
 DO NOT run any audits yourself. ONLY create the JSON files below.
 
@@ -79,6 +79,15 @@ Create file `.claude/workspace/queue/audit_7_legal.json`:
 }
 ```
 
+Create file `.claude/workspace/queue/audit_8_claude_md.json`:
+```json
+{
+  "id": "audit_8_claude_md",
+  "type": "documentation_audit",
+  "description": "Audit claude.md for accuracy and optimization. Check: 1) Table names match actual database schema, 2) File paths exist and are correct, 3) API endpoints documented match actual routes, 4) Environment variables are current, 5) Recent changes section is up to date, 6) No outdated/removed features documented, 7) Instructions are clear and actionable for AI agents."
+}
+```
+
 ## Step 3: Confirm creation
 
 ```bash
@@ -90,7 +99,7 @@ echo "Queue contents:" && ls -1 .claude/workspace/queue/
 Print this message:
 
 ```
-✅ Created 7 audit tasks in queue.
+Created 8 audit tasks in queue.
 
 NEXT STEPS:
 1. Run /work-queue in Terminal 2

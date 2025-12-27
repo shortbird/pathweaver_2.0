@@ -101,6 +101,55 @@ echo "=== LEGAL AUDIT ==="
 ls -la LICENSE* COPYING* 2>/dev/null || echo "NO LICENSE FILE"
 ```
 
+**documentation_audit**:
+Audit claude.md (or CLAUDE.md) for accuracy and optimization. Perform these checks:
+
+1. **Database Schema Accuracy**: Verify table names in claude.md match actual database
+```bash
+echo "=== DOCUMENTED TABLES ==="
+grep -E "^\s*\w+\s+-\s+" claude.md CLAUDE.md 2>/dev/null | head -20
+```
+
+2. **File Paths Exist**: Check that documented file paths actually exist
+```bash
+echo "=== FILE PATH CHECKS ==="
+# Extract paths from claude.md and verify they exist
+for path in $(grep -oE "(backend|frontend)/[a-zA-Z0-9_/.-]+" claude.md CLAUDE.md 2>/dev/null | head -20); do
+    [ -e "$path" ] && echo "OK: $path" || echo "MISSING: $path"
+done
+```
+
+3. **API Endpoints**: Verify documented endpoints exist in route files
+```bash
+echo "=== API ENDPOINT CHECK ==="
+grep -E "^\s*-\s+\`?(GET|POST|PUT|DELETE|PATCH)" claude.md CLAUDE.md 2>/dev/null | head -15
+```
+
+4. **Environment Variables**: Check documented env vars are referenced in code
+```bash
+echo "=== ENV VAR CHECK ==="
+grep -oE "VITE_[A-Z_]+|FLASK_[A-Z_]+|SUPABASE_[A-Z_]+" claude.md CLAUDE.md 2>/dev/null | sort -u
+```
+
+5. **Outdated References**: Search for potentially outdated info
+```bash
+echo "=== POTENTIAL OUTDATED REFS ==="
+grep -n "TODO\|FIXME\|deprecated\|removed\|deleted" claude.md CLAUDE.md 2>/dev/null
+grep -n "coming soon\|not yet implemented\|pending" claude.md CLAUDE.md 2>/dev/null
+```
+
+6. **Last Updated Check**: Verify the last updated date is recent
+```bash
+echo "=== LAST UPDATED ==="
+grep -i "last updated\|updated:" claude.md CLAUDE.md 2>/dev/null | head -3
+```
+
+Write a brief report summarizing:
+- Any mismatches between documentation and actual codebase
+- Outdated sections that need updating
+- Missing documentation for recent features
+- Optimization suggestions for AI agent consumption
+
 ---
 
 ### FIX TASKS
