@@ -309,11 +309,49 @@ fi
 
 ---
 
-## PHASE 8: COMMIT (30 seconds)
+## PHASE 8: LOCAL VERIFICATION (REQUIRED)
+
+**CRITICAL**: Before committing, the fix MUST be verified locally by the user.
 
 ```bash
 echo ""
-echo "📦 PHASE 8: Committing changes..."
+echo "👁️ PHASE 8: Local verification..."
+
+# Check if servers are already running
+BACKEND_RUNNING=$(curl -s http://localhost:5001/api/health 2>/dev/null | grep -c "healthy" || echo "0")
+FRONTEND_RUNNING=$(curl -s http://localhost:3000 2>/dev/null | head -c 50 | grep -c "<!DOCTYPE" || echo "0")
+
+# Start servers if not running
+if [ "$BACKEND_RUNNING" = "0" ]; then
+    echo "Starting backend server..."
+    cd C:/Users/tanne/Desktop/pw_v2 && venv/Scripts/python.exe backend/app.py &
+    sleep 3
+fi
+
+if [ "$FRONTEND_RUNNING" = "0" ]; then
+    echo "Starting frontend server..."
+    cd C:/Users/tanne/Desktop/pw_v2/frontend && npm run dev &
+    sleep 5
+fi
+
+# Verify servers are running
+curl -s http://localhost:5001/api/health
+echo ""
+echo "Frontend ready at: http://localhost:3000"
+```
+
+**ASK THE USER TO VERIFY** at http://localhost:3000:
+- Tell the user: "Please test the fix at http://localhost:3000 and confirm it works."
+- **DO NOT proceed to commit until the user explicitly confirms** (e.g., "looks good", "verified", "works")
+- If user reports issues, return to Phase 5 and iterate on the fix
+
+---
+
+## PHASE 9: COMMIT (30 seconds)
+
+```bash
+echo ""
+echo "📦 PHASE 9: Committing changes..."
 
 # Stage all changes
 git add -A
@@ -340,11 +378,11 @@ echo "✅ Committed"
 
 ---
 
-## PHASE 9: PUSH TO DEV (1 minute)
+## PHASE 10: PUSH TO DEV (1 minute)
 
 ```bash
 echo ""
-echo "🚀 PHASE 9: Pushing to dev..."
+echo "🚀 PHASE 10: Pushing to dev..."
 
 # Push the fix branch
 git push -u origin "$BRANCH_NAME" 2>&1
@@ -367,11 +405,11 @@ echo "✅ Pushed to origin/$BRANCH_NAME"
 
 ---
 
-## PHASE 10: FINAL REPORT (30 seconds)
+## PHASE 11: FINAL REPORT (30 seconds)
 
 ```bash
 echo ""
-echo "📋 PHASE 10: Generating final report..."
+echo "📋 PHASE 11: Generating final report..."
 
 # Complete the report
 cat >> "$DEBUG_REPORT" << EOF

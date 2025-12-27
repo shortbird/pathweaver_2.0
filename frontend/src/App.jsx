@@ -103,7 +103,8 @@ const queryClient = new QueryClient({
 // Inner component that uses banners (must be inside Router and ActingAsProvider)
 function AppContent() {
   const navigate = useNavigate();
-  const [masqueradeState, setMasqueradeState] = useState(null);
+  // Initialize masquerade state immediately from localStorage for instant banner display
+  const [masqueradeState, setMasqueradeState] = useState(() => getMasqueradeState());
   const { actingAsDependent, clearActingAs } = useActingAs();
   const [consentBlockData, setConsentBlockData] = useState(null);
 
@@ -112,39 +113,35 @@ function AppContent() {
     const checkMasquerade = async () => {
       const state = getMasqueradeState();
 
-      // If we have local masquerade state, verify it with backend
+      // Show banner immediately from localStorage (don't wait for API verification)
       if (state) {
-        // Wait for token to be available (fixes race condition after page reload)
+        setMasqueradeState(state);
+
+        // Verify with backend in the background (don't block the UI)
         const token = tokenStore.getAccessToken();
-        if (!token) {
-          logger.debug('[Masquerade] Waiting for token to be restored before checking masquerade status');
-          // Don't clear state yet, just wait for next check
-          return;
-        }
+        if (token) {
+          try {
+            const response = await api.get('/api/admin/masquerade/status');
+            const backendStatus = response.data;
 
-        try {
-          const response = await api.get('/api/admin/masquerade/status');
-          const backendStatus = response.data;
-
-          // If backend says we're not masquerading but localStorage says we are, clear it
-          if (!backendStatus.is_masquerading) {
-            console.warn('Clearing stale masquerade state from localStorage');
+            // If backend says we're not masquerading but localStorage says we are, clear it
+            if (!backendStatus.is_masquerading) {
+              console.warn('Clearing stale masquerade state from localStorage');
+              localStorage.removeItem('masquerade_state');
+              localStorage.removeItem('original_admin_token');
+              setMasqueradeState(null);
+            }
+          } catch (error) {
+            // If status check fails, clear masquerade state to be safe
+            console.warn('Failed to verify masquerade status, clearing state:', error);
             localStorage.removeItem('masquerade_state');
             localStorage.removeItem('original_admin_token');
             setMasqueradeState(null);
-            return;
           }
-        } catch (error) {
-          // If status check fails, clear masquerade state to be safe
-          console.warn('Failed to verify masquerade status, clearing state:', error);
-          localStorage.removeItem('masquerade_state');
-          localStorage.removeItem('original_admin_token');
-          setMasqueradeState(null);
-          return;
         }
+      } else {
+        setMasqueradeState(null);
       }
-
-      setMasqueradeState(state);
     };
 
     checkMasquerade();

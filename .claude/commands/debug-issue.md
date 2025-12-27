@@ -206,7 +206,41 @@ def process(data):
 
 ---
 
-### Phase 6: ADD REGRESSION TEST (3 minutes)
+### Phase 6: LOCAL VERIFICATION (REQUIRED)
+
+**CRITICAL**: Before committing, the fix MUST be verified locally by the user.
+
+```bash
+# Check if servers are already running
+BACKEND_RUNNING=$(curl -s http://localhost:5001/api/health 2>/dev/null | grep -c "healthy" || echo "0")
+FRONTEND_RUNNING=$(curl -s http://localhost:3000 2>/dev/null | head -c 50 | grep -c "<!DOCTYPE" || echo "0")
+
+# Start servers if not running
+if [ "$BACKEND_RUNNING" = "0" ]; then
+    echo "Starting backend server..."
+    cd C:/Users/tanne/Desktop/pw_v2 && venv/Scripts/python.exe backend/app.py &
+    sleep 3
+fi
+
+if [ "$FRONTEND_RUNNING" = "0" ]; then
+    echo "Starting frontend server..."
+    cd C:/Users/tanne/Desktop/pw_v2/frontend && npm run dev &
+    sleep 5
+fi
+
+# Verify servers are running
+curl -s http://localhost:5001/api/health
+echo "Frontend: http://localhost:3000"
+```
+
+**ASK THE USER TO VERIFY** at http://localhost:3000:
+- Tell the user: "Please test the fix at http://localhost:3000 and confirm it works."
+- **DO NOT proceed to commit until the user explicitly confirms** (e.g., "looks good", "verified", "works")
+- If user reports issues, return to Phase 5 and iterate on the fix
+
+---
+
+### Phase 7: ADD REGRESSION TEST (3 minutes)
 
 Create a test that would have caught this bug:
 
@@ -230,7 +264,7 @@ EOF
 
 ---
 
-### Phase 7: VERIFY FIX (2 minutes)
+### Phase 8: VERIFY FIX (2 minutes)
 
 Run tests to confirm the fix works:
 
@@ -252,7 +286,7 @@ If tests fail, iterate on the fix until they pass.
 
 ---
 
-### Phase 8: DOCUMENT & COMMIT (2 minutes)
+### Phase 9: DOCUMENT & COMMIT (2 minutes)
 
 ```bash
 # Complete the debug report
@@ -290,7 +324,7 @@ Debug session: $SESSION_ID
 
 ---
 
-### Phase 9: PUSH TO DEV (1 minute)
+### Phase 10: PUSH TO DEV (1 minute)
 
 ```bash
 # Push the fix branch
