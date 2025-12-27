@@ -86,6 +86,9 @@ def get_platform_config(platform_name):
 
     Returns:
         Dict with platform configuration or None if not found
+
+    Raises:
+        ValueError: If URL configuration uses HTTP instead of HTTPS (CVE-OPTIO-2025-020)
     """
     config = LMS_PLATFORMS.get(platform_name)
 
@@ -96,6 +99,19 @@ def get_platform_config(platform_name):
             if isinstance(value, str) and value.startswith('ENV:'):
                 env_var = value.replace('ENV:', '')
                 resolved_config[key] = os.getenv(env_var)
+
+        # CVE-OPTIO-2025-020 FIX: Validate HTTPS for all URL configurations
+        url_keys = ['platform_url', 'api_url', 'auth_url', 'token_url', 'jwks_url']
+        for key in url_keys:
+            if key in resolved_config and resolved_config[key]:
+                url = resolved_config[key]
+                if not url.startswith('https://'):
+                    logger.error(f"[LMS Security] HTTPS required for {platform_name}.{key}: {url}")
+                    raise ValueError(
+                        f"LMS platform URLs must use HTTPS (got {url}). "
+                        f"HTTP is not allowed for security reasons. "
+                        f"Please update {key} configuration for {platform_name}."
+                    )
 
         return resolved_config
 
@@ -113,27 +129,40 @@ def get_supported_platforms():
 def validate_platform_config(platform_name):
     """
     Validate that required environment variables are set for a platform
+    and that all URLs use HTTPS
 
     Args:
         platform_name: Name of the platform to validate
 
     Returns:
-        Tuple of (is_valid, missing_vars)
+        Tuple of (is_valid, errors)
+        errors is a list of error messages (missing vars or security issues)
     """
     config = LMS_PLATFORMS.get(platform_name)
 
     if not config:
         return False, ['Platform not found']
 
-    missing_vars = []
+    errors = []
 
+    # Check for missing environment variables
     for key, value in config.items():
         if isinstance(value, str) and value.startswith('ENV:'):
             env_var = value.replace('ENV:', '')
-            if not os.getenv(env_var):
-                missing_vars.append(env_var)
+            env_value = os.getenv(env_var)
 
-    return len(missing_vars) == 0, missing_vars
+            if not env_value:
+                errors.append(f"Missing environment variable: {env_var}")
+            else:
+                # CVE-OPTIO-2025-020 FIX: Validate HTTPS for URL environment variables
+                url_keys = ['platform_url', 'api_url', 'auth_url', 'token_url', 'jwks_url']
+                if key in url_keys and not env_value.startswith('https://'):
+                    errors.append(
+                        f"Security Error: {env_var} must use HTTPS (got {env_value}). "
+                        f"HTTP is not allowed for LMS integrations."
+                    )
+
+    return len(errors) == 0, errors
 
 def get_platform_display_name(platform_name):
     """

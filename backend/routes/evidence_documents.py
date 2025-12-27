@@ -24,6 +24,7 @@ from repositories import (
     AnalyticsRepository
 )
 from utils.auth.decorators import require_auth
+from middleware.rate_limiter import rate_limit
 from services.evidence_service import EvidenceService
 from services.xp_service import XPService
 from datetime import datetime
@@ -354,6 +355,7 @@ def save_evidence_document(user_id: str, task_id: str):
         }), 500
 
 @bp.route('/blocks/<block_id>/upload', methods=['POST'])
+@rate_limit(limit=20, per=3600)  # CVE-OPTIO-2025-017 FIX: 20 uploads per hour
 @require_auth
 def upload_block_file(user_id: str, block_id: str):
     """

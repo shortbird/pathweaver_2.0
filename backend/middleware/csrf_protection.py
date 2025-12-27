@@ -42,13 +42,15 @@ def init_csrf(app):
     """
     # Configure CSRF settings
     app.config['WTF_CSRF_ENABLED'] = True
-    app.config['WTF_CSRF_TIME_LIMIT'] = None  # No time limit for tokens
+    # CVE-OPTIO-2025-009 FIX: Set CSRF token expiration to 1 hour for security
+    # Tokens will auto-refresh on valid requests, providing seamless UX
+    app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour (was None - never expired)
     app.config['WTF_CSRF_CHECK_DEFAULT'] = False  # We'll manually check for API routes
-    
+
     # Configure CSRF headers for API usage
     app.config['WTF_CSRF_HEADERS'] = ['X-CSRF-Token', 'X-CSRFToken']
     app.config['WTF_CSRF_METHODS'] = ['POST', 'PUT', 'PATCH', 'DELETE']
-    
+
     # Use secure cookies in production
     app.config['WTF_CSRF_SSL_STRICT'] = os.getenv('FLASK_ENV') == 'production'
     
