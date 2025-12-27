@@ -52,7 +52,7 @@ const MasqueradeBanner = ({ targetUser, onExit }) => {
               {targetUser?.avatar_url && (
                 <img
                   src={targetUser.avatar_url}
-                  alt={targetUser.display_name}
+                  alt={`Profile picture of ${targetUser.display_name}`}
                   className="w-8 h-8 rounded-full border-2 border-white"
                 />
               )}

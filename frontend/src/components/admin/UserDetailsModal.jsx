@@ -304,7 +304,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   {currentAvatarUrl ? (
                     <img
                       src={currentAvatarUrl}
-                      alt="Profile"
+                      alt={`Profile picture of ${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User profile picture'}
                       className="w-24 h-24 rounded-full object-cover border-4 border-gray-200"
                     />
                   ) : (

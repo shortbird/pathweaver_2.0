@@ -399,7 +399,7 @@ const AdminQuests = () => {
                     {quest.image_url || quest.header_image_url ? (
                       <img
                         src={quest.image_url || quest.header_image_url}
-                        alt={quest.title}
+                        alt={`Quest: ${quest.title}`}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (
