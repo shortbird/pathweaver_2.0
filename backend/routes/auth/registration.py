@@ -171,12 +171,12 @@ def register():
             # Check if the error is about rate limiting
             error_str = str(auth_error).lower()
             if 'email rate limit exceeded' in error_str or 'rate limit' in error_str:
-                return created_response(
-                    data={
-                        'message': 'Registration may have succeeded. If you received a confirmation email, please verify your account. Otherwise, wait a minute and try again.',
-                        'email_verification_required': True
-                    }
-                )
+                # Return legacy format for frontend compatibility
+                # TODO: Migrate to standardized format after updating frontend
+                return jsonify({
+                    'message': 'Registration may have succeeded. If you received a confirmation email, please verify your account. Otherwise, wait a minute and try again.',
+                    'email_verification_required': True
+                }), 201
 
             # Check if email already exists
             if 'already registered' in error_str or 'already exists' in error_str or 'user already exists' in error_str:
@@ -279,7 +279,9 @@ def register():
                     response_data['parent_email'] = parent_email
                     response_data['message'] = 'Account created! Please verify your email and have your parent/guardian verify consent.'
 
-                return created_response(data=response_data)
+                # Return legacy format for frontend compatibility
+                # TODO: Migrate to standardized format after updating frontend
+                return jsonify(response_data), 201
 
             # Fetch the complete user profile data to return to frontend
             user_profile = supabase.table('users').select('*').eq('id', auth_response.user.id).single().execute()
@@ -305,10 +307,9 @@ def register():
             response_data['app_access_token'] = app_access_token
             response_data['app_refresh_token'] = app_refresh_token
 
-            # Create standardized response
-            json_response, status_code = created_response(data=response_data)
-            response = make_response(json_response.get_data(as_text=True), status_code)
-            response.headers['Content-Type'] = 'application/json'
+            # Create response (legacy format for frontend compatibility)
+            # TODO: Migrate to standardized format after updating frontend
+            response = make_response(jsonify(response_data), 201)
 
             # Set httpOnly cookies for authentication (fallback method)
             session_manager.set_auth_cookies(response, auth_response.user.id)
@@ -386,9 +387,9 @@ def resend_verification():
 
         if not user_check.data:
             # Don't reveal if user doesn't exist for security
-            return success_response(
-                data={'message': 'If this email is registered, a verification email has been sent'}
-            )
+            # Return legacy format for frontend compatibility
+            # TODO: Migrate to standardized format after updating frontend
+            return jsonify({'message': 'If this email is registered, a verification email has been sent'}), 200
 
         user = user_check.data[0]
 
@@ -406,12 +407,12 @@ def resend_verification():
 
             logger.info(f"[RESEND_VERIFICATION] Result: {result}")
 
-            return success_response(
-                data={
-                    'message': 'Verification email request processed. Please check your inbox and spam folder.',
-                    'note': 'Supabase free tier allows 4 emails per hour. If you don\'t receive an email, you may have hit the rate limit.'
-                }
-            )
+            # Return legacy format for frontend compatibility
+            # TODO: Migrate to standardized format after updating frontend
+            return jsonify({
+                'message': 'Verification email request processed. Please check your inbox and spam folder.',
+                'note': 'Supabase free tier allows 4 emails per hour. If you don\'t receive an email, you may have hit the rate limit.'
+            }), 200
         except Exception as auth_error:
             error_str = str(auth_error).lower()
             logger.error(f"[RESEND_VERIFICATION] Supabase auth error: {str(auth_error)}")
@@ -432,12 +433,12 @@ def resend_verification():
                 )
             else:
                 # Don't reveal too much about errors for security
-                return success_response(
-                    data={
-                        'message': 'Verification email request processed. If an account exists, an email will be sent.',
-                        'note': 'Check spam folder. Supabase free tier has a 4 email/hour limit.'
-                    }
-                )
+                # Return legacy format for frontend compatibility
+                # TODO: Migrate to standardized format after updating frontend
+                return jsonify({
+                    'message': 'Verification email request processed. If an account exists, an email will be sent.',
+                    'note': 'Check spam folder. Supabase free tier has a 4 email/hour limit.'
+                }), 200
 
     except Exception as e:
         logger.error(f"[RESEND_VERIFICATION] Error: {str(e)}")

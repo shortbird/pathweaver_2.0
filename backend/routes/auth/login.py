@@ -266,7 +266,9 @@ def get_current_user():
             user_data = admin_client.table('users').select('*').eq('id', user_id).single().execute()
 
             if user_data.data:
-                return success_response(data=user_data.data)
+                # Return user data (legacy format for frontend compatibility)
+                # TODO: Migrate to standardized format after updating frontend
+                return jsonify(user_data.data), 200
             else:
                 return error_response(
                     code='USER_NOT_FOUND',
@@ -432,14 +434,14 @@ def login():
             app_access_token = session_manager.generate_access_token(auth_response.user.id)
             app_refresh_token = session_manager.generate_refresh_token(auth_response.user.id)
 
-            # Use standardized v1 response format
-            data = {
+            # Return user data and tokens (legacy format for frontend compatibility)
+            # TODO: Migrate to standardized format after updating frontend
+            response_data = {
                 'user': user_response_data,
                 'app_access_token': app_access_token,
                 'app_refresh_token': app_refresh_token,
             }
-            response_json, status_code = success_response(data)
-            response = make_response(response_json, status_code)
+            response = make_response(jsonify(response_data), 200)
 
             # Set httpOnly cookies for authentication (fallback for desktop browsers)
             session_manager.set_auth_cookies(response, auth_response.user.id)
@@ -650,14 +652,13 @@ def refresh_token():
         except Exception as e:
             logger.error(f"Failed to refresh Supabase session: {str(e)}")
 
-    # Return new tokens in response body using standardized format
-    data = {
+    # Return new tokens in response body (legacy format for frontend compatibility)
+    # TODO: Migrate to standardized format after updating frontend
+    response = make_response(jsonify({
         'message': 'Tokens refreshed successfully',
         'access_token': new_access_token,
         'refresh_token': new_refresh_token,
-    }
-    response_json, status_code = success_response(data)
-    response = make_response(response_json, status_code)
+    }), 200)
 
     # Set httpOnly cookies for authentication
     session_manager.set_auth_cookies(response, user_id)
