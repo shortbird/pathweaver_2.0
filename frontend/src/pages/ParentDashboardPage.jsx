@@ -50,9 +50,9 @@ const ParentDashboardPage = () => {
     return (
       <div className="max-w-7xl mx-auto px-4 py-12 text-center">
         <UserGroupIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
           Acting as {actingAsDependent.display_name}
-        </h2>
+        </h1>
         <p className="text-gray-600 font-medium mb-6" style={{ fontFamily: 'Poppins, sans-serif' }}>
           You're currently managing your child's profile. To view the parent dashboard, switch back to your profile using the banner in the bottom-left corner.
         </p>
@@ -230,9 +230,9 @@ const ParentDashboardPage = () => {
     return (
       <div className="max-w-7xl mx-auto px-4 py-12 text-center">
         <ExclamationTriangleIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
           Parent Access Only
-        </h2>
+        </h1>
         <p className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
           This dashboard is only available to parent accounts.
         </p>
@@ -266,9 +266,9 @@ const ParentDashboardPage = () => {
                   <PlusIcon className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-optio-purple transition-colors" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-optio-purple transition-colors" style={{ fontFamily: 'Poppins, sans-serif' }}>
                     Create Child Profile (Under 13)
-                  </h3>
+                  </h2>
                   <p className="text-gray-600 font-medium mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
                     For children under 13, you can create and fully manage their learning profile. Perfect for younger learners who need parental guidance.
                   </p>
@@ -292,9 +292,9 @@ const ParentDashboardPage = () => {
                   <UserGroupIcon className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-optio-pink transition-colors" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-optio-pink transition-colors" style={{ fontFamily: 'Poppins, sans-serif' }}>
                     Connect to Existing Student (13+)
-                  </h3>
+                  </h2>
                   <p className="text-gray-600 font-medium mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
                     For teens with their own Optio account, email support@optioeducation.com to request a connection.
                   </p>

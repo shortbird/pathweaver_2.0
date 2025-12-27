@@ -409,16 +409,18 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
 
           {/* Additional Feedback */}
           <div className="mb-8">
-            <h3 className="font-semibold text-lg mb-3" style={{ fontFamily: 'Poppins' }}>
+            <h3 id="additional-feedback-label" className="font-semibold text-lg mb-3" style={{ fontFamily: 'Poppins' }}>
               Any specific ideas? (Optional)
             </h3>
             <textarea
+              id="additional-feedback"
               value={additionalFeedback}
               onChange={(e) => setAdditionalFeedback(e.target.value)}
               placeholder="Tell us more about what you'd like to learn..."
               className="w-full p-4 border-2 border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent"
               rows={4}
               style={{ fontFamily: 'Poppins' }}
+              aria-labelledby="additional-feedback-label"
             />
           </div>
 
@@ -549,19 +551,22 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
       {showFlagModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-8 max-w-md w-full">
-            <h3 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
+            <h3 id="flag-modal-title" className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
               Flag This Task
             </h3>
-            <p className="text-gray-600 mb-4" style={{ fontFamily: 'Poppins' }}>
+            <p id="flag-modal-description" className="text-gray-600 mb-4" style={{ fontFamily: 'Poppins' }}>
               Help us improve by reporting tasks that don't make sense or are inappropriate.
             </p>
             <textarea
+              id="flag-reason"
               value={flagReason}
               onChange={(e) => setFlagReason(e.target.value)}
               placeholder="Why are you flagging this task? (optional)"
               className="w-full p-4 border-2 border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent mb-4"
               rows={4}
               style={{ fontFamily: 'Poppins' }}
+              aria-labelledby="flag-modal-title"
+              aria-describedby="flag-modal-description"
             />
             <div className="flex gap-3">
               <button

@@ -409,6 +409,18 @@ def test_config():
 
 # Error handlers are now managed by error_handler middleware
 
+# Register API v1 routes (API Versioning Infrastructure - Week 8, Dec 2025)
+# This registers all existing routes under /api/v1/* prefix for LMS integration readiness
+# Legacy /api/* routes remain active with deprecation warnings (sunset: June 30, 2026)
+try:
+    from routes.v1 import register_v1_routes
+    register_v1_routes(app)
+    logger.info("API v1 routes registered at /api/v1/* (versioning infrastructure complete)")
+except ImportError as e:
+    logger.warning(f"Warning: API v1 routes not yet fully migrated: {e}")
+except Exception as e:
+    logger.error(f"Error registering API v1 routes: {e}")
+
 # Initialize Swagger documentation (must be after all blueprints are registered)
 try:
     swagger = init_swagger(app)
