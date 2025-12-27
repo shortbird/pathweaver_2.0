@@ -64,7 +64,7 @@ def register_v1_routes(app: Flask):
     # Phase 1: Task routes (HIGH PRIORITY)
     try:
         from routes.v1 import tasks
-        app.register_blueprint(tasks.bp, url_prefix='/api/v1/tasks')
+        app.register_blueprint(tasks.bp, url_prefix='/api/v1/tasks', name='tasks_v1')
         registered_count += 1
         logger.info("✓ Registered v1 task routes")
     except ImportError:
@@ -75,8 +75,8 @@ def register_v1_routes(app: Flask):
     # Phase 1: Badge routes (HIGH PRIORITY)
     try:
         from routes.v1 import badges, badge_claiming
-        app.register_blueprint(badges.bp, url_prefix='/api/v1/badges')
-        app.register_blueprint(badge_claiming.badge_claiming_bp, url_prefix='/api/v1')
+        app.register_blueprint(badges.bp, url_prefix='/api/v1/badges', name='badges_v1')
+        app.register_blueprint(badge_claiming.badge_claiming_bp, url_prefix='/api/v1', name='badge_claiming_v1')
         registered_count += 1
         logger.info("✓ Registered v1 badge routes")
     except ImportError:
@@ -109,7 +109,7 @@ def register_v1_routes(app: Flask):
     # Phase 2: Portfolio routes (MEDIUM PRIORITY)
     try:
         from routes.v1 import portfolio
-        app.register_blueprint(portfolio.bp, url_prefix='/api/v1/portfolio')
+        app.register_blueprint(portfolio.bp, url_prefix='/api/v1/portfolio', name='portfolio_v1')
         registered_count += 1
         logger.info("✓ Registered v1 portfolio routes")
     except ImportError:
@@ -130,7 +130,7 @@ def register_v1_routes(app: Flask):
 
     try:
         from routes.v1 import dependents
-        app.register_blueprint(dependents.bp, url_prefix='/api/v1/dependents')
+        app.register_blueprint(dependents.bp, url_prefix='/api/v1/dependents', name='dependents_v1')
         registered_count += 1
         logger.info("✓ Registered v1 dependent routes")
     except ImportError:
@@ -141,7 +141,7 @@ def register_v1_routes(app: Flask):
     # Phase 2: Observer routes (MEDIUM PRIORITY)
     try:
         from routes.v1 import observer
-        app.register_blueprint(observer.bp, url_prefix='/api/v1/observers')
+        app.register_blueprint(observer.bp, url_prefix='/api/v1/observers', name='observers_v1')
         registered_count += 1
         logger.info("✓ Registered v1 observer routes")
     except ImportError:
@@ -152,7 +152,7 @@ def register_v1_routes(app: Flask):
     # Phase 3: Community/Social routes (LOW PRIORITY)
     try:
         from routes.v1 import community
-        app.register_blueprint(community.bp, url_prefix='/api/v1/community')
+        app.register_blueprint(community.bp, url_prefix='/api/v1/community', name='community_v1')
         registered_count += 1
         logger.info("✓ Registered v1 community routes")
     except ImportError:
@@ -174,13 +174,44 @@ def register_v1_routes(app: Flask):
     # Phase 3: LMS Integration routes (LOW PRIORITY)
     try:
         from routes.v1 import lms_integration
-        app.register_blueprint(lms_integration.bp, url_prefix='/api/v1/lms')
+        app.register_blueprint(lms_integration.bp, url_prefix='/api/v1/lms', name='lms_integration_v1')
         registered_count += 1
         logger.info("✓ Registered v1 LMS integration routes")
     except ImportError:
         logger.warning("✗ LMS integration routes v1 not yet migrated")
     except Exception as e:
         logger.error(f"✗ Failed to register v1 LMS integration routes: {e}")
+
+    # Phase 4: Additional API routes (MEDIUM PRIORITY)
+    try:
+        from routes.v1 import uploads
+        app.register_blueprint(uploads.bp, url_prefix='/api/v1/uploads', name='uploads_v1')
+        registered_count += 1
+        logger.info("✓ Registered v1 uploads routes")
+    except ImportError:
+        logger.warning("✗ Uploads routes v1 not yet migrated")
+    except Exception as e:
+        logger.error(f"✗ Failed to register v1 uploads routes: {e}")
+
+    try:
+        from routes.v1 import settings
+        app.register_blueprint(settings.bp, url_prefix='/api/v1', name='settings_v1')
+        registered_count += 1
+        logger.info("✓ Registered v1 settings routes")
+    except ImportError:
+        logger.warning("✗ Settings routes v1 not yet migrated")
+    except Exception as e:
+        logger.error(f"✗ Failed to register v1 settings routes: {e}")
+
+    try:
+        from routes.v1 import credits
+        app.register_blueprint(credits.bp, url_prefix='/api/v1/credits', name='credits_v1')
+        registered_count += 1
+        logger.info("✓ Registered v1 credits routes")
+    except ImportError:
+        logger.warning("✗ Credits routes v1 not yet migrated")
+    except Exception as e:
+        logger.error(f"✗ Failed to register v1 credits routes: {e}")
 
     # Log summary
     logger.info(f"API v1 route registration complete: {registered_count} route groups registered")
