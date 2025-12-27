@@ -11,10 +11,19 @@ const BASE_URL = 'https://optio-dev-frontend.onrender.com';
 
 async function login(page) {
   await page.goto(`${BASE_URL}/login`);
+
+  // Check if already logged in
+  const currentUrl = page.url();
+  if (!currentUrl.includes('/login')) {
+    return;
+  }
+
   await page.fill('input[type="email"]', 'test@optioeducation.com');
   await page.fill('input[type="password"]', 'TestPassword123!');
   await page.click('button[type="submit"]');
-  await page.waitForURL(/.*\/dashboard/, { timeout: 15000 });
+
+  // Wait for redirect away from login page
+  await page.waitForURL(url => !url.href.includes('/login'), { timeout: 15000 });
 }
 
 test.describe('WebKit Diagnostics', () => {

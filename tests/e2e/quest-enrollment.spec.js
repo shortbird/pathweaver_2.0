@@ -125,11 +125,15 @@ test.describe('Quest Enrollment', () => {
       // 4. URL to change (enrollment success)
       await page.waitForTimeout(3000); // Wait for enrollment to process
 
-      const enrollmentSuccess = page.locator('button:has-text("SET DOWN"), button:has-text("Set Down"), text=/personalize|customize|task/i');
+      const setDownButton = page.locator('button').filter({ hasText: /set down/i });
+      const personalizeContent = page.locator('text=/personalize|customize|task/i');
+      const enrollmentSuccess = setDownButton.or(personalizeContent);
       await expect(enrollmentSuccess.first()).toBeVisible({ timeout: 10000 });
     } else {
       // Quest is already enrolled - should see "SET DOWN QUEST" button or task list
-      const enrolledIndicators = page.locator('button:has-text("SET DOWN"), button:has-text("Set Down"), text=/task|Your Evidence/i');
+      const setDownButton = page.locator('button').filter({ hasText: /set down/i });
+      const taskContent = page.locator('text=/task|Your Evidence/i');
+      const enrolledIndicators = setDownButton.or(taskContent);
       await expect(enrolledIndicators.first()).toBeVisible({ timeout: 5000 });
     }
   });
@@ -200,7 +204,9 @@ test.describe('Quest Enrollment', () => {
       }
 
       // Should eventually show enrollment success indicators
-      const successIndicators = page.locator('button:has-text("SET DOWN"), button:has-text("Set Down"), text=/task|Your Evidence/i');
+      const setDownButton = page.locator('button').filter({ hasText: /set down/i });
+      const taskContent = page.locator('text=/task|Your Evidence/i');
+      const successIndicators = setDownButton.or(taskContent);
       await expect(successIndicators.first()).toBeVisible({ timeout: 10000 });
     } else {
       // All quests are already enrolled - skip this test
@@ -237,7 +243,10 @@ test.describe('Quest Enrollment', () => {
     await page.waitForURL(/.*\/quests\/[a-f0-9-]{36}/, { timeout: 10000 });
 
     // Should show enrollment indicators: SET DOWN button, Continue button, or task list
-    const enrolledIndicators = page.locator('button:has-text("SET DOWN"), button:has-text("Set Down"), button:has-text("Continue"), text=/task|Your Evidence/i');
+    const setDownButton = page.locator('button').filter({ hasText: /set down/i });
+    const continueButton = page.locator('button').filter({ hasText: /continue/i });
+    const taskContent = page.locator('text=/task|Your Evidence/i');
+    const enrolledIndicators = setDownButton.or(continueButton).or(taskContent);
     await expect(enrolledIndicators.first()).toBeVisible({ timeout: 10000 });
   });
 
