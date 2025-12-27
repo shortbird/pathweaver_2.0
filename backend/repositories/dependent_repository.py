@@ -58,13 +58,13 @@ class DependentRepository(BaseRepository):
             ValidationError: If validation fails (age > 13, parent not valid, etc.)
             PermissionError: If parent doesn't have permission
         """
-        # Validate parent exists and has parent role (get organization_id too)
+        # Validate parent exists and has parent or admin role (get organization_id too)
         parent = self.client.table('users').select('id, role, organization_id, first_name, last_name').eq('id', parent_id).single().execute()
         if not parent.data:
             raise NotFoundError(f"Parent with ID {parent_id} not found")
 
-        if parent.data.get('role') != 'parent':
-            raise PermissionError(f"User {parent_id} is not a parent")
+        if parent.data.get('role') not in ['parent', 'admin']:
+            raise PermissionError(f"User {parent_id} is not a parent or admin")
 
         # Validate age (must be under 13)
         age = self._calculate_age(date_of_birth)
