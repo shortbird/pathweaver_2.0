@@ -136,13 +136,14 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
           {/* Quest Details */}
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-semibold mb-2 text-gray-800">
+              <label htmlFor="unified-quest-title" className="block text-sm font-semibold mb-2 text-gray-800">
                 Quest Title
                 <span className="text-red-500 font-bold ml-1">*</span>
                 <span className="text-xs font-normal text-gray-500 ml-1">(Required)</span>
               </label>
               <input
                 type="text"
+                id="unified-quest-title"
                 value={formData.title}
                 onChange={(e) => {
                   setFormData({ ...formData, title: e.target.value })
@@ -167,11 +168,12 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-600">
+              <label htmlFor="unified-quest-big-idea" className="block text-sm font-medium mb-2 text-gray-600">
                 Big Idea / Description
                 <span className="text-xs text-gray-400 ml-1">(Optional)</span>
               </label>
               <textarea
+                id="unified-quest-big-idea"
                 value={formData.big_idea}
                 onChange={(e) => setFormData({ ...formData, big_idea: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
@@ -184,8 +186,9 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-600">Status</label>
+              <label htmlFor="unified-quest-status" className="block text-sm font-medium mb-2 text-gray-600">Status</label>
               <select
+                id="unified-quest-status"
                 value={formData.is_active.toString()}
                 onChange={(e) => setFormData({ ...formData, is_active: e.target.value === 'true' })}
                 className="w-full px-3 py-2 border rounded-lg"

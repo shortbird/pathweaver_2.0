@@ -45,11 +45,10 @@ class Config:
     
     # Validate secret key security
     if not SECRET_KEY or SECRET_KEY in ['dev-secret-key', 'your-secret-key', 'dev-secret-key-change-in-production']:
-        if FLASK_ENV == 'production':
-            raise ValueError("FLASK_SECRET_KEY must be set to a secure value in production!")
-        else:
-            # NOTE: print() used here due to circular dependency - logger not available yet
-            SECRET_KEY = 'dev-secret-key-change-in-production'
+        raise ValueError(
+            "FLASK_SECRET_KEY environment variable is required. "
+            "Generate a secure key with: python -c 'import secrets; print(secrets.token_hex(32))'"
+        )
 
     # Ensure minimum length for security (from centralized constants)
     if len(SECRET_KEY) < MIN_SECRET_KEY_LENGTH:

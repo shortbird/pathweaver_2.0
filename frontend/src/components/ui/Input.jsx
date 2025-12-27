@@ -5,6 +5,7 @@ import React from 'react';
  *
  * Standardizes form input patterns across 80+ instances
  *
+ * @param {string} id - Input ID for label association (accessibility)
  * @param {string} type - Input type (default: 'text')
  * @param {string} value - Input value
  * @param {function} onChange - Change handler
@@ -17,6 +18,7 @@ import React from 'react';
  * @param {object} ...props - Additional input props
  */
 export const Input = React.forwardRef(({
+  id,
   type = 'text',
   value,
   onChange,
@@ -38,6 +40,7 @@ export const Input = React.forwardRef(({
     <div className="w-full">
       <input
         ref={ref}
+        id={id}
         type={type}
         value={value}
         onChange={onChange}
@@ -59,6 +62,7 @@ Input.displayName = 'Input';
 /**
  * Textarea Component - Multi-line text input with consistent styling
  *
+ * @param {string} id - Textarea ID for label association (accessibility)
  * @param {string} value - Textarea value
  * @param {function} onChange - Change handler
  * @param {string} placeholder - Placeholder text
@@ -71,6 +75,7 @@ Input.displayName = 'Input';
  * @param {object} ...props - Additional textarea props
  */
 export const Textarea = React.forwardRef(({
+  id,
   value,
   onChange,
   placeholder,
@@ -92,6 +97,7 @@ export const Textarea = React.forwardRef(({
     <div className="w-full">
       <textarea
         ref={ref}
+        id={id}
         value={value}
         onChange={onChange}
         placeholder={placeholder}
@@ -113,6 +119,7 @@ Textarea.displayName = 'Textarea';
 /**
  * Select Component - Dropdown with consistent styling
  *
+ * @param {string} id - Select ID for label association (accessibility)
  * @param {string} value - Selected value
  * @param {function} onChange - Change handler
  * @param {Array} options - Options array: [{ value, label }]
@@ -125,6 +132,7 @@ Textarea.displayName = 'Textarea';
  * @param {object} ...props - Additional select props
  */
 export const Select = React.forwardRef(({
+  id,
   value,
   onChange,
   options = [],
@@ -147,6 +155,7 @@ export const Select = React.forwardRef(({
     <div className="w-full">
       <select
         ref={ref}
+        id={id}
         value={value}
         onChange={onChange}
         required={required}

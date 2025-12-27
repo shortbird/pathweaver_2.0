@@ -112,9 +112,14 @@ try:
     from routes.admin import task_approval
     app.register_blueprint(quest_personalization.bp)  # /api/quests/* (specific routes)
     app.register_blueprint(task_approval.bp)  # /api/admin/manual-tasks/*
+except ImportError as e:
+    logger.error(f"CRITICAL: Failed to import quest_personalization module: {e}", exc_info=True)
+    raise
+except (ValueError, AttributeError, KeyError) as e:
+    logger.error(f"CRITICAL: Configuration error in quest_personalization blueprint: {e}", exc_info=True)
+    raise
 except Exception as e:
-    logger.error(f"CRITICAL: Failed to register quest_personalization blueprint: {e}", exc_info=True)
-    # Re-raise to see full traceback in production logs
+    logger.error(f"CRITICAL: Unexpected error registering quest_personalization blueprint: {e}", exc_info=True)
     raise
 
 # Register quest routes (refactored from quests.py mega-file to 4 modules - P2-ARCH-1)
@@ -133,8 +138,10 @@ try:
     from routes.admin.subject_backfill import bp as subject_backfill_bp
     app.register_blueprint(subject_backfill_bp)  # /api/admin/subject-backfill
     logger.info("Registered subject_backfill blueprint directly to app")
+except ImportError as e:
+    logger.warning(f"Warning: Subject backfill module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Subject backfill routes not available: {e}")
+    logger.error(f"Error registering subject backfill routes: {e}", exc_info=True)
 
 app.register_blueprint(admin_core.bp)   # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(user_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
@@ -158,50 +165,64 @@ app.register_blueprint(webhooks.webhooks_bp, url_prefix='/api/webhooks')  # /api
 try:
     from routes import quest_types
     app.register_blueprint(quest_types.bp)  # /api/quests (has url_prefix='/api/quests')
+except ImportError as e:
+    logger.warning(f"Warning: Quest types module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Quest types routes not available: {e}")
+    logger.error(f"Error registering quest types routes: {e}", exc_info=True)
 # collaborations.bp removed in Phase 1 refactoring (January 2025)
 # Conditionally import and register Quest AI blueprint
 try:
     from routes import quest_ai
     app.register_blueprint(quest_ai.bp)  # /api/quest-ai
+except ImportError as e:
+    logger.warning(f"Warning: Quest AI module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Quest AI routes not available: {e}")
+    logger.error(f"Error registering Quest AI routes: {e}", exc_info=True)
 
 # Register AI Tutor blueprints (refactored from tutor.py mega-file to 2 modules - P2-ARCH-1)
 try:
     from routes.tutor import register_tutor_blueprints
     register_tutor_blueprints(app)  # /api/tutor (chat, management modules)
+except ImportError as e:
+    logger.warning(f"Warning: AI Tutor module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: AI Tutor routes not available: {e}")
+    logger.error(f"Error registering AI Tutor routes: {e}", exc_info=True)
 
 # Register Task Library blueprint
 try:
     from routes import task_library
     app.register_blueprint(task_library.task_library_bp)  # /api/quests/<quest_id>/task-library
+except ImportError as e:
+    logger.warning(f"Warning: Task Library module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Task Library routes not available: {e}")
+    logger.error(f"Error registering Task Library routes: {e}", exc_info=True)
 
 # Register LMS Integration blueprint
 try:
     from routes import lms_integration
     app.register_blueprint(lms_integration.bp)  # /lti/* and /api/lms/*
+except ImportError as e:
+    logger.warning(f"Warning: LMS Integration module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: LMS Integration routes not available: {e}")
+    logger.error(f"Error registering LMS Integration routes: {e}", exc_info=True)
 
 # Register Spark LMS Integration blueprint (January 2025)
 try:
     from routes import spark_integration
     app.register_blueprint(spark_integration.bp)  # /spark/* endpoints
+except ImportError as e:
+    logger.warning(f"Warning: Spark LMS Integration module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Spark LMS Integration routes not available: {e}")
+    logger.error(f"Error registering Spark LMS Integration routes: {e}", exc_info=True)
 
 # Register Observer Role blueprint (January 2025)
 try:
     from routes import observer
     app.register_blueprint(observer.bp)  # /api/observers/* endpoints
+except ImportError as e:
+    logger.warning(f"Warning: Observer role module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Observer role routes not available: {e}")
+    logger.error(f"Error registering Observer role routes: {e}", exc_info=True)
 
 
 # Register Badge System blueprints
@@ -211,8 +232,10 @@ try:
     app.register_blueprint(credits.bp)  # /api/credits
     app.register_blueprint(admin_badge_seed.bp)  # /api/admin/seed
     app.register_blueprint(quest_badge_hub.bp)  # /api/hub
+except ImportError as e:
+    logger.warning(f"Warning: Badge system module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Badge system routes not available: {e}")
+    logger.error(f"Error registering Badge system routes: {e}", exc_info=True)
 
 # Register Quest Lifecycle blueprints (Pick Up/Set Down system - January 2025)
 try:
@@ -220,61 +243,77 @@ try:
     from routes.badge_claiming import badge_claiming_bp
     app.register_blueprint(quest_lifecycle_bp, url_prefix='/api')  # /api/quests/:id/pickup, /api/quests/:id/setdown
     app.register_blueprint(badge_claiming_bp, url_prefix='/api')  # /api/badges/:id/claim, /api/badges/claimable
+except ImportError as e:
+    logger.warning(f"Warning: Quest Lifecycle module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Quest Lifecycle routes not available: {e}")
+    logger.error(f"Error registering Quest Lifecycle routes: {e}", exc_info=True)
 
 # Register AI Jobs blueprint (admin)
 try:
     from routes.admin import ai_jobs
     app.register_blueprint(ai_jobs.ai_jobs_bp, url_prefix='/api/admin')  # /api/admin/*
+except ImportError as e:
+    logger.warning(f"Warning: AI Jobs module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: AI Jobs routes not available: {e}")
+    logger.error(f"Error registering AI Jobs routes: {e}", exc_info=True)
 
 # Register Parental Consent blueprint (COPPA compliance)
 try:
     from routes import parental_consent
     app.register_blueprint(parental_consent.bp, url_prefix='/api')  # /api/parental-consent, /api/admin/parental-consent
+except ImportError as e:
+    logger.warning(f"Warning: Parental Consent module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Parental Consent routes not available: {e}")
+    logger.error(f"Error registering Parental Consent routes: {e}", exc_info=True)
 
 # Register Account Deletion blueprint (GDPR/CCPA compliance)
 try:
     from routes import account_deletion
     app.register_blueprint(account_deletion.bp, url_prefix='/api')  # /api/users/delete-account
+except ImportError as e:
+    logger.warning(f"Warning: Account Deletion module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Account Deletion routes not available: {e}")
+    logger.error(f"Error registering Account Deletion routes: {e}", exc_info=True)
 
 # Register Advisor blueprint
 try:
     from routes import advisor
     app.register_blueprint(advisor.advisor_bp, url_prefix='/api/advisor')  # /api/advisor/*
+except ImportError as e:
+    logger.warning(f"Warning: Advisor module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Advisor routes not available: {e}")
+    logger.error(f"Error registering Advisor routes: {e}", exc_info=True)
 
 # Register Advisor Check-ins blueprint
 try:
     from routes.advisor_checkins import checkins_bp
     app.register_blueprint(checkins_bp)  # /api/advisor/checkins/* (full paths in route definitions)
+except ImportError as e:
+    logger.error(f"CRITICAL: Failed to import Advisor Check-ins module: {e}", exc_info=True)
+except (ValueError, AttributeError, KeyError) as e:
+    logger.error(f"CRITICAL: Configuration error in Advisor Check-ins blueprint: {e}", exc_info=True)
 except Exception as e:
-    logger.error(f"CRITICAL: Failed to register Advisor Check-ins routes: {e}")
-    import traceback
-    logger.error(traceback.format_exc())
+    logger.error(f"CRITICAL: Unexpected error registering Advisor Check-ins routes: {e}", exc_info=True)
 
 # Register Advisor Notes blueprint
 try:
     from routes.advisor_notes import notes_bp
     app.register_blueprint(notes_bp)  # /api/advisor/notes/* (full paths in route definitions)
+except ImportError as e:
+    logger.error(f"CRITICAL: Failed to import Advisor Notes module: {e}", exc_info=True)
+except (ValueError, AttributeError, KeyError) as e:
+    logger.error(f"CRITICAL: Configuration error in Advisor Notes blueprint: {e}", exc_info=True)
 except Exception as e:
-    logger.error(f"CRITICAL: Failed to register Advisor Notes routes: {e}")
-    import traceback
-    logger.error(traceback.format_exc())
+    logger.error(f"CRITICAL: Unexpected error registering Advisor Notes routes: {e}", exc_info=True)
 
 # Register Direct Messages blueprint
 try:
     from routes import direct_messages
     app.register_blueprint(direct_messages.bp)  # /api/messages
+except ImportError as e:
+    logger.warning(f"Warning: Direct Messages module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Direct Messages routes not available: {e}")
+    logger.error(f"Error registering Direct Messages routes: {e}", exc_info=True)
 
 # AI Quest Review routes removed in admin cleanup (January 2025)
 # Batch generation and AI tools have been removed from the admin panel
@@ -283,8 +322,10 @@ except Exception as e:
 try:
     from routes.admin import khan_academy_sync
     app.register_blueprint(khan_academy_sync.bp)  # /api/admin/khan-academy/* (blueprint has url_prefix)
+except ImportError as e:
+    logger.warning(f"Warning: Khan Academy Sync module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Khan Academy Sync routes not available: {e}")
+    logger.error(f"Error registering Khan Academy Sync routes: {e}", exc_info=True)
 
 # Tier Management routes removed in Phase 2 refactoring (January 2025)
 # All subscription tier functionality has been removed from the platform
@@ -300,43 +341,55 @@ except Exception as e:
 try:
     from routes import student_ai_assistance
     app.register_blueprint(student_ai_assistance.student_ai_bp, url_prefix='/api/student-ai')  # /api/student-ai/*
+except ImportError as e:
+    logger.warning(f"Warning: Student AI Assistance module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Student AI Assistance routes not available: {e}")
+    logger.error(f"Error registering Student AI Assistance routes: {e}", exc_info=True)
 
 # Register Batch Quest Generation blueprint (admin)
 try:
     from routes.admin import batch_quest_generation
     app.register_blueprint(batch_quest_generation.batch_generation_bp, url_prefix='/api/admin/batch-generation')  # /api/admin/batch-generation/*
+except ImportError as e:
+    logger.warning(f"Warning: Batch Quest Generation module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Batch Quest Generation routes not available: {e}")
+    logger.error(f"Error registering Batch Quest Generation routes: {e}", exc_info=True)
 
 # Register AI Quest Review blueprint (admin)
 try:
     from routes.admin import ai_quest_review
     app.register_blueprint(ai_quest_review.ai_quest_review_bp, url_prefix='/api/admin/ai-quest-review')  # /api/admin/ai-quest-review/*
+except ImportError as e:
+    logger.warning(f"Warning: AI Quest Review module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: AI Quest Review routes not available: {e}")
+    logger.error(f"Error registering AI Quest Review routes: {e}", exc_info=True)
 
 # Register Batch Badge Generation blueprint (admin)
 try:
     from routes.admin import batch_badge_generation
     app.register_blueprint(batch_badge_generation.batch_badge_generation_bp, url_prefix='/api/admin/batch-badge-generation')  # /api/admin/batch-badge-generation/*
+except ImportError as e:
+    logger.warning(f"Warning: Batch Badge Generation module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Batch Badge Generation routes not available: {e}")
+    logger.error(f"Error registering Batch Badge Generation routes: {e}", exc_info=True)
 
 # Register Calendar blueprint
 try:
     from routes.calendar import calendar_bp
     app.register_blueprint(calendar_bp)  # /api/calendar
+except ImportError as e:
+    logger.warning(f"Warning: Calendar module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Calendar routes not available: {e}")
+    logger.error(f"Error registering Calendar routes: {e}", exc_info=True)
 
 # Register Learning Events blueprint
 try:
     from routes.learning_events import learning_events_bp
     app.register_blueprint(learning_events_bp)  # /api/learning-events
+except ImportError as e:
+    logger.warning(f"Warning: Learning Events module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Learning Events routes not available: {e}")
+    logger.error(f"Error registering Learning Events routes: {e}", exc_info=True)
 
 # Register Parent Dashboard blueprints (refactored from parent_dashboard.py mega-file to 4 modules - P2-ARCH-1)
 try:
@@ -348,21 +401,27 @@ try:
     # Register dependent profiles blueprint (January 2025 - COPPA-compliant dependent profiles)
     from routes import dependents
     app.register_blueprint(dependents.bp)  # /api/dependents (blueprint has url_prefix='/api/dependents')
+except ImportError as e:
+    logger.warning(f"Warning: Parent Dashboard module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Parent Dashboard routes not available: {e}")
+    logger.error(f"Error registering Parent Dashboard routes: {e}", exc_info=True)
 
 # Register Pillars Configuration API blueprint (public endpoint)
 try:
     from routes.pillars import pillars_bp
     app.register_blueprint(pillars_bp, url_prefix='/api')  # /api/pillars
+except ImportError as e:
+    logger.warning(f"Warning: Pillars Configuration API module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Pillars Configuration API routes not available: {e}")
+    logger.error(f"Error registering Pillars Configuration API routes: {e}", exc_info=True)
 
 # Register Activity Tracking & Analytics blueprint
 try:
     app.register_blueprint(analytics_routes.analytics_bp, url_prefix='/api/analytics')  # /api/analytics/* and /api/activity/*
+except ImportError as e:
+    logger.warning(f"Warning: Activity Tracking module not available: {e}")
 except Exception as e:
-    logger.warning(f"Warning: Activity Tracking routes not available: {e}")
+    logger.error(f"Error registering Activity Tracking routes: {e}", exc_info=True)
 
 
 @app.route('/', methods=['GET', 'HEAD'])
@@ -404,8 +463,12 @@ def test_config():
         from database import get_supabase_client
         client = get_supabase_client()
         config_status['supabase_connection'] = 'success'
+    except ImportError as e:
+        config_status['supabase_connection'] = f'import error: {str(e)}'
+    except (ConnectionError, TimeoutError) as e:
+        config_status['supabase_connection'] = f'connection failed: {str(e)}'
     except Exception as e:
-        config_status['supabase_connection'] = f'failed: {str(e)}'
+        config_status['supabase_connection'] = f'unexpected error: {str(e)}'
     
     return jsonify(config_status), 200
 
@@ -426,14 +489,18 @@ try:
 except ImportError as e:
     logger.warning(f"Warning: API v1 routes not yet fully migrated: {e}")
 except Exception as e:
-    logger.error(f"Error registering API v1 routes: {e}")
+    logger.error(f"Error registering API v1 routes: {e}", exc_info=True)
 
 # Initialize Swagger documentation (must be after all blueprints are registered)
 try:
     swagger = init_swagger(app)
     logger.info("Swagger API documentation initialized at /api/docs")
+except ImportError as e:
+    logger.warning(f"Warning: Swagger module not available: {e}")
+except (ValueError, AttributeError, KeyError) as e:
+    logger.error(f"Error: Swagger configuration error: {e}", exc_info=True)
 except Exception as e:
-    logger.warning(f"Warning: Swagger documentation initialization failed: {e}")
+    logger.error(f"Error: Swagger documentation initialization failed: {e}", exc_info=True)
 
 if __name__ == '__main__':
     import os

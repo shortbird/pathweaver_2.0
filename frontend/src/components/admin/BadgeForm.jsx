@@ -130,12 +130,13 @@ const BadgeForm = ({ mode = 'create', badge = null, onClose, onSuccess }) => {
           <div className="space-y-6">
             {/* Badge Name */}
             <div>
-              <label className="block text-sm font-semibold mb-2 text-gray-800">
+              <label htmlFor="badge-name" className="block text-sm font-semibold mb-2 text-gray-800">
                 Badge Name
                 <span className="text-red-500 font-bold ml-1">*</span>
                 <span className="text-xs font-normal text-gray-500 ml-1">(Required)</span>
               </label>
               <input
+                id="badge-name"
                 type="text"
                 value={formData.name}
                 onChange={(e) => {
@@ -162,12 +163,13 @@ const BadgeForm = ({ mode = 'create', badge = null, onClose, onSuccess }) => {
 
             {/* Identity Statement */}
             <div>
-              <label className="block text-sm font-semibold mb-2 text-gray-800">
+              <label htmlFor="badge-identity-statement" className="block text-sm font-semibold mb-2 text-gray-800">
                 Identity Statement
                 <span className="text-red-500 font-bold ml-1">*</span>
                 <span className="text-xs font-normal text-gray-500 ml-1">(Required)</span>
               </label>
               <input
+                id="badge-identity-statement"
                 type="text"
                 value={formData.identity_statement}
                 onChange={(e) => {
@@ -194,12 +196,13 @@ const BadgeForm = ({ mode = 'create', badge = null, onClose, onSuccess }) => {
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-semibold mb-2 text-gray-800">
+              <label htmlFor="badge-description" className="block text-sm font-semibold mb-2 text-gray-800">
                 Description
                 <span className="text-red-500 font-bold ml-1">*</span>
                 <span className="text-xs font-normal text-gray-500 ml-1">(Required)</span>
               </label>
               <textarea
+                id="badge-description"
                 value={formData.description}
                 onChange={(e) => {
                   setFormData({ ...formData, description: e.target.value })
@@ -226,11 +229,12 @@ const BadgeForm = ({ mode = 'create', badge = null, onClose, onSuccess }) => {
 
             {/* Primary Pillar */}
             <div>
-              <label className="block text-sm font-semibold mb-2 text-gray-800">
+              <label htmlFor="badge-pillar-primary" className="block text-sm font-semibold mb-2 text-gray-800">
                 Primary Pillar
                 <span className="text-red-500 font-bold ml-1">*</span>
               </label>
               <select
+                id="badge-pillar-primary"
                 value={formData.pillar_primary}
                 onChange={(e) => setFormData({ ...formData, pillar_primary: e.target.value })}
                 className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
@@ -250,11 +254,12 @@ const BadgeForm = ({ mode = 'create', badge = null, onClose, onSuccess }) => {
             <div className="grid grid-cols-2 gap-4">
               {/* Minimum Quests */}
               <div>
-                <label className="block text-sm font-semibold mb-2 text-gray-800">
+                <label htmlFor="badge-min-quests" className="block text-sm font-semibold mb-2 text-gray-800">
                   Minimum Quests
                   <span className="text-red-500 font-bold ml-1">*</span>
                 </label>
                 <input
+                  id="badge-min-quests"
                   type="number"
                   min="1"
                   value={formData.min_quests}
@@ -276,11 +281,12 @@ const BadgeForm = ({ mode = 'create', badge = null, onClose, onSuccess }) => {
 
               {/* Minimum XP */}
               <div>
-                <label className="block text-sm font-semibold mb-2 text-gray-800">
+                <label htmlFor="badge-min-xp" className="block text-sm font-semibold mb-2 text-gray-800">
                   Minimum XP
                   <span className="text-red-500 font-bold ml-1">*</span>
                 </label>
                 <input
+                  id="badge-min-xp"
                   type="number"
                   min="0"
                   step="50"
@@ -304,8 +310,9 @@ const BadgeForm = ({ mode = 'create', badge = null, onClose, onSuccess }) => {
 
             {/* Status Toggle */}
             <div>
-              <label className="block text-sm font-semibold mb-2 text-gray-800">Status</label>
+              <label htmlFor="badge-status" className="block text-sm font-semibold mb-2 text-gray-800">Status</label>
               <select
+                id="badge-status"
                 value={formData.is_active.toString()}
                 onChange={(e) => setFormData({ ...formData, is_active: e.target.value === 'true' })}
                 className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"

@@ -167,7 +167,7 @@ def get_quests_for_hub():
     try:
         # This endpoint is essentially a wrapper around the existing quests endpoint
         # We'll import and use the existing quest listing logic
-        from routes.quests import list_quests
+        from routes.quest.listing import list_quests
 
         # Call the existing quest list endpoint
         return list_quests()

@@ -213,6 +213,7 @@ const AIQuestReviewModal = ({ isOpen, onClose, onApprove }) => {
                 }}
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 style={{ fontFamily: 'Poppins, sans-serif' }}
+                aria-label="Filter quests by source"
               >
                 <option value="all">All Sources</option>
                 <option value="batch">Batch Generated</option>
@@ -245,6 +246,7 @@ const AIQuestReviewModal = ({ isOpen, onClose, onApprove }) => {
               placeholder="Search by title or description..."
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
               style={{ fontFamily: 'Poppins, sans-serif' }}
+              aria-label="Search quests by title or description"
             />
           </div>
         </div>
@@ -276,7 +278,7 @@ const AIQuestReviewModal = ({ isOpen, onClose, onApprove }) => {
             <div className="space-y-4">
               {/* Select All */}
               {statusFilter === 'pending_review' && filteredQuests.length > 0 && (
-                <div className="flex items-center gap-2 p-3 bg-gray-100 rounded-lg">
+                <label className="flex items-center gap-2 p-3 bg-gray-100 rounded-lg cursor-pointer">
                   <input
                     type="checkbox"
                     checked={selectedQuests.size === filteredQuests.length}
@@ -286,7 +288,7 @@ const AIQuestReviewModal = ({ isOpen, onClose, onApprove }) => {
                   <span className="text-sm font-medium text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
                     Select All ({filteredQuests.length})
                   </span>
-                </div>
+                </label>
               )}
 
               {/* Quest Cards */}
@@ -307,6 +309,7 @@ const AIQuestReviewModal = ({ isOpen, onClose, onApprove }) => {
                           checked={selectedQuests.has(quest.id)}
                           onChange={() => toggleQuestSelection(quest.id)}
                           className="mt-1 w-5 h-5 text-optio-purple rounded focus:ring-optio-purple"
+                          aria-label={`Select quest: ${questData.title || 'Untitled Quest'}`}
                         />
                       )}
 

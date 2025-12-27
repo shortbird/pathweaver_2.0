@@ -321,12 +321,13 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
             <div className="flex-1 overflow-y-auto p-4">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-gray-800">
+                  <label htmlFor="custom-task-title" className="block text-sm font-semibold mb-2 text-gray-800">
                     Task Title
                     <span className="text-red-500 font-bold ml-1">*</span>
                   </label>
                   <input
                     type="text"
+                    id="custom-task-title"
                     value={customTask.title}
                     onChange={(e) => {
                       setCustomTask({ ...customTask, title: e.target.value })
@@ -344,10 +345,11 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-600">
+                  <label htmlFor="custom-task-description" className="block text-sm font-medium mb-2 text-gray-600">
                     Task Description (Optional)
                   </label>
                   <textarea
+                    id="custom-task-description"
                     value={customTask.description}
                     onChange={(e) => setCustomTask({ ...customTask, description: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg border-gray-300"
@@ -357,11 +359,12 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-gray-800">
+                  <label htmlFor="custom-task-pillar" className="block text-sm font-semibold mb-2 text-gray-800">
                     Learning Pillar
                     <span className="text-red-500 font-bold ml-1">*</span>
                   </label>
                   <select
+                    id="custom-task-pillar"
                     value={customTask.pillar}
                     onChange={(e) => {
                       setCustomTask({ ...customTask, pillar: e.target.value })
@@ -385,12 +388,13 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-gray-800">
+                  <label htmlFor="custom-task-xp" className="block text-sm font-semibold mb-2 text-gray-800">
                     XP Value
                     <span className="text-red-500 font-bold ml-1">*</span>
                   </label>
                   <input
                     type="number"
+                    id="custom-task-xp"
                     value={customTask.xp_value}
                     onChange={(e) => {
                       setCustomTask({ ...customTask, xp_value: parseInt(e.target.value) || 0 })

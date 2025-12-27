@@ -138,6 +138,24 @@ def register():
         if should_log_sensitive_data():
             logger.debug(f"Registration attempt for email: {mask_email(email)}")
 
+        # COPPA Compliance: Check age BEFORE creating auth user
+        requires_parental_consent = False
+        if date_of_birth:
+            try:
+                dob = datetime.strptime(date_of_birth, '%Y-%m-%d').date()
+                age = (date.today() - dob).days / 365.25
+                requires_parental_consent = age < 13
+
+                # If user is under 13, parent email is required
+                if requires_parental_consent and not parent_email:
+                    logger.info(f"[REGISTRATION] User under 13 without parent email - COPPA block")
+                    return jsonify({
+                        'error': 'Users under 13 require parental consent',
+                        'require_parent_email': True
+                    }), 403
+            except ValueError:
+                raise ValidationError("Invalid date of birth format. Use YYYY-MM-DD")
+
         # Use admin client for registration to bypass RLS
         supabase = get_supabase_admin_client()
 
@@ -193,19 +211,8 @@ def register():
             sanitized_first_name = sanitize_input(original_first_name)
             sanitized_last_name = sanitize_input(original_last_name)
 
-            # Calculate age if date of birth is provided
-            requires_parental_consent = False
-            if date_of_birth:
-                try:
-                    dob = datetime.strptime(date_of_birth, '%Y-%m-%d').date()
-                    age = (date.today() - dob).days // 365
-                    requires_parental_consent = age < 13
-
-                    # If user is under 13, parent email is required
-                    if requires_parental_consent and not parent_email:
-                        raise ValidationError("Parent/guardian email is required for users under 13")
-                except ValueError:
-                    raise ValidationError("Invalid date of birth format. Use YYYY-MM-DD")
+            # Note: Age verification already performed earlier (COPPA compliance)
+            # requires_parental_consent variable is already set
 
             # Create user profile in our users table
             user_data = {

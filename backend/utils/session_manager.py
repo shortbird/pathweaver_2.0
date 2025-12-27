@@ -32,6 +32,10 @@ class SessionManager:
         self.masquerade_token_expiry = timedelta(hours=1)  # Masquerade sessions expire faster
         self.acting_as_token_expiry = timedelta(hours=24)  # Acting as dependent sessions (longer for parents)
 
+        # Session timeout configuration (independent of token expiry)
+        # This provides an additional layer of security by enforcing absolute session timeouts
+        self.SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT_HOURS', '24'))
+
         # Log token versioning status
         if self.previous_secret_key:
             logger.info(f"[SessionManager] Token versioning enabled (version: {self.token_version}, supports old keys)")
@@ -72,7 +76,40 @@ class SessionManager:
             except Exception as e:
                 logger.warning(f"[SessionManager] Failed to extract cookie domain: {e}")
                 self.cookie_domain = None
-        
+
+    def is_session_expired(self, session_data: Dict[str, Any]) -> bool:
+        """Check if session has exceeded timeout period
+
+        Args:
+            session_data: JWT payload containing 'iat' (issued at) claim
+
+        Returns:
+            bool: True if session is expired, False otherwise
+        """
+        if not session_data:
+            return True
+
+        # Use JWT's 'iat' (issued at) claim as session creation time
+        created_at = session_data.get('iat')
+        if not created_at:
+            return True
+
+        # Convert Unix timestamp to datetime
+        session_created_at = datetime.fromtimestamp(created_at, tz=timezone.utc)
+        session_age = datetime.now(timezone.utc) - session_created_at
+
+        # Check if session age exceeds configured timeout
+        timeout_exceeded = session_age.total_seconds() > (self.SESSION_TIMEOUT * 3600)
+
+        if timeout_exceeded:
+            logger.info(
+                f"[SessionManager] Session timeout exceeded | "
+                f"Age: {session_age.total_seconds() / 3600:.2f} hours | "
+                f"Limit: {self.SESSION_TIMEOUT} hours"
+            )
+
+        return timeout_exceeded
+
     def generate_access_token(self, user_id: str) -> str:
         """Generate a JWT access token"""
         payload = {
@@ -129,6 +166,10 @@ class SessionManager:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
             if payload.get('type') == 'access':
+                # Check session timeout
+                if self.is_session_expired(payload):
+                    logger.info(f"[SessionManager] Access token rejected: session timeout exceeded")
+                    return None
                 return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
             pass
@@ -138,6 +179,10 @@ class SessionManager:
             try:
                 payload = jwt.decode(token, self.previous_secret_key, algorithms=['HS256'])
                 if payload.get('type') == 'access':
+                    # Check session timeout
+                    if self.is_session_expired(payload):
+                        logger.info(f"[SessionManager] Access token (old key) rejected: session timeout exceeded")
+                        return None
                     logger.info(f"[SessionManager] Token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
@@ -151,6 +196,10 @@ class SessionManager:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
             if payload.get('type') == 'refresh':
+                # Check session timeout
+                if self.is_session_expired(payload):
+                    logger.info(f"[SessionManager] Refresh token rejected: session timeout exceeded")
+                    return None
                 return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
             pass
@@ -160,6 +209,10 @@ class SessionManager:
             try:
                 payload = jwt.decode(token, self.previous_secret_key, algorithms=['HS256'])
                 if payload.get('type') == 'refresh':
+                    # Check session timeout
+                    if self.is_session_expired(payload):
+                        logger.info(f"[SessionManager] Refresh token (old key) rejected: session timeout exceeded")
+                        return None
                     logger.info(f"[SessionManager] Refresh token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
@@ -173,6 +226,10 @@ class SessionManager:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
             if payload.get('type') == 'masquerade':
+                # Check session timeout
+                if self.is_session_expired(payload):
+                    logger.info(f"[SessionManager] Masquerade token rejected: session timeout exceeded")
+                    return None
                 return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
             pass
@@ -182,6 +239,10 @@ class SessionManager:
             try:
                 payload = jwt.decode(token, self.previous_secret_key, algorithms=['HS256'])
                 if payload.get('type') == 'masquerade':
+                    # Check session timeout
+                    if self.is_session_expired(payload):
+                        logger.info(f"[SessionManager] Masquerade token (old key) rejected: session timeout exceeded")
+                        return None
                     logger.info(f"[SessionManager] Masquerade token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
@@ -195,6 +256,10 @@ class SessionManager:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
             if payload.get('type') == 'acting_as_dependent':
+                # Check session timeout
+                if self.is_session_expired(payload):
+                    logger.info(f"[SessionManager] Acting-as token rejected: session timeout exceeded")
+                    return None
                 return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
             pass
@@ -204,6 +269,10 @@ class SessionManager:
             try:
                 payload = jwt.decode(token, self.previous_secret_key, algorithms=['HS256'])
                 if payload.get('type') == 'acting_as_dependent':
+                    # Check session timeout
+                    if self.is_session_expired(payload):
+                        logger.info(f"[SessionManager] Acting-as token (old key) rejected: session timeout exceeded")
+                        return None
                     logger.info(f"[SessionManager] Acting-as token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):

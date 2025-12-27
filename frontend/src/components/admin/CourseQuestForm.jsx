@@ -222,12 +222,13 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
               {/* Quest Details */}
               <div className="space-y-6 mb-8">
             <div>
-              <label className="block text-sm font-semibold mb-2 text-gray-800">
+              <label htmlFor="course-quest-title" className="block text-sm font-semibold mb-2 text-gray-800">
                 Quest Title
                 <span className="text-red-500 font-bold ml-1">*</span>
               </label>
               <input
                 type="text"
+                id="course-quest-title"
                 value={formData.title}
                 onChange={(e) => {
                   setFormData({ ...formData, title: e.target.value });
@@ -247,10 +248,11 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-600">
+              <label htmlFor="course-quest-description" className="block text-sm font-medium mb-2 text-gray-600">
                 Description
               </label>
               <textarea
+                id="course-quest-description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
@@ -260,11 +262,12 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-600">
+              <label htmlFor="course-material-link" className="block text-sm font-medium mb-2 text-gray-600">
                 Curriculum Source Link
               </label>
               <input
                 type="url"
+                id="course-material-link"
                 value={formData.material_link}
                 onChange={(e) => setFormData({ ...formData, material_link: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
@@ -277,10 +280,11 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
 
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-600">
+                <label htmlFor="course-lms-platform" className="block text-sm font-medium mb-2 text-gray-600">
                   LMS Platform
                 </label>
                 <select
+                  id="course-lms-platform"
                   value={formData.lms_platform}
                   onChange={(e) => setFormData({ ...formData, lms_platform: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
@@ -294,11 +298,12 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-600">
+                <label htmlFor="course-lms-course-id" className="block text-sm font-medium mb-2 text-gray-600">
                   Course ID
                 </label>
                 <input
                   type="text"
+                  id="course-lms-course-id"
                   value={formData.lms_course_id}
                   onChange={(e) => setFormData({ ...formData, lms_course_id: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
@@ -307,11 +312,12 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-600">
+                <label htmlFor="course-lms-assignment-id" className="block text-sm font-medium mb-2 text-gray-600">
                   Assignment ID
                 </label>
                 <input
                   type="text"
+                  id="course-lms-assignment-id"
                   value={formData.lms_assignment_id}
                   onChange={(e) => setFormData({ ...formData, lms_assignment_id: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
@@ -321,8 +327,9 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-600">Status</label>
+              <label htmlFor="course-quest-status" className="block text-sm font-medium mb-2 text-gray-600">Status</label>
               <select
+                id="course-quest-status"
                 value={formData.is_active.toString()}
                 onChange={(e) => setFormData({ ...formData, is_active: e.target.value === 'true' })}
                 className="w-full px-3 py-2 border rounded-lg"
@@ -380,8 +387,10 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
                       {/* Task Fields */}
                       <div className="flex-1 space-y-3">
                         <div>
+                          <label htmlFor={`course-task-${index}-title`} className="sr-only">Task title</label>
                           <input
                             type="text"
+                            id={`course-task-${index}-title`}
                             value={task.title}
                             onChange={(e) => updateTask(index, 'title', e.target.value)}
                             className={`w-full px-3 py-2 border rounded-lg ${
@@ -396,7 +405,9 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
                           )}
                         </div>
 
+                        <label htmlFor={`course-task-${index}-description`} className="sr-only">Task description</label>
                         <textarea
+                          id={`course-task-${index}-description`}
                           value={task.description}
                           onChange={(e) => updateTask(index, 'description', e.target.value)}
                           className="w-full px-3 py-2 border rounded-lg"
@@ -405,29 +416,37 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
                         />
 
                         <div className="flex gap-3">
-                          <select
-                            value={task.pillar}
-                            onChange={(e) => updateTask(index, 'pillar', e.target.value)}
-                            className="flex-1 px-3 py-2 border rounded-lg"
-                          >
-                            {pillars.map((p) => {
-                              const pd = getPillarData(p);
-                              return (
-                                <option key={p} value={p}>
-                                  {pd.icon} {pd.name}
-                                </option>
-                              );
-                            })}
-                          </select>
+                          <div className="flex-1">
+                            <label htmlFor={`course-task-${index}-pillar`} className="sr-only">Pillar</label>
+                            <select
+                              id={`course-task-${index}-pillar`}
+                              value={task.pillar}
+                              onChange={(e) => updateTask(index, 'pillar', e.target.value)}
+                              className="w-full px-3 py-2 border rounded-lg"
+                            >
+                              {pillars.map((p) => {
+                                const pd = getPillarData(p);
+                                return (
+                                  <option key={p} value={p}>
+                                    {pd.icon} {pd.name}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          </div>
 
-                          <input
-                            type="number"
-                            value={task.xp_value}
-                            onChange={(e) => updateTask(index, 'xp_value', e.target.value)}
-                            className="w-24 px-3 py-2 border rounded-lg"
-                            min="50"
-                            max="500"
-                          />
+                          <div>
+                            <label htmlFor={`course-task-${index}-xp`} className="sr-only">XP value</label>
+                            <input
+                              type="number"
+                              id={`course-task-${index}-xp`}
+                              value={task.xp_value}
+                              onChange={(e) => updateTask(index, 'xp_value', e.target.value)}
+                              className="w-24 px-3 py-2 border rounded-lg"
+                              min="50"
+                              max="500"
+                            />
+                          </div>
                         </div>
                       </div>
 

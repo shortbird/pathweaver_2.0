@@ -42,19 +42,24 @@ def get_all_advisors(user_id):
             .order('display_name')\
             .execute()
 
-        # For each advisor/admin, get count of assigned students
+        # Get all active assignments in a single query
+        all_assignments = supabase.table('advisor_student_assignments')\
+            .select('advisor_id')\
+            .eq('is_active', True)\
+            .execute()
+
+        # Build a count map for efficient lookup
+        assignment_counts = {}
+        for assignment in all_assignments.data:
+            advisor_id = assignment['advisor_id']
+            assignment_counts[advisor_id] = assignment_counts.get(advisor_id, 0) + 1
+
+        # Build advisor list with counts
         advisor_list = []
         for advisor in advisors.data:
-            # Count active assignments
-            assignments = supabase.table('advisor_student_assignments')\
-                .select('id', count='exact')\
-                .eq('advisor_id', advisor['id'])\
-                .eq('is_active', True)\
-                .execute()
-
             advisor_list.append({
                 **advisor,
-                'assigned_students_count': assignments.count or 0
+                'assigned_students_count': assignment_counts.get(advisor['id'], 0)
             })
 
         return jsonify({
@@ -63,8 +68,26 @@ def get_all_advisors(user_id):
             'total': len(advisor_list)
         })
 
+    except AttributeError as e:
+        logger.error(f"Database response missing expected attributes in get_all_advisors: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Invalid database response format'
+        }), 500
+    except KeyError as e:
+        logger.error(f"Missing required field in get_all_advisors: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Missing required data field'
+        }), 500
+    except (ConnectionError, TimeoutError) as e:
+        logger.error(f"Database connection error in get_all_advisors: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Database connection failed'
+        }), 503
     except Exception as e:
-        logger.error(f"Error getting advisors: {str(e)}")
+        logger.error(f"Unexpected error in get_all_advisors: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve advisors'
@@ -91,27 +114,42 @@ def get_advisor_students(user_id, advisor_id):
         if advisor.data.get('role') not in ['advisor', 'admin']:
             return jsonify({'success': False, 'error': 'User is not an advisor or admin'}), 400
 
-        # Get assigned students with assignment details
+        # Get assigned students with assignment details in a single query
         assignments = supabase.table('advisor_student_assignments')\
             .select('id, student_id, assigned_at, assigned_by, is_active')\
             .eq('advisor_id', advisor_id)\
             .eq('is_active', True)\
             .execute()
 
-        # Get student details for each assignment
+        # Get all student IDs
+        student_ids = [assignment['student_id'] for assignment in assignments.data]
+
+        if not student_ids:
+            return jsonify({
+                'success': True,
+                'advisor': advisor.data,
+                'students': [],
+                'total': 0
+            })
+
+        # Get all students in a single query
+        students_result = supabase.table('users')\
+            .select('id, display_name, first_name, last_name, email')\
+            .in_('id', student_ids)\
+            .execute()
+
+        # Create a lookup map for students
+        students_map = {student['id']: student for student in students_result.data}
+
+        # Build the final list with assignment details
         students = []
         for assignment in assignments.data:
-            student = supabase.table('users')\
-                .select('id, display_name, first_name, last_name, email')\
-                .eq('id', assignment['student_id'])\
-                .single()\
-                .execute()
-
-            if student.data:
+            student = students_map.get(assignment['student_id'])
+            if student:
                 students.append({
                     'assignment_id': assignment['id'],
                     'assigned_at': assignment['assigned_at'],
-                    **student.data
+                    **student
                 })
 
         return jsonify({
@@ -121,8 +159,26 @@ def get_advisor_students(user_id, advisor_id):
             'total': len(students)
         })
 
+    except AttributeError as e:
+        logger.error(f"Database response missing expected attributes in get_advisor_students: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Invalid database response format'
+        }), 500
+    except KeyError as e:
+        logger.error(f"Missing required field in get_advisor_students: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Missing required data field'
+        }), 500
+    except (ConnectionError, TimeoutError) as e:
+        logger.error(f"Database connection error in get_advisor_students: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Database connection failed'
+        }), 503
     except Exception as e:
-        logger.error(f"Error getting advisor students: {str(e)}")
+        logger.error(f"Unexpected error in get_advisor_students: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve assigned students'
@@ -224,11 +280,35 @@ def assign_student_to_advisor(user_id, advisor_id):
             'assignment': result.data[0] if result.data else None
         })
 
-    except Exception as e:
-        logger.error(f"Error assigning student to advisor: {str(e)}")
+    except ValueError as e:
+        logger.error(f"Invalid JSON in assign_student_to_advisor: {str(e)}")
         return jsonify({
             'success': False,
-            'error': f'Failed to assign student: {str(e)}'
+            'error': 'Invalid request format'
+        }), 400
+    except KeyError as e:
+        logger.error(f"Missing required field in assign_student_to_advisor: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Missing required field'
+        }), 400
+    except AttributeError as e:
+        logger.error(f"Database response missing expected attributes in assign_student_to_advisor: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Invalid database response format'
+        }), 500
+    except (ConnectionError, TimeoutError) as e:
+        logger.error(f"Database connection error in assign_student_to_advisor: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Database connection failed'
+        }), 503
+    except Exception as e:
+        logger.error(f"Unexpected error in assign_student_to_advisor: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'Failed to assign student'
         }), 500
 
 
@@ -264,11 +344,29 @@ def unassign_student_from_advisor(user_id, advisor_id, student_id):
             'message': 'Student unassigned from advisor successfully'
         })
 
-    except Exception as e:
-        logger.error(f"Error unassigning student from advisor: {str(e)}")
+    except AttributeError as e:
+        logger.error(f"Database response missing expected attributes in unassign_student_from_advisor: {str(e)}")
         return jsonify({
             'success': False,
-            'error': f'Failed to unassign student: {str(e)}'
+            'error': 'Invalid database response format'
+        }), 500
+    except KeyError as e:
+        logger.error(f"Missing required field in unassign_student_from_advisor: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Missing required data field'
+        }), 500
+    except (ConnectionError, TimeoutError) as e:
+        logger.error(f"Database connection error in unassign_student_from_advisor: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Database connection failed'
+        }), 503
+    except Exception as e:
+        logger.error(f"Unexpected error in unassign_student_from_advisor: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'Failed to unassign student'
         }), 500
 
 
@@ -309,8 +407,26 @@ def get_unassigned_students(user_id):
             'total': len(unassigned_students)
         })
 
+    except AttributeError as e:
+        logger.error(f"Database response missing expected attributes in get_unassigned_students: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Invalid database response format'
+        }), 500
+    except KeyError as e:
+        logger.error(f"Missing required field in get_unassigned_students: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Missing required data field'
+        }), 500
+    except (ConnectionError, TimeoutError) as e:
+        logger.error(f"Database connection error in get_unassigned_students: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Database connection failed'
+        }), 503
     except Exception as e:
-        logger.error(f"Error getting unassigned students: {str(e)}")
+        logger.error(f"Unexpected error in get_unassigned_students: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve unassigned students'

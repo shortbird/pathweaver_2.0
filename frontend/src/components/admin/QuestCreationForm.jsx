@@ -82,16 +82,16 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
   }
 
   // Enhanced field components
-  const RequiredFieldLabel = ({ children }) => (
-    <label className="block text-sm font-semibold mb-2 text-gray-800">
+  const RequiredFieldLabel = ({ children, htmlFor }) => (
+    <label htmlFor={htmlFor} className="block text-sm font-semibold mb-2 text-gray-800">
       {children}
       <span className="text-red-500 font-bold ml-1">*</span>
       <span className="text-xs font-normal text-gray-500 ml-1">(Required)</span>
     </label>
   )
 
-  const OptionalFieldLabel = ({ children }) => (
-    <label className="block text-sm font-medium mb-2 text-gray-600">
+  const OptionalFieldLabel = ({ children, htmlFor }) => (
+    <label htmlFor={htmlFor} className="block text-sm font-medium mb-2 text-gray-600">
       {children}
       <span className="text-xs text-gray-400 ml-1">(Optional)</span>
     </label>
@@ -448,9 +448,10 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
           
           <div className="space-y-6 mb-8">
             <div>
-              <RequiredFieldLabel>Quest Title</RequiredFieldLabel>
+              <RequiredFieldLabel htmlFor="quest-title">Quest Title</RequiredFieldLabel>
               <input
                 type="text"
+                id="quest-title"
                 value={formData.title}
                 onChange={(e) => {
                   setFormData({ ...formData, title: e.target.value })
@@ -476,10 +477,11 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                 </div>
               )}
             </div>
-            
+
             <div>
-              <OptionalFieldLabel>Big Idea / Description</OptionalFieldLabel>
+              <OptionalFieldLabel htmlFor="quest-big-idea">Big Idea / Description</OptionalFieldLabel>
               <textarea
+                id="quest-big-idea"
                 value={formData.big_idea}
                 onChange={(e) => {
                   setFormData({ ...formData, big_idea: e.target.value })
@@ -498,12 +500,13 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
             
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Source</label>
+                <label htmlFor="quest-source" className="block text-sm font-medium mb-2">Source</label>
                 {showNewSourceForm ? (
                   <NewSourceForm />
                 ) : (
                   <div className="flex gap-2">
                     <select
+                      id="quest-source"
                       value={formData.source}
                       onChange={(e) => setFormData({ ...formData, source: e.target.value })}
                       className="flex-1 px-3 py-2 border rounded-lg"
@@ -525,10 +528,11 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                   </div>
                 )}
               </div>
-              
+
               <div>
-                <label className="block text-sm font-medium mb-2">Status</label>
+                <label htmlFor="quest-status" className="block text-sm font-medium mb-2">Status</label>
                 <select
+                  id="quest-status"
                   value={formData.is_active.toString()}
                   onChange={(e) => setFormData({ ...formData, is_active: e.target.value === 'true' })}
                   className="w-full px-3 py-2 border rounded-lg"
@@ -571,9 +575,10 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                 {/* Essential Fields - Always Visible */}
                 <div className="space-y-4 mb-6">
                   <div>
-                    <RequiredFieldLabel>Task Title</RequiredFieldLabel>
+                    <RequiredFieldLabel htmlFor={`task-${index}-title`}>Task Title</RequiredFieldLabel>
                     <input
                       type="text"
+                      id={`task-${index}-title`}
                       value={task.title}
                       onChange={(e) => updateTask(index, 'title', e.target.value)}
                       className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_title`] ? 'border-red-500' : 'border-gray-300'}`}
@@ -591,8 +596,9 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <RequiredFieldLabel>Learning Pillar</RequiredFieldLabel>
+                      <RequiredFieldLabel htmlFor={`task-${index}-pillar`}>Learning Pillar</RequiredFieldLabel>
                       <select
+                        id={`task-${index}-pillar`}
                         value={task.pillar}
                         onChange={(e) => updateTask(index, 'pillar', e.target.value)}
                         className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_pillar`] ? 'border-red-500' : 'border-gray-300'}`}
@@ -714,9 +720,10 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <RequiredFieldLabel>XP Reward</RequiredFieldLabel>
+                      <RequiredFieldLabel htmlFor={`task-${index}-xp`}>XP Reward</RequiredFieldLabel>
                       <input
                         type="number"
+                        id={`task-${index}-xp`}
                         value={task.xp_value}
                         onChange={(e) => updateTask(index, 'xp_value', parseInt(e.target.value) || 0)}
                         className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_xp`] ? 'border-red-500' : 'border-gray-300'}`}
@@ -754,8 +761,9 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                   {expandedTasks[index] && (
                     <div className="space-y-4 animate-in slide-in-from-top-5 duration-200">
                       <div>
-                        <OptionalFieldLabel>Task Description</OptionalFieldLabel>
+                        <OptionalFieldLabel htmlFor={`task-${index}-description`}>Task Description</OptionalFieldLabel>
                         <textarea
+                          id={`task-${index}-description`}
                           value={task.description}
                           onChange={(e) => updateTask(index, 'description', e.target.value)}
                           className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
@@ -768,9 +776,10 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                       </div>
 
                       <div>
-                        <OptionalFieldLabel>Evidence Prompt</OptionalFieldLabel>
+                        <OptionalFieldLabel htmlFor={`task-${index}-evidence-prompt`}>Evidence Prompt</OptionalFieldLabel>
                         <input
                           type="text"
+                          id={`task-${index}-evidence-prompt`}
                           value={task.evidence_prompt}
                           onChange={(e) => updateTask(index, 'evidence_prompt', e.target.value)}
                           className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
@@ -844,8 +853,9 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
           <div className="space-y-6 mb-8">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <OptionalFieldLabel>Location Type</OptionalFieldLabel>
+                <OptionalFieldLabel htmlFor="quest-location-type">Location Type</OptionalFieldLabel>
                 <select
+                  id="quest-location-type"
                   value={formData.metadata.location_type}
                   onChange={(e) => setFormData({
                     ...formData,
@@ -864,9 +874,10 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
               {formData.metadata.location_type === 'specific_location' && (
                 <>
                   <div>
-                    <OptionalFieldLabel>Venue Name</OptionalFieldLabel>
+                    <OptionalFieldLabel htmlFor="quest-venue-name">Venue Name</OptionalFieldLabel>
                     <input
                       type="text"
+                      id="quest-venue-name"
                       value={formData.metadata.venue_name}
                       onChange={(e) => setFormData({
                         ...formData,
@@ -876,11 +887,12 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                       placeholder="e.g., Community Center"
                     />
                   </div>
-                  
+
                   <div className="col-span-2">
-                    <OptionalFieldLabel>Address</OptionalFieldLabel>
+                    <OptionalFieldLabel htmlFor="quest-location-address">Address</OptionalFieldLabel>
                     <input
                       type="text"
+                      id="quest-location-address"
                       value={formData.metadata.location_address}
                       onChange={(e) => setFormData({
                         ...formData,
@@ -892,11 +904,12 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                   </div>
                 </>
               )}
-              
+
               <div>
-                <OptionalFieldLabel>Seasonal Start Date</OptionalFieldLabel>
+                <OptionalFieldLabel htmlFor="quest-seasonal-start">Seasonal Start Date</OptionalFieldLabel>
                 <input
                   type="date"
+                  id="quest-seasonal-start"
                   value={formData.metadata.seasonal_start}
                   onChange={(e) => setFormData({
                     ...formData,
@@ -905,11 +918,12 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                   className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                 />
               </div>
-              
+
               <div>
-                <OptionalFieldLabel>Seasonal End Date</OptionalFieldLabel>
+                <OptionalFieldLabel htmlFor="quest-seasonal-end">Seasonal End Date</OptionalFieldLabel>
                 <input
                   type="date"
+                  id="quest-seasonal-end"
                   value={formData.metadata.seasonal_end}
                   onChange={(e) => setFormData({
                     ...formData,

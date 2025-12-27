@@ -206,6 +206,7 @@ const AdminUsers = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Search users by name or email"
               />
             </form>
           </div>
@@ -213,6 +214,7 @@ const AdminUsers = () => {
             value={filters.role}
             onChange={(e) => handleFilterChange('role', e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Filter by role"
           >
             <option value="all">All Roles</option>
             <option value="student">Students</option>
@@ -224,6 +226,7 @@ const AdminUsers = () => {
             value={filters.activity}
             onChange={(e) => handleFilterChange('activity', e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Filter by activity status"
           >
             <option value="all">All Activity</option>
             <option value="active_7">Active (7 days)</option>
@@ -234,6 +237,7 @@ const AdminUsers = () => {
             value={filters.sortBy}
             onChange={(e) => handleFilterChange('sortBy', e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Sort users by"
           >
             <option value="created_at">Join Date</option>
             <option value="last_active">Last Active</option>

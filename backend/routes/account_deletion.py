@@ -424,3 +424,193 @@ def export_user_data(current_user):
             'error': 'Failed to export user data',
             'details': str(e) if os.getenv('FLASK_ENV') == 'development' else None
         }), 500
+
+@bp.route('/users/delete-account-permanent', methods=['DELETE'])
+@require_auth
+@rate_limit(max_requests=1, window_seconds=3600)  # 1 permanent deletion per hour (safety measure)
+def delete_user_account_permanent(current_user):
+    """
+    Permanently delete user account and all associated data (GDPR Right to Erasure)
+
+    This is an IRREVERSIBLE operation that immediately deletes all user data.
+    For a safer option with a grace period, use POST /users/delete-account instead.
+
+    GDPR Compliance: Article 17 - Right to Erasure
+    """
+    try:
+        user_id = current_user['id']
+
+        # Admin client: Admin operations for cross-table deletion (ADR-002, Rule 2)
+        supabase = get_supabase_admin_client()
+
+        # Verify user exists before attempting deletion
+        user_response = supabase.table('users').select('id, email, first_name, last_name').eq('id', user_id).execute()
+
+        if not user_response.data:
+            raise NotFoundError("User not found")
+
+        user = user_response.data[0]
+        logger.info(f"[GDPR_DELETE] Starting permanent deletion for user {user_id}")
+
+        # Log deletion for compliance audit trail (before deleting user data)
+        try:
+            supabase.table('account_deletion_log').insert({
+                'user_id': user_id,
+                'email': user.get('email'),
+                'first_name': user.get('first_name'),
+                'last_name': user.get('last_name'),
+                'deletion_requested_at': datetime.utcnow().isoformat(),
+                'deletion_completed_at': datetime.utcnow().isoformat(),
+                'reason': 'GDPR permanent deletion',
+                'user_data': json.dumps({'deletion_type': 'permanent', 'gdpr_request': True})
+            }).execute()
+        except Exception as log_error:
+            logger.error(f"Failed to log deletion (continuing anyway): {str(log_error)}")
+
+        # Delete in reverse dependency order to avoid foreign key violations
+        deletion_tables = [
+            # Evidence and task completion data
+            'evidence_document_blocks',
+            'quest_task_completions',
+            'user_quest_tasks',
+            'user_quests',
+
+            # Social features
+            ('friendships', 'or_(f"requester_id.eq.{user_id},addressee_id.eq.{user_id}")'),
+            'direct_messages',  # Both sent and received
+
+            # Skills and achievements
+            'user_skill_xp',
+            'user_badges',
+
+            # AI Tutor data
+            'tutor_messages',  # Delete messages before conversations
+            'tutor_conversations',
+
+            # Compliance and access logs
+            'parental_consent_log',
+            'student_access_logs',
+            'observer_audit_log',
+            'advisor_student_notes',
+
+            # Observer relationships
+            'observer_student_links',
+
+            # Diploma/Portfolio
+            'diplomas',
+
+            # User profile (must be last)
+            'users'
+        ]
+
+        deleted_counts = {}
+
+        for table in deletion_tables:
+            try:
+                # Handle special case for friendships (needs OR query)
+                if isinstance(table, tuple):
+                    table_name, query_filter = table
+                    # Delete friendships where user is either requester or addressee
+                    result = supabase.table(table_name).delete().or_(
+                        f'requester_id.eq.{user_id},addressee_id.eq.{user_id}'
+                    ).execute()
+                    deleted_counts[table_name] = len(result.data) if result.data else 0
+                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table_name]} rows from {table_name}")
+
+                # Handle direct_messages (user can be sender or recipient)
+                elif table == 'direct_messages':
+                    # Delete messages sent by user
+                    sent_result = supabase.table(table).delete().eq('sender_id', user_id).execute()
+                    sent_count = len(sent_result.data) if sent_result.data else 0
+
+                    # Delete messages received by user
+                    received_result = supabase.table(table).delete().eq('recipient_id', user_id).execute()
+                    received_count = len(received_result.data) if received_result.data else 0
+
+                    deleted_counts[table] = sent_count + received_count
+                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table]} rows from {table}")
+
+                # Handle tutor_messages (must join through conversations)
+                elif table == 'tutor_messages':
+                    # First get conversation IDs for this user
+                    conversations = supabase.table('tutor_conversations').select('id').eq('user_id', user_id).execute()
+                    if conversations.data:
+                        conversation_ids = [conv['id'] for conv in conversations.data]
+                        result = supabase.table(table).delete().in_('conversation_id', conversation_ids).execute()
+                        deleted_counts[table] = len(result.data) if result.data else 0
+                    else:
+                        deleted_counts[table] = 0
+                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table]} rows from {table}")
+
+                # Handle advisor notes (user is student)
+                elif table == 'advisor_student_notes':
+                    result = supabase.table(table).delete().eq('student_id', user_id).execute()
+                    deleted_counts[table] = len(result.data) if result.data else 0
+                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table]} rows from {table}")
+
+                # Handle student access logs
+                elif table == 'student_access_logs':
+                    result = supabase.table(table).delete().eq('student_id', user_id).execute()
+                    deleted_counts[table] = len(result.data) if result.data else 0
+                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table]} rows from {table}")
+
+                # Handle observer audit log
+                elif table == 'observer_audit_log':
+                    result = supabase.table(table).delete().eq('student_id', user_id).execute()
+                    deleted_counts[table] = len(result.data) if result.data else 0
+                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table]} rows from {table}")
+
+                # Handle observer relationships (user could be observer or student)
+                elif table == 'observer_student_links':
+                    # Delete where user is observer
+                    observer_result = supabase.table(table).delete().eq('observer_id', user_id).execute()
+                    observer_count = len(observer_result.data) if observer_result.data else 0
+
+                    # Delete where user is student
+                    student_result = supabase.table(table).delete().eq('student_id', user_id).execute()
+                    student_count = len(student_result.data) if student_result.data else 0
+
+                    deleted_counts[table] = observer_count + student_count
+                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table]} rows from {table}")
+
+                # Standard deletion for all other tables
+                else:
+                    result = supabase.table(table).delete().eq('user_id', user_id).execute()
+                    deleted_counts[table] = len(result.data) if result.data else 0
+                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table]} rows from {table}")
+
+            except Exception as table_error:
+                error_str = str(table_error).lower()
+                table_name = table if isinstance(table, str) else table[0]
+
+                # Log error but continue (table might not exist or have no data)
+                if 'does not exist' in error_str or 'relation' in error_str:
+                    logger.warning(f"[GDPR_DELETE] Table {table_name} does not exist, skipping")
+                    deleted_counts[table_name] = 0
+                elif 'no rows' in error_str or 'not found' in error_str:
+                    logger.info(f"[GDPR_DELETE] No data found in {table_name}")
+                    deleted_counts[table_name] = 0
+                else:
+                    logger.error(f"[GDPR_DELETE] Error deleting from {table_name}: {str(table_error)}")
+                    # Don't fail the entire operation if one table fails
+                    deleted_counts[table_name] = 'error'
+
+        logger.info(f"[GDPR_DELETE] Deletion completed for user {user_id}")
+
+        return jsonify({
+            'message': 'Account and all associated data permanently deleted',
+            'user_id': user_id,
+            'deletion_summary': deleted_counts,
+            'gdpr_compliance': 'Article 17 - Right to Erasure'
+        }), 200
+
+    except NotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error during permanent account deletion: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'error': 'Failed to permanently delete account',
+            'details': str(e) if os.getenv('FLASK_ENV') == 'development' else None
+        }), 500
