@@ -4,13 +4,14 @@
 
 ## Critical Rules
 
-1. **LOCAL VERIFICATION REQUIRED before pushing** (Windows only) - See LOCAL_DEVELOPMENT.md for setup
+1. **LOCAL VERIFICATION REQUIRED before committing** (Windows only) - See LOCAL_DEVELOPMENT.md for setup
    - Implement the fix/feature
-   - Start local servers: backend (`venv/Scripts/python.exe backend/app.py`) + frontend (`cd frontend && npm run dev`)
-   - User verifies at http://localhost:3000
-   - Push to `develop` ONLY after user confirms the fix works
+   - Start local servers (if not already running): backend + frontend
+   - **ASK USER TO VERIFY** at http://localhost:3000 - DO NOT commit until user confirms
+   - **NEVER commit to develop until user says the fix works**
+   - Wait for explicit user confirmation like "looks good", "verified", "works", etc.
    - DO NOT run `npx playwright test` locally (E2E tests run via GitHub Actions only)
-2. **ALWAYS commit to `develop`** - Auto-commit unless told otherwise (don't push without permission)
+2. **ALWAYS commit to `develop`** - But ONLY after user verification (don't push without permission)
 3. **NEVER use emojis** - Professional tone only
 4. **Verify database schema** - Use Supabase MCP before ANY query (table names change)
 5. **Use Optio brand colors** - `optio-purple`/`optio-pink` (NOT `purple-600`/`pink-600`)
@@ -96,11 +97,12 @@ NOTE: The batch files don't work well from Claude Code's bash environment. Use t
 
 ### Development Workflow
 
-**MANDATORY: User must verify locally before any push to develop**
+**MANDATORY: User must verify locally before any commit to develop**
 
 1. **Implement the Fix/Feature**:
    - Edit frontend files in `frontend/src/` → Browser auto-reloads instantly
-   - Edit backend files in `backend/` → Flask auto-restarts (2-3 seconds)
+   - Edit backend files in `backend/` → **MUST RESTART BACKEND** for changes to take effect
+     - Kill and restart: `npx kill-port 5001 && cd C:/Users/tanne/Desktop/pw_v2 && venv/Scripts/python.exe backend/app.py`
 
 2. **Start Local Servers** (only if not already running):
    ```bash
@@ -115,11 +117,18 @@ NOTE: The batch files don't work well from Claude Code's bash environment. Use t
    ```
 
 3. **User Verification** (REQUIRED):
-   - User tests at http://localhost:3000
-   - User confirms the fix works
-   - DO NOT push until user says it's ready
+   - Ask user to test at http://localhost:3000
+   - Wait for explicit confirmation ("works", "looks good", "verified", etc.)
+   - **DO NOT commit until user confirms the fix works**
 
-4. **Push to Develop** (only after user confirmation):
+4. **Kill Background Tasks** (BEFORE committing):
+   ```bash
+   npx kill-port 3000 5001
+   ```
+   - This ensures clean state before commit
+   - User can restart servers themselves if needed after
+
+5. **Commit to Develop** (only after user confirmation AND killing background tasks):
    ```cmd
    git add .
    git commit -m "Your message"
@@ -128,11 +137,11 @@ NOTE: The batch files don't work well from Claude Code's bash environment. Use t
    - E2E tests run automatically via GitHub Actions
    - Deploy happens automatically to https://optio-dev-frontend.onrender.com
 
-5. **Final Verification** (optional):
+6. **Final Verification** (optional):
    - Test on deployed dev environment
    - Check GitHub Actions for E2E test results
 
-6. **Merge to Main** (for production):
+7. **Merge to Main** (for production):
    - Create PR: develop → main
    - Review and merge
    - Production deploys automatically

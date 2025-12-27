@@ -83,95 +83,15 @@ def get_school_subjects():
 # =============================================================================
 # USER MANAGEMENT ENDPOINTS - V3
 # =============================================================================
-
-# Using repository pattern for database access
-@bp.route('/users', methods=['GET'])
-@require_admin
-def get_users_list(user_id):
-    """Get paginated list of users with search and filtering capabilities"""
-    supabase = get_supabase_admin_client()
-    
-    try:
-        # Get query parameters
-        page = request.args.get('page', 1, type=int)
-        limit = request.args.get('limit', 20, type=int)
-        search = request.args.get('search', '')
-        subscription = request.args.get('subscription', 'all')
-        role = request.args.get('role', 'all')
-        activity = request.args.get('activity', 'all')
-        sort_by = request.args.get('sort_by', 'created_at')
-        sort_order = request.args.get('sort_order', 'desc')
-        
-        # Start building query
-        query = supabase.table('users').select('*', count='exact')
-        
-        # Apply search filter
-        if search:
-            # Build search query safely
-            query = query.or_(f"first_name.ilike.%{search}%,last_name.ilike.%{search}%,username.ilike.%{search}%")
-
-        # Apply role filter
-        if role != 'all':
-            query = query.eq('role', role)
-        
-        # Apply activity filter
-        if activity != 'all':
-            from datetime import datetime, timedelta
-            if activity == 'active_7':
-                cutoff = (datetime.utcnow() - timedelta(days=7)).isoformat()
-                query = query.gte('last_active', cutoff)
-            elif activity == 'active_30':
-                cutoff = (datetime.utcnow() - timedelta(days=30)).isoformat()
-                query = query.gte('last_active', cutoff)
-            elif activity == 'inactive':
-                cutoff = (datetime.utcnow() - timedelta(days=30)).isoformat()
-                query = query.or_(f'last_active.lt.{cutoff},last_active.is.null')
-        
-        # Apply sorting
-        if sort_order == 'desc':
-            query = query.order(sort_by, desc=True)
-        else:
-            query = query.order(sort_by)
-        
-        # Apply pagination
-        start = (page - 1) * limit
-        end = start + limit - 1
-        query = query.range(start, end)
-        
-        # Execute query
-        response = query.execute()
-        
-        # Enhance user data
-        users = response.data if response.data else []
-
-        # Email is already included in the users table SELECT * query
-        # No need for separate auth.users lookup
-
-        for user in users:
-            # Calculate total XP across all pillars
-            try:
-                xp_response = supabase.table('user_skill_xp')\
-                    .select('xp_amount')\
-                    .eq('user_id', user['id'])\
-                    .execute()
-                
-                user['total_xp'] = sum(x['xp_amount'] for x in xp_response.data) if xp_response.data else 0
-            except Exception:
-                user['total_xp'] = 0
-        
-        # Calculate total count for pagination
-        total_count = response.count if hasattr(response, 'count') else len(users)
-        
-        return jsonify({
-            'users': users,
-            'total': total_count,
-            'page': page,
-            'limit': limit
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error fetching users: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# NOTE: The /users GET endpoint has been REMOVED from this file.
+# The correct implementation is in routes/admin/user_management.py which:
+# 1. Uses @require_advisor (allows both advisors and admins)
+# 2. Has correct search fields (first_name, last_name, email - NOT username)
+# 3. Is registered after admin_core.bp but Flask routes by blueprint order
+#
+# The duplicate endpoint here was causing "Failed to load users" errors because
+# it searched for a non-existent 'username' column in the users table.
+# =============================================================================
 
 @bp.route('/users/<user_id>', methods=['GET'])
 @require_admin
