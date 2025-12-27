@@ -14,8 +14,27 @@ const EvidenceDetailModal = ({ isOpen, onClose, evidenceItem }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      onClick={onClose}
+      role="button"
+      tabIndex="0"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+      aria-label="Close evidence detail modal"
+    >
+      <div
+        className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Evidence Details"
+      >
         <div className={`sticky top-0 p-6 bg-gradient-to-r ${getPillarGradient(evidenceItem.pillar)} z-10`}>
           <div className="flex justify-between items-center">
             <div className="flex-1 min-w-0">

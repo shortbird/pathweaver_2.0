@@ -10,8 +10,27 @@ const CreditProgressModal = ({ isOpen, onClose, subjectXP, isOwner, getStudentFi
   const meetsRequirements = meetsGraduationRequirements(subjectXP);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      onClick={onClose}
+      role="button"
+      tabIndex="0"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+      aria-label="Close credit progress modal"
+    >
+      <div
+        className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Credit Progress"
+      >
         <div className="sticky top-0 p-6 bg-gradient-primary z-10">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold text-white">Diploma Credits Breakdown</h2>

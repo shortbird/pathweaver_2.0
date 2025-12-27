@@ -5,6 +5,13 @@ const InfoModal = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedSection, setExpandedSection] = useState('philosophy');
 
+  const handleBackdropKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setIsOpen(false);
+    }
+  };
+
   return (
     <>
       {/* Info Icon Button - Positioned Absolutely */}
@@ -20,7 +27,14 @@ const InfoModal = () => {
 
       {/* Modal */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto" onClick={() => setIsOpen(false)}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto"
+          onClick={() => setIsOpen(false)}
+          onKeyDown={handleBackdropKeyDown}
+          role="button"
+          tabIndex="0"
+          aria-label="Close modal"
+        >
           <div 
             className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 sm:p-8 relative my-8 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}

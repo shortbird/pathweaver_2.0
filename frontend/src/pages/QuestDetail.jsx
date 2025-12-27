@@ -836,7 +836,19 @@ const QuestDetail = () => {
             {/* Mobile: Show task timeline as drawer */}
             {showMobileDrawer && (
               <div className="fixed inset-0 z-50 md:hidden">
-                <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowMobileDrawer(false)} />
+                <div
+                  className="absolute inset-0 bg-black bg-opacity-50"
+                  onClick={() => setShowMobileDrawer(false)}
+                  role="button"
+                  tabIndex="0"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setShowMobileDrawer(false);
+                    }
+                  }}
+                  aria-label="Close mobile drawer"
+                />
                 <div className="absolute left-0 top-0 bottom-0 w-80 bg-white shadow-xl">
                   <Suspense fallback={<LoadingFallback />}>
                     <TaskTimeline

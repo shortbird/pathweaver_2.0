@@ -27,6 +27,23 @@
 | `/quick-audit` | Before any commit or merge (runs solo, no workers) |
 
 ---
+Complete Audit-to-Fix Flow
+T1: /full-audit           → Creates 7 audit tasks
+T2: /work-queue           → Runs audits
+T3: /work-queue           → Runs audits  
+T4: /work-queue           → Runs audits
+[Workers say "Queue empty"]
+
+T1: /compile-audit        → Scans code, saves findings.json
+
+T1: /fix-audit            → Creates fix tasks from findings
+T2: /work-queue           → Implements fixes
+T3: /work-queue           → Implements fixes
+T4: /work-queue           → Implements fixes
+[Workers say "Queue empty"]
+
+T1: /verify-fixes         → Runs tests, confirms fixes worked
+T1: git add -A && git commit -m "fix: audit fixes"
 
 ## Feature Development
 

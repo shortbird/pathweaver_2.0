@@ -128,7 +128,7 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
             {student.avatar_url ? (
               <img
                 src={student.avatar_url}
-                alt={student.display_name}
+                alt={student.display_name ? `${student.display_name}'s avatar` : 'Student avatar'}
                 className="w-12 h-12 rounded-full object-cover"
               />
             ) : (
