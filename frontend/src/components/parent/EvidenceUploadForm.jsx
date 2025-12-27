@@ -224,7 +224,7 @@ export default function EvidenceUploadForm({ taskId, studentId, onCancel, onSucc
                     <div className="relative group">
                       <img
                         src={content.url}
-                        alt={content.alt || ''}
+                        alt={content.alt || 'Evidence image preview'}
                         className="w-full max-h-48 object-contain rounded-lg border-2 border-gray-200"
                       />
                       <button

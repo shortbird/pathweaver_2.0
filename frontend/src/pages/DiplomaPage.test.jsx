@@ -145,6 +145,18 @@ vi.mock('../contexts/ActingAsContext', () => ({
   useActingAs: () => mockActingAsContext
 }))
 
+// Mock OrganizationContext
+const mockOrganizationContext = {
+  organization: null,
+  loading: false,
+  refreshOrganization: vi.fn()
+}
+
+vi.mock('../contexts/OrganizationContext', () => ({
+  useOrganization: () => mockOrganizationContext,
+  OrganizationProvider: ({ children }) => children
+}))
+
 describe('DiplomaPage', () => {
   // Helper function to set auth context
   const setAuthContext = (options = {}) => {
@@ -177,14 +189,17 @@ describe('DiplomaPage', () => {
     // Mock scrollTo
     window.scrollTo = vi.fn()
 
-    // Mock clipboard API
+    // Mock clipboard API - store reference for assertions
+    const mockWriteText = vi.fn().mockResolvedValue()
     Object.defineProperty(navigator, 'clipboard', {
       writable: true,
       configurable: true,
       value: {
-        writeText: vi.fn().mockResolvedValue()
+        writeText: mockWriteText
       }
     })
+    // Expose mock for tests
+    global.mockClipboardWriteText = mockWriteText
   })
 
   afterEach(() => {
@@ -306,7 +321,9 @@ describe('DiplomaPage', () => {
       renderWithProviders(<DiplomaPage />)
 
       await waitFor(() => {
-        expect(screen.getByText(/Start your learning journey/i)).toBeInTheDocument()
+        // Use getAllByText since text appears in multiple places
+        const emptyStateMessages = screen.getAllByText(/Start your learning journey/i)
+        expect(emptyStateMessages.length).toBeGreaterThan(0)
       })
     })
 
@@ -1514,7 +1531,9 @@ describe('DiplomaPage', () => {
       renderWithProviders(<DiplomaPage />)
 
       await waitFor(() => {
-        expect(screen.getByText(/Start your learning journey/i)).toBeInTheDocument()
+        // Use getAllByText since text appears in multiple places
+        const emptyStateMessages = screen.getAllByText(/Start your learning journey/i)
+        expect(emptyStateMessages.length).toBeGreaterThan(0)
       })
     })
 
@@ -1788,8 +1807,9 @@ describe('DiplomaPage', () => {
         expect(screen.getByTestId('evidence-masonry-gallery')).toBeInTheDocument()
       })
 
-      // Owner view should show owner-specific message
-      expect(screen.getByText(/Start your learning journey/i)).toBeInTheDocument()
+      // Owner view should show owner-specific message - use getAllByText since text appears in multiple places
+      const emptyStateMessages = screen.getAllByText(/Start your learning journey/i)
+      expect(emptyStateMessages.length).toBeGreaterThan(0)
     })
 
     it('handles achievements API failure gracefully', async () => {
@@ -1814,8 +1834,9 @@ describe('DiplomaPage', () => {
         expect(screen.getByTestId('evidence-masonry-gallery')).toBeInTheDocument()
       })
 
-      // Should show empty state
-      expect(screen.getByText(/Start your learning journey/i)).toBeInTheDocument()
+      // Should show empty state - use getAllByText since text appears in multiple places
+      const emptyStateMessages = screen.getAllByText(/Start your learning journey/i)
+      expect(emptyStateMessages.length).toBeGreaterThan(0)
     })
 
     it('handles learning events API failure gracefully', async () => {
@@ -1906,7 +1927,7 @@ describe('DiplomaPage', () => {
 
       await user.click(screen.getByRole('button', { name: /Share Portfolio/i }))
 
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect(global.mockClipboardWriteText).toHaveBeenCalledWith(
         'https://www.optioeducation.com/public/diploma/share-user-123'
       )
     })

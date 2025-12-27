@@ -150,7 +150,8 @@ describe('EvidenceUploadForm', () => {
 
       await user.click(screen.getByText(/image/i).closest('button'))
 
-      expect(screen.getByText(/upload|click/i)).toBeInTheDocument()
+      // Use getAllByText since there may be multiple upload-related elements
+      expect(screen.getAllByText(/upload|click/i).length).toBeGreaterThan(0)
     })
 
     it('shows file upload for document evidence', async () => {
@@ -166,7 +167,8 @@ describe('EvidenceUploadForm', () => {
 
       await user.click(screen.getByText(/document/i).closest('button'))
 
-      expect(screen.getByText(/upload|click|pdf/i)).toBeInTheDocument()
+      // Use getAllByText since there may be multiple upload-related elements
+      expect(screen.getAllByText(/upload|click|pdf/i).length).toBeGreaterThan(0)
     })
   })
 
@@ -304,18 +306,22 @@ describe('EvidenceUploadForm', () => {
         />
       )
 
+      // Select image type
       await user.click(screen.getByText(/image/i).closest('button'))
+
+      // Switch to file upload mode (default is URL mode)
+      await user.click(screen.getByText(/Upload File/i))
 
       // Create a mock file
       const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' })
 
-      // Find file input (hidden)
+      // Find file input (hidden) and upload
       const fileInput = document.querySelector('input[type="file"]')
-      if (fileInput) {
-        await user.upload(fileInput, file)
-      }
+      expect(fileInput).toBeTruthy()
+      await user.upload(fileInput, file)
 
-      await user.click(screen.getByRole('button', { name: /upload/i }))
+      // Click submit button (Upload Evidence)
+      await user.click(screen.getByRole('button', { name: /Upload Evidence/i }))
 
       await waitFor(() => {
         expect(parentAPI.uploadFile).toHaveBeenCalled()
@@ -338,15 +344,19 @@ describe('EvidenceUploadForm', () => {
         />
       )
 
+      // Select image type
       await user.click(screen.getByText(/image/i).closest('button'))
+
+      // Switch to file upload mode
+      await user.click(screen.getByText(/Upload File/i))
 
       const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' })
       const fileInput = document.querySelector('input[type="file"]')
-      if (fileInput) {
-        await user.upload(fileInput, file)
-      }
+      expect(fileInput).toBeTruthy()
+      await user.upload(fileInput, file)
 
-      await user.click(screen.getByRole('button', { name: /upload/i }))
+      // Click submit button
+      await user.click(screen.getByRole('button', { name: /Upload Evidence/i }))
 
       await waitFor(() => {
         expect(parentAPI.uploadEvidence).toHaveBeenCalledWith(
@@ -368,19 +378,22 @@ describe('EvidenceUploadForm', () => {
         />
       )
 
+      // Select image type
       await user.click(screen.getByText(/image/i).closest('button'))
+
+      // Switch to file upload mode
+      await user.click(screen.getByText(/Upload File/i))
 
       // Create a mock file larger than 10MB
       const largeContent = new Array(11 * 1024 * 1024).fill('a').join('')
       const file = new File([largeContent], 'large.jpg', { type: 'image/jpeg' })
 
       const fileInput = document.querySelector('input[type="file"]')
-      if (fileInput) {
-        await user.upload(fileInput, file)
-      }
+      expect(fileInput).toBeTruthy()
+      await user.upload(fileInput, file)
 
       await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith(expect.stringContaining(/large|10MB|size/i))
+        expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/large|10MB|size/i))
       })
     })
   })

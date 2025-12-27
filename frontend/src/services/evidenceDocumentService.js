@@ -147,9 +147,10 @@ export const evidenceDocumentService = {
       },
 
       disableAutoSave: () => {
-        if (import.meta.env.DEV) {
-          console.log('[AUTO-SAVE] Disabling auto-save permanently');
-        }
+        // Development logging removed
+        // if (import.meta.env.DEV) {
+        //   console.log('[AUTO-SAVE] Disabling auto-save permanently');
+        // }
         isDisabled = true;
         if (saveTimeout) {
           clearTimeout(saveTimeout);

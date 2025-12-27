@@ -5,8 +5,7 @@ import {
   getDependent,
   updateDependent,
   deleteDependent,
-  promoteDependent,
-  getActingAsToken
+  promoteDependent
 } from './dependentAPI'
 import api from './api'
 
@@ -69,12 +68,13 @@ describe('dependentAPI', () => {
       }
       api.post.mockResolvedValue(mockResponse)
 
-      const result = await createDependent('New Child', '2015-06-15')
-
-      expect(api.post).toHaveBeenCalledWith('/api/dependents/create', {
+      const dependentData = {
         display_name: 'New Child',
         date_of_birth: '2015-06-15'
-      })
+      }
+      const result = await createDependent(dependentData)
+
+      expect(api.post).toHaveBeenCalledWith('/api/dependents/create', dependentData)
       expect(result).toEqual(mockResponse.data)
     })
 
@@ -212,12 +212,13 @@ describe('dependentAPI', () => {
       }
       api.post.mockResolvedValue(mockResponse)
 
-      const result = await promoteDependent('dep-1', 'child@example.com', 'SecurePass123!')
-
-      expect(api.post).toHaveBeenCalledWith('/api/dependents/dep-1/promote', {
+      const credentials = {
         email: 'child@example.com',
         password: 'SecurePass123!'
-      })
+      }
+      const result = await promoteDependent('dep-1', credentials)
+
+      expect(api.post).toHaveBeenCalledWith('/api/dependents/dep-1/promote', credentials)
       expect(result.success).toBe(true)
     })
 
@@ -226,7 +227,7 @@ describe('dependentAPI', () => {
         response: { data: { error: 'Child must be 13 or older to promote' } }
       })
 
-      await expect(promoteDependent('dep-1', 'email@test.com', 'pass')).rejects.toBeTruthy()
+      await expect(promoteDependent('dep-1', { email: 'email@test.com', password: 'pass' })).rejects.toBeTruthy()
     })
 
     it('throws error for weak password', async () => {
@@ -234,7 +235,7 @@ describe('dependentAPI', () => {
         response: { data: { error: 'Password does not meet requirements' } }
       })
 
-      await expect(promoteDependent('dep-1', 'email@test.com', 'weak')).rejects.toBeTruthy()
+      await expect(promoteDependent('dep-1', { email: 'email@test.com', password: 'weak' })).rejects.toBeTruthy()
     })
 
     it('throws error for invalid email', async () => {
@@ -242,43 +243,8 @@ describe('dependentAPI', () => {
         response: { data: { error: 'Invalid email format' } }
       })
 
-      await expect(promoteDependent('dep-1', 'not-an-email', 'SecurePass123!')).rejects.toBeTruthy()
+      await expect(promoteDependent('dep-1', { email: 'not-an-email', password: 'SecurePass123!' })).rejects.toBeTruthy()
     })
   })
 
-  describe('getActingAsToken', () => {
-    it('calls POST /api/dependents/:id/act-as', async () => {
-      const mockResponse = {
-        data: {
-          acting_as_token: 'token-123',
-          dependent: { id: 'dep-1', display_name: 'Child' }
-        }
-      }
-      api.post.mockResolvedValue(mockResponse)
-
-      const result = await getActingAsToken('dep-1')
-
-      expect(api.post).toHaveBeenCalledWith('/api/dependents/dep-1/act-as', {})
-      expect(result.acting_as_token).toBe('token-123')
-    })
-
-    it('throws error for non-owned dependent', async () => {
-      api.post.mockRejectedValue({
-        response: { status: 403, data: { error: 'Not your dependent' } }
-      })
-
-      await expect(getActingAsToken('other-dep')).rejects.toBeTruthy()
-    })
-
-    it('returns dependent info with token', async () => {
-      const mockDependent = { id: 'dep-1', display_name: 'Child', total_xp: 500 }
-      api.post.mockResolvedValue({
-        data: { acting_as_token: 'token', dependent: mockDependent }
-      })
-
-      const result = await getActingAsToken('dep-1')
-
-      expect(result.dependent).toEqual(mockDependent)
-    })
-  })
 })

@@ -614,7 +614,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
         return text.length > 50 ? `${text.substring(0, 50)}...` : text || 'Empty text block';
       case 'image':
         return block.content.url ? (
-          <img src={block.content.url} alt={block.content.alt} className="h-12 w-auto object-contain rounded" />
+          <img src={block.content.url} alt={block.content.alt || 'Image preview'} className="h-12 w-auto object-contain rounded" />
         ) : 'No image uploaded';
       case 'video':
         return block.content.title || block.content.url || 'No video URL';
@@ -652,7 +652,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
         <div className="relative group">
           <img
             src={block.content.url}
-            alt={block.content.alt || ''}
+            alt={block.content.alt || 'Uploaded evidence image'}
             className="w-full max-h-96 object-contain rounded-lg border border-gray-200"
           />
           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">

@@ -137,7 +137,7 @@ export default function StudentTasksPanel({ quest, studentId, studentName, onTas
             {quest.quest_image_url && (
               <img
                 src={quest.quest_image_url}
-                alt={quest.quest_title}
+                alt={`${quest.quest_title} icon`}
                 className="w-12 h-12 rounded-md object-cover"
               />
             )}

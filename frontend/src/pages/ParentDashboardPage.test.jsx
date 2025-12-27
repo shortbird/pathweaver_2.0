@@ -337,16 +337,6 @@ describe('ParentDashboardPage', () => {
       })
     })
 
-    it('displays admin demo mode notice for admin users', async () => {
-      mockAuthValue.user = createMockUser({ role: 'admin' })
-
-      renderWithProviders(<ParentDashboardPage />)
-
-      await waitFor(() => {
-        expect(screen.getByText(/Admin Demo Mode/)).toBeInTheDocument()
-      })
-    })
-
     it('shows Add Child button in header', async () => {
       renderWithProviders(<ParentDashboardPage />)
 

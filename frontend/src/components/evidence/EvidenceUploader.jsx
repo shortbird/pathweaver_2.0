@@ -153,9 +153,9 @@ const EvidenceUploader = ({ evidenceType, onChange, error }) => {
         <div className="border border-gray-300 rounded-lg p-4">
           {filePreview && (
             <div className="mb-3">
-              <img 
-                src={filePreview} 
-                alt="Preview" 
+              <img
+                src={filePreview}
+                alt={selectedFile?.name || 'Uploaded evidence image'}
                 className="max-h-48 mx-auto rounded-lg"
               />
             </div>

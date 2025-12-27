@@ -23,7 +23,8 @@ describe('ProfileSwitcher', () => {
     id: 'parent-123',
     display_name: 'Test Parent',
     email: 'parent@test.com',
-    role: 'parent'
+    role: 'parent',
+    is_dependent: false
   }
 
   const mockDependents = [
@@ -33,7 +34,9 @@ describe('ProfileSwitcher', () => {
       date_of_birth: '2015-06-15',
       age: 9,
       total_xp: 500,
-      promotion_eligible_at: '2028-06-15'
+      active_quest_count: 2,
+      promotion_eligible: false,
+      avatar_url: null
     },
     {
       id: 'dep-2',
@@ -41,7 +44,9 @@ describe('ProfileSwitcher', () => {
       date_of_birth: '2017-03-20',
       age: 7,
       total_xp: 250,
-      promotion_eligible_at: '2030-03-20'
+      active_quest_count: 1,
+      promotion_eligible: false,
+      avatar_url: null
     }
   ]
 
@@ -53,13 +58,15 @@ describe('ProfileSwitcher', () => {
   describe('Rendering', () => {
     it('renders loading skeleton while fetching dependents', () => {
       getMyDependents.mockImplementation(() => new Promise(() => {})) // Never resolves
-      render(<ProfileSwitcher parent={mockParent} />)
+      render(<ProfileSwitcher currentProfile={mockParent} onProfileChange={vi.fn()} onAddDependent={vi.fn()} />)
 
-      expect(screen.getByTestId('profile-switcher-loading') || screen.getByRole('button')).toBeInTheDocument()
+      // Loading state shows skeleton
+      const skeletons = screen.getAllByRole('generic').filter(el => el.className.includes('animate-pulse'))
+      expect(skeletons.length).toBeGreaterThan(0)
     })
 
-    it('renders parent name in dropdown trigger', async () => {
-      render(<ProfileSwitcher parent={mockParent} />)
+    it('renders current profile name in dropdown trigger', async () => {
+      render(<ProfileSwitcher currentProfile={mockParent} onProfileChange={vi.fn()} onAddDependent={vi.fn()} />)
 
       await waitFor(() => {
         expect(screen.getByText('Test Parent')).toBeInTheDocument()
@@ -68,7 +75,7 @@ describe('ProfileSwitcher', () => {
 
     it('renders dependents list when dropdown is open', async () => {
       const user = userEvent.setup()
-      render(<ProfileSwitcher parent={mockParent} />)
+      render(<ProfileSwitcher currentProfile={mockParent} onProfileChange={vi.fn()} onAddDependent={vi.fn()} />)
 
       await waitFor(() => {
         expect(screen.getByText('Test Parent')).toBeInTheDocument()
@@ -85,7 +92,7 @@ describe('ProfileSwitcher', () => {
 
     it('shows age for each dependent', async () => {
       const user = userEvent.setup()
-      render(<ProfileSwitcher parent={mockParent} />)
+      render(<ProfileSwitcher currentProfile={mockParent} onProfileChange={vi.fn()} onAddDependent={vi.fn()} />)
 
       await waitFor(() => {
         expect(screen.getByText('Test Parent')).toBeInTheDocument()
@@ -94,14 +101,14 @@ describe('ProfileSwitcher', () => {
       await user.click(screen.getByRole('button'))
 
       await waitFor(() => {
-        expect(screen.getByText(/9 years/i)).toBeInTheDocument()
-        expect(screen.getByText(/7 years/i)).toBeInTheDocument()
+        expect(screen.getByText(/Age 9/i)).toBeInTheDocument()
+        expect(screen.getByText(/Age 7/i)).toBeInTheDocument()
       })
     })
 
     it('shows XP for each dependent', async () => {
       const user = userEvent.setup()
-      render(<ProfileSwitcher parent={mockParent} />)
+      render(<ProfileSwitcher currentProfile={mockParent} onProfileChange={vi.fn()} onAddDependent={vi.fn()} />)
 
       await waitFor(() => {
         expect(screen.getByText('Test Parent')).toBeInTheDocument()
@@ -119,7 +126,7 @@ describe('ProfileSwitcher', () => {
   describe('Interactions', () => {
     it('opens dropdown when clicking trigger button', async () => {
       const user = userEvent.setup()
-      render(<ProfileSwitcher parent={mockParent} />)
+      render(<ProfileSwitcher currentProfile={mockParent} onProfileChange={vi.fn()} onAddDependent={vi.fn()} />)
 
       await waitFor(() => {
         expect(screen.getByText('Test Parent')).toBeInTheDocument()
@@ -136,7 +143,7 @@ describe('ProfileSwitcher', () => {
       render(
         <div>
           <div data-testid="outside">Outside</div>
-          <ProfileSwitcher parent={mockParent} />
+          <ProfileSwitcher currentProfile={mockParent} onProfileChange={vi.fn()} onAddDependent={vi.fn()} />
         </div>
       )
 
@@ -145,7 +152,7 @@ describe('ProfileSwitcher', () => {
       })
 
       // Open dropdown
-      await user.click(screen.getByRole('button'))
+      await user.click(screen.getAllByRole('button')[0])
       expect(screen.getByText('Child One')).toBeInTheDocument()
 
       // Click outside
@@ -159,22 +166,29 @@ describe('ProfileSwitcher', () => {
     it('calls onProfileChange when selecting a dependent', async () => {
       const onProfileChange = vi.fn()
       const user = userEvent.setup()
-      render(<ProfileSwitcher parent={mockParent} onProfileChange={onProfileChange} />)
+      render(<ProfileSwitcher currentProfile={mockParent} onProfileChange={onProfileChange} onAddDependent={vi.fn()} />)
 
       await waitFor(() => {
         expect(screen.getByText('Test Parent')).toBeInTheDocument()
       })
 
       await user.click(screen.getByRole('button'))
-      await user.click(screen.getByText('Child One'))
 
-      expect(onProfileChange).toHaveBeenCalledWith(mockDependents[0])
+      // Click on the dependent button - Child One
+      const childButtons = screen.getAllByRole('button')
+      const childOneButton = childButtons.find(btn => btn.textContent.includes('Child One'))
+      await user.click(childOneButton)
+
+      expect(onProfileChange).toHaveBeenCalled()
+      const calledWith = onProfileChange.mock.calls[0][0]
+      expect(calledWith.id).toBe('dep-1')
+      expect(calledWith.display_name).toBe('Child One')
     })
 
-    it('calls onAddChild when clicking Add Child button', async () => {
-      const onAddChild = vi.fn()
+    it('calls onAddDependent when clicking Add Child Profile button', async () => {
+      const onAddDependent = vi.fn()
       const user = userEvent.setup()
-      render(<ProfileSwitcher parent={mockParent} onAddChild={onAddChild} />)
+      render(<ProfileSwitcher currentProfile={mockParent} onProfileChange={vi.fn()} onAddDependent={onAddDependent} />)
 
       await waitFor(() => {
         expect(screen.getByText('Test Parent')).toBeInTheDocument()
@@ -182,19 +196,19 @@ describe('ProfileSwitcher', () => {
 
       await user.click(screen.getByRole('button'))
 
-      const addButton = screen.getByText(/add child/i)
+      const addButton = screen.getByText(/add child profile/i)
       await user.click(addButton)
 
-      expect(onAddChild).toHaveBeenCalled()
+      expect(onAddDependent).toHaveBeenCalled()
     })
   })
 
   describe('Empty State', () => {
-    it('shows empty message when no dependents exist', async () => {
+    it('shows add child button when no dependents exist', async () => {
       getMyDependents.mockResolvedValue({ dependents: [] })
       const user = userEvent.setup()
 
-      render(<ProfileSwitcher parent={mockParent} />)
+      render(<ProfileSwitcher currentProfile={mockParent} onProfileChange={vi.fn()} onAddDependent={vi.fn()} />)
 
       await waitFor(() => {
         expect(screen.getByText('Test Parent')).toBeInTheDocument()
@@ -203,7 +217,7 @@ describe('ProfileSwitcher', () => {
       await user.click(screen.getByRole('button'))
 
       await waitFor(() => {
-        expect(screen.getByText(/no child profiles/i) || screen.getByText(/add child/i)).toBeInTheDocument()
+        expect(screen.getByText(/add child profile/i)).toBeInTheDocument()
       })
     })
   })
@@ -212,7 +226,7 @@ describe('ProfileSwitcher', () => {
     it('handles API error gracefully', async () => {
       getMyDependents.mockRejectedValue(new Error('API Error'))
 
-      render(<ProfileSwitcher parent={mockParent} />)
+      render(<ProfileSwitcher currentProfile={mockParent} onProfileChange={vi.fn()} onAddDependent={vi.fn()} />)
 
       await waitFor(() => {
         // Should still render without crashing
@@ -222,9 +236,9 @@ describe('ProfileSwitcher', () => {
   })
 
   describe('Current Profile Indicator', () => {
-    it('shows current profile indicator for parent when no dependent selected', async () => {
+    it('shows current profile indicator for parent when parent is current profile', async () => {
       const user = userEvent.setup()
-      render(<ProfileSwitcher parent={mockParent} currentProfileId={null} />)
+      render(<ProfileSwitcher currentProfile={mockParent} onProfileChange={vi.fn()} onAddDependent={vi.fn()} />)
 
       await waitFor(() => {
         expect(screen.getByText('Test Parent')).toBeInTheDocument()
@@ -232,24 +246,29 @@ describe('ProfileSwitcher', () => {
 
       await user.click(screen.getByRole('button'))
 
-      // Parent should have current indicator
-      const parentItem = screen.getByText('Test Parent').closest('div')
-      expect(parentItem).toHaveClass(/current|active|selected/i)
+      // Parent section should have "Current" badge
+      const currentBadges = screen.getAllByText('Current')
+      expect(currentBadges.length).toBeGreaterThan(0)
     })
 
     it('shows current profile indicator for selected dependent', async () => {
       const user = userEvent.setup()
-      render(<ProfileSwitcher parent={mockParent} currentProfileId="dep-1" />)
+      const mockDepProfile = {
+        ...mockDependents[0],
+        is_dependent: true
+      }
+      render(<ProfileSwitcher currentProfile={mockDepProfile} onProfileChange={vi.fn()} onAddDependent={vi.fn()} />)
 
       await waitFor(() => {
-        expect(screen.getByText('Test Parent')).toBeInTheDocument()
+        expect(screen.getByText('Child One')).toBeInTheDocument()
       })
 
       await user.click(screen.getByRole('button'))
 
       await waitFor(() => {
-        const childOneItem = screen.getByText('Child One')
-        expect(childOneItem).toBeInTheDocument()
+        // Child One should have Current badge
+        const currentBadges = screen.getAllByText('Current')
+        expect(currentBadges.length).toBeGreaterThan(0)
       })
     })
   })
