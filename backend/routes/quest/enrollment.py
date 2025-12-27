@@ -11,7 +11,9 @@ from database import get_supabase_admin_client
 from repositories.quest_repository import QuestRepository, QuestTaskRepository
 from repositories.base_repository import NotFoundError, DatabaseError
 from utils.auth.decorators import require_auth
+from middleware.idempotency import require_idempotency
 from utils.logger import get_logger
+from utils.api_response_v1 import success_response, error_response, created_response
 
 logger = get_logger(__name__)
 
@@ -20,6 +22,7 @@ bp = Blueprint('quest_enrollment', __name__, url_prefix='/api/quests')
 
 @bp.route('/<quest_id>/enroll', methods=['POST'])
 @require_auth
+@require_idempotency(ttl_seconds=86400)
 def enroll_in_quest(user_id: str, quest_id: str):
     """
     Enroll a user in a quest.
@@ -40,16 +43,18 @@ def enroll_in_quest(user_id: str, quest_id: str):
         quest = quest_repo.find_by_id(quest_id)
 
         if not quest:
-            return jsonify({
-                'success': False,
-                'error': 'Quest not found'
-            }), 404
+            return error_response(
+                code='QUEST_NOT_FOUND',
+                message='Quest not found',
+                status=404
+            )
 
         if not quest.get('is_active'):
-            return jsonify({
-                'success': False,
-                'error': 'Quest is not active'
-            }), 400
+            return error_response(
+                code='QUEST_NOT_ACTIVE',
+                message='Quest is not active',
+                status=400
+            )
 
         # Check if already enrolled using repository client
         existing = quest_repo.client.table('user_quests')\
@@ -318,23 +323,26 @@ def enroll_in_quest(user_id: str, quest_id: str):
 
     except NotFoundError as e:
         logger.error(f"Quest not found: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 404
+        return error_response(
+            code='QUEST_NOT_FOUND',
+            message=str(e),
+            status=404
+        )
     except DatabaseError as e:
         logger.error(f"Database error enrolling in quest {quest_id} for user {user_id}: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': 'Failed to enroll in quest'
-        }), 500
+        return error_response(
+            code='DATABASE_ERROR',
+            message='Failed to enroll in quest',
+            status=500
+        )
     except Exception as e:
         logger.error(f"Unexpected error enrolling in quest {quest_id} for user {user_id}: {str(e)}", exc_info=True)
         import traceback
-        return jsonify({
-            'success': False,
-            'error': 'Failed to enroll in quest'
-        }), 500
+        return error_response(
+            code='ENROLLMENT_FAILED',
+            message='Failed to enroll in quest',
+            status=500
+        )
 
 
 @bp.route('/create', methods=['POST'])
@@ -353,10 +361,18 @@ def create_user_quest(user_id: str):
 
         # Validate required fields
         if not data.get('title'):
-            return jsonify({'success': False, 'error': 'Title is required'}), 400
+            return error_response(
+                code='TITLE_REQUIRED',
+                message='Title is required',
+                status=400
+            )
 
         if not data.get('description') and not data.get('big_idea'):
-            return jsonify({'success': False, 'error': 'Description is required'}), 400
+            return error_response(
+                code='DESCRIPTION_REQUIRED',
+                message='Description is required',
+                status=400
+            )
 
         # Auto-fetch image if not provided
         image_url = data.get('header_image_url')
@@ -386,7 +402,11 @@ def create_user_quest(user_id: str):
         quest_result = supabase.table('quests').insert(quest_data).execute()
 
         if not quest_result.data:
-            return jsonify({'success': False, 'error': 'Failed to create quest'}), 500
+            return error_response(
+                code='QUEST_CREATION_FAILED',
+                message='Failed to create quest',
+                status=500
+            )
 
         quest_id = quest_result.data[0]['id']
         logger.info(f"User {user_id[:8]} created private quest {quest_id}: {quest_data['title']}")
@@ -457,7 +477,8 @@ def create_user_quest(user_id: str):
 
     except Exception as e:
         logger.error(f"Error creating user quest: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to create quest: {str(e)}'
-        }), 500
+        return error_response(
+            code='QUEST_CREATION_ERROR',
+            message=f'Failed to create quest: {str(e)}',
+            status=500
+        )

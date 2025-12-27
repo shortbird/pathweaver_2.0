@@ -630,11 +630,13 @@ const MultiFormatEvidenceEditor = forwardRef(({
   const renderTextBlock = (block) => (
     <div className="space-y-3">
       <textarea
+        id={`text-block-${block.id}`}
         value={block.content.text || ''}
         onChange={(e) => updateBlock(block.id, { text: e.target.value })}
         className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent resize-none transition-all"
         rows={Math.max(3, Math.ceil((block.content.text || '').length / 80))}
         placeholder="Share your thoughts, process, or reflections..."
+        aria-label="Text evidence"
         onFocus={() => setActiveBlock(block.id)}
         onBlur={() => setActiveBlock(null)}
       />
@@ -690,18 +692,22 @@ const MultiFormatEvidenceEditor = forwardRef(({
       {block.content.url && (
         <div className="space-y-2">
           <input
+            id={`image-alt-${block.id}`}
             type="text"
             value={block.content.alt || ''}
             onChange={(e) => updateBlock(block.id, { alt: e.target.value })}
             className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
             placeholder="Alt text (for accessibility)"
+            aria-label="Image alt text"
           />
           <input
+            id={`image-caption-${block.id}`}
             type="text"
             value={block.content.caption || ''}
             onChange={(e) => updateBlock(block.id, { caption: e.target.value })}
             className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
             placeholder="Caption (optional)"
+            aria-label="Image caption"
           />
         </div>
       )}
@@ -711,18 +717,22 @@ const MultiFormatEvidenceEditor = forwardRef(({
   const renderVideoBlock = (block) => (
     <div className="space-y-3">
       <input
+        id={`video-url-${block.id}`}
         type="url"
         value={block.content.url || ''}
         onChange={(e) => updateBlock(block.id, { url: e.target.value })}
         className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
         placeholder="YouTube, Vimeo, or direct video URL"
+        aria-label="Video URL"
       />
       <input
+        id={`video-title-${block.id}`}
         type="text"
         value={block.content.title || ''}
         onChange={(e) => updateBlock(block.id, { title: e.target.value })}
         className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
         placeholder="Video title (optional)"
+        aria-label="Video title"
       />
 
       {block.content.url && (
@@ -744,25 +754,31 @@ const MultiFormatEvidenceEditor = forwardRef(({
   const renderLinkBlock = (block) => (
     <div className="space-y-3">
       <input
+        id={`link-url-${block.id}`}
         type="url"
         value={block.content.url || ''}
         onChange={(e) => updateBlock(block.id, { url: e.target.value })}
         className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
         placeholder="https://example.com/your-work"
+        aria-label="Link URL"
       />
       <input
+        id={`link-title-${block.id}`}
         type="text"
         value={block.content.title || ''}
         onChange={(e) => updateBlock(block.id, { title: e.target.value })}
         className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
         placeholder="Link title"
+        aria-label="Link title"
       />
       <textarea
+        id={`link-description-${block.id}`}
         value={block.content.description || ''}
         onChange={(e) => updateBlock(block.id, { description: e.target.value })}
         className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent resize-none"
         rows={2}
         placeholder="Description (optional)"
+        aria-label="Link description"
       />
 
       {block.content.url && (
@@ -833,11 +849,13 @@ const MultiFormatEvidenceEditor = forwardRef(({
 
       {block.content.url && (
         <input
+          id={`document-title-${block.id}`}
           type="text"
           value={block.content.title || ''}
           onChange={(e) => updateBlock(block.id, { title: e.target.value })}
           className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
           placeholder="Document title"
+          aria-label="Document title"
         />
       )}
     </div>

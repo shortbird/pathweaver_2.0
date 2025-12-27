@@ -303,7 +303,7 @@ describe('QuestCardSimple', () => {
         authValue: { user: mockUser, isAuthenticated: true }
       })
 
-      const logo = screen.getByAltText('OnFire')
+      const logo = screen.getByAltText('OnFire quest designation badge')
       expect(logo).toBeInTheDocument()
       expect(logo).toHaveAttribute('src', expect.stringContaining('onfire.png'))
     })
@@ -320,7 +320,7 @@ describe('QuestCardSimple', () => {
       })
 
       // OnFire logo should be visible
-      expect(screen.getByAltText('OnFire')).toBeInTheDocument()
+      expect(screen.getByAltText('OnFire quest designation badge')).toBeInTheDocument()
 
       // Regular quest image should NOT be rendered
       const questImage = container.querySelector('img[alt="Spark Quest"]')
@@ -338,7 +338,7 @@ describe('QuestCardSimple', () => {
         authValue: { user: mockUser, isAuthenticated: true }
       })
 
-      const questImage = screen.getByAltText('Regular Quest')
+      const questImage = screen.getByAltText('Quest: Regular Quest')
       expect(questImage).toBeInTheDocument()
       expect(questImage).toHaveAttribute('src', 'https://example.com/quest-image.jpg')
     })
@@ -355,7 +355,7 @@ describe('QuestCardSimple', () => {
         authValue: { user: mockUser, isAuthenticated: true }
       })
 
-      const image = screen.getByAltText('Quest with Image')
+      const image = screen.getByAltText('Quest: Quest with Image')
       expect(image).toHaveAttribute('src', 'https://example.com/image.jpg')
     })
 
@@ -370,7 +370,7 @@ describe('QuestCardSimple', () => {
         authValue: { user: mockUser, isAuthenticated: true }
       })
 
-      const image = screen.getByAltText('Quest with Header')
+      const image = screen.getByAltText('Quest: Quest with Header')
       expect(image).toHaveAttribute('src', 'https://example.com/header.jpg')
     })
 
@@ -385,7 +385,7 @@ describe('QuestCardSimple', () => {
         authValue: { user: mockUser, isAuthenticated: true }
       })
 
-      const image = screen.getByAltText('Quest with Both')
+      const image = screen.getByAltText('Quest: Quest with Both')
       expect(image).toHaveAttribute('src', 'https://example.com/primary.jpg')
     })
 
@@ -513,7 +513,7 @@ describe('QuestCardSimple', () => {
         authValue: { user: mockUser, isAuthenticated: true }
       })
 
-      const image = screen.getByAltText('Accessible Quest')
+      const image = screen.getByAltText('Quest: Accessible Quest')
       expect(image).toBeInTheDocument()
     })
   })
@@ -560,7 +560,7 @@ describe('QuestCardSimple', () => {
         authValue: { user: mockUser, isAuthenticated: true }
       })
 
-      const logo = screen.getByAltText('OnFire')
+      const logo = screen.getByAltText('OnFire quest designation badge')
 
       // Simulate image error
       const errorEvent = new Event('error')

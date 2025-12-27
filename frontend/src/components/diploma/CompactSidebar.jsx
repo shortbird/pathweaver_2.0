@@ -193,7 +193,7 @@ const CompactSidebar = ({
                   >
                     <img
                       src={badge.image_url}
-                      alt={badge.name}
+                      alt={`Badge: ${badge.name} - ${badge.pillar_primary || 'Achievement'} badge`}
                       className="w-12 h-12 object-contain flex-shrink-0"
                     />
                     <div className="flex-1 min-w-0">

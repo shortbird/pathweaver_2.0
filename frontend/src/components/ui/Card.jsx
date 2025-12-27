@@ -35,10 +35,18 @@ export const Card = ({
 
   const hoverClass = hoverable || onClick ? 'hover:shadow-xl transition-shadow cursor-pointer' : '';
 
+  const handleKeyDown = (e) => {
+    if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      onClick(e);
+    }
+  };
+
   return (
     <div
       className={`${variants[variant]} ${paddings[padding]} ${hoverClass} ${className}`}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
     >

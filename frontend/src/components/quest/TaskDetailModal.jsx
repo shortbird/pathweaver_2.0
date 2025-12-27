@@ -42,6 +42,7 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
               <button
                 onClick={onClose}
                 className="ml-4 text-white hover:text-white/80 transition-colors"
+                aria-label="Close task details"
               >
                 <XMarkIcon className="w-8 h-8" />
               </button>

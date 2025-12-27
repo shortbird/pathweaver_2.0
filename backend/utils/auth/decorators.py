@@ -460,3 +460,75 @@ def get_advisor_assigned_students(advisor_id):
     except Exception as e:
         print(f"Error getting advisor assigned students: {str(e)}", file=sys.stderr, flush=True)
         return []
+
+def require_parental_consent(f):
+    """
+    Decorator to check parental consent status for COPPA compliance.
+
+    Blocks access for users who require parental consent but haven't been verified.
+    This applies to users under 13 years old when they registered.
+
+    COPPA Compliance: Users with requires_parental_consent=true must have
+    parental_consent_status='approved' to access the platform.
+
+    Returns 403 Forbidden with consent_required flag if not verified.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Skip check for OPTIONS requests (CORS preflight)
+        if request.method == 'OPTIONS':
+            return ('', 200)
+
+        # Get user ID (should already be set by @require_auth)
+        user_id = getattr(request, 'user_id', None) or session_manager.get_effective_user_id()
+
+        if not user_id:
+            # Auth will be handled by @require_auth decorator
+            return f(*args, **kwargs)
+
+        # Check parental consent status (use admin client to bypass RLS)
+        from database import get_supabase_admin_client
+        supabase = get_supabase_admin_client()
+
+        try:
+            user = supabase.table('users').select(
+                'requires_parental_consent, parental_consent_verified, parental_consent_status'
+            ).eq('id', user_id).single().execute()
+
+            if not user.data:
+                # User not found, let other decorators handle it
+                return f(*args, **kwargs)
+
+            # If user requires parental consent
+            if user.data.get('requires_parental_consent'):
+                consent_status = user.data.get('parental_consent_status', 'pending_submission')
+
+                # Only allow access if status is 'approved'
+                if consent_status != 'approved':
+                    return jsonify({
+                        'error': 'Parental consent required',
+                        'consent_required': True,
+                        'consent_status': consent_status,
+                        'message': _get_consent_message(consent_status)
+                    }), 403
+
+            # Consent not required or already approved
+            return f(*args, **kwargs)
+
+        except Exception as e:
+            logger.error(f"Error checking parental consent: {str(e)}")
+            # On error, allow access to prevent blocking legitimate users
+            # (security risk is low since this is additional protection, not primary auth)
+            return f(*args, **kwargs)
+
+    return decorated_function
+
+def _get_consent_message(status):
+    """Helper to get user-friendly message based on consent status"""
+    messages = {
+        'pending_submission': 'Please have your parent or guardian submit consent documents to activate your account.',
+        'pending_review': 'Your parental consent documents are being reviewed. This typically takes 24-48 hours.',
+        'rejected': 'Your parental consent documents need to be resubmitted. Please check your parent\'s email for details.',
+        'approved': 'Your account is active.'
+    }
+    return messages.get(status, 'Parental consent verification required.')

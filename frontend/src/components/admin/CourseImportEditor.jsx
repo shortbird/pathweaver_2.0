@@ -198,7 +198,7 @@ const CourseImportEditor = ({ previewData, onBack, onImportComplete }) => {
                 <div className="relative">
                   <img
                     src={quest.cover_image}
-                    alt="Quest cover"
+                    alt={`Cover image for quest: ${quest.title}`}
                     className="w-full h-48 object-cover rounded-lg"
                   />
                   <button

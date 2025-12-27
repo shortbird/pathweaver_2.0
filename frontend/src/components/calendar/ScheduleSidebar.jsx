@@ -98,7 +98,7 @@ const UnscheduledItem = ({ item, onQuickSchedule, onCustomSchedule }) => {
       {item.quest_image && (
         <img
           src={item.quest_image}
-          alt=""
+          alt={`${item.quest_title} quest image`}
           className="w-full h-24 object-cover rounded mb-2"
         />
       )}

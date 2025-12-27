@@ -55,7 +55,7 @@ const QuestCardSimple = ({ quest }) => {
             <div className="flex-shrink-0">
               <img
                 src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/onfire.png"
-                alt="OnFire"
+                alt="OnFire quest designation badge"
                 className="h-24 w-auto object-contain"
                 onError={(e) => {
                   console.error('Failed to load OnFire logo');
@@ -71,7 +71,7 @@ const QuestCardSimple = ({ quest }) => {
             {quest.image_url || quest.header_image_url ? (
               <img
                 src={quest.image_url || quest.header_image_url}
-                alt={quest.title}
+                alt={`Quest: ${quest.title}`}
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               />
             ) : (

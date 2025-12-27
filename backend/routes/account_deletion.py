@@ -289,10 +289,6 @@ def export_user_data(current_user):
             logger.error(f"Error fetching friendships: {str(e)}")
             export_data['friendships'] = []
 
-        # Quest collaborations removed in Phase 1 refactoring (January 2025)
-        # Table quest_collaborations no longer exists
-        export_data['collaborations'] = []
-
         # Get tutor conversations (if exists)
         try:
             tutor_response = supabase.table('tutor_conversations').select('*').eq('user_id', user_id).execute()
@@ -312,6 +308,111 @@ def export_user_data(current_user):
         # Quest ratings removed in Phase 1 refactoring (January 2025)
         # Table quest_ratings no longer exists
         export_data['quest_ratings'] = []
+
+        # GDPR Compliance: Add missing tables (Week 3)
+
+        # Get parental consent logs (COPPA compliance)
+        try:
+            consent_response = supabase.table('parental_consent_log').select('*').eq('user_id', user_id).execute()
+            export_data['parental_consent_log'] = consent_response.data if consent_response.data else []
+        except Exception as e:
+            logger.error(f"Error fetching parental consent log: {str(e)}")
+            export_data['parental_consent_log'] = []
+
+        # Get student access logs (FERPA compliance - tracks who accessed user's data)
+        try:
+            access_logs_response = supabase.table('student_access_logs').select('*').eq('student_id', user_id).execute()
+            export_data['student_access_logs'] = access_logs_response.data if access_logs_response.data else []
+        except Exception as e:
+            logger.error(f"Error fetching student access logs: {str(e)}")
+            export_data['student_access_logs'] = []
+
+        # Get observer access logs (if user is a student with observers)
+        try:
+            observer_logs_response = supabase.table('observer_audit_log').select('*').eq('student_id', user_id).execute()
+            export_data['observer_access_logs'] = observer_logs_response.data if observer_logs_response.data else []
+        except Exception as e:
+            logger.error(f"Error fetching observer access logs: {str(e)}")
+            export_data['observer_access_logs'] = []
+
+        # Get advisor notes (if any)
+        try:
+            advisor_notes_response = supabase.table('advisor_student_notes').select('*').eq('student_id', user_id).execute()
+            export_data['advisor_notes'] = advisor_notes_response.data if advisor_notes_response.data else []
+        except Exception as e:
+            logger.error(f"Error fetching advisor notes: {str(e)}")
+            export_data['advisor_notes'] = []
+
+        # Get direct messages (sent and received)
+        try:
+            # Messages sent by user
+            sent_messages = supabase.table('direct_messages').select('*').eq('sender_id', user_id).execute()
+            # Messages received by user
+            received_messages = supabase.table('direct_messages').select('*').eq('recipient_id', user_id).execute()
+
+            all_messages = []
+            if sent_messages.data:
+                all_messages.extend(sent_messages.data)
+            if received_messages.data:
+                all_messages.extend(received_messages.data)
+
+            # Remove duplicates (shouldn't happen, but just in case)
+            seen_ids = set()
+            unique_messages = []
+            for msg in all_messages:
+                if msg['id'] not in seen_ids:
+                    seen_ids.add(msg['id'])
+                    unique_messages.append(msg)
+
+            export_data['direct_messages'] = unique_messages
+        except Exception as e:
+            logger.error(f"Error fetching direct messages: {str(e)}")
+            export_data['direct_messages'] = []
+
+        # Get user badges
+        try:
+            badges_response = supabase.table('user_badges').select('*').eq('user_id', user_id).execute()
+            export_data['user_badges'] = badges_response.data if badges_response.data else []
+        except Exception as e:
+            logger.error(f"Error fetching user badges: {str(e)}")
+            export_data['user_badges'] = []
+
+        # Get file URLs for evidence and profile images
+        # Note: Actual file download would require separate endpoints due to size
+        # This provides metadata and URLs for user to download files separately
+        export_data['file_references'] = {
+            'evidence_files': [],
+            'profile_image': None
+        }
+
+        # Get evidence file URLs from Supabase Storage
+        try:
+            # Get evidence blocks with file references
+            evidence_blocks = export_data.get('evidence_documents', [])
+            for block in evidence_blocks:
+                if block.get('block_type') in ['image', 'file', 'video']:
+                    content_data = block.get('content', {})
+                    if isinstance(content_data, dict) and content_data.get('url'):
+                        export_data['file_references']['evidence_files'].append({
+                            'task_id': block.get('task_id'),
+                            'block_id': block.get('id'),
+                            'file_type': block.get('block_type'),
+                            'url': content_data.get('url'),
+                            'uploaded_at': block.get('created_at')
+                        })
+        except Exception as e:
+            logger.error(f"Error fetching evidence file references: {str(e)}")
+
+        # Get profile image URL
+        try:
+            user_profile = export_data.get('profile', {})
+            if user_profile and user_profile.get('avatar_url'):
+                export_data['file_references']['profile_image'] = {
+                    'url': user_profile.get('avatar_url'),
+                    'note': 'Download this URL to save your profile image'
+                }
+        except Exception as e:
+            logger.error(f"Error fetching profile image reference: {str(e)}")
 
         return jsonify(export_data), 200
 

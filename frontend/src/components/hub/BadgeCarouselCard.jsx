@@ -63,7 +63,7 @@ const BadgeCarouselCard = memo(({ badge }) => {
           <>
             <img
               src={badge.image_url}
-              alt={badge.name}
+              alt={`Badge: ${badge.name} - ${badge.pillar_primary || 'Achievement'} badge`}
               loading="lazy"
               decoding="async"
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"

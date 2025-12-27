@@ -19,6 +19,7 @@ const SubjectReviewPage = lazy(() => import('./admin/SubjectReviewPage'))
 const OrganizationDashboard = lazy(() => import('./admin/OrganizationDashboard'))
 const OrganizationManagement = lazy(() => import('./admin/OrganizationManagement'))
 const ObserverAuditLog = lazy(() => import('../components/admin/ObserverAuditLog'))
+const ParentalConsentReviewPage = lazy(() => import('./admin/ParentalConsentReviewPage'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -124,6 +125,12 @@ const AdminPage = () => {
             >
               Observer Audit
             </Link>
+            <Link
+              to="/admin/parental-consent"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'parental-consent' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Parental Consent
+            </Link>
           </>
         )}
 
@@ -156,6 +163,7 @@ const AdminPage = () => {
           <Route path="organizations" element={<OrganizationDashboard />} />
           <Route path="organizations/:orgId" element={<OrganizationManagement />} />
           <Route path="observer-audit" element={<ObserverAuditLog />} />
+          <Route path="parental-consent" element={<ParentalConsentReviewPage />} />
         </Routes>
       </Suspense>
     </div>

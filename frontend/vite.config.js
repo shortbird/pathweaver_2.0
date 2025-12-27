@@ -56,16 +56,70 @@ export default defineConfig(({ mode }) => ({
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Core React bundle - most stable, best for caching
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          // UI libraries
-          'ui-vendor': ['@heroicons/react', 'framer-motion'],
-          // Heavy chart libraries - lazy loaded via App.jsx already
-          'recharts': ['recharts'],
-          'fullcalendar': ['@fullcalendar/react', '@fullcalendar/daygrid', '@fullcalendar/interaction'],
-          // Utilities
-          'utils-vendor': ['axios', '@tanstack/react-query'],
+        manualChunks(id) {
+          // Vendor chunks (most stable, best for caching)
+          if (id.includes('node_modules')) {
+            // Core React bundle - most stable, best for caching
+            // CRITICAL: Include ALL React-dependent packages to prevent load order issues
+            // that cause "Cannot read properties of undefined (reading 'useLayoutEffect')" errors
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router') ||
+                id.includes('@dnd-kit') || id.includes('@stripe/react-stripe-js') ||
+                id.includes('react-hot-toast') || id.includes('react-helmet-async') ||
+                id.includes('qrcode.react') || id.includes('react-masonry-css') ||
+                id.includes('react-ga4') || id.includes('focus-trap-react') ||
+                id.includes('react-hook-form') || id.includes('@tanstack/react-query') ||
+                id.includes('@fullcalendar/react')) {
+              return 'react-vendor';
+            }
+            // UI libraries (React-independent)
+            if (id.includes('@heroicons') || id.includes('framer-motion')) {
+              return 'ui-vendor';
+            }
+            // Heavy chart libraries
+            if (id.includes('recharts')) {
+              return 'recharts';
+            }
+            // Calendar library core (non-React parts)
+            if (id.includes('@fullcalendar') && !id.includes('@fullcalendar/react')) {
+              return 'fullcalendar';
+            }
+            // Form validation (React-independent)
+            if (id.includes('yup')) {
+              return 'forms-vendor';
+            }
+            // API client (React-independent)
+            if (id.includes('axios')) {
+              return 'utils-vendor';
+            }
+            // All other vendors
+            return 'vendor';
+          }
+
+          // Application code chunks (by route/feature)
+          // Admin pages - large bundle, accessed only by admins
+          if (id.includes('/pages/AdminPage') || id.includes('/components/admin/')) {
+            return 'admin';
+          }
+          // Quest & Badge pages - core functionality
+          if (id.includes('/pages/Quest') || id.includes('/pages/Badge') || id.includes('/components/quest/') || id.includes('/components/badges/')) {
+            return 'quests-badges';
+          }
+          // Parent pages - role-specific
+          if (id.includes('/pages/ParentDashboard') || id.includes('/pages/ParentQuest') || id.includes('/components/parent/')) {
+            return 'parent';
+          }
+          // Observer pages - role-specific
+          if (id.includes('/pages/Observer') || id.includes('/components/observer/')) {
+            return 'observer';
+          }
+          // Advisor pages - role-specific
+          if (id.includes('/pages/Advisor') || id.includes('/components/advisor/')) {
+            return 'advisor';
+          }
+          // Diploma/Portfolio - public-facing, can be separate
+          if (id.includes('/pages/DiplomaPage') || id.includes('/components/diploma/')) {
+            return 'diploma';
+          }
         },
       },
     },

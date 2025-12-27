@@ -10,6 +10,7 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
+from middleware.idempotency import require_idempotency
 from services.badge_service import BadgeService
 from utils.logger import get_logger
 
@@ -20,6 +21,7 @@ badge_claiming_bp = Blueprint('badge_claiming', __name__)
 
 @badge_claiming_bp.route('/badges/<badge_id>/claim', methods=['POST'])
 @require_auth
+@require_idempotency(ttl_seconds=86400)
 def claim_badge(user_id, badge_id):
     """
     Claim a badge that's available (requirements met).

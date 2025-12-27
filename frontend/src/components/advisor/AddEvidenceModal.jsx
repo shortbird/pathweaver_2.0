@@ -484,7 +484,7 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
                       >
                         <div className="flex items-start space-x-3">
                           {quest.quest_image && (
-                            <img src={quest.quest_image} alt="" className="w-12 h-12 rounded-md object-cover" />
+                            <img src={quest.quest_image} alt={`${quest.quest_title} quest image`} className="w-12 h-12 rounded-md object-cover" />
                           )}
                           <div className="flex-1 min-w-0">
                             <h4 className="font-semibold text-gray-900 truncate">{quest.quest_title}</h4>

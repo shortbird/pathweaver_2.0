@@ -149,9 +149,9 @@ const SiteSettings = () => {
               </label>
               {previewUrl ? (
                 <div className="border rounded p-4 bg-gray-50">
-                  <img 
-                    src={previewUrl} 
-                    alt="Site logo" 
+                  <img
+                    src={previewUrl}
+                    alt={`${settings?.site_name || 'Site'} logo`}
                     className="h-12 w-auto"
                   />
                 </div>

@@ -1,6 +1,6 @@
 """
 XP calculation and award service for Quest V3 system.
-Handles XP calculations with collaboration bonuses and audit trails.
+Handles XP calculations and audit trails.
 
 Updated January 2025: Migrated to use BaseService for consistent error handling,
 retry logic, and logging patterns.
@@ -27,9 +27,7 @@ class XPService(BaseService):
                          base_xp: int) -> int:
         """
         Calculate XP for a task completion.
-
-        Collaboration bonuses removed in Phase 1 refactoring (January 2025).
-        XP is now simply the base task XP value.
+        Returns the base task XP value.
 
         Args:
             user_id: User completing the task

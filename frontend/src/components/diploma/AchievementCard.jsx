@@ -54,9 +54,9 @@ const AchievementCard = ({ achievement, onClick }) => {
       <div className={`relative h-40 bg-gradient-to-br ${getPillarGradient(achievement)} flex items-center justify-center overflow-hidden`}>
         {achievement.quest.header_image_url ? (
           <>
-            <img 
+            <img
               src={achievement.quest.header_image_url}
-              alt={achievement.quest.title}
+              alt={`Quest: ${achievement.quest.title}`}
               className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent" />

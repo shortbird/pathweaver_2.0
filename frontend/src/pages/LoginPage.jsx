@@ -71,6 +71,7 @@ const LoginPage = () => {
                 Email address
               </label>
               <input
+                id="email"
                 {...register('email', {
                   required: 'Email is required',
                   pattern: {
@@ -82,9 +83,11 @@ const LoginPage = () => {
                 autoComplete="email"
                 className="input-field rounded-t-lg"
                 placeholder="Email address"
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? "email-error" : undefined}
               />
               {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+                <p id="email-error" role="alert" className="mt-1 text-sm text-red-600">{errors.email.message}</p>
               )}
             </div>
             
@@ -94,22 +97,26 @@ const LoginPage = () => {
               </label>
               <div className="relative">
                 <input
+                  id="password"
                   {...register('password', {
                     required: 'Password is required',
                     minLength: {
-                      value: 6,
-                      message: 'Password must be at least 6 characters'
+                      value: 12,
+                      message: 'Password must be at least 12 characters'
                     }
                   })}
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   className="input-field rounded-b-lg pr-10"
                   placeholder="Password"
+                  aria-invalid={!!errors.password}
+                  aria-describedby={errors.password ? "password-error" : undefined}
                 />
                 <button
                   type="button"
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
                     <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -124,7 +131,7 @@ const LoginPage = () => {
                 </button>
               </div>
               {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+                <p id="password-error" role="alert" className="mt-1 text-sm text-red-600">{errors.password.message}</p>
               )}
             </div>
           </div>

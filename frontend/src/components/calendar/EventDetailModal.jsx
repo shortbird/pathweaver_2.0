@@ -34,7 +34,7 @@ const EventDetailModal = ({ event, onClose }) => {
         props.questImage && (
           <img
             src={props.questImage}
-            alt=""
+            alt={`${props.questTitle} quest banner`}
             className="w-full h-48 object-cover rounded-t-lg -m-6 mb-0"
           />
         )

@@ -95,6 +95,22 @@ HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
   clip: vi.fn(),
 }))
 
+// Mock crypto.subtle (used by secureTokenStore for encryption)
+Object.defineProperty(global, 'crypto', {
+  value: {
+    subtle: {
+      importKey: vi.fn(),
+      exportKey: vi.fn(),
+      generateKey: vi.fn(),
+      encrypt: vi.fn(),
+      decrypt: vi.fn(),
+    },
+    getRandomValues: vi.fn((arr) => arr),
+  },
+  writable: true,
+  configurable: true,
+})
+
 // Suppress console errors in tests (optional - comment out if you want to see them)
 // global.console.error = vi.fn()
 // global.console.warn = vi.fn()

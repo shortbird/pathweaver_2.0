@@ -31,11 +31,15 @@ from repositories import (
 )
 from middleware.error_handler import ValidationError, NotFoundError
 from middleware.rate_limiter import rate_limit
+from utils.auth.decorators import require_auth, require_role
 from services.email_service import email_service
+from werkzeug.utils import secure_filename
 import secrets
 import hashlib
 from datetime import datetime, timedelta
 import logging
+import os
+import mimetypes
 
 from utils.logger import get_logger
 
@@ -304,3 +308,369 @@ def resend_parental_consent():
     except Exception as e:
         logger.error(f"Error resending parental consent: {str(e)}")
         return jsonify({'error': 'Failed to resend parental consent'}), 500
+
+@bp.route('/parental-consent/submit-documents', methods=['POST'])
+@require_auth
+@rate_limit(max_requests=5, window_seconds=3600)  # 5 attempts per hour
+def submit_consent_documents(user_id: str):
+    """
+    Parent submits ID document for identity verification
+    Required before creating dependent profiles or linking to children
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get user info to verify they are a parent
+        user_response = supabase.table('users').select(
+            'id, display_name, email, role, parental_consent_status, parental_consent_verified'
+        ).eq('id', user_id).execute()
+
+        if not user_response.data:
+            raise NotFoundError("User account not found")
+
+        user = user_response.data[0]
+
+        # Verify user is a parent
+        if user.get('role') != 'parent':
+            return jsonify({'error': 'Only parent accounts can submit identity verification documents'}), 400
+
+        # Check if already verified
+        if user.get('parental_consent_verified'):
+            return jsonify({'error': 'Identity already verified'}), 400
+
+        # Check for required files
+        if 'id_document' not in request.files:
+            raise ValidationError("Parent ID document is required")
+
+        if 'signed_consent_form' not in request.files:
+            raise ValidationError("Signed consent form is required")
+
+        id_document = request.files['id_document']
+        consent_form = request.files['signed_consent_form']
+
+        # Validate file types (images or PDFs only)
+        allowed_extensions = {'jpg', 'jpeg', 'png', 'pdf'}
+
+        id_filename = secure_filename(id_document.filename)
+        form_filename = secure_filename(consent_form.filename)
+
+        id_ext = id_filename.rsplit('.', 1)[1].lower() if '.' in id_filename else ''
+        form_ext = form_filename.rsplit('.', 1)[1].lower() if '.' in form_filename else ''
+
+        if id_ext not in allowed_extensions or form_ext not in allowed_extensions:
+            raise ValidationError("Only JPG, PNG, or PDF files are allowed")
+
+        # Upload ID document to storage
+        try:
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            id_storage_path = f"parent_identity/{user_id}/id_{timestamp}_{id_filename}"
+
+            id_content = id_document.read()
+            id_content_type = id_document.content_type or mimetypes.guess_type(id_filename)[0] or 'application/octet-stream'
+
+            supabase.storage.from_('quest-evidence').upload(
+                path=id_storage_path,
+                file=id_content,
+                file_options={"content-type": id_content_type}
+            )
+
+            id_document_url = supabase.storage.from_('quest-evidence').get_public_url(id_storage_path)
+        except Exception as e:
+            logger.error(f"Error uploading ID document: {str(e)}")
+            raise ValidationError("Failed to upload ID document")
+
+        # Upload consent form to storage
+        try:
+            form_storage_path = f"parent_identity/{user_id}/consent_{timestamp}_{form_filename}"
+
+            form_content = consent_form.read()
+            form_content_type = consent_form.content_type or mimetypes.guess_type(form_filename)[0] or 'application/octet-stream'
+
+            supabase.storage.from_('quest-evidence').upload(
+                path=form_storage_path,
+                file=form_content,
+                file_options={"content-type": form_content_type}
+            )
+
+            consent_form_url = supabase.storage.from_('quest-evidence').get_public_url(form_storage_path)
+        except Exception as e:
+            logger.error(f"Error uploading consent form: {str(e)}")
+            raise ValidationError("Failed to upload consent form")
+
+        # Update parent's user record with documents and status
+        supabase.table('users').update({
+            'parental_consent_id_document_url': id_document_url,
+            'parental_consent_signed_form_url': consent_form_url,
+            'parental_consent_status': 'pending_review',
+            'parental_consent_submitted_at': datetime.utcnow().isoformat()
+        }).eq('id', user_id).execute()
+
+        # Log submission (generate a dummy token since the table requires it)
+        log_token = secrets.token_urlsafe(32)
+        supabase.table('parental_consent_log').insert({
+            'user_id': user_id,
+            'child_email': '',  # Not applicable for parent identity verification
+            'parent_email': user.get('email', ''),
+            'consent_token': log_token,
+            'ip_address': request.remote_addr,
+            'user_agent': request.headers.get('User-Agent', '')
+        }).execute()
+
+        # Get admin users to notify
+        admin_response = supabase.table('users').select('email').eq('role', 'admin').execute()
+        admin_emails = [admin['email'] for admin in admin_response.data if admin.get('email')]
+
+        # Send notification email to admin
+        if admin_emails:
+            for admin_email in admin_emails:
+                email_service.send_templated_email(
+                    to_email=admin_email,
+                    subject='New Parent Identity Verification Required',
+                    template_name='admin_parent_identity_notification',
+                    context={
+                        'parent_name': user.get('display_name', 'Parent'),
+                        'parent_email': user.get('email', ''),
+                        'review_url': f"{os.getenv('FRONTEND_URL')}/admin/parental-consent",
+                        'parent_id': user_id
+                    }
+                )
+            logger.info(f"Notified {len(admin_emails)} admins of new parent identity verification for {user_id}")
+
+        # Send confirmation to parent
+        email_service.send_templated_email(
+            to_email=user.get('email'),
+            subject='Identity Verification Documents Received',
+            template_name='parent_identity_received',
+            context={
+                'parent_name': user.get('display_name', 'Parent'),
+                'review_time': '24-48 hours'
+            }
+        )
+
+        return jsonify({
+            'message': 'Documents submitted successfully. Review typically takes 24-48 hours.',
+            'status': 'pending_review',
+            'parent_id': user_id
+        }), 200
+
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
+    except NotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error submitting consent documents: {str(e)}")
+        return jsonify({'error': 'Failed to submit consent documents'}), 500
+
+@bp.route('/admin/parental-consent/pending', methods=['GET'])
+@require_role('admin')
+def get_pending_consent_reviews(user_id: str):
+    """
+    Admin endpoint: Get all pending parent identity verification reviews
+
+    Parents submit ID documents and signed consent forms to verify their identity
+    before they can create dependent profiles or link to children under 13.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get all PARENTS with pending identity verification
+        pending_response = supabase.table('users').select(
+            'id, display_name, email, parental_consent_submitted_at, '
+            'parental_consent_id_document_url, parental_consent_signed_form_url, '
+            'parental_consent_status, date_of_birth, role'
+        ).eq('parental_consent_status', 'pending_review').eq('role', 'parent').order('parental_consent_submitted_at').execute()
+
+        pending_reviews = []
+        for parent in pending_response.data:
+            # Calculate age for context
+            age = None
+            if parent.get('date_of_birth'):
+                dob = datetime.fromisoformat(parent['date_of_birth'].replace('Z', '+00:00'))
+                age = (datetime.now() - dob).days // 365
+
+            pending_reviews.append({
+                'parent_id': parent['id'],
+                'parent_name': parent.get('display_name', 'Unknown'),
+                'parent_email': parent.get('email'),
+                'submitted_at': parent.get('parental_consent_submitted_at'),
+                'id_document_url': parent.get('parental_consent_id_document_url'),
+                'consent_form_url': parent.get('parental_consent_signed_form_url'),
+                'parent_age': age,
+                'status': parent.get('parental_consent_status')
+            })
+
+        return jsonify({
+            'pending_reviews': pending_reviews,
+            'count': len(pending_reviews)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching pending consent reviews: {str(e)}")
+        return jsonify({'error': 'Failed to fetch pending reviews'}), 500
+
+@bp.route('/admin/parental-consent/approve/<parent_id>', methods=['POST'])
+@require_role('admin')
+def approve_parental_consent(user_id: str, parent_id):
+    """
+    Admin endpoint: Approve parent identity verification after reviewing ID documents
+
+    Verifies that the parent is an adult with valid ID and has signed the consent form.
+    After approval, the parent can create dependent profiles or link to children under 13.
+    """
+    try:
+        admin_id = user_id
+        data = request.json or {}
+        review_notes = data.get('notes', '')
+
+        supabase = get_supabase_admin_client()
+
+        # Get parent info
+        parent_response = supabase.table('users').select(
+            'id, display_name, email, parental_consent_status, role'
+        ).eq('id', parent_id).execute()
+
+        if not parent_response.data:
+            raise NotFoundError("Parent account not found")
+
+        parent = parent_response.data[0]
+
+        if parent.get('role') != 'parent':
+            return jsonify({'error': 'User is not a parent account'}), 400
+
+        if parent.get('parental_consent_status') != 'pending_review':
+            return jsonify({'error': 'Identity verification is not pending review'}), 400
+
+        # Approve parent identity
+        supabase.table('users').update({
+            'parental_consent_verified': True,
+            'parental_consent_verified_at': datetime.utcnow().isoformat(),
+            'parental_consent_verified_by': admin_id,
+            'parental_consent_status': 'approved',
+            'parental_consent_token': None  # Clear any old tokens
+        }).eq('id', parent_id).execute()
+
+        # Log admin action
+        supabase.table('parental_consent_log').insert({
+            'user_id': parent_id,
+            'child_email': '',  # Not applicable for parent identity verification
+            'parent_email': parent.get('email', ''),
+            'reviewed_by_admin_id': admin_id,
+            'review_action': 'approved',
+            'review_notes': review_notes,
+            'reviewed_at': datetime.utcnow().isoformat(),
+            'ip_address': request.remote_addr,
+            'user_agent': request.headers.get('User-Agent', '')
+        }).execute()
+
+        # Send approval email to parent
+        email_service.send_templated_email(
+            to_email=parent.get('email'),
+            subject='Identity Verification Approved - Optio Education',
+            template_name='parent_consent_approved',
+            context={
+                'parent_name': parent.get('display_name', 'Parent'),
+                'login_url': f"{os.getenv('FRONTEND_URL')}/login"
+            }
+        )
+
+        logger.info(f"Admin {admin_id} approved parent identity verification for {parent_id}")
+
+        return jsonify({
+            'message': 'Parent identity verification approved successfully',
+            'parent_id': parent_id,
+            'approved_by': admin_id,
+            'status': 'approved'
+        }), 200
+
+    except NotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error approving parent identity: {str(e)}")
+        return jsonify({'error': 'Failed to approve parent identity verification'}), 500
+
+@bp.route('/admin/parental-consent/reject/<parent_id>', methods=['POST'])
+@require_role('admin')
+def reject_parental_consent(user_id: str, parent_id):
+    """
+    Admin endpoint: Reject parent identity verification (e.g., unclear documents, fraudulent)
+
+    Rejects the parent's identity verification if documents don't meet requirements.
+    Parent can resubmit with clearer documents.
+    """
+    try:
+        admin_id = user_id
+        data = request.json or {}
+        rejection_reason = data.get('reason', 'Documents did not meet verification requirements')
+
+        if not rejection_reason:
+            raise ValidationError("Rejection reason is required")
+
+        supabase = get_supabase_admin_client()
+
+        # Get parent info
+        parent_response = supabase.table('users').select(
+            'id, display_name, email, parental_consent_status, role'
+        ).eq('id', parent_id).execute()
+
+        if not parent_response.data:
+            raise NotFoundError("Parent account not found")
+
+        parent = parent_response.data[0]
+
+        if parent.get('role') != 'parent':
+            return jsonify({'error': 'User is not a parent account'}), 400
+
+        if parent.get('parental_consent_status') != 'pending_review':
+            return jsonify({'error': 'Identity verification is not pending review'}), 400
+
+        # Reject parent identity verification
+        supabase.table('users').update({
+            'parental_consent_verified': False,
+            'parental_consent_status': 'rejected',
+            'parental_consent_rejection_reason': rejection_reason,
+            'parental_consent_id_document_url': None,  # Clear rejected documents
+            'parental_consent_signed_form_url': None
+        }).eq('id', parent_id).execute()
+
+        # Log admin action
+        supabase.table('parental_consent_log').insert({
+            'user_id': parent_id,
+            'child_email': '',  # Not applicable for parent identity verification
+            'parent_email': parent.get('email', ''),
+            'reviewed_by_admin_id': admin_id,
+            'review_action': 'rejected',
+            'review_notes': rejection_reason,
+            'reviewed_at': datetime.utcnow().isoformat(),
+            'ip_address': request.remote_addr,
+            'user_agent': request.headers.get('User-Agent', '')
+        }).execute()
+
+        # Send rejection email to parent with reason
+        email_service.send_templated_email(
+            to_email=parent.get('email'),
+            subject='Identity Verification - Additional Information Needed',
+            template_name='parent_consent_rejected',
+            context={
+                'parent_name': parent.get('display_name', 'Parent'),
+                'rejection_reason': rejection_reason,
+                'resubmit_url': f"{os.getenv('FRONTEND_URL')}/parental-consent"
+            }
+        )
+
+        logger.info(f"Admin {admin_id} rejected parent identity verification for {parent_id}: {rejection_reason}")
+
+        return jsonify({
+            'message': 'Parent identity verification rejected',
+            'parent_id': parent_id,
+            'rejected_by': admin_id,
+            'reason': rejection_reason,
+            'status': 'rejected'
+        }), 200
+
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
+    except NotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error rejecting parent identity: {str(e)}")
+        return jsonify({'error': 'Failed to reject parent identity verification'}), 500

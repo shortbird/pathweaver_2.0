@@ -16,6 +16,7 @@ from middleware.rate_limiter import rate_limit
 from utils.log_scrubber import mask_email, should_log_sensitive_data
 from middleware.error_handler import ValidationError, ExternalServiceError, ConflictError
 from legal_versions import CURRENT_TOS_VERSION, CURRENT_PRIVACY_POLICY_VERSION
+from utils.api_response_v1 import success_response, error_response, created_response
 import re
 import os
 from datetime import datetime, date
@@ -170,6 +171,8 @@ def register():
             # Check if the error is about rate limiting
             error_str = str(auth_error).lower()
             if 'email rate limit exceeded' in error_str or 'rate limit' in error_str:
+                # Return legacy format for frontend compatibility
+                # TODO: Migrate to standardized format after updating frontend
                 return jsonify({
                     'message': 'Registration may have succeeded. If you received a confirmation email, please verify your account. Otherwise, wait a minute and try again.',
                     'email_verification_required': True
@@ -177,9 +180,11 @@ def register():
 
             # Check if email already exists
             if 'already registered' in error_str or 'already exists' in error_str or 'user already exists' in error_str:
-                return jsonify({
-                    'error': 'An account with this email already exists. If you created your account through single sign-on (SSO), you can set a password by clicking "Forgot Password" on the login page.'
-                }), 400
+                return error_response(
+                    code='EMAIL_ALREADY_EXISTS',
+                    message='An account with this email already exists. If you created your account through single sign-on (SSO), you can set a password by clicking "Forgot Password" on the login page.',
+                    status=400
+                )
 
             raise
 
@@ -274,6 +279,8 @@ def register():
                     response_data['parent_email'] = parent_email
                     response_data['message'] = 'Account created! Please verify your email and have your parent/guardian verify consent.'
 
+                # Return legacy format for frontend compatibility
+                # TODO: Migrate to standardized format after updating frontend
                 return jsonify(response_data), 201
 
             # Fetch the complete user profile data to return to frontend
@@ -300,7 +307,8 @@ def register():
             response_data['app_access_token'] = app_access_token
             response_data['app_refresh_token'] = app_refresh_token
 
-            # Create response and set httpOnly cookies for authentication
+            # Create response (legacy format for frontend compatibility)
+            # TODO: Migrate to standardized format after updating frontend
             response = make_response(jsonify(response_data), 201)
 
             # Set httpOnly cookies for authentication (fallback method)
@@ -308,7 +316,11 @@ def register():
 
             return response
         else:
-            return jsonify({'error': 'Registration failed - no user created'}), 400
+            return error_response(
+                code='REGISTRATION_FAILED',
+                message='Registration failed - no user created',
+                status=400
+            )
 
     except ValidationError:
         raise  # Re-raise validation errors
@@ -359,7 +371,11 @@ def resend_verification():
         email = data.get('email')
 
         if not email:
-            return jsonify({'error': 'Email is required'}), 400
+            return error_response(
+                code='EMAIL_REQUIRED',
+                message='Email is required',
+                status=400
+            )
 
         # Sanitize email input
         email = sanitize_input(email.lower().strip())
@@ -371,12 +387,18 @@ def resend_verification():
 
         if not user_check.data:
             # Don't reveal if user doesn't exist for security
+            # Return legacy format for frontend compatibility
+            # TODO: Migrate to standardized format after updating frontend
             return jsonify({'message': 'If this email is registered, a verification email has been sent'}), 200
 
         user = user_check.data[0]
 
         if user.get('email_verified'):
-            return jsonify({'error': 'Email is already verified'}), 400
+            return error_response(
+                code='EMAIL_ALREADY_VERIFIED',
+                message='Email is already verified',
+                status=400
+            )
 
         # Resend verification email using Supabase Auth
         try:
@@ -385,6 +407,8 @@ def resend_verification():
 
             logger.info(f"[RESEND_VERIFICATION] Result: {result}")
 
+            # Return legacy format for frontend compatibility
+            # TODO: Migrate to standardized format after updating frontend
             return jsonify({
                 'message': 'Verification email request processed. Please check your inbox and spam folder.',
                 'note': 'Supabase free tier allows 4 emails per hour. If you don\'t receive an email, you may have hit the rate limit.'
@@ -395,14 +419,22 @@ def resend_verification():
 
             # Provide helpful error messages
             if 'rate limit' in error_str or 'too many' in error_str:
-                return jsonify({
-                    'error': 'Email rate limit reached. Supabase free tier allows 4 emails per hour. Please wait before trying again.',
-                    'suggestion': 'Check your spam folder for previous emails, or wait an hour for the limit to reset.'
-                }), 429
+                return error_response(
+                    code='EMAIL_RATE_LIMIT',
+                    message='Email rate limit reached. Supabase free tier allows 4 emails per hour. Please wait before trying again.',
+                    details={'suggestion': 'Check your spam folder for previous emails, or wait an hour for the limit to reset.'},
+                    status=429
+                )
             elif 'not found' in error_str:
-                return jsonify({'error': 'No account found with this email address. Please register first.'}), 404
+                return error_response(
+                    code='ACCOUNT_NOT_FOUND',
+                    message='No account found with this email address. Please register first.',
+                    status=404
+                )
             else:
                 # Don't reveal too much about errors for security
+                # Return legacy format for frontend compatibility
+                # TODO: Migrate to standardized format after updating frontend
                 return jsonify({
                     'message': 'Verification email request processed. If an account exists, an email will be sent.',
                     'note': 'Check spam folder. Supabase free tier has a 4 email/hour limit.'
@@ -410,4 +442,8 @@ def resend_verification():
 
     except Exception as e:
         logger.error(f"[RESEND_VERIFICATION] Error: {str(e)}")
-        return jsonify({'error': 'Failed to resend verification email'}), 500
+        return error_response(
+            code='RESEND_FAILED',
+            message='Failed to resend verification email',
+            status=500
+        )

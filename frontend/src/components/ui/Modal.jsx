@@ -1,5 +1,6 @@
 import React from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import FocusTrap from 'focus-trap-react';
 
 /**
  * Modal Component - Reusable modal wrapper with slot-based architecture
@@ -72,38 +73,49 @@ export const Modal = ({
     <div
       className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
       onClick={handleOverlayClick}
-      role="dialog"
-      aria-modal="true"
     >
-      <div className={`bg-white rounded-2xl shadow-2xl ${sizeClasses[size]} w-full max-h-[90vh] overflow-hidden flex flex-col`}>
-        {/* Header */}
-        {(header || title) && (
-          <div className={`bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white flex items-center justify-between ${headerClassName}`}>
-            {header || <h2 className="text-2xl font-bold">{title}</h2>}
-            {showCloseButton && (
-              <button
-                onClick={onClose}
-                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors ml-4"
-                aria-label="Close modal"
-              >
-                <XMarkIcon size={24} />
-              </button>
-            )}
-          </div>
-        )}
+      <FocusTrap
+        focusTrapOptions={{
+          allowOutsideClick: true,
+          escapeDeactivates: closeOnOverlayClick,
+          initialFocus: false,
+          returnFocusOnDeactivate: true
+        }}
+      >
+        <div
+          className={`bg-white rounded-2xl shadow-2xl ${sizeClasses[size]} w-full max-h-[90vh] overflow-hidden flex flex-col`}
+          role="dialog"
+          aria-modal="true"
+        >
+          {/* Header */}
+          {(header || title) && (
+            <div className={`bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white flex items-center justify-between ${headerClassName}`}>
+              {header || <h2 className="text-2xl font-bold">{title}</h2>}
+              {showCloseButton && (
+                <button
+                  onClick={onClose}
+                  className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors ml-4"
+                  aria-label="Close modal"
+                >
+                  <XMarkIcon size={24} />
+                </button>
+              )}
+            </div>
+          )}
 
-        {/* Body */}
-        <div className={`flex-1 overflow-y-auto p-6 ${bodyClassName}`}>
-          {children}
+          {/* Body */}
+          <div className={`flex-1 overflow-y-auto p-6 ${bodyClassName}`}>
+            {children}
+          </div>
+
+          {/* Footer */}
+          {footer && (
+            <div className={`px-6 py-4 border-t border-gray-200 ${footerClassName}`}>
+              {footer}
+            </div>
+          )}
         </div>
-
-        {/* Footer */}
-        {footer && (
-          <div className={`px-6 py-4 border-t border-gray-200 ${footerClassName}`}>
-            {footer}
-          </div>
-        )}
-      </div>
+      </FocusTrap>
     </div>
   );
 };

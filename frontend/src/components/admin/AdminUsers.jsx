@@ -288,7 +288,7 @@ const AdminUsers = () => {
                         {user.avatar_url ? (
                           <img
                             src={user.avatar_url}
-                            alt={`${user.first_name} ${user.last_name}`}
+                            alt={`Profile picture of ${user.first_name} ${user.last_name}`}
                             className="h-10 w-10 rounded-full object-cover"
                           />
                         ) : (
@@ -419,7 +419,7 @@ const AdminUsers = () => {
                   {user.avatar_url ? (
                     <img
                       src={user.avatar_url}
-                      alt={`${user.first_name} ${user.last_name}`}
+                      alt={`Profile picture of ${user.first_name} ${user.last_name}`}
                       className="h-20 w-20 rounded-full object-cover shadow-lg border-4 border-white"
                     />
                   ) : (

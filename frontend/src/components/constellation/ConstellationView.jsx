@@ -24,6 +24,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
   const [hoveredQuest, setHoveredQuest] = useState(null);
   const [hoveredQuestPosition, setHoveredQuestPosition] = useState(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
+  const [focusedType, setFocusedType] = useState('pillar'); // 'pillar' or 'quest'
   const [showTimeTravel, setShowTimeTravel] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -326,29 +327,96 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
     return () => container.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
 
-  // Keyboard navigation
+  // Keyboard navigation - comprehensive navigation through pillars and quests
   useEffect(() => {
     const handleKeyDown = (e) => {
+      const totalPillars = pillarsData.length;
+      const totalQuests = questOrbsWithPositions.length;
+
       switch (e.key) {
         case 'Escape':
           onExit?.();
           break;
         case 'Tab':
           e.preventDefault();
-          setFocusedIndex((prev) => (prev + 1) % pillarsData.length);
+          if (e.shiftKey) {
+            // Backwards navigation
+            if (focusedType === 'pillar' && focusedIndex === 0) {
+              // Move to last quest
+              if (totalQuests > 0) {
+                setFocusedType('quest');
+                setFocusedIndex(totalQuests - 1);
+              } else {
+                setFocusedIndex(totalPillars - 1);
+              }
+            } else if (focusedType === 'pillar') {
+              setFocusedIndex(prev => prev - 1);
+            } else if (focusedType === 'quest' && focusedIndex === 0) {
+              // Move to last pillar
+              setFocusedType('pillar');
+              setFocusedIndex(totalPillars - 1);
+            } else {
+              setFocusedIndex(prev => prev - 1);
+            }
+          } else {
+            // Forward navigation
+            if (focusedType === 'pillar' && focusedIndex === totalPillars - 1) {
+              // Move to first quest
+              if (totalQuests > 0) {
+                setFocusedType('quest');
+                setFocusedIndex(0);
+              } else {
+                setFocusedIndex(0);
+              }
+            } else if (focusedType === 'pillar') {
+              setFocusedIndex(prev => prev + 1);
+            } else if (focusedType === 'quest' && focusedIndex === totalQuests - 1) {
+              // Move to first pillar
+              setFocusedType('pillar');
+              setFocusedIndex(0);
+            } else {
+              setFocusedIndex(prev => prev + 1);
+            }
+          }
           break;
         case 'ArrowRight':
+        case 'ArrowDown':
           e.preventDefault();
-          setFocusedIndex((prev) => (prev + 1) % pillarsData.length);
+          if (focusedType === 'pillar') {
+            setFocusedIndex((prev) => (prev + 1) % totalPillars);
+          } else {
+            setFocusedIndex((prev) => (prev + 1) % totalQuests);
+          }
           break;
         case 'ArrowLeft':
+        case 'ArrowUp':
           e.preventDefault();
-          setFocusedIndex((prev) => (prev - 1 + pillarsData.length) % pillarsData.length);
+          if (focusedType === 'pillar') {
+            setFocusedIndex((prev) => (prev - 1 + totalPillars) % totalPillars);
+          } else {
+            setFocusedIndex((prev) => (prev - 1 + totalQuests) % totalQuests);
+          }
           break;
         case 'Enter':
         case ' ':
           e.preventDefault();
-          handleStarClick(pillarsData[focusedIndex]);
+          if (focusedType === 'pillar') {
+            handleStarClick(pillarsData[focusedIndex]);
+            // Show tooltip for focused pillar
+            const focusedPillar = stars[focusedIndex];
+            if (focusedPillar) {
+              setHoveredPillar(focusedPillar);
+              setHoveredPosition(focusedPillar.position);
+            }
+          } else {
+            const focusedQuest = questOrbsWithPositions[focusedIndex];
+            if (focusedQuest) {
+              handleQuestClick(focusedQuest);
+              // Show tooltip for focused quest
+              setHoveredQuest(focusedQuest);
+              setHoveredQuestPosition(focusedQuest.position);
+            }
+          }
           break;
         default:
           break;
@@ -357,7 +425,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusedIndex, pillarsData, onExit]);
+  }, [focusedIndex, focusedType, pillarsData, questOrbsWithPositions, stars, onExit]);
 
   // Container animation variants
   const containerVariants = {
@@ -415,7 +483,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
       <ParticleTrail questOrbs={questOrbsWithPositions} pillarPositions={pillarPositions} />
 
       {/* Quest Orbs - Render first so they're behind pillars */}
-      {questOrbsWithPositions.map((quest) => (
+      {questOrbsWithPositions.map((quest, idx) => (
         <QuestOrb
           key={quest.id}
           quest={quest}
@@ -425,6 +493,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
           onLeave={handleQuestLeave}
           onClick={handleQuestClick}
           index={quest.index}
+          isFocused={focusedType === 'quest' && focusedIndex === idx}
         />
       ))}
 
@@ -440,6 +509,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
           onLeave={handleOrbLeave}
           onClick={handleStarClick}
           index={index}
+          isFocused={focusedType === 'pillar' && focusedIndex === index}
         />
       ))}
 
@@ -493,11 +563,12 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
       {/* Screen Reader Instructions */}
       <div className="sr-only">
         <p>
-          Use Tab or Arrow keys to navigate between learning pillars.
-          Press Enter or Space to explore quests for the selected pillar.
-          Use the Time Travel button in the controls panel to view your constellation over time.
-          Hold Shift and drag to pan. Use Ctrl/Cmd + scroll to zoom.
-          Press Escape to exit the constellation view.
+          Learning Constellation View with {pillarsData.length} learning pillars and {questOrbsWithPositions.length} quest orbs.
+          Use Tab to navigate forward through all pillars and quests, or Shift+Tab to navigate backward.
+          Use Arrow Left/Up and Arrow Right/Down keys to navigate within pillars or quests.
+          Press Enter or Space to view details for the currently focused pillar or quest.
+          Hold Shift and drag to pan the view. Use Ctrl/Cmd + scroll to zoom in or out.
+          Press Escape to exit the constellation view and return to the quest hub.
         </p>
       </div>
 

@@ -16,6 +16,7 @@ Students retain full control and can edit/delete helper-uploaded evidence.
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from middleware.rate_limiter import rate_limit
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError
 from repositories import (
     UserRepository,
@@ -93,6 +94,7 @@ def get_or_create_evidence_document(student_user_id, task_id, quest_id):
 
 
 @bp.route('/upload-for-student', methods=['POST'])
+@rate_limit(limit=30, per=3600)  # CVE-OPTIO-2025-017 FIX: 30 uploads per hour for helpers
 @require_auth
 def upload_evidence_for_student(user_id):
     """

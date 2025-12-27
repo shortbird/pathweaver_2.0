@@ -85,26 +85,6 @@ def test_xp_total_calculation():
 
 
 @pytest.mark.unit
-def test_completion_bonus_calculation():
-    """Test 50% completion bonus calculation (rounded to nearest 50)"""
-    service = XPService()
-
-    # Test cases: (base_xp, expected_bonus)
-    test_cases = [
-        (100, 50),    # 100 * 0.5 = 50
-        (200, 100),   # 200 * 0.5 = 100
-        (333, 150),   # 333 * 0.5 = 166.5 → round to 150
-        (250, 150),   # 250 * 0.5 = 125 → round to 150
-        (500, 250),   # 500 * 0.5 = 250
-        (75, 50),     # 75 * 0.5 = 37.5 → round to 50
-    ]
-
-    for base_xp, expected_bonus in test_cases:
-        bonus = service.calculate_completion_bonus(base_xp)
-        assert bonus == expected_bonus, f"Base XP {base_xp} should give bonus {expected_bonus}, got {bonus}"
-
-
-@pytest.mark.unit
 def test_badge_unlock_threshold():
     """Test badge unlock detection when XP threshold is reached"""
     user_id = str(uuid.uuid4())

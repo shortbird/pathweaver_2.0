@@ -421,6 +421,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full"
+            aria-label="Close modal"
           >
             <XMarkIcon size={24} />
           </button>
@@ -517,6 +518,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                       type="button"
                       onClick={() => setShowNewSourceForm(true)}
                       className="px-3 py-2 bg-optio-purple text-white rounded-lg hover:bg-purple-700"
+                      aria-label="Add new source"
                     >
                       <PlusIcon size={20} />
                     </button>
@@ -559,6 +561,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                       onClick={() => removeTask(index)}
                       className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                       title="Remove this task"
+                      aria-label="Remove this task"
                     >
                       <TrashIcon size={20} />
                     </button>
@@ -793,6 +796,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                                 type="button"
                                 onClick={() => removeMaterial(index, mIndex)}
                                 className="ml-2 text-optio-purple hover:text-purple-800 transition-colors"
+                                aria-label="Remove material"
                               >
                                 <XMarkIcon size={14} />
                               </button>

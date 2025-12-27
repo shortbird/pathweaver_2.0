@@ -90,9 +90,11 @@ const RegisterPage = () => {
                   type="text"
                   className="input-field mt-1"
                   placeholder="John"
+                  aria-invalid={!!errors.first_name}
+                  aria-describedby={errors.first_name ? "first-name-error" : undefined}
                 />
                 {errors.first_name && (
-                  <p className="mt-1 text-sm text-red-600">{errors.first_name.message}</p>
+                  <p id="first-name-error" role="alert" className="mt-1 text-sm text-red-600">{errors.first_name.message}</p>
                 )}
               </div>
 
@@ -108,9 +110,11 @@ const RegisterPage = () => {
                   type="text"
                   className="input-field mt-1"
                   placeholder="Doe"
+                  aria-invalid={!!errors.last_name}
+                  aria-describedby={errors.last_name ? "last-name-error" : undefined}
                 />
                 {errors.last_name && (
-                  <p className="mt-1 text-sm text-red-600">{errors.last_name.message}</p>
+                  <p id="last-name-error" role="alert" className="mt-1 text-sm text-red-600">{errors.last_name.message}</p>
                 )}
               </div>
             </div>
@@ -131,9 +135,11 @@ const RegisterPage = () => {
                 type="email"
                 className="input-field mt-1"
                 placeholder="john@example.com"
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? "email-error" : undefined}
               />
               {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+                <p id="email-error" role="alert" className="mt-1 text-sm text-red-600">{errors.email.message}</p>
               )}
             </div>
 
@@ -149,9 +155,11 @@ const RegisterPage = () => {
                 type="date"
                 className="input-field mt-1"
                 max={new Date().toISOString().split('T')[0]}
+                aria-invalid={!!errors.date_of_birth}
+                aria-describedby={errors.date_of_birth ? "date-of-birth-error" : undefined}
               />
               {errors.date_of_birth && (
-                <p className="mt-1 text-sm text-red-600">{errors.date_of_birth.message}</p>
+                <p id="date-of-birth-error" role="alert" className="mt-1 text-sm text-red-600">{errors.date_of_birth.message}</p>
               )}
               {isUnder13 && (
                 <p className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded">
@@ -177,9 +185,11 @@ const RegisterPage = () => {
                   type="email"
                   className="input-field mt-1"
                   placeholder="parent@example.com"
+                  aria-invalid={!!errors.parent_email}
+                  aria-describedby={errors.parent_email ? "parent-email-error" : undefined}
                 />
                 {errors.parent_email && (
-                  <p className="mt-1 text-sm text-red-600">{errors.parent_email.message}</p>
+                  <p id="parent-email-error" role="alert" className="mt-1 text-sm text-red-600">{errors.parent_email.message}</p>
                 )}
                 <p className="mt-1 text-xs text-gray-500">
                   Your parent/guardian will receive an email to verify consent for your account
@@ -208,11 +218,14 @@ const RegisterPage = () => {
                   type={showPassword ? "text" : "password"}
                   className="input-field pr-10"
                   placeholder="••••••••"
+                  aria-invalid={!!errors.password}
+                  aria-describedby={errors.password ? "password-error" : undefined}
                 />
                 <button
                   type="button"
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
                     <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -234,7 +247,7 @@ const RegisterPage = () => {
                 Password must be at least 12 characters with uppercase, lowercase, number, and special character
               </p>
               {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+                <p id="password-error" role="alert" className="mt-1 text-sm text-red-600">{errors.password.message}</p>
               )}
             </div>
             
@@ -252,11 +265,14 @@ const RegisterPage = () => {
                   type={showConfirmPassword ? "text" : "password"}
                   className="input-field pr-10"
                   placeholder="••••••••"
+                  aria-invalid={!!errors.confirmPassword}
+                  aria-describedby={errors.confirmPassword ? "confirm-password-error" : undefined}
                 />
                 <button
                   type="button"
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                 >
                   {showConfirmPassword ? (
                     <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -271,7 +287,7 @@ const RegisterPage = () => {
                 </button>
               </div>
               {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.confirmPassword.message}</p>
+                <p id="confirm-password-error" role="alert" className="mt-1 text-sm text-red-600">{errors.confirmPassword.message}</p>
               )}
             </div>
           </div>
@@ -286,6 +302,8 @@ const RegisterPage = () => {
                 type="checkbox"
                 id="acceptedLegalTerms"
                 className="mt-1 h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
+                aria-invalid={!!errors.acceptedLegalTerms}
+                aria-describedby={errors.acceptedLegalTerms ? "legal-terms-error" : undefined}
               />
               <label htmlFor="acceptedLegalTerms" className="ml-2 text-sm text-gray-700">
                 I agree to the{' '}
@@ -299,7 +317,28 @@ const RegisterPage = () => {
               </label>
             </div>
             {errors.acceptedLegalTerms && (
-              <p className="ml-6 text-sm text-red-600">{errors.acceptedLegalTerms.message}</p>
+              <p id="legal-terms-error" role="alert" className="ml-6 text-sm text-red-600">{errors.acceptedLegalTerms.message}</p>
+            )}
+
+            {/* Public Portfolio Acknowledgment - FERPA Compliance */}
+            <div className="flex items-start">
+              <input
+                {...registerField('acceptedPortfolioVisibility', {
+                  required: 'You must acknowledge that your learning portfolio will be publicly visible'
+                })}
+                type="checkbox"
+                id="acceptedPortfolioVisibility"
+                className="mt-1 h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
+                aria-invalid={!!errors.acceptedPortfolioVisibility}
+                aria-describedby={errors.acceptedPortfolioVisibility ? "portfolio-visibility-error" : undefined}
+              />
+              <label htmlFor="acceptedPortfolioVisibility" className="ml-2 text-sm text-gray-700">
+                I understand that my learning portfolio (quests, evidence, and achievements) will be{' '}
+                <span className="font-semibold">publicly visible by default</span> and can be viewed by anyone with my portfolio URL. I can change this setting anytime on my Profile page.
+              </label>
+            </div>
+            {errors.acceptedPortfolioVisibility && (
+              <p id="portfolio-visibility-error" role="alert" className="ml-6 text-sm text-red-600">{errors.acceptedPortfolioVisibility.message}</p>
             )}
           </div>
 

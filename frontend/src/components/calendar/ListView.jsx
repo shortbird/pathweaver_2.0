@@ -279,7 +279,7 @@ const TaskRow = ({ item, isSelected, onToggle, onReschedule, showCompleted }) =>
       {item.quest_image && (
         <img
           src={item.quest_image}
-          alt=""
+          alt={`${item.quest_title} quest image`}
           className="w-12 h-12 rounded object-cover flex-shrink-0"
         />
       )}

@@ -17,13 +17,16 @@ from services.email_service import email_service
 import re
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 bp = Blueprint('auth_password', __name__)
+
+# Password reset token expiration time (1 hour for security)
+PASSWORD_RESET_TOKEN_EXPIRY_HOURS = 1
 
 
 # ============================================================================
@@ -126,20 +129,29 @@ def forgot_password():
             logger.info(f"[FORGOT_PASSWORD] Found user: {mask_user_id(user_id)}, name: {user_name}, auth email: {mask_email(matching_user.email)}")
 
             try:
+                # Clean up expired tokens for this user before creating new one
+                logger.info("[FORGOT_PASSWORD] Cleaning up expired tokens")
+                now_utc = datetime.now(timezone.utc)
+                admin_client.table('password_reset_tokens')\
+                    .delete()\
+                    .eq('user_id', user_id)\
+                    .lt('expires_at', now_utc.isoformat())\
+                    .execute()
+
                 # Generate secure token
                 logger.info("[FORGOT_PASSWORD] Generating reset token")
                 reset_token = secrets.token_urlsafe(32)
-                expires_at = datetime.utcnow() + timedelta(hours=24)
+                expires_at = now_utc + timedelta(hours=PASSWORD_RESET_TOKEN_EXPIRY_HOURS)
                 logger.info(f"[FORGOT_PASSWORD] Token generated, expires at: {expires_at.isoformat()}")
 
-                # Store token in database
+                # Store token in database with timezone-aware timestamp
                 logger.info("[FORGOT_PASSWORD] Storing token in database")
                 token_result = admin_client.table('password_reset_tokens').insert({
                     'user_id': user_id,
                     'token': reset_token,
                     'expires_at': expires_at.isoformat(),
                     'used': False,
-                    'created_at': datetime.utcnow().isoformat()
+                    'created_at': now_utc.isoformat()
                 }).execute()
                 logger.info(f"[FORGOT_PASSWORD] Token stored successfully: {token_result.data}")
 
@@ -151,13 +163,13 @@ def forgot_password():
                 # Send email to the auth.users email (source of truth)
                 auth_email = matching_user.email
                 logger.info(f"[FORGOT_PASSWORD] Calling email_service.send_password_reset_email()")
-                logger.info(f"[FORGOT_PASSWORD] Email params: user_email={auth_email}, user_name={user_name}, expiry_hours=24")
+                logger.info(f"[FORGOT_PASSWORD] Email params: user_email={auth_email}, user_name={user_name}, expiry_hours={PASSWORD_RESET_TOKEN_EXPIRY_HOURS}")
 
                 email_sent = email_service.send_password_reset_email(
                     user_email=auth_email,
                     user_name=user_name,
                     reset_link=reset_link,
-                    expiry_hours=24
+                    expiry_hours=PASSWORD_RESET_TOKEN_EXPIRY_HOURS
                 )
 
                 logger.info(f"[FORGOT_PASSWORD] Email send result: {email_sent}")
@@ -221,23 +233,30 @@ def reset_password():
         admin_client = get_supabase_admin_client()
 
         try:
-            # Verify token exists and is not expired or used
-            token_check = admin_client.table('password_reset_tokens')\
-                .select('*')\
+            # Immediately mark token as used to prevent race condition (token reuse window)
+            # Use atomic update that only succeeds if token is still unused
+            now_utc = datetime.now(timezone.utc)
+
+            token_update = admin_client.table('password_reset_tokens')\
+                .update({'used': True, 'used_at': now_utc.isoformat()})\
                 .eq('token', reset_token)\
                 .eq('used', False)\
                 .execute()
 
-            if not token_check.data:
+            # Check if update succeeded (token was unused)
+            if not token_update.data:
                 return jsonify({
                     'error': 'Invalid or already used reset token. Please request a new password reset.'
                 }), 400
 
-            token_data = token_check.data[0]
-            expires_at = datetime.fromisoformat(token_data['expires_at'].replace('Z', '+00:00'))
+            token_data = token_update.data[0]
 
-            # Check if token is expired
-            if datetime.now(expires_at.tzinfo) > expires_at:
+            # Parse expiration timestamp with timezone awareness
+            expires_at_str = token_data['expires_at'].replace('Z', '+00:00')
+            expires_at = datetime.fromisoformat(expires_at_str)
+
+            # Check if token is expired using timezone-aware comparison
+            if now_utc > expires_at:
                 return jsonify({
                     'error': 'Reset link has expired. Please request a new password reset.'
                 }), 400
@@ -277,11 +296,7 @@ def reset_password():
                 # Don't fail password reset if email sync fails, just log it
                 logger.error(f"[RESET_PASSWORD] Warning: Failed to sync email in public.users: {sync_error}")
 
-            # Mark token as used
-            admin_client.table('password_reset_tokens')\
-                .update({'used': True, 'used_at': datetime.utcnow().isoformat()})\
-                .eq('token', reset_token)\
-                .execute()
+            # Token already marked as used atomically at the start (prevents race condition)
 
             # Clear any account lockouts for this user
             reset_login_attempts(auth_email)

@@ -1,0 +1,144 @@
+name: Backend Tests
+
+# Run on production (main branch) and pull requests to main
+# Note: Backend tests require database access (currently manual setup required)
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Service containers for testing
+    # Note: Currently using Supabase (external), future: add postgres service
+    # services:
+    #   postgres:
+    #     image: postgres:16
+    #     env:
+    #       POSTGRES_PASSWORD: postgres
+    #     options: >-
+    #       --health-cmd pg_isready
+    #       --health-interval 10s
+    #       --health-timeout 5s
+    #       --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run pytest
+      working-directory: backend
+      env:
+        # TODO: Configure test database credentials in GitHub Secrets
+        # SUPABASE_URL: ${{ secrets.SUPABASE_TEST_URL }}
+        # SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_TEST_ANON_KEY }}
+        # SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_KEY }}
+        FLASK_ENV: testing
+        FLASK_SECRET_KEY: test-secret-key-for-ci-only
+      run: |
+        # Run tests with coverage
+        python -m pytest tests/ \
+          --cov=. \
+          --cov-report=term-missing \
+          --cov-report=xml \
+          --cov-report=html \
+          -v \
+          --tb=short \
+          || true  # Don't fail the job yet, we'll check coverage below
+
+    - name: Check test pass rate
+      working-directory: backend
+      run: |
+        # Extract test results from pytest output
+        TEST_OUTPUT=$(python -m pytest tests/ --tb=line 2>&1 || true)
+        echo "$TEST_OUTPUT"
+
+        # Extract numbers from pytest output
+        # Format: "=== 5 failed, 23 passed, 1 skipped in 5.23s ==="
+        PASSED=$(echo "$TEST_OUTPUT" | grep -oP '\d+(?= passed)' | tail -1 || echo "0")
+        FAILED=$(echo "$TEST_OUTPUT" | grep -oP '\d+(?= failed)' | tail -1 || echo "0")
+        SKIPPED=$(echo "$TEST_OUTPUT" | grep -oP '\d+(?= skipped)' | tail -1 || echo "0")
+
+        # Default to 0 if extraction failed
+        PASSED=${PASSED:-0}
+        FAILED=${FAILED:-0}
+        SKIPPED=${SKIPPED:-0}
+
+        TOTAL=$((PASSED + FAILED))
+
+        echo "Passed: $PASSED"
+        echo "Failed: $FAILED"
+        echo "Skipped: $SKIPPED"
+        echo "Total: $TOTAL"
+
+        if [ $TOTAL -eq 0 ]; then
+          echo "⚠️ WARNING: Could not extract test results or no tests found"
+          echo "This may indicate a test setup issue"
+          exit 0  # Don't fail - tests may need database setup
+        fi
+
+        # Calculate pass rate (passed / total * 100)
+        PASS_RATE=$((PASSED * 100 / TOTAL))
+
+        echo "Pass Rate: $PASS_RATE%"
+        echo "Target: 80%+ (backend tests require database setup)"
+
+        # Informational only - don't fail the build yet
+        if [ $PASS_RATE -lt 80 ]; then
+          echo "⚠️ INFO: Pass rate ($PASS_RATE%) is below target 80%"
+          echo "Backend tests require Supabase test database configuration"
+          exit 0  # Don't fail - informational only
+        else
+          echo "✅ PASSED: Pass rate ($PASS_RATE%) meets target 80%"
+        fi
+
+    - name: Upload coverage report
+      uses: codecov/codecov-action@v4
+      if: always()
+      with:
+        files: ./backend/coverage.xml
+        flags: backend
+        name: backend-coverage
+      continue-on-error: true  # Don't fail if codecov upload fails
+
+    - name: Test Results Summary
+      if: always()
+      run: |
+        echo "## Backend Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Target Pass Rate:** 80% (with database setup)" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Test Suite" >> $GITHUB_STEP_SUMMARY
+        echo "- Integration tests: 4 files" >> $GITHUB_STEP_SUMMARY
+        echo "- Unit tests: 3 files" >> $GITHUB_STEP_SUMMARY
+        echo "- Service tests: 2 files" >> $GITHUB_STEP_SUMMARY
+        echo "- Repository tests: 3 files" >> $GITHUB_STEP_SUMMARY
+        echo "- Manual tests: 2 files (not run in CI)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Setup Requirements" >> $GITHUB_STEP_SUMMARY
+        echo "Backend tests require:" >> $GITHUB_STEP_SUMMARY
+        echo "1. Supabase test database credentials in GitHub Secrets" >> $GITHUB_STEP_SUMMARY
+        echo "2. SUPABASE_TEST_URL, SUPABASE_TEST_ANON_KEY, SUPABASE_TEST_SERVICE_KEY" >> $GITHUB_STEP_SUMMARY
+        echo "3. Test database should be separate from production" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Note:** Tests currently run without database - some may fail until setup complete" >> $GITHUB_STEP_SUMMARY

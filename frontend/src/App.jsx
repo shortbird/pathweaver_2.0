@@ -12,23 +12,25 @@ import { warmupBackend } from './utils/retryHelper'
 import { tokenStore } from './services/api'
 import MasqueradeBanner from './components/admin/MasqueradeBanner'
 import ActingAsBanner from './components/parent/ActingAsBanner'
+import ConsentBlockedOverlay from './components/consent/ConsentBlockedOverlay'
 import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
 import logger from './utils/logger'
 import api from './services/api'
 import { toast } from 'react-hot-toast'
 
-// Always-loaded components (Layout, Auth, Landing pages)
+// Always-loaded components (critical for initial render)
 import Layout from './components/Layout'
 import ScrollToTop from './components/ScrollToTop'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
-import ForgotPasswordPage from './pages/ForgotPasswordPage'
-import ResetPasswordPage from './pages/ResetPasswordPage'
-import AuthCallback from './pages/AuthCallback'
 import PrivateRoute from './components/PrivateRoute'
 
 // Lazy-loaded pages for code splitting
+// Auth-related pages (less frequently accessed)
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
+const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const PromoLandingPage = lazy(() => import('./pages/PromoLandingPage'))
 const ConsultationPage = lazy(() => import('./pages/ConsultationPage'))
 const CreditTrackerLandingPage = lazy(() => import('./pages/CreditTrackerLandingPage'))
@@ -71,6 +73,8 @@ const ParentQuestView = lazy(() => import('./pages/ParentQuestView'))
 const ObserverAcceptInvitationPage = lazy(() => import('./pages/ObserverAcceptInvitationPage'))
 const ObserverWelcomePage = lazy(() => import('./pages/ObserverWelcomePage'))
 const ObserverFeedPage = lazy(() => import('./pages/ObserverFeedPage'))
+// Parental Consent (COPPA Compliance - December 2025)
+const ParentalConsentUploadPage = lazy(() => import('./pages/ParentalConsentUploadPage'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -101,6 +105,7 @@ function AppContent() {
   const navigate = useNavigate();
   const [masqueradeState, setMasqueradeState] = useState(null);
   const { actingAsDependent, clearActingAs } = useActingAs();
+  const [consentBlockData, setConsentBlockData] = useState(null);
 
   // Check masquerade state on mount and periodically
   useEffect(() => {
@@ -177,6 +182,26 @@ function AppContent() {
     window.location.href = '/parent/dashboard';
   };
 
+  // Listen for consent-required events from API interceptor (COPPA compliance)
+  useEffect(() => {
+    const handleConsentRequired = (event) => {
+      const { consentStatus, message } = event.detail;
+      setConsentBlockData({ consentStatus, message });
+    };
+
+    window.addEventListener('consent-required', handleConsentRequired);
+
+    return () => {
+      window.removeEventListener('consent-required', handleConsentRequired);
+    };
+  }, []);
+
+  const handleRetryConsent = () => {
+    // Retry by clearing the blocked state and attempting to refresh
+    setConsentBlockData(null);
+    window.location.reload();
+  };
+
   return (
     <>
       <ScrollToTop />
@@ -190,6 +215,12 @@ function AppContent() {
         <ActingAsBanner
           dependent={actingAsDependent}
           onSwitchBack={handleSwitchBackToParent}
+        />
+      )}
+      {consentBlockData && (
+        <ConsentBlockedOverlay
+          consentStatus={consentBlockData.consentStatus}
+          onRetry={handleRetryConsent}
         />
       )}
     </>
@@ -264,6 +295,7 @@ function App() {
                 <Route path="academy-agreement" element={<OptioAcademyAgreement />} />
                 <Route path="academy-handbook" element={<OptioAcademyHandbook />} />
                 <Route path="observer/accept/:invitationCode" element={<ObserverAcceptInvitationPage />} />
+                <Route path="parental-consent" element={<ParentalConsentUploadPage />} />
 
               <Route element={<PrivateRoute />}>
                 <Route path="dashboard" element={<DashboardPage />} />
