@@ -114,9 +114,8 @@ if requires_parental_consent and parent_email:
    - "Your learning portfolio (quests, evidence, achievements) is PUBLIC by default"
    - "Anyone with your portfolio URL can view your educational content"
    - "You can change this anytime in your Profile page"
-2. Add checkbox during registration: "I understand my portfolio will be publicly visible"
+2. Add checkbox during registration: "I understand my learning portfolio will be publicly visible"
 3. Add privacy settings link to portfolio pages
-4. For Optio Academy (accredited program), default to PRIVATE portfolios
 
 **Timeline:** 2 hours
 
@@ -343,15 +342,15 @@ The Optio Platform has achieved **strong security posture** with all 8 critical 
 - ⚠️ Legal Compliance: Requires attention (60/100)
 
 **Path to Production:**
-1. Complete 28 hours of legal compliance work (COPPA, FERPA, ADA)
+1. Complete 26 hours of legal compliance work (COPPA, TOS update, ADA)
 2. Deploy with confidence knowing security is hardened
 3. Address code quality improvements post-launch
 
 **Overall Health:** 85/100 (B) - Significantly improved from 73/100
 
 **Expected Outcome After Legal Compliance:**
-- Legal Compliance: 60/100 → 85/100 (B)
-- Overall Health: 85/100 → 91/100 (A-)
+- Legal Compliance: 60/100 → 88/100 (B+)
+- Overall Health: 85/100 → 92/100 (A-)
 
 ---
 
