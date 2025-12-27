@@ -512,6 +512,30 @@ def get_public_diploma_by_user_id(user_id):
         subject_xp_response = supabase.table('user_subject_xp').select('school_subject, xp_amount').eq('user_id', user_id).execute()
         subject_xp_data = subject_xp_response.data or []
 
+        # Build quest_id -> completions map once (O(m) instead of O(n*m) in loop)
+        # This prevents Python-side filtering for each quest iteration
+        completions_by_quest = {}
+        for tc in (task_completions.data or []):
+            task_info = tc.get('user_quest_tasks')
+            quest_id = None
+
+            # Extract quest_id from task_info (handle both dict and list formats)
+            if task_info and isinstance(task_info, dict):
+                quest_id = task_info.get('quest_id')
+            elif task_info and isinstance(task_info, list) and len(task_info) > 0:
+                # Flatten list structure
+                task_info_dict = task_info[0]
+                quest_id = task_info_dict.get('quest_id')
+                # Flatten the structure for later use
+                tc_copy = tc.copy()
+                tc_copy['user_quest_tasks'] = task_info_dict
+                tc = tc_copy
+
+            if quest_id:
+                if quest_id not in completions_by_quest:
+                    completions_by_quest[quest_id] = []
+                completions_by_quest[quest_id].append(tc)
+
         # Process completed and in-progress quests for achievements format
         achievements = []
 
@@ -525,26 +549,11 @@ def get_public_diploma_by_user_id(user_id):
                 user_quest_id = cq.get('id')
                 quest_id = quest.get('id')
 
-                # Get task completions for this quest from our task_completions data
-                # Supabase returns nested data from !inner joins
-                # Note: We only match by quest_id, not user_quest_id, because when users
+                # Get task completions for this quest from pre-built map (O(1) lookup)
+                # Note: We match by quest_id, not user_quest_id, because when users
                 # restart quests they get a new user_quest_id but we want to show ALL
                 # completions for this quest regardless of which enrollment they came from
-                quest_task_completions = []
-                for tc in (task_completions.data or []):
-                    task_info = tc.get('user_quest_tasks')
-                    # Check if task_info exists and is a dict (not None or list)
-                    if task_info and isinstance(task_info, dict):
-                        if task_info.get('quest_id') == quest_id:
-                            quest_task_completions.append(tc)
-                    # Handle case where Supabase returns it as a list with one element
-                    elif task_info and isinstance(task_info, list) and len(task_info) > 0:
-                        task_info = task_info[0]
-                        if task_info.get('quest_id') == quest_id:
-                            # Flatten the structure
-                            tc_copy = tc.copy()
-                            tc_copy['user_quest_tasks'] = task_info
-                            quest_task_completions.append(tc_copy)
+                quest_task_completions = completions_by_quest.get(quest_id, [])
 
                 # Organize evidence by task
                 task_evidence = {}
@@ -663,25 +672,13 @@ def get_public_diploma_by_user_id(user_id):
                 user_quest_id = cq.get('id')
                 quest_id = quest.get('id')
 
-                # Get task completions for this in-progress quest
-                # Supabase returns nested data from !inner joins
-                quest_task_completions = []
-                for tc in (task_completions.data or []):
-                    task_info = tc.get('user_quest_tasks')
-                    # Check if task_info exists and is a dict (not None or list)
-                    if task_info and isinstance(task_info, dict):
-                        if (task_info.get('quest_id') == quest_id and
-                            task_info.get('user_quest_id') == user_quest_id):
-                            quest_task_completions.append(tc)
-                    # Handle case where Supabase returns it as a list with one element
-                    elif task_info and isinstance(task_info, list) and len(task_info) > 0:
-                        task_info = task_info[0]
-                        if (task_info.get('quest_id') == quest_id and
-                            task_info.get('user_quest_id') == user_quest_id):
-                            # Flatten the structure
-                            tc_copy = tc.copy()
-                            tc_copy['user_quest_tasks'] = task_info
-                            quest_task_completions.append(tc_copy)
+                # Get task completions for this in-progress quest from pre-built map
+                # Filter by user_quest_id to show only current enrollment completions
+                quest_completions = completions_by_quest.get(quest_id, [])
+                quest_task_completions = [
+                    tc for tc in quest_completions
+                    if tc.get('user_quest_tasks', {}).get('user_quest_id') == user_quest_id
+                ]
 
                 # Skip if no tasks completed yet
                 if not quest_task_completions:
