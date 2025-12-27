@@ -40,7 +40,7 @@ This document provides a checklist-based action plan derived from the comprehens
   - Reference: Hardcoded secret key found in production config
 
 ### Day 2: COPPA/FERPA Compliance
-- [ ] **Add age verification to registration** (4 hours)
+- [x] **Add age verification to registration** (4 hours)
   - Critical legal requirement for minors
   - File: `backend/routes/auth/registration.py`
   - Change: Add age calculation and parental consent check
@@ -60,8 +60,9 @@ This document provides a checklist-based action plan derived from the comprehens
     ```
   - Test: Register with birth date making user under 13
   - Reference: No age verification found in registration flow
+  - **COMPLETED**: Age verification now happens BEFORE auth user creation (lines 141-157)
 
-- [ ] **Add data deletion endpoint for GDPR** (2 hours)
+- [x] **Add data deletion endpoint for GDPR** (2 hours)
   - Legal requirement for EU users
   - File: `backend/routes/account_deletion.py:290`
   - Change: Implement actual deletion (currently only exports)
@@ -88,27 +89,31 @@ This document provides a checklist-based action plan derived from the comprehens
     ```
   - Test: Call endpoint and verify user data is deleted
   - Reference: GDPR requires data deletion capability
+  - **COMPLETED**: DELETE /users/delete-account-permanent endpoint added (lines 428-616)
 
 ### Day 3: Authentication & Session Security
-- [ ] **Add session timeout configuration** (1 hour)
+- [x] **Add session timeout configuration** (1 hour)
   - Security best practice for session management
-  - File: `backend/middleware/session_manager.py`
+  - File: `backend/utils/session_manager.py` (actual location, not middleware)
   - Change: Add configurable timeout
     ```python
-    # Add to SessionManager class around line 50
+    # Added at line 37
     SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT_HOURS', '24'))
 
+    # Added is_session_expired method at lines 80-111
     def is_session_expired(self, session_data):
         """Check if session has exceeded timeout period"""
-        created_at = session_data.get('created_at')
+        created_at = session_data.get('iat')  # Uses JWT's issued-at claim
         if not created_at:
             return True
 
-        session_age = datetime.now() - datetime.fromisoformat(created_at)
+        session_created_at = datetime.fromtimestamp(created_at, tz=timezone.utc)
+        session_age = datetime.now(timezone.utc) - session_created_at
         return session_age.total_seconds() > (self.SESSION_TIMEOUT * 3600)
     ```
   - Test: Set SESSION_TIMEOUT_HOURS=0.01, wait 1 minute, verify session expires
   - Reference: No session timeout configuration found
+  - **COMPLETED**: Session timeout added with integration into all token verification methods (lines 163-281)
 
 ### Day 4-5: Error Handling & Logging
 - [ ] **Replace broad exception handlers** (4 hours)
