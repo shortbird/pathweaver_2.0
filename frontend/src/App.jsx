@@ -18,18 +18,19 @@ import logger from './utils/logger'
 import api from './services/api'
 import { toast } from 'react-hot-toast'
 
-// Always-loaded components (Layout, Auth, Landing pages)
+// Always-loaded components (critical for initial render)
 import Layout from './components/Layout'
 import ScrollToTop from './components/ScrollToTop'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
-import ForgotPasswordPage from './pages/ForgotPasswordPage'
-import ResetPasswordPage from './pages/ResetPasswordPage'
-import AuthCallback from './pages/AuthCallback'
 import PrivateRoute from './components/PrivateRoute'
 
 // Lazy-loaded pages for code splitting
+// Auth-related pages (less frequently accessed)
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
+const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const PromoLandingPage = lazy(() => import('./pages/PromoLandingPage'))
 const ConsultationPage = lazy(() => import('./pages/ConsultationPage'))
 const CreditTrackerLandingPage = lazy(() => import('./pages/CreditTrackerLandingPage'))

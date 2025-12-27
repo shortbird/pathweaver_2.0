@@ -56,16 +56,62 @@ export default defineConfig(({ mode }) => ({
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Core React bundle - most stable, best for caching
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          // UI libraries
-          'ui-vendor': ['@heroicons/react', 'framer-motion'],
-          // Heavy chart libraries - lazy loaded via App.jsx already
-          'recharts': ['recharts'],
-          'fullcalendar': ['@fullcalendar/react', '@fullcalendar/daygrid', '@fullcalendar/interaction'],
-          // Utilities
-          'utils-vendor': ['axios', '@tanstack/react-query'],
+        manualChunks(id) {
+          // Vendor chunks (most stable, best for caching)
+          if (id.includes('node_modules')) {
+            // Core React bundle - most stable, best for caching
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'react-vendor';
+            }
+            // UI libraries
+            if (id.includes('@heroicons') || id.includes('framer-motion')) {
+              return 'ui-vendor';
+            }
+            // Heavy chart libraries
+            if (id.includes('recharts')) {
+              return 'recharts';
+            }
+            // Calendar library
+            if (id.includes('@fullcalendar')) {
+              return 'fullcalendar';
+            }
+            // Form libraries
+            if (id.includes('react-hook-form') || id.includes('yup')) {
+              return 'forms-vendor';
+            }
+            // API & State management
+            if (id.includes('axios') || id.includes('@tanstack/react-query')) {
+              return 'utils-vendor';
+            }
+            // All other vendors
+            return 'vendor';
+          }
+
+          // Application code chunks (by route/feature)
+          // Admin pages - large bundle, accessed only by admins
+          if (id.includes('/pages/AdminPage') || id.includes('/components/admin/')) {
+            return 'admin';
+          }
+          // Quest & Badge pages - core functionality
+          if (id.includes('/pages/Quest') || id.includes('/pages/Badge') || id.includes('/components/quest/') || id.includes('/components/badges/')) {
+            return 'quests-badges';
+          }
+          // Parent pages - role-specific
+          if (id.includes('/pages/ParentDashboard') || id.includes('/pages/ParentQuest') || id.includes('/components/parent/')) {
+            return 'parent';
+          }
+          // Observer pages - role-specific
+          if (id.includes('/pages/Observer') || id.includes('/components/observer/')) {
+            return 'observer';
+          }
+          // Advisor pages - role-specific
+          if (id.includes('/pages/Advisor') || id.includes('/components/advisor/')) {
+            return 'advisor';
+          }
+          // Diploma/Portfolio - public-facing, can be separate
+          if (id.includes('/pages/DiplomaPage') || id.includes('/components/diploma/')) {
+            return 'diploma';
+          }
         },
       },
     },

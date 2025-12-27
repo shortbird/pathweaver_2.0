@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { FixedSizeList as List } from 'react-window'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 
@@ -140,58 +141,74 @@ const UserActivityLog = ({ userId, userName }) => {
     })
   }
 
+  // Virtualized row component for better performance with large lists
+  const Row = ({ index, style }) => {
+    const event = events[index]
+    return (
+      <div
+        style={style}
+        className="flex items-center border-b border-gray-200 hover:bg-gray-50"
+      >
+        <div className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 w-40">
+          {formatTimestamp(event.timestamp)}
+        </div>
+        <div className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex-1">
+          {event.description}
+        </div>
+        <div className="px-6 py-4 whitespace-nowrap w-32">
+          <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getEventCategoryColor(event.event_category)}`}>
+            {event.event_category}
+          </span>
+        </div>
+        <div className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate w-64">
+          {event.page_url || 'N/A'}
+        </div>
+        <div className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 w-32">
+          {formatDuration(event.duration_ms)}
+        </div>
+        <div className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate w-48">
+          {event.referrer_url || 'Direct'}
+        </div>
+      </div>
+    )
+  }
+
   const TableView = () => (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Timestamp
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Activity
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Category
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Page
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Time on Page
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              From
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {events.map((event) => (
-            <tr key={event.id} className="hover:bg-gray-50">
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {formatTimestamp(event.timestamp)}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                {event.description}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getEventCategoryColor(event.event_category)}`}>
-                  {event.event_category}
-                </span>
-              </td>
-              <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                {event.page_url || 'N/A'}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {formatDuration(event.duration_ms)}
-              </td>
-              <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                {event.referrer_url || 'Direct'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Table Header */}
+      <div className="min-w-full bg-gray-50 border-b border-gray-200">
+        <div className="flex items-center">
+          <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+            Timestamp
+          </div>
+          <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex-1">
+            Activity
+          </div>
+          <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+            Category
+          </div>
+          <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-64">
+            Page
+          </div>
+          <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+            Time on Page
+          </div>
+          <div className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">
+            From
+          </div>
+        </div>
+      </div>
+
+      {/* Virtualized Table Body */}
+      <List
+        height={600} // Fixed height for virtualization window
+        itemCount={events.length}
+        itemSize={73} // Height of each row (py-4 = 1rem top + 1rem bottom + content)
+        width="100%"
+        className="bg-white"
+      >
+        {Row}
+      </List>
     </div>
   )
 

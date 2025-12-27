@@ -28,6 +28,7 @@
     "react-hot-toast": "^2.4.1",
     "react-masonry-css": "^1.0.16",
     "react-router-dom": "^6.24.1",
+    "react-window": "^2.2.3",
     "recharts": "^2.15.4"
   },
   "devDependencies": {
