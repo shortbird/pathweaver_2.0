@@ -60,10 +60,18 @@ export default defineConfig(({ mode }) => ({
           // Vendor chunks (most stable, best for caching)
           if (id.includes('node_modules')) {
             // Core React bundle - most stable, best for caching
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+            // CRITICAL: Include ALL React-dependent packages to prevent load order issues
+            // that cause "Cannot read properties of undefined (reading 'useLayoutEffect')" errors
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router') ||
+                id.includes('@dnd-kit') || id.includes('@stripe/react-stripe-js') ||
+                id.includes('react-hot-toast') || id.includes('react-helmet-async') ||
+                id.includes('qrcode.react') || id.includes('react-masonry-css') ||
+                id.includes('react-ga4') || id.includes('focus-trap-react') ||
+                id.includes('react-hook-form') || id.includes('@tanstack/react-query') ||
+                id.includes('@fullcalendar/react')) {
               return 'react-vendor';
             }
-            // UI libraries
+            // UI libraries (React-independent)
             if (id.includes('@heroicons') || id.includes('framer-motion')) {
               return 'ui-vendor';
             }
@@ -71,16 +79,16 @@ export default defineConfig(({ mode }) => ({
             if (id.includes('recharts')) {
               return 'recharts';
             }
-            // Calendar library
-            if (id.includes('@fullcalendar')) {
+            // Calendar library core (non-React parts)
+            if (id.includes('@fullcalendar') && !id.includes('@fullcalendar/react')) {
               return 'fullcalendar';
             }
-            // Form libraries
-            if (id.includes('react-hook-form') || id.includes('yup')) {
+            // Form validation (React-independent)
+            if (id.includes('yup')) {
               return 'forms-vendor';
             }
-            // API & State management
-            if (id.includes('axios') || id.includes('@tanstack/react-query')) {
+            // API client (React-independent)
+            if (id.includes('axios')) {
               return 'utils-vendor';
             }
             // All other vendors
