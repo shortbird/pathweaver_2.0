@@ -13,7 +13,6 @@ Run from project root:
 
 import os
 import sys
-from datetime import datetime
 from supabase import create_client
 
 
@@ -58,7 +57,7 @@ def setup_e2e_test_data():
         supabase.table('user_quest_tasks').delete().eq('user_id', user_id).execute()
 
         # Delete all enrollments (we'll create fresh ones)
-        supabase.table('quest_enrollments').delete().eq('user_id', user_id).execute()
+        supabase.table('user_quests').delete().eq('user_id', user_id).execute()
 
         # Reset XP
         supabase.table('users').update({'total_xp': 0}).eq('id', user_id).execute()
@@ -105,21 +104,22 @@ def setup_e2e_test_data():
         enrollment_data = {
             'user_id': user_id,
             'quest_id': quest_for_enrollment['id'],
-            'enrolled_at': datetime.utcnow().isoformat()
+            'is_active': True
         }
 
-        enrollment = supabase.table('quest_enrollments').insert(enrollment_data).execute()
+        enrollment = supabase.table('user_quests').insert(enrollment_data).execute()
 
         if not enrollment.data:
             print("   ✗ Failed to create enrollment")
             return False
 
+        user_quest_id = enrollment.data[0]['id']
         print(f"   ✓ Enrolled in: {quest_for_enrollment['title'][:50]}")
 
         # 5. Get quest tasks and create user_quest_tasks
         print(f"\n4. Setting up tasks for enrolled quest...")
         quest_tasks = supabase.table('quest_tasks')\
-            .select('id, title, pillar, xp_value')\
+            .select('id, title, description, pillar, xp_value, order_index, is_required')\
             .eq('quest_id', quest_for_enrollment['id'])\
             .execute()
 
@@ -130,11 +130,14 @@ def setup_e2e_test_data():
                 user_tasks_data.append({
                     'user_id': user_id,
                     'quest_id': quest_for_enrollment['id'],
-                    'quest_task_id': task['id'],
+                    'user_quest_id': user_quest_id,
                     'title': task['title'],
+                    'description': task.get('description', ''),
                     'pillar': task['pillar'],
-                    'xp_value': task['xp_value'],
-                    'approval_status': 'pending'
+                    'xp_value': task.get('xp_value', 100),
+                    'order_index': task.get('order_index', 0),
+                    'is_required': task.get('is_required', True),
+                    'approval_status': 'approved'
                 })
 
             if user_tasks_data:
