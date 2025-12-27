@@ -99,7 +99,9 @@ export const useHomepageImages = (options = {}) => {
   // Clear cache function
   const clearCache = () => {
     localStorage.removeItem(CACHE_KEY)
-    console.log('[Homepage Images] Cache cleared')
+    if (import.meta.env.DEV) {
+      console.log('[Homepage Images] Cache cleared')
+    }
   }
 
   return { images, loading, error, refetch, clearCache }

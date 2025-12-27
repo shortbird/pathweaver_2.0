@@ -60,10 +60,14 @@ class Config:
             print(f"[WARNING] FLASK_SECRET_KEY should be at least {MIN_SECRET_KEY_LENGTH} characters for production use (current: {len(SECRET_KEY)})")
 
     # Check for sufficient entropy (not just repeated characters)
-    if FLASK_ENV == 'production':
-        unique_chars = len(set(SECRET_KEY))
-        if unique_chars < 16:  # At least 16 different characters
+    # Always validate entropy, just warn in dev
+    unique_chars = len(set(SECRET_KEY))
+    if unique_chars < 16:  # At least 16 different characters
+        if FLASK_ENV == 'production':
             raise ValueError(f"FLASK_SECRET_KEY has insufficient entropy ({unique_chars} unique characters, need at least 16)")
+        else:
+            # NOTE: print() used here due to circular dependency - logger not available yet
+            print(f"[WARNING] FLASK_SECRET_KEY has insufficient entropy ({unique_chars} unique characters, need at least 16) - dev only")
     DEBUG = FLASK_ENV == 'development'
     TESTING = False
     
@@ -208,7 +212,9 @@ class Config:
     LOG_FORMAT = os.getenv('LOG_FORMAT', 'json')  # 'json' or 'text'
 
     # Platform Superadmin - SINGLE platform-wide admin
-    SUPERADMIN_EMAIL = os.getenv('SUPERADMIN_EMAIL', 'tannerbowman@gmail.com')
+    SUPERADMIN_EMAIL = os.getenv('SUPERADMIN_EMAIL')
+    if not SUPERADMIN_EMAIL and FLASK_ENV == 'production':
+        raise ValueError("SUPERADMIN_EMAIL must be set in production")
 
     @classmethod
     def validate(cls) -> None:
