@@ -37,21 +37,31 @@ def register_parent_blueprints_v1(app: Flask):
         >>> register_parent_blueprints_v1(app)
     """
     try:
-        # Import existing parent blueprints
-        from routes.parent import dashboard, evidence
+        # Import refactored parent blueprints (Dec 2025 refactor)
+        from routes.parent import (
+            dashboard_overview_bp,
+            quests_view_bp,
+            evidence_view_bp,
+            analytics_insights_bp,
+            analytics_bp
+        )
 
-        # Register parent dashboard with v1 prefix
-        app.register_blueprint(dashboard.bp, url_prefix='/api/v1/parents',
-                             name='parent_dashboard_v1')
+        # Register parent modules with v1 prefix
+        app.register_blueprint(dashboard_overview_bp, url_prefix='/api/v1/parents',
+                             name='parent_dashboard_overview_v1')
+        app.register_blueprint(quests_view_bp, url_prefix='/api/v1/parents',
+                             name='parent_quests_view_v1')
+        app.register_blueprint(evidence_view_bp, url_prefix='/api/v1/parents',
+                             name='parent_evidence_view_v1')
+        app.register_blueprint(analytics_insights_bp, url_prefix='/api/v1/parents',
+                             name='parent_analytics_insights_v1')
+        app.register_blueprint(analytics_bp, url_prefix='/api/v1/parents',
+                             name='parent_analytics_v1')
 
-        # Register parent evidence with v1 prefix
-        app.register_blueprint(evidence.bp, url_prefix='/api/v1/parents',
-                             name='parent_evidence_v1')
-
-        logger.info(" API v1 parent routes registered at /api/v1/parents")
+        logger.info(" API v1 parent routes registered at /api/v1/parents")
 
     except Exception as e:
-        logger.error(f" Failed to register API v1 parent routes: {e}")
+        logger.error(f" Failed to register API v1 parent routes: {e}")
         raise
 
 

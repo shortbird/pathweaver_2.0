@@ -61,7 +61,21 @@ Opens two CMD windows: backend (port 5001) and frontend (port 3000).
 Then open: **http://localhost:3000**
 
 **Claude Code Quick Start** (when user asks to start locally):
+
+**IMPORTANT**: Before starting servers, CHECK if they're already running:
 ```bash
+# Check for running servers FIRST
+curl -s http://localhost:5001/api/health  # Backend check
+curl -s http://localhost:3000             # Frontend check
+
+# If servers respond, DO NOT start new ones - they're already running!
+```
+
+**Only if servers are NOT running**, start them:
+```bash
+# Kill any processes on required ports to ensure consistent port numbers
+npx kill-port 3000 5001
+
 # Start backend (run in background)
 cd C:/Users/tanne/Desktop/pw_v2 && venv/Scripts/python.exe backend/app.py
 
@@ -72,6 +86,12 @@ cd C:/Users/tanne/Desktop/pw_v2/frontend && npm run dev
 curl -s http://localhost:5001/api/health
 # Should return: {"status":"healthy"}
 ```
+
+**Port Requirements**:
+- Backend MUST run on port 5001
+- Frontend MUST run on port 3000 (not 3001, 3002, etc.)
+- If ports are in use, kill existing processes first with `npx kill-port 3000 5001`
+
 NOTE: The batch files don't work well from Claude Code's bash environment. Use the direct commands above instead.
 
 ### Development Workflow
@@ -82,13 +102,16 @@ NOTE: The batch files don't work well from Claude Code's bash environment. Use t
    - Edit frontend files in `frontend/src/` → Browser auto-reloads instantly
    - Edit backend files in `backend/` → Flask auto-restarts (2-3 seconds)
 
-2. **Start Local Servers** (Claude Code commands):
+2. **Start Local Servers** (only if not already running):
    ```bash
-   # Start backend (run in background)
-   cd C:/Users/tanne/Desktop/pw_v2 && venv/Scripts/python.exe backend/app.py
+   # FIRST: Check if servers are already running
+   curl -s http://localhost:5001/api/health  # If returns {"status":"healthy"}, backend is running
+   curl -s http://localhost:3000             # If returns HTML, frontend is running
 
-   # Start frontend (run in background)
-   cd C:/Users/tanne/Desktop/pw_v2/frontend && npm run dev
+   # ONLY if not running, kill ports and start fresh:
+   npx kill-port 3000 5001
+   cd C:/Users/tanne/Desktop/pw_v2 && venv/Scripts/python.exe backend/app.py  # background
+   cd C:/Users/tanne/Desktop/pw_v2/frontend && npm run dev  # background
    ```
 
 3. **User Verification** (REQUIRED):
