@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { Input, Textarea, Select } from './Input';
 
 /**
@@ -7,6 +7,7 @@ import { Input, Textarea, Select } from './Input';
  * Provides consistent form field layout across the application
  *
  * @param {string} label - Field label text
+ * @param {string} id - Custom ID for the input (auto-generated if not provided)
  * @param {boolean} required - Show required indicator (default: false)
  * @param {string} helperText - Helper text below input
  * @param {string} errorMessage - Error message (displays in red)
@@ -17,6 +18,7 @@ import { Input, Textarea, Select } from './Input';
  */
 export const FormField = ({
   label,
+  id: customId,
   required = false,
   helperText,
   errorMessage,
@@ -25,29 +27,36 @@ export const FormField = ({
   className = '',
   inputProps = {}
 }) => {
+  // Generate unique ID for accessibility (label-input association)
+  const autoId = useId();
+  const fieldId = customId || autoId;
   const hasError = !!errorMessage;
 
   // Render the appropriate input component
   const renderInput = () => {
     if (children) {
+      // Pass id to custom children via cloneElement if it's a valid React element
+      if (React.isValidElement(children)) {
+        return React.cloneElement(children, { id: fieldId });
+      }
       return children;
     }
 
     if (type === 'textarea') {
-      return <Textarea error={hasError} errorMessage={errorMessage} {...inputProps} />;
+      return <Textarea id={fieldId} error={hasError} errorMessage={errorMessage} {...inputProps} />;
     }
 
     if (type === 'select') {
-      return <Select error={hasError} errorMessage={errorMessage} {...inputProps} />;
+      return <Select id={fieldId} error={hasError} errorMessage={errorMessage} {...inputProps} />;
     }
 
-    return <Input type={type} error={hasError} errorMessage={errorMessage} {...inputProps} />;
+    return <Input id={fieldId} type={type} error={hasError} errorMessage={errorMessage} {...inputProps} />;
   };
 
   return (
     <div className={`mb-4 ${className}`}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor={fieldId} className="block text-sm font-medium text-gray-700 mb-1">
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>

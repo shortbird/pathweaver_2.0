@@ -335,10 +335,11 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="user-first-name" className="block text-sm font-medium text-gray-700 mb-1">
                     First Name
                   </label>
                   <input
+                    id="user-first-name"
                     type="text"
                     name="first_name"
                     value={formData.first_name}
@@ -347,10 +348,11 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="user-last-name" className="block text-sm font-medium text-gray-700 mb-1">
                     Last Name
                   </label>
                   <input
+                    id="user-last-name"
                     type="text"
                     name="last_name"
                     value={formData.last_name}
@@ -360,10 +362,11 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="user-email" className="block text-sm font-medium text-gray-700 mb-1">
                   Email
                 </label>
                 <input
+                    id="user-email"
                   type="email"
                   name="email"
                   value={formData.email}
@@ -372,10 +375,11 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="user-phone-number" className="block text-sm font-medium text-gray-700 mb-1">
                   Phone Number
                 </label>
                 <input
+                    id="user-phone-number"
                   type="tel"
                   name="phone_number"
                   value={formData.phone_number}
@@ -385,10 +389,11 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="user-date-of-birth" className="block text-sm font-medium text-gray-700 mb-1">
                   Date of Birth
                 </label>
                 <input
+                    id="user-date-of-birth"
                   type="date"
                   name="date_of_birth"
                   value={formData.date_of_birth}
@@ -397,10 +402,11 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="user-address-line1" className="block text-sm font-medium text-gray-700 mb-1">
                   Address Line 1
                 </label>
                 <input
+                    id="user-address-line1"
                   type="text"
                   name="address_line1"
                   value={formData.address_line1}
@@ -410,10 +416,11 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="user-address-line2" className="block text-sm font-medium text-gray-700 mb-1">
                   Address Line 2
                 </label>
                 <input
+                    id="user-address-line2"
                   type="text"
                   name="address_line2"
                   value={formData.address_line2}
@@ -424,10 +431,11 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="user-city" className="block text-sm font-medium text-gray-700 mb-1">
                     City
                   </label>
                   <input
+                    id="user-city"
                     type="text"
                     name="city"
                     value={formData.city}
@@ -437,10 +445,11 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="user-state" className="block text-sm font-medium text-gray-700 mb-1">
                     State/Province
                   </label>
                   <input
+                    id="user-state"
                     type="text"
                     name="state"
                     value={formData.state}
@@ -452,10 +461,11 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="user-postal-code" className="block text-sm font-medium text-gray-700 mb-1">
                     Postal Code
                   </label>
                   <input
+                    id="user-postal-code"
                     type="text"
                     name="postal_code"
                     value={formData.postal_code}
@@ -465,10 +475,11 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="user-country" className="block text-sm font-medium text-gray-700 mb-1">
                     Country
                   </label>
                   <input
+                    id="user-country"
                     type="text"
                     name="country"
                     value={formData.country}

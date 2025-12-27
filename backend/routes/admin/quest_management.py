@@ -880,6 +880,16 @@ def fix_course_quest_enrollments(user_id):
         from services.subject_classification_service import SubjectClassificationService
         classification_service = SubjectClassificationService(client=supabase)
 
+        # Pre-fetch all existing tasks for all enrollments in a single query to avoid N+1
+        enrollment_ids = [enrollment['id'] for enrollment in enrollments.data]
+        all_existing_tasks = supabase.table('user_quest_tasks')\
+            .select('user_quest_id')\
+            .in_('user_quest_id', enrollment_ids)\
+            .execute()
+
+        # Build a set of enrollment IDs that have existing tasks
+        enrollments_with_tasks = {task['user_quest_id'] for task in all_existing_tasks.data}
+
         for enrollment in enrollments.data:
             enrollment_id = enrollment['id']
             quest_id = enrollment['quest_id']
@@ -887,13 +897,8 @@ def fix_course_quest_enrollments(user_id):
             quest_title = enrollment['quests']['title']
 
             try:
-                # Check if tasks already exist for this enrollment
-                existing_tasks = supabase.table('user_quest_tasks')\
-                    .select('id')\
-                    .eq('user_quest_id', enrollment_id)\
-                    .execute()
-
-                if existing_tasks.data:
+                # Check if tasks already exist for this enrollment (using pre-fetched data)
+                if enrollment_id in enrollments_with_tasks:
                     skipped_count += 1
                     results.append({
                         'enrollment_id': enrollment_id,

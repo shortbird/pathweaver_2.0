@@ -437,6 +437,7 @@ const AdminConnections = () => {
               placeholder="Search by parent or student name/email..."
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
               style={{ fontFamily: 'Poppins, sans-serif' }}
+              aria-label="Search parent-student connections by name or email"
             />
           </div>
         </div>

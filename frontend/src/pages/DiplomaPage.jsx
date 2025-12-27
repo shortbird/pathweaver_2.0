@@ -700,7 +700,7 @@ const DiplomaPage = () => {
           </aside>
 
           {/* Main Content - Evidence Gallery */}
-          <main className="flex-1 min-w-0">
+          <main id="main-content" className="flex-1 min-w-0">
             <div className="mb-8">
               <h2 className="text-3xl font-bold text-primary mb-2">Learning Evidence</h2>
               <p className="text-gray-600">
