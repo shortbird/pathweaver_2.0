@@ -289,10 +289,6 @@ def export_user_data(current_user):
             logger.error(f"Error fetching friendships: {str(e)}")
             export_data['friendships'] = []
 
-        # Quest collaborations removed in Phase 1 refactoring (January 2025)
-        # Table quest_collaborations no longer exists
-        export_data['collaborations'] = []
-
         # Get tutor conversations (if exists)
         try:
             tutor_response = supabase.table('tutor_conversations').select('*').eq('user_id', user_id).execute()

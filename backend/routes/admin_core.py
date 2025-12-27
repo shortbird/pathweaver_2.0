@@ -109,9 +109,7 @@ def get_users_list(user_id):
         if search:
             # Build search query safely
             query = query.or_(f"first_name.ilike.%{search}%,last_name.ilike.%{search}%,username.ilike.%{search}%")
-        
-        # Subscription filter removed - no subscription tiers in Phase 2
-        
+
         # Apply role filter
         if role != 'all':
             query = query.eq('role', role)
@@ -298,9 +296,6 @@ def update_user_profile(admin_id, user_id):
     except Exception as e:
         logger.error(f"Error updating user: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
-# REMOVED: update_user_subscription endpoint (Phase 2 refactoring - January 2025)
-# Subscription tier functionality removed - all users have equal access
 
 @bp.route('/users/<user_id>/role', methods=['PUT'])
 @require_admin

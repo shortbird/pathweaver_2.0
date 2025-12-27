@@ -271,7 +271,7 @@ def save_evidence_document(user_id: str, task_id: str):
                 logger.info(f"[EVIDENCE_DOC] Creating new completion record: task_id={task_id[:8]}, base_xp={base_xp}")
                 logger.info(f"[EVIDENCE_DOC] Completion record will have: user_id={user_id[:8]}, quest_id={quest_id[:8]}, task_id={task_id[:8]}, user_quest_task_id={task_id[:8]}")
 
-                # Calculate XP (collaboration bonuses removed in Phase 1)
+                # Calculate XP
                 final_xp = xp_service.calculate_task_xp(
                     user_id, task_id, quest_id, base_xp
                 )
@@ -581,7 +581,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
                 task_data = task_check.data[0]
                 base_xp = task_data.get('xp_value', 0)
 
-                # Calculate XP (collaboration bonuses removed in Phase 1)
+                # Calculate XP
                 final_xp = xp_service.calculate_task_xp(
                     user_id, task_id, quest_id, base_xp
                 )

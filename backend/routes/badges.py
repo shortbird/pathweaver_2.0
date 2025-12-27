@@ -92,7 +92,7 @@ def get_badge_detail(badge_id):
 @require_auth
 def select_badge(user_id, badge_id):
     """
-    Start pursuing this badge (paid tier only).
+    Start pursuing this badge.
 
     Path params:
         badge_id: Badge UUID

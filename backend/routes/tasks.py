@@ -58,7 +58,7 @@ MAX_FILE_SIZE = int(os.getenv('MAX_IMAGE_UPLOAD_SIZE', MAX_IMAGE_SIZE))  # Use c
 def complete_task(user_id: str, task_id: str):
     """
     Complete a task with evidence submission.
-    Handles file uploads and awards XP with collaboration bonus if applicable.
+    Handles file uploads and awards XP.
 
     Optional form parameter:
         acting_as_dependent_id: UUID of dependent (if parent is acting on behalf of child)
@@ -242,10 +242,6 @@ def complete_task(user_id: str, task_id: str):
         
         # Get base XP from task
         base_xp = task_data.get('xp_value', 100)
-
-        # Task collaborations removed in Phase 1 refactoring (January 2025)
-        # Table task_collaborations no longer exists
-        # All students earn base XP
         final_xp = base_xp
 
         # Create task completion record using repository
