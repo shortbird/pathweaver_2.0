@@ -10,6 +10,7 @@
  * - Flask-WTF validates headers against httpOnly session
  */
 import api, { tokenStore, csrfTokenStore } from './api'
+import { shouldUseAuthHeaders } from '../utils/browserDetection'
 import logger from '../utils/logger'
 
 class AuthService {
@@ -175,9 +176,18 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY
-      // Tokens are set by backend in httpOnly cookies - NO token storage in frontend
-      // This prevents XSS token theft
+      // ✅ HYBRID AUTH (January 2025): httpOnly cookies + Authorization headers
+      // For browsers that block cross-site cookies (Safari/iOS/Firefox), store tokens
+      // for Authorization header usage. Otherwise, use httpOnly cookies only.
+      if (shouldUseAuthHeaders()) {
+        const appAccessToken = response.data.app_access_token
+        const appRefreshToken = response.data.app_refresh_token
+
+        if (appAccessToken && appRefreshToken) {
+          await this.setTokens(appAccessToken, appRefreshToken)
+          logger.debug('[AuthService] Tokens stored for Authorization header usage (Safari/iOS/Firefox)')
+        }
+      }
 
       // Store user data for quick access (non-sensitive only - no tokens!)
       if (this.user) {
@@ -250,13 +260,25 @@ class AuthService {
    */
   async refreshSession() {
     try {
-      // ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY
-      // Refresh token sent automatically via httpOnly cookie
-      const response = await api.post('/api/auth/refresh', {})
+      // ✅ HYBRID AUTH (January 2025): httpOnly cookies + Authorization headers
+      // For browsers that use Authorization headers (Safari/iOS/Firefox), send refresh_token in body
+      // Otherwise, refresh token sent automatically via httpOnly cookie
+      const requestBody = {}
+      if (shouldUseAuthHeaders()) {
+        const refreshToken = this.getRefreshToken()
+        if (refreshToken) {
+          requestBody.refresh_token = refreshToken
+        }
+      }
+
+      const response = await api.post('/api/auth/refresh', requestBody)
 
       if (response.status === 200) {
-        // Backend automatically rotates tokens in httpOnly cookies
-        // No token handling needed in frontend
+        // For browsers using Authorization headers, store new tokens
+        if (shouldUseAuthHeaders() && response.data.access_token && response.data.refresh_token) {
+          await this.setTokens(response.data.access_token, response.data.refresh_token)
+          logger.debug('[AuthService] Tokens refreshed and stored for Authorization header usage (Safari/iOS/Firefox)')
+        }
 
         // Session refreshed successfully, check current user
         await this.checkAuthStatus()
@@ -417,6 +439,15 @@ class AuthService {
    * Initialize auth service and check current session
    */
   async initialize() {
+    // Initialize token store for encrypted IndexedDB
+    await tokenStore.init()
+
+    // For browsers using Authorization headers (Safari/iOS/Firefox), restore tokens from IndexedDB
+    if (shouldUseAuthHeaders()) {
+      await tokenStore.restoreTokens()
+      logger.debug('[AuthService] Tokens restored from IndexedDB for Authorization header usage')
+    }
+
     // First check if we have cached user data
     this.getCurrentUser()
 

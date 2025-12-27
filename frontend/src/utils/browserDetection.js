@@ -23,6 +23,49 @@ export const isIOS = () => {
 }
 
 /**
+ * Detect if the browser is Firefox
+ * Firefox has Enhanced Tracking Protection that blocks cross-site cookies
+ */
+export const isFirefox = () => {
+  return /Firefox/.test(navigator.userAgent)
+}
+
+/**
+ * Detect if the browser is Firefox in a cross-origin context
+ * where Enhanced Tracking Protection (ETP) may block cookies
+ * Returns true if:
+ * - Browser is Firefox
+ * - Running in cross-origin context (different origin for frontend/backend)
+ * - ETP may be blocking third-party cookies
+ */
+export const isFirefoxCrossOrigin = () => {
+  if (!isFirefox()) {
+    return false
+  }
+
+  try {
+    // Check if frontend and backend are on different origins
+    const frontendOrigin = window.location.origin
+    const backendUrl = import.meta.env.VITE_API_URL || ''
+
+    // If no API URL configured, assume same-origin
+    if (!backendUrl) {
+      return false
+    }
+
+    // Extract origin from backend URL
+    const backendOrigin = new URL(backendUrl).origin
+
+    // If origins differ, this is cross-origin and ETP may block cookies
+    return frontendOrigin !== backendOrigin
+  } catch (error) {
+    logger.warn('[BrowserDetection] Failed to detect Firefox cross-origin context:', error)
+    // Assume cross-origin for safety on Firefox
+    return true
+  }
+}
+
+/**
  * Detect if the browser is in Private/Incognito mode
  * This is approximate and may not work in all browsers
  */
@@ -86,11 +129,12 @@ export const testCookieSupport = async (apiInstance) => {
  * Returns true if:
  * - Browser is Safari
  * - Browser is on iOS
+ * - Browser is Firefox (Enhanced Tracking Protection blocks cross-site cookies)
  * - Cookies are known to be blocked
  */
 export const shouldUseAuthHeaders = () => {
-  // Always use auth headers for Safari/iOS (most reliable)
-  if (isSafari() || isIOS()) {
+  // Always use auth headers for Safari/iOS/Firefox (most reliable)
+  if (isSafari() || isIOS() || isFirefox()) {
     return true
   }
 
@@ -121,6 +165,8 @@ export const getBrowserInfo = () => {
   return {
     isSafari: isSafari(),
     isIOS: isIOS(),
+    isFirefox: isFirefox(),
+    isFirefoxCrossOrigin: isFirefoxCrossOrigin(),
     userAgent: navigator.userAgent,
     cookiesEnabled: navigator.cookieEnabled,
     platform: navigator.platform,
