@@ -1,14 +1,13 @@
 name: Frontend Tests
 
-# Run on every push to develop/main and on pull requests
+# Run only on production (main branch) and pull requests to main
+# Develop auto-deploys without running tests (faster iteration)
 on:
   push:
     branches:
-      - develop
       - main
   pull_request:
     branches:
-      - develop
       - main
 
 jobs:

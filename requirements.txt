@@ -87,6 +87,6 @@ pyasn1-modules==0.4.2
 pyparsing==3.2.3
 rsa==4.9.1
 uritemplate==4.2.0
-urllib3==2.10.0
+urllib3==2.6.2
 cachetools==5.5.2
 charset_normalizer==3.4.3
