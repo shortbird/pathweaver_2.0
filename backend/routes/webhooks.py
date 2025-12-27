@@ -17,8 +17,8 @@ Routes:
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 
-from auth.decorators import require_auth
-from auth.roles import check_permission, PERMISSIONS
+from utils.auth.decorators import require_auth
+from utils.roles import check_permission, PERMISSIONS
 from database import get_supabase_admin_client
 from services.webhook_service import WebhookService
 from utils.logger import get_logger

@@ -26,11 +26,11 @@ import hashlib
 import base64
 from typing import Dict, Optional
 
-from auth.decorators import require_auth
-from auth.roles import check_permission, PERMISSIONS
+from utils.auth.decorators import require_auth
+from utils.roles import check_permission, PERMISSIONS
 from database import get_supabase_admin_client
 from utils.logger import get_logger
-from auth.jwt_manager import jwt_manager
+from utils.session_manager import session_manager
 
 logger = get_logger(__name__)
 
@@ -255,7 +255,7 @@ def _handle_authorization_code_grant(request, client):
     user_id = auth_code_data['user_id']
     scope = auth_code_data['scope']
 
-    access_token = jwt_manager.create_access_token(user_id)
+    access_token = session_manager.generate_access_token(user_id)
     refresh_token = secrets.token_urlsafe(32)
 
     # Store tokens in database
@@ -324,7 +324,7 @@ def _handle_refresh_token_grant(request, client):
     user_id = token_data['user_id']
     scope = token_data['scope']
 
-    access_token = jwt_manager.create_access_token(user_id)
+    access_token = session_manager.generate_access_token(user_id)
 
     # Update token in database
     supabase.table('oauth_tokens').update({
