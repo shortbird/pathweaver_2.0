@@ -116,7 +116,7 @@ This document provides a checklist-based action plan derived from the comprehens
   - **COMPLETED**: Session timeout added with integration into all token verification methods (lines 163-281)
 
 ### Day 4-5: Error Handling & Logging
-- [ ] **Replace broad exception handlers** (4 hours)
+- [x] **Replace broad exception handlers** (4 hours)
   - 300+ instances of `except Exception` catching
   - Files: Multiple, start with `backend/app.py`
   - Change:
@@ -138,6 +138,11 @@ This document provides a checklist-based action plan derived from the comprehens
     ```
   - Test: Run test suite, verify specific errors are caught
   - Reference: 300+ broad exception handlers found
+  - **COMPLETED**: Updated all exception handlers in backend/app.py (28 blueprint registrations)
+    - Separated ImportError from general exceptions
+    - Added specific exception types (ValueError, AttributeError, KeyError) for configuration errors
+    - Added exc_info=True to all error-level logging for better debugging
+    - Used appropriate log levels (warning for optional features, error for critical/unexpected issues)
 
 ---
 
