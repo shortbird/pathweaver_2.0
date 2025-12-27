@@ -17,8 +17,7 @@ Routes:
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 
-from utils.auth.decorators import require_auth
-from utils.roles import check_permission, PERMISSIONS
+from utils.auth.decorators import require_admin
 from database import get_supabase_admin_client
 from services.webhook_service import WebhookService
 from utils.logger import get_logger
@@ -28,7 +27,7 @@ logger = get_logger(__name__)
 
 
 @webhooks_bp.route('/subscriptions', methods=['POST'])
-@require_auth
+@require_admin
 def create_subscription(user_id: str):
     """
     Create a new webhook subscription.
@@ -47,16 +46,12 @@ def create_subscription(user_id: str):
     try:
         admin_client = get_supabase_admin_client()
 
-        # Check if user is org admin or superadmin
+        # Get user's organization (for org-scoped access control)
         user_result = admin_client.table('users').select('role, organization_id').eq('id', user_id).single().execute()
         user = user_result.data
 
         if not user:
             return jsonify({'error': 'User not found'}), 404
-
-        # Check permissions
-        if not check_permission(user['role'], PERMISSIONS['MANAGE_ORGANIZATION']):
-            return jsonify({'error': 'Insufficient permissions'}), 403
 
         # Validate request data
         data = request.get_json()
@@ -139,7 +134,7 @@ def create_subscription(user_id: str):
 
 
 @webhooks_bp.route('/subscriptions', methods=['GET'])
-@require_auth
+@require_admin
 def list_subscriptions(user_id: str):
     """
     List webhook subscriptions for user's organization.
@@ -163,9 +158,6 @@ def list_subscriptions(user_id: str):
         if not user:
             return jsonify({'error': 'User not found'}), 404
 
-        # Check permissions
-        if not check_permission(user['role'], PERMISSIONS['MANAGE_ORGANIZATION']):
-            return jsonify({'error': 'Insufficient permissions'}), 403
 
         # Build query
         query = admin_client.table('webhook_subscriptions').select('*')
@@ -212,7 +204,7 @@ def list_subscriptions(user_id: str):
 
 
 @webhooks_bp.route('/subscriptions/<subscription_id>', methods=['GET'])
-@require_auth
+@require_admin
 def get_subscription(user_id: str, subscription_id: str):
     """
     Get webhook subscription details.
@@ -255,7 +247,7 @@ def get_subscription(user_id: str, subscription_id: str):
 
 
 @webhooks_bp.route('/subscriptions/<subscription_id>', methods=['PUT'])
-@require_auth
+@require_admin
 def update_subscription(user_id: str, subscription_id: str):
     """
     Update webhook subscription.
@@ -335,7 +327,7 @@ def update_subscription(user_id: str, subscription_id: str):
 
 
 @webhooks_bp.route('/subscriptions/<subscription_id>', methods=['DELETE'])
-@require_auth
+@require_admin
 def delete_subscription(user_id: str, subscription_id: str):
     """
     Delete webhook subscription.
@@ -380,7 +372,7 @@ def delete_subscription(user_id: str, subscription_id: str):
 
 
 @webhooks_bp.route('/deliveries', methods=['GET'])
-@require_auth
+@require_admin
 def list_deliveries(user_id: str):
     """
     List webhook delivery logs for user's organization.
@@ -404,9 +396,6 @@ def list_deliveries(user_id: str):
         if not user:
             return jsonify({'error': 'User not found'}), 404
 
-        # Check permissions
-        if not check_permission(user['role'], PERMISSIONS['MANAGE_ORGANIZATION']):
-            return jsonify({'error': 'Insufficient permissions'}), 403
 
         # Build query
         query = (
@@ -448,7 +437,7 @@ def list_deliveries(user_id: str):
 
 
 @webhooks_bp.route('/test', methods=['POST'])
-@require_auth
+@require_admin
 def test_webhook(user_id: str):
     """
     Test webhook endpoint by sending a sample event.

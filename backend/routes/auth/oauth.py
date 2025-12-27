@@ -26,8 +26,7 @@ import hashlib
 import base64
 from typing import Dict, Optional
 
-from utils.auth.decorators import require_auth
-from utils.roles import check_permission, PERMISSIONS
+from utils.auth.decorators import require_auth, require_admin
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.session_manager import session_manager
@@ -402,7 +401,7 @@ def revoke():
 
 
 @bp.route('/clients', methods=['GET'])
-@require_auth
+@require_admin
 def list_clients(user_id: str):
     """
     List OAuth clients (admin only).
@@ -413,13 +412,6 @@ def list_clients(user_id: str):
     """
     try:
         supabase = get_supabase_admin_client()
-
-        # Check if user is admin
-        user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        user = user_result.data
-
-        if not user or not check_permission(user['role'], PERMISSIONS['MANAGE_SYSTEM']):
-            return jsonify({'error': 'Insufficient permissions'}), 403
 
         # Get all OAuth clients
         clients_result = supabase.table('oauth_clients').select('client_id, name, redirect_uris, created_at').execute()
@@ -435,7 +427,7 @@ def list_clients(user_id: str):
 
 
 @bp.route('/clients', methods=['POST'])
-@require_auth
+@require_admin
 def create_client(user_id: str):
     """
     Create OAuth client (admin only).
@@ -451,13 +443,6 @@ def create_client(user_id: str):
     """
     try:
         supabase = get_supabase_admin_client()
-
-        # Check if user is admin
-        user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        user = user_result.data
-
-        if not user or not check_permission(user['role'], PERMISSIONS['MANAGE_SYSTEM']):
-            return jsonify({'error': 'Insufficient permissions'}), 403
 
         data = request.get_json()
         if not data or not data.get('name') or not data.get('redirect_uris'):
