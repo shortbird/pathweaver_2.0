@@ -132,9 +132,18 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY
-      // Tokens are set by backend in httpOnly cookies - NO token storage in frontend
-      // This prevents XSS token theft
+      // ✅ HYBRID AUTH (January 2025): httpOnly cookies + Authorization headers
+      // For browsers that block cross-site cookies (Safari/iOS/Firefox), store tokens
+      // for Authorization header usage. Otherwise, use httpOnly cookies only.
+      if (shouldUseAuthHeaders()) {
+        const appAccessToken = response.data.app_access_token
+        const appRefreshToken = response.data.app_refresh_token
+
+        if (appAccessToken && appRefreshToken) {
+          await this.setTokens(appAccessToken, appRefreshToken)
+          logger.debug('[AuthService] Tokens stored for Authorization header usage (Safari/iOS/Firefox)')
+        }
+      }
 
       // Store user data for quick access (non-sensitive only - no tokens!)
       if (this.user) {

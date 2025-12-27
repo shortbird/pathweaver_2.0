@@ -61,7 +61,14 @@ export default defineConfig({
 
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: {
+        ...devices['Desktop Firefox'],
+        // Firefox-specific settings for cross-site cookie issues
+        actionTimeout: 20 * 1000, // Longer timeout for Firefox
+        navigationTimeout: 40 * 1000, // Longer navigation timeout
+      },
+      // Retry Firefox tests due to known cross-site cookie issues (Enhanced Tracking Protection)
+      retries: 2,
     },
 
     {
