@@ -1,0 +1,10 @@
+{
+  "id": "fix_quest_display_test",
+  "type": "implement_fix",
+  "priority": 1,
+  "payload": {
+    "file": "tests/e2e/quest-enrollment.spec.js",
+    "issue": "test_reliability",
+    "description": "Fix should display available quests in quest hub test (line 58) and should navigate to quest detail page test (line 95). Both tests skip when quest cards not found due to race condition. Fix by: 1) Wait for /api/quests API response BEFORE checking for elements using page.waitForResponse('**/api/quests') pattern, 2) Remove try/catch skip pattern - tests should FAIL if quests not found, 3) Increase timeouts appropriately. Reference webkit-diagnostics.spec.js which successfully finds 12 quest cards using proper API wait pattern."
+  }
+}

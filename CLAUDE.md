@@ -73,9 +73,35 @@ T1 (You):     git commit
 ### Task Queue Location
 
 Tasks are stored in `.claude/workspace/`:
-- `queue/` - Pending tasks
+- `queue/` - Pending tasks (`.json` files)
 - `active/` - Being processed
 - `completed/` - Finished tasks
+
+### Queue Task Format (IMPORTANT)
+
+Tasks MUST be JSON files (not markdown). Use this structure:
+
+```json
+{
+  "id": "fix_descriptive_name",
+  "type": "implement_fix",
+  "priority": 1,
+  "payload": {
+    "file": "path/to/file.js",
+    "issue": "issue_type",
+    "description": "Specific instructions for what to fix"
+  }
+}
+```
+
+**Issue types**: `test_reliability`, `large_file`, `refactor`, `todo`, `performance`, `security`, `accessibility`, `test_coverage`
+
+**Creating tasks manually**:
+```bash
+cat > ".claude/workspace/queue/fix_$(date +%s)_name.json" << 'EOF'
+{ "id": "fix_name", "type": "implement_fix", "priority": 1, "payload": { ... } }
+EOF
+```
 
 ---
 

@@ -8,10 +8,13 @@ You are a worker. Process tasks from `.claude/workspace/queue/` until none remai
 
 ## Step 1: Generate your worker ID
 
+Generate a unique worker ID. Run this command:
+
 ```bash
-WORKER_ID="w$(head -c 6 /dev/urandom | xxd -p 2>/dev/null || echo $$$(date +%s) | md5sum | head -c 12)"
-echo "I am: $WORKER_ID"
+echo "w$(date +%s%N | tail -c 13)"
 ```
+
+Save the output as your WORKER_ID (e.g., `w1703701234567`). Use this ID in subsequent commands.
 
 ## Step 2: Check the queue
 
@@ -19,25 +22,19 @@ echo "I am: $WORKER_ID"
 ls -1 .claude/workspace/queue/*.json 2>/dev/null || echo "EMPTY"
 ```
 
-If EMPTY, say "✅ Queue empty. All tasks done." and STOP.
+If EMPTY, say "Queue empty. All tasks done." and STOP.
 
 ## Step 3: Claim a task atomically
 
-```bash
-CLAIMED=""
-for TASK in $(ls .claude/workspace/queue/*.json 2>/dev/null | head -5); do
-    TASK_NAME=$(basename "$TASK")
-    if mv "$TASK" ".claude/workspace/active/${WORKER_ID}_${TASK_NAME}" 2>/dev/null; then
-        CLAIMED=".claude/workspace/active/${WORKER_ID}_${TASK_NAME}"
-        echo "✓ Claimed: $TASK_NAME"
-        break
-    fi
-done
+**IMPORTANT**: Claude Code's bash execution has issues with `$(...)` command substitution in loops. Use this simpler pattern instead:
 
-if [ -z "$CLAIMED" ]; then
-    echo "No tasks available"
-fi
+```bash
+WORKER_ID="YOUR_WORKER_ID" && CLAIMED="" && for TASK in .claude/workspace/queue/*.json; do if [ -f "$TASK" ]; then TASK_NAME=$(basename "$TASK") && if mv "$TASK" ".claude/workspace/active/${WORKER_ID}_${TASK_NAME}" 2>/dev/null; then CLAIMED=".claude/workspace/active/${WORKER_ID}_${TASK_NAME}" && echo "Claimed: $TASK_NAME" && echo "Path: $CLAIMED" && break; fi; fi; done && if [ -z "$CLAIMED" ]; then echo "No tasks available"; fi
 ```
+
+Replace `YOUR_WORKER_ID` with the ID from Step 1.
+
+**Why this format?** Claude Code parses bash commands before execution. Complex multi-line scripts with `$(ls ...)` substitutions cause syntax errors. Single-line commands with `&&` chaining work reliably.
 
 If nothing claimed, go back to Step 2.
 
@@ -68,13 +65,7 @@ find . -name "*.py" -o -name "*.ts" 2>/dev/null | grep -v node_modules | grep -v
 
 **accessibility_audit**:
 ```bash
-echo "=== ACCESSIBILITY AUDIT ==="
-echo "-- Images Without Alt (multi-line aware) --"
-for f in $(find . \( -name "*.tsx" -o -name "*.jsx" \) 2>/dev/null | grep -v node_modules | head -50); do
-    perl -0777 -ne 'while(/<(?:img|Image)\s[^>]*?>/gsi){ print "'"$f"': missing alt\n" if $& !~ /alt\s*=/i }' "$f" 2>/dev/null
-done | head -15
-echo "-- Click Without Keyboard --"
-grep -rn "onClick" --include="*.tsx" --include="*.jsx" 2>/dev/null | grep -v "onKey\|onPress\|button\|Button\|<a \|role=" | grep -v node_modules | head -10
+echo "=== ACCESSIBILITY AUDIT ===" && echo "-- Images Without Alt --" && grep -rn "<img\|<Image" --include="*.tsx" --include="*.jsx" 2>/dev/null | grep -v node_modules | grep -v "alt=" | head -15 && echo "-- Click Without Keyboard --" && grep -rn "onClick" --include="*.tsx" --include="*.jsx" 2>/dev/null | grep -v "onKey\|onPress\|button\|Button\|<a \|role=" | grep -v node_modules | head -10
 ```
 
 **code_quality_audit**:
@@ -112,11 +103,7 @@ grep -E "^\s*\w+\s+-\s+" claude.md CLAUDE.md 2>/dev/null | head -20
 
 2. **File Paths Exist**: Check that documented file paths actually exist
 ```bash
-echo "=== FILE PATH CHECKS ==="
-# Extract paths from claude.md and verify they exist
-for path in $(grep -oE "(backend|frontend)/[a-zA-Z0-9_/.-]+" claude.md CLAUDE.md 2>/dev/null | head -20); do
-    [ -e "$path" ] && echo "OK: $path" || echo "MISSING: $path"
-done
+echo "=== FILE PATH CHECKS ===" && grep -oE "(backend|frontend)/[a-zA-Z0-9_/.-]+" CLAUDE.md 2>/dev/null | head -20 | while read path; do [ -e "$path" ] && echo "OK: $path" || echo "MISSING: $path"; done
 ```
 
 3. **API Endpoints**: Verify documented endpoints exist in route files

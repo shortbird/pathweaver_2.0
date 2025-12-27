@@ -48,22 +48,20 @@ test.describe('Authentication', () => {
     // Submit form
     await page.click('button[type="submit"]:has-text("Sign in")');
 
-    // Wait for error to appear - use flexible selector for error messages
-    await page.waitForTimeout(2000);
+    // Wait for network to settle after form submission
+    await page.waitForLoadState('networkidle');
 
-    // Should show error message (LoginPage.jsx shows error div with various styles)
-    const errorDiv = page.locator('.bg-red-50, .text-red-500, .text-red-600, [role="alert"]');
-    const errorVisible = await errorDiv.first().isVisible({ timeout: 5000 }).catch(() => false);
+    // Wait for error div to appear (LoginPage.jsx lines 54-62)
+    // Error structure: div.bg-red-50.border-l-4.border-red-500 with p.text-red-800
+    const errorDiv = page.locator('div.bg-red-50.border-l-4');
+    await expect(errorDiv).toBeVisible({ timeout: 10000 });
 
-    // Should stay on login page (primary assertion)
+    // Verify error text is visible
+    const errorText = page.locator('.text-red-800');
+    await expect(errorText).toBeVisible({ timeout: 10000 });
+
+    // Should stay on login page
     await expect(page).toHaveURL(/.*login/);
-
-    // If no error div visible, just verify we're on login page (error might be styled differently)
-    if (!errorVisible) {
-      // Verify login didn't succeed by checking we're still on login page
-      const stillOnLogin = page.url().includes('/login');
-      expect(stillOnLogin).toBe(true);
-    }
   });
 
   test('should logout successfully', async ({ page }) => {
@@ -120,31 +118,42 @@ test.describe('Authentication', () => {
     // Wait for redirect away from login page
     await page.waitForURL(url => !url.href.includes('/login'), { timeout: 15000 });
 
-    // Wait for authenticated content to fully load (ensures session is established)
+    // Wait for authenticated content to fully load and session to establish
     await page.waitForLoadState('networkidle');
     await expect(page.locator('text=/Current Quests|View Portfolio|QUESTS|Dashboard/i').first()).toBeVisible({ timeout: 10000 });
 
-    // Store current URL
-    const authenticatedUrl = page.url();
+    // Give extra time for session to fully persist (tokens, cookies, etc.)
+    await page.waitForTimeout(3000);
+
+    // Log pre-reload state for diagnostics
+    const urlBeforeReload = page.url();
+    const cookiesBeforeReload = await page.context().cookies();
+    const localStorageBeforeReload = await page.evaluate(() => JSON.stringify(localStorage));
+    console.log('Before reload:', { url: urlBeforeReload, cookieCount: cookiesBeforeReload.length, localStorage: localStorageBeforeReload });
 
     // Reload page
     await page.reload();
 
-    // Wait for page to fully load after reload
+    // Wait for page to fully load and any token refresh to complete
     await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
 
-    // Give auth system time to validate session (can be slow on cold starts)
-    await page.waitForTimeout(2000);
+    // Log post-reload state for diagnostics
+    const urlAfterReload = page.url();
+    const cookiesAfterReload = await page.context().cookies();
+    const localStorageAfterReload = await page.evaluate(() => JSON.stringify(localStorage));
+    console.log('After reload:', { url: urlAfterReload, cookieCount: cookiesAfterReload.length, localStorage: localStorageAfterReload });
 
-    // Should not redirect to login (session persists)
-    // Check if we're on an authenticated page by looking for authenticated content
+    // Session MUST persist - check for authenticated content
     const isOnLogin = page.url().includes('/login');
     if (isOnLogin) {
-      // Session didn't persist - this can happen in headless browsers with strict cookie policies
-      // Skip this test rather than fail it
-      test.skip();
+      throw new Error(`SESSION PERSISTENCE FAILED - Redirected to login after reload. Before: ${urlBeforeReload} (${cookiesBeforeReload.length} cookies). After: ${urlAfterReload} (${cookiesAfterReload.length} cookies). LocalStorage before: ${localStorageBeforeReload}, after: ${localStorageAfterReload}`);
     }
 
+    // Verify we're not on login page
     await expect(page).not.toHaveURL(/.*\/login/);
+
+    // Verify authenticated content is still visible
+    await expect(page.locator('text=/Current Quests|View Portfolio|QUESTS|Dashboard/i').first()).toBeVisible({ timeout: 10000 });
   });
 });

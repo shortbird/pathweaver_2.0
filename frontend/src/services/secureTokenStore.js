@@ -70,6 +70,33 @@ async function getEncryptionKey() {
 }
 
 /**
+ * Convert Uint8Array to base64 string (WebKit-safe)
+ * WebKit has issues with btoa/atob for binary data
+ */
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  const chunkSize = 0x8000 // Process in chunks to avoid call stack size exceeded
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length))
+    binary += String.fromCharCode.apply(null, chunk)
+  }
+  return btoa(binary)
+}
+
+/**
+ * Convert base64 string to Uint8Array (WebKit-safe)
+ */
+function base64ToArrayBuffer(base64) {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes
+}
+
+/**
  * Encrypt token using AES-GCM
  */
 async function encryptToken(token) {
@@ -88,10 +115,10 @@ async function encryptToken(token) {
       data
     )
 
-    // Return IV + encrypted data as base64
+    // Return IV + encrypted data as base64 (WebKit-safe conversion)
     return {
-      iv: btoa(String.fromCharCode(...iv)),
-      data: btoa(String.fromCharCode(...new Uint8Array(encryptedData)))
+      iv: arrayBufferToBase64(iv),
+      data: arrayBufferToBase64(encryptedData)
     }
   } catch (error) {
     console.error('[SecureTokenStore] Encryption failed:', error)
@@ -106,9 +133,9 @@ async function decryptToken(encryptedToken) {
   try {
     const key = await getEncryptionKey()
 
-    // Decode IV and data
-    const iv = new Uint8Array(atob(encryptedToken.iv).split('').map(c => c.charCodeAt(0)))
-    const data = new Uint8Array(atob(encryptedToken.data).split('').map(c => c.charCodeAt(0)))
+    // Decode IV and data (WebKit-safe conversion)
+    const iv = base64ToArrayBuffer(encryptedToken.iv)
+    const data = base64ToArrayBuffer(encryptedToken.data)
 
     // Decrypt
     const decryptedData = await crypto.subtle.decrypt(
@@ -121,7 +148,14 @@ async function decryptToken(encryptedToken) {
     const decoder = new TextDecoder()
     return decoder.decode(decryptedData)
   } catch (error) {
-    console.error('[SecureTokenStore] Decryption failed:', error)
+    console.error('[SecureTokenStore] Decryption failed:', error.name, error.message)
+    // Log more details for debugging
+    logger.debug('[SecureTokenStore] Decryption error details:', {
+      errorName: error.name,
+      errorMessage: error.message,
+      hasIV: !!encryptedToken.iv,
+      hasData: !!encryptedToken.data
+    })
     return null
   }
 }
