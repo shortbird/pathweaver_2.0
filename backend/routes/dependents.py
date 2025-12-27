@@ -21,6 +21,8 @@ from repositories.base_repository import NotFoundError, PermissionError, Validat
 from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.session_manager import session_manager
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError as RouteNotFoundError
+from utils.roles import UserRole
+from utils.validation.password_validator import validate_password_strength
 import logging
 
 from utils.logger import get_logger
@@ -39,7 +41,7 @@ def verify_parent_role(user_id: str):
         raise AuthorizationError("User not found")
 
     user_role = user_response.data[0].get('role')
-    if user_role not in ['parent', 'admin']:
+    if user_role not in [UserRole.PARENT.value, UserRole.ADMIN.value]:
         raise AuthorizationError("Only parent or admin accounts can manage dependent profiles")
 
     return True
@@ -211,10 +213,18 @@ def update_dependent(user_id, dependent_id):
         if not data:
             raise ValidationError("Request body is required")
 
+        # Whitelist allowed fields to prevent mass assignment attacks
+        ALLOWED_FIELDS = ['display_name', 'avatar_url', 'date_of_birth', 'bio']
+        sanitized_updates = {k: v for k, v in data.items() if k in ALLOWED_FIELDS}
+
+        # Validate that at least one field is being updated
+        if not sanitized_updates:
+            raise ValidationError(f"At least one valid field must be provided. Allowed fields: {', '.join(ALLOWED_FIELDS)}")
+
         # Parse date_of_birth if provided
-        if 'date_of_birth' in data:
+        if 'date_of_birth' in sanitized_updates:
             try:
-                datetime.strptime(data['date_of_birth'], '%Y-%m-%d')
+                datetime.strptime(sanitized_updates['date_of_birth'], '%Y-%m-%d')
             except ValueError:
                 raise ValidationError("date_of_birth must be in YYYY-MM-DD format")
 
@@ -224,7 +234,7 @@ def update_dependent(user_id, dependent_id):
         updated_dependent = dependent_repo.update_dependent(
             dependent_id=dependent_id,
             parent_id=user_id,
-            updates=data
+            updates=sanitized_updates
         )
 
         logger.info(f"Parent {user_id} updated dependent {dependent_id}")
@@ -328,9 +338,11 @@ def promote_dependent(user_id, dependent_id):
         if '@' not in email or '.' not in email:
             raise ValidationError("Invalid email format")
 
-        # Validate password strength (minimum 12 characters per CLAUDE.md)
-        if len(password) < 12:
-            raise ValidationError("Password must be at least 12 characters long")
+        # Validate password strength using comprehensive password validator
+        is_valid, error_messages = validate_password_strength(password)
+        if not is_valid:
+            # Return first error message for user-friendly feedback
+            raise ValidationError(error_messages[0] if error_messages else "Password does not meet security requirements")
 
         supabase = get_supabase_admin_client()
         dependent_repo = DependentRepository(client=supabase)

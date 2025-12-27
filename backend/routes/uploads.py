@@ -93,20 +93,26 @@ def upload_evidence(user_id):
         # Create evidence bucket if it doesn't exist
         try:
             supabase.storage.create_bucket('quest-evidence', {'public': False})
-        except:
-            pass  # Bucket might already exist
+        except Exception as e:
+            # Bucket likely already exists (expected on subsequent calls)
+            logger.debug(f"Bucket creation skipped (may already exist): {e}")
         
+        # Check Content-Length header BEFORE reading files to prevent DoS
+        if request.content_length and request.content_length > MAX_FILE_SIZE * len(files):
+            max_mb = MAX_FILE_SIZE / (1024 * 1024)
+            return jsonify({'error': f'Request exceeds maximum total size of {max_mb}MB per file'}), 413
+
         for file in files:
             if file.filename == '':
                 continue
 
-            # Read file content first for validation
+            # Read file content for validation (safe now that we checked Content-Length)
             file_content = file.read()
 
-            # Explicit file size validation (10MB max)
+            # Explicit file size validation (10MB max per file)
             if len(file_content) > MAX_FILE_SIZE:
                 max_mb = MAX_FILE_SIZE / (1024 * 1024)
-                return jsonify({'error': f'File exceeds maximum size of {max_mb}MB'}), 400
+                return jsonify({'error': f'File exceeds maximum size of {max_mb}MB'}), 413
 
             # Sanitize filename (raises ValidationError on invalid filename)
             try:
@@ -192,8 +198,9 @@ def upload_evidence_base64(user_id):
         # Create evidence bucket if it doesn't exist
         try:
             supabase.storage.create_bucket('quest-evidence', {'public': False})
-        except:
-            pass  # Bucket might already exist
+        except Exception as e:
+            # Bucket likely already exists (expected on subsequent calls)
+            logger.debug(f"Bucket creation skipped (may already exist): {e}")
         
         for file_data in data['files']:
             filename = file_data.get('filename', f'file_{uuid.uuid4()}')
@@ -209,7 +216,7 @@ def upload_evidence_base64(user_id):
             # Explicit file size validation (10MB max)
             if len(file_content) > MAX_FILE_SIZE:
                 max_mb = MAX_FILE_SIZE / (1024 * 1024)
-                return jsonify({'error': f'File exceeds maximum size of {max_mb}MB'}), 400
+                return jsonify({'error': f'File exceeds maximum size of {max_mb}MB'}), 413
 
             # Sanitize filename (raises ValidationError on invalid filename)
             try:

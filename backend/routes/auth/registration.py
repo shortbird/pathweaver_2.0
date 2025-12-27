@@ -94,8 +94,9 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
             for record in skill_records:
                 try:
                     supabase.table('user_skill_xp').insert(record).execute()
-                except:
-                    pass  # Skill already exists
+                except Exception as individual_error:
+                    # Skill record may already exist (expected in some cases)
+                    logger.debug(f"Skill record insert skipped for user (may already exist): {individual_error}")
 
     except Exception as e:
         logger.error(f"Error ensuring diploma and skills: {str(e)}")
@@ -315,8 +316,9 @@ def register():
         # Log the full error for debugging
         try:
             logger.error(f"Supabase registration error: {str(e)}")
-        except:
-            logger.error("Supabase registration error occurred but could not be printed")
+        except (TypeError, ValueError, UnicodeEncodeError) as log_error:
+            # Error converting exception to string for logging
+            logger.error(f"Supabase registration error occurred (unable to format: {type(e).__name__})")
 
         # Parse error message for specific cases
         error_str = str(e).lower()

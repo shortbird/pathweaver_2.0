@@ -9,7 +9,7 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED
 """
 
 from flask import Blueprint, request, jsonify
-from utils.auth.decorators import require_auth
+from utils.auth.decorators import require_auth, validate_uuid_param
 from services.credit_mapping_service import CreditMappingService
 
 from utils.logger import get_logger
@@ -59,6 +59,7 @@ def get_my_transcript(user_id):
 
 @bp.route('/transcript/<target_user_id>', methods=['GET'])
 @require_auth
+@validate_uuid_param('target_user_id')
 def get_transcript(user_id, target_user_id):
     """
     Get academic transcript for a specific user.
@@ -210,6 +211,7 @@ def get_credit_ledger(user_id):
 
 
 @bp.route('/quest/<quest_id>/calculate', methods=['GET'])
+@validate_uuid_param('quest_id')
 def calculate_quest_credits(quest_id):
     """
     Calculate total credits available from a quest.

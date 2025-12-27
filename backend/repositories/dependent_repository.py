@@ -136,8 +136,9 @@ class DependentRepository(BaseRepository):
                 # Rollback: delete auth user if public.users insert fails
                 try:
                     self.client.auth.admin.delete_user(dependent_id)
-                except:
-                    pass
+                except Exception as cleanup_error:
+                    # Log cleanup failure but don't block the main error
+                    logger.warning(f"Failed to cleanup auth user {dependent_id} after dependent creation failure: {cleanup_error}")
                 raise ValidationError("Failed to create dependent profile")
 
             logger.info(f"Created dependent profile {result.data[0]['id']} for parent {parent_id}")

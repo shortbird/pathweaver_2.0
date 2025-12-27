@@ -36,7 +36,9 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
   const pillarData = getPillarData(task.pillar);
   const isTaskCompleted = task.is_completed || false;
 
-  console.log('[TASK_WORKSPACE] Render with isTaskCompleted:', isTaskCompleted);
+  if (import.meta.env.DEV) {
+    console.log('[TASK_WORKSPACE] Render with isTaskCompleted:', isTaskCompleted);
+  }
 
   const handleMarkComplete = async () => {
     if (isCompleting) return;
