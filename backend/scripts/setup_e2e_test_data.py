@@ -12,6 +12,7 @@ Run from project root:
 """
 
 import os
+import sys
 from datetime import datetime
 from supabase import create_client
 
@@ -51,7 +52,7 @@ def setup_e2e_test_data():
         supabase.table('quest_task_completions').delete().eq('user_id', user_id).execute()
 
         # Delete evidence
-        supabase.table('task_evidence').delete().eq('user_id', user_id).execute()
+        supabase.table('user_task_evidence_documents').delete().eq('user_id', user_id).execute()
 
         # Delete user quest tasks
         supabase.table('user_quest_tasks').delete().eq('user_id', user_id).execute()
