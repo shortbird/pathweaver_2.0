@@ -345,15 +345,6 @@ const ParentDashboardPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Admin Demo Mode Notice */}
-      {user.role === 'admin' && (
-        <div className="mb-6 bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-          <p className="text-blue-900 font-semibold text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            Admin Demo Mode: You're viewing your own student data as a demo parent. This allows you to demonstrate parent dashboard features without switching accounts.
-          </p>
-        </div>
-      )}
-
       {/* Header */}
       <div className="mb-8 flex items-start justify-between">
         <div>

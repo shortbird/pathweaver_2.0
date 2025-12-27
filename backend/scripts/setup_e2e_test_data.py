@@ -79,25 +79,28 @@ def setup_e2e_test_data():
 
         print(f"   ✓ Found {len(quests.data)} active quests")
 
-        # Find a quest with tasks (prefer optio type)
+        # Find a course quest with preset tasks (preferred for E2E testing)
         quest_for_enrollment = None
-        for quest in quests.data:
-            # Check if quest has tasks in quest_tasks table
-            tasks_check = supabase.table('quest_tasks')\
-                .select('id')\
-                .eq('quest_id', quest['id'])\
-                .limit(1)\
-                .execute()
+        preset_tasks = None
 
-            if tasks_check.data:
-                quest_for_enrollment = quest
-                print(f"   ✓ Selected quest with tasks: {quest['title'][:50]}")
-                break
+        for quest in quests.data:
+            if quest.get('quest_type') == 'course':
+                # Check if course quest has preset tasks
+                tasks_check = supabase.table('course_quest_tasks')\
+                    .select('*')\
+                    .eq('quest_id', quest['id'])\
+                    .execute()
+
+                if tasks_check.data:
+                    quest_for_enrollment = quest
+                    preset_tasks = tasks_check.data
+                    print(f"   ✓ Selected course quest with {len(preset_tasks)} tasks: {quest['title'][:50]}")
+                    break
 
         if not quest_for_enrollment:
-            # Fallback: use first quest even if no tasks
+            # Fallback: use first quest (optio quests use personalization, no preset tasks)
             quest_for_enrollment = quests.data[0]
-            print(f"   ⚠ Warning: Selected quest without tasks: {quest_for_enrollment['title'][:50]}")
+            print(f"   ✓ Selected quest: {quest_for_enrollment['title'][:50]} (personalization required)")
 
         # 4. Enroll user in one quest
         print(f"\n3. Enrolling in quest...")
@@ -116,17 +119,14 @@ def setup_e2e_test_data():
         user_quest_id = enrollment.data[0]['id']
         print(f"   ✓ Enrolled in: {quest_for_enrollment['title'][:50]}")
 
-        # 5. Get quest tasks and create user_quest_tasks
+        # 5. Copy preset tasks to user_quest_tasks (if course quest with tasks)
         print(f"\n4. Setting up tasks for enrolled quest...")
-        quest_tasks = supabase.table('quest_tasks')\
-            .select('id, title, description, pillar, xp_value, order_index, is_required')\
-            .eq('quest_id', quest_for_enrollment['id'])\
-            .execute()
+        tasks_created = 0
 
-        if quest_tasks.data:
-            # Create user_quest_tasks for each task
+        if preset_tasks:
+            # Create user_quest_tasks from preset course tasks
             user_tasks_data = []
-            for task in quest_tasks.data:
+            for task in preset_tasks:
                 user_tasks_data.append({
                     'user_id': user_id,
                     'quest_id': quest_for_enrollment['id'],
@@ -142,9 +142,10 @@ def setup_e2e_test_data():
 
             if user_tasks_data:
                 supabase.table('user_quest_tasks').insert(user_tasks_data).execute()
-                print(f"   ✓ Created {len(user_tasks_data)} user tasks")
+                tasks_created = len(user_tasks_data)
+                print(f"   ✓ Created {tasks_created} user tasks from preset tasks")
         else:
-            print(f"   ℹ Quest has no tasks (will need personalization)")
+            print(f"   ℹ Optio quest - tasks created via personalization")
 
         # 6. Summary
         print("\n" + "=" * 60)
@@ -153,15 +154,14 @@ def setup_e2e_test_data():
         print(f"  - Test user: {email}")
         print(f"  - User ID: {user_id}")
         print(f"  - Enrolled quests: 1 ({quest_for_enrollment['title'][:40]}...)")
-        print(f"  - Tasks in enrolled quest: {len(quest_tasks.data) if quest_tasks.data else 0}")
+        print(f"  - Quest type: {quest_for_enrollment.get('quest_type', 'optio')}")
+        print(f"  - Tasks created: {tasks_created}")
         print(f"  - Unenrolled quests: {len(quests.data) - 1}")
         print(f"  - Total XP: 0")
         print(f"\nTests can now:")
         print(f"  ✓ Display quest hub (unenrolled quests visible)")
         print(f"  ✓ Navigate to quest details")
-        print(f"  ✓ View enrolled quest tasks")
         print(f"  ✓ Pick up new quests (unenrolled quests available)")
-        print(f"  ✓ Complete task workflows (enrolled quest has tasks)")
 
         return True
 
