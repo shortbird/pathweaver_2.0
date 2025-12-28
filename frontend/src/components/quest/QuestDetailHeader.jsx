@@ -1,8 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { getPillarData } from '../../utils/pillarMappings';
 import { getQuestHeaderImageSync } from '../../utils/questSourceConfig';
-import { MapPinIcon, CalendarIcon, ArrowTopRightOnSquareIcon, BookOpenIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { MapPinIcon, CalendarIcon, ArrowTopRightOnSquareIcon, BookOpenIcon, ArrowLeftIcon, AcademicCapIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 
 /**
  * QuestDetailHeader - Hero section with background image, title, progress, and metadata
@@ -16,9 +17,11 @@ const QuestDetailHeader = ({
   pillarBreakdown,
   isQuestCompleted,
   onEndQuest,
-  endQuestMutation
+  endQuestMutation,
+  onShowCurriculum
 }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const getLocationDisplay = () => {
     if (!quest?.metadata) return null;
@@ -94,16 +97,31 @@ const QuestDetailHeader = ({
             BACK
           </button>
 
-          {completedTasks > 0 && (
-            <button
-              onClick={() => navigate('/diploma')}
-              className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm text-optio-purple border-2 border-purple-200 rounded-full hover:bg-white hover:border-purple-300 hover:shadow-lg transition-all font-semibold"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              <BookOpenIcon className="w-4 h-4" />
-              VIEW ON DIPLOMA
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {/* View Curriculum Button - Show when enrolled */}
+            {quest?.user_enrollment && onShowCurriculum && (
+              <button
+                onClick={onShowCurriculum}
+                className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm text-gray-700 border-2 border-gray-200 rounded-full hover:bg-white hover:border-optio-purple hover:text-optio-purple hover:shadow-lg transition-all font-semibold"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                <AcademicCapIcon className="w-4 h-4" />
+                VIEW CURRICULUM
+              </button>
+            )}
+
+            {/* View on Diploma Button - Show when tasks completed */}
+            {completedTasks > 0 && (
+              <button
+                onClick={() => navigate('/diploma')}
+                className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm text-optio-purple border-2 border-purple-200 rounded-full hover:bg-white hover:border-purple-300 hover:shadow-lg transition-all font-semibold"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                <BookOpenIcon className="w-4 h-4" />
+                VIEW ON DIPLOMA
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Quest Title and Description */}
@@ -127,6 +145,35 @@ const QuestDetailHeader = ({
               <ArrowTopRightOnSquareIcon className="w-5 h-5" />
               VISIT COURSE
             </a>
+          )}
+
+          {/* Curriculum Buttons - Show if quest has curriculum lessons */}
+          {quest?.has_curriculum && (
+            <div className="flex flex-wrap gap-3 mt-4">
+              {/* View Curriculum Button - For enrolled users */}
+              {quest?.user_enrollment && (
+                <button
+                  onClick={() => navigate(`/quests/${quest.id}/curriculum`)}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg hover:scale-105 transition-all duration-300 font-semibold text-base"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  <AcademicCapIcon className="w-5 h-5" />
+                  VIEW CURRICULUM
+                </button>
+              )}
+
+              {/* Edit Curriculum Button - For admins/advisors/teachers */}
+              {user && ['admin', 'superadmin', 'advisor', 'teacher'].includes(user.role) && (
+                <button
+                  onClick={() => navigate(`/quests/${quest.id}/curriculum/edit`)}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-white border-2 border-optio-purple text-optio-purple rounded-full hover:bg-optio-purple hover:text-white hover:shadow-lg hover:scale-105 transition-all duration-300 font-semibold text-base"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  <PencilSquareIcon className="w-5 h-5" />
+                  EDIT CURRICULUM
+                </button>
+              )}
+            </div>
           )}
         </div>
 

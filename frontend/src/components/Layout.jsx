@@ -1,15 +1,38 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import Sidebar from './navigation/Sidebar'
 import TopNavbar from './navigation/TopNavbar'
 
+const SIDEBAR_PINNED_KEY = 'optio-sidebar-pinned'
+
 const Layout = () => {
   const { user, isAuthenticated } = useAuth()
   const location = useLocation()
   const [siteSettings, setSiteSettings] = React.useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Initialize pinned state from localStorage (defaults to true for first-time users)
+  const [sidebarPinned, setSidebarPinned] = useState(() => {
+    const stored = localStorage.getItem(SIDEBAR_PINNED_KEY)
+    return stored === null ? true : stored === 'true'
+  })
+
+  // Persist pinned state to localStorage
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_PINNED_KEY, sidebarPinned.toString())
+  }, [sidebarPinned])
+
+  // Track hover state for sidebar
+  const [sidebarHovered, setSidebarHovered] = useState(false)
+
+  const handleTogglePin = () => {
+    setSidebarPinned(prev => !prev)
+  }
+
+  // Determine if sidebar is visually expanded (for layout calculations)
+  const isSidebarExpanded = sidebarPinned || sidebarHovered
 
   React.useEffect(() => {
     fetchSiteSettings()
@@ -53,6 +76,11 @@ const Layout = () => {
         <Sidebar
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          isCollapsed={!sidebarPinned}
+          isPinned={sidebarPinned}
+          onTogglePin={handleTogglePin}
+          isHovered={sidebarHovered}
+          onHoverChange={setSidebarHovered}
         />
       )}
 
@@ -61,7 +89,8 @@ const Layout = () => {
         id="main-content"
         className={`
         pt-28 sm:pt-16
-        ${shouldShowSidebar ? 'lg:ml-64' : ''}
+        transition-all duration-200
+        ${shouldShowSidebar ? (isSidebarExpanded ? 'lg:ml-64' : 'lg:ml-16') : ''}
         min-h-[calc(100vh-4rem)]
       `}>
         <Outlet />
@@ -69,8 +98,8 @@ const Layout = () => {
 
       {/* Footer */}
       <footer className={`
-        bg-white border-t border-gray-200 mt-auto
-        ${shouldShowSidebar ? 'lg:ml-64' : ''}
+        bg-white border-t border-gray-200 mt-auto transition-all duration-200
+        ${shouldShowSidebar ? (isSidebarExpanded ? 'lg:ml-64' : 'lg:ml-16') : ''}
       `}>
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <p className="text-center text-sm text-neutral-500 font-poppins font-medium">

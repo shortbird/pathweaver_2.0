@@ -1,0 +1,10 @@
+{
+  "id": "enhance_curriculum_view",
+  "type": "implement_frontend",
+  "priority": 2,
+  "payload": {
+    "description": "Enhance CurriculumView.jsx sidebar with lesson thumbnails (gradient fallback with lesson number), improved progress bar (animated gradient with milestone dots), lesson header hero treatment (pillar badge, large title, meta info), and hover effects (scale, shadow).",
+    "files": ["frontend/src/components/curriculum/CurriculumView.jsx"],
+    "context": "Lesson items: w-16 h-16 thumbnail, completion overlay, hover scale-[1.02]. Progress bar: gradient optio-purple to optio-pink, milestone dots at 25/50/75/100%. Header: 4xl title, pillar badge with color, meta bar with duration/video/completion icons."
+  }
+}

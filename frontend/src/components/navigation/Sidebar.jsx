@@ -2,9 +2,13 @@ import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 
-const Sidebar = ({ isOpen, onClose }) => {
+const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovered, onHoverChange }) => {
   const location = useLocation()
   const { user, logout, isAuthenticated } = useAuth()
+
+  // Determine if sidebar should show expanded (full width with text)
+  // Expanded when: pinned, or hovered while collapsed
+  const isExpanded = isPinned || isHovered
 
   const isActiveRoute = (path) => {
     // Exact match for the path
@@ -166,14 +170,17 @@ const Sidebar = ({ isOpen, onClose }) => {
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-16 left-0 bottom-0 w-64 bg-white shadow-md z-50
-          transform transition-transform duration-200 ease-in-out
+          fixed top-16 left-0 bottom-0 bg-white shadow-md z-50
+          transform transition-all duration-200 ease-in-out
           flex flex-col
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
+          ${isExpanded ? 'w-64' : 'w-16'}
         `}
+        onMouseEnter={() => onHoverChange?.(true)}
+        onMouseLeave={() => onHoverChange?.(false)}
       >
-        <div className="p-6 flex-1">
+        <div className={`flex-1 overflow-hidden ${isExpanded ? 'p-6' : 'p-2 pt-6'}`}>
           <nav className="space-y-2">
             {navItems.map((item) => {
               const isActive = isActiveRoute(item.path)
@@ -183,24 +190,58 @@ const Sidebar = ({ isOpen, onClose }) => {
                   key={item.path}
                   to={item.path}
                   onClick={handleNavClick}
+                  title={!isExpanded ? item.name : undefined}
                   className={`
-                    flex items-center px-4 py-3 rounded-lg
+                    flex items-center rounded-lg
                     font-poppins transition-colors duration-200
                     min-h-[44px] touch-manipulation
+                    ${isExpanded ? 'px-4 py-3' : 'px-3 py-3 justify-center'}
                     ${isActive
                       ? 'bg-gradient-to-r from-[#F3EFF4] to-[#E7D5F2] text-optio-purple font-semibold'
                       : 'text-neutral-700 font-medium hover:bg-neutral-100'
                     }
                   `}
                 >
-                  <span className={`mr-3 ${isActive ? 'text-optio-purple' : 'text-neutral-500'}`}>
+                  <span className={`flex-shrink-0 ${isExpanded ? 'mr-3' : ''} ${isActive ? 'text-optio-purple' : 'text-neutral-500'}`}>
                     {item.icon}
                   </span>
-                  <span>{item.name}</span>
+                  {isExpanded && <span className="whitespace-nowrap">{item.name}</span>}
                 </Link>
               )
             })}
           </nav>
+        </div>
+
+        {/* Pin Toggle Button (Desktop Only) */}
+        <div className={`hidden lg:block border-t border-gray-200 ${isExpanded ? 'py-[10px] px-2' : 'py-[12px] px-1'}`}>
+          <button
+            onClick={onTogglePin}
+            title={isPinned ? 'Unpin sidebar' : 'Pin sidebar open'}
+            className={`
+              w-full flex items-center rounded-lg font-poppins font-medium
+              text-neutral-600 hover:bg-neutral-100 transition-colors duration-200
+              min-h-[44px] touch-manipulation
+              ${isExpanded ? 'px-4 py-3' : 'px-2 py-3 justify-center'}
+            `}
+          >
+            {isPinned ? (
+              // Pinned icon (pushpin filled/active)
+              <svg className="w-5 h-5 flex-shrink-0 text-optio-purple" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 4v7l2 3v2h-6v5l-1 1-1-1v-5H5v-2l2-3V4c0-1.1.9-2 2-2h6c1.1 0 2 .9 2 2z"/>
+              </svg>
+            ) : (
+              // Unpinned icon (pushpin outline with slash)
+              <svg className="w-5 h-5 flex-shrink-0 text-neutral-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 4v7l2 3v2h-6v5l-1 1-1-1v-5H5v-2l2-3V4c0-1.1.9-2 2-2h6c1.1 0 2 .9 2 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
+              </svg>
+            )}
+            {isExpanded && (
+              <span className="ml-3 whitespace-nowrap">
+                {isPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Logout Button (Bottom of Sidebar - Mobile Only) */}

@@ -1,0 +1,10 @@
+{
+  "id": "create_divider_block_editor",
+  "type": "implement_frontend",
+  "priority": 3,
+  "payload": {
+    "description": "Create DividerBlockEditor component with 3 styles: line, dots, gradient. Simple UI - click to cycle through styles or show style picker dropdown.",
+    "files": ["frontend/src/components/curriculum/blocks/DividerBlockEditor.jsx", "frontend/src/components/curriculum/blocks/index.js"],
+    "context": "Use DIVIDER_STYLES from blocks/index.js. Line: border-t border-gray-300. Dots: centered '...' text. Gradient: optio-purple to optio-pink horizontal line."
+  }
+}

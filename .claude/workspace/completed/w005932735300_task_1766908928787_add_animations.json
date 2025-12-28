@@ -1,0 +1,10 @@
+{
+  "id": "add_animations_css",
+  "type": "implement_frontend",
+  "priority": 3,
+  "payload": {
+    "description": "Add new CSS animations to frontend/src/index.css: fadeInUp, scaleIn, slideInRight with staggered animation delays. Include utility classes for animations.",
+    "files": ["frontend/src/index.css"],
+    "context": "fadeInUp: opacity 0->1, translateY 20px->0, 0.4s ease-out. scaleIn: opacity 0->1, scale 0.95->1, 0.3s ease-out. slideInRight: opacity 0->1, translateX 20px->0, 0.3s ease-out. Add .stagger-1 through .stagger-5 with 0.05s increments."
+  }
+}

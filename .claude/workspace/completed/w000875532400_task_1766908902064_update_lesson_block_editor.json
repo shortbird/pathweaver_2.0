@@ -1,0 +1,10 @@
+{
+  "id": "update_lesson_block_editor",
+  "type": "implement_frontend",
+  "priority": 1,
+  "payload": {
+    "description": "Update LessonBlockEditor.jsx to use new block components (TextBlockEditor, ImageBlockEditor, CalloutBlockEditor, DividerBlockEditor). Update AddBlockButton to show all block types from BLOCK_TYPE_LIST. Use createBlock() from blocks/index.js.",
+    "files": ["frontend/src/components/curriculum/LessonBlockEditor.jsx", "frontend/src/components/curriculum/blocks/index.js"],
+    "context": "Replace MarkdownEditor with TextBlockEditor. Add new cases in SortableBlockItem for image, callout, divider blocks. Update block type selector dropdown to use BLOCK_TYPES config. Keep existing DnD logic."
+  }
+}

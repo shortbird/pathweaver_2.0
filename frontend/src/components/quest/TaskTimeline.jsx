@@ -171,6 +171,7 @@ const TaskTimeline = ({
   onTaskReorder,
   onAddTask,
   onRemoveTask,
+  onPreloadWizard,
   displayMode = 'flexible',
   onDisplayModeChange
 }) => {
@@ -258,6 +259,8 @@ const TaskTimeline = ({
       <div className="p-4 border-t border-gray-200">
         <button
           onClick={onAddTask}
+          onMouseEnter={onPreloadWizard}
+          onFocus={onPreloadWizard}
           className="w-full py-3 border-2 border-dashed border-gray-400 rounded-lg hover:border-optio-purple hover:bg-purple-50 transition-all flex items-center justify-center gap-2 text-gray-700 hover:text-optio-purple"
           style={{ fontFamily: 'Poppins' }}
         >

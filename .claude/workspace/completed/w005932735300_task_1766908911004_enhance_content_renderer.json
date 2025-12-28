@@ -1,0 +1,10 @@
+{
+  "id": "enhance_content_renderer",
+  "type": "implement_frontend",
+  "priority": 1,
+  "payload": {
+    "description": "Enhance LessonContentRenderer.jsx with beautiful prose styling and new block renderers. Update prose classes for headings, links, blockquotes. Add renderers for image, callout, divider blocks. Improve video block styling with gradient border on hover.",
+    "files": ["frontend/src/components/curriculum/LessonContentRenderer.jsx"],
+    "context": "Prose: H1 4xl bold, H2 2xl optio-purple with left border, links with underline animation, blockquotes with gradient bg. Image block: rounded-xl shadow-lg with caption. Callout: colored boxes with icons from CALLOUT_VARIANTS. Video: gradient border on hover, better shadow."
+  }
+}

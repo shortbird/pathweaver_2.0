@@ -36,12 +36,14 @@ export const Modal = ({
 }) => {
   if (!isOpen) return null;
 
+  // Size classes with mobile-first approach
+  // On mobile (< sm), modals take more screen space
   const sizeClasses = {
     sm: 'max-w-md',
     md: 'max-w-2xl',
-    lg: 'max-w-4xl',
+    lg: 'max-w-4xl sm:max-w-4xl',
     xl: 'max-w-6xl',
-    full: 'max-w-full mx-4'
+    full: 'max-w-full mx-2 sm:mx-4'
   };
 
   const handleOverlayClick = (e) => {
@@ -71,7 +73,7 @@ export const Modal = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-2 sm:p-4"
       onClick={handleOverlayClick}
     >
       <FocusTrap
@@ -83,34 +85,34 @@ export const Modal = ({
         }}
       >
         <div
-          className={`bg-white rounded-2xl shadow-2xl ${sizeClasses[size]} w-full max-h-[90vh] overflow-hidden flex flex-col`}
+          className={`bg-white rounded-xl sm:rounded-2xl shadow-2xl ${sizeClasses[size]} w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col`}
           role="dialog"
           aria-modal="true"
         >
           {/* Header */}
           {(header || title) && (
-            <div className={`bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white flex items-center justify-between ${headerClassName}`}>
-              {header || <h2 className="text-2xl font-bold">{title}</h2>}
+            <div className={`bg-gradient-to-r from-optio-purple to-optio-pink p-4 sm:p-6 text-white flex items-center justify-between ${headerClassName}`}>
+              {header || <h2 className="text-lg sm:text-2xl font-bold">{title}</h2>}
               {showCloseButton && (
                 <button
                   onClick={onClose}
-                  className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors ml-4"
+                  className="text-white hover:bg-white/20 p-1.5 sm:p-2 rounded-lg transition-colors ml-3 sm:ml-4 flex-shrink-0"
                   aria-label="Close modal"
                 >
-                  <XMarkIcon size={24} />
+                  <XMarkIcon className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
               )}
             </div>
           )}
 
           {/* Body */}
-          <div className={`flex-1 overflow-y-auto p-6 ${bodyClassName}`}>
+          <div className={`flex-1 overflow-y-auto p-4 sm:p-6 ${bodyClassName}`}>
             {children}
           </div>
 
           {/* Footer */}
           {footer && (
-            <div className={`px-6 py-4 border-t border-gray-200 ${footerClassName}`}>
+            <div className={`px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 ${footerClassName}`}>
               {footer}
             </div>
           )}

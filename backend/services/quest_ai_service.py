@@ -250,22 +250,22 @@ Return ONLY valid JSON (no markdown code blocks):
                 'quality_score': 0
             }
     
-    def suggest_tasks_for_quest(self, title: str, description: str, 
+    def suggest_tasks_for_quest(self, title: str, description: str,
                                target_task_count: int = 4) -> Dict[str, Any]:
         """
         Generate specific tasks for a quest based on title and description.
-        
+
         Args:
             title: Quest title
             description: Quest description
             target_task_count: Number of tasks to generate (3-6)
-            
+
         Returns:
             Dict containing list of suggested tasks
         """
         try:
             target_task_count = max(3, min(6, target_task_count))
-            
+
             prompt = f"""
             Create {target_task_count} tasks for this educational quest:
 
@@ -291,22 +291,161 @@ Return ONLY valid JSON (no markdown code blocks):
 
             Return as valid JSON array with these exact field names.
             """
-            
+
             response = self.model.generate_content(prompt)
             tasks_data = self._parse_tasks_response(response.text)
             tasks_data = self._validate_tasks_data(tasks_data)
-            
+
             return {
                 'success': True,
                 'tasks': tasks_data
             }
-            
+
         except Exception as e:
             return {
                 'success': False,
                 'error': f"Failed to generate tasks: {str(e)}",
                 'tasks': []
             }
+
+    def generate_tasks_from_lesson(self, lesson_content: str, lesson_title: str = "",
+                                   target_task_count: int = 3, max_retries: int = 3) -> Dict[str, Any]:
+        """
+        Generate tasks aligned with lesson content using AI with retry logic.
+
+        Args:
+            lesson_content: The lesson text/content to base tasks on
+            lesson_title: Optional lesson title for context
+            target_task_count: Number of tasks to generate (1-5, default 3)
+            max_retries: Maximum retry attempts with exponential backoff (default 3)
+
+        Returns:
+            Dict containing success status, tasks list, and any errors
+        """
+        import time
+
+        # Validate inputs
+        if not lesson_content or not lesson_content.strip():
+            return {
+                'success': False,
+                'error': 'Lesson content is required',
+                'tasks': self._get_fallback_tasks()
+            }
+
+        target_task_count = max(1, min(5, target_task_count))
+
+        # Retry logic with exponential backoff
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                # Build prompt with lesson context
+                prompt = self._build_lesson_tasks_prompt(lesson_content, lesson_title, target_task_count)
+
+                # Generate content with timeout
+                response = self.model.generate_content(prompt)
+
+                if not response or not response.text:
+                    raise Exception("Empty response from Gemini API")
+
+                # Parse and validate AI response
+                tasks_data = self._parse_tasks_response(response.text)
+
+                if not tasks_data or not isinstance(tasks_data, list):
+                    raise ValueError("AI returned invalid task structure")
+
+                # Validate each task has required fields
+                tasks_data = self._validate_tasks_data(tasks_data)
+
+                # Success - log and return
+                logger.info(f"Generated {len(tasks_data)} tasks from lesson (attempt {attempt + 1})")
+                return {
+                    'success': True,
+                    'tasks': tasks_data,
+                    'attempt': attempt + 1
+                }
+
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"AI task generation attempt {attempt + 1}/{max_retries} failed: {last_error}")
+
+                # Exponential backoff: 1s, 2s, 4s
+                if attempt < max_retries - 1:
+                    backoff_time = 2 ** attempt
+                    time.sleep(backoff_time)
+
+        # All retries failed - log error and return fallback
+        logger.error(f"AI task generation failed after {max_retries} attempts: {last_error}")
+        return {
+            'success': False,
+            'error': f"AI generation failed after {max_retries} attempts: {last_error}",
+            'tasks': self._get_fallback_tasks(),
+            'used_fallback': True
+        }
+
+    def _build_lesson_tasks_prompt(self, lesson_content: str, lesson_title: str,
+                                   target_task_count: int) -> str:
+        """Build AI prompt for generating tasks from lesson content"""
+
+        title_context = f"\nLesson Title: {lesson_title}" if lesson_title else ""
+
+        # Truncate lesson content if too long (keep first 1500 chars for context)
+        if len(lesson_content) > 1500:
+            lesson_snippet = lesson_content[:1500] + "..."
+        else:
+            lesson_snippet = lesson_content
+
+        return f"""
+        Generate {target_task_count} educational tasks based on this lesson content:{title_context}
+
+        Lesson Content:
+        {lesson_snippet}
+
+        For each task, provide:
+        - title: Action-oriented task name using verbs like Learn, Practice, Research, Create, Apply, Explore (5-8 words max)
+        - description: Clear explanation (2-3 sentences) of what the student should do, directly aligned with lesson concepts
+        - pillar: One of [{', '.join(self.valid_pillars)}] that best matches the lesson content
+        - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
+        - xp_value: XP points (50-300 based on complexity and time required)
+        - evidence_prompt: How students demonstrate completion - offer multiple formats (written work, video, presentation, project, etc.)
+
+        Tasks should:
+        - Directly relate to concepts in the lesson content
+        - Progress from foundational to advanced understanding
+        - Be achievable by students working independently
+        - Use simple, direct, actionable language
+        - Avoid motivational hype or flowery language
+
+        Evidence prompts should be flexible:
+        "Demonstrate your understanding through a written summary, video explanation, visual diagram, practical example, or other format of your choice"
+
+        Return ONLY a valid JSON array with these exact field names. No markdown, no code blocks.
+        """
+
+    def _get_fallback_tasks(self) -> List[Dict[str, Any]]:
+        """
+        Provide fallback tasks when AI generation fails.
+        These are generic but valid tasks that can be used as a safety net.
+        """
+        return [
+            {
+                'title': 'Review Lesson Content',
+                'description': 'Read through the lesson materials carefully and take notes on key concepts.',
+                'pillar': 'stem',
+                'school_subjects': ['electives'],
+                'xp_value': 50,
+                'evidence_prompt': 'Share your notes or a summary of what you learned',
+                'order_index': 1
+            },
+            {
+                'title': 'Apply What You Learned',
+                'description': 'Choose one concept from the lesson and create something that demonstrates your understanding.',
+                'pillar': 'stem',
+                'school_subjects': ['electives'],
+                'xp_value': 100,
+                'evidence_prompt': 'Show your work through writing, video, diagram, or practical example',
+                'order_index': 2
+            }
+        ]
     
     def validate_quest_quality(self, quest_data: Dict[str, Any]) -> Dict[str, Any]:
         """
