@@ -69,7 +69,7 @@ export default defineConfig(({ mode }) => ({
                 id.includes('react-ga4') || id.includes('focus-trap-react') ||
                 id.includes('react-hook-form') || id.includes('@tanstack/react-query') ||
                 id.includes('@fullcalendar/react') || id.includes('@tiptap') ||
-                id.includes('framer-motion')) {
+                id.includes('framer-motion') || id.includes('use-sync-external-store')) {
               return 'react-vendor';
             }
             // UI libraries (React-independent)
