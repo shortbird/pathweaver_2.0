@@ -80,12 +80,11 @@ class OrganizationService(BaseService):
         return org
 
     def get_organization_dashboard_data(self, org_id: str) -> Dict[str, Any]:
-        """Get all data needed for org admin dashboard"""
+        """Get all data needed for org admin dashboard (excluding analytics for lazy loading)"""
 
         org = self.org_repo.find_by_id(org_id)
         users = self.org_repo.get_organization_users(org_id)
         quests = self.org_repo.get_organization_quests(org_id)
-        analytics = self.org_repo.get_organization_analytics(org_id)
 
         # If curated policy, get curated quests
         curated_quests = []
@@ -96,8 +95,7 @@ class OrganizationService(BaseService):
             'organization': org,
             'users': users,
             'organization_quests': quests,
-            'curated_quests': curated_quests,
-            'analytics': analytics
+            'curated_quests': curated_quests
         }
 
     def grant_quest_access(

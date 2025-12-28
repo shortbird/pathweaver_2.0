@@ -22,6 +22,7 @@ from routes.promo import promo_bp
 from routes.services import services_bp
 from routes.admin.services import admin_services_bp
 from routes.observer_requests import observer_requests_bp
+from routes.organizations import bp as organizations_bp
 
 # Import routes
 from routes import tasks, admin_core, evidence_documents, analytics as analytics_routes, webhooks
@@ -100,6 +101,7 @@ app.register_blueprint(promo_bp, url_prefix='/api/promo')  # /api/promo
 app.register_blueprint(services_bp)  # /api/services (blueprint has url_prefix in route definitions)
 app.register_blueprint(admin_services_bp)  # /api/admin/services (blueprint has url_prefix in route definitions)
 app.register_blueprint(observer_requests_bp)  # /api/observer-requests (blueprint has url_prefix in route definitions)
+app.register_blueprint(organizations_bp, url_prefix='/api/organizations')  # /api/organizations (public organization endpoints for signup)
 
 # Register homepage images route (January 2025 - Homepage redesign)
 from routes.homepage_images import bp as homepage_images_bp
@@ -422,6 +424,43 @@ except ImportError as e:
     logger.warning(f"Warning: Activity Tracking module not available: {e}")
 except Exception as e:
     logger.error(f"Error registering Activity Tracking routes: {e}", exc_info=True)
+
+# Register LMS Feature blueprints (December 2025 - Multi-tenant LMS transformation)
+# Announcements - org-wide communication for advisors/admins
+try:
+    from routes.announcements import bp as announcements_bp
+    app.register_blueprint(announcements_bp)  # /api/announcements (blueprint has url_prefix)
+except ImportError as e:
+    logger.warning(f"Warning: Announcements module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Announcements routes: {e}", exc_info=True)
+
+# Curriculum Builder - custom quest curriculum editing
+try:
+    from routes.curriculum import bp as curriculum_bp
+    app.register_blueprint(curriculum_bp)  # /api/quests/:id/curriculum (blueprint has url_prefix)
+except ImportError as e:
+    logger.warning(f"Warning: Curriculum Builder module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Curriculum Builder routes: {e}", exc_info=True)
+
+# Notifications - user notification system
+try:
+    from routes.notifications import bp as notifications_bp
+    app.register_blueprint(notifications_bp)  # /api/notifications (blueprint has url_prefix)
+except ImportError as e:
+    logger.warning(f"Warning: Notifications module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Notifications routes: {e}", exc_info=True)
+
+# Admin Audit Logs - compliance and activity tracking
+try:
+    from routes.admin.audit_logs import bp as audit_logs_bp
+    app.register_blueprint(audit_logs_bp, url_prefix='/api/admin/audit-logs')  # /api/admin/audit-logs/*
+except ImportError as e:
+    logger.warning(f"Warning: Admin Audit Logs module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Admin Audit Logs routes: {e}", exc_info=True)
 
 
 @app.route('/', methods=['GET', 'HEAD'])

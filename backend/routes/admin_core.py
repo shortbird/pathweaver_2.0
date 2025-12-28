@@ -108,6 +108,20 @@ def get_user_details(admin_id, user_id):
         
         user = user_response.data[0]
 
+        # Get organization name if user has an organization_id
+        if user.get('organization_id'):
+            org_response = supabase.table('organizations')\
+                .select('id, name')\
+                .eq('id', user['organization_id'])\
+                .maybe_single()\
+                .execute()
+            if org_response.data:
+                user['organization_name'] = org_response.data.get('name')
+            else:
+                user['organization_name'] = None
+        else:
+            user['organization_name'] = None
+
         # Get XP by pillar
         xp_response = supabase.table('user_skill_xp')\
             .select('pillar, xp_amount')\

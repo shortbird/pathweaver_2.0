@@ -18,9 +18,11 @@ const AdminUsers = () => {
   const [filters, setFilters] = useState({
     role: 'all',
     activity: 'all',
+    organization: 'all',
     sortBy: 'last_active',
     sortOrder: 'desc'
   })
+  const [organizations, setOrganizations] = useState([])
   const [viewMode, setViewMode] = useState('list') // 'list' or 'card'
   const [selectedUsers, setSelectedUsers] = useState(new Set())
   const [showUserModal, setShowUserModal] = useState(false)
@@ -48,6 +50,19 @@ const AdminUsers = () => {
     fetchUsers()
   }, [currentPage, filters, debouncedSearchTerm])
 
+  useEffect(() => {
+    fetchOrganizations()
+  }, [])
+
+  const fetchOrganizations = async () => {
+    try {
+      const response = await api.get('/api/admin/organizations')
+      setOrganizations(response.data.organizations || [])
+    } catch (error) {
+      console.error('Failed to fetch organizations:', error)
+    }
+  }
+
   const fetchUsers = async () => {
     try {
       const queryParams = new URLSearchParams({
@@ -56,6 +71,7 @@ const AdminUsers = () => {
         search: debouncedSearchTerm,
         role: filters.role,
         activity: filters.activity,
+        organization: filters.organization,
         sort_by: filters.sortBy,
         sort_order: filters.sortOrder,
         _t: Date.now() // Cache buster
@@ -197,7 +213,7 @@ const AdminUsers = () => {
 
       {/* Search and Filters */}
       <div className="bg-white p-4 rounded-lg shadow mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <div className="md:col-span-2">
             <form onSubmit={handleSearch}>
               <input
@@ -210,6 +226,18 @@ const AdminUsers = () => {
               />
             </form>
           </div>
+          <select
+            value={filters.organization}
+            onChange={(e) => handleFilterChange('organization', e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Filter by organization"
+          >
+            <option value="all">All Orgs</option>
+            <option value="none">No Org</option>
+            {organizations.map(org => (
+              <option key={org.id} value={org.id}>{org.name}</option>
+            ))}
+          </select>
           <select
             value={filters.role}
             onChange={(e) => handleFilterChange('role', e.target.value)}
@@ -265,6 +293,9 @@ const AdminUsers = () => {
                   User
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Org
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -310,6 +341,11 @@ const AdminUsers = () => {
                         <div className="text-sm text-gray-500">{user.email}</div>
                       </div>
                     </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm text-gray-600">
+                      {user.organization_name || '-'}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadge(user.role || 'student')}`}>

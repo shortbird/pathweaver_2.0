@@ -32,17 +32,22 @@ def list_quests():
     2. Legacy page-based: ?page=2&per_page=20
     """
     try:
-        # Check if user is authenticated
-        auth_header = request.headers.get('Authorization')
-        user_id = None
-        if auth_header and auth_header.startswith('Bearer '):
-            try:
-                from utils.auth.token_utils import verify_token
-                token = auth_header.split(' ')[1]
-                user_id = verify_token(token)
-            except Exception as e:
-                logger.error(f"Auth check failed: {e}")
-                pass  # Continue without auth
+        # Check if user is authenticated (prefer cookies, fallback to header)
+        from utils.session_manager import session_manager
+        user_id = session_manager.get_effective_user_id()
+
+        # Fallback to Authorization header if no cookie session
+        if not user_id:
+            auth_header = request.headers.get('Authorization')
+            if auth_header and auth_header.startswith('Bearer '):
+                try:
+                    from utils.auth.token_utils import verify_token
+                    token = auth_header.split(' ')[1]
+                    user_id = verify_token(token)
+                except Exception as e:
+                    logger.error(f"Auth check failed: {e}")
+                    pass  # Continue without auth
+
         supabase = get_supabase_client()
 
         # Detect pagination mode: cursor or page-based
@@ -52,16 +57,21 @@ def list_quests():
         if use_cursor_pagination:
             # Cursor-based pagination (new, recommended)
             cursor, limit = get_cursor_params(default_limit=20, max_limit=100)
+            # Set defaults for page/per_page in case code paths need them
+            page = 1
+            per_page = limit
             logger.info(f"[PAGINATION] Using cursor-based pagination (limit={limit}, has_cursor={cursor is not None})")
         else:
             # Legacy page/per_page pagination
             page = sanitize_integer(request.args.get('page', 1), default=1, min_val=1)
             per_page = sanitize_integer(request.args.get('per_page', 12), default=12, min_val=1, max_val=100)
+            limit = per_page  # For consistency
             logger.info(f"[PAGINATION] Using legacy page-based pagination (page={page}, per_page={per_page})")
 
         search = sanitize_search_input(request.args.get('search', ''))
         pillar_filter = sanitize_search_input(request.args.get('pillar', ''), max_length=50)
         subject_filter = sanitize_search_input(request.args.get('subject', ''), max_length=50)
+        admin_view = request.args.get('admin_view', '').lower() == 'true'
 
         # Log search parameter for debugging
         if search:
@@ -115,12 +125,14 @@ def list_quests():
 
             # Use organization-aware filtering from repository
             # This respects the user's organization quest visibility policy
+            logger.warning(f"[DEBUG] Calling get_quests_for_user: user_id={user_id}, filters={filters}, page={page}, limit={per_page}")
             org_result = quest_repo.get_quests_for_user(
                 user_id=user_id,
                 filters=filters,
                 page=page,
                 limit=per_page
             )
+            logger.warning(f"[DEBUG] get_quests_for_user returned {len(org_result.get('quests', []))} quests, total={org_result.get('total', 0)}")
 
             # Return the organization-filtered result
             # Process quest data the same way

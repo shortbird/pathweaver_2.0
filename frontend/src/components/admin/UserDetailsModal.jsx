@@ -15,6 +15,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     last_name: user.last_name || '',
     email: user.email || '',
     role: user.role || 'student',
+    organization_id: user.organization_id || '',
     phone_number: user.phone_number || '',
     address_line1: user.address_line1 || '',
     address_line2: user.address_line2 || '',
@@ -31,29 +32,52 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState(user.avatar_url || '')
   const [masquerading, setMasquerading] = useState(false)
+  const [organizations, setOrganizations] = useState([])
+  const [currentOrgName, setCurrentOrgName] = useState(user.organization_name || user.organization?.name || '')
+  const [originalOrgId, setOriginalOrgId] = useState(user.organization_id || '')
 
   useEffect(() => {
     fetchUserDetails()
+    fetchOrganizations()
   }, [user.id])
 
   const fetchUserDetails = async () => {
     try {
+      console.log('[UserDetailsModal] Fetching user details from:', `/api/admin/users/${user.id}`)
       const response = await api.get(`/api/admin/users/${user.id}`)
+      // API returns { user: {...}, xp_by_pillar: {...}, ... }
+      const userData = response.data.user || response.data
       // Update formData with fetched user details (including new fields)
       setFormData(prev => ({
         ...prev,
-        phone_number: response.data.phone_number || '',
-        address_line1: response.data.address_line1 || '',
-        address_line2: response.data.address_line2 || '',
-        city: response.data.city || '',
-        state: response.data.state || '',
-        postal_code: response.data.postal_code || '',
-        country: response.data.country || '',
-        date_of_birth: response.data.date_of_birth || ''
+        phone_number: userData.phone_number || '',
+        address_line1: userData.address_line1 || '',
+        address_line2: userData.address_line2 || '',
+        city: userData.city || '',
+        state: userData.state || '',
+        postal_code: userData.postal_code || '',
+        country: userData.country || '',
+        date_of_birth: userData.date_of_birth || '',
+        organization_id: userData.organization_id || ''
       }))
-      setCurrentAvatarUrl(response.data.avatar_url || '')
+      setCurrentAvatarUrl(userData.avatar_url || '')
+      // Update original org tracking
+      const orgId = userData.organization_id || ''
+      setOriginalOrgId(orgId)
+      // Handle both flat organization_name and nested organization.name
+      const orgName = userData.organization_name || userData.organization?.name || ''
+      setCurrentOrgName(orgName)
     } catch (error) {
       toast.error('Failed to load user details')
+    }
+  }
+
+  const fetchOrganizations = async () => {
+    try {
+      const response = await api.get('/api/admin/organizations')
+      setOrganizations(response.data.organizations || [])
+    } catch (error) {
+      console.error('Failed to fetch organizations:', error)
     }
   }
 
@@ -104,6 +128,27 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
         onSave()
       } catch (error) {
         toast.error('Failed to update role')
+      } finally {
+        setLoading(false)
+      }
+    }
+  }
+
+  const handleUpdateOrganization = async () => {
+    const selectedOrg = organizations.find(o => o.id === formData.organization_id)
+    const orgName = selectedOrg?.name || 'None'
+    if (window.confirm(`Change organization to ${orgName}?`)) {
+      setLoading(true)
+      try {
+        await api.put(`/api/admin/users/${user.id}/organization`, {
+          organization_id: formData.organization_id || null
+        })
+        toast.success('Organization updated successfully')
+        setCurrentOrgName(orgName === 'None' ? '' : orgName)
+        setOriginalOrgId(formData.organization_id)
+        onSave()
+      } catch (error) {
+        toast.error('Failed to update organization')
       } finally {
         setLoading(false)
       }
@@ -527,55 +572,109 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
           )}
 
           {activeTab === 'role' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Current Role
-                </label>
-                <span className={`px-3 py-2 rounded-full text-sm font-semibold ${getRoleBadge(user.role || 'student')}`}>
-                  {getRoleDisplayName(user.role || 'student')}
-                </span>
-              </div>
+            <div className="space-y-6">
+              {/* Role Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">User Role</h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Current Role
+                  </label>
+                  <span className={`px-3 py-2 rounded-full text-sm font-semibold ${getRoleBadge(user.role || 'student')}`}>
+                    {getRoleDisplayName(user.role || 'student')}
+                  </span>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  New Role
-                </label>
-                <select
-                  name="role"
-                  value={formData.role}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Role
+                  </label>
+                  <select
+                    name="role"
+                    value={formData.role}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="student">Student</option>
+                    <option value="parent">Parent</option>
+                    <option value="advisor">Advisor</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                </div>
+
+                {/* Role Descriptions */}
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">Role Descriptions:</p>
+                  <ul className="text-sm text-gray-600 space-y-2">
+                    <li><span className="font-semibold">Student:</span> Can complete quests and build diploma</li>
+                    <li><span className="font-semibold">Parent:</span> Can view linked children's progress</li>
+                    <li><span className="font-semibold">Advisor:</span> Can manage student groups and provide guidance</li>
+                    <li><span className="font-semibold">Admin:</span> Full system access and user management</li>
+                  </ul>
+                </div>
+
+                <button
+                  onClick={handleUpdateRole}
+                  disabled={loading || formData.role === (user.role || 'student')}
+                  className={`w-full py-2 rounded-lg font-medium ${
+                    formData.role === (user.role || 'student')
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-optio-purple text-white hover:bg-purple-700'
+                  } disabled:bg-gray-400`}
                 >
-                  <option value="student">Student</option>
-                  <option value="parent">Parent</option>
-                  <option value="advisor">Advisor</option>
-                  <option value="admin">Administrator</option>
-                </select>
+                  {loading ? 'Updating...' : 'Update Role'}
+                </button>
               </div>
 
-              {/* Role Descriptions */}
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm font-semibold text-gray-700 mb-2">Role Descriptions:</p>
-                <ul className="text-sm text-gray-600 space-y-2">
-                  <li><span className="font-semibold">Student:</span> Can complete quests and build diploma</li>
-                  <li><span className="font-semibold">Parent:</span> Can view linked children's progress</li>
-                  <li><span className="font-semibold">Advisor:</span> Can manage student groups and provide guidance</li>
-                  <li><span className="font-semibold">Admin:</span> Full system access and user management</li>
-                </ul>
-              </div>
+              {/* Organization Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Organization</h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Current Organization
+                  </label>
+                  <span className="px-3 py-2 rounded-full text-sm font-semibold bg-blue-100 text-blue-700">
+                    {currentOrgName || 'No Organization'}
+                  </span>
+                </div>
 
-              <button
-                onClick={handleUpdateRole}
-                disabled={loading || formData.role === (user.role || 'student')}
-                className={`w-full py-2 rounded-lg font-medium ${
-                  formData.role === (user.role || 'student')
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-optio-purple text-white hover:bg-purple-700'
-                } disabled:bg-gray-400`}
-              >
-                {loading ? 'Updating...' : 'Update Role'}
-              </button>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Assign to Organization
+                  </label>
+                  <select
+                    name="organization_id"
+                    value={formData.organization_id}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">No Organization</option>
+                    {organizations.map(org => (
+                      <option key={org.id} value={org.id}>
+                        {org.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <span className="font-semibold">Note:</span> Assigning a user to an organization determines which quests they can access based on the organization's visibility policy.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleUpdateOrganization}
+                  disabled={loading || formData.organization_id === originalOrgId}
+                  className={`w-full py-2 rounded-lg font-medium ${
+                    formData.organization_id === originalOrgId
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  } disabled:bg-gray-400`}
+                >
+                  {loading ? 'Updating...' : 'Update Organization'}
+                </button>
+              </div>
             </div>
           )}
 

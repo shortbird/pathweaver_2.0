@@ -351,6 +351,63 @@ def require_superadmin(f):
     return decorated_function
 
 
+def require_school_admin(f):
+    """
+    Decorator to require school_admin or superadmin access for routes.
+
+    Uses httpOnly cookies exclusively for enhanced security.
+    Verifies user has 'school_admin' or 'superadmin' role.
+    School admins can manage their organization (quest visibility, announcements, etc.).
+
+    When masquerading, this checks the actual admin identity, not the masquerade target.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Skip authentication for OPTIONS requests (CORS preflight)
+        if request.method == 'OPTIONS':
+            return ('', 200)
+
+        # Get actual user ID (not masquerade target)
+        user_id = session_manager.get_actual_admin_id()
+
+        if not user_id:
+            raise AuthenticationError('Authentication required')
+
+        # Store user_id in request context
+        request.user_id = user_id
+
+        # Verify school_admin or superadmin status (use admin client to bypass RLS)
+        from database import get_supabase_admin_client
+        from app_config import Config
+        supabase = get_supabase_admin_client()
+
+        try:
+            user = supabase.table('users').select('role, email').eq('id', user_id).execute()
+
+            if not user.data or len(user.data) == 0:
+                raise AuthorizationError('User not found')
+
+            user_role = user.data[0].get('role')
+            user_email = user.data[0].get('email')
+
+            # Check if superadmin or school_admin
+            is_superadmin = (user_role == 'admin' and user_email == Config.SUPERADMIN_EMAIL)
+            is_school_admin = user_role == 'school_admin'
+
+            if not (is_superadmin or is_school_admin):
+                raise AuthorizationError('School admin access required')
+
+            return f(user_id, *args, **kwargs)
+
+        except (AuthenticationError, AuthorizationError):
+            raise
+        except Exception as e:
+            print(f"Error verifying school admin status: {str(e)}", file=sys.stderr, flush=True)
+            raise AuthorizationError('Failed to verify school admin status')
+
+    return decorated_function
+
+
 def require_org_admin(f):
     """
     Decorator to require org admin or superadmin role.

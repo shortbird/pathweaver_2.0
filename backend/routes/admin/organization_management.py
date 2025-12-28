@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 bp = Blueprint('organization_management', __name__)
 
 
-@bp.route('/organizations', methods=['GET'])
+@bp.route('', methods=['GET'])
 @require_superadmin
 def list_organizations(superadmin_user_id):
     """List all organizations (superadmin only)"""
@@ -40,7 +40,7 @@ def list_organizations(superadmin_user_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/organizations', methods=['POST'])
+@bp.route('', methods=['POST'])
 @require_superadmin
 def create_organization(superadmin_user_id):
     """Create new organization (superadmin only)"""
@@ -69,17 +69,21 @@ def create_organization(superadmin_user_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/organizations/<org_id>', methods=['GET'])
+@bp.route('/<org_id>', methods=['GET'])
 @require_org_admin
 def get_organization(current_user_id, current_org_id, is_superadmin, org_id):
     """Get organization details (org admin or superadmin)"""
     try:
+        logger.info(f"get_organization called: user={current_user_id}, current_org={current_org_id}, is_superadmin={is_superadmin}, target_org={org_id}")
+
         # Verify access: org admin can only view their org, superadmin can view all
         if not is_superadmin and current_org_id != org_id:
+            logger.warning(f"Access denied: not superadmin and org mismatch ({current_org_id} != {org_id})")
             return jsonify({'error': 'Access denied'}), 403
 
         service = OrganizationService()
         org = service.get_organization_dashboard_data(org_id)
+        logger.info(f"Organization data fetched successfully for {org_id}")
 
         return jsonify(org), 200
     except Exception as e:
@@ -87,7 +91,7 @@ def get_organization(current_user_id, current_org_id, is_superadmin, org_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/organizations/<org_id>', methods=['PUT'])
+@bp.route('/<org_id>', methods=['PUT'])
 @require_superadmin
 def update_organization(superadmin_user_id, org_id):
     """Update organization (superadmin only)"""
@@ -124,7 +128,7 @@ def update_organization(superadmin_user_id, org_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/organizations/<org_id>/quests/grant', methods=['POST'])
+@bp.route('/<org_id>/quests/grant', methods=['POST'])
 @require_org_admin
 def grant_quest_access(current_user_id, current_org_id, is_superadmin, org_id):
     """Grant organization access to a quest (curated policy only)"""
@@ -150,7 +154,7 @@ def grant_quest_access(current_user_id, current_org_id, is_superadmin, org_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/organizations/<org_id>/quests/revoke', methods=['POST'])
+@bp.route('/<org_id>/quests/revoke', methods=['POST'])
 @require_org_admin
 def revoke_quest_access(current_user_id, current_org_id, is_superadmin, org_id):
     """Revoke organization access to a quest"""
@@ -177,7 +181,7 @@ def revoke_quest_access(current_user_id, current_org_id, is_superadmin, org_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/organizations/<org_id>/users', methods=['GET'])
+@bp.route('/<org_id>/users', methods=['GET'])
 @require_org_admin
 def list_organization_users(current_user_id, current_org_id, is_superadmin, org_id):
     """List users in organization"""
@@ -199,7 +203,7 @@ def list_organization_users(current_user_id, current_org_id, is_superadmin, org_
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/organizations/<org_id>/analytics', methods=['GET'])
+@bp.route('/<org_id>/analytics', methods=['GET'])
 @require_org_admin
 def get_organization_analytics(current_user_id, current_org_id, is_superadmin, org_id):
     """Get analytics for organization"""
@@ -215,4 +219,70 @@ def get_organization_analytics(current_user_id, current_org_id, is_superadmin, o
         return jsonify(analytics), 200
     except Exception as e:
         logger.error(f"Error getting analytics for org {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<org_id>/users/add', methods=['POST'])
+@require_org_admin
+def add_users_to_organization(current_user_id, current_org_id, is_superadmin, org_id):
+    """Add users to organization (superadmin or org admin)"""
+    try:
+        # Verify access
+        if not is_superadmin and current_org_id != org_id:
+            return jsonify({'error': 'Access denied'}), 403
+
+        data = request.get_json()
+        user_ids = data.get('user_ids', [])
+
+        if not user_ids:
+            return jsonify({'error': 'user_ids is required'}), 400
+
+        client = get_supabase_admin_client()
+
+        # Update users to set their organization_id
+        for user_id in user_ids:
+            client.table('users')\
+                .update({'organization_id': org_id})\
+                .eq('id', user_id)\
+                .execute()
+
+        logger.info(f"Added {len(user_ids)} users to organization {org_id}")
+
+        return jsonify({
+            'message': f'Added {len(user_ids)} users to organization',
+            'users_added': len(user_ids)
+        }), 200
+    except Exception as e:
+        logger.error(f"Error adding users to org {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<org_id>/users/remove', methods=['POST'])
+@require_org_admin
+def remove_user_from_organization(current_user_id, current_org_id, is_superadmin, org_id):
+    """Remove user from organization (superadmin or org admin)"""
+    try:
+        # Verify access
+        if not is_superadmin and current_org_id != org_id:
+            return jsonify({'error': 'Access denied'}), 403
+
+        data = request.get_json()
+        user_id = data.get('user_id')
+
+        if not user_id:
+            return jsonify({'error': 'user_id is required'}), 400
+
+        client = get_supabase_admin_client()
+
+        # Set user's organization_id to null
+        client.table('users')\
+            .update({'organization_id': None})\
+            .eq('id', user_id)\
+            .execute()
+
+        logger.info(f"Removed user {user_id} from organization {org_id}")
+
+        return jsonify({'message': 'User removed from organization'}), 200
+    except Exception as e:
+        logger.error(f"Error removing user from org {org_id}: {e}")
         return jsonify({'error': str(e)}), 500
