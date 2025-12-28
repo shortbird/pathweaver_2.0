@@ -18,6 +18,7 @@ const QuestCompletionCelebration = lazy(() => import('../components/quest/QuestC
 const TaskTimeline = lazy(() => import('../components/quest/TaskTimeline'));
 const TaskWorkspace = lazy(() => import('../components/quest/TaskWorkspace'));
 const RestartQuestModal = lazy(() => import('../components/quest/RestartQuestModal'));
+const CurriculumView = lazy(() => import('../components/curriculum/CurriculumView'));
 
 // Loading spinner
 const LoadingFallback = () => (
@@ -25,6 +26,26 @@ const LoadingFallback = () => (
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
   </div>
 );
+
+// Full-screen wizard loading overlay
+const WizardLoadingOverlay = () => (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-4 shadow-2xl">
+      <div className="animate-spin rounded-full h-12 w-12 border-4 border-optio-purple border-t-transparent"></div>
+      <p className="text-lg font-semibold text-gray-700" style={{ fontFamily: 'Poppins' }}>
+        Loading personalization wizard...
+      </p>
+      <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins' }}>
+        Getting everything ready for you
+      </p>
+    </div>
+  </div>
+);
+
+// Preload the personalization wizard component
+const preloadWizard = () => {
+  import('../components/quests/QuestPersonalizationWizard');
+};
 
 const QuestDetail = () => {
   const { id } = useParams();
@@ -67,6 +88,7 @@ const QuestDetail = () => {
   const [taskDetailToShow, setTaskDetailToShow] = React.useState(null);
   const [droppingTaskId, setDroppingTaskId] = React.useState(null);
   const [showMobileDrawer, setShowMobileDrawer] = React.useState(false);
+  const [showCurriculumModal, setShowCurriculumModal] = React.useState(false);
 
   const { earnedXP } = xpData;
 
@@ -380,6 +402,7 @@ const QuestDetail = () => {
         isQuestCompleted={isQuestCompleted}
         onEndQuest={handleEndQuest}
         endQuestMutation={endQuestMutation}
+        onShowCurriculum={() => setShowCurriculumModal(true)}
       />
 
       {/* Main Content */}
@@ -392,6 +415,7 @@ const QuestDetail = () => {
           isEnrolling={isEnrolling}
           onEnroll={handleEnroll}
           onShowPersonalizationWizard={() => setShowPersonalizationWizard(true)}
+          onPreloadWizard={preloadWizard}
         />
 
         {/* Task Display - Two Column Layout */}
@@ -417,6 +441,7 @@ const QuestDetail = () => {
                   onTaskReorder={handleTaskReorder}
                   onAddTask={() => setShowPersonalizationWizard(true)}
                   onRemoveTask={handleDropTask}
+                  onPreloadWizard={preloadWizard}
                   displayMode={displayMode}
                   onDisplayModeChange={handleDisplayModeChange}
                 />
@@ -459,6 +484,7 @@ const QuestDetail = () => {
                       onTaskSelect={handleTaskSelect}
                       onTaskReorder={handleTaskReorder}
                       onAddTask={() => setShowPersonalizationWizard(true)}
+                      onPreloadWizard={preloadWizard}
                       displayMode={displayMode}
                       onDisplayModeChange={handleDisplayModeChange}
                     />
@@ -496,18 +522,18 @@ const QuestDetail = () => {
       )}
 
       {showPersonalizationWizard && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
-            <Suspense fallback={<LoadingFallback />}>
+        <Suspense fallback={<WizardLoadingOverlay />}>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
               <QuestPersonalizationWizard
                 questId={quest.id}
                 questTitle={quest.title}
                 onComplete={handlePersonalizationComplete}
                 onCancel={handlePersonalizationCancel}
               />
-            </Suspense>
+            </div>
           </div>
-        </div>
+        </Suspense>
       )}
 
       {showQuestCompletionCelebration && quest && (
@@ -537,6 +563,50 @@ const QuestDetail = () => {
           onClose={() => setShowRestartModal(false)}
         />
       </Suspense>
+
+      {/* Curriculum Modal */}
+      {showCurriculumModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setShowCurriculumModal(false)} />
+          <div className="relative min-h-screen flex items-center justify-center p-4">
+            <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
+              {/* Modal Header */}
+              <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>
+                  {quest?.title}
+                </h2>
+                <button
+                  onClick={() => setShowCurriculumModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              {/* Modal Body */}
+              <div className="h-[calc(90vh-80px)]">
+                <Suspense fallback={<LoadingFallback />}>
+                  <CurriculumView
+                    questId={id}
+                    isAdmin={user?.role === 'school_admin' || user?.role === 'advisor' || user?.role === 'superadmin'}
+                    onTaskClick={(task) => {
+                      // Close curriculum modal and select the task on quest page
+                      setShowCurriculumModal(false);
+                      setSelectedTask(task);
+                    }}
+                    onGenerateTasks={() => {
+                      // Close curriculum modal and open AI personalization wizard
+                      setShowCurriculumModal(false);
+                      setShowPersonalizationWizard(true);
+                    }}
+                  />
+                </Suspense>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

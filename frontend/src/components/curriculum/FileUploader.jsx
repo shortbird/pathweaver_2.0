@@ -6,7 +6,38 @@ const FileUploader = ({ questId, attachments, onChange }) => {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({})
   const [isDragging, setIsDragging] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [editingName, setEditingName] = useState('')
   const fileInputRef = useRef(null)
+
+  const startEditing = (attachment) => {
+    setEditingId(attachment.id)
+    setEditingName(attachment.file_name || '')
+  }
+
+  const handleRename = async (attachmentId) => {
+    if (!editingName.trim()) {
+      toast.error('File name cannot be empty')
+      return
+    }
+
+    try {
+      await api.patch(`/api/quests/${questId}/curriculum/attachments/${attachmentId}`, {
+        file_name: editingName.trim()
+      })
+
+      // Update local state
+      onChange(attachments.map(att =>
+        att.id === attachmentId ? { ...att, file_name: editingName.trim() } : att
+      ))
+
+      setEditingId(null)
+      toast.success('File renamed')
+    } catch (error) {
+      console.error('Rename error:', error)
+      toast.error('Failed to rename file')
+    }
+  }
 
   const allowedFileTypes = [
     'application/pdf',
@@ -43,13 +74,12 @@ const FileUploader = ({ questId, attachments, onChange }) => {
 
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('quest_id', questId)
 
     try {
       setUploading(true)
       setUploadProgress(prev => ({ ...prev, [file.name]: 0 }))
 
-      const response = await api.post('/api/curriculum/upload', formData, {
+      const response = await api.post(`/api/quests/${questId}/curriculum/attachments`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         },
@@ -59,7 +89,7 @@ const FileUploader = ({ questId, attachments, onChange }) => {
         }
       })
 
-      const newAttachment = response.data
+      const newAttachment = response.data.attachment
       onChange([...attachments, newAttachment])
       toast.success(`Uploaded ${file.name}`)
 
@@ -102,7 +132,7 @@ const FileUploader = ({ questId, attachments, onChange }) => {
 
   const handleRemoveAttachment = async (attachmentId) => {
     try {
-      await api.delete(`/api/curriculum/attachments/${attachmentId}`, {})
+      await api.delete(`/api/quests/${questId}/curriculum/attachments/${attachmentId}`, {})
       onChange(attachments.filter(att => att.id !== attachmentId))
       toast.success('Attachment removed')
     } catch (error) {
@@ -112,6 +142,14 @@ const FileUploader = ({ questId, attachments, onChange }) => {
   }
 
   const getFileIcon = (fileType) => {
+    if (!fileType) {
+      // Default icon for unknown file type
+      return (
+        <svg className="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      )
+    }
     if (fileType.startsWith('image/')) {
       return (
         <svg className="w-8 h-8 text-optio-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -204,47 +242,92 @@ const FileUploader = ({ questId, attachments, onChange }) => {
         </div>
       )}
 
-      {/* Existing Attachments */}
+      {/* Existing Attachments - Grid View */}
       {attachments.length > 0 ? (
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-gray-700">Uploaded Files</h4>
-          {attachments.map(attachment => (
-            <div key={attachment.id} className="flex items-center justify-between bg-white border border-gray-300 rounded-lg p-3">
-              <div className="flex items-center space-x-3 flex-1 min-w-0">
-                {getFileIcon(attachment.file_type)}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{attachment.file_name}</p>
-                  <p className="text-xs text-gray-500">
-                    {formatFileSize(attachment.file_size_bytes)} • Uploaded {new Date(attachment.uploaded_at).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-gray-700">Uploaded Files ({attachments.length})</h4>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {attachments.map(attachment => (
+              <div key={attachment.id} className="group relative bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                {/* Preview Area */}
                 <a
                   href={attachment.file_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-optio-purple hover:text-optio-pink transition-colors"
-                  aria-label="View file"
+                  className="block aspect-square bg-gray-50 flex items-center justify-center cursor-pointer"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
+                  {attachment.file_type?.startsWith('image/') ? (
+                    <img
+                      src={attachment.file_url}
+                      alt={attachment.file_name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-4">
+                      {getFileIcon(attachment.file_type)}
+                      <span className="mt-2 text-xs text-gray-500 uppercase font-medium">
+                        {attachment.file_name?.split('.').pop() || 'FILE'}
+                      </span>
+                    </div>
+                  )}
+                  {/* Hover overlay with view icon */}
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
+                    <svg className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </div>
                 </a>
+
+                {/* File Info */}
+                <div className="p-2">
+                  {editingId === attachment.id ? (
+                    <form onSubmit={(e) => { e.preventDefault(); handleRename(attachment.id) }} className="flex gap-1">
+                      <input
+                        type="text"
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-optio-purple"
+                        autoFocus
+                      />
+                      <button type="submit" className="text-green-600 hover:text-green-800">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </button>
+                      <button type="button" onClick={() => setEditingId(null)} className="text-gray-500 hover:text-gray-700">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </form>
+                  ) : (
+                    <p
+                      className="text-xs font-medium text-gray-900 truncate cursor-pointer hover:text-optio-purple"
+                      onClick={() => startEditing(attachment)}
+                      title="Click to rename"
+                    >
+                      {attachment.file_name}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {formatFileSize(attachment.file_size_bytes)}
+                  </p>
+                </div>
+
+                {/* Delete button */}
                 <button
                   type="button"
                   onClick={() => handleRemoveAttachment(attachment.id)}
-                  className="text-red-600 hover:text-red-800 transition-colors"
+                  className="absolute top-2 right-2 p-1 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-800 hover:bg-red-50"
                   aria-label="Remove file"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       ) : (
         <div className="text-center py-6 border border-dashed border-gray-300 rounded-lg">

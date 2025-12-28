@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(curl:*)",
+      "Bash(npm run dev:*)",
+      "Bash(venv/Scripts/python.exe:*)",
+      "Bash(../venv/Scripts/python.exe -c \"\nimport sys\nsys.path.insert\\(0, ''.''\\)\nfrom database import get_supabase_admin_client\nsupabase = get_supabase_admin_client\\(\\)\n\n# Test fetching curriculum\nquest_id = ''5ddfa12f-a135-48a5-96d5-380df4c49247''\ntry:\n    result = supabase.table\\(''quests''\\).select\\(''id, title, description, curriculum_content, organization_id''\\).eq\\(''id'', quest_id\\).execute\\(\\)\n    print\\(''Quest result:'', result.data\\)\nexcept Exception as e:\n    print\\(''Error:'', type\\(e\\).__name__, e\\)\n\")",
+      "Bash(timeout /t 6 /nobreak)",
+      "Bash(../venv/Scripts/python.exe:*)",
+      "Bash(tasklist:*)",
+      "Bash(taskkill /f /im python.exe sleep 2 tasklist)"
+    ]
+  }
+}

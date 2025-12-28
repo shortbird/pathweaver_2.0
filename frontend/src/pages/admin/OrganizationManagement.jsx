@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOrganization } from '../../contexts/OrganizationContext';
 import api from '../../services/api';
 import QuestVisibilityManager from '../../components/admin/QuestVisibilityManager';
+
+const CourseImport = lazy(() => import('../../components/admin/CourseImport'));
 
 export default function OrganizationManagement() {
   const { orgId: urlOrgId } = useParams();
@@ -99,12 +101,19 @@ export default function OrganizationManagement() {
           >
             Quests
           </button>
+          <button
+            onClick={() => setActiveTab('curriculum')}
+            className={`px-4 py-2 ${activeTab === 'curriculum' ? 'border-b-2 border-optio-purple font-medium' : 'text-gray-600 hover:text-gray-900'}`}
+          >
+            Curriculum
+          </button>
         </nav>
       </div>
 
       {activeTab === 'overview' && <OverviewTab orgId={orgId} orgData={orgData} onUpdate={fetchOrganizationData} onLogoChange={refreshOrganization} />}
       {activeTab === 'users' && <UsersTab orgId={orgId} users={orgData.users} onUpdate={fetchOrganizationData} />}
       {activeTab === 'quests' && <QuestsTab orgId={orgId} orgData={orgData} onUpdate={fetchOrganizationData} siteSettings={siteSettings} />}
+      {activeTab === 'curriculum' && <CurriculumTab orgId={orgId} />}
     </div>
   );
 }
@@ -806,6 +815,7 @@ function QuestsTab({ orgId, orgData, onUpdate, siteSettings }) {
   const [policy, setPolicy] = useState(orgData?.organization?.quest_visibility_policy || 'all_optio');
   const [saving, setSaving] = useState(false);
   const [showPolicyOptions, setShowPolicyOptions] = useState(false);
+  const [questSubTab, setQuestSubTab] = useState('manage'); // 'manage' or 'import'
 
   const policyOptions = [
     { value: 'all_optio', label: 'All Optio + Org Quests', short: 'All quests available' },
@@ -834,56 +844,360 @@ function QuestsTab({ orgId, orgData, onUpdate, siteSettings }) {
 
   return (
     <div className="space-y-4">
-      {/* Quest Visibility Policy - Compact */}
-      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-sm font-medium text-gray-500">Visibility Policy:</span>
-            <span className="ml-2 font-semibold text-gray-900">{currentPolicy?.label}</span>
-            <span className="ml-2 text-sm text-gray-500">({currentPolicy?.short})</span>
-          </div>
-          <button
-            onClick={() => setShowPolicyOptions(!showPolicyOptions)}
-            className="text-sm text-optio-purple hover:underline font-medium"
-          >
-            {showPolicyOptions ? 'Cancel' : 'Change'}
-          </button>
-        </div>
-
-        {showPolicyOptions && (
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className="flex flex-wrap gap-2">
-              {policyOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleSavePolicy(option.value)}
-                  disabled={saving || option.value === orgData?.organization?.quest_visibility_policy}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    option.value === orgData?.organization?.quest_visibility_policy
-                      ? 'bg-optio-purple text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  } disabled:opacity-50`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-gray-500 mt-2">
-              {policy === 'curated' ? 'Toggle availability for each quest below.' :
-               policy === 'private_only' ? 'Only quests created by your organization will be visible.' :
-               'All Optio quests are automatically available to students.'}
-            </p>
-          </div>
-        )}
+      {/* Subtab Navigation */}
+      <div className="flex gap-2 border-b border-gray-200 pb-2">
+        <button
+          onClick={() => setQuestSubTab('manage')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            questSubTab === 'manage'
+              ? 'bg-white border border-b-white border-gray-200 -mb-[3px] text-optio-purple'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Manage Quests
+        </button>
+        <button
+          onClick={() => setQuestSubTab('import')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            questSubTab === 'import'
+              ? 'bg-white border border-b-white border-gray-200 -mb-[3px] text-optio-purple'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Import Course
+        </button>
       </div>
 
-      {/* Quest Visibility Manager */}
-      <QuestVisibilityManager
-        orgId={orgId}
-        orgData={orgData}
-        onUpdate={onUpdate}
-        siteSettings={siteSettings}
-      />
+      {questSubTab === 'manage' ? (
+        <>
+          {/* Quest Visibility Policy - Compact */}
+          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-sm font-medium text-gray-500">Visibility Policy:</span>
+                <span className="ml-2 font-semibold text-gray-900">{currentPolicy?.label}</span>
+                <span className="ml-2 text-sm text-gray-500">({currentPolicy?.short})</span>
+              </div>
+              <button
+                onClick={() => setShowPolicyOptions(!showPolicyOptions)}
+                className="text-sm text-optio-purple hover:underline font-medium"
+              >
+                {showPolicyOptions ? 'Cancel' : 'Change'}
+              </button>
+            </div>
+
+            {showPolicyOptions && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="flex flex-wrap gap-2">
+                  {policyOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => handleSavePolicy(option.value)}
+                      disabled={saving || option.value === orgData?.organization?.quest_visibility_policy}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        option.value === orgData?.organization?.quest_visibility_policy
+                          ? 'bg-optio-purple text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      } disabled:opacity-50`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  {policy === 'curated' ? 'Toggle availability for each quest below.' :
+                   policy === 'private_only' ? 'Only quests created by your organization will be visible.' :
+                   'All Optio quests are automatically available to students.'}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Quest Visibility Manager */}
+          <QuestVisibilityManager
+            orgId={orgId}
+            orgData={orgData}
+            onUpdate={onUpdate}
+            siteSettings={siteSettings}
+          />
+        </>
+      ) : (
+        <Suspense fallback={
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
+          </div>
+        }>
+          <CourseImport organizationId={orgId} />
+        </Suspense>
+      )}
+    </div>
+  );
+}
+
+function CurriculumTab({ orgId }) {
+  const [quests, setQuests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  const fetchQuests = async () => {
+    try {
+      setLoading(true);
+      // Fetch all quests - advisor sees their own, admin sees all
+      const { data } = await api.get('/api/admin/quests?per_page=1000');
+      const allQuests = data.quests || [];
+      // Show quests belonging to this org OR platform quests (null org_id)
+      const orgQuests = allQuests.filter(q =>
+        q.organization_id === orgId || q.organization_id === null
+      );
+      setQuests(orgQuests);
+    } catch (error) {
+      console.error('Failed to fetch quests:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchQuests();
+  }, [orgId]);
+
+  const filteredQuests = quests.filter(quest =>
+    quest.title?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap justify-between items-center gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Curriculum Builder</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Create and manage curriculum content for your organization's quests
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <input
+            type="text"
+            placeholder="Search quests..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border border-gray-200 rounded-lg px-4 py-2 w-64 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+          />
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Build New Curriculum
+          </button>
+        </div>
+      </div>
+
+      {showCreateModal && (
+        <CreateCurriculumModal
+          orgId={orgId}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => {
+            setShowCreateModal(false);
+            fetchQuests();
+          }}
+        />
+      )}
+
+      {/* Quest Grid */}
+      {filteredQuests.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
+          <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+          <p className="text-gray-500">
+            {searchTerm ? 'No quests match your search' : 'No quests available for curriculum building'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {filteredQuests.map(quest => (
+            <CurriculumQuestCard key={quest.id} quest={quest} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CurriculumQuestCard({ quest }) {
+  const hasCurriculum = quest.curriculum_content && Object.keys(quest.curriculum_content).length > 0;
+
+  return (
+    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:border-optio-purple/30 transition-colors">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <h3 className="text-lg font-semibold text-gray-900 truncate">{quest.title}</h3>
+          <p className="text-sm text-gray-600 mt-1 line-clamp-2">{quest.description || 'No description'}</p>
+          <div className="flex items-center gap-3 mt-3">
+            {hasCurriculum ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Has Curriculum
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                No Curriculum
+              </span>
+            )}
+            <span className="text-xs text-gray-500">
+              {quest.quest_type || 'standard'} quest
+            </span>
+          </div>
+        </div>
+        <a
+          href={`/quests/${quest.id}/curriculum/edit`}
+          className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          {hasCurriculum ? 'Edit' : 'Build'}
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function CreateCurriculumModal({ orgId, onClose, onSuccess }) {
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    quest_type: 'course'
+  });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      // Create quest in draft mode (is_active: false)
+      const response = await api.post('/api/admin/quests/create', {
+        title: formData.title,
+        description: formData.description,
+        quest_type: formData.quest_type,
+        organization_id: orgId,
+        is_active: false,  // Draft mode
+        is_public: false   // Private to org initially
+      });
+
+      // Redirect to curriculum builder for the new quest
+      const questId = response.data.quest?.id || response.data.id;
+      if (questId) {
+        window.location.href = `/quests/${questId}/curriculum/edit`;
+      } else {
+        onSuccess();
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to create curriculum');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center z-[9999]">
+      <div className="bg-white rounded-xl p-6 w-full max-w-lg mx-4">
+        <h2 className="text-2xl font-bold mb-2">Build New Curriculum</h2>
+        <p className="text-gray-600 mb-6">
+          Create a new course or quest with curriculum content for your organization.
+        </p>
+
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Title</label>
+            <input
+              type="text"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+              placeholder="e.g., Introduction to Photography"
+              required
+            />
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+              placeholder="Brief description of what students will learn..."
+              rows={3}
+            />
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-1">Type</label>
+            <select
+              value={formData.quest_type}
+              onChange={(e) => setFormData({ ...formData, quest_type: e.target.value })}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+            >
+              <option value="course">Course (structured learning path)</option>
+              <option value="optio">Quest (flexible exploration)</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Courses have structured lessons; Quests are more open-ended.
+            </p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
+            <div className="flex gap-3">
+              <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="text-sm text-blue-800">
+                <p className="font-medium">Draft Mode</p>
+                <p className="mt-1">Your curriculum will be saved as a draft. You can add lessons, content, and tasks before publishing it to students.</p>
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="flex gap-3 justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+            >
+              {loading ? 'Creating...' : 'Create & Build'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

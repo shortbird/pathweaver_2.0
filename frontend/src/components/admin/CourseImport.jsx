@@ -4,7 +4,7 @@ import api from '../../services/api'
 import toast from 'react-hot-toast'
 import CourseImportEditor from './CourseImportEditor'
 
-const CourseImport = () => {
+const CourseImport = ({ organizationId = null }) => {
   const navigate = useNavigate()
   const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -70,6 +70,9 @@ const CourseImport = () => {
     try {
       const formData = new FormData()
       formData.append('imscc_file', file)
+      if (organizationId) {
+        formData.append('organization_id', organizationId)
+      }
 
       const response = await api.post('/api/admin/courses/import/preview', formData, {
         headers: {
@@ -108,6 +111,7 @@ const CourseImport = () => {
     return (
       <CourseImportEditor
         previewData={previewData}
+        organizationId={organizationId}
         onBack={handleReset}
         onImportComplete={handleImportComplete}
       />

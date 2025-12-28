@@ -1,5 +1,56 @@
 import React, { useState } from 'react'
 
+/**
+ * Convert a video URL to its embeddable format.
+ * YouTube, Vimeo, Loom etc. block direct iframe embedding of their watch/share URLs.
+ */
+const convertToEmbedUrl = (urlString) => {
+  try {
+    const parsedUrl = new URL(urlString)
+    const hostname = parsedUrl.hostname.toLowerCase()
+
+    // YouTube: youtube.com/watch?v=ID or youtu.be/ID -> youtube.com/embed/ID
+    if (hostname.includes('youtube.com')) {
+      const videoId = parsedUrl.searchParams.get('v')
+      if (videoId) {
+        return `https://www.youtube.com/embed/${videoId}`
+      }
+    }
+    if (hostname.includes('youtu.be')) {
+      const videoId = parsedUrl.pathname.slice(1) // Remove leading /
+      if (videoId) {
+        return `https://www.youtube.com/embed/${videoId}`
+      }
+    }
+
+    // Vimeo: vimeo.com/ID -> player.vimeo.com/video/ID
+    if (hostname.includes('vimeo.com') && !hostname.includes('player.vimeo.com')) {
+      const videoId = parsedUrl.pathname.split('/').pop()
+      if (videoId && /^\d+$/.test(videoId)) {
+        return `https://player.vimeo.com/video/${videoId}`
+      }
+    }
+
+    // Loom: loom.com/share/ID -> loom.com/embed/ID
+    if (hostname.includes('loom.com') && parsedUrl.pathname.includes('/share/')) {
+      return urlString.replace('/share/', '/embed/')
+    }
+
+    // Google Drive: Convert to preview format if not already
+    if (hostname.includes('drive.google.com') && parsedUrl.pathname.includes('/file/d/')) {
+      const match = parsedUrl.pathname.match(/\/file\/d\/([^/]+)/)
+      if (match) {
+        return `https://drive.google.com/file/d/${match[1]}/preview`
+      }
+    }
+
+    // Already an embed URL or unsupported - return as-is
+    return urlString
+  } catch {
+    return urlString
+  }
+}
+
 const IframeEmbed = ({ embeds, onChange }) => {
   const [url, setUrl] = useState('')
   const [title, setTitle] = useState('')
@@ -39,9 +90,13 @@ const IframeEmbed = ({ embeds, onChange }) => {
       return
     }
 
+    // Convert to embed URL format for proper iframe embedding
+    const embedUrl = convertToEmbedUrl(url)
+
     const newEmbed = {
       id: Date.now().toString(),
-      url,
+      url: embedUrl,  // Store the converted embed URL
+      originalUrl: url,  // Keep original for display
       title: title || 'Embedded Content',
       type: 'iframe',
       addedAt: new Date().toISOString()
@@ -128,7 +183,7 @@ const IframeEmbed = ({ embeds, onChange }) => {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h4 className="font-medium text-gray-900">{embed.title}</h4>
-                  <p className="text-xs text-gray-500 mt-1">{embed.url}</p>
+                  <p className="text-xs text-gray-500 mt-1">{embed.originalUrl || embed.url}</p>
                 </div>
                 <button
                   type="button"
@@ -145,11 +200,12 @@ const IframeEmbed = ({ embeds, onChange }) => {
               {/* Preview */}
               <div className="aspect-video bg-gray-100 rounded overflow-hidden">
                 <iframe
-                  src={embed.url}
+                  src={convertToEmbedUrl(embed.url)}
                   title={embed.title}
                   className="w-full h-full"
                   allowFullScreen
                   loading="lazy"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 />
               </div>
             </div>

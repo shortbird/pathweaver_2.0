@@ -68,11 +68,12 @@ export default defineConfig(({ mode }) => ({
                 id.includes('qrcode.react') || id.includes('react-masonry-css') ||
                 id.includes('react-ga4') || id.includes('focus-trap-react') ||
                 id.includes('react-hook-form') || id.includes('@tanstack/react-query') ||
-                id.includes('@fullcalendar/react')) {
+                id.includes('@fullcalendar/react') || id.includes('@tiptap') ||
+                id.includes('framer-motion') || id.includes('use-sync-external-store')) {
               return 'react-vendor';
             }
             // UI libraries (React-independent)
-            if (id.includes('@heroicons') || id.includes('framer-motion')) {
+            if (id.includes('@heroicons')) {
               return 'ui-vendor';
             }
             // Heavy chart libraries

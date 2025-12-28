@@ -82,6 +82,7 @@ const ParentalConsentUploadPage = lazy(() => import('./pages/ParentalConsentUplo
 const AnnouncementsFeed = lazy(() => import('./pages/announcements/AnnouncementsFeed'))
 const CreateAnnouncement = lazy(() => import('./pages/announcements/CreateAnnouncement'))
 const CurriculumBuilder = lazy(() => import('./pages/curriculum/CurriculumBuilder'))
+const CurriculumPage = lazy(() => import('./pages/curriculum/CurriculumPage'))
 const MyInvitations = lazy(() => import('./pages/student/MyInvitations'))
 const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
 const DependentProgressReport = lazy(() => import('./pages/parent/DependentProgressReport'))
@@ -318,6 +319,7 @@ function App() {
                 {/* Quest Routes */}
                 <Route path="quests" element={<QuestBadgeHub />} />
                 <Route path="quests/:id" element={<QuestDetail />} />
+                <Route path="quests/:id/curriculum" element={<CurriculumPage />} />
                 <Route path="quests/:questId/library" element={<TaskLibraryBrowser />} />
                 {/* Badge Routes */}
                 <Route path="badges" element={<QuestBadgeHub />} />

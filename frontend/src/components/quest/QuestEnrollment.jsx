@@ -13,7 +13,8 @@ const QuestEnrollment = ({
   totalTasks,
   isEnrolling,
   onEnroll,
-  onShowPersonalizationWizard
+  onShowPersonalizationWizard,
+  onPreloadWizard
 }) => {
   // Show enrollment button for completed quests or quests without enrollment
   const showEnrollmentButton = !quest?.lms_platform && (
@@ -38,6 +39,8 @@ const QuestEnrollment = ({
             {isQuestCompleted ? (
               <button
                 onClick={() => onEnroll()}
+                onMouseEnter={onPreloadWizard}
+                onFocus={onPreloadWizard}
                 disabled={isEnrolling}
                 className="flex-1 bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -47,6 +50,8 @@ const QuestEnrollment = ({
             ) : quest?.user_enrollment && totalTasks === 0 ? (
               <button
                 onClick={() => onShowPersonalizationWizard()}
+                onMouseEnter={onPreloadWizard}
+                onFocus={onPreloadWizard}
                 className="flex-1 bg-gradient-to-r from-[#6d469b] to-[#8b5cf6] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(109,70,155,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg"
               >
                 <FireIcon className="w-5 h-5 inline mr-2" />
@@ -55,6 +60,8 @@ const QuestEnrollment = ({
             ) : !quest?.user_enrollment ? (
               <button
                 onClick={() => onEnroll()}
+                onMouseEnter={onPreloadWizard}
+                onFocus={onPreloadWizard}
                 disabled={isEnrolling}
                 className="flex-1 bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -80,6 +87,8 @@ const QuestEnrollment = ({
           </p>
           <button
             onClick={() => onShowPersonalizationWizard()}
+            onMouseEnter={onPreloadWizard}
+            onFocus={onPreloadWizard}
             className="px-6 py-3 bg-gradient-primary text-white rounded-lg font-semibold hover:opacity-90"
             style={{ fontFamily: 'Poppins' }}
           >
