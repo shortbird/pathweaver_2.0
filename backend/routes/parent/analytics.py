@@ -10,7 +10,7 @@ from middleware.error_handler import AuthorizationError
 from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
 from collections import defaultdict
-from .dashboard import verify_parent_access
+from .dashboard_overview import verify_parent_access
 
 logger = get_logger(__name__)
 bp = Blueprint("parent_analytics", __name__, url_prefix="/api/parent")

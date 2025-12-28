@@ -24,6 +24,16 @@ from .evidence_view import bp as evidence_view_bp
 from .analytics_insights import bp as analytics_insights_bp
 from .analytics import bp as analytics_bp
 
+# Export blueprints for direct import
+__all__ = [
+    'dashboard_overview_bp',
+    'quests_view_bp',
+    'evidence_view_bp',
+    'analytics_insights_bp',
+    'analytics_bp',
+    'register_parent_blueprints'
+]
+
 
 def register_parent_blueprints(app: Flask):
     """Register all parent dashboard blueprints."""

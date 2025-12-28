@@ -56,7 +56,7 @@ const ActingAsBanner = ({ dependent, onSwitchBack }) => {
               {dependent?.avatar_url ? (
                 <img
                   src={dependent.avatar_url}
-                  alt={dependent.display_name}
+                  alt={`${dependent.display_name || 'Child'} profile avatar`}
                   className="w-8 h-8 rounded-full border-2 border-white"
                 />
               ) : (

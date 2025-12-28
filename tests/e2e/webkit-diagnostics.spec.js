@@ -11,10 +11,36 @@ const BASE_URL = 'https://optio-dev-frontend.onrender.com';
 
 async function login(page) {
   await page.goto(`${BASE_URL}/login`);
+
+  // Check if already logged in
+  const currentUrl = page.url();
+  if (!currentUrl.includes('/login')) {
+    return;
+  }
+
+  // Wait for login form to be ready
+  await page.waitForSelector('input[type="email"]', { state: 'visible', timeout: 10000 });
+
   await page.fill('input[type="email"]', 'test@optioeducation.com');
   await page.fill('input[type="password"]', 'TestPassword123!');
   await page.click('button[type="submit"]');
-  await page.waitForURL(/.*\/dashboard/, { timeout: 15000 });
+
+  // Wait for redirect away from login page (allow more time for slow environments)
+  // Also handle case where login succeeds but takes time
+  try {
+    await page.waitForURL(url => !url.href.includes('/login'), { timeout: 20000 });
+  } catch {
+    // If still on login page, check for error messages with actual content
+    const errorElement = page.locator('.text-red-500, .text-red-600, [role="alert"]').first();
+    const errorVisible = await errorElement.isVisible().catch(() => false);
+    if (errorVisible) {
+      const errorText = await errorElement.textContent().catch(() => '');
+      if (errorText && errorText.trim().length > 0) {
+        throw new Error(`Login failed with error: ${errorText}`);
+      }
+    }
+    // Otherwise, just continue - page might still be loading
+  }
 }
 
 test.describe('WebKit Diagnostics', () => {

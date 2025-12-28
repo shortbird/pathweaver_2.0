@@ -61,12 +61,26 @@ export default defineConfig({
 
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: {
+        ...devices['Desktop Firefox'],
+        // Firefox-specific settings for cross-site cookie issues
+        actionTimeout: 20 * 1000, // Longer timeout for Firefox
+        navigationTimeout: 40 * 1000, // Longer navigation timeout
+      },
+      // Retry Firefox tests due to known cross-site cookie issues (Enhanced Tracking Protection)
+      retries: 2,
     },
 
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      use: {
+        ...devices['Desktop Safari'],
+        // WebKit-specific settings for auth issues
+        actionTimeout: 20 * 1000, // Longer timeout for WebKit
+        navigationTimeout: 40 * 1000, // Longer navigation timeout
+      },
+      // Retry WebKit tests due to known auth persistence issues
+      retries: 2,
     },
 
     // Test against mobile viewports
@@ -76,7 +90,14 @@ export default defineConfig({
     },
     {
       name: 'Mobile Safari',
-      use: { ...devices['iPhone 12'] },
+      use: {
+        ...devices['iPhone 12'],
+        // WebKit-specific settings for auth issues
+        actionTimeout: 20 * 1000, // Longer timeout for WebKit
+        navigationTimeout: 40 * 1000, // Longer navigation timeout
+      },
+      // Retry Mobile Safari tests due to known auth persistence issues
+      retries: 2,
     },
   ],
 

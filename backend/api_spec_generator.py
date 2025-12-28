@@ -150,7 +150,61 @@ def generate_endpoint_specs(app):
 
         # Credits
         'credits': 'Credits',
-        'credits_v1': 'Credits'
+        'credits_v1': 'Credits',
+
+        # OAuth
+        'oauth': 'Authentication',
+        'oauth_bp': 'Authentication',
+
+        # Webhooks
+        'webhooks': 'LMS Integration',
+        'webhooks_bp': 'LMS Integration',
+
+        # Quest Features
+        'quest_personalization': 'Quests',
+        'quest_types': 'Quests',
+        'quest_ai': 'Admin - Quests',
+        'quest_lifecycle': 'Quests',
+        'quest_lifecycle_bp': 'Quests',
+        'quest_badge_hub': 'Quests',
+        'task_library': 'Tasks',
+        'task_library_bp': 'Tasks',
+
+        # Admin Features
+        'task_approval': 'Admin - Users',
+        'admin_services': 'Admin - Users',
+        'admin_services_bp': 'Admin - Users',
+        'admin_badge_seed': 'Admin - Badges',
+        'subject_backfill': 'Admin - Users',
+        'subject_backfill_bp': 'Admin - Users',
+        'ai_jobs': 'Admin - Quests',
+        'ai_jobs_bp': 'Admin - Quests',
+        'batch_generation': 'Admin - Quests',
+        'batch_generation_bp': 'Admin - Quests',
+        'ai_quest_review': 'Admin - Quests',
+        'ai_quest_review_bp': 'Admin - Quests',
+        'batch_badge_generation': 'Admin - Badges',
+        'batch_badge_generation_bp': 'Admin - Badges',
+        'khan_academy_sync': 'LMS Integration',
+
+        # Compliance & Privacy
+        'parental_consent': 'Parent Dashboard',
+        'account_deletion': 'Users',
+        'observer_audit': 'Observer',
+        'ferpa_compliance': 'Admin - Users',
+
+        # Communication
+        'direct_messages': 'Connections',
+
+        # Parent Sub-modules
+        'parent_quests': 'Parent Dashboard',
+        'parent_analytics': 'Parent Dashboard',
+
+        # Miscellaneous
+        'pillars': 'Settings',
+        'pillars_bp': 'Settings',
+        'homepage_images': 'Settings',
+        'homepage_images_bp': 'Settings'
     }
 
     # Common security requirements

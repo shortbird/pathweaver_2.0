@@ -138,7 +138,7 @@ describe('AuthContext', () => {
 
       await waitFor(() => {
         expect(tokenStore.clearTokens).toHaveBeenCalled()
-        expect(result.current.user).toBeUndefined()
+        expect(result.current.user).toBeNull()
         expect(result.current.loading).toBe(false)
       })
     })

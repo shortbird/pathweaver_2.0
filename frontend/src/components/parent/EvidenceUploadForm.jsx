@@ -45,28 +45,49 @@ export default function EvidenceUploadForm({ taskId, studentId, onCancel, onSucc
 
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('student_id', studentId);
-      formData.append('task_id', taskId);
-      formData.append('evidence_type', evidenceType);
+      let fileUrl = null;
 
+      // If there's a pending file, upload it first to get a URL
       if (pendingFile) {
-        formData.append('file', pendingFile);
-      }
+        const fileFormData = new FormData();
+        fileFormData.append('files', pendingFile); // Backend expects 'files' field name
 
-      // Add content based on evidence type
-      if (evidenceType === 'text') {
-        formData.append('text_content', content.text || '');
-      } else if (evidenceType === 'link' || evidenceType === 'video') {
-        formData.append('url', content.url || '');
-        formData.append('title', content.title || '');
-      } else if (evidenceType === 'image' || evidenceType === 'document') {
-        if (uploadMode === 'url') {
-          formData.append('url', content.url || '');
+        const uploadResponse = await parentAPI.uploadFile(fileFormData);
+        // Response format: { files: [{ url: '...', ... }], count: 1 }
+        if (uploadResponse.data.files && uploadResponse.data.files.length > 0) {
+          fileUrl = uploadResponse.data.files[0].url;
+        } else {
+          throw new Error('File upload failed - no URL returned');
         }
       }
 
-      await parentAPI.uploadEvidence(formData);
+      // Build content object based on evidence type (backend expects this format)
+      let blockContent = {};
+      if (evidenceType === 'text') {
+        blockContent = { text: content.text || '' };
+      } else if (evidenceType === 'link') {
+        blockContent = { url: content.url || '', title: content.title || '' };
+      } else if (evidenceType === 'video') {
+        blockContent = { url: content.url || '' };
+      } else if (evidenceType === 'image') {
+        blockContent = {
+          url: fileUrl || content.url || '',
+          alt: content.alt || content.filename || 'Uploaded image'
+        };
+      } else if (evidenceType === 'document') {
+        blockContent = {
+          url: fileUrl || content.url || '',
+          title: content.title || content.filename || 'Uploaded document'
+        };
+      }
+
+      // Send JSON request to helper evidence endpoint
+      await parentAPI.uploadEvidence({
+        student_id: studentId,
+        task_id: taskId,
+        block_type: evidenceType,
+        content: blockContent
+      });
 
       // Cleanup blob URLs
       if (content.url?.startsWith('blob:')) {
@@ -203,7 +224,7 @@ export default function EvidenceUploadForm({ taskId, studentId, onCancel, onSucc
                     <div className="relative group">
                       <img
                         src={content.url}
-                        alt={content.alt || ''}
+                        alt={content.alt || 'Evidence image preview'}
                         className="w-full max-h-48 object-contain rounded-lg border-2 border-gray-200"
                       />
                       <button

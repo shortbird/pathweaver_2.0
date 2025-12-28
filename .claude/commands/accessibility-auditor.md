@@ -85,8 +85,10 @@ grep -rn "modal\|dialog\|Dialog\|Modal" --include="*.tsx" --include="*.jsx" | he
 **Requirement:** All non-text content has text alternatives
 
 ```bash
-# Find images without alt
-grep -rn "<img" --include="*.tsx" --include="*.jsx" --include="*.html" | grep -v "alt="
+# Find images without alt (multi-line aware)
+for f in $(find . \( -name "*.tsx" -o -name "*.jsx" -o -name "*.html" \) 2>/dev/null | grep -v node_modules | head -50); do
+    perl -0777 -ne 'while(/<(?:img|Image)\s[^>]*?>/gsi){ print "'"$f"': missing alt\n" if $& !~ /alt\s*=/i }' "$f" 2>/dev/null
+done | head -15
 
 # Find background images (need text alternative nearby)
 grep -rn "background-image\|backgroundImage" --include="*.css" --include="*.tsx"

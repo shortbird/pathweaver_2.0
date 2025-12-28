@@ -241,8 +241,9 @@ api.interceptors.response.use(
         const isPromoPage = currentPath.startsWith('/promo/') || currentPath === '/promo'
         const isConsultationPage = currentPath === '/consultation'
         const isDemoPage = currentPath === '/demo'
+        const isQuestsPage = currentPath.startsWith('/quests') || currentPath.startsWith('/badges')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isPromoPage && !isConsultationPage && !isDemoPage) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isPromoPage && !isConsultationPage && !isDemoPage && !isQuestsPage) {
           window.location.href = '/login'
         }
 
@@ -352,9 +353,16 @@ export const parentAPI = {
   // Get recent completions with evidence (for Insights tab)
   getRecentCompletions: (studentId) => api.get(`/api/parent/completions/${studentId}`),
 
-  // Upload evidence on behalf of student (parent-only, no task completion)
-  uploadEvidence: (formData) =>
-    api.post('/api/parent/evidence/upload', formData, {
+  // Upload evidence on behalf of student (parent/advisor, no task completion)
+  // Uses helper evidence endpoint - adds evidence blocks without completing the task
+  // Expects JSON: { student_id, task_id, block_type, content }
+  uploadEvidence: (data) =>
+    api.post('/api/evidence/helper/upload-for-student', data),
+
+  // Upload a file (image/document) and get back the URL
+  // Used by parent evidence upload to first upload file, then create evidence block
+  uploadFile: (formData) =>
+    api.post('/api/uploads/evidence', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

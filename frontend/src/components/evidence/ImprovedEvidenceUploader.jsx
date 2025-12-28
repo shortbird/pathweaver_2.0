@@ -480,9 +480,9 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
           <div className={`border-2 ${config.borderColor} ${config.bgColor} rounded-xl p-4`}>
             {filePreview && evidenceType === 'image' && (
               <div className="mb-4">
-                <img 
-                  src={filePreview} 
-                  alt="Preview" 
+                <img
+                  src={filePreview}
+                  alt={selectedFile?.name || 'Uploaded evidence image'}
                   className="max-h-64 mx-auto rounded-lg shadow-md"
                 />
               </div>

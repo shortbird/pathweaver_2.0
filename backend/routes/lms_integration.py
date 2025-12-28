@@ -30,8 +30,21 @@ logger = get_logger(__name__)
 
 bp = Blueprint('lms', __name__)
 
-lti_service = LTI13Service()
-sync_service = LMSSyncService()
+# Lazy-load services to avoid accessing Flask context at import time
+_lti_service = None
+_sync_service = None
+
+def get_lti_service():
+    global _lti_service
+    if _lti_service is None:
+        _lti_service = LTI13Service()
+    return _lti_service
+
+def get_sync_service():
+    global _sync_service
+    if _sync_service is None:
+        _sync_service = LMSSyncService()
+    return _sync_service
 
 @bp.route('/lti/launch', methods=['POST'])
 def lti_launch():
@@ -50,13 +63,13 @@ def lti_launch():
             raise ValidationError('No LTI token provided')
 
         # Validate LTI token
-        user_data = lti_service.validate_launch(id_token, platform)
+        user_data = get_lti_service().validate_launch(id_token, platform)
 
         if not user_data:
             raise AuthenticationError('Invalid LTI launch')
 
         # Create or get user
-        user = lti_service.create_or_update_user(user_data)
+        user = get_lti_service().create_or_update_user(user_data)
 
         if not user:
             raise AuthenticationError('Failed to create user from LTI launch')
@@ -143,7 +156,7 @@ def sync_roster(user_id):
         csv_content = csv_file.read().decode('utf-8')
 
         # Sync roster
-        result = sync_service.sync_roster_from_oneroster(csv_content, lms_platform)
+        result = get_sync_service().sync_roster_from_oneroster(csv_content, lms_platform)
 
         return jsonify(result), 200
 
@@ -182,7 +195,7 @@ def sync_assignments(user_id):
         for assignment in data['assignments']:
             try:
                 assignment['platform'] = lms_platform
-                quest = sync_service.sync_lms_assignment_to_quest(assignment)
+                quest = get_sync_service().sync_lms_assignment_to_quest(assignment)
 
                 if quest:
                     synced += 1

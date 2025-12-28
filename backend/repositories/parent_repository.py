@@ -82,6 +82,9 @@ class ParentRepository(BaseRepository):
     def is_linked(self, parent_id: str, student_id: str) -> bool:
         """
         Check if a parent is linked to a student.
+        Checks both:
+        1. parent_student_links table (for 13+ students linked via admin/invitation)
+        2. users table managed_by_parent_id (for dependents under 13)
 
         Args:
             parent_id: Parent user ID
@@ -91,6 +94,7 @@ class ParentRepository(BaseRepository):
             True if linked, False otherwise
         """
         try:
+            # Check 1: parent_student_links table (13+ students)
             result = self.client.table(self.table_name)\
                 .select('id')\
                 .eq('parent_user_id', parent_id)\
@@ -98,7 +102,18 @@ class ParentRepository(BaseRepository):
                 .eq('status', 'approved')\
                 .execute()
 
-            return bool(result.data)
+            if result.data:
+                return True
+
+            # Check 2: users table for dependents (under 13)
+            dependent_result = self.client.table('users')\
+                .select('id')\
+                .eq('id', student_id)\
+                .eq('managed_by_parent_id', parent_id)\
+                .eq('is_dependent', True)\
+                .execute()
+
+            return bool(dependent_result.data)
         except Exception as e:
             logger.error(f"Error checking parent-student link: {e}")
             return False

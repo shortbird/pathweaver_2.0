@@ -337,16 +337,6 @@ describe('ParentDashboardPage', () => {
       })
     })
 
-    it('displays admin demo mode notice for admin users', async () => {
-      mockAuthValue.user = createMockUser({ role: 'admin' })
-
-      renderWithProviders(<ParentDashboardPage />)
-
-      await waitFor(() => {
-        expect(screen.getByText(/Admin Demo Mode/)).toBeInTheDocument()
-      })
-    })
-
     it('shows Add Child button in header', async () => {
       renderWithProviders(<ParentDashboardPage />)
 
@@ -945,6 +935,134 @@ describe('ParentDashboardPage', () => {
         // Old pillar name XP should not appear
         expect(screen.queryByText('999 XP')).not.toBeInTheDocument()
       }, { timeout: 5000 })
+    })
+  })
+
+  describe('Masquerade Mode Transitions', () => {
+    // Tests for React hooks order fix - hooks must be called before conditional returns
+    // Bug fix: Moving early return after all hooks to prevent "Rendered more hooks" error
+
+    it('reloads data when switching back from masquerade mode', async () => {
+      // Start in masquerade mode
+      mockActingAsValue.actingAsDependent = mockDependent
+      mockActingAsValue.isActingAsDependent = true
+
+      const { rerender } = renderWithProviders(<ParentDashboardPage />)
+
+      // Verify masquerade message is shown
+      await waitFor(() => {
+        expect(screen.getByText(/Acting as Jane Doe/)).toBeInTheDocument()
+      })
+
+      // Clear API call counts
+      mockGetMyChildren.mockClear()
+      mockGetMyDependents.mockClear()
+      mockGetDashboard.mockClear()
+
+      // Switch back to parent mode
+      mockActingAsValue.actingAsDependent = null
+      mockActingAsValue.isActingAsDependent = false
+
+      rerender(<ParentDashboardPage />)
+
+      // Verify data is reloaded (useEffect dependencies include actingAsDependent)
+      await waitFor(() => {
+        expect(mockGetMyChildren).toHaveBeenCalled()
+        expect(mockGetMyDependents).toHaveBeenCalled()
+      })
+    })
+
+    it('does not show hooks error when transitioning from masquerade to parent view', async () => {
+      // This test verifies the React hooks order fix
+      // The component should render without errors when actingAsDependent changes
+
+      mockActingAsValue.actingAsDependent = mockDependent
+      mockActingAsValue.isActingAsDependent = true
+
+      const { rerender } = renderWithProviders(<ParentDashboardPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/Acting as Jane Doe/)).toBeInTheDocument()
+      })
+
+      // Transition to parent mode - this previously caused hooks error
+      mockActingAsValue.actingAsDependent = null
+      mockActingAsValue.isActingAsDependent = false
+
+      // Should not throw and should render dashboard
+      rerender(<ParentDashboardPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Family Dashboard')).toBeInTheDocument()
+      })
+    })
+
+    it('shows loading state while fetching data after masquerade ends', async () => {
+      // Start in masquerade mode
+      mockActingAsValue.actingAsDependent = mockDependent
+      mockActingAsValue.isActingAsDependent = true
+
+      const { rerender, container } = renderWithProviders(<ParentDashboardPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/Acting as Jane Doe/)).toBeInTheDocument()
+      })
+
+      // Make API calls slow
+      mockGetMyChildren.mockImplementation(() => new Promise(resolve =>
+        setTimeout(() => resolve({ data: { children: [mockChild] } }), 100)
+      ))
+
+      // Switch back to parent mode
+      mockActingAsValue.actingAsDependent = null
+      mockActingAsValue.isActingAsDependent = false
+
+      rerender(<ParentDashboardPage />)
+
+      // Should show loading spinner while fetching
+      const spinner = container.querySelector('.animate-spin')
+      expect(spinner).toBeInTheDocument()
+    })
+
+    it('displays children after successful data reload post-masquerade', async () => {
+      mockActingAsValue.actingAsDependent = mockDependent
+      mockActingAsValue.isActingAsDependent = true
+
+      const { rerender } = renderWithProviders(<ParentDashboardPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/Acting as Jane Doe/)).toBeInTheDocument()
+      })
+
+      // Switch back
+      mockActingAsValue.actingAsDependent = null
+      mockActingAsValue.isActingAsDependent = false
+
+      rerender(<ParentDashboardPage />)
+
+      // Should show children after data loads
+      await waitFor(() => {
+        expect(screen.getByText(/John Doe/)).toBeInTheDocument()
+        expect(screen.getByText(/Jane Doe/)).toBeInTheDocument()
+      })
+    })
+
+    it('clears masquerade state when Switch Back button is clicked on dashboard', async () => {
+      const user = userEvent.setup()
+      mockActingAsValue.actingAsDependent = mockDependent
+      mockActingAsValue.isActingAsDependent = true
+
+      renderWithProviders(<ParentDashboardPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Switch Back to Parent View')).toBeInTheDocument()
+      })
+
+      const switchBackButton = screen.getByText('Switch Back to Parent View')
+      await user.click(switchBackButton)
+
+      // Verify clearActingAs was called
+      expect(mockClearActingAs).toHaveBeenCalledTimes(1)
     })
   })
 

@@ -394,11 +394,14 @@ class SessionManager:
             payload = self.verify_access_token(access_token)
             if payload:
                 user_id = payload.get('user_id')
-                # Log Safari/iOS header usage for debugging
+                # Log Safari/iOS/Firefox header usage for debugging
                 user_agent = request.headers.get('User-Agent', '')
                 is_safari_ios = ('Safari' in user_agent and 'Chrome' not in user_agent) or 'iPhone' in user_agent or 'iPad' in user_agent
+                is_firefox = 'Firefox' in user_agent
                 if is_safari_ios:
                     logger.debug(f"[SessionManager] Safari/iOS auth via header for user {user_id[:8]}...")
+                elif is_firefox:
+                    logger.debug(f"[SessionManager] Firefox auth via header for user {user_id[:8]}...")
                 return user_id
 
         # Fallback to cookie (works in both same-origin and cross-origin with SameSite=None)
@@ -407,19 +410,25 @@ class SessionManager:
             payload = self.verify_access_token(access_token)
             if payload:
                 user_id = payload.get('user_id')
-                # Log cookie auth for Safari debugging (unexpected on Safari)
+                # Log cookie auth for Safari/Firefox debugging (unexpected on these browsers)
                 user_agent = request.headers.get('User-Agent', '')
                 is_safari_ios = ('Safari' in user_agent and 'Chrome' not in user_agent) or 'iPhone' in user_agent or 'iPad' in user_agent
+                is_firefox = 'Firefox' in user_agent
                 if is_safari_ios:
                     logger.info(f"[SessionManager] Safari/iOS auth via COOKIE for user {user_id[:8]}... (unexpected - cookies usually blocked)")
+                elif is_firefox:
+                    logger.info(f"[SessionManager] Firefox auth via COOKIE for user {user_id[:8]}... (unexpected - cookies usually blocked with ETP)")
                 return user_id
             return None
 
         # No auth method found
         user_agent = request.headers.get('User-Agent', '')[:50]
         is_safari_ios = ('Safari' in user_agent and 'Chrome' not in user_agent) or 'iPhone' in user_agent or 'iPad' in user_agent
+        is_firefox = 'Firefox' in user_agent
         if is_safari_ios:
             logger.debug(f"[SessionManager] Safari/iOS request with no auth: {request.path}")
+        elif is_firefox:
+            logger.debug(f"[SessionManager] Firefox request with no auth: {request.path}")
 
         return None
 

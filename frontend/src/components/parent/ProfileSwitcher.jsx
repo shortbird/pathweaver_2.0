@@ -85,7 +85,7 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
         {currentProfile?.avatar_url ? (
           <img
             src={currentProfile.avatar_url}
-            alt={currentProfile.display_name}
+            alt={`${currentProfile.display_name || 'Profile'} avatar`}
             className="w-8 h-8 rounded-full object-cover"
           />
         ) : (
@@ -120,7 +120,7 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
                 {currentProfile?.avatar_url ? (
                   <img
                     src={currentProfile.avatar_url}
-                    alt={currentProfile.display_name}
+                    alt={`${currentProfile.display_name || 'Your'} profile avatar`}
                     className="w-6 h-6 rounded-full object-cover"
                   />
                 ) : (
@@ -150,7 +150,7 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
                   {profile.avatar_url ? (
                     <img
                       src={profile.avatar_url}
-                      alt={profile.display_name}
+                      alt={`${profile.display_name} profile avatar`}
                       className="w-8 h-8 rounded-full object-cover"
                     />
                   ) : (

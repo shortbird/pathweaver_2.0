@@ -52,8 +52,8 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
         user = user_response.data
         user_role = user.get('role')
 
-        # Verify parent role
-        if user_role != 'parent':
+        # Verify parent or admin role (admins have full parent privileges)
+        if user_role not in ('parent', 'admin'):
             raise AuthorizationError("Only parent accounts can access this endpoint")
 
         # Check for link to this specific student (all links are permanent once created)

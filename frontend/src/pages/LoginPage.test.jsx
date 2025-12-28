@@ -178,7 +178,7 @@ describe('LoginPage', () => {
       await user.click(submitButton)
 
       await waitFor(() => {
-        expect(screen.getByText(/password must be at least 6 characters/i)).toBeInTheDocument()
+        expect(screen.getByText(/password must be at least 12 characters/i)).toBeInTheDocument()
       })
     })
   })
@@ -235,13 +235,13 @@ describe('LoginPage', () => {
       const passwordInput = screen.getByPlaceholderText(/password/i)
 
       await user.type(emailInput, 'test@example.com')
-      await user.type(passwordInput, 'password123')
+      await user.type(passwordInput, 'password123456')
 
       const submitButton = screen.getByRole('button', { name: /sign in/i })
       await user.click(submitButton)
 
       await waitFor(() => {
-        expect(mockLogin).toHaveBeenCalledWith('test@example.com', 'password123')
+        expect(mockLogin).toHaveBeenCalledWith('test@example.com', 'password123456')
       }, { timeout: 3000 })
     })
 
@@ -265,7 +265,7 @@ describe('LoginPage', () => {
       const passwordInput = screen.getByPlaceholderText(/password/i)
 
       await user.type(emailInput, 'test@example.com')
-      await user.type(passwordInput, 'password123')
+      await user.type(passwordInput, 'password123456')
 
       const submitButton = screen.getByRole('button', { name: /sign in/i })
       await user.click(submitButton)
@@ -305,7 +305,7 @@ describe('LoginPage', () => {
       const passwordInput = screen.getByPlaceholderText(/password/i)
 
       await user.type(emailInput, 'wrong@example.com')
-      await user.type(passwordInput, 'wrongpassword')
+      await user.type(passwordInput, 'wrongpassword12')
 
       const submitButton = screen.getByRole('button', { name: /sign in/i })
       await user.click(submitButton)
@@ -332,7 +332,7 @@ describe('LoginPage', () => {
       const passwordInput = screen.getByPlaceholderText(/password/i)
 
       await user.type(emailInput, 'test@example.com')
-      await user.type(passwordInput, 'password123')
+      await user.type(passwordInput, 'password123456')
 
       const submitButton = screen.getByRole('button', { name: /sign in/i })
       await user.click(submitButton)
@@ -365,7 +365,7 @@ describe('LoginPage', () => {
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
       await user.type(emailInput, 'wrong@example.com')
-      await user.type(passwordInput, 'wrongpassword')
+      await user.type(passwordInput, 'wrongpassword12')
       await user.click(submitButton)
 
       // Error should appear
@@ -379,7 +379,7 @@ describe('LoginPage', () => {
       await user.clear(emailInput)
       await user.clear(passwordInput)
       await user.type(emailInput, 'correct@example.com')
-      await user.type(passwordInput, 'correctpassword')
+      await user.type(passwordInput, 'correctpassword12')
       await user.click(submitButton)
 
       // Error should be cleared (even before success)
@@ -501,7 +501,7 @@ describe('LoginPage', () => {
       const passwordInput = screen.getByPlaceholderText(/password/i)
 
       await user.type(emailInput, 'test@example.com')
-      await user.type(passwordInput, 'password123')
+      await user.type(passwordInput, 'password123456')
 
       const submitButton = screen.getByRole('button', { name: /sign in/i })
       await user.click(submitButton)
@@ -533,7 +533,7 @@ describe('LoginPage', () => {
       const passwordInput = screen.getByPlaceholderText(/password/i)
 
       await user.type(emailInput, 'test@example.com')
-      await user.type(passwordInput, 'password123')
+      await user.type(passwordInput, 'password123456')
       await user.keyboard('{Enter}')
 
       await waitFor(() => {
@@ -560,7 +560,7 @@ describe('LoginPage', () => {
 
       // Component doesn't trim - test would need to expect whitespace to be preserved
       await waitFor(() => {
-        expect(mockLogin).toHaveBeenCalledWith('test@example.com', 'password123')
+        expect(mockLogin).toHaveBeenCalledWith('test@example.com', 'password123456')
       })
     })
   })

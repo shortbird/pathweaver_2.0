@@ -4,9 +4,34 @@ import BadgeCarouselCard from '../hub/BadgeCarouselCard';
 const BadgesModal = ({ isOpen, onClose, earnedBadges, isOwner, getStudentFirstName }) => {
   if (!isOpen) return null;
 
+  const handleBackdropKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClose();
+    }
+  };
+
+  const handleContentKeyDown = (e) => {
+    e.stopPropagation();
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      onClick={onClose}
+      onKeyDown={handleBackdropKeyDown}
+      role="button"
+      tabIndex="0"
+      aria-label="Close badges modal"
+    >
+      <div
+        className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={handleContentKeyDown}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Badges"
+      >
         <div className="sticky top-0 p-6 bg-gradient-primary z-10">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold text-white">Earned Badges</h2>

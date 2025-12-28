@@ -410,17 +410,20 @@ describe('api.js - Core API Client', () => {
         expect(mockGet).toHaveBeenCalledWith('/api/parent/completions/student-123')
       })
 
-      it('uploadEvidence uploads FormData', async () => {
+      it('uploadEvidence calls correct endpoint with data', async () => {
         const mockPost = vi.spyOn(api, 'post').mockResolvedValue({ data: {} })
-        const formData = new FormData()
-        formData.append('file', new Blob(['test']), 'evidence.jpg')
+        const evidenceData = {
+          student_id: 'student-123',
+          task_id: 'task-456',
+          block_type: 'text',
+          content: { text: 'My evidence' }
+        }
 
-        await parentAPI.uploadEvidence(formData)
+        await parentAPI.uploadEvidence(evidenceData)
 
         expect(mockPost).toHaveBeenCalledWith(
-          '/api/parent/evidence/upload',
-          formData,
-          { headers: { 'Content-Type': 'multipart/form-data' } }
+          '/api/evidence/helper/upload-for-student',
+          evidenceData
         )
       })
 

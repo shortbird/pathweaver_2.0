@@ -13,6 +13,16 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
   const updateDeadline = useUpdateDeadline()
   const [selectedEvent, setSelectedEvent] = useState(null)
 
+  // Helper to extract date-only portion (YYYY-MM-DD) from timestamps
+  // This ensures tasks always appear on a single calendar day
+  const extractDateOnly = (dateString) => {
+    if (!dateString) return null
+    // If already in YYYY-MM-DD format, return as-is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return dateString
+    // Extract date portion from ISO timestamp (e.g., "2025-12-26T15:30:00Z" -> "2025-12-26")
+    return dateString.split('T')[0]
+  }
+
   // Filter and transform items for calendar
   const events = (data?.items || [])
     .filter(item => !selectedPillar || item.pillar === selectedPillar)
@@ -21,11 +31,16 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
       const pillarColors = getPillarColor(item.pillar)
       const isCompleted = item.status === 'completed'
 
+      // Get the event date - use date-only format to ensure single-day rendering
+      const eventDate = isCompleted
+        ? extractDateOnly(item.completed_at)
+        : extractDateOnly(item.scheduled_date)
+
       return {
         id: item.id,
         title: item.task_title,
         // Show completed tasks on their completion date, scheduled tasks on scheduled date
-        date: isCompleted ? item.completed_at : item.scheduled_date,
+        date: eventDate,
         backgroundColor: pillarColors.hex,
         borderColor: pillarColors.hex,
         editable: !isCompleted, // Completed tasks cannot be dragged

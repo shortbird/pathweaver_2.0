@@ -265,7 +265,7 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
                   <div className="relative group">
                     <img
                       src={content.url}
-                      alt={content.alt || ''}
+                      alt={content.alt || 'Evidence image preview'}
                       className="w-full max-h-64 object-contain rounded-lg border-2 border-gray-200"
                     />
                     <button
@@ -443,7 +443,19 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={handleClose} />
+        <div
+          className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+          onClick={handleClose}
+          role="button"
+          tabIndex="0"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleClose();
+            }
+          }}
+          aria-label="Close modal"
+        />
 
         <div className="inline-block w-full max-w-4xl my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-xl">
           {/* Header */}

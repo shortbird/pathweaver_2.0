@@ -1,12 +1,9 @@
 name: E2E Tests
 
 on:
-  # Disabled automatic triggers - tests can be run manually via workflow_dispatch
-  # push:
-  #   branches: [develop, main]
-  # pull_request:
-  #   branches: [develop, main]
-  workflow_dispatch: # Manual trigger only
+  push:
+    branches: [develop]
+  workflow_dispatch: # Manual trigger also available
 
 jobs:
   setup:
