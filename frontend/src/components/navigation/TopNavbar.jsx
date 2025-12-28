@@ -1,21 +1,24 @@
 import React from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { useOrganization } from '../../contexts/OrganizationContext'
+import NotificationBell from '../notifications/NotificationBell'
 // import { getTierDisplayName, getTierBadgeColor } from '../../utils/tierMapping' // REMOVED - Phase 3 refactoring (January 2025)
 
 const TopNavbar = ({ onMenuClick, siteSettings }) => {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout, isAuthenticated } = useAuth()
+  const { organization } = useOrganization()
 
   const handleLogout = async () => {
     await logout()
   }
 
   const isActiveToggle = (path) => {
-    // Dashboard toggle should be active for: /dashboard, /connections, /diploma, /profile, /badges, /admin, /communication, /calendar
+    // Dashboard toggle should be active for: /dashboard, /connections, /diploma, /profile, /badges, /admin, /communication, /calendar, /organization
     if (path === '/dashboard') {
-      return ['/dashboard', '/connections', '/diploma', '/profile', '/badges', '/admin', '/communication', '/calendar'].some(route =>
+      return ['/dashboard', '/connections', '/diploma', '/profile', '/badges', '/admin', '/communication', '/calendar', '/organization'].some(route =>
         location.pathname === route || location.pathname.startsWith(route + '/')
       )
     }
@@ -54,8 +57,21 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
               </button>
             )}
 
-            {/* Logo */}
-            <Link to={isAuthenticated ? "/dashboard" : "/"} className="flex items-center">
+            {/* Logo - Shows both Organization and Optio */}
+            <Link to={isAuthenticated ? "/dashboard" : "/"} className="flex items-center gap-3">
+              {/* Organization Logo (if authenticated and org has custom branding) - LEFT of Optio */}
+              {isAuthenticated && organization && organization.branding_config?.logo_url && (
+                <>
+                  <img
+                    src={organization.branding_config.logo_url}
+                    alt={organization.name}
+                    className="h-8 w-auto max-w-[140px] hidden sm:block"
+                  />
+                  <div className="h-6 w-px bg-gray-300 hidden sm:block" aria-hidden="true"></div>
+                </>
+              )}
+
+              {/* Optio Logo */}
               {siteSettings?.logo_url ? (
                 <img
                   src={siteSettings.logo_url}
@@ -99,6 +115,9 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                 >
                   {user?.first_name} {user?.last_name}
                 </Link>
+
+                {/* Notification Bell */}
+                <NotificationBell />
 
                 {/* Subscription Tier Badge - REMOVED Phase 3 refactoring (January 2025) */}
 

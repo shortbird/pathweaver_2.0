@@ -22,12 +22,18 @@ export const OrganizationProvider = ({ children }) => {
   const fetchOrganization = async () => {
     try {
       const { data } = await api.get('/api/auth/me');
-      if (data.organization_id) {
-        const orgResponse = await api.get(`/api/admin/organizations/organizations/${data.organization_id}`);
-        setOrganization(orgResponse.data);
+      // Organization data is now included in /api/auth/me response
+      if (data.organization) {
+        setOrganization(data.organization);
+      } else if (data.organization_id) {
+        // Fallback: set minimal organization data
+        setOrganization({ id: data.organization_id });
       }
     } catch (error) {
-      console.error('Failed to fetch organization:', error);
+      // 401 is expected for unauthenticated users - don't log as error
+      if (error.response?.status !== 401) {
+        console.error('Failed to fetch organization:', error);
+      }
     } finally {
       setLoading(false);
     }
