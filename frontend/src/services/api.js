@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { secureTokenStore } from './secureTokenStore'
+import { shouldUseAuthHeaders } from '../utils/browserDetection'
 import logger from '../utils/logger'
 
 const api = axios.create({
@@ -169,10 +170,10 @@ export const csrfTokenStore = {
 /**
  * Response Interceptor - Token Refresh
  *
- * ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY
- * - Token refresh handled via httpOnly cookies (no tokens in request/response)
- * - Backend automatically rotates tokens in cookies
- * - Frontend just retries failed requests after refresh
+ * CRITICAL FIX (December 2025): Proper Safari/iOS/Firefox token refresh
+ * - For browsers using Authorization headers (Safari/iOS/Firefox): send refresh_token in body AND store new tokens
+ * - For other browsers: use httpOnly cookies (sent automatically)
+ * - This fixes the bug where Safari/iOS/Firefox users get logged out when their access token expires
  */
 let refreshPromise = null
 
@@ -208,13 +209,29 @@ api.interceptors.response.use(
         if (!refreshPromise) {
           refreshPromise = (async () => {
             try {
-              // ✅ SECURITY: httpOnly cookies sent automatically (withCredentials: true)
-              // No tokens in request body - backend reads refresh token from cookie
-              const response = await api.post('/api/auth/refresh', {})
+              // CRITICAL FIX: For Safari/iOS/Firefox, send refresh_token in request body
+              // These browsers block cross-site cookies, so we must use Authorization headers
+              const requestBody = {}
+              const useAuthHeaders = shouldUseAuthHeaders()
+
+              if (useAuthHeaders) {
+                const currentRefreshToken = tokenStore.getRefreshToken()
+                if (currentRefreshToken) {
+                  requestBody.refresh_token = currentRefreshToken
+                  logger.debug('[API] Sending refresh_token in body for Safari/iOS/Firefox')
+                }
+              }
+
+              const response = await api.post('/api/auth/refresh', requestBody)
 
               if (response.status === 200) {
-                // Backend automatically sets new tokens in httpOnly cookies
-                // No token handling needed in frontend
+                // CRITICAL FIX: Store new tokens for Safari/iOS/Firefox users
+                // Backend returns access_token and refresh_token in response body
+                if (useAuthHeaders && response.data.access_token && response.data.refresh_token) {
+                  await tokenStore.setTokens(response.data.access_token, response.data.refresh_token)
+                  logger.debug('[API] New tokens stored after refresh (Safari/iOS/Firefox)')
+                }
+
                 return true // Refresh successful
               }
               throw new Error('Token refresh failed')
@@ -228,11 +245,14 @@ api.interceptors.response.use(
         // Wait for the single refresh to complete
         await refreshPromise
 
-        // Retry the original request (new tokens automatically sent via cookies)
+        // Retry the original request (new tokens automatically sent via cookies or Authorization header)
         return api(originalRequest)
       } catch (refreshError) {
         // Clear user data on refresh failure (tokens cleared by backend)
         localStorage.removeItem('user')
+
+        // Also clear tokens from tokenStore for Safari/iOS/Firefox users
+        await tokenStore.clearTokens()
 
         // Only redirect to login if we're not already on auth pages or public pages
         const authPaths = ['/login', '/register', '/email-verification', '/forgot-password', '/reset-password', '/', '/terms', '/privacy', '/academy-agreement', '/academy-handbook', '/services']
