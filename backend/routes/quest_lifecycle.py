@@ -18,6 +18,8 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from database import get_user_client, get_supabase_admin_client
 from services.badge_service import BadgeService
+from services.quest_invitation_service import QuestInvitationService
+from middleware.error_handler import ValidationError, NotFoundError
 from datetime import datetime
 from utils.logger import get_logger
 
@@ -390,3 +392,93 @@ def get_reflection_prompts(user_id):
     except Exception as e:
         logger.error(f"Error getting reflection prompts: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+# ==================== Student Quest Invitations ====================
+
+@quest_lifecycle_bp.route('/students/quest-invitations', methods=['GET'])
+@require_auth
+def get_student_quest_invitations(user_id):
+    """Get all pending quest invitations for the logged-in student"""
+    try:
+        invitation_service = QuestInvitationService()
+        invitations = invitation_service.get_student_invitations(user_id)
+
+        return jsonify({
+            'success': True,
+            'invitations': invitations,
+            'count': len(invitations)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching student invitations: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch invitations'
+        }), 500
+
+
+@quest_lifecycle_bp.route('/students/quest-invitations/<invitation_id>/accept', methods=['POST'])
+@require_auth
+def accept_quest_invitation(user_id, invitation_id):
+    """Student accepts a quest invitation and auto-enrolls in the quest"""
+    try:
+        invitation_service = QuestInvitationService()
+        result = invitation_service.accept_invitation(invitation_id, user_id)
+
+        return jsonify({
+            'success': True,
+            'invitation': result['invitation'],
+            'quest_enrollment': result['quest_enrollment'],
+            'already_enrolled': result['already_enrolled'],
+            'message': 'Invitation accepted and enrolled in quest' if not result['already_enrolled'] else 'Invitation accepted (already enrolled)'
+        }), 200
+
+    except ValidationError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
+    except NotFoundError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 404
+    except Exception as e:
+        logger.error(f"Error accepting invitation: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to accept invitation'
+        }), 500
+
+
+@quest_lifecycle_bp.route('/students/quest-invitations/<invitation_id>/decline', methods=['POST'])
+@require_auth
+def decline_quest_invitation(user_id, invitation_id):
+    """Student declines a quest invitation"""
+    try:
+        invitation_service = QuestInvitationService()
+        invitation = invitation_service.decline_invitation(invitation_id, user_id)
+
+        return jsonify({
+            'success': True,
+            'invitation': invitation,
+            'message': 'Invitation declined'
+        }), 200
+
+    except ValidationError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
+    except NotFoundError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 404
+    except Exception as e:
+        logger.error(f"Error declining invitation: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to decline invitation'
+        }), 500

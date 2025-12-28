@@ -14,6 +14,7 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_role
 from middleware.error_handler import ValidationError, NotFoundError
 from services.advisor_service import AdvisorService
+from services.quest_invitation_service import QuestInvitationService
 
 from utils.logger import get_logger
 
@@ -396,4 +397,85 @@ def get_student_quests_with_tasks(user_id, student_id):
         return jsonify({
             'success': False,
             'error': 'Failed to fetch student quests'
+        }), 500
+
+
+# ==================== Quest Invitations ====================
+
+@advisor_bp.route('/invite-to-quest', methods=['POST'])
+@require_role('advisor', 'school_admin', 'admin')
+def invite_students_to_quest(user_id):
+    """Invite students to a specific quest"""
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        if 'quest_id' not in data:
+            raise ValidationError("Missing required field: quest_id")
+
+        if 'user_ids' not in data or not isinstance(data['user_ids'], list):
+            raise ValidationError("Missing or invalid field: user_ids (must be array)")
+
+        if len(data['user_ids']) == 0:
+            raise ValidationError("user_ids array cannot be empty")
+
+        # Create invitations
+        invitation_service = QuestInvitationService()
+        result = invitation_service.invite_students_to_quest(
+            advisor_id=user_id,
+            quest_id=data['quest_id'],
+            user_ids=data['user_ids'],
+            expires_at=data.get('expires_at')
+        )
+
+        return jsonify({
+            'success': True,
+            'invitations_created': result['invitations_created'],
+            'invitations': result['invitations']
+        }), 201
+
+    except ValidationError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
+    except NotFoundError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 404
+    except Exception as e:
+        logger.error(f"Error inviting students to quest: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to create invitations'
+        }), 500
+
+
+@advisor_bp.route('/quest-invitations', methods=['GET'])
+@require_role('advisor', 'school_admin', 'admin')
+def get_quest_invitations(user_id):
+    """Get all quest invitations for advisor's organization"""
+    try:
+        status = request.args.get('status')
+        quest_id = request.args.get('quest_id')
+
+        invitation_service = QuestInvitationService()
+        invitations = invitation_service.get_organization_invitations(
+            advisor_id=user_id,
+            status=status,
+            quest_id=quest_id
+        )
+
+        return jsonify({
+            'success': True,
+            'invitations': invitations,
+            'count': len(invitations)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching quest invitations: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch invitations'
         }), 500

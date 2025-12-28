@@ -13,17 +13,21 @@ NOTE: Admin client usage justified throughout this file for cross-user operation
 Parents managing dependents requires elevated privileges to create/update dependent records.
 All endpoints verify parent role before allowing operations.
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from datetime import datetime
 from database import get_supabase_admin_client
 from repositories.dependent_repository import DependentRepository
 from repositories.base_repository import NotFoundError, PermissionError, ValidationError as RepoValidationError
+from services.dependent_progress_service import DependentProgressService
 from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.session_manager import session_manager
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError as RouteNotFoundError
 from utils.roles import UserRole
 from utils.validation.password_validator import validate_password_strength
 import logging
+import json
+import csv
+import io
 
 from utils.logger import get_logger
 
@@ -422,3 +426,184 @@ def generate_acting_as_token(user_id, dependent_id):
     except Exception as e:
         logger.error(f"Error generating acting-as token for dependent {dependent_id}: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to generate token'}), 500
+
+
+# ==================== Progress Reports ====================
+
+@bp.route('/<dependent_id>/progress-report', methods=['GET'])
+@require_auth
+@validate_uuid_param('dependent_id')
+def get_dependent_progress_report(user_id, dependent_id):
+    """
+    Get comprehensive progress report for a dependent.
+
+    Query Params:
+        - range: 'week', 'month', 'all_time' (default: 'month')
+        - start_date: Custom start date (ISO format)
+        - end_date: Custom end date (ISO format)
+
+    Returns:
+        200: Comprehensive progress report
+        403: Not authorized or not a parent
+        404: Dependent not found
+    """
+    try:
+        verify_parent_role(user_id)
+
+        progress_service = DependentProgressService()
+
+        # Parse date range
+        date_range = request.args.get('range', 'month')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        # Use preset if custom dates not provided
+        if not start_date or not end_date:
+            start_date, end_date = progress_service.get_date_range_preset(date_range)
+
+        # Generate report
+        report = progress_service.get_progress_report(
+            dependent_id=dependent_id,
+            parent_id=user_id,
+            start_date=start_date,
+            end_date=end_date
+        )
+
+        return jsonify({
+            'success': True,
+            'report': report
+        }), 200
+
+    except AuthorizationError as e:
+        logger.warning(f"Authorization error for user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except NotFoundError as e:
+        logger.warning(f"Dependent not found: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error generating progress report for dependent {dependent_id}: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to generate progress report'}), 500
+
+
+@bp.route('/<dependent_id>/progress-report/export', methods=['GET'])
+@require_auth
+@validate_uuid_param('dependent_id')
+def export_dependent_progress_report(user_id, dependent_id):
+    """
+    Export progress report as CSV or JSON.
+
+    Query Params:
+        - format: 'csv' or 'json' (default: 'json')
+        - range: 'week', 'month', 'all_time' (default: 'month')
+        - start_date: Custom start date (ISO format)
+        - end_date: Custom end date (ISO format)
+
+    Returns:
+        200: File download (CSV or JSON)
+        403: Not authorized or not a parent
+        404: Dependent not found
+    """
+    try:
+        verify_parent_role(user_id)
+
+        progress_service = DependentProgressService()
+        export_format = request.args.get('format', 'json').lower()
+
+        # Parse date range
+        date_range = request.args.get('range', 'month')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        # Use preset if custom dates not provided
+        if not start_date or not end_date:
+            start_date, end_date = progress_service.get_date_range_preset(date_range)
+
+        # Generate report
+        report = progress_service.get_progress_report(
+            dependent_id=dependent_id,
+            parent_id=user_id,
+            start_date=start_date,
+            end_date=end_date
+        )
+
+        dependent_name = report['dependent']['display_name'].replace(' ', '_')
+        timestamp = datetime.utcnow().strftime('%Y%m%d')
+
+        if export_format == 'csv':
+            # Create CSV
+            output = io.StringIO()
+            writer = csv.writer(output)
+
+            # Header
+            writer.writerow(['Progress Report for', report['dependent']['display_name']])
+            writer.writerow(['Period', f"{report['period']['start']} to {report['period']['end']}"])
+            writer.writerow([])
+
+            # Summary
+            writer.writerow(['Summary'])
+            writer.writerow(['Total XP', report['dependent']['total_xp']])
+            writer.writerow(['Level', report['dependent']['level']])
+            writer.writerow(['Quests Completed', report['quests']['completed_count']])
+            writer.writerow(['Quests In Progress', report['quests']['in_progress_count']])
+            writer.writerow(['Tasks Completed', report['completion_stats']['tasks_completed']])
+            writer.writerow([])
+
+            # Pillar XP
+            writer.writerow(['Pillar XP Breakdown'])
+            writer.writerow(['Pillar', 'XP Earned', 'Tasks Completed'])
+            for pillar, data in report['pillars'].items():
+                writer.writerow([pillar, data['xp'], data['task_count']])
+            writer.writerow([])
+
+            # Badges
+            writer.writerow(['Badges Earned'])
+            writer.writerow(['Badge Name', 'Pillar', 'Earned Date'])
+            for badge in report['badges']:
+                badge_info = badge.get('badges', {})
+                writer.writerow([
+                    badge_info.get('name', ''),
+                    badge_info.get('pillar_primary', ''),
+                    badge.get('earned_at', '')
+                ])
+            writer.writerow([])
+
+            # Recent Activity
+            writer.writerow(['Recent Activity'])
+            writer.writerow(['Title', 'Pillar', 'XP', 'Date'])
+            for activity in report['recent_activity']:
+                writer.writerow([
+                    activity.get('title', ''),
+                    activity.get('pillar', ''),
+                    activity.get('xp', 0),
+                    activity.get('timestamp', '')
+                ])
+
+            output.seek(0)
+            return send_file(
+                io.BytesIO(output.getvalue().encode('utf-8')),
+                mimetype='text/csv',
+                as_attachment=True,
+                download_name=f'{dependent_name}_progress_{timestamp}.csv'
+            )
+
+        else:
+            # Return JSON
+            output = io.BytesIO(json.dumps(report, indent=2).encode('utf-8'))
+            return send_file(
+                output,
+                mimetype='application/json',
+                as_attachment=True,
+                download_name=f'{dependent_name}_progress_{timestamp}.json'
+            )
+
+    except AuthorizationError as e:
+        logger.warning(f"Authorization error for user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except NotFoundError as e:
+        logger.warning(f"Dependent not found: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error exporting progress report for dependent {dependent_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'error': 'Failed to export progress report'}), 500

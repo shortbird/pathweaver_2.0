@@ -24,6 +24,7 @@ import ScrollToTop from './components/ScrollToTop'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import OrganizationSignup from './pages/auth/OrganizationSignup'
 import PrivateRoute from './components/PrivateRoute'
 
 // Lazy-loaded pages for code splitting
@@ -64,6 +65,7 @@ const CommunicationPage = lazy(() => import('./pages/CommunicationPage'))
 const CalendarPage = lazy(() => import('./pages/CalendarPage'))
 // Admin & Special Pages
 const AdminPage = lazy(() => import('./pages/AdminPage'))
+const OrganizationManagement = lazy(() => import('./pages/admin/OrganizationManagement'))
 const AdvisorDashboard = lazy(() => import('./pages/AdvisorDashboard'))
 const AdvisorBadgeForm = lazy(() => import('./pages/AdvisorBadgeForm'))
 const AdvisorCheckinPage = lazy(() => import('./pages/AdvisorCheckinPage'))
@@ -75,6 +77,15 @@ const ObserverWelcomePage = lazy(() => import('./pages/ObserverWelcomePage'))
 const ObserverFeedPage = lazy(() => import('./pages/ObserverFeedPage'))
 // Parental Consent (COPPA Compliance - December 2025)
 const ParentalConsentUploadPage = lazy(() => import('./pages/ParentalConsentUploadPage'))
+
+// LMS Features (December 2025 - Multi-tenant LMS transformation)
+const AnnouncementsFeed = lazy(() => import('./pages/announcements/AnnouncementsFeed'))
+const CreateAnnouncement = lazy(() => import('./pages/announcements/CreateAnnouncement'))
+const CurriculumBuilder = lazy(() => import('./pages/curriculum/CurriculumBuilder'))
+const MyInvitations = lazy(() => import('./pages/student/MyInvitations'))
+const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
+const DependentProgressReport = lazy(() => import('./pages/parent/DependentProgressReport'))
+const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -290,6 +301,7 @@ function App() {
                 <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />
                 <Route path="login" element={<LoginPage />} />
                 <Route path="register" element={<RegisterPage />} />
+                <Route path="join/:slug" element={<OrganizationSignup />} />
                 <Route path="forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="reset-password" element={<ResetPasswordPage />} />
                 <Route path="auth/callback" element={<AuthCallback />} />
@@ -321,11 +333,20 @@ function App() {
                 <Route path="connections" element={<ConnectionsPage />} />
                 <Route path="communication" element={<CommunicationPage />} />
                 <Route path="calendar" element={<CalendarPage />} />
+                {/* LMS Features */}
+                <Route path="announcements" element={<AnnouncementsFeed />} />
+                <Route path="invitations" element={<MyInvitations />} />
+                <Route path="notifications" element={<NotificationsPage />} />
                 {/* <Route path="subscription" element={<SubscriptionPage />} /> REMOVED - Phase 3 refactoring (January 2025) */}
               </Route>
               
               <Route element={<PrivateRoute requiredRole="admin" />}>
                 <Route path="admin/*" element={<AdminPage />} />
+              </Route>
+
+              {/* Organization Management - accessible to org admins and platform admins */}
+              <Route element={<PrivateRoute />}>
+                <Route path="organization" element={<OrganizationManagement />} />
               </Route>
 
               <Route element={<PrivateRoute requiredRole={["advisor", "admin"]} />}>
@@ -334,12 +355,18 @@ function App() {
                 <Route path="advisor/checkin/:studentId" element={<AdvisorCheckinPage />} />
                 <Route path="advisor/badges/create" element={<AdvisorBadgeForm />} />
                 <Route path="advisor/badges/:badgeId/edit" element={<AdvisorBadgeForm />} />
+                {/* LMS Features - Advisor */}
+                <Route path="advisor/invitations" element={<QuestInvitations />} />
+                <Route path="announcements/new" element={<CreateAnnouncement />} />
+                <Route path="quests/:questId/curriculum/edit" element={<CurriculumBuilder />} />
               </Route>
 
               <Route element={<PrivateRoute requiredRole="parent" />}>
                 <Route path="parent/dashboard" element={<ParentDashboardPage />} />
                 <Route path="parent/dashboard/:studentId" element={<ParentDashboardPage />} />
                 <Route path="parent/quest/:studentId/:questId" element={<ParentQuestView />} />
+                {/* LMS Features - Parent */}
+                <Route path="parent/students/:studentId/report" element={<DependentProgressReport />} />
               </Route>
 
               <Route element={<PrivateRoute requiredRole="observer" />}>

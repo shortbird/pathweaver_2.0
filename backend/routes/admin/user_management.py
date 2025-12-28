@@ -56,6 +56,7 @@ def get_users(user_id):
         subscription_filter = request.args.get('subscription', 'all')
         role_filter = request.args.get('role', 'all')
         activity_filter = request.args.get('activity', 'all')
+        organization_filter = request.args.get('organization', 'all')
         search_term = request.args.get('search', '').strip()
         sort_by = request.args.get('sortBy', 'created_at')
         sort_order = request.args.get('sortOrder', 'desc')
@@ -95,6 +96,13 @@ def get_users(user_id):
         if role_filter != 'all' and assigned_student_ids is None:  # Only admins can filter by role
             query = query.eq('role', role_filter)
 
+        # Organization filter
+        if organization_filter != 'all':
+            if organization_filter == 'none':
+                query = query.is_('organization_id', 'null')
+            else:
+                query = query.eq('organization_id', organization_filter)
+
         if activity_filter == 'active':
             # Users who logged in within last 30 days
             cutoff_date = (datetime.utcnow() - timedelta(days=30)).isoformat()
@@ -121,10 +129,23 @@ def get_users(user_id):
 
         users = result.data if result.data else []
 
-        # Debug logging - check what Supabase returns
+        # Enrich with organization names
         if users:
-            sample_user = users[0]
-            logger.info(f"[DEBUG] First user from DB: id={sample_user.get('id')}, email='{sample_user.get('email')}', first_name={sample_user.get('first_name')}")
+            # Get unique organization IDs
+            org_ids = list(set(u.get('organization_id') for u in users if u.get('organization_id')))
+            org_names = {}
+
+            if org_ids:
+                orgs_response = supabase.table('organizations')\
+                    .select('id, name')\
+                    .in_('id', org_ids)\
+                    .execute()
+                if orgs_response.data:
+                    org_names = {o['id']: o['name'] for o in orgs_response.data}
+
+            # Add organization_name to each user
+            for user in users:
+                user['organization_name'] = org_names.get(user.get('organization_id'))
 
         return jsonify({
             'success': True,
@@ -146,6 +167,7 @@ def get_users(user_id):
 @require_admin
 def get_user_details(user_id, target_user_id):
     """Get detailed information about a specific user"""
+    print(f"[USER DETAILS] ===== ENDPOINT CALLED for user {target_user_id} =====", flush=True)
     supabase = get_supabase_admin_client()
 
     try:
@@ -183,9 +205,23 @@ def get_user_details(user_id, target_user_id):
 
         user_data = user.data
 
+        # Include organization data if user has an organization
+        print(f"[USER DETAILS] user_data org_id: {user_data.get('organization_id')}", flush=True)
+        if user_data.get('organization_id'):
+            org_response = supabase.table('organizations')\
+                .select('id, name, slug')\
+                .eq('id', user_data['organization_id'])\
+                .maybe_single()\
+                .execute()
+            print(f"[USER DETAILS] org_response.data: {org_response.data}", flush=True)
+            if org_response.data:
+                user_data['organization'] = org_response.data
+                user_data['organization_name'] = org_response.data['name']
+        print(f"[USER DETAILS] Final org_name: {user_data.get('organization_name')}", flush=True)
+
         return jsonify({
             'success': True,
-            'user': user_data,
+            **user_data,
             'stats': stats
         })
 
@@ -255,7 +291,7 @@ def update_user_role(user_id, target_user_id):
         if not new_role:
             return jsonify({'success': False, 'error': 'Role is required'}), 400
 
-        valid_roles = ['student', 'parent', 'advisor', 'educator', 'admin']
+        valid_roles = ['student', 'parent', 'advisor', 'educator', 'admin', 'school_admin']
         if new_role not in valid_roles:
             return jsonify({'success': False, 'error': f'Invalid role. Must be one of: {valid_roles}'}), 400
 
@@ -715,16 +751,31 @@ def assign_user_to_organization(admin_user_id, user_id):
     """
     Admin endpoint to manually assign a user to an organization.
     Only platform admins can change user organizations.
+    Pass organization_id: null to remove from organization.
     """
     try:
         data = request.json
         organization_id = data.get('organization_id')
 
-        if not organization_id:
+        print(f"[ORG UPDATE] Updating user {user_id} organization to: {organization_id}", flush=True)
+
+        from database import get_supabase_admin_client
+        admin_client = get_supabase_admin_client()
+
+        # If null, remove from organization
+        if organization_id is None:
+            admin_client.table('users')\
+                .update({'organization_id': None})\
+                .eq('id', user_id)\
+                .execute()
+
+            logger.info(f"[ADMIN] User {user_id} removed from organization by admin {admin_user_id}")
+
             return jsonify({
-                'success': False,
-                'error': 'organization_id is required'
-            }), 400
+                'success': True,
+                'message': 'User removed from organization',
+                'organization': None
+            }), 200
 
         # Use organization repository to validate and assign
         from repositories.organization_repository import OrganizationRepository
@@ -739,7 +790,16 @@ def assign_user_to_organization(admin_user_id, user_id):
             }), 404
 
         # Assign user to organization
-        org_repo.assign_user_to_organization(user_id, organization_id)
+        update_result = admin_client.table('users')\
+            .update({'organization_id': organization_id})\
+            .eq('id', user_id)\
+            .execute()
+
+        print(f"[ORG UPDATE] Update result: {update_result.data}", flush=True)
+
+        # Verify the update worked
+        verify = admin_client.table('users').select('organization_id').eq('id', user_id).single().execute()
+        print(f"[ORG UPDATE] After update, user org_id is: {verify.data.get('organization_id') if verify.data else 'NOT FOUND'}", flush=True)
 
         logger.info(f"[ADMIN] User {user_id} assigned to organization {organization_id} by admin {admin_user_id}")
 
@@ -772,27 +832,24 @@ def get_organizations(admin_user_id):
         org_repo = OrganizationRepository()
 
         # Get all active organizations
-        orgs = org_repo.list_all_active()
+        orgs = org_repo.get_all_active()
 
-        # Add stats to each organization
-        orgs_with_stats = []
+        # Return organizations with basic info (stats can be added later if needed)
+        orgs_list = []
         for org in orgs:
-            stats = org_repo.get_organization_stats(org['id'])
-            orgs_with_stats.append({
+            orgs_list.append({
                 'id': org['id'],
                 'name': org['name'],
                 'slug': org['slug'],
                 'full_domain': org.get('full_domain'),
                 'subdomain': org.get('subdomain'),
-                'user_count': stats['user_count'],
-                'quest_count': stats['quest_count'],
                 'is_active': org['is_active']
             })
 
         return jsonify({
             'success': True,
-            'organizations': orgs_with_stats,
-            'total': len(orgs_with_stats)
+            'organizations': orgs_list,
+            'total': len(orgs_list)
         }), 200
 
     except Exception as e:
@@ -800,4 +857,192 @@ def get_organizations(admin_user_id):
         return jsonify({
             'success': False,
             'error': 'Failed to fetch organizations'
+        }), 500
+
+
+@bp.route('/users/<target_user_id>/assign-advisor', methods=['POST'])
+@require_admin
+def assign_advisor_role(user_id, target_user_id):
+    """
+    School admins can promote users to advisor role within their organization.
+    Superadmins can assign advisor role in any organization.
+
+    This endpoint allows school admins to grant advisor privileges to users
+    so they can create quests, invite students, and manage announcements.
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Get requesting user's info
+        requester = supabase.table('users')\
+            .select('id, role, email, organization_id')\
+            .eq('id', user_id)\
+            .single()\
+            .execute()
+
+        if not requester.data:
+            return jsonify({'success': False, 'error': 'Requester not found'}), 404
+
+        requester_role = requester.data.get('role')
+        requester_org_id = requester.data.get('organization_id')
+        requester_email = requester.data.get('email')
+
+        # Check if superadmin
+        from app_config import Config
+        is_superadmin = (requester_role == 'admin' and requester_email == Config.SUPERADMIN_EMAIL)
+
+        # Only school_admin and superadmin can assign advisor role
+        if not (is_superadmin or requester_role == 'school_admin'):
+            return jsonify({
+                'success': False,
+                'error': 'Only school admins can assign advisor role'
+            }), 403
+
+        # Get target user's info
+        target_user = supabase.table('users')\
+            .select('id, role, organization_id, display_name, email')\
+            .eq('id', target_user_id)\
+            .single()\
+            .execute()
+
+        if not target_user.data:
+            return jsonify({'success': False, 'error': 'Target user not found'}), 404
+
+        target_org_id = target_user.data.get('organization_id')
+
+        # School admins can only assign within their org
+        if not is_superadmin and requester_org_id != target_org_id:
+            return jsonify({
+                'success': False,
+                'error': 'You can only assign advisor role to users in your organization'
+            }), 403
+
+        # Assign advisor role
+        update_data = {'role': 'advisor'}
+
+        result = supabase.table('users')\
+            .update(update_data)\
+            .eq('id', target_user_id)\
+            .execute()
+
+        if not result.data:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to assign advisor role'
+            }), 500
+
+        logger.info(
+            f"[ROLE ASSIGNMENT] User {target_user_id} ({target_user.data.get('email')}) "
+            f"promoted to advisor by {user_id} ({requester_email})"
+        )
+
+        return jsonify({
+            'success': True,
+            'message': f"{target_user.data.get('display_name', 'User')} is now an advisor",
+            'user': result.data[0]
+        }), 200
+
+    except Exception as e:
+        import traceback
+        logger.error(f"Error assigning advisor role: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to assign advisor role'
+        }), 500
+
+
+@bp.route('/users/<target_user_id>/revoke-advisor', methods=['POST'])
+@require_admin
+def revoke_advisor_role(user_id, target_user_id):
+    """
+    School admins can revoke advisor role from users in their organization.
+    This demotes the user back to student role.
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Get requesting user's info
+        requester = supabase.table('users')\
+            .select('id, role, email, organization_id')\
+            .eq('id', user_id)\
+            .single()\
+            .execute()
+
+        if not requester.data:
+            return jsonify({'success': False, 'error': 'Requester not found'}), 404
+
+        requester_role = requester.data.get('role')
+        requester_org_id = requester.data.get('organization_id')
+        requester_email = requester.data.get('email')
+
+        # Check if superadmin
+        from app_config import Config
+        is_superadmin = (requester_role == 'admin' and requester_email == Config.SUPERADMIN_EMAIL)
+
+        # Only school_admin and superadmin can revoke advisor role
+        if not (is_superadmin or requester_role == 'school_admin'):
+            return jsonify({
+                'success': False,
+                'error': 'Only school admins can revoke advisor role'
+            }), 403
+
+        # Get target user's info
+        target_user = supabase.table('users')\
+            .select('id, role, organization_id, display_name, email')\
+            .eq('id', target_user_id)\
+            .single()\
+            .execute()
+
+        if not target_user.data:
+            return jsonify({'success': False, 'error': 'Target user not found'}), 404
+
+        target_org_id = target_user.data.get('organization_id')
+
+        # School admins can only revoke within their org
+        if not is_superadmin and requester_org_id != target_org_id:
+            return jsonify({
+                'success': False,
+                'error': 'You can only revoke advisor role from users in your organization'
+            }), 403
+
+        # Prevent revoking non-advisor users
+        if target_user.data.get('role') != 'advisor':
+            return jsonify({
+                'success': False,
+                'error': 'User is not an advisor'
+            }), 400
+
+        # Demote to student role
+        update_data = {'role': 'student'}
+
+        result = supabase.table('users')\
+            .update(update_data)\
+            .eq('id', target_user_id)\
+            .execute()
+
+        if not result.data:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to revoke advisor role'
+            }), 500
+
+        logger.info(
+            f"[ROLE REVOCATION] User {target_user_id} ({target_user.data.get('email')}) "
+            f"demoted from advisor by {user_id} ({requester_email})"
+        )
+
+        return jsonify({
+            'success': True,
+            'message': f"{target_user.data.get('display_name', 'User')} is no longer an advisor",
+            'user': result.data[0]
+        }), 200
+
+    except Exception as e:
+        import traceback
+        logger.error(f"Error revoking advisor role: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to revoke advisor role'
         }), 500

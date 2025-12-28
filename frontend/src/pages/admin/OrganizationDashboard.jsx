@@ -12,7 +12,7 @@ export default function OrganizationDashboard() {
 
   const fetchOrganizations = async () => {
     try {
-      const { data } = await api.get('/api/admin/organizations/organizations');
+      const { data } = await api.get('/api/admin/organizations');
       setOrganizations(data.organizations);
     } catch (error) {
       console.error('Failed to fetch organizations:', error);
@@ -101,7 +101,7 @@ function CreateOrganizationModal({ onClose, onSuccess }) {
     setError('');
 
     try {
-      await api.post('/api/admin/organizations/organizations', formData);
+      await api.post('/api/admin/organizations', formData);
       onSuccess();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create organization');

@@ -17,6 +17,23 @@ class OrganizationRepository(BaseRepository):
             .execute()
         return response.data if response and response.data else None
 
+    def find_by_id(self, org_id: str) -> Optional[Dict[str, Any]]:
+        """Get organization by ID"""
+        response = self.client.table(self.table_name)\
+            .select('*')\
+            .eq('id', org_id)\
+            .maybe_single()\
+            .execute()
+        return response.data if response and response.data else None
+
+    def assign_user_to_organization(self, user_id: str, organization_id: str) -> bool:
+        """Assign a user to an organization"""
+        response = self.client.table('users')\
+            .update({'organization_id': organization_id})\
+            .eq('id', user_id)\
+            .execute()
+        return bool(response.data)
+
     def get_all_active(self) -> List[Dict[str, Any]]:
         """Get all active organizations"""
         response = self.client.table(self.table_name)\
@@ -65,9 +82,9 @@ class OrganizationRepository(BaseRepository):
     def get_organization_users(self, org_id: str) -> List[Dict[str, Any]]:
         """Get all users in an organization"""
         response = self.client.table('users')\
-            .select('id, email, display_name, role, is_org_admin, total_xp')\
+            .select('id, email, display_name, first_name, last_name, role, is_org_admin, total_xp')\
             .eq('organization_id', org_id)\
-            .order('display_name')\
+            .order('first_name')\
             .execute()
         return response.data if response.data else []
 
@@ -111,28 +128,38 @@ class OrganizationRepository(BaseRepository):
         return bool(response.data)
 
     def get_organization_analytics(self, org_id: str) -> Dict[str, Any]:
-        """Get analytics for organization"""
+        """Get analytics for organization using efficient SQL aggregation"""
         from database import get_supabase_admin_client
 
-        # Use admin client for analytics aggregation
         admin = get_supabase_admin_client()
 
-        # Total users
+        # Use raw SQL for efficient aggregation in a single query
+        result = admin.rpc('get_organization_analytics', {'p_org_id': org_id}).execute()
+
+        if result.data and len(result.data) > 0:
+            return result.data[0]
+
+        # Fallback to individual queries if RPC doesn't exist
+        return self._get_organization_analytics_fallback(org_id)
+
+    def _get_organization_analytics_fallback(self, org_id: str) -> Dict[str, Any]:
+        """Fallback analytics using individual queries"""
+        from database import get_supabase_admin_client
+
+        admin = get_supabase_admin_client()
+
+        # Get users in org
         users_response = admin.table('users')\
             .select('id', count='exact')\
             .eq('organization_id', org_id)\
             .execute()
 
-        # Get user IDs for this organization
-        user_ids_response = admin.table('users')\
-            .select('id')\
-            .eq('organization_id', org_id)\
-            .execute()
+        total_users = users_response.count if users_response.count else 0
+        user_ids = [u['id'] for u in users_response.data] if users_response.data else []
 
-        user_ids = [u['id'] for u in user_ids_response.data] if user_ids_response.data else []
-
-        # Total quests completed by org users
+        # Count completions and sum XP from user_skill_xp table
         completions_count = 0
+        total_xp = 0
         if user_ids:
             completions_response = admin.table('quest_task_completions')\
                 .select('id', count='exact')\
@@ -140,16 +167,15 @@ class OrganizationRepository(BaseRepository):
                 .execute()
             completions_count = completions_response.count if completions_response.count else 0
 
-        # Total XP earned by org users (using RPC function)
-        try:
-            xp_result = admin.rpc('get_org_total_xp', {'org_id_param': org_id}).execute()
-            total_xp = xp_result.data if xp_result.data else 0
-        except Exception:
-            # Fallback if RPC doesn't exist yet
-            total_xp = 0
+            # XP is stored in user_skill_xp table
+            xp_response = admin.table('user_skill_xp')\
+                .select('xp_amount')\
+                .in_('user_id', user_ids)\
+                .execute()
+            total_xp = sum(x.get('xp_amount', 0) or 0 for x in xp_response.data) if xp_response.data else 0
 
         return {
-            'total_users': users_response.count if users_response.count else 0,
+            'total_users': total_users,
             'total_completions': completions_count,
             'total_xp': total_xp
         }

@@ -242,8 +242,9 @@ api.interceptors.response.use(
         const isConsultationPage = currentPath === '/consultation'
         const isDemoPage = currentPath === '/demo'
         const isQuestsPage = currentPath.startsWith('/quests') || currentPath.startsWith('/badges')
+        const isJoinPage = currentPath.startsWith('/join/')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isPromoPage && !isConsultationPage && !isDemoPage && !isQuestsPage) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isPromoPage && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage) {
           window.location.href = '/login'
         }
 

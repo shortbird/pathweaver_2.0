@@ -131,6 +131,7 @@ def register():
         email = data['email'].strip().lower()  # Normalize email to lowercase
         date_of_birth = data.get('date_of_birth')  # Optional
         parent_email = data.get('parent_email')  # Required if user is under 13
+        org_slug = data.get('org_slug')  # Optional organization slug for signup
 
         # Mask email in logs
         logger.debug(f"[REGISTRATION] Processing registration for email: {mask_email(email)}")
@@ -253,9 +254,24 @@ def register():
                     user_data['parental_consent_email'] = parent_email.strip().lower()
                     user_data['parental_consent_verified'] = False
 
-            # Assign new users to default Optio organization
-            DEFAULT_OPTIO_ORG_ID = 'e88b7aae-b9ad-4c71-bc3a-eef0701f5852'
-            user_data['organization_id'] = DEFAULT_OPTIO_ORG_ID
+            # Assign user to organization
+            # If org_slug is provided, look up the organization and assign user to it
+            # Otherwise, assign to default Optio organization
+            if org_slug:
+                from services.organization_service import OrganizationService
+                org_service = OrganizationService()
+                org = org_service.get_organization_by_slug(org_slug)
+
+                if not org:
+                    raise ValidationError(f"Organization with slug '{org_slug}' not found or inactive")
+
+                user_data['organization_id'] = org['id']
+                logger.info(f"[REGISTRATION] Assigning user to organization: {org['name']} (slug: {org_slug})")
+            else:
+                # Default to Optio organization
+                DEFAULT_OPTIO_ORG_ID = 'e88b7aae-b9ad-4c71-bc3a-eef0701f5852'
+                user_data['organization_id'] = DEFAULT_OPTIO_ORG_ID
+                logger.info(f"[REGISTRATION] Assigning user to default Optio organization")
 
             # Use upsert to handle cases where auth user exists but profile doesn't
             try:

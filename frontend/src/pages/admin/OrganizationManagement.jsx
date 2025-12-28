@@ -115,6 +115,24 @@ function OverviewTab({ orgId, orgData, onUpdate, onLogoChange }) {
   const [logoUrl, setLogoUrl] = useState(orgData?.organization?.branding_config?.logo_url || '');
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+
+  // Lazy load analytics
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        const { data } = await api.get(`/api/admin/organizations/${orgId}/analytics`);
+        setAnalytics(data);
+      } catch (error) {
+        console.error('Failed to fetch analytics:', error);
+        setAnalytics({ total_users: 0, total_completions: 0, total_xp: 0 });
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    };
+    fetchAnalytics();
+  }, [orgId]);
 
   const policyLabels = {
     all_optio: 'All Optio Quests + Org Quests',
@@ -321,15 +339,27 @@ function OverviewTab({ orgId, orgData, onUpdate, onLogoChange }) {
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <h3 className="text-sm font-medium text-gray-600 mb-2">Total Users</h3>
-          <p className="text-3xl font-bold">{orgData.analytics.total_users}</p>
+          {analyticsLoading ? (
+            <div className="h-9 w-16 bg-gray-200 rounded animate-pulse" />
+          ) : (
+            <p className="text-3xl font-bold">{analytics?.total_users ?? 0}</p>
+          )}
         </div>
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <h3 className="text-sm font-medium text-gray-600 mb-2">Quest Completions</h3>
-          <p className="text-3xl font-bold">{orgData.analytics.total_completions}</p>
+          {analyticsLoading ? (
+            <div className="h-9 w-16 bg-gray-200 rounded animate-pulse" />
+          ) : (
+            <p className="text-3xl font-bold">{analytics?.total_completions ?? 0}</p>
+          )}
         </div>
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <h3 className="text-sm font-medium text-gray-600 mb-2">Total XP Earned</h3>
-          <p className="text-3xl font-bold">{orgData.analytics.total_xp.toLocaleString()}</p>
+          {analyticsLoading ? (
+            <div className="h-9 w-16 bg-gray-200 rounded animate-pulse" />
+          ) : (
+            <p className="text-3xl font-bold">{(analytics?.total_xp ?? 0).toLocaleString()}</p>
+          )}
         </div>
       </div>
 

@@ -266,9 +266,24 @@ def get_current_user():
             user_data = admin_client.table('users').select('*').eq('id', user_id).single().execute()
 
             if user_data.data:
+                response_data = user_data.data
+
+                # Include organization data if user has an organization
+                if response_data.get('organization_id'):
+                    try:
+                        org_data = admin_client.table('organizations')\
+                            .select('id, name, slug, branding_config, quest_visibility_policy')\
+                            .eq('id', response_data['organization_id'])\
+                            .single()\
+                            .execute()
+                        if org_data.data:
+                            response_data['organization'] = org_data.data
+                    except Exception as org_error:
+                        logger.warning(f"Could not fetch organization for user {mask_user_id(user_id)}: {org_error}")
+
                 # Return user data (legacy format for frontend compatibility)
                 # TODO: Migrate to standardized format after updating frontend
-                return jsonify(user_data.data), 200
+                return jsonify(response_data), 200
             else:
                 return error_response(
                     code='USER_NOT_FOUND',
