@@ -3,7 +3,6 @@ import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 // Lazy load all admin components to reduce initial bundle size
-const AdminOverview = lazy(() => import('../components/admin/AdminOverview'))
 const AdminQuests = lazy(() => import('../components/admin/AdminQuests'))
 const AdminBadges = lazy(() => import('../components/admin/AdminBadges'))
 const AdminUsers = lazy(() => import('../components/admin/AdminUsers'))
@@ -14,7 +13,6 @@ const FlaggedTasksPanel = lazy(() => import('../components/admin/FlaggedTasksPan
 const UserActivityLogPage = lazy(() => import('./admin/UserActivityLogPage'))
 const SparkLogsPanel = lazy(() => import('../components/admin/SparkLogsPanel'))
 const CRMPage = lazy(() => import('./CRMPage'))
-const CourseImport = lazy(() => import('../components/admin/CourseImport'))
 const SubjectReviewPage = lazy(() => import('./admin/SubjectReviewPage'))
 const OrganizationDashboard = lazy(() => import('./admin/OrganizationDashboard'))
 const OrganizationManagement = lazy(() => import('./admin/OrganizationManagement'))
@@ -49,13 +47,7 @@ const AdminPage = () => {
           <>
             <Link
               to="/admin"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              Overview
-            </Link>
-            <Link
-              to="/admin/quests"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'quests' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' || currentPath === 'quests' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Quests
             </Link>
@@ -102,12 +94,6 @@ const AdminPage = () => {
               CRM
             </Link>
             <Link
-              to="/admin/course-import"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'course-import' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              Course Import
-            </Link>
-            <Link
               to="/admin/subject-review"
               className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'subject-review' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
@@ -147,7 +133,7 @@ const AdminPage = () => {
 
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
-          <Route index element={<AdminOverview />} />
+          <Route index element={<AdminQuests />} />
           <Route path="quests" element={<AdminQuests />} />
           <Route path="analytics" element={<AdminDashboard />} />
           <Route path="badges" element={<AdminBadges />} />
@@ -158,7 +144,6 @@ const AdminPage = () => {
           <Route path="user/:userId/activity" element={<UserActivityLogPage />} />
           <Route path="lms-logs" element={<SparkLogsPanel />} />
           <Route path="crm" element={<CRMPage />} />
-          <Route path="course-import" element={<CourseImport />} />
           <Route path="subject-review" element={<SubjectReviewPage />} />
           <Route path="organizations" element={<OrganizationDashboard />} />
           <Route path="organizations/:orgId" element={<OrganizationManagement />} />

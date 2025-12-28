@@ -144,29 +144,39 @@ const AdminQuests = () => {
   }
 
   const handleToggleActive = async (questId, currentStatus) => {
-    try {
-      const newStatus = !currentStatus
-      await api.put(`/api/admin/quests/${questId}`, {
-        is_active: newStatus
+    const newStatus = !currentStatus
+    // Optimistic update
+    setQuests(prev => prev.map(q =>
+      q.id === questId ? { ...q, is_active: newStatus } : q
+    ))
+
+    // Background API call
+    api.put(`/api/admin/quests/${questId}`, { is_active: newStatus })
+      .catch(error => {
+        // Revert on failure
+        setQuests(prev => prev.map(q =>
+          q.id === questId ? { ...q, is_active: currentStatus } : q
+        ))
+        toast.error('Failed to update quest status')
       })
-      toast.success(`Quest ${newStatus ? 'activated' : 'deactivated'} successfully`)
-      fetchQuests()
-    } catch (error) {
-      toast.error('Failed to update quest status')
-    }
   }
 
   const handleTogglePublic = async (questId, currentStatus) => {
-    try {
-      const newStatus = !currentStatus
-      await api.put(`/api/admin/quests/${questId}`, {
-        is_public: newStatus
+    const newStatus = !currentStatus
+    // Optimistic update
+    setQuests(prev => prev.map(q =>
+      q.id === questId ? { ...q, is_public: newStatus } : q
+    ))
+
+    // Background API call
+    api.put(`/api/admin/quests/${questId}`, { is_public: newStatus })
+      .catch(error => {
+        // Revert on failure
+        setQuests(prev => prev.map(q =>
+          q.id === questId ? { ...q, is_public: currentStatus } : q
+        ))
+        toast.error('Failed to update quest visibility')
       })
-      toast.success(`Quest ${newStatus ? 'made public' : 'made private'} successfully`)
-      fetchQuests()
-    } catch (error) {
-      toast.error('Failed to update quest visibility')
-    }
   }
 
   return (
@@ -207,127 +217,53 @@ const AdminQuests = () => {
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="space-y-4 mb-6">
+      {/* Filter Row */}
+      <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
         {/* Active Status Filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Active Status</label>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setActiveFilter('all')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeFilter === 'all'
-                  ? 'bg-gradient-primary text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setActiveFilter('active')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeFilter === 'active'
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => setActiveFilter('inactive')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeFilter === 'inactive'
-                  ? 'bg-gray-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Inactive
-            </button>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-600">Status:</span>
+          <select
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value)}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+          >
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
         </div>
 
         {/* Quest Type Filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Quest Type</label>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setQuestTypeFilter('all')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                questTypeFilter === 'all'
-                  ? 'bg-gradient-primary text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              All Types
-            </button>
-            <button
-              onClick={() => setQuestTypeFilter('optio')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                questTypeFilter === 'optio'
-                  ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Optio Quests
-            </button>
-            <button
-              onClick={() => setQuestTypeFilter('course')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                questTypeFilter === 'course'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Course Quests
-            </button>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-600">Type:</span>
+          <select
+            value={questTypeFilter}
+            onChange={(e) => setQuestTypeFilter(e.target.value)}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+          >
+            <option value="all">All Types</option>
+            <option value="optio">Optio</option>
+            <option value="course">Course</option>
+          </select>
         </div>
 
         {/* Public Status Filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Public Status</label>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPublicFilter('all')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                publicFilter === 'all'
-                  ? 'bg-gradient-primary text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setPublicFilter('public')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                publicFilter === 'public'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Public
-            </button>
-            <button
-              onClick={() => setPublicFilter('private')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                publicFilter === 'private'
-                  ? 'bg-gray-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Private
-            </button>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-600">Visibility:</span>
+          <select
+            value={publicFilter}
+            onChange={(e) => setPublicFilter(e.target.value)}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+          >
+            <option value="all">All</option>
+            <option value="public">Public</option>
+            <option value="private">Private</option>
+          </select>
         </div>
 
         {/* Results Summary */}
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <p className="text-sm text-gray-700">
-            Showing <span className="font-semibold">{quests.length}</span> quest{quests.length !== 1 ? 's' : ''}
-            {activeFilter !== 'all' && <span> (Active: {activeFilter})</span>}
-            {questTypeFilter !== 'all' && <span> (Type: {questTypeFilter})</span>}
-            {publicFilter !== 'all' && <span> (Public: {publicFilter})</span>}
-          </p>
+        <div className="ml-auto text-sm text-gray-600">
+          <span className="font-semibold">{quests.length}</span> quest{quests.length !== 1 ? 's' : ''}
         </div>
       </div>
 
