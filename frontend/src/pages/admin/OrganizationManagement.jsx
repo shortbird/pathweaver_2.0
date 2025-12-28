@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOrganization } from '../../contexts/OrganizationContext';
 import api from '../../services/api';
@@ -1063,15 +1063,15 @@ function CurriculumQuestCard({ quest }) {
             </span>
           </div>
         </div>
-        <a
-          href={`/quests/${quest.id}/curriculum/edit`}
+        <Link
+          to={`/quests/${quest.id}/curriculum/edit`}
           className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
           </svg>
           {hasCurriculum ? 'Edit' : 'Build'}
-        </a>
+        </Link>
       </div>
     </div>
   );
