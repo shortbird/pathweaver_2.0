@@ -38,11 +38,13 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
 
         # OPTIMIZED: Single query with JOIN to get user role AND link status
         # This reduces 3 queries to 1, preventing HTTP/2 stream exhaustion
+        # NOTE: Include status in the select to filter for approved links only
         user_response = supabase.table('users').select('''
             role,
             parent_student_links!parent_student_links_parent_user_id_fkey(
                 id,
-                student_user_id
+                student_user_id,
+                status
             )
         ''').eq('id', parent_user_id).single().execute()
 
@@ -56,10 +58,11 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
         if user_role not in ('parent', 'admin', 'superadmin'):
             raise AuthorizationError("Only parent accounts can access this endpoint")
 
-        # Check for link to this specific student (all links are permanent once created)
+        # Check for APPROVED link to this specific student only
+        # Links with pending_approval or rejected status should not grant access
         links = user.get('parent_student_links', [])
         has_active_link = any(
-            link.get('student_user_id') == student_user_id
+            link.get('student_user_id') == student_user_id and link.get('status') == 'approved'
             for link in links
         )
 
