@@ -820,6 +820,50 @@ def assign_user_to_organization(admin_user_id, user_id):
             'error': 'Failed to assign user to organization'
         }), 500
 
+@bp.route('/users/<user_id>/org-role', methods=['PUT', 'OPTIONS'])
+@require_admin
+def update_user_org_role(admin_user_id, user_id):
+    """
+    Admin endpoint to update a user's organizational role.
+    Sets is_org_admin to true/false based on the role.
+    Only platform admins can change organizational roles.
+    """
+    try:
+        data = request.json
+        org_role = data.get('org_role')
+
+        if org_role not in ['member', 'admin']:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid org_role. Must be "member" or "admin"'
+            }), 400
+
+        is_org_admin = org_role == 'admin'
+
+        from database import get_supabase_admin_client
+        admin_client = get_supabase_admin_client()
+
+        # Update the user's org admin status
+        admin_client.table('users')\
+            .update({'is_org_admin': is_org_admin})\
+            .eq('id', user_id)\
+            .execute()
+
+        logger.info(f"[ADMIN] User {user_id} org_role set to {org_role} (is_org_admin={is_org_admin}) by admin {admin_user_id}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Organizational role updated to {org_role}',
+            'is_org_admin': is_org_admin
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error updating user org role: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to update organizational role'
+        }), 500
+
 @bp.route('/organizations', methods=['GET'])
 @require_admin
 def get_organizations(admin_user_id):

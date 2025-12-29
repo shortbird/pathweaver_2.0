@@ -116,7 +116,7 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
         <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-              <DocumentTextIcon size={28} />
+              <DocumentTextIcon className="h-7 w-7" />
               Advisor Notes
             </h2>
             <p className="text-purple-100 mt-1">Confidential notes for {subjectName}</p>
@@ -125,7 +125,7 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
             onClick={onClose}
             className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2 transition-colors"
           >
-            <XMarkIcon size={24} />
+            <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
 
@@ -150,7 +150,7 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
                 disabled={!newNoteText.trim() || submitting}
                 className="px-4 py-2 bg-optio-purple text-white rounded-lg font-semibold hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
               >
-                <PlusIcon size={18} />
+                <PlusIcon className="h-4 w-4" />
                 Add Note
               </button>
             </div>
@@ -172,7 +172,7 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
             </div>
           ) : notes.length === 0 ? (
             <div className="text-center py-12">
-              <DocumentTextIcon className="mx-auto text-gray-300 mb-4" size={64} />
+              <DocumentTextIcon className="h-16 w-16 mx-auto text-gray-300 mb-4" />
               <p className="text-gray-500 font-medium text-lg">No notes yet</p>
               <p className="text-gray-400 text-sm mt-1">
                 Add your first note above to get started
@@ -200,14 +200,14 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
                           className="text-blue-600 hover:bg-blue-50 p-1.5 rounded transition-colors"
                           title="Edit note"
                         >
-                          <PencilSquareIcon size={16} />
+                          <PencilSquareIcon className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteNote(note.id)}
                           className="text-red-600 hover:bg-red-50 p-1.5 rounded transition-colors"
                           title="Delete note"
                         >
-                          <TrashIcon size={16} />
+                          <TrashIcon className="h-4 w-4" />
                         </button>
                       </div>
                     )}
@@ -235,7 +235,7 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
                           disabled={!editingText.trim() || submitting}
                           className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-1 transition-colors"
                         >
-                          <ArrowDownTrayIcon size={16} />
+                          <ArrowDownTrayIcon className="h-4 w-4" />
                           Save
                         </button>
                       </div>

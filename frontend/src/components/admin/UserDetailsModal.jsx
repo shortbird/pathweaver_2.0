@@ -1,14 +1,17 @@
 import React, { useState, useEffect, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import ChatLogsModal from './ChatLogsModal'
 import CheckinHistoryModal from '../advisor/CheckinHistoryModal'
 import { startMasquerade } from '../../services/masqueradeService'
+import { queryKeys } from '../../utils/queryKeys'
 // import { useAdminSubscriptionTiers, formatPrice } from '../../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const UserDetailsModal = ({ user, onClose, onSave }) => {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState('profile')
   const [formData, setFormData] = useState({
     first_name: user.first_name || '',
@@ -16,6 +19,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     email: user.email || '',
     role: user.role || 'student',
     organization_id: user.organization_id || '',
+    org_role: user.is_org_admin ? 'admin' : 'member',
     phone_number: user.phone_number || '',
     address_line1: user.address_line1 || '',
     address_line2: user.address_line2 || '',
@@ -35,6 +39,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const [organizations, setOrganizations] = useState([])
   const [currentOrgName, setCurrentOrgName] = useState(user.organization_name || user.organization?.name || '')
   const [originalOrgId, setOriginalOrgId] = useState(user.organization_id || '')
+  const [originalOrgRole, setOriginalOrgRole] = useState(user.is_org_admin ? 'admin' : 'member')
 
   useEffect(() => {
     fetchUserDetails()
@@ -48,6 +53,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
       // API returns { user: {...}, xp_by_pillar: {...}, ... }
       const userData = response.data.user || response.data
       // Update formData with fetched user details (including new fields)
+      const orgRole = userData.is_org_admin ? 'admin' : 'member'
       setFormData(prev => ({
         ...prev,
         phone_number: userData.phone_number || '',
@@ -58,8 +64,10 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
         postal_code: userData.postal_code || '',
         country: userData.country || '',
         date_of_birth: userData.date_of_birth || '',
-        organization_id: userData.organization_id || ''
+        organization_id: userData.organization_id || '',
+        org_role: orgRole
       }))
+      setOriginalOrgRole(orgRole)
       setCurrentAvatarUrl(userData.avatar_url || '')
       // Update original org tracking
       const orgId = userData.organization_id || ''
@@ -155,6 +163,29 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     }
   }
 
+  const handleUpdateOrgRole = async () => {
+    const roleDisplayNames = {
+      member: 'Member',
+      admin: 'Organization Admin'
+    }
+    const displayName = roleDisplayNames[formData.org_role] || formData.org_role
+    if (window.confirm(`Change organizational role to ${displayName}?`)) {
+      setLoading(true)
+      try {
+        await api.put(`/api/admin/users/${user.id}/org-role`, {
+          org_role: formData.org_role
+        })
+        toast.success('Organizational role updated successfully')
+        setOriginalOrgRole(formData.org_role)
+        onSave()
+      } catch (error) {
+        toast.error('Failed to update organizational role')
+      } finally {
+        setLoading(false)
+      }
+    }
+  }
+
   const handleViewChatLogs = () => {
     setShowChatLogsModal(true)
   }
@@ -189,22 +220,18 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
         // Close modal
         onClose()
 
-        // Redirect based on user role
-        setTimeout(() => {
-          const role = result.targetUser.role
+        // Redirect based on user role - full page load required to reinitialize AuthContext
+        // After this initial load, navigation within masquerade mode is smooth (no reloads)
+        const role = result.targetUser.role
+        let targetPath = '/dashboard'
 
-          if (role === 'parent') {
-            navigate('/parent/dashboard')
-          } else if (role === 'advisor') {
-            navigate('/advisor/dashboard')
-          } else if (role === 'student') {
-            navigate('/dashboard')
-          } else {
-            navigate('/dashboard') // Default fallback
-          }
+        if (role === 'parent') {
+          targetPath = '/parent/dashboard'
+        } else if (role === 'advisor') {
+          targetPath = '/advisor/dashboard'
+        }
 
-          window.location.reload() // Force reload to apply new token
-        }, 500)
+        window.location.href = targetPath
       } else {
         toast.error(result.error || 'Failed to start masquerade')
         setMasquerading(false)
@@ -673,6 +700,54 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   } disabled:bg-gray-400`}
                 >
                   {loading ? 'Updating...' : 'Update Organization'}
+                </button>
+              </div>
+
+              {/* Organizational Role Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Organizational Role</h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Current Organizational Role
+                  </label>
+                  <span className={`px-3 py-2 rounded-full text-sm font-semibold ${
+                    originalOrgRole === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {originalOrgRole === 'admin' ? 'Organization Admin' : 'Member'}
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Set Organizational Role
+                  </label>
+                  <select
+                    name="org_role"
+                    value={formData.org_role}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="member">Member</option>
+                    <option value="admin">Organization Admin</option>
+                  </select>
+                </div>
+
+                <div className="p-3 bg-purple-50 rounded-lg">
+                  <p className="text-sm text-purple-800">
+                    <span className="font-semibold">Note:</span> Organization Admins have full admin privileges for organization-specific operations (managing quests, users, and settings within their organization) while remaining regular advisors on the platform.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleUpdateOrgRole}
+                  disabled={loading || formData.org_role === originalOrgRole}
+                  className={`w-full py-2 rounded-lg font-medium ${
+                    formData.org_role === originalOrgRole
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-optio-purple text-white hover:bg-purple-700'
+                  } disabled:bg-gray-400`}
+                >
+                  {loading ? 'Updating...' : 'Update Organizational Role'}
                 </button>
               </div>
             </div>

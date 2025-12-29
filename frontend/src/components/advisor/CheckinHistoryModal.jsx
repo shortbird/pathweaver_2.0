@@ -60,7 +60,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
               onClick={onClose}
               className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
             >
-              <XMarkIcon size={24} />
+              <XMarkIcon className="h-6 w-6" />
             </button>
           </div>
         </div>

@@ -41,10 +41,11 @@ export const tokenStore = {
       const storedAccess = await secureTokenStore.getAccessToken()
       const storedRefresh = await secureTokenStore.getRefreshToken()
 
-      if (storedAccess && storedRefresh) {
+      // FIX: Restore access token even if refresh is null (masquerade sessions don't have refresh tokens)
+      if (storedAccess) {
         accessToken = storedAccess
-        refreshToken = storedRefresh
-        logger.debug('[TokenStore] Tokens restored from encrypted IndexedDB')
+        refreshToken = storedRefresh // Can be null for masquerade tokens
+        logger.debug('[TokenStore] Tokens restored from encrypted IndexedDB', { hasRefresh: !!storedRefresh })
         return true
       }
     } catch (error) {
