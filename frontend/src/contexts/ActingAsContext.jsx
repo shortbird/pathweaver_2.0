@@ -127,11 +127,17 @@ export const ActingAsProvider = ({ children }) => {
         // Store token in tokenStore so it gets included in Authorization header
         await tokenStore.setTokens(acting_as_token, tokenStore.getRefreshToken() || parentRefresh);
 
-        // Use startTransition for non-urgent state updates (prevents React errors #300 and #310)
+        logger.debug('[ActingAsContext] Now acting as dependent:', dependent.display_name);
+
+        // CRITICAL FIX: Force full page reload to clear React Query cache
+        // Without this, cached data from parent session shows instead of dependent's data
+        // This matches the behavior of clearActingAs() which does window.location.href
+        window.location.href = '/dashboard';
+
+        // The code below won't be reached due to page redirect, but keep for fallback
         startTransition(() => {
           setActingAsDependent(dependent);
           setActingAsToken(acting_as_token);
-          logger.debug('[ActingAsContext] Now acting as dependent:', dependent.display_name);
         });
       } catch (error) {
         console.error('[ActingAsContext] Failed to generate acting-as token:', error);

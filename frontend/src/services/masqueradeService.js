@@ -75,6 +75,14 @@ export const startMasquerade = async (userId, reason = '', apiCall) => {
     localStorage.setItem(MASQUERADE_STORAGE_KEY, JSON.stringify(masqueradeState));
     logger.debug('[Masquerade] Started masquerading as:', target_user.display_name || target_user.email);
 
+    // CRITICAL FIX: Force full page reload to clear React Query cache
+    // Without this, cached data from admin session shows instead of target user data
+    // Redirect to dashboard based on target user's role
+    const targetRole = target_user.role;
+    const redirectPath = targetRole === 'parent' ? '/parent/dashboard' : '/dashboard';
+    window.location.href = redirectPath;
+
+    // This return won't be reached due to page redirect, but keep for type safety
     return {
       success: true,
       targetUser: target_user

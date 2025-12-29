@@ -126,6 +126,10 @@ function AppContent() {
   const { actingAsDependent, clearActingAs } = useActingAs();
   const [consentBlockData, setConsentBlockData] = useState(null);
 
+  // Track consecutive status check failures for resilient banner
+  const statusCheckFailures = React.useRef(0);
+  const MAX_STATUS_CHECK_FAILURES = 3;
+
   // Check masquerade state on mount and periodically
   useEffect(() => {
     const checkMasquerade = async () => {
@@ -142,6 +146,9 @@ function AppContent() {
             const response = await api.get('/api/admin/masquerade/status');
             const backendStatus = response.data;
 
+            // Reset failure counter on successful check
+            statusCheckFailures.current = 0;
+
             // If backend says we're not masquerading but localStorage says we are, clear it
             if (!backendStatus.is_masquerading) {
               console.warn('Clearing stale masquerade state from localStorage');
@@ -150,15 +157,24 @@ function AppContent() {
               setMasqueradeState(null);
             }
           } catch (error) {
-            // If status check fails, clear masquerade state to be safe
-            console.warn('Failed to verify masquerade status, clearing state:', error);
-            localStorage.removeItem('masquerade_state');
-            localStorage.removeItem('original_admin_token');
-            setMasqueradeState(null);
+            // RESILIENCE FIX: Don't immediately clear masquerade state on transient errors
+            // Only clear after multiple consecutive failures to avoid losing banner on network blips
+            statusCheckFailures.current += 1;
+            console.warn(`Masquerade status check failed (${statusCheckFailures.current}/${MAX_STATUS_CHECK_FAILURES}):`, error.message);
+
+            if (statusCheckFailures.current >= MAX_STATUS_CHECK_FAILURES) {
+              console.error('Too many masquerade status check failures, clearing state');
+              localStorage.removeItem('masquerade_state');
+              localStorage.removeItem('original_admin_token');
+              setMasqueradeState(null);
+              statusCheckFailures.current = 0;
+            }
+            // Otherwise keep the banner visible - user can still use exit button
           }
         }
       } else {
         setMasqueradeState(null);
+        statusCheckFailures.current = 0;
       }
     };
 
