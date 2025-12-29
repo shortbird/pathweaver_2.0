@@ -113,7 +113,7 @@ export default function OrganizationManagement() {
       {activeTab === 'overview' && <OverviewTab orgId={orgId} orgData={orgData} onUpdate={fetchOrganizationData} onLogoChange={refreshOrganization} />}
       {activeTab === 'users' && <UsersTab orgId={orgId} users={orgData.users} onUpdate={fetchOrganizationData} />}
       {activeTab === 'quests' && <QuestsTab orgId={orgId} orgData={orgData} onUpdate={fetchOrganizationData} siteSettings={siteSettings} />}
-      {activeTab === 'curriculum' && <CurriculumTab orgId={orgId} />}
+      {activeTab === 'curriculum' && <CurriculumTab orgId={orgId} orgData={orgData} />}
     </div>
   );
 }
@@ -934,23 +934,42 @@ function QuestsTab({ orgId, orgData, onUpdate, siteSettings }) {
   );
 }
 
-function CurriculumTab({ orgId }) {
+function CurriculumTab({ orgId, orgData }) {
   const [quests, setQuests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
+  const policy = orgData?.organization?.quest_visibility_policy || 'all_optio';
+
   const fetchQuests = async () => {
     try {
       setLoading(true);
-      // Fetch all quests - advisor sees their own, admin sees all
-      const { data } = await api.get('/api/admin/quests?per_page=1000');
-      const allQuests = data.quests || [];
-      // Show quests belonging to this org OR platform quests (null org_id)
-      const orgQuests = allQuests.filter(q =>
-        q.organization_id === orgId || q.organization_id === null
-      );
-      setQuests(orgQuests);
+      // Fetch all quests and accessible quest IDs in parallel
+      const [questsRes, orgRes] = await Promise.all([
+        api.get('/api/admin/quests?per_page=1000'),
+        api.get(`/api/admin/organizations/${orgId}`)
+      ]);
+
+      const allQuests = questsRes.data.quests || [];
+      const curatedIds = new Set((orgRes.data.curated_quests || []).map(q => q.quest_id));
+
+      // Filter quests based on visibility policy
+      const visibleQuests = allQuests.filter(quest => {
+        const isOrgQuest = quest.organization_id === orgId;
+        if (isOrgQuest) return true;
+
+        if (policy === 'all_optio') {
+          return !quest.organization_id;
+        } else if (policy === 'curated') {
+          return curatedIds.has(quest.id);
+        } else if (policy === 'private_only') {
+          return false;
+        }
+        return false;
+      });
+
+      setQuests(visibleQuests);
     } catch (error) {
       console.error('Failed to fetch quests:', error);
     } finally {
@@ -960,7 +979,7 @@ function CurriculumTab({ orgId }) {
 
   useEffect(() => {
     fetchQuests();
-  }, [orgId]);
+  }, [orgId, policy]);
 
   const filteredQuests = quests.filter(quest =>
     quest.title?.toLowerCase().includes(searchTerm.toLowerCase())
