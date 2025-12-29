@@ -2,6 +2,7 @@ import React from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
+import { useActingAs } from '../../contexts/ActingAsContext'
 import NotificationBell from '../notifications/NotificationBell'
 // import { getTierDisplayName, getTierBadgeColor } from '../../utils/tierMapping' // REMOVED - Phase 3 refactoring (January 2025)
 
@@ -10,6 +11,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
   const navigate = useNavigate()
   const { user, logout, isAuthenticated } = useAuth()
   const { organization } = useOrganization()
+  const { actingAsDependent } = useActingAs()
 
   const handleLogout = async () => {
     await logout()
@@ -108,12 +110,12 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
           <div className="flex items-center space-x-4">
             {isAuthenticated ? (
               <>
-                {/* User Name */}
+                {/* User Name - Show dependent's name when acting as them */}
                 <Link
                   to="/profile"
                   className="hidden sm:block text-sm font-poppins font-medium text-neutral-700 hover:text-optio-purple transition-colors"
                 >
-                  {user?.first_name} {user?.last_name}
+                  {actingAsDependent ? actingAsDependent.display_name : `${user?.first_name} ${user?.last_name}`}
                 </Link>
 
                 {/* Notification Bell */}

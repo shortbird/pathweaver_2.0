@@ -30,16 +30,34 @@ const STORE_NAME = 'auth_tokens'
 const ENCRYPTION_KEY_NAME = 'session_encryption_key'
 
 /**
- * Generate or retrieve session-specific encryption key
- * Key is stored in sessionStorage (cleared on tab close)
- * This ensures tokens are only accessible during the current session
+ * Generate or retrieve encryption key
  *
- * WebKit fix: Also stores key in IndexedDB as fallback for WebKit headless tests
- * where sessionStorage doesn't persist across navigations
+ * PRODUCTION FIX (December 2025): Use localStorage instead of sessionStorage
+ *
+ * Problem: In production, www.optioeducation.com and optioeducation.com are
+ * different origins. If the user visits one and gets redirected to the other,
+ * sessionStorage (which is per-origin) loses the encryption key. This caused
+ * token decryption to fail, which cleared all tokens and logged users out.
+ *
+ * Fix: Store the encryption key in localStorage (also per-origin, but persists
+ * across sessions). We also check sessionStorage for backward compatibility
+ * with existing sessions.
+ *
+ * Note: Both localStorage and IndexedDB are per-origin, so www redirects can
+ * still cause issues. The real fix is to ensure consistent URLs in production.
  */
 async function getEncryptionKey() {
-  // Try to get existing key from sessionStorage first
-  const storedKey = sessionStorage.getItem(ENCRYPTION_KEY_NAME)
+  // Try localStorage first (more persistent than sessionStorage)
+  let storedKey = localStorage.getItem(ENCRYPTION_KEY_NAME)
+
+  // Fallback to sessionStorage for backward compatibility
+  if (!storedKey) {
+    storedKey = sessionStorage.getItem(ENCRYPTION_KEY_NAME)
+    // Migrate to localStorage if found in sessionStorage
+    if (storedKey) {
+      localStorage.setItem(ENCRYPTION_KEY_NAME, storedKey)
+    }
+  }
 
   if (storedKey) {
     // Import existing key
@@ -75,8 +93,8 @@ async function getEncryptionKey() {
     if (result && result.value) {
       logger.debug('[SecureTokenStore] Retrieved encryption key from IndexedDB fallback')
       const keyData = result.value
-      // Store back in sessionStorage for faster access
-      sessionStorage.setItem(ENCRYPTION_KEY_NAME, JSON.stringify(keyData))
+      // Store back in localStorage for faster access
+      localStorage.setItem(ENCRYPTION_KEY_NAME, JSON.stringify(keyData))
       return await crypto.subtle.importKey(
         'jwk',
         keyData,
@@ -97,9 +115,9 @@ async function getEncryptionKey() {
     ['encrypt', 'decrypt']
   )
 
-  // Export and store key in sessionStorage
+  // Export and store key in localStorage (more persistent than sessionStorage)
   const exportedKey = await crypto.subtle.exportKey('jwk', key)
-  sessionStorage.setItem(ENCRYPTION_KEY_NAME, JSON.stringify(exportedKey))
+  localStorage.setItem(ENCRYPTION_KEY_NAME, JSON.stringify(exportedKey))
 
   // Also store in IndexedDB as fallback for WebKit headless tests
   try {
@@ -351,7 +369,8 @@ async function clearAllTokens() {
 
     db.close()
 
-    // Also clear encryption key from both sessionStorage and IndexedDB
+    // Clear encryption key from both localStorage and sessionStorage
+    localStorage.removeItem(ENCRYPTION_KEY_NAME)
     sessionStorage.removeItem(ENCRYPTION_KEY_NAME)
 
     return true
