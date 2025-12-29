@@ -496,7 +496,13 @@ class SessionManager:
             if access_payload:
                 return access_payload.get('user_id')
 
-        # Cookie fallback (works in both same-origin and cross-origin)
+            # CRITICAL FIX: If Authorization header is present but verification failed,
+            # do NOT fall back to cookies. This prevents masquerade bypass where the
+            # cookie still contains the admin's token.
+            logger.warning(f"[SessionManager] Authorization header present but token verification failed")
+            return None
+
+        # Cookie fallback (only when no Authorization header)
         access_token = request.cookies.get('access_token')
         if access_token:
             payload = self.verify_access_token(access_token)
