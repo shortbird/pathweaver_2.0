@@ -14,12 +14,13 @@ export const useActingAs = () => {
 };
 
 export const ActingAsProvider = ({ children }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [actingAsDependent, setActingAsDependent] = useState(null);
   const [actingAsToken, setActingAsToken] = useState(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   // Load acting-as state from sessionStorage on mount
-  // sessionStorage clears on page refresh, returning user to parent account
+  // sessionStorage persists acting-as state across page reloads
   useEffect(() => {
     const restoreActingAsState = async () => {
       const stored = sessionStorage.getItem('acting_as_dependent');
@@ -43,6 +44,8 @@ export const ActingAsProvider = ({ children }) => {
           sessionStorage.removeItem('acting_as_token');
         }
       }
+      // Mark as initialized after attempting to restore
+      setHasInitialized(true);
     };
 
     restoreActingAsState();
@@ -96,12 +99,15 @@ export const ActingAsProvider = ({ children }) => {
     });
   }, []);
 
-  // Clear acting-as state if user changes or logs out
+  // Clear acting-as state if user logs out (NOT during initial load)
+  // CRITICAL: Only run after initialization AND auth loading is complete
+  // Otherwise this wipes sessionStorage before we can restore acting-as state
   useEffect(() => {
-    if (!user) {
+    if (hasInitialized && !loading && !user) {
+      logger.debug('[ActingAsContext] User logged out, clearing acting-as state');
       clearActingAs();
     }
-  }, [user, clearActingAs]);
+  }, [user, loading, hasInitialized, clearActingAs]);
 
   const setActingAs = async (dependent) => {
     if (dependent) {

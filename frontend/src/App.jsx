@@ -13,7 +13,7 @@ import { tokenStore } from './services/api'
 import MasqueradeBanner from './components/admin/MasqueradeBanner'
 import ActingAsBanner from './components/parent/ActingAsBanner'
 import ConsentBlockedOverlay from './components/consent/ConsentBlockedOverlay'
-import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
+import { getMasqueradeState, exitMasquerade, restoreMasqueradeToken } from './services/masqueradeService'
 import { queryKeys } from './utils/queryKeys'
 import logger from './utils/logger'
 import api from './services/api'
@@ -138,6 +138,10 @@ function AppContent() {
       // Show banner immediately from localStorage (don't wait for API verification)
       if (state) {
         setMasqueradeState(state);
+
+        // CRITICAL: Restore masquerade token from localStorage backup if needed
+        // This ensures the token persists even if IndexedDB fails
+        await restoreMasqueradeToken();
 
         // Verify with backend in the background (don't block the UI)
         const token = tokenStore.getAccessToken();

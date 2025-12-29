@@ -8,6 +8,7 @@ import logger from '../utils/logger';
 
 const MASQUERADE_STORAGE_KEY = 'masquerade_state';
 const ADMIN_TOKEN_STORAGE_KEY = 'original_admin_token';
+const MASQUERADE_TOKEN_STORAGE_KEY = 'masquerade_token'; // Backup storage for masquerade token
 
 /**
  * Get current masquerade state from localStorage
@@ -27,6 +28,39 @@ export const getMasqueradeState = () => {
  */
 export const isMasquerading = () => {
   return getMasqueradeState() !== null;
+};
+
+/**
+ * Get masquerade token from localStorage backup
+ * Used to restore token after page reload if IndexedDB fails
+ */
+export const getMasqueradeToken = () => {
+  try {
+    return localStorage.getItem(MASQUERADE_TOKEN_STORAGE_KEY);
+  } catch (error) {
+    console.error('Error getting masquerade token from localStorage:', error);
+    return null;
+  }
+};
+
+/**
+ * Restore masquerade token from localStorage backup to tokenStore
+ * Call this on app initialization to ensure masquerade persists across page reloads
+ */
+export const restoreMasqueradeToken = async () => {
+  const state = getMasqueradeState();
+  const backupToken = getMasqueradeToken();
+
+  if (state && backupToken) {
+    // Only restore if we have both state AND token backup
+    const currentToken = tokenStore.getAccessToken();
+    if (!currentToken || currentToken !== backupToken) {
+      logger.debug('[Masquerade] Restoring masquerade token from localStorage backup');
+      await tokenStore.setTokens(backupToken, tokenStore.getRefreshToken() || '');
+      return true;
+    }
+  }
+  return false;
 };
 
 /**
@@ -61,7 +95,11 @@ export const startMasquerade = async (userId, reason = '', apiCall) => {
     // This matches the pattern used by ActingAsContext which works correctly
     const existingRefreshToken = tokenStore.getRefreshToken() || currentRefreshToken;
     await tokenStore.setTokens(masquerade_token, existingRefreshToken);
-    logger.debug('[Masquerade] Masquerade token stored in tokenStore with refresh token');
+
+    // BACKUP: Also store masquerade token in localStorage for reliable restoration after reload
+    // IndexedDB can be unreliable in some browsers/scenarios
+    localStorage.setItem(MASQUERADE_TOKEN_STORAGE_KEY, masquerade_token);
+    logger.debug('[Masquerade] Masquerade token stored in tokenStore AND localStorage backup');
 
     // Store masquerade state
     const masqueradeState = {
@@ -125,6 +163,7 @@ export const exitMasquerade = async (apiCall) => {
     // Clear masquerade state
     localStorage.removeItem(MASQUERADE_STORAGE_KEY);
     localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+    localStorage.removeItem(MASQUERADE_TOKEN_STORAGE_KEY);
     logger.debug('[Masquerade] Exited masquerade session, returned to admin identity');
 
     return {
@@ -141,6 +180,7 @@ export const exitMasquerade = async (apiCall) => {
       await tokenStore.setTokens(access_token, refresh_token);
       localStorage.removeItem(MASQUERADE_STORAGE_KEY);
       localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+      localStorage.removeItem(MASQUERADE_TOKEN_STORAGE_KEY);
       logger.debug('[Masquerade] Restored admin tokens from backup after exit error');
 
       // Force page reload to refresh with admin token
@@ -175,9 +215,10 @@ export const checkMasqueradeStatus = async (apiCall) => {
  */
 export const clearMasqueradeData = () => {
   try {
-    // Clear masquerade state
+    // Clear all masquerade-related storage
     localStorage.removeItem(MASQUERADE_STORAGE_KEY);
     localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+    localStorage.removeItem(MASQUERADE_TOKEN_STORAGE_KEY);
 
     // CRITICAL FIX: Also clear any active masquerade tokens from tokenStore
     // This prevents the masquerade token from being restored on page refresh
@@ -191,13 +232,15 @@ export const clearMasqueradeData = () => {
     const refreshToken = localStorage.getItem('refresh_token');
     const masqueradeState = localStorage.getItem(MASQUERADE_STORAGE_KEY);
     const adminToken = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
+    const masqueradeToken = localStorage.getItem(MASQUERADE_TOKEN_STORAGE_KEY);
 
-    if (accessToken || refreshToken || masqueradeState || adminToken) {
+    if (accessToken || refreshToken || masqueradeState || adminToken || masqueradeToken) {
       console.error('[Masquerade] CRITICAL: Tokens still exist after clearing!', {
         hasAccess: !!accessToken,
         hasRefresh: !!refreshToken,
         hasMasqueradeState: !!masqueradeState,
-        hasAdminToken: !!adminToken
+        hasAdminToken: !!adminToken,
+        hasMasqueradeToken: !!masqueradeToken
       });
     }
   } catch (error) {
