@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOrganization } from '../../contexts/OrganizationContext';
 import api from '../../services/api';
@@ -936,6 +936,7 @@ function QuestsTab({ orgId, orgData, onUpdate, siteSettings }) {
 }
 
 function CurriculumTab({ orgId, orgData }) {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -1003,6 +1004,7 @@ function CurriculumTab({ orgId, orgData }) {
       {showCreateModal && (
         <CreateCurriculumModal
           orgId={orgId}
+          navigate={navigate}
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             setShowCreateModal(false);
@@ -1126,7 +1128,7 @@ function CurriculumProjectCard({ project, onDelete }) {
   );
 }
 
-function CreateCurriculumModal({ orgId, onClose, onSuccess }) {
+function CreateCurriculumModal({ orgId, navigate, onClose, onSuccess }) {
   const [mode, setMode] = useState('new'); // 'new' or 'existing'
   const [formData, setFormData] = useState({
     title: '',
@@ -1212,7 +1214,7 @@ function CreateCurriculumModal({ orgId, onClose, onSuccess }) {
       }
 
       if (questId) {
-        window.location.href = `/quests/${questId}/curriculum/edit`;
+        navigate(`/quests/${questId}/curriculum/edit`);
       } else {
         onSuccess();
       }
