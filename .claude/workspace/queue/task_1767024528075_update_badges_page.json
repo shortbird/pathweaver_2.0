@@ -1,0 +1,10 @@
+{
+  "id": "update_badges_page_with_courses",
+  "type": "implement_frontend",
+  "priority": 3,
+  "payload": {
+    "description": "Update frontend/src/pages/BadgesPage.jsx. Add 'Available Courses' section at the top (above existing badge sections). Fetch courses via courseService.getCourses(). Display CourseCard components in grid. Show enrollment CTA for non-enrolled students. Keep existing badge showcase sections below.",
+    "files": ["frontend/src/pages/BadgesPage.jsx"],
+    "context": "Import and use CourseCard component. Use courseService API. Maintain existing badge sections (Your Badges, Claimable, Explore). Section should be collapsible or prominent."
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "id": "update_badge_service_for_courses",
+  "type": "implement_backend",
+  "priority": 2,
+  "payload": {
+    "description": "Update backend/services/badge_service.py to handle badge_type = 'course_completion'. Update get_badge_progress() and calculate_badge_progress() to: for course badges, calculate progress as (XP earned from course quest tasks / total XP available from course quests). Query course_quests to get associated quests, then sum XP from user_quest_tasks where quest_id in course quests. Badge becomes claimable when XP threshold met.",
+    "files": ["backend/services/badge_service.py"],
+    "context": "Reference existing badge progress calculation logic. Course badges have badge_type='course_completion'. Use existing XP tracking from quest_task_completions. Progress should sync automatically via existing badge eligibility triggers."
+  }
+}

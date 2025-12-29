@@ -1,0 +1,10 @@
+{
+  "id": "create_course_repository",
+  "type": "implement_backend",
+  "priority": 2,
+  "payload": {
+    "description": "Create backend/repositories/course_repository.py. Methods needed: create_course(), get_course_by_id(), get_courses_by_organization(), update_course(), delete_course(), add_quest_to_course(), remove_quest_from_course(), reorder_course_quests(), get_course_quests(), create_enrollment(), get_enrollment(), get_enrollments_by_course(), get_enrollments_by_user(), update_enrollment_status(). Follow existing repository pattern from quest_repository.py and badge_repository.py.",
+    "files": ["backend/repositories/course_repository.py"],
+    "context": "Reference backend/repositories/quest_repository.py and backend/repositories/badge_repository.py for patterns. Use Supabase client with RLS. Include proper error handling."
+  }
+}

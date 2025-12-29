@@ -1,0 +1,10 @@
+{
+  "id": "create_course_frontend_api",
+  "type": "implement_frontend",
+  "priority": 2,
+  "payload": {
+    "description": "Create frontend/src/services/courseService.js. Export functions: getCourses(), getCourseById(id), createCourse(data), updateCourse(id, data), publishCourse(id), addQuestToCourse(courseId, questId, data), removeQuestFromCourse(courseId, questId), reorderQuests(courseId, questIds), enrollInCourse(courseId), getCourseProgress(courseId). Use api client from authService.js.",
+    "files": ["frontend/src/services/courseService.js"],
+    "context": "Reference frontend/src/services/questService.js and badgeService.js for patterns. Use existing api instance with httpOnly cookies. All POST requests need empty body {} for CSRF."
+  }
+}

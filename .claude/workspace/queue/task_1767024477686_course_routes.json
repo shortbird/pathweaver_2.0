@@ -1,0 +1,10 @@
+{
+  "id": "create_course_routes",
+  "type": "implement_backend",
+  "priority": 2,
+  "payload": {
+    "description": "Create backend/routes/courses.py. Endpoints: GET /api/courses (org-filtered list), POST /api/courses (create), GET /api/courses/:id (detail with quests), PUT /api/courses/:id (update), POST /api/courses/:id/publish (publish + create badge), POST /api/courses/:id/quests (add quest), DELETE /api/courses/:id/quests/:quest_id (remove quest), PUT /api/courses/:id/quests/reorder (reorder), POST /api/courses/:id/enroll (student enrollment), GET /api/courses/:id/progress (student progress). Use CourseService. Add CSRF protection, auth middleware, role checks.",
+    "files": ["backend/routes/courses.py", "backend/routes/__init__.py"],
+    "context": "Reference backend/routes/badges.py and backend/routes/curriculum.py for patterns. Register blueprint in __init__.py. Admins/teachers can create/edit, students can enroll. Use get_user_client() for RLS."
+  }
+}

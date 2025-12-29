@@ -36,75 +36,38 @@ export const tokenStore = {
   },
 
   // Restore tokens from storage (for page refresh persistence)
-  // PRODUCTION FIX: Try localStorage first (simple, reliable), then IndexedDB (complex, unreliable)
+  // Used for Safari/iOS cross-origin fallback when cookies don't work
+  // With same-site deployment (api.optioeducation.com), httpOnly cookies work and this is just a fallback
   restoreTokens: async () => {
-    console.log('[TokenStore] restoreTokens called')
-
-    // PRODUCTION FIX: Try localStorage first (more reliable in cross-origin scenarios)
-    try {
-      const lsAccess = localStorage.getItem('app_access_token')
-      const lsRefresh = localStorage.getItem('app_refresh_token')
-      console.log('[TokenStore] localStorage check:', { hasAccess: !!lsAccess, hasRefresh: !!lsRefresh })
-
-      if (lsAccess) {
-        accessToken = lsAccess
-        refreshToken = lsRefresh
-        console.log('[TokenStore] Tokens restored from localStorage')
-        return true
-      }
-    } catch (lsError) {
-      console.warn('[TokenStore] localStorage restore failed:', lsError)
-    }
-
-    // Fallback to IndexedDB (for backward compatibility)
+    // Try IndexedDB (encrypted storage for Safari/iOS fallback)
     try {
       const storedAccess = await secureTokenStore.getAccessToken()
       const storedRefresh = await secureTokenStore.getRefreshToken()
 
-      console.log('[TokenStore] IndexedDB check:', {
-        hasAccess: !!storedAccess,
-        hasRefresh: !!storedRefresh
-      })
-
       if (storedAccess) {
         accessToken = storedAccess
         refreshToken = storedRefresh
-        // Migrate to localStorage for reliability
-        localStorage.setItem('app_access_token', storedAccess)
-        if (storedRefresh) localStorage.setItem('app_refresh_token', storedRefresh)
-        console.log('[TokenStore] Tokens restored from IndexedDB and migrated to localStorage')
+        logger.debug('[TokenStore] Tokens restored from IndexedDB')
         return true
       }
     } catch (error) {
-      console.error('[TokenStore] IndexedDB restore failed:', error)
+      console.error('[TokenStore] Failed to restore tokens from IndexedDB:', error)
     }
 
-    console.log('[TokenStore] No tokens found in any storage')
     return false
   },
 
-  // Store tokens in memory, localStorage, and IndexedDB
-  // PRODUCTION FIX: Store in localStorage for reliability (IndexedDB can be unreliable)
+  // Store tokens in memory and IndexedDB (for Safari/iOS cross-origin fallback)
+  // With same-site deployment, httpOnly cookies are primary - this is just a fallback
   setTokens: async (access, refresh) => {
-    console.log('[TokenStore] setTokens called', { hasAccess: !!access, hasRefresh: !!refresh })
-
     // Store in memory for synchronous access
     accessToken = access
     refreshToken = refresh
 
-    // PRODUCTION FIX: Store in localStorage (simple, reliable)
-    try {
-      if (access) localStorage.setItem('app_access_token', access)
-      if (refresh) localStorage.setItem('app_refresh_token', refresh)
-      console.log('[TokenStore] Tokens stored in localStorage')
-    } catch (lsError) {
-      console.error('[TokenStore] Failed to store tokens in localStorage:', lsError)
-    }
-
-    // Also store in encrypted IndexedDB (for backward compatibility)
+    // Store in encrypted IndexedDB for Safari/iOS fallback
     try {
       await secureTokenStore.setTokens(access, refresh)
-      console.log('[TokenStore] Tokens stored in IndexedDB')
+      logger.debug('[TokenStore] Tokens stored in memory and IndexedDB')
     } catch (error) {
       console.error('[TokenStore] Failed to store tokens in IndexedDB:', error)
     }
@@ -116,32 +79,28 @@ export const tokenStore = {
   // Get refresh token from memory (synchronous for request interceptor)
   getRefreshToken: () => refreshToken,
 
-  // Clear tokens from memory, localStorage, and IndexedDB
+  // Clear tokens from memory and IndexedDB
   clearTokens: async () => {
-    console.log('[TokenStore] clearTokens called')
-
     // Clear from memory
     accessToken = null
     refreshToken = null
 
-    // Clear from localStorage
-    try {
-      localStorage.removeItem('app_access_token')
-      localStorage.removeItem('app_refresh_token')
-      // Also clear old keys for migration cleanup
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
-      console.log('[TokenStore] Tokens cleared from localStorage')
-    } catch (error) {
-      console.error('[TokenStore] Failed to clear localStorage:', error)
-    }
-
     // Clear from encrypted IndexedDB
     try {
       await secureTokenStore.clearTokens()
-      console.log('[TokenStore] Tokens cleared from IndexedDB')
+      logger.debug('[TokenStore] Tokens cleared from memory and IndexedDB')
     } catch (error) {
       console.error('[TokenStore] Failed to clear tokens from IndexedDB:', error)
+    }
+
+    // Migration cleanup: Remove any old localStorage tokens
+    try {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('app_access_token')
+      localStorage.removeItem('app_refresh_token')
+    } catch (error) {
+      // Ignore errors
     }
   }
 }

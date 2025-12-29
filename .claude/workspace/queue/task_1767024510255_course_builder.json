@@ -1,0 +1,10 @@
+{
+  "id": "create_course_builder_page",
+  "type": "implement_frontend",
+  "priority": 3,
+  "payload": {
+    "description": "Create frontend/src/pages/courses/CourseBuilder.jsx. Two-column layout: quest list sidebar + content editor. Course metadata editor (title, description, intro_content JSONB). Quest list with drag-drop reordering (@dnd-kit). Add quest modal (select from org quests). Remove quest button. Publish button (calls publishCourse API, creates badge). Save status indicator. Responsive mobile drawer.",
+    "files": ["frontend/src/pages/courses/CourseBuilder.jsx"],
+    "context": "Reference frontend/src/pages/curriculum/CurriculumBuilder.jsx for layout and drag-drop patterns. Use courseService API. Add to frontend/src/App.jsx route: /courses/:id/edit. Only accessible to admins/teachers."
+  }
+}

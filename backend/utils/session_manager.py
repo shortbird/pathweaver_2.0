@@ -48,12 +48,32 @@ class SessionManager:
         is_on_render = 'onrender.com' in frontend_url
         is_production = os.getenv('FLASK_ENV') == 'production'
 
-        # Cross-origin means different domains - cookies with SameSite=None are blocked in incognito
-        self.is_cross_origin = is_on_render or is_production
+        # Check if frontend and backend are on same root domain (e.g., www.optioeducation.com and api.optioeducation.com)
+        # Same-site means cookies work with SameSite=Lax (more secure, no third-party cookie issues)
+        is_same_site = False
+        if frontend_url and backend_url:
+            try:
+                from urllib.parse import urlparse
+                frontend_host = urlparse(frontend_url).hostname or ''
+                backend_host = urlparse(backend_url).hostname or ''
+                # Extract root domains (last 2 parts)
+                frontend_root = '.'.join(frontend_host.split('.')[-2:]) if '.' in frontend_host else frontend_host
+                backend_root = '.'.join(backend_host.split('.')[-2:]) if '.' in backend_host else backend_host
+                is_same_site = frontend_root == backend_root and 'onrender.com' not in frontend_root
+                if is_same_site:
+                    logger.info(f"[SessionManager] Same-site deployment detected: {frontend_root}")
+            except Exception as e:
+                logger.warning(f"[SessionManager] Failed to detect same-site: {e}")
 
-        # Cookie settings (for same-origin deployments only)
+        # Cross-origin means different domains - cookies with SameSite=None are blocked in incognito
+        # IMPORTANT: Same-site deployments (e.g., www.example.com + api.example.com) are NOT cross-origin
+        self.is_cross_origin = (is_on_render or is_production) and not is_same_site
+
+        # Cookie settings
+        # Same-site: Use Lax (secure, works without third-party cookie issues)
+        # Cross-origin: Use None (required for cross-origin, but blocked by some browsers)
         self.cookie_secure = is_production or is_on_render
-        self.cookie_samesite = 'None' if (is_production or is_on_render) else 'Lax'
+        self.cookie_samesite = 'Lax' if is_same_site else ('None' if (is_production or is_on_render) else 'Lax')
 
         # Safari cookie domain attribute (Safari is strict about domain matching)
         # Extract domain from frontend URL for production

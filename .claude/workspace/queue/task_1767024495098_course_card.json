@@ -1,0 +1,10 @@
+{
+  "id": "create_course_card_component",
+  "type": "implement_frontend",
+  "priority": 3,
+  "payload": {
+    "description": "Create frontend/src/components/courses/CourseCard.jsx. Display course title, description, quest count, cover image. Show progress indicator for enrolled students. For designers: show edit button. Use Optio brand colors (optio-purple, optio-pink). Responsive design. Click navigates to /courses/:id or /courses/:id/edit.",
+    "files": ["frontend/src/components/courses/CourseCard.jsx"],
+    "context": "Reference frontend/src/components/badges/BadgeCard.jsx for patterns. Use TailwindCSS. Include enrollment CTA button for students not enrolled."
+  }
+}

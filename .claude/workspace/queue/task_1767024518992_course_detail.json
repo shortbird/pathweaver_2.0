@@ -1,0 +1,10 @@
+{
+  "id": "create_course_detail_page",
+  "type": "implement_frontend",
+  "priority": 3,
+  "payload": {
+    "description": "Create frontend/src/pages/courses/CourseDetailPage.jsx. Student view of course. Display: course intro content, quest list with completion status, progress bar toward badge. Navigate to quest curriculum on click. Enroll button if not enrolled. Show badge preview. Responsive design. Use Optio brand colors.",
+    "files": ["frontend/src/pages/courses/CourseDetailPage.jsx"],
+    "context": "Reference frontend/src/pages/curriculum/CurriculumPage.jsx for layout. Use courseService.getCourseById() and courseService.getCourseProgress(). Add to frontend/src/App.jsx route: /courses/:id. Quest click navigates to /quests/:id/curriculum."
+  }
+}
