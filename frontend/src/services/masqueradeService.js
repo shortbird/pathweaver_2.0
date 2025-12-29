@@ -57,9 +57,11 @@ export const startMasquerade = async (userId, reason = '', apiCall) => {
 
     const { masquerade_token, log_id, target_user } = response.data;
 
-    // Store masquerade token using tokenStore (fixes localStorage key mismatch bug)
-    await tokenStore.setTokens(masquerade_token, null);
-    logger.debug('[Masquerade] Masquerade token stored in tokenStore');
+    // Store masquerade token using tokenStore, preserving refresh token for page refresh persistence
+    // This matches the pattern used by ActingAsContext which works correctly
+    const existingRefreshToken = tokenStore.getRefreshToken() || currentRefreshToken;
+    await tokenStore.setTokens(masquerade_token, existingRefreshToken);
+    logger.debug('[Masquerade] Masquerade token stored in tokenStore with refresh token');
 
     // Store masquerade state
     const masqueradeState = {

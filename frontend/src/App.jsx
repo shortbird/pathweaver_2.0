@@ -1,6 +1,6 @@
 import React, { useEffect, useState, lazy, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { HelmetProvider } from 'react-helmet-async'
 import { AuthProvider } from './contexts/AuthContext'
@@ -14,6 +14,7 @@ import MasqueradeBanner from './components/admin/MasqueradeBanner'
 import ActingAsBanner from './components/parent/ActingAsBanner'
 import ConsentBlockedOverlay from './components/consent/ConsentBlockedOverlay'
 import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
+import { queryKeys } from './utils/queryKeys'
 import logger from './utils/logger'
 import api from './services/api'
 import { toast } from 'react-hot-toast'
@@ -115,6 +116,7 @@ const queryClient = new QueryClient({
 // Inner component that uses banners (must be inside Router and ActingAsProvider)
 function AppContent() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   // Initialize masquerade state immediately from localStorage for instant banner display
   const [masqueradeState, setMasqueradeState] = useState(() => getMasqueradeState());
   const { actingAsDependent, clearActingAs } = useActingAs();
@@ -171,9 +173,8 @@ function AppContent() {
       if (result.success) {
         setMasqueradeState(null);
         toast.success('Exited masquerade session');
-        // Redirect to admin users page
-        navigate('/admin/users');
-        window.location.reload(); // Force reload to apply admin token
+        // Full page load required to reinitialize AuthContext with admin token
+        window.location.href = '/admin/users';
       } else {
         toast.error(result.error || 'Failed to exit masquerade');
       }

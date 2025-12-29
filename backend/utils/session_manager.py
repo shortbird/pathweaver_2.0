@@ -386,12 +386,18 @@ class SessionManager:
         return response
     
     def get_current_user_id(self) -> Optional[str]:
-        """Get current user ID from Authorization header or cookie"""
+        """Get current user ID from Authorization header or cookie
+
+        For masquerade sessions, returns the admin's user ID (not the target user).
+        Use get_effective_user_id() to get the masqueraded user ID.
+        """
         # Prioritize Authorization header (works in all browsers including incognito)
         auth_header = request.headers.get('Authorization', '')
         if auth_header.startswith('Bearer '):
-            access_token = auth_header.replace('Bearer ', '')
-            payload = self.verify_access_token(access_token)
+            token = auth_header.replace('Bearer ', '')
+
+            # Try access token first
+            payload = self.verify_access_token(token)
             if payload:
                 user_id = payload.get('user_id')
                 # Log Safari/iOS/Firefox header usage for debugging
@@ -403,6 +409,22 @@ class SessionManager:
                 elif is_firefox:
                     logger.debug(f"[SessionManager] Firefox auth via header for user {user_id[:8]}...")
                 return user_id
+
+            # Try masquerade token (admin masquerading as another user)
+            masquerade_payload = self.verify_masquerade_token(token)
+            if masquerade_payload:
+                # Return the admin's user_id, not the target
+                admin_id = masquerade_payload.get('user_id')
+                logger.debug(f"[SessionManager] Masquerade token auth for admin {admin_id[:8]}...")
+                return admin_id
+
+            # Try acting-as token (parent acting as dependent)
+            acting_as_payload = self.verify_acting_as_token(token)
+            if acting_as_payload:
+                # Return the parent's user_id, not the dependent
+                parent_id = acting_as_payload.get('user_id')
+                logger.debug(f"[SessionManager] Acting-as token auth for parent {parent_id[:8]}...")
+                return parent_id
 
         # Fallback to cookie (works in both same-origin and cross-origin with SameSite=None)
         access_token = request.cookies.get('access_token')
