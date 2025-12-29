@@ -25,7 +25,7 @@ const AdminQuests = () => {
   const [showAIReviewModal, setShowAIReviewModal] = useState(false)
 
   // Determine user role
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
   const isAdvisor = user?.role === 'advisor'
 
   useEffect(() => {

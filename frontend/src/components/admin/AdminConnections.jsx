@@ -329,11 +329,11 @@ const AdminConnections = () => {
                         {advisor.display_name || `${advisor.first_name} ${advisor.last_name}`}
                       </p>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        advisor.role === 'admin'
+                        advisor.role === 'admin' || advisor.role === 'superadmin'
                           ? 'bg-purple-100 text-purple-800'
                           : 'bg-blue-100 text-blue-800'
                       }`} style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        {advisor.role === 'admin' ? 'Admin' : 'Advisor'}
+                        {advisor.role === 'admin' ? 'Admin' : advisor.role === 'superadmin' ? 'Superadmin' : 'Advisor'}
                       </span>
                     </div>
                     <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>{advisor.email}</p>

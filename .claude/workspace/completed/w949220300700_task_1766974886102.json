@@ -1,0 +1,10 @@
+{
+  "id": "superadmin_decorators_remaining",
+  "type": "implement_fix",
+  "priority": 1,
+  "payload": {
+    "description": "Update decorators.py to support 'superadmin' role in remaining places. Update lines 280, 394, 454, 499 to check for 'superadmin' role in addition to 'admin'. Line 394 and others may use pattern `user_role == 'admin' and user_email == Config.SUPERADMIN_EMAIL` which should become `user_role in ['admin', 'superadmin']` or just check for 'superadmin' role.",
+    "files": ["backend/utils/auth/decorators.py"],
+    "context": "Adding proper superadmin role differentiation. Some checks use email-based superadmin detection which should be replaced with role-based checks."
+  }
+}

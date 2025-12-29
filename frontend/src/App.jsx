@@ -343,7 +343,7 @@ function App() {
                 {/* <Route path="subscription" element={<SubscriptionPage />} /> REMOVED - Phase 3 refactoring (January 2025) */}
               </Route>
               
-              <Route element={<PrivateRoute requiredRole="admin" />}>
+              <Route element={<PrivateRoute requiredRole="superadmin" />}>
                 <Route path="admin/*" element={<AdminPage />} />
               </Route>
 

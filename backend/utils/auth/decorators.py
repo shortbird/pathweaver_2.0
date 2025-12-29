@@ -18,6 +18,18 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+def has_admin_privileges(role: str) -> bool:
+    """Check if a role has admin privileges (admin or superadmin)."""
+    return role in ['admin', 'superadmin']
+
+def has_role_or_admin(role: str, *allowed_roles) -> bool:
+    """Check if user has one of the allowed roles, or is admin/superadmin."""
+    if role in allowed_roles:
+        return True
+    if 'admin' in allowed_roles and has_admin_privileges(role):
+        return True
+    return False
+
 def require_auth(f):
     """
     Decorator to require authentication for routes.
@@ -139,7 +151,12 @@ def require_role(*allowed_roles):
                     supabase = get_supabase_admin_client()
                     user = supabase.table('users').select('role').eq('id', user_id).execute()
 
-                    if not user.data or len(user.data) == 0 or user.data[0].get('role') not in allowed_roles:
+                    user_role = user.data[0].get('role') if user.data and len(user.data) > 0 else None
+                    # Superadmin inherits all admin privileges
+                    effective_roles = list(allowed_roles)
+                    if 'admin' in effective_roles and 'superadmin' not in effective_roles:
+                        effective_roles.append('superadmin')
+                    if not user_role or user_role not in effective_roles:
                         raise AuthorizationError(f'Required role: {", ".join(allowed_roles)}')
 
                     return f(user_id, *args, **kwargs)
@@ -216,7 +233,7 @@ def require_advisor(f):
         try:
             user = supabase.table('users').select('role').eq('id', user_id).execute()
 
-            if not user.data or len(user.data) == 0 or user.data[0].get('role') not in ['advisor', 'admin']:
+            if not user.data or len(user.data) == 0 or user.data[0].get('role') not in ['advisor', 'admin', 'superadmin']:
                 raise AuthorizationError('Advisor access required')
 
             return f(user_id, *args, **kwargs)

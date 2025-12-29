@@ -32,7 +32,7 @@ const AdminPage = () => {
   const { user } = useAuth()
 
   // Determine if user is admin or advisor
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
   const isAdvisor = user?.role === 'advisor'
 
   return (

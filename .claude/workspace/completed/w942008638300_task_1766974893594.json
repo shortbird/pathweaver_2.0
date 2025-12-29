@@ -1,0 +1,10 @@
+{
+  "id": "superadmin_user_management",
+  "type": "implement_fix",
+  "priority": 1,
+  "payload": {
+    "description": "Update user_management.py to support 'superadmin' role. Lines 841, 936, 1025 use email-based superadmin detection. Replace `requester_role == 'admin' and requester_email == Config.SUPERADMIN_EMAIL` with `requester_role == 'superadmin'` or `requester_role in ['admin', 'superadmin']` as appropriate. Line 841 checks `is_org_admin = org_role == 'admin'` which may need to include 'superadmin'.",
+    "files": ["backend/routes/admin/user_management.py"],
+    "context": "Adding proper superadmin role differentiation. Replace email-based superadmin detection with role-based checks."
+  }
+}
