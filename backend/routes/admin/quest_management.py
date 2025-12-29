@@ -102,7 +102,7 @@ def create_quest_v3_clean(user_id):
         # Determine is_active and is_public values based on role
         # Admins can set is_active=True and is_public=True (publish immediately)
         # Advisors always create drafts (is_active=False, is_public=False)
-        if user_role == 'admin':
+        if user_role in ['admin', 'superadmin']:
             is_active = data.get('is_active', False)
             is_public = data.get('is_public', False)
         else:
@@ -199,7 +199,7 @@ def update_quest(user_id, quest_id):
 
         # Only admins can change is_active (publish/unpublish quests)
         if 'is_active' in data:
-            if user_role == 'admin':
+            if user_role in ['admin', 'superadmin']:
                 # Validate course quests have preset tasks before activation
                 if data['is_active']:
                     from utils.quest_validation import can_activate_quest
@@ -212,7 +212,7 @@ def update_quest(user_id, quest_id):
 
         # Only admins can change is_public (make quests available in public quest library)
         if 'is_public' in data:
-            if user_role == 'admin':
+            if user_role in ['admin', 'superadmin']:
                 # Validate course quests have preset tasks before making public
                 if data['is_public']:
                     from utils.quest_validation import can_make_public

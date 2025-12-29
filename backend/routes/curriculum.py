@@ -137,8 +137,8 @@ def verify_curriculum_read_permission(user_id: str, quest_id: str, supabase) -> 
 
 def verify_curriculum_permission(user_id: str, quest_id: str, supabase) -> dict:
     """
-    Verify user has permission to edit curriculum for this quest.
-    Must be school admin or advisor in the quest's organization.
+    Verify user has permission to CREATE curriculum for this quest.
+    This allows creating org-specific curriculum for any quest.
 
     Args:
         user_id: User ID to check
@@ -146,7 +146,7 @@ def verify_curriculum_permission(user_id: str, quest_id: str, supabase) -> dict:
         supabase: Supabase client
 
     Returns:
-        Quest data with organization_id
+        Quest data with organization_id and user info
 
     Raises:
         ValidationError: If permission denied
@@ -184,18 +184,85 @@ def verify_curriculum_permission(user_id: str, quest_id: str, supabase) -> dict:
 
         quest_org = quest.get('organization_id')
 
-        # Verify same organization (unless superadmin or platform quest)
+        # For org-specific quests, user must be in the same org (unless superadmin)
         if user_role != 'superadmin' and quest_org is not None and quest_org != user_org:
             raise ValidationError(
                 "You can only edit curriculum for quests in your organization",
                 403
             )
 
+        # Add user info to quest for downstream use
+        quest['_user_role'] = user_role
+        quest['_user_org'] = user_org
+
         return quest
     except ValidationError:
         raise
     except Exception as e:
         logger.error(f"Error checking curriculum permission: {str(e)}", exc_info=True)
+        raise ValidationError(f"Permission check failed: {str(e)}", 500)
+
+
+def verify_lesson_edit_permission(user_id: str, lesson_id: str, quest_id: str, supabase) -> dict:
+    """
+    Verify user has permission to EDIT a specific lesson.
+    Users can only edit lessons created by their organization.
+
+    Args:
+        user_id: User ID to check
+        lesson_id: Lesson ID to edit
+        quest_id: Quest ID
+        supabase: Supabase client
+
+    Returns:
+        Lesson data
+
+    Raises:
+        ValidationError: If permission denied
+    """
+    try:
+        # Get user info
+        user_result = supabase.table('users')\
+            .select('role, organization_id')\
+            .eq('id', user_id)\
+            .execute()
+
+        if not user_result.data:
+            raise ValidationError("User not found", 404)
+        user = user_result.data[0]
+
+        user_role = user.get('role')
+        user_org = user.get('organization_id')
+
+        # Get lesson info
+        lesson_result = supabase.table('curriculum_lessons')\
+            .select('id, quest_id, organization_id, created_by')\
+            .eq('id', lesson_id)\
+            .eq('quest_id', quest_id)\
+            .execute()
+
+        if not lesson_result.data:
+            raise ValidationError("Lesson not found", 404)
+        lesson = lesson_result.data[0]
+
+        lesson_org = lesson.get('organization_id')
+
+        # Superadmins can edit anything
+        if user_role == 'superadmin':
+            return lesson
+
+        # Non-superadmins can only edit lessons from their organization
+        if lesson_org != user_org:
+            raise ValidationError(
+                "You can only edit curriculum created by your organization",
+                403
+            )
+
+        return lesson
+    except ValidationError:
+        raise
+    except Exception as e:
+        logger.error(f"Error checking lesson edit permission: {str(e)}", exc_info=True)
         raise ValidationError(f"Permission check failed: {str(e)}", 500)
 
 
@@ -720,6 +787,7 @@ def create_lesson(user_id: str, quest_id: str):
 def get_lessons(user_id: str, quest_id: str):
     """
     Get all lessons for a quest.
+    Returns lessons from the user's organization for this quest.
 
     Query params:
         include_unpublished (bool): Include unpublished lessons (admin only)
@@ -734,12 +802,32 @@ def get_lessons(user_id: str, quest_id: str):
 
         verify_curriculum_read_permission(user_id, quest_id, supabase)
 
+        # Get user's organization_id for filtering
+        user_result = supabase.table('users')\
+            .select('organization_id, role')\
+            .eq('id', user_id)\
+            .execute()
+        user_org_id = user_result.data[0].get('organization_id') if user_result.data else None
+        user_role = user_result.data[0].get('role') if user_result.data else None
+
+        # DEBUG: Log org filtering info
+        logger.info(f"[CURRICULUM] get_lessons: user_id={user_id[:8]}..., org_id={user_org_id}, role={user_role}, quest_id={quest_id[:8]}...")
+
         include_unpublished = request.args.get('include_unpublished', 'false').lower() == 'true'
 
         if include_unpublished:
             verify_curriculum_permission(user_id, quest_id, supabase)
 
-        lessons = service.get_lessons(quest_id, include_unpublished=include_unpublished)
+        # Get lessons filtered by user's organization
+        lessons = service.get_lessons_for_organization(
+            quest_id,
+            organization_id=user_org_id,
+            include_unpublished=include_unpublished,
+            is_superadmin=(user_role == 'superadmin')
+        )
+
+        # DEBUG: Log how many lessons returned
+        logger.info(f"[CURRICULUM] get_lessons: Returning {len(lessons)} lessons for org {user_org_id}")
 
         return jsonify({
             'success': True,
@@ -759,6 +847,7 @@ def get_lessons(user_id: str, quest_id: str):
 def update_lesson(user_id: str, quest_id: str, lesson_id: str):
     """
     Update a curriculum lesson.
+    Users can only edit lessons created by their organization.
 
     Body: Any lesson fields to update
 
@@ -772,7 +861,8 @@ def update_lesson(user_id: str, quest_id: str, lesson_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 
-        verify_curriculum_permission(user_id, quest_id, supabase)
+        # Verify user can edit THIS specific lesson (org ownership check)
+        verify_lesson_edit_permission(user_id, lesson_id, quest_id, supabase)
 
         data = request.get_json()
         if not data:
@@ -798,6 +888,7 @@ def update_lesson(user_id: str, quest_id: str, lesson_id: str):
 def delete_lesson(user_id: str, quest_id: str, lesson_id: str):
     """
     Delete a curriculum lesson.
+    Users can only delete lessons created by their organization.
 
     Returns:
         200: Lesson deleted successfully
@@ -808,7 +899,8 @@ def delete_lesson(user_id: str, quest_id: str, lesson_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 
-        verify_curriculum_permission(user_id, quest_id, supabase)
+        # Verify user can delete THIS specific lesson (org ownership check)
+        verify_lesson_edit_permission(user_id, lesson_id, quest_id, supabase)
 
         service.delete_lesson(lesson_id, quest_id)
 
@@ -830,6 +922,7 @@ def delete_lesson(user_id: str, quest_id: str, lesson_id: str):
 def reorder_lessons(user_id: str, quest_id: str):
     """
     Reorder lessons within a quest.
+    Users can only reorder lessons from their own organization.
 
     Body:
         lesson_order (list): Ordered list of lesson IDs
@@ -843,7 +936,7 @@ def reorder_lessons(user_id: str, quest_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 
-        verify_curriculum_permission(user_id, quest_id, supabase)
+        quest = verify_curriculum_permission(user_id, quest_id, supabase)
 
         data = request.get_json()
         if not data or 'lesson_order' not in data:
@@ -852,6 +945,24 @@ def reorder_lessons(user_id: str, quest_id: str):
         lesson_order = data.get('lesson_order')
         if not isinstance(lesson_order, list):
             return jsonify({'error': 'lesson_order must be an array'}), 400
+
+        # Verify all lessons being reordered belong to user's organization
+        user_org = quest.get('_user_org')
+        user_role = quest.get('_user_role')
+
+        if user_role != 'superadmin' and lesson_order:
+            # Check that all lessons belong to user's org
+            lessons_result = supabase.table('curriculum_lessons')\
+                .select('id, organization_id')\
+                .in_('id', lesson_order)\
+                .execute()
+
+            for lesson in (lessons_result.data or []):
+                if lesson.get('organization_id') != user_org:
+                    raise ValidationError(
+                        "You can only reorder lessons from your organization",
+                        403
+                    )
 
         lessons = service.reorder_lessons(quest_id, lesson_order)
 
@@ -1288,3 +1399,154 @@ def create_curriculum_tasks(user_id: str, quest_id: str, lesson_id: str):
     except Exception as e:
         logger.error(f"Error creating curriculum tasks: {str(e)}")
         return jsonify({'error': 'Failed to create tasks'}), 500
+
+
+# ========================================
+# Organization Curriculum Projects Endpoint
+# ========================================
+
+@bp.route('/curriculum-projects/<org_id>', methods=['GET'])
+@require_auth
+def get_curriculum_projects(user_id: str, org_id: str):
+    """
+    Get all curriculum projects for an organization.
+    A curriculum project is a quest that has at least one lesson in curriculum_lessons.
+
+    Returns:
+        200: List of quests with curriculum (includes lesson count)
+        403: Permission denied
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Verify user belongs to this organization or is superadmin
+        user_result = supabase.table('users')\
+            .select('organization_id, role')\
+            .eq('id', user_id)\
+            .execute()
+
+        if not user_result.data:
+            return jsonify({'error': 'User not found'}), 404
+
+        user = user_result.data[0]
+        user_org = user.get('organization_id')
+        user_role = user.get('role')
+
+        # Must be in same org or superadmin
+        if user_org != org_id and user_role != 'superadmin':
+            return jsonify({'error': 'Permission denied'}), 403
+
+        # Must be advisor, admin, or superadmin
+        if user_role not in ['advisor', 'admin', 'superadmin']:
+            return jsonify({'error': 'Permission denied'}), 403
+
+        # Get all quest IDs that have lessons for this organization
+        lessons_result = supabase.table('curriculum_lessons')\
+            .select('quest_id')\
+            .eq('organization_id', org_id)\
+            .execute()
+
+        # Count lessons per quest
+        quest_lesson_counts = {}
+        for lesson in lessons_result.data:
+            quest_id = lesson['quest_id']
+            quest_lesson_counts[quest_id] = quest_lesson_counts.get(quest_id, 0) + 1
+
+        quest_ids = list(quest_lesson_counts.keys())
+
+        if not quest_ids:
+            return jsonify({
+                'success': True,
+                'projects': [],
+                'message': 'No curriculum projects found'
+            }), 200
+
+        # Get quest details for quests with lessons
+        quests_result = supabase.table('quests')\
+            .select('id, title, description, quest_type, is_active, is_public, header_image_url, organization_id, created_at')\
+            .in_('id', quest_ids)\
+            .order('created_at', desc=True)\
+            .execute()
+
+        # Build response with lesson counts
+        projects = []
+        for quest in quests_result.data:
+            quest['lesson_count'] = quest_lesson_counts.get(quest['id'], 0)
+            projects.append(quest)
+
+        return jsonify({
+            'success': True,
+            'projects': projects
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching curriculum projects: {str(e)}")
+        return jsonify({'error': 'Failed to fetch curriculum projects'}), 500
+
+
+@bp.route('/available-quests/<org_id>', methods=['GET'])
+@require_auth
+def get_available_quests_for_curriculum(user_id: str, org_id: str):
+    """
+    Get quests available for adding curriculum.
+    Returns quests that do NOT have any curriculum lessons yet.
+    Filters based on organization's quest visibility policy.
+
+    Returns:
+        200: List of quests without curriculum
+        403: Permission denied
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Verify user belongs to this organization or is superadmin
+        user_result = supabase.table('users')\
+            .select('organization_id, role')\
+            .eq('id', user_id)\
+            .execute()
+
+        if not user_result.data:
+            return jsonify({'error': 'User not found'}), 404
+
+        user = user_result.data[0]
+        user_org = user.get('organization_id')
+        user_role = user.get('role')
+
+        # Must be in same org or superadmin
+        if user_org != org_id and user_role != 'superadmin':
+            return jsonify({'error': 'Permission denied'}), 403
+
+        # Must be advisor, admin, or superadmin
+        if user_role not in ['advisor', 'admin', 'superadmin']:
+            return jsonify({'error': 'Permission denied'}), 403
+
+        # Get quest IDs that already have lessons for this org
+        lessons_result = supabase.table('curriculum_lessons')\
+            .select('quest_id')\
+            .eq('organization_id', org_id)\
+            .execute()
+
+        quests_with_curriculum = {lesson['quest_id'] for lesson in lessons_result.data}
+
+        # Fetch only public, active quests
+        quests_result = supabase.table('quests')\
+            .select('id, title, description, quest_type, is_active, is_public, organization_id')\
+            .eq('is_active', True)\
+            .eq('is_public', True)\
+            .order('title')\
+            .execute()
+
+        # Exclude quests that already have curriculum for this org
+        available_quests = [
+            quest for quest in quests_result.data
+            if quest['id'] not in quests_with_curriculum
+        ]
+
+        return jsonify({
+            'success': True,
+            'quests': available_quests
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching available quests: {str(e)}")
+        return jsonify({'error': 'Failed to fetch available quests'}), 500

@@ -98,7 +98,7 @@ def _is_admin(user_id: str) -> bool:
         supabase = get_supabase_admin_client()
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
 
-        return user_response.data.get('role') == 'admin' if user_response.data else False
+        return user_response.data.get('role') in ['admin', 'superadmin'] if user_response.data else False
 
     except Exception as e:
         logger.error(f"Error checking admin status: {str(e)}")

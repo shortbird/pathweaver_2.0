@@ -12,6 +12,9 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from utils.auth.decorators import require_role
 from repositories.advisor_notes_repository import AdvisorNotesRepository
+import logging
+
+logger = logging.getLogger(__name__)
 
 notes_bp = Blueprint('advisor_notes', __name__)
 
@@ -35,7 +38,7 @@ def get_subject_notes(user_id, subject_id):
             .single()\
             .execute()
 
-        is_admin = user_response.data and user_response.data.get('role') == 'admin'
+        is_admin = user_response.data and user_response.data.get('role') in ['admin', 'superadmin']
 
         # Admins see all notes, advisors see only their own
         notes = repository.get_notes_for_subject(
@@ -98,7 +101,7 @@ def create_note(user_id):
             .single()\
             .execute()
 
-        is_admin = user_response.data and user_response.data.get('role') == 'admin'
+        is_admin = user_response.data and user_response.data.get('role') in ['admin', 'superadmin']
 
         # If not admin, verify advisor-student relationship
         if not is_admin:
@@ -185,7 +188,7 @@ def update_note(user_id, note_id):
             .single()\
             .execute()
 
-        is_admin = user_response.data and user_response.data.get('role') == 'admin'
+        is_admin = user_response.data and user_response.data.get('role') in ['admin', 'superadmin']
 
         if note['advisor_id'] != user_id and not is_admin:
             return jsonify({'error': 'Not authorized to update this note'}), 403
@@ -226,7 +229,7 @@ def delete_note(user_id, note_id):
             .single()\
             .execute()
 
-        is_admin = user_response.data and user_response.data.get('role') == 'admin'
+        is_admin = user_response.data and user_response.data.get('role') in ['admin', 'superadmin']
 
         if note['advisor_id'] != user_id and not is_admin:
             return jsonify({'error': 'Not authorized to delete this note'}), 403

@@ -22,12 +22,58 @@ class AdvisorService(BaseService):
         self.supabase = get_supabase_admin_client()
         self.badge_service = BadgeService()
 
+    # ==================== Organization Isolation ====================
+
+    def _verify_same_organization(self, user_id_1: str, user_id_2: str) -> bool:
+        """
+        Verify that two users belong to the same organization.
+        This is critical for organization isolation.
+
+        Args:
+            user_id_1: First user's UUID
+            user_id_2: Second user's UUID
+
+        Returns:
+            True if users are in the same organization, False otherwise
+        """
+        try:
+            result = self.supabase.table('users')\
+                .select('id, organization_id')\
+                .in_('id', [user_id_1, user_id_2])\
+                .execute()
+
+            if not result.data or len(result.data) != 2:
+                return False
+
+            org_ids = [u.get('organization_id') for u in result.data]
+            # Both must have an org and they must match
+            if org_ids[0] is None or org_ids[1] is None:
+                return False
+            return org_ids[0] == org_ids[1]
+        except Exception as e:
+            logger.error(f"Error verifying organization isolation: {e}")
+            return False
+
+    def _get_user_organization_id(self, user_id: str) -> Optional[str]:
+        """Get the organization_id for a user."""
+        try:
+            result = self.supabase.table('users')\
+                .select('organization_id')\
+                .eq('id', user_id)\
+                .single()\
+                .execute()
+            return result.data.get('organization_id') if result.data else None
+        except Exception as e:
+            logger.error(f"Error getting user organization: {e}")
+            return None
+
     # ==================== Advisor-Student Relationships ====================
 
     def get_advisor_students(self, advisor_id: str) -> List[Dict[str, Any]]:
         """
-        Get all students assigned to this advisor
-        Both advisors and admins only see students explicitly assigned to them
+        Get all students assigned to this advisor within the same organization.
+        Organization isolation is enforced - advisors/org admins can only see
+        students from their own organization.
 
         Args:
             advisor_id: UUID of the advisor or admin
@@ -38,22 +84,43 @@ class AdvisorService(BaseService):
         try:
             students = []
 
-            # Both advisors and admins see only assigned students
+            # First, get the advisor's organization_id for isolation
+            advisor_result = self.supabase.table('users')\
+                .select('organization_id')\
+                .eq('id', advisor_id)\
+                .single()\
+                .execute()
+
+            advisor_org_id = advisor_result.data.get('organization_id') if advisor_result.data else None
+
+            # Get assigned students with organization info
             response = self.supabase.table('advisor_student_assignments')\
-                .select('student_id, users!advisor_student_assignments_student_id_fkey(id, display_name, first_name, last_name, email, level, avatar_url, last_active)')\
+                .select('student_id, users!advisor_student_assignments_student_id_fkey(id, display_name, first_name, last_name, email, level, avatar_url, last_active, organization_id)')\
                 .eq('advisor_id', advisor_id)\
                 .eq('is_active', True)\
                 .execute()
 
             # Flatten the nested user data and collect student IDs for bulk queries
+            # ORGANIZATION ISOLATION: Only include students from the same organization
             student_ids = []
             if response.data:
                 for assignment in response.data:
                     if assignment.get('users'):
                         student = assignment['users']
+                        # CRITICAL: Enforce organization isolation
+                        # Skip students not in the advisor's organization
+                        student_org_id = student.get('organization_id')
+                        if advisor_org_id is not None and student_org_id != advisor_org_id:
+                            logger.warning(
+                                f"Organization isolation: Filtered out student {student.get('id')} "
+                                f"(org: {student_org_id}) from advisor {advisor_id} (org: {advisor_org_id})"
+                            )
+                            continue
                         # Provide fallback for display_name
                         if not student.get('display_name'):
                             student['display_name'] = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip()
+                        # Remove organization_id from response (not needed by frontend)
+                        student.pop('organization_id', None)
                         student_ids.append(student['id'])
                         students.append(student)
 
@@ -79,7 +146,8 @@ class AdvisorService(BaseService):
 
     def assign_student_to_advisor(self, student_id: str, advisor_id: str) -> bool:
         """
-        Assign a student to an advisor
+        Assign a student to an advisor.
+        Organization isolation is enforced - only students in the same org can be assigned.
 
         Args:
             student_id: UUID of the student
@@ -89,6 +157,10 @@ class AdvisorService(BaseService):
             Success boolean
         """
         try:
+            # ORGANIZATION ISOLATION: Verify advisor and student are in the same org
+            if not self._verify_same_organization(advisor_id, student_id):
+                raise ValueError("Cannot assign student from different organization")
+
             # Verify advisor has advisor role
             advisor_check = self.supabase.table('users')\
                 .select('role')\
@@ -443,7 +515,8 @@ class AdvisorService(BaseService):
 
     def get_student_progress_report(self, student_id: str, advisor_id: str) -> Dict[str, Any]:
         """
-        Get comprehensive progress report for a student
+        Get comprehensive progress report for a student.
+        Organization isolation is enforced.
 
         Args:
             student_id: UUID of the student
@@ -453,6 +526,10 @@ class AdvisorService(BaseService):
             Progress report dictionary
         """
         try:
+            # ORGANIZATION ISOLATION: Verify advisor and student are in the same org
+            if not self._verify_same_organization(advisor_id, student_id):
+                raise ValueError("Not authorized to view this student's progress - organization mismatch")
+
             # Verify advisor relationship using advisor_student_assignments table
             student = self.supabase.table('users')\
                 .select('id, display_name, total_xp, level, last_active')\
@@ -470,7 +547,7 @@ class AdvisorService(BaseService):
                 .single()\
                 .execute()
 
-            is_admin = advisor_check.data and advisor_check.data['role'] == 'admin'
+            is_admin = advisor_check.data and advisor_check.data['role'] in ['admin', 'superadmin']
 
             # Check advisor-student assignment
             assignment_check = self.supabase.table('advisor_student_assignments')\
@@ -526,7 +603,9 @@ class AdvisorService(BaseService):
 
     def get_student_active_quests_with_tasks(self, student_id: str, advisor_id: str) -> List[Dict[str, Any]]:
         """
-        Get all active quests for a student with their tasks
+        Get all active quests for a student with their tasks.
+        Organization isolation is enforced.
+
         Used for task management interface in advisor dashboard
 
         Args:
@@ -537,6 +616,10 @@ class AdvisorService(BaseService):
             List of active quests with tasks
         """
         try:
+            # ORGANIZATION ISOLATION: Verify advisor and student are in the same org
+            if not self._verify_same_organization(advisor_id, student_id):
+                raise ValueError("You do not have permission to view this student's quests - organization mismatch")
+
             # Verify advisor has permission for this student
             assignment = self.supabase.table('advisor_student_assignments')\
                 .select('id')\
@@ -628,16 +711,21 @@ class AdvisorService(BaseService):
 
     def verify_advisor_student_relationship(self, advisor_id: str, student_id: str) -> bool:
         """
-        Verify that an advisor has permission to manage a student's tasks
+        Verify that an advisor has permission to manage a student's tasks.
+        Organization isolation is enforced.
 
         Args:
             advisor_id: UUID of the advisor
             student_id: UUID of the student
 
         Returns:
-            True if relationship exists and is active, False otherwise
+            True if relationship exists, is active, and users are in same org. False otherwise.
         """
         try:
+            # ORGANIZATION ISOLATION: Verify they are in the same org first
+            if not self._verify_same_organization(advisor_id, student_id):
+                return False
+
             result = self.supabase.table('advisor_student_assignments')\
                 .select('id')\
                 .eq('advisor_id', advisor_id)\

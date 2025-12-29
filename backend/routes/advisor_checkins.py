@@ -12,6 +12,9 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from utils.auth.decorators import require_role, require_admin
 from services.checkin_service import CheckinService
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 checkins_bp = Blueprint('advisor_checkins', __name__)
 
@@ -103,15 +106,22 @@ def get_advisor_checkins(user_id):
 def get_student_checkins(user_id, student_id):
     """
     Get all check-ins for a specific student.
-    Admins see ALL check-ins for the student, advisors see only their own.
+    Organization isolation is enforced.
+    Admins see ALL check-ins for the student (in their org), advisors see only their own.
     """
     try:
         from database import get_supabase_admin_client
+        from repositories.checkin_repository import CheckinRepository
+
+        # ORGANIZATION ISOLATION: Verify user and student are in the same org
+        repository = CheckinRepository()
+        if not repository._verify_same_organization(user_id, student_id):
+            return jsonify({'error': 'Not authorized to view this student'}), 403
 
         # Check if user is admin
         supabase = get_supabase_admin_client()
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        is_admin = user_response.data and user_response.data.get('role') == 'admin'
+        is_admin = user_response.data and user_response.data.get('role') in ['admin', 'superadmin']
 
         # If admin, don't filter by advisor_id (pass None)
         # If advisor, filter by their advisor_id (pass user_id)
@@ -134,15 +144,22 @@ def get_student_checkins(user_id, student_id):
 def get_checkin_data(user_id, student_id):
     """
     Get pre-populated data for check-in form (active quests, etc.).
-    Admins see ALL check-ins for the student, advisors see only their own.
+    Organization isolation is enforced.
+    Admins see ALL check-ins for the student (in their org), advisors see only their own.
     """
     try:
         from database import get_supabase_admin_client
+        from repositories.checkin_repository import CheckinRepository
+
+        # ORGANIZATION ISOLATION: Verify user and student are in the same org
+        repository = CheckinRepository()
+        if not repository._verify_same_organization(user_id, student_id):
+            return jsonify({'error': 'Not authorized to view this student'}), 403
 
         # Check if user is admin
         supabase = get_supabase_admin_client()
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        is_admin = user_response.data and user_response.data.get('role') == 'admin'
+        is_admin = user_response.data and user_response.data.get('role') in ['admin', 'superadmin']
 
         # If admin, don't filter by advisor_id (pass None)
         # If advisor, filter by their advisor_id (pass user_id)

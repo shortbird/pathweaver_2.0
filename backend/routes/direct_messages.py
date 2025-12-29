@@ -219,21 +219,23 @@ def check_can_message(user_id: str, target_user_id: str):
 def get_contacts(user_id: str):
     """
     Get all messaging contacts for the user (advisors, students, etc.)
+    Organization isolation is enforced.
     This includes:
-    - For students: their advisor(s)
-    - For advisors/admins: their assigned students
+    - For students: their advisor(s) in the same organization
+    - For advisors/admins: their assigned students in the same organization
     """
     try:
         from database import get_supabase_admin_client
         supabase = get_supabase_admin_client()
 
-        # Get user role
-        user = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        # Get user role and organization
+        user = supabase.table('users').select('role, organization_id').eq('id', user_id).single().execute()
         if not user.data:
             return error_response('User not found', status_code=404, error_code='not_found')
 
         contacts = []
         user_role = user.data.get('role')
+        user_org_id = user.data.get('organization_id')
 
         # For students: add their advisor(s) as contacts
         if user_role == 'student':
@@ -244,13 +246,18 @@ def get_contacts(user_id: str):
 
             if assignments.data:
                 advisor_ids = [a['advisor_id'] for a in assignments.data]
-                # Fetch advisor details
+                # Fetch advisor details with organization filter
                 advisors = supabase.table('users').select(
-                    'id, display_name, first_name, last_name, avatar_url, role'
+                    'id, display_name, first_name, last_name, avatar_url, role, organization_id'
                 ).in_('id', advisor_ids).execute()
 
                 if advisors.data:
                     for advisor in advisors.data:
+                        # ORGANIZATION ISOLATION: Only include advisors from same org
+                        if user_org_id is not None and advisor.get('organization_id') != user_org_id:
+                            continue
+                        # Remove org_id from response
+                        advisor.pop('organization_id', None)
                         contacts.append({
                             **advisor,
                             'relationship': 'advisor'
@@ -265,13 +272,22 @@ def get_contacts(user_id: str):
 
             if assignments.data:
                 student_ids = [a['student_id'] for a in assignments.data]
-                # Fetch student details
+                # Fetch student details with organization filter
                 students = supabase.table('users').select(
-                    'id, display_name, first_name, last_name, avatar_url, role'
+                    'id, display_name, first_name, last_name, avatar_url, role, organization_id'
                 ).in_('id', student_ids).execute()
 
                 if students.data:
                     for student in students.data:
+                        # ORGANIZATION ISOLATION: Only include students from same org
+                        if user_org_id is not None and student.get('organization_id') != user_org_id:
+                            logger.warning(
+                                f"Organization isolation: Filtered out student {student.get('id')} "
+                                f"from contacts for user {user_id}"
+                            )
+                            continue
+                        # Remove org_id from response
+                        student.pop('organization_id', None)
                         contacts.append({
                             **student,
                             'relationship': 'student'

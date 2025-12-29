@@ -53,7 +53,7 @@ def require_admin(f):
     Decorator to require admin access for routes.
 
     Uses httpOnly cookies exclusively for enhanced security.
-    Verifies user has 'admin' or 'educator' role.
+    Verifies user has 'admin', 'superadmin', or 'educator' role.
 
     When masquerading, this checks the ACTUAL admin identity, not the masquerade target.
 
@@ -82,7 +82,7 @@ def require_admin(f):
                 supabase = get_supabase_admin_client()
                 user = supabase.table('users').select('role').eq('id', user_id).execute()
 
-                if not user.data or len(user.data) == 0 or user.data[0].get('role') not in ['admin', 'educator']:
+                if not user.data or len(user.data) == 0 or user.data[0].get('role') not in ['admin', 'superadmin', 'educator']:
                     raise AuthorizationError('Admin access required')
 
                 return f(user_id, *args, **kwargs)
@@ -277,7 +277,7 @@ def require_advisor_for_student(f):
             user_role = user.data[0].get('role')
 
             # Admins always have access
-            if user_role == 'admin':
+            if user_role in ['admin', 'superadmin']:
                 return f(user_id, *args, **kwargs)
 
             # For advisors, check if they're assigned to this student
@@ -391,7 +391,7 @@ def require_school_admin(f):
             user_email = user.data[0].get('email')
 
             # Check if superadmin or school_admin
-            is_superadmin = (user_role == 'admin' and user_email == Config.SUPERADMIN_EMAIL)
+            is_superadmin = user_role == 'superadmin'
             is_school_admin = user_role == 'school_admin'
 
             if not (is_superadmin or is_school_admin):
@@ -450,10 +450,7 @@ def require_org_admin(f):
                 raise AuthorizationError('User not found')
 
             # Check if superadmin
-            is_superadmin = (
-                user.data['role'] == 'admin' and
-                user.data['email'] == Config.SUPERADMIN_EMAIL
-            )
+            is_superadmin = user.data['role'] == 'superadmin'
 
             # Check if org admin
             is_org_admin = user.data.get('is_org_admin', False)
@@ -496,7 +493,7 @@ def get_advisor_assigned_students(advisor_id):
             user_role = user.data[0].get('role')
 
             # Admins see all students
-            if user_role == 'admin':
+            if user_role in ['admin', 'superadmin']:
                 return None
 
             # Advisors see only assigned students

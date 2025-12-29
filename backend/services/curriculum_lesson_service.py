@@ -199,6 +199,76 @@ class CurriculumLessonService(BaseService):
             logger.error(f"Error fetching lessons: {str(e)}")
             raise
 
+    def get_lessons_for_organization(
+        self,
+        quest_id: str,
+        organization_id: Optional[str],
+        include_unpublished: bool = False,
+        is_superadmin: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        Get lessons for a quest filtered by organization.
+        Users see only their organization's curriculum.
+        Superadmins see all lessons.
+
+        Args:
+            quest_id: Quest ID
+            organization_id: User's organization ID
+            include_unpublished: Include unpublished lessons
+            is_superadmin: If user is superadmin (sees all)
+
+        Returns:
+            List of lessons for the user's organization
+        """
+        try:
+            # DEBUG: Log filtering parameters
+            logger.info(f"[CURRICULUM_SERVICE] get_lessons_for_organization: quest={quest_id[:8]}..., org={organization_id}, is_superadmin={is_superadmin}")
+
+            query = self.supabase.table('curriculum_lessons')\
+                .select('*')\
+                .eq('quest_id', quest_id)\
+                .order('sequence_order', desc=False)
+
+            # Filter by organization unless superadmin
+            if not is_superadmin and organization_id:
+                logger.info(f"[CURRICULUM_SERVICE] Filtering by organization_id={organization_id}")
+                query = query.eq('organization_id', organization_id)
+            else:
+                logger.info(f"[CURRICULUM_SERVICE] NOT filtering by org (is_superadmin={is_superadmin}, org={organization_id})")
+
+            if not include_unpublished:
+                query = query.eq('is_published', True)
+
+            result = query.execute()
+            lessons = result.data or []
+
+            # DEBUG: Log what was returned
+            logger.info(f"[CURRICULUM_SERVICE] Found {len(lessons)} lessons")
+
+            # Fetch linked task IDs for all lessons
+            if lessons:
+                links_result = self.supabase.table('curriculum_lesson_tasks')\
+                    .select('lesson_id, task_id')\
+                    .eq('quest_id', quest_id)\
+                    .execute()
+
+                # Build a mapping of lesson_id -> list of task_ids
+                lesson_tasks_map = {}
+                for link in (links_result.data or []):
+                    lesson_id = link['lesson_id']
+                    if lesson_id not in lesson_tasks_map:
+                        lesson_tasks_map[lesson_id] = []
+                    lesson_tasks_map[lesson_id].append(link['task_id'])
+
+                # Add linked_task_ids to each lesson
+                for lesson in lessons:
+                    lesson['linked_task_ids'] = lesson_tasks_map.get(lesson['id'], [])
+
+            return lessons
+        except Exception as e:
+            logger.error(f"Error fetching lessons for organization: {str(e)}")
+            raise
+
     def get_lesson(self, lesson_id: str) -> Optional[Dict[str, Any]]:
         """Get a single lesson by ID."""
         try:

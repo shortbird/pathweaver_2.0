@@ -43,9 +43,18 @@ def start_masquerade(admin_id, target_user_id):
 
         target_user_data = target_user.data[0]
 
-        # Optional: Prevent masquerading as another admin
-        if target_user_data.get('role') == 'admin':
-            return jsonify({'error': 'Cannot masquerade as another admin'}), 403
+        # Check if requesting user is superadmin
+        admin_user = supabase.table('users').select('role').eq('id', admin_id).execute()
+        admin_role = admin_user.data[0].get('role') if admin_user.data else None
+
+        # DEBUG logging
+        logger.info(f"[Masquerade] admin_id={admin_id}, admin_role={admin_role}, target_role={target_user_data.get('role')}")
+
+        # Prevent non-superadmins from masquerading as admins
+        # Superadmins can masquerade as anyone for testing/debugging
+        if target_user_data.get('role') in ['admin', 'superadmin'] and admin_role != 'superadmin':
+            logger.warning(f"[Masquerade] Blocked: admin_role={admin_role} tried to masquerade as {target_user_data.get('role')}")
+            return jsonify({'error': 'Only superadmins can masquerade as other admins'}), 403
 
         # Get request metadata
         ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
