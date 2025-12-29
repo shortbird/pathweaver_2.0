@@ -37,7 +37,7 @@ bp = Blueprint('dependents', __name__, url_prefix='/api/dependents')
 
 
 def verify_parent_role(user_id: str):
-    """Helper function to verify user has parent or admin role"""
+    """Helper function to verify user has parent, admin, or superadmin role"""
     supabase = get_supabase_admin_client()
 
     user_response = supabase.table('users').select('role').eq('id', user_id).execute()
@@ -45,7 +45,8 @@ def verify_parent_role(user_id: str):
         raise AuthorizationError("User not found")
 
     user_role = user_response.data[0].get('role')
-    if user_role not in [UserRole.PARENT.value, UserRole.ADMIN.value]:
+    # Include superadmin since they have full admin privileges
+    if user_role not in [UserRole.PARENT.value, UserRole.ADMIN.value, 'superadmin']:
         raise AuthorizationError("Only parent or admin accounts can manage dependent profiles")
 
     return True
