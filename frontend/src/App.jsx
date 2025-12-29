@@ -48,6 +48,7 @@ const OptioAcademyAgreement = lazy(() => import('./pages/OptioAcademyAgreement')
 const OptioAcademyHandbook = lazy(() => import('./pages/OptioAcademyHandbook'))
 // Quest Pages
 const QuestBadgeHub = lazy(() => import('./pages/QuestBadgeHub'))
+const BadgesPage = lazy(() => import('./pages/BadgesPage'))
 const QuestDetail = lazy(() => import('./pages/QuestDetail'))
 const TaskLibraryBrowser = lazy(() => import('./pages/TaskLibraryBrowser'))
 // Badge Pages
@@ -84,6 +85,9 @@ const AnnouncementsFeed = lazy(() => import('./pages/announcements/Announcements
 const CreateAnnouncement = lazy(() => import('./pages/announcements/CreateAnnouncement'))
 const CurriculumBuilder = lazy(() => import('./pages/curriculum/CurriculumBuilder'))
 const CurriculumPage = lazy(() => import('./pages/curriculum/CurriculumPage'))
+// Course Pages (Course System - December 2025)
+const CourseBuilder = lazy(() => import('./pages/courses/CourseBuilder'))
+const CourseDetailPage = lazy(() => import('./pages/courses/CourseDetailPage'))
 const MyInvitations = lazy(() => import('./pages/student/MyInvitations'))
 const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
 const DependentProgressReport = lazy(() => import('./pages/parent/DependentProgressReport'))
@@ -323,10 +327,12 @@ function App() {
                 <Route path="quests/:id/curriculum" element={<CurriculumPage />} />
                 <Route path="quests/:questId/library" element={<TaskLibraryBrowser />} />
                 {/* Badge Routes */}
-                <Route path="badges" element={<QuestBadgeHub />} />
+                <Route path="badges" element={<BadgesPage />} />
                 <Route path="badges/:badgeId" element={<BadgeDetail />} />
                 <Route path="badge-progress" element={<BadgeProgressPage />} />
                 <Route path="constellation" element={<ConstellationPage />} />
+                {/* Course Routes */}
+                <Route path="courses/:id" element={<CourseDetailPage />} />
                 {/* Credit & Transcript Routes */}
                 <Route path="credits" element={<CreditTrackerPage />} />
                 <Route path="transcript" element={<TranscriptPage />} />
@@ -362,6 +368,9 @@ function App() {
                 <Route path="advisor/invitations" element={<QuestInvitations />} />
                 <Route path="announcements/new" element={<CreateAnnouncement />} />
                 <Route path="quests/:questId/curriculum/edit" element={<CurriculumBuilder />} />
+                {/* Course Builder */}
+                <Route path="courses/:id/edit" element={<CourseBuilder />} />
+                <Route path="courses/new" element={<CourseBuilder />} />
               </Route>
 
               <Route element={<PrivateRoute requiredRole="parent" />}>

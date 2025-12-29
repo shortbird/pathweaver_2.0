@@ -226,9 +226,10 @@ class BadgeService(BaseService):
         """
         Calculate badge completion progress using NEW pick up/set down logic.
 
-        Supports two badge types:
+        Supports three badge types:
         1. exploration: Any quests picked up and set down (original system)
         2. onfire_pathway: 3 OnFire courses + 2 custom Optio quests (enrollment driver)
+        3. course_completion: XP earned from course quest tasks (course system)
 
         Args:
             user_id: User ID
@@ -357,7 +358,91 @@ class BadgeService(BaseService):
             is_displayed = user_badge.data[0].get('is_displayed', False)
 
         # Calculate progress based on badge type
-        if badge_type == 'onfire_pathway':
+        if badge_type == 'course_completion':
+            # Course completion badge: XP from course quests only
+            # Get course associated with this badge
+            course_result = supabase.table('courses')\
+                .select('id')\
+                .eq('badge_id', badge_id)\
+                .execute()
+
+            if not course_result.data:
+                # No course linked to this badge yet - 0% progress
+                return {
+                    'badge_id': badge_id,
+                    'badge_type': badge_type,
+                    'is_active': is_active,
+                    'completed_at': completed_at,
+                    'available_to_claim_at': available_to_claim_at,
+                    'claimed_at': claimed_at,
+                    'is_displayed': is_displayed,
+                    'percentage': 0,
+                    'xp_earned': 0,
+                    'xp_required': min_xp,
+                    'xp_progress': 0,
+                    'is_complete': False,
+                    'can_claim': False
+                }
+
+            course_id = course_result.data[0]['id']
+
+            # Get all quests in this course
+            course_quests_result = supabase.table('course_quests')\
+                .select('quest_id')\
+                .eq('course_id', course_id)\
+                .execute()
+
+            course_quest_ids = [q['quest_id'] for q in course_quests_result.data]
+
+            # Calculate XP earned from course quest tasks
+            course_xp_earned = 0
+            if course_quest_ids:
+                # Get all user tasks from course quests
+                user_tasks = supabase.table('user_quest_tasks')\
+                    .select('id, xp_value')\
+                    .in_('quest_id', course_quest_ids)\
+                    .eq('user_id', user_id)\
+                    .execute()
+
+                user_task_ids = [t['id'] for t in user_tasks.data]
+
+                if user_task_ids:
+                    # Get completed tasks
+                    completions = supabase.table('quest_task_completions')\
+                        .select('user_quest_task_id')\
+                        .eq('user_id', user_id)\
+                        .in_('user_quest_task_id', user_task_ids)\
+                        .execute()
+
+                    completed_task_ids = {c['user_quest_task_id'] for c in completions.data}
+
+                    # Sum XP from completed course tasks
+                    course_xp_earned = sum(
+                        t['xp_value'] for t in user_tasks.data
+                        if t['id'] in completed_task_ids
+                    )
+
+            # Calculate progress based on XP requirement
+            xp_progress = (course_xp_earned / max(min_xp, 1)) if min_xp > 0 else 1.0
+            is_complete = xp_progress >= 1.0
+
+            return {
+                'badge_id': badge_id,
+                'badge_type': badge_type,
+                'is_active': is_active,
+                'completed_at': completed_at,
+                'available_to_claim_at': available_to_claim_at,
+                'claimed_at': claimed_at,
+                'is_displayed': is_displayed,
+                'percentage': round(xp_progress * 100, 1),
+                'xp_earned': course_xp_earned,
+                'xp_required': min_xp,
+                'xp_progress': round(xp_progress * 100, 1),
+                'is_complete': is_complete,
+                'can_claim': available_to_claim_at is not None and claimed_at is None
+            }
+
+        elif badge_type == 'onfire_pathway':
             # OnFire pathway: 3 courses + 2 custom quests
             onfire_required = badge.data.get('onfire_course_requirement', 3)
             optio_required = badge.data.get('optio_quest_requirement', 2)

@@ -23,6 +23,7 @@ from routes.services import services_bp
 from routes.admin.services import admin_services_bp
 from routes.observer_requests import observer_requests_bp
 from routes.organizations import bp as organizations_bp
+from routes.courses import bp as courses_bp
 
 # Import routes
 from routes import tasks, admin_core, evidence_documents, analytics as analytics_routes, webhooks
@@ -102,6 +103,7 @@ app.register_blueprint(services_bp)  # /api/services (blueprint has url_prefix i
 app.register_blueprint(admin_services_bp)  # /api/admin/services (blueprint has url_prefix in route definitions)
 app.register_blueprint(observer_requests_bp)  # /api/observer-requests (blueprint has url_prefix in route definitions)
 app.register_blueprint(organizations_bp, url_prefix='/api/organizations')  # /api/organizations (public organization endpoints for signup)
+app.register_blueprint(courses_bp)  # /api/courses (course management, quest sequencing, enrollments)
 
 # Register homepage images route (January 2025 - Homepage redesign)
 from routes.homepage_images import bp as homepage_images_bp
