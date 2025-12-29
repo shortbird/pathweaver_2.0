@@ -932,8 +932,7 @@ def assign_advisor_role(user_id, target_user_id):
         requester_email = requester.data.get('email')
 
         # Check if superadmin
-        from app_config import Config
-        is_superadmin = (requester_role == 'admin' and requester_email == Config.SUPERADMIN_EMAIL)
+        is_superadmin = (requester_role == 'superadmin')
 
         # Only school_admin and superadmin can assign advisor role
         if not (is_superadmin or requester_role == 'school_admin'):
@@ -1021,8 +1020,7 @@ def revoke_advisor_role(user_id, target_user_id):
         requester_email = requester.data.get('email')
 
         # Check if superadmin
-        from app_config import Config
-        is_superadmin = (requester_role == 'admin' and requester_email == Config.SUPERADMIN_EMAIL)
+        is_superadmin = (requester_role == 'superadmin')
 
         # Only school_admin and superadmin can revoke advisor role
         if not (is_superadmin or requester_role == 'school_admin'):

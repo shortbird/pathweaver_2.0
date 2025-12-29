@@ -219,15 +219,30 @@ class CheckinRepository:
                     })
 
         # Students needing check-in (no check-in in 30+ days)
-        # Get all students assigned to advisor
+        # Get all students assigned to advisor with organization filtering
         if advisor_id:
+            # First get advisor's organization_id
+            advisor_result = self.supabase.table('users')\
+                .select('organization_id')\
+                .eq('id', advisor_id)\
+                .single()\
+                .execute()
+            advisor_org_id = advisor_result.data.get('organization_id') if advisor_result.data else None
+
             assignments_response = self.supabase.table('advisor_student_assignments')\
-                .select('student_id, users!student_id(display_name, first_name, last_name)')\
+                .select('student_id, users!student_id(display_name, first_name, last_name, organization_id)')\
                 .eq('advisor_id', advisor_id)\
                 .eq('is_active', True)\
                 .execute()
 
-            all_students = assignments_response.data if assignments_response.data else []
+            # ORGANIZATION ISOLATION: Filter to only students in same org
+            all_students = []
+            if assignments_response.data:
+                for assignment in assignments_response.data:
+                    student_data = assignment.get('users', {})
+                    if advisor_org_id is not None and student_data.get('organization_id') != advisor_org_id:
+                        continue
+                    all_students.append(assignment)
 
             if all_students:
                 # OPTIMIZATION: Bulk fetch last check-in dates for all students (eliminates N+1 query)
@@ -410,21 +425,55 @@ class CheckinRepository:
 
         return response.data.get('role') if response.data else None
 
+    def _verify_same_organization(self, user_id_1: str, user_id_2: str) -> bool:
+        """
+        Verify that two users belong to the same organization.
+        This is critical for organization isolation.
+
+        Args:
+            user_id_1: First user's UUID
+            user_id_2: Second user's UUID
+
+        Returns:
+            True if users are in the same organization, False otherwise
+        """
+        try:
+            result = self.supabase.table('users')\
+                .select('id, organization_id')\
+                .in_('id', [user_id_1, user_id_2])\
+                .execute()
+
+            if not result.data or len(result.data) != 2:
+                return False
+
+            org_ids = [u.get('organization_id') for u in result.data]
+            # Both must have an org and they must match
+            if org_ids[0] is None or org_ids[1] is None:
+                return False
+            return org_ids[0] == org_ids[1]
+        except Exception:
+            return False
+
     def verify_advisor_student_relationship(self, advisor_id: str, student_id: str) -> bool:
         """
         Verify that an active advisor-student relationship exists.
-        Admins have access to all students.
+        Organization isolation is enforced.
+        Admins have access only to students in their organization.
 
         Args:
             advisor_id: UUID of the advisor
             student_id: UUID of the student
 
         Returns:
-            True if relationship exists and is active (or user is admin), False otherwise
+            True if relationship exists, is active, and in same org. False otherwise.
         """
-        # Check if user is admin (admins can check in with any student)
+        # ORGANIZATION ISOLATION: Verify they are in the same organization first
+        if not self._verify_same_organization(advisor_id, student_id):
+            return False
+
+        # Check if user is admin (admins can check in with any student in their org)
         user_role = self.get_user_role(advisor_id)
-        if user_role == 'admin':
+        if user_role in ['admin', 'superadmin']:
             return True
 
         # Check for active advisor-student assignment

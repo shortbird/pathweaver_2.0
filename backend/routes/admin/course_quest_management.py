@@ -90,7 +90,7 @@ def create_course_quest(user_id):
         # Advisors always create drafts (is_active=False)
         # NOTE: Course quests CANNOT be activated without preset tasks
         # so we create as inactive and let admin activate after adding tasks
-        if user_role == 'admin':
+        if user_role in ['admin', 'superadmin']:
             is_active = data.get('is_active', False)
         else:
             is_active = False  # Advisors always create unpublished drafts
