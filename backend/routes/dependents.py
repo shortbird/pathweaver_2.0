@@ -429,6 +429,53 @@ def generate_acting_as_token(user_id, dependent_id):
         return jsonify({'success': False, 'error': 'Failed to generate token'}), 500
 
 
+@bp.route('/stop-acting-as', methods=['POST'])
+@require_auth
+def stop_acting_as(user_id):
+    """
+    Stop acting as a dependent and return fresh tokens for the parent.
+
+    This endpoint is called when a parent wants to switch back from viewing
+    the platform as their dependent. It generates new access and refresh tokens
+    for the parent, bypassing any sessionStorage issues in cross-origin production
+    environments.
+
+    The user_id parameter comes from the acting-as token's user_id claim,
+    which is the PARENT's ID (not the dependent).
+
+    Returns:
+        200: Fresh tokens for the parent
+        404: Parent user not found
+        500: Server error
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Verify the parent user exists
+        user_response = supabase.table('users').select('*').eq('id', user_id).single().execute()
+
+        if not user_response.data:
+            logger.warning(f"Parent user not found when stopping acting-as: {user_id}")
+            return jsonify({'success': False, 'error': 'Parent user not found'}), 404
+
+        # Generate fresh access and refresh tokens for the parent
+        access_token = session_manager.generate_access_token(user_id)
+        refresh_token = session_manager.generate_refresh_token(user_id)
+
+        logger.info(f"Parent {user_id} stopped acting as dependent, fresh tokens generated")
+
+        return jsonify({
+            'success': True,
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'user': user_response.data
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error stopping acting-as for parent {user_id}: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to restore parent session'}), 500
+
+
 # ==================== Progress Reports ====================
 
 @bp.route('/<dependent_id>/progress-report', methods=['GET'])

@@ -50,23 +50,43 @@ export const ActingAsProvider = ({ children }) => {
 
   // Memoized clearActingAs function to prevent re-renders
   const clearActingAs = useCallback(async () => {
+    try {
+      // CROSS-ORIGIN FIX: Call backend to get fresh parent tokens
+      // This bypasses sessionStorage issues in production where frontend (optioeducation.com)
+      // and backend (onrender.com) are on different domains
+      const response = await api.post('/api/dependents/stop-acting-as', {});
+
+      if (response.data.success) {
+        const { access_token, refresh_token } = response.data;
+
+        // Store fresh parent tokens
+        await tokenStore.setTokens(access_token, refresh_token);
+        logger.debug('[ActingAsContext] Fresh parent tokens received from backend');
+      } else {
+        console.error('[ActingAsContext] Backend returned error:', response.data.error);
+        // Fall through to sessionStorage fallback
+        throw new Error(response.data.error || 'Failed to get parent tokens from backend');
+      }
+    } catch (error) {
+      console.warn('[ActingAsContext] Backend stop-acting-as failed, trying sessionStorage fallback:', error.message);
+
+      // FALLBACK: Try sessionStorage (works in same-origin environments like localhost)
+      const parentAccess = sessionStorage.getItem('parent_access_token');
+      const parentRefresh = sessionStorage.getItem('parent_refresh_token');
+
+      if (parentAccess && parentRefresh) {
+        await tokenStore.setTokens(parentAccess, parentRefresh);
+        logger.debug('[ActingAsContext] Restored parent tokens from sessionStorage fallback');
+      } else {
+        console.error('[ActingAsContext] No parent tokens available - user will need to log in again');
+      }
+    }
+
+    // Clean up all acting-as state from sessionStorage
     sessionStorage.removeItem('acting_as_dependent');
     sessionStorage.removeItem('acting_as_token');
-
-    // Restore parent's saved tokens (saved before switching to dependent)
-    const parentAccess = sessionStorage.getItem('parent_access_token');
-    const parentRefresh = sessionStorage.getItem('parent_refresh_token');
-
-    if (parentAccess && parentRefresh) {
-      // Restore parent's tokens to tokenStore
-      await tokenStore.setTokens(parentAccess, parentRefresh);
-      // Clean up temporary parent token storage
-      sessionStorage.removeItem('parent_access_token');
-      sessionStorage.removeItem('parent_refresh_token');
-      logger.debug('[ActingAsContext] Restored parent tokens');
-    } else {
-      console.warn('[ActingAsContext] No saved parent tokens found to restore');
-    }
+    sessionStorage.removeItem('parent_access_token');
+    sessionStorage.removeItem('parent_refresh_token');
 
     // Use startTransition for non-urgent state updates (prevents React errors #300 and #310)
     startTransition(() => {
