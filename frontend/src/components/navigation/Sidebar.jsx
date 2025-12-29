@@ -99,8 +99,8 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
-  // Add Admin link if user is admin
-  if (user?.role === 'admin') {
+  // Add Parent/Advisor links for admins and superadmins
+  if (user?.role === 'admin' || user?.role === 'superadmin') {
     navItems.push({
       name: 'Parent',
       path: '/parent/dashboard',
@@ -119,6 +119,10 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
         </svg>
       )
     })
+  }
+
+  // Add global Admin panel link ONLY for superadmins
+  if (user?.role === 'superadmin') {
     navItems.push({
       name: 'Admin',
       path: '/admin',
@@ -131,7 +135,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   }
 
   // Add Organization link for org admins or platform admins with an organization
-  if ((user?.is_org_admin || user?.role === 'admin') && user?.organization_id) {
+  if ((user?.is_org_admin || user?.role === 'admin' || user?.role === 'superadmin') && user?.organization_id) {
     navItems.push({
       name: 'Organization',
       path: '/organization',

@@ -98,7 +98,7 @@ def get_transcript(user_id, target_user_id):
     user_role = requesting_user.data.get('role')
 
     # Admin/superadmin always has access
-    if user_role in ['admin', 'educator']:
+    if user_role in ['admin', 'superadmin', 'educator']:
         transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
         return jsonify({'success': True, 'transcript': transcript}), 200
 

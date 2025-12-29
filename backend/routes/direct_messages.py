@@ -264,7 +264,7 @@ def get_contacts(user_id: str):
                         })
 
         # For advisors/admins: add all their assigned students
-        if user_role in ['advisor', 'admin']:
+        if user_role in ['advisor', 'admin', 'superadmin']:
             # Get student assignments for this advisor
             assignments = supabase.table('advisor_student_assignments').select(
                 'student_id'

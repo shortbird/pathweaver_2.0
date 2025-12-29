@@ -69,7 +69,7 @@ def create_subscription(user_id: str):
             }), 400
 
         # Verify user has access to this organization
-        if user['role'] != 'admin' and user['organization_id'] != organization_id:
+        if user['role'] not in ['admin', 'superadmin'] and user['organization_id'] != organization_id:
             return jsonify({'error': 'Cannot create webhooks for other organizations'}), 403
 
         # Validate event type
@@ -166,12 +166,12 @@ def list_subscriptions(user_id: str):
         org_id_param = request.args.get('organization_id')
         if org_id_param:
             # Only admins can view other orgs
-            if user['role'] != 'admin' and user['organization_id'] != org_id_param:
+            if user['role'] not in ['admin', 'superadmin'] and user['organization_id'] != org_id_param:
                 return jsonify({'error': 'Cannot view webhooks for other organizations'}), 403
             query = query.eq('organization_id', org_id_param)
         else:
             # Non-admins can only see their own org
-            if user['role'] != 'admin':
+            if user['role'] not in ['admin', 'superadmin']:
                 query = query.eq('organization_id', user['organization_id'])
 
         # Filter by event type
@@ -233,7 +233,7 @@ def get_subscription(user_id: str, subscription_id: str):
         subscription = result.data
 
         # Check permissions
-        if user['role'] != 'admin' and user['organization_id'] != subscription['organization_id']:
+        if user['role'] not in ['admin', 'superadmin'] and user['organization_id'] != subscription['organization_id']:
             return jsonify({'error': 'Insufficient permissions'}), 403
 
         # Redact secret (users should store it when created)
@@ -281,7 +281,7 @@ def update_subscription(user_id: str, subscription_id: str):
         subscription = sub_result.data
 
         # Check permissions
-        if user['role'] != 'admin' and user['organization_id'] != subscription['organization_id']:
+        if user['role'] not in ['admin', 'superadmin'] and user['organization_id'] != subscription['organization_id']:
             return jsonify({'error': 'Insufficient permissions'}), 403
 
         # Validate request data
@@ -356,7 +356,7 @@ def delete_subscription(user_id: str, subscription_id: str):
         subscription = sub_result.data
 
         # Check permissions
-        if user['role'] != 'admin' and user['organization_id'] != subscription['organization_id']:
+        if user['role'] not in ['admin', 'superadmin'] and user['organization_id'] != subscription['organization_id']:
             return jsonify({'error': 'Insufficient permissions'}), 403
 
         # Delete subscription (deliveries will be cascade deleted)
@@ -404,7 +404,7 @@ def list_deliveries(user_id: str):
         )
 
         # Filter by organization (non-admins can only see their org)
-        if user['role'] != 'admin':
+        if user['role'] not in ['admin', 'superadmin']:
             query = query.eq('webhook_subscriptions.organization_id', user['organization_id'])
 
         # Filter by subscription
@@ -477,7 +477,7 @@ def test_webhook(user_id: str):
         subscription = sub_result.data
 
         # Check permissions
-        if user['role'] != 'admin' and user['organization_id'] != subscription['organization_id']:
+        if user['role'] not in ['admin', 'superadmin'] and user['organization_id'] != subscription['organization_id']:
             return jsonify({'error': 'Insufficient permissions'}), 403
 
         # Send test webhook

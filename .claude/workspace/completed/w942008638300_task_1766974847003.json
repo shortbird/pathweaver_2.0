@@ -1,0 +1,10 @@
+{
+  "id": "superadmin_advisor_notes",
+  "type": "implement_fix",
+  "priority": 1,
+  "payload": {
+    "description": "Update advisor_notes.py to support 'superadmin' role. Replace all occurrences of `user_response.data.get('role') == 'admin'` with `user_response.data.get('role') in ['admin', 'superadmin']` (4 occurrences at lines 38, 101, 188, 229)",
+    "files": ["backend/routes/advisor_notes.py"],
+    "context": "Adding proper superadmin role differentiation. Superadmins should have same permissions as admins for advisor notes."
+  }
+}

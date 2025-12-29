@@ -38,7 +38,7 @@ def get_all_advisors(user_id):
         # Get all users with advisor or admin role
         advisors = supabase.table('users')\
             .select('id, display_name, first_name, last_name, email, role, created_at')\
-            .in_('role', ['advisor', 'admin'])\
+            .in_('role', ['advisor', 'admin', 'superadmin'])\
             .order('display_name')\
             .execute()
 
@@ -111,7 +111,7 @@ def get_advisor_students(user_id, advisor_id):
         if not advisor.data:
             return jsonify({'success': False, 'error': 'Advisor not found'}), 404
 
-        if advisor.data.get('role') not in ['advisor', 'admin']:
+        if advisor.data.get('role') not in ['advisor', 'admin', 'superadmin']:
             return jsonify({'success': False, 'error': 'User is not an advisor or admin'}), 400
 
         # Get assigned students with assignment details in a single query
@@ -216,7 +216,7 @@ def assign_student_to_advisor(user_id, advisor_id):
         if not advisor.data:
             return jsonify({'success': False, 'error': 'Advisor not found'}), 404
 
-        if advisor.data.get('role') not in ['advisor', 'admin']:
+        if advisor.data.get('role') not in ['advisor', 'admin', 'superadmin']:
             return jsonify({'success': False, 'error': 'User is not an advisor or admin'}), 400
 
         # Verify student exists and has student role

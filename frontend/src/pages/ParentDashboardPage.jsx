@@ -85,7 +85,7 @@ const ParentDashboardPage = () => {
       }
     };
 
-    if (user?.role === 'parent' || user?.role === 'admin') {
+    if (user?.role === 'parent' || user?.role === 'admin' || user?.role === 'superadmin') {
       loadChildrenAndDependents();
     }
   }, [user, actingAsDependent]); // Re-run when actingAsDependent changes (e.g., switching back from masquerade)
@@ -225,8 +225,8 @@ const ParentDashboardPage = () => {
     return null;
   }
 
-  // Allow parent and admin roles to access the dashboard
-  if (!user || (user.role !== 'parent' && user.role !== 'admin')) {
+  // Allow parent, admin, and superadmin roles to access the dashboard
+  if (!user || (user.role !== 'parent' && user.role !== 'admin' && user.role !== 'superadmin')) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-12 text-center">
         <ExclamationTriangleIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
