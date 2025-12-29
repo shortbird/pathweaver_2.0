@@ -37,17 +37,26 @@ export const tokenStore = {
 
   // Restore tokens from encrypted IndexedDB (for page refresh persistence)
   restoreTokens: async () => {
+    console.log('[TokenStore] restoreTokens called')
     try {
       const storedAccess = await secureTokenStore.getAccessToken()
       const storedRefresh = await secureTokenStore.getRefreshToken()
+
+      console.log('[TokenStore] Restored from IndexedDB:', {
+        hasAccess: !!storedAccess,
+        hasRefresh: !!storedRefresh,
+        accessLength: storedAccess?.length,
+        refreshLength: storedRefresh?.length
+      })
 
       // FIX: Restore access token even if refresh is null (masquerade sessions don't have refresh tokens)
       if (storedAccess) {
         accessToken = storedAccess
         refreshToken = storedRefresh // Can be null for masquerade tokens
-        logger.debug('[TokenStore] Tokens restored from encrypted IndexedDB', { hasRefresh: !!storedRefresh })
+        console.log('[TokenStore] Tokens restored successfully')
         return true
       }
+      console.log('[TokenStore] No access token found in IndexedDB')
     } catch (error) {
       console.error('[TokenStore] Failed to restore tokens:', error)
     }

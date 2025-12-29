@@ -424,6 +424,14 @@ export const secureTokenStore = {
    */
   async init() {
     try {
+      // PRODUCTION DEBUG: Log initialization
+      console.log('[SecureTokenStore] Initializing...', {
+        hasCrypto: !!crypto,
+        hasCryptoSubtle: !!crypto?.subtle,
+        hasIndexedDB: !!indexedDB,
+        origin: window.location.origin
+      })
+
       // Check if Web Crypto API is available
       if (!crypto || !crypto.subtle) {
         console.error('[SecureTokenStore] Web Crypto API not available')
@@ -439,7 +447,7 @@ export const secureTokenStore = {
       // Migrate existing tokens from localStorage
       await migrateFromLocalStorage()
 
-      logger.debug('[SecureTokenStore] Initialized successfully')
+      console.log('[SecureTokenStore] Initialized successfully')
       return true
     } catch (error) {
       console.error('[SecureTokenStore] Initialization failed:', error)
@@ -465,10 +473,17 @@ export const secureTokenStore = {
    * Store both tokens (encrypted)
    */
   async setTokens(accessToken, refreshToken) {
+    console.log('[SecureTokenStore] setTokens called', {
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
+      accessTokenLength: accessToken?.length,
+      refreshTokenLength: refreshToken?.length
+    })
     const results = await Promise.all([
       setToken('access_token', accessToken),
       setToken('refresh_token', refreshToken)
     ])
+    console.log('[SecureTokenStore] setTokens results:', results)
     return results.every(r => r === true)
   },
 
