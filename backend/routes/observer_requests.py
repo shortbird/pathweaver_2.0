@@ -120,7 +120,7 @@ def get_observer_requests(user_id, user_role):
         query = supabase.table('observer_requests').select('*')
 
         # Students only see their own requests
-        if user_role not in ['admin', 'superadmin']:
+        if user_role != 'superadmin':
             query = query.eq('user_id', user_id)
 
         # Order by most recent first

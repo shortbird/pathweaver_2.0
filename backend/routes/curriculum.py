@@ -106,7 +106,7 @@ def verify_curriculum_read_permission(user_id: str, quest_id: str, supabase) -> 
         user_org = user.get('organization_id')
 
         # Admins, advisors, and teachers can always read
-        if user_role in ['admin', 'school_admin', 'advisor', 'teacher', 'superadmin']:
+        if user_role in ['superadmin', 'org_admin', 'advisor']:
             return True
 
         # Check if user is enrolled in quest
@@ -166,9 +166,9 @@ def verify_curriculum_permission(user_id: str, quest_id: str, supabase) -> dict:
         user_org = user.get('organization_id')
 
         # Check role - allow admins, advisors, teachers, and superadmins
-        if user_role not in ['admin', 'school_admin', 'advisor', 'teacher', 'superadmin']:
+        if user_role not in ['superadmin', 'org_admin', 'advisor']:
             raise ValidationError(
-                "Only administrators, advisors, and teachers can edit curriculum",
+                "Only administrators and advisors can edit curriculum",
                 403
             )
 
@@ -747,6 +747,15 @@ def create_lesson(user_id: str, quest_id: str):
         if not title:
             return jsonify({'error': 'Title is required'}), 400
 
+        # Debug logging for content
+        logger.info(f"[CREATE_LESSON] Received data keys: {list(data.keys())}")
+        logger.info(f"[CREATE_LESSON] Content type: {type(data.get('content'))}")
+        content_val = data.get('content')
+        if content_val:
+            logger.info(f"[CREATE_LESSON] Content preview: {str(content_val)[:200]}")
+        else:
+            logger.info(f"[CREATE_LESSON] Content is None/empty")
+
         # Get the creating user's organization_id (required for curriculum_lessons)
         user_result = supabase.table('users').select('organization_id').eq('id', user_id).execute()
         user_org_id = user_result.data[0].get('organization_id') if user_result.data else None
@@ -766,7 +775,9 @@ def create_lesson(user_id: str, quest_id: str):
             is_required=data.get('is_required', False),
             estimated_duration_minutes=data.get('estimated_duration_minutes'),
             prerequisite_lesson_ids=data.get('prerequisite_lesson_ids'),
-            xp_threshold=data.get('xp_threshold')
+            xp_threshold=data.get('xp_threshold'),
+            video_url=data.get('video_url'),
+            files=data.get('files')
         )
 
         return jsonify({
@@ -868,6 +879,10 @@ def update_lesson(user_id: str, quest_id: str, lesson_id: str):
         if not data:
             return jsonify({'error': 'Request body required'}), 400
 
+        # Debug logging
+        logger.info(f"[UPDATE_LESSON] Received data keys: {list(data.keys())}")
+        logger.info(f"[UPDATE_LESSON] Content type: {type(data.get('content'))}, preview: {str(data.get('content'))[:100] if data.get('content') else 'None'}")
+
         lesson = service.update_lesson(lesson_id, quest_id, user_id, **data)
 
         return jsonify({
@@ -879,8 +894,10 @@ def update_lesson(user_id: str, quest_id: str, lesson_id: str):
     except ValidationError as e:
         return jsonify({'error': str(e)}), e.status_code or 400
     except Exception as e:
-        logger.error(f"Error updating lesson: {str(e)}")
-        return jsonify({'error': 'Failed to update lesson'}), 500
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"Error updating lesson: {str(e)}\n{tb}")
+        return jsonify({'error': f'Failed to update lesson: {str(e)}'}), 500
 
 
 @bp.route('/<quest_id>/curriculum/lessons/<lesson_id>', methods=['DELETE'])
@@ -1437,7 +1454,7 @@ def get_curriculum_projects(user_id: str, org_id: str):
             return jsonify({'error': 'Permission denied'}), 403
 
         # Must be advisor, admin, or superadmin
-        if user_role not in ['advisor', 'admin', 'superadmin']:
+        if user_role not in ['advisor', 'org_admin', 'superadmin']:
             return jsonify({'error': 'Permission denied'}), 403
 
         # Get all quest IDs that have lessons for this organization
@@ -1517,7 +1534,7 @@ def get_available_quests_for_curriculum(user_id: str, org_id: str):
             return jsonify({'error': 'Permission denied'}), 403
 
         # Must be advisor, admin, or superadmin
-        if user_role not in ['advisor', 'admin', 'superadmin']:
+        if user_role not in ['advisor', 'org_admin', 'superadmin']:
             return jsonify({'error': 'Permission denied'}), 403
 
         # Get quest IDs that already have lessons for this org

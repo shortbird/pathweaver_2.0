@@ -168,7 +168,7 @@ class AdvisorService(BaseService):
                 .single()\
                 .execute()
 
-            if not advisor_check.data or advisor_check.data['role'] not in ['advisor', 'admin']:
+            if not advisor_check.data or advisor_check.data['role'] not in ['advisor', 'org_admin', 'superadmin']:
                 raise ValueError("User is not an advisor")
 
             # Check if assignment already exists
@@ -353,7 +353,7 @@ class AdvisorService(BaseService):
                 .single()\
                 .execute()
 
-            if not advisor_check.data or advisor_check.data['role'] not in ['advisor', 'admin']:
+            if not advisor_check.data or advisor_check.data['role'] not in ['advisor', 'org_admin', 'superadmin']:
                 raise ValueError("User is not an advisor")
 
             # Create badge (without created_by/is_custom fields that don't exist)
@@ -477,7 +477,7 @@ class AdvisorService(BaseService):
                 .single()\
                 .execute()
 
-            if not advisor.data or advisor.data['role'] not in ['advisor', 'admin']:
+            if not advisor.data or advisor.data['role'] not in ['advisor', 'org_admin', 'superadmin']:
                 raise ValueError("Not authorized")
 
             # Check if student already has this badge

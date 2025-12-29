@@ -473,7 +473,7 @@ class CheckinRepository:
 
         # Check if user is admin (admins can check in with any student in their org)
         user_role = self.get_user_role(advisor_id)
-        if user_role in ['admin', 'superadmin']:
+        if user_role == 'superadmin':
             return True
 
         # Check for active advisor-student assignment

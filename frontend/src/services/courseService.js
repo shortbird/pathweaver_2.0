@@ -90,6 +90,21 @@ export const publishCourse = async (id) => {
 }
 
 /**
+ * Unpublish a course (make it inactive/hidden)
+ * @param {string} id - Course ID
+ * @returns {Promise<{success: boolean, course: Object, message: string}>}
+ */
+export const unpublishCourse = async (id) => {
+  try {
+    const response = await api.put(`/api/courses/${id}`, { status: 'draft' })
+    return response.data
+  } catch (error) {
+    console.error(`Error unpublishing course ${id}:`, error)
+    throw error
+  }
+}
+
+/**
  * Add a quest to a course with configuration
  * @param {string} courseId - Course ID
  * @param {string} questId - Quest ID to add
@@ -100,7 +115,11 @@ export const publishCourse = async (id) => {
  */
 export const addQuestToCourse = async (courseId, questId, data = {}) => {
   try {
-    const response = await api.post(`/api/courses/${courseId}/quests/${questId}`, data)
+    // Backend expects quest_id in body, not URL path
+    const response = await api.post(`/api/courses/${courseId}/quests`, {
+      ...data,
+      quest_id: questId
+    })
     return response.data
   } catch (error) {
     console.error(`Error adding quest ${questId} to course ${courseId}:`, error)
@@ -132,7 +151,7 @@ export const removeQuestFromCourse = async (courseId, questId) => {
  */
 export const reorderQuests = async (courseId, questIds) => {
   try {
-    const response = await api.put(`/api/courses/${courseId}/quests/reorder`, { quest_ids: questIds })
+    const response = await api.put(`/api/courses/${courseId}/quests/reorder`, { quest_order: questIds })
     return response.data
   } catch (error) {
     console.error(`Error reordering quests in course ${courseId}:`, error)
@@ -177,6 +196,7 @@ export default {
   createCourse,
   updateCourse,
   publishCourse,
+  unpublishCourse,
   addQuestToCourse,
   removeQuestFromCourse,
   reorderQuests,

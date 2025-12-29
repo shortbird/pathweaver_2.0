@@ -33,7 +33,8 @@ const BadgesPage = () => {
     try {
       setCoursesLoading(true);
       const response = await courseService.getCourses();
-      const coursesData = response.courses || [];
+      // Only show published courses to students
+      const coursesData = (response.courses || []).filter(c => c.status === 'published');
       setCourses(coursesData);
 
       // Fetch enrollments for each course

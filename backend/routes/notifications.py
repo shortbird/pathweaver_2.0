@@ -199,7 +199,7 @@ def send_notification(user_id: str):
             return jsonify({'error': 'User not found'}), 404
 
         user_role = user.data.get('role')
-        if user_role not in ['advisor', 'school_admin', 'superadmin']:
+        if user_role not in ['advisor', 'org_admin', 'superadmin']:
             return jsonify({'error': 'Only advisors and administrators can send notifications'}), 403
 
         # Get request data

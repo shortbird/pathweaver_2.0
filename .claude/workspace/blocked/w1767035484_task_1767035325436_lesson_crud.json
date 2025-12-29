@@ -1,0 +1,10 @@
+{
+  "id": "add_lesson_crud_to_coursebuilder",
+  "type": "implement_frontend",
+  "priority": 2,
+  "payload": {
+    "description": "Integrate LessonEditor into CourseBuilder.jsx for inline CRUD operations. Add: (1) 'Add Lesson' button that opens LessonEditor modal/inline, (2) Edit button for each lesson that opens LessonEditor with existing data, (3) Delete button with confirmation, (4) Drag-and-drop reordering for lessons, (5) Auto-save or save button for changes. Use existing lesson API endpoints.",
+    "files": ["frontend/src/pages/courses/CourseBuilder.jsx"],
+    "context": "Similar pattern to how quests are managed in the sidebar. Show lessons in expandable accordion under selected project. This task depends on task: create_lesson_editor_component."
+  }
+}

@@ -32,7 +32,7 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
         if parent_user_id == student_user_id:
             # Single query to verify admin role
             user_response = supabase.table('users').select('role').eq('id', parent_user_id).single().execute()
-            if user_response.data and user_response.data.get('role') in ['admin', 'superadmin']:
+            if user_response.data and user_response.data.get('role') in ['superadmin']:
                 return True
             # If not admin, fall through to normal parent validation
 
@@ -55,7 +55,7 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
         user_role = user.get('role')
 
         # Verify parent or admin role (admins have full parent privileges)
-        if user_role not in ('parent', 'admin', 'superadmin'):
+        if user_role not in ('parent', 'superadmin'):
             raise AuthorizationError("Only parent accounts can access this endpoint")
 
         # Check for APPROVED link to this specific student only

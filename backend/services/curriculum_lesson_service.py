@@ -15,7 +15,7 @@ import google.generativeai as genai
 logger = get_logger(__name__)
 
 
-def validate_content_blocks(content: Dict[str, Any]) -> Dict[str, Any]:
+def validate_content_blocks(content: Any) -> Dict[str, Any]:
     """
     Validate and normalize lesson content block structure.
 
@@ -25,8 +25,25 @@ def validate_content_blocks(content: Dict[str, Any]) -> Dict[str, Any]:
             { "id": "uuid", "type": "text|iframe|document", "content": "...", "data": {...} }
         ]
     }
+
+    Also accepts:
+    - HTML string (wrapped in a single text block)
+    - None (returns empty blocks)
     """
     if content is None:
+        return {"blocks": []}
+
+    # If content is a string (HTML from rich text editor), wrap it in a text block
+    if isinstance(content, str):
+        if content.strip():
+            return {
+                "blocks": [{
+                    "id": f"block_{uuid.uuid4().hex[:12]}",
+                    "type": "text",
+                    "content": content,
+                    "data": {}
+                }]
+            }
         return {"blocks": []}
 
     if not isinstance(content, dict):
@@ -115,7 +132,7 @@ class CurriculumLessonService(BaseService):
         quest_id: str,
         title: str,
         description: str,
-        content: Dict[str, Any],
+        content: Any,
         user_id: str,
         organization_id: str,
         sequence_order: Optional[int] = None,
@@ -123,7 +140,9 @@ class CurriculumLessonService(BaseService):
         is_required: bool = False,
         estimated_duration_minutes: Optional[int] = None,
         prerequisite_lesson_ids: Optional[List[str]] = None,
-        xp_threshold: Optional[int] = None
+        xp_threshold: Optional[int] = None,
+        video_url: Optional[str] = None,
+        files: Optional[List[Dict]] = None
     ) -> Dict[str, Any]:
         """Create a new curriculum lesson."""
         try:
@@ -157,6 +176,10 @@ class CurriculumLessonService(BaseService):
                 lesson_data['prerequisite_lesson_ids'] = prerequisite_lesson_ids
             if xp_threshold is not None:
                 lesson_data['xp_threshold'] = xp_threshold
+            if video_url:
+                lesson_data['video_url'] = video_url
+            if files:
+                lesson_data['files'] = files
 
             result = self.supabase.table('curriculum_lessons').insert(lesson_data).execute()
             logger.info(f"Created lesson '{title}' for quest {quest_id}")
@@ -281,18 +304,41 @@ class CurriculumLessonService(BaseService):
     def update_lesson(self, lesson_id: str, quest_id: str, user_id: str, **updates) -> Dict[str, Any]:
         """Update a curriculum lesson."""
         try:
+            from datetime import datetime
+
             lesson = self.get_lesson(lesson_id)
             if not lesson or lesson['quest_id'] != quest_id:
                 raise ValidationError("Lesson not found or does not belong to this quest", 404)
 
-            # Validate content blocks if content is being updated
-            if 'content' in updates:
-                updates['content'] = validate_content_blocks(updates['content'])
+            # Valid columns in curriculum_lessons table
+            valid_columns = {
+                'title', 'description', 'content', 'sequence_order',
+                'is_published', 'is_required', 'estimated_duration_minutes',
+                'prerequisite_lesson_ids', 'xp_threshold',
+                'video_url', 'files',  # Added in migration 026
+                'last_edited_by', 'last_edited_at'
+            }
 
-            updates['last_edited_by'] = user_id
-            updates['last_edited_at'] = 'now()'
-            result = self.supabase.table('curriculum_lessons').update(updates).eq('id', lesson_id).execute()
-            logger.info(f"Updated lesson {lesson_id}")
+            # Filter updates to only include valid columns
+            filtered_updates = {k: v for k, v in updates.items() if k in valid_columns}
+
+            # Debug logging
+            logger.info(f"[UPDATE_LESSON_SERVICE] Updates received: {list(updates.keys())}")
+            logger.info(f"[UPDATE_LESSON_SERVICE] Filtered updates: {list(filtered_updates.keys())}")
+
+            # Validate content blocks if content is being updated
+            if 'content' in filtered_updates:
+                original_content = filtered_updates['content']
+                filtered_updates['content'] = validate_content_blocks(filtered_updates['content'])
+                logger.info(f"[UPDATE_LESSON_SERVICE] Content validated. Original type: {type(original_content)}, Result: {str(filtered_updates['content'])[:200]}")
+
+            filtered_updates['last_edited_by'] = user_id
+            filtered_updates['last_edited_at'] = datetime.utcnow().isoformat()
+
+            logger.info(f"[UPDATE_LESSON_SERVICE] Final update data: {list(filtered_updates.keys())}")
+
+            result = self.supabase.table('curriculum_lessons').update(filtered_updates).eq('id', lesson_id).execute()
+            logger.info(f"[UPDATE_LESSON_SERVICE] Update result: {result.data[0] if result.data else 'No data returned'}")
             return result.data[0] if result.data else {}
         except ValidationError:
             raise

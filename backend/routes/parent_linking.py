@@ -361,7 +361,7 @@ def submit_connection_requests(user_id):
 
         # Verify requesting user is a parent or admin (admins have full parent privileges)
         parent = supabase.table('users').select('id, role, first_name, last_name, email').eq('id', user_id).execute()
-        if not parent.data or parent.data[0].get('role') not in ('parent', 'admin', 'superadmin'):
+        if not parent.data or parent.data[0].get('role') not in ('parent', 'superadmin'):
             raise AuthorizationError("Only parent accounts can submit connection requests")
 
         parent_data = parent.data[0]

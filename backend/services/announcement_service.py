@@ -137,7 +137,7 @@ class AnnouncementService(BaseService):
             audience_filter = None
             if user_role == 'student':
                 audience_filter = 'students'
-            elif user_role in ['advisor', 'school_admin', 'superadmin']:
+            elif user_role in ['advisor', 'org_admin', 'superadmin']:
                 # Admins/advisors see all announcements
                 audience_filter = None
             elif user_role == 'parent':
@@ -226,9 +226,9 @@ class AnnouncementService(BaseService):
             if not announcement:
                 raise ValueError("Announcement not found")
 
-            # Only author or superadmin/school_admin can delete
+            # Only author or superadmin/org_admin can delete
             is_author = announcement['author_id'] == user_id
-            is_admin = user_role in ['school_admin', 'superadmin']
+            is_admin = user_role in ['org_admin', 'superadmin']
 
             if not (is_author or is_admin):
                 raise PermissionError("You do not have permission to delete this announcement")

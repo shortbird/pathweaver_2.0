@@ -63,8 +63,8 @@ class DependentRepository(BaseRepository):
         if not parent.data:
             raise NotFoundError(f"Parent with ID {parent_id} not found")
 
-        if parent.data.get('role') not in ['parent', 'admin']:
-            raise PermissionError(f"User {parent_id} is not a parent or admin")
+        if parent.data.get('role') not in ['parent', 'superadmin']:
+            raise PermissionError(f"User {parent_id} is not a parent or superadmin")
 
         # Validate age (must be under 13)
         age = self._calculate_age(date_of_birth)

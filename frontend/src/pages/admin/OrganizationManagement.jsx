@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOrganization } from '../../contexts/OrganizationContext';
 import api from '../../services/api';
@@ -12,6 +12,7 @@ export default function OrganizationManagement() {
   const { orgId: urlOrgId } = useParams();
   const { user } = useAuth();
   const { refreshOrganization } = useOrganization();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Use URL param if available (admin route), otherwise use user's organization
   const orgId = urlOrgId || user?.organization_id;
@@ -19,7 +20,24 @@ export default function OrganizationManagement() {
   const [orgData, setOrgData] = useState(null);
   const [siteSettings, setSiteSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
+
+  // Read initial tab from URL, default to 'overview'
+  const tabFromUrl = searchParams.get('tab') || 'overview';
+  const [activeTab, setActiveTab] = useState(tabFromUrl);
+
+  // Sync tab state with URL changes
+  useEffect(() => {
+    const tab = searchParams.get('tab') || 'overview';
+    if (tab !== activeTab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  // Update URL when tab changes
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
 
   useEffect(() => {
     if (orgId) {
@@ -85,28 +103,28 @@ export default function OrganizationManagement() {
       <div className="mb-6 border-b">
         <nav className="flex gap-4">
           <button
-            onClick={() => setActiveTab('overview')}
+            onClick={() => handleTabChange('overview')}
             className={`px-4 py-2 ${activeTab === 'overview' ? 'border-b-2 border-optio-purple font-medium' : 'text-gray-600 hover:text-gray-900'}`}
           >
             Overview
           </button>
           <button
-            onClick={() => setActiveTab('users')}
+            onClick={() => handleTabChange('users')}
             className={`px-4 py-2 ${activeTab === 'users' ? 'border-b-2 border-optio-purple font-medium' : 'text-gray-600 hover:text-gray-900'}`}
           >
             Users
           </button>
           <button
-            onClick={() => setActiveTab('quests')}
+            onClick={() => handleTabChange('quests')}
             className={`px-4 py-2 ${activeTab === 'quests' ? 'border-b-2 border-optio-purple font-medium' : 'text-gray-600 hover:text-gray-900'}`}
           >
             Quests
           </button>
           <button
-            onClick={() => setActiveTab('curriculum')}
-            className={`px-4 py-2 ${activeTab === 'curriculum' ? 'border-b-2 border-optio-purple font-medium' : 'text-gray-600 hover:text-gray-900'}`}
+            onClick={() => handleTabChange('courses')}
+            className={`px-4 py-2 ${activeTab === 'courses' ? 'border-b-2 border-optio-purple font-medium' : 'text-gray-600 hover:text-gray-900'}`}
           >
-            Curriculum
+            Courses
           </button>
         </nav>
       </div>
@@ -114,7 +132,7 @@ export default function OrganizationManagement() {
       {activeTab === 'overview' && <OverviewTab orgId={orgId} orgData={orgData} onUpdate={fetchOrganizationData} onLogoChange={refreshOrganization} />}
       {activeTab === 'users' && <UsersTab orgId={orgId} users={orgData.users} onUpdate={fetchOrganizationData} />}
       {activeTab === 'quests' && <QuestsTab orgId={orgId} orgData={orgData} onUpdate={fetchOrganizationData} siteSettings={siteSettings} />}
-      {activeTab === 'curriculum' && <CurriculumTab orgId={orgId} orgData={orgData} />}
+      {activeTab === 'courses' && <CourseTab orgId={orgId} orgData={orgData} />}
     </div>
   );
 }
@@ -935,32 +953,32 @@ function QuestsTab({ orgId, orgData, onUpdate, siteSettings }) {
   );
 }
 
-function CurriculumTab({ orgId, orgData }) {
+function CourseTab({ orgId, orgData }) {
   const navigate = useNavigate();
-  const [projects, setProjects] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const fetchProjects = async () => {
+  const fetchCourses = async () => {
     try {
       setLoading(true);
-      // Fetch only quests that have curriculum projects (at least one lesson)
-      const response = await api.get(`/api/quests/curriculum-projects/${orgId}`);
-      setProjects(response.data.projects || []);
+      // Fetch courses for this organization
+      const response = await api.get(`/api/courses?organization_id=${orgId}`);
+      setCourses(response.data.courses || response.data || []);
     } catch (error) {
-      console.error('Failed to fetch curriculum projects:', error);
+      console.error('Failed to fetch courses:', error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProjects();
+    fetchCourses();
   }, [orgId]);
 
-  const filteredProjects = projects.filter(project =>
-    project.title?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredCourses = courses.filter(course =>
+    course.title?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading) {
@@ -976,15 +994,15 @@ function CurriculumTab({ orgId, orgData }) {
       {/* Header */}
       <div className="flex flex-wrap justify-between items-center gap-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Curriculum Builder</h2>
+          <h2 className="text-xl font-bold text-gray-900">Course Builder</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Create and manage curriculum content for your organization's quests
+            Create and manage courses for your organization
           </p>
         </div>
         <div className="flex items-center gap-3">
           <input
             type="text"
-            placeholder="Search quests..."
+            placeholder="Search courses..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="border border-gray-200 rounded-lg px-4 py-2 w-64 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
@@ -996,40 +1014,40 @@ function CurriculumTab({ orgId, orgData }) {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Build New Curriculum
+            Create Course
           </button>
         </div>
       </div>
 
       {showCreateModal && (
-        <CreateCurriculumModal
+        <CreateCourseModal
           orgId={orgId}
           navigate={navigate}
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             setShowCreateModal(false);
-            fetchProjects();
+            fetchCourses();
           }}
         />
       )}
 
-      {/* Curriculum Projects Grid */}
-      {filteredProjects.length === 0 ? (
+      {/* Courses Grid */}
+      {filteredCourses.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
           <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
           </svg>
           <p className="text-gray-500">
-            {searchTerm ? 'No curriculum projects match your search' : 'No curriculum projects yet. Click "Build New Curriculum" to get started.'}
+            {searchTerm ? 'No courses match your search' : 'No courses yet. Click "Create Course" to get started.'}
           </p>
         </div>
       ) : (
         <div className="grid gap-4">
-          {filteredProjects.map(project => (
-            <CurriculumProjectCard
-              key={project.id}
-              project={project}
-              onDelete={(id) => setProjects(prev => prev.filter(p => p.id !== id))}
+          {filteredCourses.map(course => (
+            <CourseCard
+              key={course.id}
+              course={course}
+              onDelete={(id) => setCourses(prev => prev.filter(c => c.id !== id))}
             />
           ))}
         </div>
@@ -1038,19 +1056,19 @@ function CurriculumTab({ orgId, orgData }) {
   );
 }
 
-function CurriculumProjectCard({ project, onDelete }) {
-  const lessonCount = project.lesson_count || 0;
+function CourseCard({ course, onDelete }) {
+  const projectCount = course.quest_count || course.project_count || 0;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await api.delete(`/api/admin/quests/${project.id}`);
-      onDelete(project.id);
+      await api.delete(`/api/courses/${course.id}`);
+      onDelete(course.id);
     } catch (err) {
-      console.error('Failed to delete quest:', err);
-      alert('Failed to delete curriculum project');
+      console.error('Failed to delete course:', err);
+      alert('Failed to delete course');
     } finally {
       setDeleting(false);
       setShowDeleteConfirm(false);
@@ -1061,24 +1079,28 @@ function CurriculumProjectCard({ project, onDelete }) {
     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:border-optio-purple/30 transition-colors">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-semibold text-gray-900 truncate">{project.title}</h3>
-          <p className="text-sm text-gray-600 mt-1 line-clamp-2">{project.description || 'No description'}</p>
+          <h3 className="text-lg font-semibold text-gray-900 truncate">{course.title}</h3>
+          <p className="text-sm text-gray-600 mt-1 line-clamp-2">{course.description || 'No description'}</p>
           <div className="flex items-center gap-3 mt-3">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
               </svg>
-              {lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}
+              {projectCount} {projectCount === 1 ? 'project' : 'projects'}
             </span>
-            <span className="text-xs text-gray-500">
-              {project.quest_type || 'standard'} quest
+            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+              course.status === 'published' ? 'bg-green-100 text-green-700' :
+              course.status === 'archived' ? 'bg-gray-100 text-gray-600' :
+              'bg-yellow-100 text-yellow-700'
+            }`}>
+              {course.status || 'draft'}
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-center gap-3">
           <Link
-            to={`/quests/${project.id}/curriculum/edit`}
-            className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity"
+            to={`/courses/${course.id}/edit`}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -1087,12 +1109,13 @@ function CurriculumProjectCard({ project, onDelete }) {
           </Link>
           <button
             onClick={() => setShowDeleteConfirm(true)}
-            className="flex-shrink-0 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-            title="Delete curriculum project"
+            className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-600 transition-colors mt-1"
+            title="Delete course"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
+            Delete
           </button>
         </div>
       </div>
@@ -1101,9 +1124,9 @@ function CurriculumProjectCard({ project, onDelete }) {
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowDeleteConfirm(false)}>
           <div className="bg-white rounded-xl p-6 max-w-md mx-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Curriculum Project?</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Course?</h3>
             <p className="text-sm text-gray-600 mb-4">
-              This will permanently delete "{project.title}" and all its lessons. This action cannot be undone.
+              This will permanently delete "{course.title}" and all its projects. This action cannot be undone.
             </p>
             <div className="flex gap-3 justify-end">
               <button
@@ -1128,34 +1151,13 @@ function CurriculumProjectCard({ project, onDelete }) {
   );
 }
 
-function CreateCurriculumModal({ orgId, navigate, onClose, onSuccess }) {
-  const [mode, setMode] = useState('new'); // 'new' or 'existing'
+function CreateCourseModal({ orgId, navigate, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
     title: '',
-    description: '',
-    quest_type: 'course'
+    description: ''
   });
-  const [selectedQuestId, setSelectedQuestId] = useState('');
-  const [availableQuests, setAvailableQuests] = useState([]);
-  const [loadingQuests, setLoadingQuests] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Fetch available quests when mode changes to 'existing'
-  useEffect(() => {
-    if (mode === 'existing') {
-      setLoadingQuests(true);
-      api.get(`/api/quests/available-quests/${orgId}`)
-        .then(res => {
-          setAvailableQuests(res.data.quests || []);
-        })
-        .catch(err => {
-          console.error('Failed to fetch available quests:', err);
-          setError('Failed to load available quests');
-        })
-        .finally(() => setLoadingQuests(false));
-    }
-  }, [mode, orgId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1163,63 +1165,25 @@ function CreateCurriculumModal({ orgId, navigate, onClose, onSuccess }) {
     setError('');
 
     try {
-      let questId;
+      // Step 1: Create the course
+      const courseResponse = await api.post('/api/courses', {
+        title: formData.title,
+        description: formData.description,
+        organization_id: orgId,
+        status: 'draft',
+        visibility: 'organization',
+        navigation_mode: 'sequential'
+      });
+      const courseId = courseResponse.data.course?.id || courseResponse.data.id;
 
-      if (mode === 'new') {
-        // Create new quest in draft mode
-        const response = await api.post('/api/admin/quests/create', {
-          title: formData.title,
-          description: formData.description,
-          quest_type: formData.quest_type,
-          organization_id: orgId,
-          is_active: false,
-          is_public: false
-        });
-        questId = response.data.quest?.id || response.data.id;
-
-        // Create an initial lesson so the quest appears in the curriculum list
-        if (questId) {
-          try {
-            await api.post(`/api/quests/${questId}/curriculum/lessons`, {
-              title: 'Introduction',
-              description: '',
-              content: { blocks: [] },
-              is_published: false
-            });
-          } catch (lessonErr) {
-            console.warn('Failed to create initial lesson:', lessonErr);
-            // Continue anyway - user can create lessons manually
-          }
-        }
-      } else {
-        // Use selected existing quest
-        if (!selectedQuestId) {
-          setError('Please select a quest');
-          setLoading(false);
-          return;
-        }
-        questId = selectedQuestId;
-
-        // Create an initial lesson for existing quest too
-        try {
-          await api.post(`/api/quests/${questId}/curriculum/lessons`, {
-            title: 'Introduction',
-            description: '',
-            content: { blocks: [] },
-            is_published: false
-          });
-        } catch (lessonErr) {
-          console.warn('Failed to create initial lesson:', lessonErr);
-        }
+      if (!courseId) {
+        throw new Error('Failed to create course - no ID returned');
       }
 
-      if (questId) {
-        navigate(`/quests/${questId}/curriculum/edit`);
-      } else {
-        onSuccess();
-      }
+      // Navigate to the course builder (user can add projects manually)
+      navigate(`/courses/${courseId}/edit`);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create curriculum');
+      setError(err.response?.data?.error || 'Failed to create course');
       setLoading(false);
     }
   };
@@ -1227,122 +1191,34 @@ function CreateCurriculumModal({ orgId, navigate, onClose, onSuccess }) {
   return createPortal(
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
       <div className="bg-white rounded-xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-2xl font-bold mb-2">Build New Curriculum</h2>
+        <h2 className="text-2xl font-bold mb-2">Create Course</h2>
         <p className="text-gray-600 mb-6">
-          Create curriculum content for a new or existing quest.
+          Create a new course for your organization. You can add projects, lessons, and tasks after creation.
         </p>
 
-        {/* Mode Selector */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium mb-2">Choose an option</label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setMode('new')}
-              className={`p-4 rounded-lg border-2 text-left transition-all ${
-                mode === 'new'
-                  ? 'border-optio-purple bg-optio-purple/5'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <svg className={`w-5 h-5 ${mode === 'new' ? 'text-optio-purple' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span className={`font-medium ${mode === 'new' ? 'text-optio-purple' : 'text-gray-700'}`}>Create New Quest</span>
-              </div>
-              <p className="text-xs text-gray-500">Start fresh with a new quest</p>
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('existing')}
-              className={`p-4 rounded-lg border-2 text-left transition-all ${
-                mode === 'existing'
-                  ? 'border-optio-purple bg-optio-purple/5'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <svg className={`w-5 h-5 ${mode === 'existing' ? 'text-optio-purple' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                <span className={`font-medium ${mode === 'existing' ? 'text-optio-purple' : 'text-gray-700'}`}>Use Existing Quest</span>
-              </div>
-              <p className="text-xs text-gray-500">Add curriculum to a quest</p>
-            </button>
-          </div>
-        </div>
-
         <form onSubmit={handleSubmit}>
-          {mode === 'new' ? (
-            <>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Title</label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-                  placeholder="e.g., Introduction to Photography"
-                  required
-                />
-              </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Course Title</label>
+            <input
+              type="text"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+              placeholder="e.g., Introduction to Photography"
+              required
+            />
+          </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Description</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-                  placeholder="Brief description of what students will learn..."
-                  rows={3}
-                />
-              </div>
-
-              <div className="mb-6">
-                <label className="block text-sm font-medium mb-1">Type</label>
-                <select
-                  value={formData.quest_type}
-                  onChange={(e) => setFormData({ ...formData, quest_type: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-                >
-                  <option value="course">Course (structured learning path)</option>
-                  <option value="optio">Quest (flexible exploration)</option>
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  Courses have structured lessons; Quests are more open-ended.
-                </p>
-              </div>
-            </>
-          ) : (
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-1">Select a Quest</label>
-              {loadingQuests ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-optio-purple"></div>
-                </div>
-              ) : availableQuests.length === 0 ? (
-                <div className="text-center py-8 bg-gray-50 rounded-lg">
-                  <p className="text-gray-500 text-sm">No quests available without curriculum</p>
-                  <p className="text-gray-400 text-xs mt-1">All available quests already have curriculum</p>
-                </div>
-              ) : (
-                <select
-                  value={selectedQuestId}
-                  onChange={(e) => setSelectedQuestId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-                  required
-                >
-                  <option value="">Select a quest...</option>
-                  {availableQuests.map(quest => (
-                    <option key={quest.id} value={quest.id}>
-                      {quest.title} ({quest.quest_type || 'standard'})
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          )}
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-1">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+              placeholder="Brief description of what students will learn..."
+              rows={3}
+            />
+          </div>
 
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
             <div className="flex gap-3">
@@ -1351,7 +1227,7 @@ function CreateCurriculumModal({ orgId, navigate, onClose, onSuccess }) {
               </svg>
               <div className="text-sm text-blue-800">
                 <p className="font-medium">Draft Mode</p>
-                <p className="mt-1">Your curriculum will be saved as a draft. You can add lessons, content, and tasks before publishing it to students.</p>
+                <p className="mt-1">Your course will be saved as a draft. You can add projects, lessons, and tasks before publishing it to students.</p>
               </div>
             </div>
           </div>
@@ -1372,10 +1248,10 @@ function CreateCurriculumModal({ orgId, navigate, onClose, onSuccess }) {
             </button>
             <button
               type="submit"
-              disabled={loading || (mode === 'existing' && !selectedQuestId)}
+              disabled={loading || !formData.title.trim()}
               className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50"
             >
-              {loading ? 'Loading...' : mode === 'new' ? 'Create & Build' : 'Build Curriculum'}
+              {loading ? 'Creating...' : 'Create Course'}
             </button>
           </div>
         </form>

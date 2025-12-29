@@ -58,7 +58,7 @@ class QuestInvitationService(BaseService):
             if not advisor:
                 raise NotFoundError("Advisor not found")
 
-            if advisor['role'] not in ['advisor', 'school_admin', 'admin']:
+            if advisor['role'] not in ['advisor', 'org_admin', 'superadmin']:
                 raise AuthorizationError("Only advisors and admins can invite students to quests")
 
             organization_id = advisor.get('organization_id')
@@ -236,7 +236,7 @@ class QuestInvitationService(BaseService):
             if not advisor:
                 raise NotFoundError("Advisor not found")
 
-            if advisor['role'] not in ['advisor', 'school_admin', 'admin']:
+            if advisor['role'] not in ['advisor', 'org_admin', 'superadmin']:
                 raise AuthorizationError("Only advisors and admins can view invitations")
 
             organization_id = advisor.get('organization_id')

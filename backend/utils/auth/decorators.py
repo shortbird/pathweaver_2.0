@@ -19,14 +19,18 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 def has_admin_privileges(role: str) -> bool:
-    """Check if a role has admin privileges (admin or superadmin)."""
-    return role in ['admin', 'superadmin']
+    """Check if a role has admin privileges (superadmin only)."""
+    return role == 'superadmin'
+
+def has_org_admin_privileges(role: str) -> bool:
+    """Check if a role has org admin privileges (org_admin or superadmin)."""
+    return role in ['org_admin', 'superadmin']
 
 def has_role_or_admin(role: str, *allowed_roles) -> bool:
-    """Check if user has one of the allowed roles, or is admin/superadmin."""
+    """Check if user has one of the allowed roles, or is superadmin."""
     if role in allowed_roles:
         return True
-    if 'admin' in allowed_roles and has_admin_privileges(role):
+    if has_admin_privileges(role):
         return True
     return False
 
@@ -62,10 +66,10 @@ def require_auth(f):
 
 def require_admin(f):
     """
-    Decorator to require admin access for routes.
+    Decorator to require superadmin access for routes.
 
     Uses httpOnly cookies exclusively for enhanced security.
-    Verifies user has 'admin', 'superadmin', or 'educator' role.
+    Verifies user has 'superadmin' role.
 
     When masquerading, this checks the ACTUAL admin identity, not the masquerade target.
 
@@ -86,7 +90,7 @@ def require_admin(f):
         # Store user_id in request context
         request.user_id = user_id
 
-        # Verify admin status with retry logic (use admin client to bypass RLS)
+        # Verify superadmin status with retry logic (use admin client to bypass RLS)
         from database import get_supabase_admin_client
         max_retries = 2
         for attempt in range(max_retries):
@@ -94,8 +98,8 @@ def require_admin(f):
                 supabase = get_supabase_admin_client()
                 user = supabase.table('users').select('role').eq('id', user_id).execute()
 
-                if not user.data or len(user.data) == 0 or user.data[0].get('role') not in ['admin', 'superadmin', 'educator']:
-                    raise AuthorizationError('Admin access required')
+                if not user.data or len(user.data) == 0 or user.data[0].get('role') != 'superadmin':
+                    raise AuthorizationError('Superadmin access required')
 
                 return f(user_id, *args, **kwargs)
 
@@ -152,11 +156,10 @@ def require_role(*allowed_roles):
                     user = supabase.table('users').select('role').eq('id', user_id).execute()
 
                     user_role = user.data[0].get('role') if user.data and len(user.data) > 0 else None
-                    # Superadmin inherits all admin privileges
-                    effective_roles = list(allowed_roles)
-                    if 'admin' in effective_roles and 'superadmin' not in effective_roles:
-                        effective_roles.append('superadmin')
-                    if not user_role or user_role not in effective_roles:
+                    # Superadmin has access to everything
+                    if user_role == 'superadmin':
+                        return f(user_id, *args, **kwargs)
+                    if not user_role or user_role not in allowed_roles:
                         raise AuthorizationError(f'Required role: {", ".join(allowed_roles)}')
 
                     return f(user_id, *args, **kwargs)
@@ -203,10 +206,10 @@ def validate_uuid_param(*param_names):
 
 def require_advisor(f):
     """
-    Decorator to require advisor or admin access for routes.
+    Decorator to require advisor, org_admin, or superadmin access for routes.
 
     Uses httpOnly cookies exclusively for enhanced security.
-    Verifies user has 'advisor' or 'admin' role.
+    Verifies user has 'advisor', 'org_admin', or 'superadmin' role.
     Advisors can create quest drafts but need admin approval to publish.
 
     When masquerading, this checks the actual admin identity, not the masquerade target.
@@ -233,7 +236,7 @@ def require_advisor(f):
         try:
             user = supabase.table('users').select('role').eq('id', user_id).execute()
 
-            if not user.data or len(user.data) == 0 or user.data[0].get('role') not in ['advisor', 'admin', 'superadmin']:
+            if not user.data or len(user.data) == 0 or user.data[0].get('role') not in ['advisor', 'org_admin', 'superadmin']:
                 raise AuthorizationError('Advisor access required')
 
             return f(user_id, *args, **kwargs)
@@ -293,12 +296,12 @@ def require_advisor_for_student(f):
 
             user_role = user.data[0].get('role')
 
-            # Admins always have access
-            if user_role in ['admin', 'superadmin']:
+            # Superadmin always has access
+            if user_role == 'superadmin':
                 return f(user_id, *args, **kwargs)
 
-            # For advisors, check if they're assigned to this student
-            if user_role == 'advisor':
+            # For advisors and org_admins, check if they're assigned to this student
+            if user_role in ['advisor', 'org_admin']:
                 assignment = supabase.table('advisor_student_assignments')\
                     .select('id')\
                     .eq('advisor_id', user_id)\
@@ -325,8 +328,8 @@ def require_advisor_for_student(f):
 def require_superadmin(f):
     """
     Decorator to require superadmin role.
-    Superadmin is defined as role='admin' AND email matches Config.SUPERADMIN_EMAIL
-    (configured via SUPERADMIN_EMAIL environment variable, defaults to tannerbowman@gmail.com)
+    Superadmin is defined as role='superadmin'.
+    Only tannerbowman@gmail.com should have this role.
 
     Uses httpOnly cookies exclusively for enhanced security.
     When masquerading, this checks the ACTUAL admin identity, not the masquerade target.
@@ -348,13 +351,12 @@ def require_superadmin(f):
 
         # Verify superadmin status (use admin client to bypass RLS)
         from database import get_supabase_admin_client
-        from app_config import Config
         supabase = get_supabase_admin_client()
 
         try:
-            user = supabase.table('users').select('role, email').eq('id', user_id).single().execute()
+            user = supabase.table('users').select('role').eq('id', user_id).single().execute()
 
-            if not user.data or user.data['role'] != 'admin' or user.data['email'] != Config.SUPERADMIN_EMAIL:
+            if not user.data or user.data['role'] != 'superadmin':
                 raise AuthorizationError('Superadmin access required')
 
             return f(user_id, *args, **kwargs)
@@ -370,11 +372,12 @@ def require_superadmin(f):
 
 def require_school_admin(f):
     """
-    Decorator to require school_admin or superadmin access for routes.
+    Decorator to require org_admin or superadmin access for routes.
+    (Legacy name - use require_org_admin for new code)
 
     Uses httpOnly cookies exclusively for enhanced security.
-    Verifies user has 'school_admin' or 'superadmin' role.
-    School admins can manage their organization (quest visibility, announcements, etc.).
+    Verifies user has 'org_admin' or 'superadmin' role.
+    Org admins can manage their organization (quest visibility, announcements, etc.).
 
     When masquerading, this checks the actual admin identity, not the masquerade target.
     """
@@ -393,34 +396,29 @@ def require_school_admin(f):
         # Store user_id in request context
         request.user_id = user_id
 
-        # Verify school_admin or superadmin status (use admin client to bypass RLS)
+        # Verify org_admin or superadmin status (use admin client to bypass RLS)
         from database import get_supabase_admin_client
-        from app_config import Config
         supabase = get_supabase_admin_client()
 
         try:
-            user = supabase.table('users').select('role, email').eq('id', user_id).execute()
+            user = supabase.table('users').select('role').eq('id', user_id).execute()
 
             if not user.data or len(user.data) == 0:
                 raise AuthorizationError('User not found')
 
             user_role = user.data[0].get('role')
-            user_email = user.data[0].get('email')
 
-            # Check if superadmin or school_admin
-            is_superadmin = user_role == 'superadmin'
-            is_school_admin = user_role == 'school_admin'
-
-            if not (is_superadmin or is_school_admin):
-                raise AuthorizationError('School admin access required')
+            # Check if superadmin or org_admin
+            if user_role not in ['org_admin', 'superadmin']:
+                raise AuthorizationError('Organization admin access required')
 
             return f(user_id, *args, **kwargs)
 
         except (AuthenticationError, AuthorizationError):
             raise
         except Exception as e:
-            print(f"Error verifying school admin status: {str(e)}", file=sys.stderr, flush=True)
-            raise AuthorizationError('Failed to verify school admin status')
+            print(f"Error verifying org admin status: {str(e)}", file=sys.stderr, flush=True)
+            raise AuthorizationError('Failed to verify org admin status')
 
     return decorated_function
 
@@ -509,12 +507,12 @@ def get_advisor_assigned_students(advisor_id):
         if user.data and len(user.data) > 0:
             user_role = user.data[0].get('role')
 
-            # Admins see all students
-            if user_role in ['admin', 'superadmin']:
+            # Superadmin sees all students
+            if user_role == 'superadmin':
                 return None
 
-            # Advisors see only assigned students
-            if user_role == 'advisor':
+            # Advisors and org_admins see only assigned students
+            if user_role in ['advisor', 'org_admin']:
                 assignments = supabase.table('advisor_student_assignments')\
                     .select('student_id')\
                     .eq('advisor_id', advisor_id)\

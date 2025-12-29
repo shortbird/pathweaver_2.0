@@ -52,7 +52,7 @@ def start_masquerade(admin_id, target_user_id):
 
         # Prevent non-superadmins from masquerading as admins
         # Superadmins can masquerade as anyone for testing/debugging
-        if target_user_data.get('role') in ['admin', 'superadmin'] and admin_role != 'superadmin':
+        if target_user_data.get('role') == 'superadmin' and admin_role != 'superadmin':
             logger.warning(f"[Masquerade] Blocked: admin_role={admin_role} tried to masquerade as {target_user_data.get('role')}")
             return jsonify({'error': 'Only superadmins can masquerade as other admins'}), 403
 

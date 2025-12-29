@@ -63,7 +63,7 @@ def create_announcement(user_id):
         organization_id = user.data.get('organization_id')
 
         # Only advisors and admins can create announcements
-        if user_role not in ['advisor', 'school_admin', 'superadmin']:
+        if user_role not in ['advisor', 'org_admin', 'superadmin']:
             return jsonify({'error': 'Only advisors and admins can create announcements'}), 403
 
         # Validate request

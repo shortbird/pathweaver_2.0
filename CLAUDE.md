@@ -12,6 +12,19 @@
 4. **Verify DB schema first** - Use Supabase MCP before ANY query (table names change)
 5. **Use Optio brand colors** - `optio-purple`/`optio-pink` (NOT `purple-600`/`pink-600`)
 6. **Run tests before production** - 95%+ pass rate required before merging to `main`
+7. **Include superadmin in role checks** - When creating new routes with role-based authorization, ALWAYS include `superadmin` in the allowed roles list.
+
+### Valid Roles (ONLY these 6 exist)
+| Role | Access Level |
+|------|-------------|
+| `superadmin` | Full access to everything (only tannerbowman@gmail.com) |
+| `org_admin` | Organization admin tools only |
+| `advisor` | Org-specific advisor access |
+| `parent` | Org-specific parent access |
+| `student` | Org-specific student access |
+| `observer` | View-only access to linked students (not yet fully implemented) |
+
+**INVALID roles** (do NOT use): `admin`, `teacher`, `educator`, `school_admin`
 
 ---
 

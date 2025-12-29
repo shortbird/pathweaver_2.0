@@ -39,7 +39,7 @@ def get_connection_requests(user_id):
 
         # Verify admin role
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        if not user_response.data or user_response.data.get('role') not in ['admin', 'superadmin']:
+        if not user_response.data or user_response.data.get('role') != 'superadmin':
             raise AuthorizationError("Admin access required")
 
         # Get filter parameters
@@ -128,7 +128,7 @@ def approve_connection_request(user_id, request_id):
 
         # Verify admin role
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        if not user_response.data or user_response.data.get('role') not in ['admin', 'superadmin']:
+        if not user_response.data or user_response.data.get('role') != 'superadmin':
             raise AuthorizationError("Admin access required")
 
         # Get connection request
@@ -215,7 +215,7 @@ def reject_connection_request(user_id, request_id):
 
         # Verify admin role
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        if not user_response.data or user_response.data.get('role') not in ['admin', 'superadmin']:
+        if not user_response.data or user_response.data.get('role') != 'superadmin':
             raise AuthorizationError("Admin access required")
 
         # Get connection request
@@ -271,7 +271,7 @@ def get_active_links(user_id):
 
         # Verify admin role
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        if not user_response.data or user_response.data.get('role') not in ['admin', 'superadmin']:
+        if not user_response.data or user_response.data.get('role') != 'superadmin':
             raise AuthorizationError("Admin access required")
 
         # Get filter parameters
@@ -351,7 +351,7 @@ def disconnect_link(user_id, link_id):
 
         # Verify admin role
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        if not user_response.data or user_response.data.get('role') not in ['admin', 'superadmin']:
+        if not user_response.data or user_response.data.get('role') != 'superadmin':
             raise AuthorizationError("Admin access required")
 
         # Get link to verify it exists
@@ -399,7 +399,7 @@ def create_manual_link(user_id):
 
         # Verify admin role
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        if not user_response.data or user_response.data.get('role') not in ['admin', 'superadmin']:
+        if not user_response.data or user_response.data.get('role') != 'superadmin':
             raise AuthorizationError("Admin access required")
 
         # Verify parent user exists and has parent role

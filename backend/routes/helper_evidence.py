@@ -44,7 +44,7 @@ def verify_advisor_access(advisor_user_id, student_user_id):
         raise AuthorizationError("User not found")
 
     user_role = user.get('role')
-    if user_role not in ['advisor', 'admin', 'superadmin']:
+    if user_role not in ['advisor', 'org_admin', 'superadmin']:
         raise AuthorizationError("Only advisors can access this endpoint")
 
     # Verify advisor-student link (direct DB query for now - no AdvisorRepository exists)
@@ -72,7 +72,7 @@ def verify_parent_access(parent_user_id, student_user_id):
         raise AuthorizationError("User not found")
 
     user_role = user.get('role')
-    if user_role not in ['parent', 'admin', 'superadmin']:
+    if user_role not in ['parent', 'superadmin']:
         raise AuthorizationError("Only parents can access this endpoint")
 
     # Verify parent-student link
@@ -138,7 +138,7 @@ def upload_evidence_for_student(user_id):
         user_role = user.get('role')
 
         # Verify access based on role
-        if user_role in ['advisor', 'admin', 'superadmin']:
+        if user_role in ['advisor', 'org_admin', 'superadmin']:
             verify_advisor_access(user_id, student_id)
             uploader_role = 'advisor'
         elif user_role == 'parent':
@@ -251,7 +251,7 @@ def get_student_tasks_for_evidence(user_id, student_id):
         user_role = user.get('role')
 
         # Verify access based on role
-        if user_role in ['advisor', 'admin', 'superadmin']:
+        if user_role in ['advisor', 'org_admin', 'superadmin']:
             verify_advisor_access(user_id, student_id)
         elif user_role == 'parent':
             verify_parent_access(user_id, student_id)

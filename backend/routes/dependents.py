@@ -46,7 +46,7 @@ def verify_parent_role(user_id: str):
 
     user_role = user_response.data[0].get('role')
     # Include superadmin since they have full admin privileges
-    if user_role not in [UserRole.PARENT.value, UserRole.ADMIN.value, 'superadmin']:
+    if user_role not in [UserRole.PARENT.value, UserRole.SUPERADMIN.value]:
         raise AuthorizationError("Only parent or admin accounts can manage dependent profiles")
 
     return True

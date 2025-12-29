@@ -38,7 +38,7 @@ def get_subject_notes(user_id, subject_id):
             .single()\
             .execute()
 
-        is_admin = user_response.data and user_response.data.get('role') in ['admin', 'superadmin']
+        is_admin = user_response.data and user_response.data.get('role') == 'superadmin'
 
         # Admins see all notes, advisors see only their own
         notes = repository.get_notes_for_subject(
@@ -101,7 +101,7 @@ def create_note(user_id):
             .single()\
             .execute()
 
-        is_admin = user_response.data and user_response.data.get('role') in ['admin', 'superadmin']
+        is_admin = user_response.data and user_response.data.get('role') == 'superadmin'
 
         # If not admin, verify advisor-student relationship
         if not is_admin:
@@ -188,7 +188,7 @@ def update_note(user_id, note_id):
             .single()\
             .execute()
 
-        is_admin = user_response.data and user_response.data.get('role') in ['admin', 'superadmin']
+        is_admin = user_response.data and user_response.data.get('role') == 'superadmin'
 
         if note['advisor_id'] != user_id and not is_admin:
             return jsonify({'error': 'Not authorized to update this note'}), 403
@@ -229,7 +229,7 @@ def delete_note(user_id, note_id):
             .single()\
             .execute()
 
-        is_admin = user_response.data and user_response.data.get('role') in ['admin', 'superadmin']
+        is_admin = user_response.data and user_response.data.get('role') == 'superadmin'
 
         if note['advisor_id'] != user_id and not is_admin:
             return jsonify({'error': 'Not authorized to delete this note'}), 403

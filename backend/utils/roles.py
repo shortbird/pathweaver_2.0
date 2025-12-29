@@ -14,16 +14,16 @@ class UserRole(Enum):
     STUDENT = 'student'
     PARENT = 'parent'
     ADVISOR = 'advisor'
-    ADMIN = 'admin'
-    OBSERVER = 'observer'
+    ORG_ADMIN = 'org_admin'
+    SUPERADMIN = 'superadmin'
 
 # Role hierarchy for privilege checking
 ROLE_HIERARCHY = {
-    UserRole.ADMIN: 4,
+    UserRole.SUPERADMIN: 5,
+    UserRole.ORG_ADMIN: 4,
     UserRole.ADVISOR: 2,
     UserRole.PARENT: 1,
-    UserRole.STUDENT: 0,
-    UserRole.OBSERVER: -1  # Special role with limited, relationship-based access
+    UserRole.STUDENT: 0
 }
 
 # Valid roles as a set for quick validation
@@ -34,22 +34,22 @@ ROLE_DISPLAY_NAMES = {
     UserRole.STUDENT.value: 'Student',
     UserRole.PARENT.value: 'Parent',
     UserRole.ADVISOR.value: 'Advisor',
-    UserRole.ADMIN.value: 'Administrator',
-    UserRole.OBSERVER.value: 'Observer'
+    UserRole.ORG_ADMIN.value: 'Organization Admin',
+    UserRole.SUPERADMIN.value: 'Super Admin'
 }
 
 # Role descriptions
 ROLE_DESCRIPTIONS = {
     UserRole.STUDENT.value: 'Can complete quests, earn XP, and build their diploma',
     UserRole.PARENT.value: 'Full platform access plus ability to view linked children\'s progress',
-    UserRole.ADVISOR.value: 'Can manage student groups and view progress',
-    UserRole.ADMIN.value: 'Full system access including user and quest management',
-    UserRole.OBSERVER.value: 'Can view linked students\' portfolios and provide encouragement'
+    UserRole.ADVISOR.value: 'Can manage student groups and view progress within their organization',
+    UserRole.ORG_ADMIN.value: 'Organization-level admin with access to org management tools',
+    UserRole.SUPERADMIN.value: 'Full system access to all organizations and features'
 }
 
 class RolePermissions:
     """Define permissions for each role"""
-    
+
     PERMISSIONS = {
         UserRole.STUDENT.value: {
             'quests': ['view', 'start', 'complete'],
@@ -72,19 +72,19 @@ class RolePermissions:
             'profile': ['view_students', 'edit_own'],
             'admin_panel': ['view_analytics', 'view_students']
         },
-        UserRole.ADMIN.value: {
+        UserRole.ORG_ADMIN.value: {
+            'quests': ['view', 'create', 'edit', 'delete', 'start', 'complete'],
+            'diploma': ['view_org', 'edit_org'],
+            'collaborations': ['view_org', 'manage_org'],
+            'profile': ['view_org', 'edit_org'],
+            'admin_panel': ['org_access']
+        },
+        UserRole.SUPERADMIN.value: {
             'quests': ['view', 'create', 'edit', 'delete', 'start', 'complete'],
             'diploma': ['view_all', 'edit_all'],
             'collaborations': ['view_all', 'manage'],
             'profile': ['view_all', 'edit_all'],
             'admin_panel': ['full_access']
-        },
-        UserRole.OBSERVER.value: {
-            'quests': [],
-            'diploma': ['view_linked_students'],
-            'collaborations': [],
-            'profile': ['view_linked_students', 'edit_own'],
-            'admin_panel': []
         }
     }
     
@@ -110,12 +110,13 @@ class RolePermissions:
     @classmethod
     def can_manage_role(cls, actor_role: str, target_role: str) -> bool:
         """Check if an actor can manage/change a target role"""
-        # Only admins can manage roles
-        if actor_role != UserRole.ADMIN.value:
-            return False
-        
-        # Admins can manage all roles
-        return True
+        # Superadmin can manage all roles
+        if actor_role == UserRole.SUPERADMIN.value:
+            return True
+        # Org admins can manage roles within their org (except superadmin)
+        if actor_role == UserRole.ORG_ADMIN.value:
+            return target_role != UserRole.SUPERADMIN.value
+        return False
 
 def validate_role(role: str) -> bool:
     """Validate if a role string is valid"""
@@ -141,9 +142,12 @@ def is_role_equal_or_higher(role1: str, role2: str) -> bool:
 
 def get_accessible_roles(current_role: str) -> List[str]:
     """Get list of roles that can be assigned by the current role"""
-    if current_role == UserRole.ADMIN.value:
-        # Admins can assign any role
+    if current_role == UserRole.SUPERADMIN.value:
+        # Superadmin can assign any role
         return list(VALID_ROLES)
+    elif current_role == UserRole.ORG_ADMIN.value:
+        # Org admins can assign org roles (not superadmin)
+        return [r for r in VALID_ROLES if r != UserRole.SUPERADMIN.value]
     else:
         # Other roles cannot assign roles
         return []
@@ -160,8 +164,8 @@ def get_role_badge_color(role: str) -> str:
         UserRole.STUDENT.value: 'blue',
         UserRole.PARENT.value: 'green',
         UserRole.ADVISOR.value: 'purple',
-        UserRole.ADMIN.value: 'red',
-        UserRole.OBSERVER.value: 'cyan'
+        UserRole.ORG_ADMIN.value: 'orange',
+        UserRole.SUPERADMIN.value: 'red'
     }
     return colors.get(role, 'gray')
 

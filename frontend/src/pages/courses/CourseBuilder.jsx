@@ -24,11 +24,171 @@ import {
   CheckCircleIcon,
   ExclamationCircleIcon,
   ChevronLeftIcon,
+  ChevronDownIcon,
   RocketLaunchIcon,
   Bars4Icon,
+  PhotoIcon,
+  SparklesIcon,
+  ArrowUpTrayIcon,
+  PencilIcon,
+  EyeIcon,
+  Cog6ToothIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import courseService from '../../services/courseService'
+import CoursePreview from '../../components/CoursePreview'
+import CreateQuestModal from '../../components/CreateQuestModal'
+import LessonEditor from '../../components/LessonEditor'
+
+// Helper to extract HTML content from lesson content structure
+const getLessonHtmlContent = (content) => {
+  if (!content) return ''
+  // If content is already a string (legacy or raw HTML), return it
+  if (typeof content === 'string') return content
+  // If content is an object with blocks array, extract text block content
+  if (content.blocks && Array.isArray(content.blocks)) {
+    return content.blocks
+      .filter(block => block.type === 'text')
+      .map(block => block.content || '')
+      .join('')
+  }
+  return ''
+}
+
+// Cover image component with Pexels search and upload
+const CourseCoverImage = ({ coverUrl, onUpdate, courseId, courseTitle, courseDescription, isSaving }) => {
+  const [isSearching, setIsSearching] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = React.useRef(null)
+
+  const handleSearchPexels = async () => {
+    if (!courseTitle?.trim()) {
+      toast.error('Please enter a course title first')
+      return
+    }
+
+    try {
+      setIsSearching(true)
+      const response = await api.post('/api/images/search-quest', {
+        quest_title: courseTitle,
+        quest_description: courseDescription || ''
+      })
+
+      if (response.data.success && response.data.image_url) {
+        onUpdate(response.data.image_url)
+        toast.success('Cover image updated')
+      } else {
+        toast.error('No suitable image found')
+      }
+    } catch (error) {
+      console.error('Failed to search for cover image:', error)
+      toast.error('Failed to find cover image')
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image must be less than 10MB')
+      return
+    }
+
+    try {
+      setIsUploading(true)
+      const formData = new FormData()
+      formData.append('image', file)
+
+      const response = await api.post(`/api/courses/${courseId}/cover-image`, formData)
+
+      if (response.data.success && response.data.url) {
+        onUpdate(response.data.url)
+        toast.success('Cover image uploaded')
+      } else {
+        toast.error(response.data.error || 'Failed to upload image')
+      }
+    } catch (error) {
+      console.error('Failed to upload cover image:', error)
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to upload image'
+      console.error('Server error:', errorMsg)
+      toast.error(errorMsg)
+    } finally {
+      setIsUploading(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const isLoading = isSearching || isUploading || isSaving
+
+  return (
+    <div className="relative group">
+      {/* Cover Image Display */}
+      <div className="relative h-48 rounded-xl overflow-hidden bg-gradient-to-r from-optio-purple/20 to-optio-pink/20">
+        {coverUrl ? (
+          <img
+            src={coverUrl}
+            alt="Course cover"
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <PhotoIcon className="w-16 h-16 text-gray-300" />
+          </div>
+        )}
+
+        {/* Overlay with buttons */}
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+          <button
+            onClick={handleSearchPexels}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg text-sm font-medium text-gray-900 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isSearching ? (
+              <div className="w-4 h-4 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <SparklesIcon className="w-4 h-4" />
+            )}
+            Generate Cover
+          </button>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg text-sm font-medium text-gray-900 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isUploading ? (
+              <div className="w-4 h-4 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <ArrowUpTrayIcon className="w-4 h-4" />
+            )}
+            Upload
+          </button>
+        </div>
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileUpload}
+        className="hidden"
+      />
+    </div>
+  )
+}
 
 // Sortable quest item component
 const SortableQuestItem = ({ quest, isSelected, onSelect, onRemove }) => {
@@ -51,12 +211,12 @@ const SortableQuestItem = ({ quest, isSelected, onSelect, onRemove }) => {
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-all ${
+      onClick={() => onSelect(quest)}
+      className={`group flex items-center gap-2 p-3 rounded-lg transition-all cursor-pointer ${
         isSelected
           ? 'bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 border-2 border-optio-purple'
           : 'bg-white border border-gray-200 hover:border-optio-purple/50'
       }`}
-      onClick={() => onSelect(quest)}
     >
       <button
         type="button"
@@ -70,12 +230,12 @@ const SortableQuestItem = ({ quest, isSelected, onSelect, onRemove }) => {
       </button>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-gray-500">
+        <div className="flex items-start gap-2">
+          <span className="text-xs font-medium text-gray-500 mt-0.5">
             {quest.order_index + 1}
           </span>
-          <h4 className="font-medium text-gray-900 truncate text-sm">
-            {quest.title || 'Untitled Quest'}
+          <h4 className="font-medium text-gray-900 text-sm leading-snug">
+            {quest.title || 'Untitled Project'}
           </h4>
         </div>
       </div>
@@ -96,10 +256,12 @@ const SortableQuestItem = ({ quest, isSelected, onSelect, onRemove }) => {
 }
 
 // Add quest modal component
-const AddQuestModal = ({ isOpen, onClose, onAddQuest, organizationId }) => {
+const AddQuestModal = ({ isOpen, onClose, onAddQuest, organizationId, existingQuestIds = [] }) => {
   const [loading, setLoading] = useState(false)
   const [quests, setQuests] = useState([])
   const [selectedQuestId, setSelectedQuestId] = useState(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -110,10 +272,17 @@ const AddQuestModal = ({ isOpen, onClose, onAddQuest, organizationId }) => {
   const fetchQuests = async () => {
     try {
       setLoading(true)
+      // Fetch all available quests - backend handles organization visibility automatically
       const response = await api.get('/api/quests', {
-        params: { organization_id: organizationId }
+        params: {
+          per_page: 100  // Get more quests
+        }
       })
-      setQuests(response.data.quests || [])
+      // Filter out quests already in the course
+      const availableQuests = (response.data.quests || response.data.data || []).filter(
+        q => !existingQuestIds.includes(q.id)
+      )
+      setQuests(availableQuests)
     } catch (error) {
       console.error('Failed to fetch quests:', error)
       toast.error('Failed to load quests')
@@ -130,40 +299,208 @@ const AddQuestModal = ({ isOpen, onClose, onAddQuest, organizationId }) => {
     }
   }
 
+  const handleCreateSuccess = (newQuest) => {
+    setShowCreateModal(false)
+    // Add the new quest directly
+    onAddQuest(newQuest)
+  }
+
+  // Filter quests by search term
+  const filteredQuests = quests.filter(quest =>
+    quest.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    quest.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  if (!isOpen) return null
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">Add Project to Course</h2>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
+              >
+                <PlusIcon className="w-4 h-4" />
+                Create New Quest
+              </button>
+            </div>
+            {/* Search input */}
+            <div className="mt-4">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search quests..."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
+              </div>
+            ) : filteredQuests.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <p className="mb-4">
+                  {searchTerm ? 'No quests match your search.' : 'No quests available.'}
+                </p>
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="text-optio-purple hover:underline"
+                >
+                  Create a new quest to add as a project
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredQuests.map(quest => (
+                  <button
+                    key={quest.id}
+                    onClick={() => setSelectedQuestId(quest.id)}
+                    className={`w-full text-left p-4 rounded-lg border transition-all ${
+                      selectedQuestId === quest.id
+                        ? 'border-optio-purple bg-optio-purple/5'
+                        : 'border-gray-200 hover:border-optio-purple/50'
+                    }`}
+                  >
+                    <h3 className="font-medium text-gray-900">{quest.title}</h3>
+                    {quest.description && (
+                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">{quest.description}</p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="p-6 border-t border-gray-200 flex gap-3 justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAdd}
+              disabled={!selectedQuestId}
+              className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add Project
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Create Quest Modal */}
+      {showCreateModal && (
+        <CreateQuestModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={handleCreateSuccess}
+        />
+      )}
+    </>
+  )
+}
+
+// Course Details Modal (edit title, description, cover image)
+const CourseDetailsModal = ({ isOpen, onClose, course, courseId, onUpdate, isSaving }) => {
+  const [localTitle, setLocalTitle] = useState(course?.title || '')
+  const [localDescription, setLocalDescription] = useState(course?.description || '')
+
+  useEffect(() => {
+    if (course) {
+      setLocalTitle(course.title || '')
+      setLocalDescription(course.description || '')
+    }
+  }, [course])
+
+  const handleSave = () => {
+    onUpdate({
+      title: localTitle,
+      description: localDescription
+    })
+    onClose()
+  }
+
   if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">Add Quest to Course</h2>
+      <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-gray-900">Course Details</h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <XMarkIcon className="w-5 h-5" />
+          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {quests.map(quest => (
-                <button
-                  key={quest.id}
-                  onClick={() => setSelectedQuestId(quest.id)}
-                  className={`w-full text-left p-4 rounded-lg border transition-all ${
-                    selectedQuestId === quest.id
-                      ? 'border-optio-purple bg-optio-purple/5'
-                      : 'border-gray-200 hover:border-optio-purple/50'
-                  }`}
-                >
-                  <h3 className="font-medium text-gray-900">{quest.title}</h3>
-                  {quest.description && (
-                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">{quest.description}</p>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Cover Image */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Cover Image
+            </label>
+            <CourseCoverImage
+              coverUrl={course?.cover_image_url}
+              onUpdate={(url) => onUpdate({ cover_image_url: url })}
+              courseId={courseId}
+              courseTitle={localTitle}
+              courseDescription={localDescription}
+              isSaving={isSaving}
+            />
+          </div>
+
+          {/* Title */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Course Title
+            </label>
+            <input
+              type="text"
+              value={localTitle}
+              onChange={(e) => setLocalTitle(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+              placeholder="Enter course title"
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Description
+            </label>
+            <textarea
+              value={localDescription}
+              onChange={(e) => setLocalDescription(e.target.value)}
+              rows={4}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none"
+              placeholder="Describe what students will learn..."
+            />
+          </div>
+
+          {/* Status Badge */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Status
+            </label>
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+              course?.status === 'published' ? 'bg-green-100 text-green-700' :
+              course?.status === 'archived' ? 'bg-gray-100 text-gray-600' :
+              'bg-yellow-100 text-yellow-700'
+            }`}>
+              {course?.status || 'draft'}
+            </span>
+          </div>
         </div>
 
         <div className="p-6 border-t border-gray-200 flex gap-3 justify-end">
@@ -174,11 +511,11 @@ const AddQuestModal = ({ isOpen, onClose, onAddQuest, organizationId }) => {
             Cancel
           </button>
           <button
-            onClick={handleAdd}
-            disabled={!selectedQuestId}
-            className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
           >
-            Add Quest
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>
@@ -196,12 +533,20 @@ const CourseBuilder = () => {
   const [course, setCourse] = useState(isNewCourse ? { title: '', description: '', status: 'draft' } : null)
   const [quests, setQuests] = useState([])
   const [selectedQuest, setSelectedQuest] = useState(null)
+  const [lessons, setLessons] = useState([])
+  const [loadingLessons, setLoadingLessons] = useState(false)
+  const [showLessons, setShowLessons] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState('saved') // 'saved', 'saving', 'error'
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const [showAddQuestModal, setShowAddQuestModal] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const [showCourseDetails, setShowCourseDetails] = useState(false)
+  const [editingLesson, setEditingLesson] = useState(null) // null = not editing, 'new' = creating, or lesson object
+  const [showLessonEditor, setShowLessonEditor] = useState(false)
+  const [previewingLesson, setPreviewingLesson] = useState(null) // Lesson to preview
 
   // DnD sensors
   const sensors = useSensors(
@@ -240,6 +585,32 @@ const CourseBuilder = () => {
       fetchData()
     }
   }, [courseId, isNewCourse])
+
+  // Fetch lessons when selectedQuest changes
+  useEffect(() => {
+    const fetchLessons = async () => {
+      if (!selectedQuest?.id) {
+        setLessons([])
+        return
+      }
+
+      try {
+        setLoadingLessons(true)
+        // Fetch from curriculum/lessons endpoint (curriculum_lessons table), not /curriculum (legacy JSON)
+        const response = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons`)
+        const fetchedLessons = response.data.lessons || []
+        setLessons(fetchedLessons)
+      } catch (error) {
+        console.error('Failed to load lessons:', error)
+        toast.error('Failed to load lessons')
+        setLessons([])
+      } finally {
+        setLoadingLessons(false)
+      }
+    }
+
+    fetchLessons()
+  }, [selectedQuest?.id])
 
   // Create new course
   const handleCreateCourse = async () => {
@@ -295,7 +666,7 @@ const CourseBuilder = () => {
       setQuests([...quests, updatedQuest])
       setSelectedQuest(updatedQuest)
       setShowAddQuestModal(false)
-      toast.success('Quest added to course')
+      toast.success('Project added to course')
     } catch (error) {
       console.error('Failed to add quest:', error)
       toast.error('Failed to add quest')
@@ -306,7 +677,7 @@ const CourseBuilder = () => {
 
   // Remove quest from course
   const handleRemoveQuest = async (questId) => {
-    if (!confirm('Are you sure you want to remove this quest from the course?')) return
+    if (!confirm('Are you sure you want to remove this project from the course?')) return
 
     try {
       setSaving(true)
@@ -319,12 +690,35 @@ const CourseBuilder = () => {
         setSelectedQuest(updatedQuests[0] || null)
       }
 
-      toast.success('Quest removed from course')
+      toast.success('Project removed from course')
     } catch (error) {
       console.error('Failed to remove quest:', error)
       toast.error('Failed to remove quest')
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Update XP threshold for a quest in the course
+  const handleUpdateXpThreshold = async (questId, xpThreshold) => {
+    try {
+      await api.put(`/api/courses/${courseId}/quests/${questId}`, {
+        xp_threshold: xpThreshold
+      })
+
+      // Update local state
+      setQuests(quests.map(q =>
+        q.id === questId ? { ...q, xp_threshold: xpThreshold } : q
+      ))
+
+      if (selectedQuest?.id === questId) {
+        setSelectedQuest({ ...selectedQuest, xp_threshold: xpThreshold })
+      }
+
+      toast.success('XP threshold updated')
+    } catch (error) {
+      console.error('Failed to update XP threshold:', error)
+      toast.error('Failed to update XP threshold')
     }
   }
 
@@ -346,34 +740,61 @@ const CourseBuilder = () => {
     // Optimistic update
     setQuests(questsWithNewOrder)
 
+    // Update selectedQuest if it was reordered
+    if (selectedQuest) {
+      const updatedSelected = questsWithNewOrder.find(q => q.id === selectedQuest.id)
+      if (updatedSelected) {
+        setSelectedQuest(updatedSelected)
+      }
+    }
+
     try {
       await courseService.reorderQuests(
         courseId,
         questsWithNewOrder.map(q => q.id)
       )
-      toast.success('Quest order saved')
     } catch (error) {
       console.error('Failed to reorder quests:', error)
-      toast.error('Failed to save quest order')
+      toast.error('Failed to save project order')
       // Revert on error
       setQuests(quests)
     }
   }
 
-  // Publish course (creates badge)
-  const handlePublish = async () => {
-    if (!confirm('Are you sure you want to publish this course? This will create a badge for course completion.')) return
+  // Publish or unpublish course
+  const handlePublishToggle = async () => {
+    const isCurrentlyPublished = course?.status === 'published'
 
-    try {
-      setIsPublishing(true)
-      await courseService.publishCourse(courseId)
-      setCourse(prev => ({ ...prev, is_active: true }))
-      toast.success('Course published! A completion badge has been created.')
-    } catch (error) {
-      console.error('Failed to publish course:', error)
-      toast.error('Failed to publish course')
-    } finally {
-      setIsPublishing(false)
+    if (isCurrentlyPublished) {
+      // Unpublish
+      if (!confirm('Are you sure you want to unpublish this course? Students will no longer be able to access it.')) return
+
+      try {
+        setIsPublishing(true)
+        await courseService.unpublishCourse(courseId)
+        setCourse(prev => ({ ...prev, status: 'draft' }))
+        toast.success('Course unpublished')
+      } catch (error) {
+        console.error('Failed to unpublish course:', error)
+        toast.error('Failed to unpublish course')
+      } finally {
+        setIsPublishing(false)
+      }
+    } else {
+      // Publish
+      if (!confirm('Are you sure you want to publish this course? This will create a badge for course completion.')) return
+
+      try {
+        setIsPublishing(true)
+        await courseService.publishCourse(courseId)
+        setCourse(prev => ({ ...prev, status: 'published' }))
+        toast.success('Course published! A completion badge has been created.')
+      } catch (error) {
+        console.error('Failed to publish course:', error)
+        toast.error('Failed to publish course')
+      } finally {
+        setIsPublishing(false)
+      }
     }
   }
 
@@ -484,7 +905,7 @@ const CourseBuilder = () => {
               </div>
 
               <p className="text-sm text-gray-500 text-center">
-                After creating the course, you can add quests and publish it.
+                After creating the course, you can add projects and publish it.
               </p>
             </div>
           </div>
@@ -500,26 +921,31 @@ const CourseBuilder = () => {
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-2">
             {/* Left: Back + Title */}
-            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-              <button
-                onClick={() => navigate(-1)}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
-                aria-label="Go back"
-              >
-                <ChevronLeftIcon className="w-5 h-5" />
-              </button>
-              <div className="min-w-0">
-                <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">Course Builder</h1>
-                <p className="text-xs sm:text-sm text-gray-600 truncate">{course?.title || 'Loading...'}</p>
-              </div>
-            </div>
+            <button
+              onClick={() => navigate('/organization?tab=courses')}
+              className="flex items-center gap-2 sm:gap-3 p-2 -m-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Go back to courses"
+            >
+              <ChevronLeftIcon className="w-5 h-5 flex-shrink-0" />
+              <span className="text-base sm:text-xl font-bold text-gray-900">Course Builder</span>
+            </button>
 
             {/* Right: Actions */}
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-              {/* Save Status - Hidden on mobile */}
+              {/* Save Status */}
               <div className="hidden sm:block">
                 <SaveStatusIndicator />
               </div>
+
+              {/* Edit Course Details Button */}
+              <button
+                onClick={() => setShowCourseDetails(true)}
+                className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+                aria-label="Edit course details"
+              >
+                <Cog6ToothIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">Details</span>
+              </button>
 
               {/* Mobile Sidebar Toggle */}
               <button
@@ -530,15 +956,30 @@ const CourseBuilder = () => {
                 <Bars4Icon className="w-5 h-5" />
               </button>
 
+              {/* Preview Button */}
+              <button
+                onClick={() => setShowPreview(true)}
+                disabled={!course || quests.length === 0}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                aria-label="Preview course"
+              >
+                <EyeIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">Preview</span>
+              </button>
+
               {/* Publish Button */}
               <button
-                onClick={handlePublish}
-                disabled={isPublishing || !course || quests.length === 0}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                onClick={handlePublishToggle}
+                disabled={isPublishing || !course || (course?.status !== 'published' && quests.length === 0)}
+                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium ${
+                  course?.status === 'published'
+                    ? 'bg-gray-600 text-white hover:bg-gray-700'
+                    : 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
+                }`}
               >
                 <RocketLaunchIcon className="w-4 h-4" />
                 <span className="hidden sm:inline">
-                  {isPublishing ? 'Publishing...' : course?.is_active ? 'Published' : 'Publish'}
+                  {isPublishing ? (course?.status === 'published' ? 'Unpublishing...' : 'Publishing...') : course?.status === 'published' ? 'Unpublish' : 'Publish'}
                 </span>
               </button>
             </div>
@@ -548,6 +989,20 @@ const CourseBuilder = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6">
+        {/* Course Title Header */}
+        <div className="flex items-center gap-3 mb-4">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">
+            {course?.title || 'Untitled Course'}
+          </h2>
+          <span className={`flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded-full ${
+            course?.status === 'published' ? 'bg-green-100 text-green-700' :
+            course?.status === 'archived' ? 'bg-gray-100 text-gray-600' :
+            'bg-yellow-100 text-yellow-700'
+          }`}>
+            {course?.status || 'draft'}
+          </span>
+        </div>
+
         <div className="flex gap-6">
           {/* Quest List Sidebar */}
           <div
@@ -566,11 +1021,11 @@ const CourseBuilder = () => {
 
             <div className="bg-white rounded-xl border border-gray-200 p-4 h-full">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-900">Quests ({quests.length})</h2>
+                <h2 className="text-lg font-bold text-gray-900">Projects ({quests.length})</h2>
                 <button
                   onClick={() => setShowAddQuestModal(true)}
                   className="p-2 text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
-                  aria-label="Add quest"
+                  aria-label="Add project"
                 >
                   <PlusIcon className="w-5 h-5" />
                 </button>
@@ -578,12 +1033,12 @@ const CourseBuilder = () => {
 
               {quests.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
-                  <p className="text-sm">No quests in this course yet.</p>
+                  <p className="text-sm">No projects in this course yet.</p>
                   <button
                     onClick={() => setShowAddQuestModal(true)}
                     className="mt-3 text-sm text-optio-purple hover:underline"
                   >
-                    Add your first quest
+                    Add your first project
                   </button>
                 </div>
               ) : (
@@ -614,85 +1069,195 @@ const CourseBuilder = () => {
           </div>
 
           {/* Content Editor */}
-          <div className="flex-1 min-w-0">
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              {selectedQuest ? (
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-4">Quest Details</h2>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Title
-                      </label>
-                      <div className="text-gray-900">{selectedQuest.title}</div>
-                    </div>
-
+          <div className="flex-1 min-w-0 space-y-6">
+            {/* Selected Quest Details */}
+            {selectedQuest && !showLessonEditor && (
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-lg font-bold text-gray-900">{selectedQuest.title}</h2>
                     {selectedQuest.description && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Description
-                        </label>
-                        <div className="text-gray-700 text-sm">{selectedQuest.description}</div>
+                      <p className="text-sm text-gray-600 mt-1">{selectedQuest.description}</p>
+                    )}
+                  </div>
+
+                  {/* XP Threshold Control */}
+                  <div className="flex-shrink-0">
+                    {selectedQuest.order_index === 0 ? (
+                      <span className="inline-flex items-center px-3 py-1.5 text-xs font-medium bg-green-100 text-green-700 rounded-lg">
+                        Auto-unlocked
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-gray-500 whitespace-nowrap">Unlock at:</label>
+                        <input
+                          type="number"
+                          min="0"
+                          defaultValue={selectedQuest.xp_threshold || 0}
+                          key={selectedQuest.id}
+                          onBlur={(e) => {
+                            const newValue = parseInt(e.target.value) || 0
+                            if (newValue !== (selectedQuest.xp_threshold || 0)) {
+                              handleUpdateXpThreshold(selectedQuest.id, newValue)
+                            }
+                          }}
+                          className="w-20 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                        />
+                        <span className="text-xs text-gray-500">XP</span>
                       </div>
                     )}
+                  </div>
+                </div>
 
-                    {selectedQuest.pillar_primary && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Primary Pillar
-                        </label>
-                        <div className="inline-block px-3 py-1 bg-optio-purple/10 text-optio-purple rounded-full text-sm font-medium">
-                          {selectedQuest.pillar_primary}
-                        </div>
-                      </div>
-                    )}
+                {/* Lessons Section */}
+                <div className="border-t border-gray-200 pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium text-gray-700">
+                      Lessons{!loadingLessons && ` (${lessons.length})`}
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setEditingLesson(null)
+                        setShowLessonEditor(true)
+                      }}
+                      className="flex items-center gap-1 text-sm text-optio-purple hover:text-optio-pink transition-colors"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      Add Lesson
+                    </button>
+                  </div>
 
-                    <div className="pt-4 border-t border-gray-200">
-                      <p className="text-sm text-gray-500">
-                        Quest details are read-only. To edit the quest itself, visit the quest editor.
+                  {loadingLessons ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="w-6 h-6 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : lessons.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500 mb-3">
+                        No lessons yet. Add your first lesson to this project.
                       </p>
+                      <button
+                        onClick={() => {
+                          setEditingLesson(null)
+                          setShowLessonEditor(true)
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
+                      >
+                        <PlusIcon className="w-4 h-4" />
+                        Add Lesson
+                      </button>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {lessons
+                        .sort((a, b) => a.order - b.order)
+                        .map((lesson) => (
+                          <div
+                            key={lesson.id}
+                            onClick={() => setPreviewingLesson(lesson)}
+                            className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-optio-purple/50 transition-colors group cursor-pointer"
+                          >
+                            <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-optio-purple/10 text-optio-purple rounded-full text-xs font-medium">
+                              {lesson.sequence_order || lesson.order || 1}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-medium text-gray-900 truncate">
+                                {lesson.title}
+                              </h4>
+                              {lesson.xp_threshold > 0 && (
+                                <p className="text-xs text-gray-500">
+                                  {lesson.xp_threshold} XP to unlock
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setEditingLesson(lesson)
+                                  setShowLessonEditor(true)
+                                }}
+                                className="text-xs text-optio-purple hover:underline"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation()
+                                  if (!confirm('Delete this lesson?')) return
+                                  try {
+                                    await api.delete(`/api/quests/${selectedQuest.id}/curriculum/lessons/${lesson.id}`)
+                                    setLessons(lessons.filter(l => l.id !== lesson.id))
+                                    toast.success('Lesson deleted')
+                                  } catch (error) {
+                                    toast.error('Failed to delete lesson')
+                                  }
+                                }}
+                                className="text-xs text-red-600 hover:underline"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="text-center py-12">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Course Metadata</h3>
+              </div>
+            )}
 
-                  <div className="max-w-xl mx-auto space-y-4 mt-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 text-left">
-                        Course Title
-                      </label>
-                      <input
-                        type="text"
-                        value={course?.title || ''}
-                        onChange={(e) => handleUpdateCourse({ title: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                        placeholder="Enter course title"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2 text-left">
-                        Course Description
-                      </label>
-                      <textarea
-                        value={course?.description || ''}
-                        onChange={(e) => handleUpdateCourse({ description: e.target.value })}
-                        rows={4}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                        placeholder="Enter course description"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-8 text-sm text-gray-500">
-                    Select a quest from the sidebar to view its details
-                  </div>
+            {/* Inline Lesson Editor */}
+            {selectedQuest && showLessonEditor && (
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-gray-900">
+                    {editingLesson ? 'Edit Lesson' : 'New Lesson'}
+                  </h2>
+                  <button
+                    onClick={() => setShowLessonEditor(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <XMarkIcon className="w-5 h-5" />
+                  </button>
                 </div>
-              )}
-            </div>
+                <LessonEditor
+                  questId={selectedQuest.id}
+                  lesson={editingLesson}
+                  onSave={(savedLesson) => {
+                    if (editingLesson) {
+                      setLessons(lessons.map(l => l.id === savedLesson.id ? savedLesson : l))
+                    } else {
+                      setLessons([...lessons, savedLesson])
+                    }
+                    setShowLessonEditor(false)
+                    setEditingLesson(null)
+                  }}
+                  onCancel={() => {
+                    setShowLessonEditor(false)
+                    setEditingLesson(null)
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Empty state when no quests */}
+            {quests.length === 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+                <div className="max-w-sm mx-auto">
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Add your first project</h3>
+                  <p className="text-gray-500 text-sm mb-4">
+                    Courses are made up of projects (quests). Add existing quests or create new ones to build your course.
+                  </p>
+                  <button
+                    onClick={() => setShowAddQuestModal(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+                  >
+                    <PlusIcon className="w-5 h-5" />
+                    Add Project
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -703,7 +1268,129 @@ const CourseBuilder = () => {
         onClose={() => setShowAddQuestModal(false)}
         onAddQuest={handleAddQuest}
         organizationId={course?.organization_id}
+        existingQuestIds={quests.map(q => q.id)}
       />
+
+      {/* Course Preview Modal */}
+      {showPreview && (
+        <CoursePreview
+          course={course}
+          quests={quests}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
+
+      {/* Course Details Modal */}
+      <CourseDetailsModal
+        isOpen={showCourseDetails}
+        onClose={() => setShowCourseDetails(false)}
+        course={course}
+        courseId={courseId}
+        onUpdate={handleUpdateCourse}
+        isSaving={saveStatus === 'saving'}
+      />
+
+      {/* Lesson Preview Modal */}
+      {previewingLesson && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Lesson Preview</p>
+                <h2 className="text-xl font-bold text-gray-900">{previewingLesson.title}</h2>
+              </div>
+              <button
+                onClick={() => setPreviewingLesson(null)}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* Content (text first) */}
+              {getLessonHtmlContent(previewingLesson.content) && (
+                <div
+                  className="prose prose-sm max-w-none mb-6"
+                  dangerouslySetInnerHTML={{ __html: getLessonHtmlContent(previewingLesson.content) }}
+                />
+              )}
+
+              {/* Video */}
+              {previewingLesson.video_url && (
+                <div className="mb-6">
+                  <div className="aspect-video rounded-lg overflow-hidden bg-gray-100">
+                    <iframe
+                      src={
+                        previewingLesson.video_url.includes('youtube')
+                          ? `https://www.youtube-nocookie.com/embed/${previewingLesson.video_url.match(/(?:v=|\/embed\/|youtu\.be\/)([^&?]+)/)?.[1] || ''}?rel=0&modestbranding=1`
+                          : previewingLesson.video_url.includes('vimeo')
+                          ? `https://player.vimeo.com/video/${previewingLesson.video_url.match(/vimeo\.com\/(\d+)/)?.[1] || ''}`
+                          : previewingLesson.video_url.includes('drive.google.com')
+                          ? `https://drive.google.com/file/d/${previewingLesson.video_url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([a-zA-Z0-9_-]+)/)?.[1] || ''}/preview`
+                          : previewingLesson.video_url
+                      }
+                      className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      title={previewingLesson.title}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Files */}
+              {previewingLesson.files && previewingLesson.files.length > 0 && (
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Attachments</h4>
+                  <div className="space-y-2">
+                    {previewingLesson.files.map((file, idx) => (
+                      <a
+                        key={idx}
+                        href={file.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                        <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clipRule="evenodd" />
+                        </svg>
+                        <span className="text-sm text-gray-700">{file.name}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!getLessonHtmlContent(previewingLesson.content) && !previewingLesson.video_url && (
+                <div className="text-center py-12 text-gray-500">
+                  <p>This lesson has no content yet.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setPreviewingLesson(null)
+                  setEditingLesson(previewingLesson)
+                  setShowLessonEditor(true)
+                }}
+                className="px-4 py-2 text-sm font-medium text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
+              >
+                Edit Lesson
+              </button>
+              <button
+                onClick={() => setPreviewingLesson(null)}
+                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

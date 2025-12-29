@@ -1,0 +1,10 @@
+{
+  "id": "create_course_catalog_page",
+  "type": "implement_frontend",
+  "priority": 2,
+  "payload": {
+    "description": "Create new Course Catalog page for students to browse and enroll in courses. Add /courses route showing: (1) Grid of course cards with cover image, title, description, project count, (2) Enroll button for self-enrollment (calls POST /api/courses/:id/enroll), (3) Progress indicator for enrolled courses, (4) Filter/search by title or pillar. Add backend endpoint POST /api/courses/:id/enroll to create enrollment record. Add 'Courses' link to main navigation.",
+    "files": ["frontend/src/pages/courses/CourseCatalog.jsx", "backend/routes/courses.py", "frontend/src/App.jsx"],
+    "context": "Similar UI pattern to Quest Hub. Use course cover images. Students can self-enroll OR be assigned by advisors. Need user_courses or course_enrollments table to track enrollment."
+  }
+}

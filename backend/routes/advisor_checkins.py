@@ -121,7 +121,7 @@ def get_student_checkins(user_id, student_id):
         # Check if user is admin
         supabase = get_supabase_admin_client()
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        is_admin = user_response.data and user_response.data.get('role') in ['admin', 'superadmin']
+        is_admin = user_response.data and user_response.data.get('role') == 'superadmin'
 
         # If admin, don't filter by advisor_id (pass None)
         # If advisor, filter by their advisor_id (pass user_id)
@@ -159,7 +159,7 @@ def get_checkin_data(user_id, student_id):
         # Check if user is admin
         supabase = get_supabase_admin_client()
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        is_admin = user_response.data and user_response.data.get('role') in ['admin', 'superadmin']
+        is_admin = user_response.data and user_response.data.get('role') == 'superadmin'
 
         # If admin, don't filter by advisor_id (pass None)
         # If advisor, filter by their advisor_id (pass user_id)
