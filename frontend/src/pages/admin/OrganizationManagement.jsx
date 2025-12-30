@@ -1042,7 +1042,7 @@ function CourseTab({ orgId, orgData }) {
           </p>
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCourses.map(course => (
             <CourseCard
               key={course.id}
@@ -1076,31 +1076,52 @@ function CourseCard({ course, onDelete }) {
   };
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:border-optio-purple/30 transition-colors">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-semibold text-gray-900 truncate">{course.title}</h3>
-          <p className="text-sm text-gray-600 mt-1 line-clamp-2">{course.description || 'No description'}</p>
-          <div className="flex items-center gap-3 mt-3">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
-              </svg>
-              {projectCount} {projectCount === 1 ? 'project' : 'projects'}
-            </span>
-            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-              course.status === 'published' ? 'bg-green-100 text-green-700' :
-              course.status === 'archived' ? 'bg-gray-100 text-gray-600' :
-              'bg-yellow-100 text-yellow-700'
-            }`}>
-              {course.status || 'draft'}
-            </span>
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 hover:border-optio-purple/30 hover:shadow-md transition-all overflow-hidden flex flex-col">
+      {/* Cover Image */}
+      <div className="relative h-40 bg-gradient-to-r from-optio-purple/20 to-optio-pink/20">
+        {course.cover_image_url ? (
+          <img
+            src={course.cover_image_url}
+            alt={course.title}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
           </div>
+        )}
+        {/* Status Badge Overlay */}
+        <div className="absolute top-3 right-3">
+          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium shadow-sm ${
+            course.status === 'published' ? 'bg-green-100 text-green-700' :
+            course.status === 'archived' ? 'bg-gray-100 text-gray-600' :
+            'bg-yellow-100 text-yellow-700'
+          }`}>
+            {course.status || 'draft'}
+          </span>
         </div>
-        <div className="flex flex-col items-center gap-3">
+      </div>
+
+      {/* Content */}
+      <div className="p-4 flex-1 flex flex-col">
+        <h3 className="text-lg font-semibold text-gray-900 line-clamp-1">{course.title}</h3>
+        <p className="text-sm text-gray-600 mt-1 line-clamp-2 flex-1">{course.description || 'No description'}</p>
+
+        {/* Meta Info */}
+        <div className="flex items-center gap-2 mt-3 text-sm text-gray-500">
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
+          </svg>
+          <span>{projectCount} {projectCount === 1 ? 'project' : 'projects'}</span>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
           <Link
             to={`/courses/${course.id}/edit`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity"
+            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity text-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -1109,13 +1130,12 @@ function CourseCard({ course, onDelete }) {
           </Link>
           <button
             onClick={() => setShowDeleteConfirm(true)}
-            className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-600 transition-colors mt-1"
+            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             title="Delete course"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
-            Delete
           </button>
         </div>
       </div>

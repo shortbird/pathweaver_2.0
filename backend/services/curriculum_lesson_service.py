@@ -19,16 +19,16 @@ def validate_content_blocks(content: Any) -> Dict[str, Any]:
     """
     Validate and normalize lesson content block structure.
 
-    Expected format:
-    {
-        "blocks": [
-            { "id": "uuid", "type": "text|iframe|document", "content": "...", "data": {...} }
-        ]
-    }
+    Supported formats:
+    1. Version 2 (step-based):
+       { "version": 2, "steps": [{ "id": "...", "title": "...", "content": "...", "order": 0 }] }
 
-    Also accepts:
-    - HTML string (wrapped in a single text block)
-    - None (returns empty blocks)
+    2. Legacy blocks format:
+       { "blocks": [{ "id": "uuid", "type": "text|iframe|document", "content": "...", "data": {...} }] }
+
+    3. HTML string (wrapped in a single text block)
+
+    4. None (returns empty blocks)
     """
     if content is None:
         return {"blocks": []}
@@ -49,6 +49,56 @@ def validate_content_blocks(content: Any) -> Dict[str, Any]:
     if not isinstance(content, dict):
         return {"blocks": []}
 
+    # NEW: Handle version 2 step-based format - pass through as-is
+    if content.get("version") == 2 and "steps" in content:
+        steps = content.get("steps", [])
+        if isinstance(steps, list):
+            # Validate each step has required fields
+            validated_steps = []
+            for i, step in enumerate(steps):
+                if isinstance(step, dict):
+                    step_type = step.get("type", "text")
+                    # Validate step type
+                    if step_type not in ["text", "video", "file"]:
+                        step_type = "text"
+
+                    validated_step = {
+                        "id": step.get("id") or f"step_{uuid.uuid4().hex[:12]}",
+                        "type": step_type,
+                        "title": step.get("title", f"Step {i + 1}"),
+                        "content": step.get("content", ""),
+                        "order": step.get("order", i)
+                    }
+
+                    # Include video_url for video steps
+                    if step_type == "video":
+                        validated_step["video_url"] = step.get("video_url") or None
+
+                    # Include files for file steps
+                    if step_type == "file":
+                        files = step.get("files")
+                        if isinstance(files, list):
+                            validated_step["files"] = files
+                        else:
+                            validated_step["files"] = []
+
+                    # Include attachments for any step type (downloadable files)
+                    attachments = step.get("attachments")
+                    if isinstance(attachments, list) and len(attachments) > 0:
+                        validated_step["attachments"] = attachments
+
+                    # Include links for any step type (external URLs with display text)
+                    links = step.get("links")
+                    if isinstance(links, list) and len(links) > 0:
+                        validated_step["links"] = links
+
+                    validated_steps.append(validated_step)
+
+            logger.info(f"[VALIDATE_CONTENT] Version 2 format with {len(validated_steps)} steps")
+            return {"version": 2, "steps": validated_steps}
+        return {"version": 2, "steps": []}
+
+    # Legacy blocks format
     blocks = content.get("blocks", [])
 
     if not isinstance(blocks, list):
@@ -369,6 +419,13 @@ class CurriculumLessonService(BaseService):
             if set(lesson_order) != lesson_ids:
                 raise ValidationError("Lesson IDs don't match quest lessons", 400)
 
+            # Phase 1: Set all to temporary negative values to avoid unique constraint conflicts
+            for idx, lesson_id in enumerate(lesson_order):
+                self.supabase.table('curriculum_lessons').update({
+                    'sequence_order': -(idx + 1000)
+                }).eq('id', lesson_id).execute()
+
+            # Phase 2: Set to final values
             updated_lessons = []
             for index, lesson_id in enumerate(lesson_order, start=1):
                 result = self.supabase.table('curriculum_lessons').update({'sequence_order': index}).eq('id', lesson_id).execute()
@@ -457,7 +514,10 @@ class CurriculumLessonService(BaseService):
         lesson_title: str = None,
         quest_title: str = None,
         quest_description: str = None,
-        curriculum_context: str = None
+        curriculum_context: str = None,
+        focus_pillar: str = None,
+        custom_prompt: str = None,
+        existing_tasks_context: str = None
     ) -> List[Dict[str, Any]]:
         """Generate task suggestions from lesson content using AI with full curriculum context."""
         if not self.model:
@@ -474,8 +534,20 @@ class CurriculumLessonService(BaseService):
                 context_parts.append(f"Lesson: {lesson_title}")
             if curriculum_context:
                 context_parts.append(f"Curriculum Overview: {curriculum_context[:500]}")
+            if existing_tasks_context:
+                context_parts.append(f"Note: {existing_tasks_context}")
 
             context_section = "\n".join(context_parts) if context_parts else ""
+
+            # Build pillar instruction
+            pillar_instruction = ""
+            if focus_pillar:
+                pillar_instruction = f"\nIMPORTANT: Focus primarily on the '{focus_pillar}' pillar for these tasks."
+
+            # Build custom prompt section
+            custom_section = ""
+            if custom_prompt:
+                custom_section = f"\nADDITIONAL REQUIREMENTS:\n{custom_prompt[:500]}\n"
 
             prompt = f"""You are creating educational tasks for a curriculum lesson. These tasks should help students demonstrate understanding of the lesson content while building real-world skills.
 
@@ -485,7 +557,8 @@ Lesson Content:
 {lesson_content[:2000]}
 
 Generate {num_tasks} educational tasks with these requirements:
-
+{pillar_instruction}
+{custom_section}
 TASK DESIGN PRINCIPLES:
 - Tasks should directly connect to the lesson content
 - Focus on real-world application and skill demonstration

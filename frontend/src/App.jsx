@@ -87,7 +87,7 @@ const CurriculumBuilder = lazy(() => import('./pages/curriculum/CurriculumBuilde
 const CurriculumPage = lazy(() => import('./pages/curriculum/CurriculumPage'))
 // Course Pages (Course System - December 2025)
 const CourseBuilder = lazy(() => import('./pages/courses/CourseBuilder'))
-const CourseDetailPage = lazy(() => import('./pages/courses/CourseDetailPage'))
+const CourseHomepage = lazy(() => import('./pages/courses/CourseHomepage'))
 const CourseCatalog = lazy(() => import('./pages/courses/CourseCatalog'))
 const MyInvitations = lazy(() => import('./pages/student/MyInvitations'))
 const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
@@ -354,7 +354,7 @@ function App() {
                 <Route path="constellation" element={<ConstellationPage />} />
                 {/* Course Routes */}
                 <Route path="courses" element={<CourseCatalog />} />
-                <Route path="courses/:id" element={<CourseDetailPage />} />
+                <Route path="courses/:courseId" element={<CourseHomepage />} />
                 {/* Credit & Transcript Routes */}
                 <Route path="credits" element={<CreditTrackerPage />} />
                 <Route path="transcript" element={<TranscriptPage />} />

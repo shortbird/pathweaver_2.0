@@ -248,3 +248,35 @@
   content: '›' !important;
   font-size: 2em;
 }
+
+/* TipTap/ProseMirror editor list styles */
+.ProseMirror ul,
+.prose ul {
+  list-style-type: disc !important;
+  padding-left: 1.5rem !important;
+  margin: 1rem 0 !important;
+}
+
+.ProseMirror ol,
+.prose ol {
+  list-style-type: decimal !important;
+  padding-left: 1.5rem !important;
+  margin: 1rem 0 !important;
+}
+
+.ProseMirror ul li,
+.ProseMirror ol li,
+.prose ul li,
+.prose ol li {
+  margin: 0.25rem 0 !important;
+}
+
+.ProseMirror ul ul,
+.prose ul ul {
+  list-style-type: circle !important;
+}
+
+.ProseMirror ul ul ul,
+.prose ul ul ul {
+  list-style-type: square !important;
+}

@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useActingAs } from '../contexts/ActingAsContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
 import QuestCardSimple from '../components/quest/QuestCardSimple'
+import CourseCard from '../components/course/CourseCard'
 // Deprecated: Keeping for potential future use
 // import LearningEventModal from '../components/learning-events/LearningEventModal'
 import {
@@ -12,14 +13,18 @@ import {
 
 // Note: SSO token extraction now happens at App.jsx level before routing
 
-// Memoized component for Active Quests section
-const ActiveQuests = memo(({ activeQuests, completedQuestsCount = 0 }) => {
+// Memoized component for Active Quests section (now includes courses)
+const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount = 0 }) => {
   // Trust the backend's active_quests array - no need to filter
   // Backend already filters by is_active=True, which is the source of truth
   // Restarted quests have both is_active=True AND completed_at set from previous completion
   const allQuests = activeQuests || [];
+  const allCourses = enrolledCourses || [];
 
-  if (allQuests.length === 0) {
+  // Check if there's any content to display
+  const hasContent = allCourses.length > 0 || allQuests.length > 0;
+
+  if (!hasContent) {
     const isFirstQuest = completedQuestsCount === 0;
     const buttonText = isFirstQuest ? 'Pick Up Your First Quest' : 'Pick Up a New Quest';
     const emptyMessage = isFirstQuest ? 'No quests yet.' : 'Ready for your next learning adventure?';
@@ -42,6 +47,12 @@ const ActiveQuests = memo(({ activeQuests, completedQuestsCount = 0 }) => {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Render enrolled courses first */}
+      {allCourses.map(course => (
+        <CourseCard key={`course-${course.id}`} course={course} />
+      ))}
+
+      {/* Then render standalone quests */}
       {allQuests.map(quest => {
         // Transform quest data to match QuestCardSimple expectations
         const questData = quest.quests || quest;
@@ -191,6 +202,7 @@ const DashboardPage = () => {
         </div>
         <ActiveQuests
           activeQuests={dashboardData?.active_quests}
+          enrolledCourses={dashboardData?.enrolled_courses}
           completedQuestsCount={dashboardData?.stats?.completed_quests_count || 0}
         />
       </div>

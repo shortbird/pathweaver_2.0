@@ -40,6 +40,9 @@ import courseService from '../../services/courseService'
 import CoursePreview from '../../components/CoursePreview'
 import CreateQuestModal from '../../components/CreateQuestModal'
 import LessonEditor from '../../components/LessonEditor'
+import ImageCropModal from '../../components/ImageCropModal'
+import LessonPreviewModal from '../../components/curriculum/LessonPreviewModal'
+import LessonTaskPanel from '../../components/curriculum/LessonTaskPanel'
 
 // Helper to extract HTML content from lesson content structure
 const getLessonHtmlContent = (content) => {
@@ -60,6 +63,8 @@ const getLessonHtmlContent = (content) => {
 const CourseCoverImage = ({ coverUrl, onUpdate, courseId, courseTitle, courseDescription, isSaving }) => {
   const [isSearching, setIsSearching] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [showCropModal, setShowCropModal] = useState(false)
+  const [imageToCrop, setImageToCrop] = useState(null)
   const fileInputRef = React.useRef(null)
 
   const handleSearchPexels = async () => {
@@ -89,7 +94,7 @@ const CourseCoverImage = ({ coverUrl, onUpdate, courseId, courseTitle, courseDes
     }
   }
 
-  const handleFileUpload = async (e) => {
+  const handleFileSelect = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -105,10 +110,30 @@ const CourseCoverImage = ({ coverUrl, onUpdate, courseId, courseTitle, courseDes
       return
     }
 
+    // Create a URL for the image and show crop modal
+    const imageUrl = URL.createObjectURL(file)
+    setImageToCrop(imageUrl)
+    setShowCropModal(true)
+
+    // Clear the input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleCropComplete = async (croppedBlob) => {
+    setShowCropModal(false)
+
+    // Clean up the object URL
+    if (imageToCrop) {
+      URL.revokeObjectURL(imageToCrop)
+      setImageToCrop(null)
+    }
+
     try {
       setIsUploading(true)
       const formData = new FormData()
-      formData.append('image', file)
+      formData.append('image', croppedBlob, 'cover-image.jpg')
 
       const response = await api.post(`/api/courses/${courseId}/cover-image`, formData)
 
@@ -125,9 +150,14 @@ const CourseCoverImage = ({ coverUrl, onUpdate, courseId, courseTitle, courseDes
       toast.error(errorMsg)
     } finally {
       setIsUploading(false)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
+    }
+  }
+
+  const handleCropCancel = () => {
+    setShowCropModal(false)
+    if (imageToCrop) {
+      URL.revokeObjectURL(imageToCrop)
+      setImageToCrop(null)
     }
   }
 
@@ -136,7 +166,7 @@ const CourseCoverImage = ({ coverUrl, onUpdate, courseId, courseTitle, courseDes
   return (
     <div className="relative group">
       {/* Cover Image Display */}
-      <div className="relative h-48 rounded-xl overflow-hidden bg-gradient-to-r from-optio-purple/20 to-optio-pink/20">
+      <div className="relative h-64 rounded-xl overflow-hidden bg-gradient-to-r from-optio-purple/20 to-optio-pink/20">
         {coverUrl ? (
           <img
             src={coverUrl}
@@ -183,8 +213,18 @@ const CourseCoverImage = ({ coverUrl, onUpdate, courseId, courseTitle, courseDes
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        onChange={handleFileUpload}
+        onChange={handleFileSelect}
         className="hidden"
+      />
+
+      {/* Image Crop Modal */}
+      <ImageCropModal
+        isOpen={showCropModal}
+        onClose={handleCropCancel}
+        imageSrc={imageToCrop}
+        onCropComplete={handleCropComplete}
+        aspectRatio={16 / 9}
+        title="Crop Cover Image"
       />
     </div>
   )
@@ -251,6 +291,98 @@ const SortableQuestItem = ({ quest, isSelected, onSelect, onRemove }) => {
       >
         <TrashIcon className="w-4 h-4" />
       </button>
+    </div>
+  )
+}
+
+// Sortable lesson item component
+const SortableLessonItem = ({ lesson, isSelected, onSelect, onPreview, onEdit, onDelete }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: lesson.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  const taskCount = lesson.linked_task_ids?.length || 0
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      onClick={() => onSelect?.(lesson)}
+      className={`flex items-center gap-3 p-3 rounded-lg border transition-colors group cursor-pointer ${
+        isSelected
+          ? 'border-optio-purple bg-optio-purple/5'
+          : 'border-gray-200 hover:border-optio-purple/50'
+      }`}
+    >
+      <button
+        type="button"
+        className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 flex-shrink-0"
+        {...attributes}
+        {...listeners}
+        onClick={(e) => e.stopPropagation()}
+        aria-label="Drag to reorder"
+      >
+        <Bars3Icon className="w-4 h-4" />
+      </button>
+      <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-optio-purple/10 text-optio-purple rounded-full text-xs font-medium">
+        {lesson.sequence_order || lesson.order || 1}
+      </span>
+      <div className="flex-1 min-w-0">
+        <h4 className="text-sm font-medium text-gray-900 truncate">
+          {lesson.title}
+        </h4>
+        <div className="flex items-center gap-2 text-xs text-gray-500">
+          {taskCount > 0 && (
+            <span>{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
+          )}
+          {taskCount > 0 && lesson.xp_threshold > 0 && (
+            <span className="text-gray-300">|</span>
+          )}
+          {lesson.xp_threshold > 0 && (
+            <span>{lesson.xp_threshold} XP to unlock</span>
+          )}
+        </div>
+      </div>
+      <div className="hidden group-hover:flex items-center gap-2 flex-shrink-0">
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onPreview(lesson)
+          }}
+          className="text-xs text-gray-600 hover:underline"
+        >
+          Preview
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onEdit(lesson)
+          }}
+          className="text-xs text-optio-purple hover:underline"
+        >
+          Edit
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete(lesson)
+          }}
+          className="text-xs text-red-600 hover:underline"
+        >
+          Delete
+        </button>
+      </div>
     </div>
   )
 }
@@ -409,6 +541,51 @@ const AddQuestModal = ({ isOpen, onClose, onAddQuest, organizationId, existingQu
   )
 }
 
+// Lesson Editor Modal - full screen modal for editing lessons
+const LessonEditorModal = ({ isOpen, questId, lesson, onSave, onClose }) => {
+  const editorRef = React.useRef(null)
+
+  const handleClose = async () => {
+    // Auto-save before closing
+    if (editorRef.current) {
+      await editorRef.current.save()
+    }
+    onClose()
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+      <div className="bg-white w-full h-full md:w-[95vw] md:h-[95vh] md:max-w-7xl md:rounded-xl overflow-hidden flex flex-col shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+          <h2 className="text-lg font-bold text-gray-900">
+            {lesson ? 'Edit Lesson' : 'New Lesson'}
+          </h2>
+          <button
+            onClick={handleClose}
+            className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            <XMarkIcon className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <LessonEditor
+            ref={editorRef}
+            questId={questId}
+            lesson={lesson}
+            onSave={onSave}
+            onCancel={handleClose}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Course Details Modal (edit title, description, cover image)
 const CourseDetailsModal = ({ isOpen, onClose, course, courseId, onUpdate, isSaving }) => {
   const [localTitle, setLocalTitle] = useState(course?.title || '')
@@ -533,6 +710,7 @@ const CourseBuilder = () => {
   const [course, setCourse] = useState(isNewCourse ? { title: '', description: '', status: 'draft' } : null)
   const [quests, setQuests] = useState([])
   const [selectedQuest, setSelectedQuest] = useState(null)
+  const [selectedLesson, setSelectedLesson] = useState(null)
   const [lessons, setLessons] = useState([])
   const [loadingLessons, setLoadingLessons] = useState(false)
   const [showLessons, setShowLessons] = useState(true)
@@ -591,15 +769,21 @@ const CourseBuilder = () => {
     const fetchLessons = async () => {
       if (!selectedQuest?.id) {
         setLessons([])
+        setSelectedLesson(null)
         return
       }
 
       try {
         setLoadingLessons(true)
+        setSelectedLesson(null) // Clear selected lesson when quest changes
         // Fetch from curriculum/lessons endpoint (curriculum_lessons table), not /curriculum (legacy JSON)
         const response = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons`)
         const fetchedLessons = response.data.lessons || []
         setLessons(fetchedLessons)
+        // Auto-select first lesson if available
+        if (fetchedLessons.length > 0) {
+          setSelectedLesson(fetchedLessons[0])
+        }
       } catch (error) {
         console.error('Failed to load lessons:', error)
         toast.error('Failed to load lessons')
@@ -761,6 +945,49 @@ const CourseBuilder = () => {
     }
   }
 
+  // Reorder lessons via drag and drop
+  const handleLessonDragEnd = async (event) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = lessons.findIndex(l => l.id === active.id)
+    const newIndex = lessons.findIndex(l => l.id === over.id)
+    const reorderedLessons = arrayMove(lessons, oldIndex, newIndex)
+
+    // Update sequence_order for each lesson
+    const lessonsWithNewOrder = reorderedLessons.map((l, idx) => ({
+      ...l,
+      sequence_order: idx + 1,
+      order: idx + 1
+    }))
+
+    // Optimistic update
+    setLessons(lessonsWithNewOrder)
+
+    try {
+      await api.put(`/api/quests/${selectedQuest.id}/curriculum/lessons/reorder`, {
+        lesson_order: lessonsWithNewOrder.map(l => l.id)
+      })
+    } catch (error) {
+      console.error('Failed to reorder lessons:', error)
+      toast.error('Failed to save lesson order')
+      // Revert on error
+      setLessons(lessons)
+    }
+  }
+
+  // Handle lesson delete
+  const handleDeleteLesson = async (lesson) => {
+    if (!confirm('Delete this lesson?')) return
+    try {
+      await api.delete(`/api/quests/${selectedQuest.id}/curriculum/lessons/${lesson.id}`)
+      setLessons(lessons.filter(l => l.id !== lesson.id))
+      toast.success('Lesson deleted')
+    } catch (error) {
+      toast.error('Failed to delete lesson')
+    }
+  }
+
   // Publish or unpublish course
   const handlePublishToggle = async () => {
     const isCurrentlyPublished = course?.status === 'published'
@@ -843,9 +1070,9 @@ const CourseBuilder = () => {
           <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate(-1)}
+                onClick={() => navigate('/courses')}
                 className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="Go back"
+                aria-label="Go back to courses"
               >
                 <ChevronLeftIcon className="w-5 h-5" />
               </button>
@@ -922,7 +1149,7 @@ const CourseBuilder = () => {
           <div className="flex items-center justify-between gap-2">
             {/* Left: Back + Title */}
             <button
-              onClick={() => navigate('/organization?tab=courses')}
+              onClick={() => navigate('/courses')}
               className="flex items-center gap-2 sm:gap-3 p-2 -m-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
               aria-label="Go back to courses"
             >
@@ -1071,7 +1298,7 @@ const CourseBuilder = () => {
           {/* Content Editor */}
           <div className="flex-1 min-w-0 space-y-6">
             {/* Selected Quest Details */}
-            {selectedQuest && !showLessonEditor && (
+            {selectedQuest && (
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div className="flex-1 min-w-0">
@@ -1109,136 +1336,109 @@ const CourseBuilder = () => {
                   </div>
                 </div>
 
-                {/* Lessons Section */}
+                {/* Lessons and Tasks Section - Two Column Layout */}
                 <div className="border-t border-gray-200 pt-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-medium text-gray-700">
-                      Lessons{!loadingLessons && ` (${lessons.length})`}
-                    </h3>
-                    <button
-                      onClick={() => {
-                        setEditingLesson(null)
-                        setShowLessonEditor(true)
-                      }}
-                      className="flex items-center gap-1 text-sm text-optio-purple hover:text-optio-pink transition-colors"
-                    >
-                      <PlusIcon className="w-4 h-4" />
-                      Add Lesson
-                    </button>
-                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Column 1: Lessons List */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-medium text-gray-700">
+                          Lessons{!loadingLessons && ` (${lessons.length})`}
+                        </h3>
+                        <button
+                          onClick={() => {
+                            setEditingLesson(null)
+                            setShowLessonEditor(true)
+                          }}
+                          className="flex items-center gap-1 text-sm text-optio-purple hover:text-optio-pink transition-colors"
+                        >
+                          <PlusIcon className="w-4 h-4" />
+                          Add Lesson
+                        </button>
+                      </div>
 
-                  {loadingLessons ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="w-6 h-6 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
-                    </div>
-                  ) : lessons.length === 0 ? (
-                    <div className="text-center py-8 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-500 mb-3">
-                        No lessons yet. Add your first lesson to this project.
-                      </p>
-                      <button
-                        onClick={() => {
-                          setEditingLesson(null)
-                          setShowLessonEditor(true)
-                        }}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
-                      >
-                        <PlusIcon className="w-4 h-4" />
-                        Add Lesson
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {lessons
-                        .sort((a, b) => a.order - b.order)
-                        .map((lesson) => (
-                          <div
-                            key={lesson.id}
-                            onClick={() => setPreviewingLesson(lesson)}
-                            className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-optio-purple/50 transition-colors group cursor-pointer"
+                      {loadingLessons ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="w-6 h-6 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      ) : lessons.length === 0 ? (
+                        <div className="text-center py-8 bg-gray-50 rounded-lg">
+                          <p className="text-sm text-gray-500 mb-3">
+                            No lessons yet. Add your first lesson to this project.
+                          </p>
+                          <button
+                            onClick={() => {
+                              setEditingLesson(null)
+                              setShowLessonEditor(true)
+                            }}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
                           >
-                            <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-optio-purple/10 text-optio-purple rounded-full text-xs font-medium">
-                              {lesson.sequence_order || lesson.order || 1}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-sm font-medium text-gray-900 truncate">
-                                {lesson.title}
-                              </h4>
-                              {lesson.xp_threshold > 0 && (
-                                <p className="text-xs text-gray-500">
-                                  {lesson.xp_threshold} XP to unlock
-                                </p>
-                              )}
+                            <PlusIcon className="w-4 h-4" />
+                            Add Lesson
+                          </button>
+                        </div>
+                      ) : (
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={handleLessonDragEnd}
+                        >
+                          <SortableContext
+                            items={lessons.sort((a, b) => (a.sequence_order || a.order || 0) - (b.sequence_order || b.order || 0)).map(l => l.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            <div className="space-y-2">
+                              {lessons
+                                .sort((a, b) => (a.sequence_order || a.order || 0) - (b.sequence_order || b.order || 0))
+                                .map((lesson) => (
+                                  <SortableLessonItem
+                                    key={lesson.id}
+                                    lesson={lesson}
+                                    isSelected={selectedLesson?.id === lesson.id}
+                                    onSelect={setSelectedLesson}
+                                    onPreview={setPreviewingLesson}
+                                    onEdit={(l) => {
+                                      setEditingLesson(l)
+                                      setShowLessonEditor(true)
+                                    }}
+                                    onDelete={handleDeleteLesson}
+                                  />
+                                ))}
                             </div>
-                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setEditingLesson(lesson)
-                                  setShowLessonEditor(true)
-                                }}
-                                className="text-xs text-optio-purple hover:underline"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation()
-                                  if (!confirm('Delete this lesson?')) return
-                                  try {
-                                    await api.delete(`/api/quests/${selectedQuest.id}/curriculum/lessons/${lesson.id}`)
-                                    setLessons(lessons.filter(l => l.id !== lesson.id))
-                                    toast.success('Lesson deleted')
-                                  } catch (error) {
-                                    toast.error('Failed to delete lesson')
-                                  }
-                                }}
-                                className="text-xs text-red-600 hover:underline"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                          </SortableContext>
+                        </DndContext>
+                      )}
                     </div>
-                  )}
+
+                    {/* Column 2: Tasks for Selected Lesson */}
+                    <div className="border-l border-gray-200 pl-4 min-h-[200px]">
+                      <LessonTaskPanel
+                        lesson={selectedLesson}
+                        questId={selectedQuest?.id}
+                        questTitle={selectedQuest?.title}
+                        questDescription={selectedQuest?.description}
+                        onTasksUpdated={async () => {
+                          // Refresh lessons to update linked_task_ids
+                          try {
+                            const response = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons`)
+                            const fetchedLessons = response.data.lessons || []
+                            setLessons(fetchedLessons)
+                            // Update selected lesson with fresh data
+                            const updatedSelectedLesson = fetchedLessons.find(l => l.id === selectedLesson?.id)
+                            if (updatedSelectedLesson) {
+                              setSelectedLesson(updatedSelectedLesson)
+                            }
+                          } catch (error) {
+                            console.error('Failed to refresh lessons:', error)
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Inline Lesson Editor */}
-            {selectedQuest && showLessonEditor && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-gray-900">
-                    {editingLesson ? 'Edit Lesson' : 'New Lesson'}
-                  </h2>
-                  <button
-                    onClick={() => setShowLessonEditor(false)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <XMarkIcon className="w-5 h-5" />
-                  </button>
-                </div>
-                <LessonEditor
-                  questId={selectedQuest.id}
-                  lesson={editingLesson}
-                  onSave={(savedLesson) => {
-                    if (editingLesson) {
-                      setLessons(lessons.map(l => l.id === savedLesson.id ? savedLesson : l))
-                    } else {
-                      setLessons([...lessons, savedLesson])
-                    }
-                    setShowLessonEditor(false)
-                    setEditingLesson(null)
-                  }}
-                  onCancel={() => {
-                    setShowLessonEditor(false)
-                    setEditingLesson(null)
-                  }}
-                />
-              </div>
-            )}
 
             {/* Empty state when no quests */}
             {quests.length === 0 && (
@@ -1292,105 +1492,41 @@ const CourseBuilder = () => {
 
       {/* Lesson Preview Modal */}
       {previewingLesson && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Lesson Preview</p>
-                <h2 className="text-xl font-bold text-gray-900">{previewingLesson.title}</h2>
-              </div>
-              <button
-                onClick={() => setPreviewingLesson(null)}
-                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <XMarkIcon className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6">
-              {/* Content (text first) */}
-              {getLessonHtmlContent(previewingLesson.content) && (
-                <div
-                  className="prose prose-sm max-w-none mb-6"
-                  dangerouslySetInnerHTML={{ __html: getLessonHtmlContent(previewingLesson.content) }}
-                />
-              )}
-
-              {/* Video */}
-              {previewingLesson.video_url && (
-                <div className="mb-6">
-                  <div className="aspect-video rounded-lg overflow-hidden bg-gray-100">
-                    <iframe
-                      src={
-                        previewingLesson.video_url.includes('youtube')
-                          ? `https://www.youtube-nocookie.com/embed/${previewingLesson.video_url.match(/(?:v=|\/embed\/|youtu\.be\/)([^&?]+)/)?.[1] || ''}?rel=0&modestbranding=1`
-                          : previewingLesson.video_url.includes('vimeo')
-                          ? `https://player.vimeo.com/video/${previewingLesson.video_url.match(/vimeo\.com\/(\d+)/)?.[1] || ''}`
-                          : previewingLesson.video_url.includes('drive.google.com')
-                          ? `https://drive.google.com/file/d/${previewingLesson.video_url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([a-zA-Z0-9_-]+)/)?.[1] || ''}/preview`
-                          : previewingLesson.video_url
-                      }
-                      className="w-full h-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                      title={previewingLesson.title}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Files */}
-              {previewingLesson.files && previewingLesson.files.length > 0 && (
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">Attachments</h4>
-                  <div className="space-y-2">
-                    {previewingLesson.files.map((file, idx) => (
-                      <a
-                        key={idx}
-                        href={file.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                      >
-                        <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clipRule="evenodd" />
-                        </svg>
-                        <span className="text-sm text-gray-700">{file.name}</span>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Empty state */}
-              {!getLessonHtmlContent(previewingLesson.content) && !previewingLesson.video_url && (
-                <div className="text-center py-12 text-gray-500">
-                  <p>This lesson has no content yet.</p>
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 border-t border-gray-200 flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setPreviewingLesson(null)
-                  setEditingLesson(previewingLesson)
-                  setShowLessonEditor(true)
-                }}
-                className="px-4 py-2 text-sm font-medium text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
-              >
-                Edit Lesson
-              </button>
-              <button
-                onClick={() => setPreviewingLesson(null)}
-                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+        <LessonPreviewModal
+          lesson={previewingLesson}
+          onClose={() => setPreviewingLesson(null)}
+          onEdit={(lesson) => {
+            setPreviewingLesson(null)
+            setEditingLesson(lesson)
+            setShowLessonEditor(true)
+          }}
+        />
       )}
+
+      {/* Lesson Editor Modal */}
+      <LessonEditorModal
+        isOpen={showLessonEditor}
+        questId={selectedQuest?.id}
+        lesson={editingLesson}
+        onSave={(savedLesson) => {
+          if (editingLesson) {
+            // Update existing lesson
+            setLessons(lessons.map(l => l.id === savedLesson.id ? savedLesson : l))
+            if (selectedLesson?.id === savedLesson.id) {
+              setSelectedLesson(savedLesson)
+            }
+          } else {
+            // New lesson created - add to list and set as editing lesson for future saves
+            setLessons([...lessons, savedLesson])
+            setSelectedLesson(savedLesson)
+            setEditingLesson(savedLesson)
+          }
+        }}
+        onClose={() => {
+          setShowLessonEditor(false)
+          setEditingLesson(null)
+        }}
+      />
     </div>
   )
 }

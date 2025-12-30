@@ -970,3 +970,170 @@ def get_course_progress(user_id, course_id: str):
     except Exception as e:
         logger.error(f"Error getting course progress for {course_id}: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+# ==================== Course Homepage ====================
+
+@bp.route('/<course_id>/homepage', methods=['GET'])
+@require_auth
+def get_course_homepage(user_id, course_id: str):
+    """
+    Get comprehensive course data for the student homepage view.
+    Includes course details, quests with lessons, progress, and enrollment status.
+
+    Path params:
+        course_id: Course UUID
+
+    Returns:
+        - course: Course details (title, description, cover_image_url, etc.)
+        - quests: Array of quests with lessons and progress data
+        - enrollment: User's enrollment status in this course
+    """
+    try:
+        current_user_id = session_manager.get_effective_user_id()
+        client = get_supabase_admin_client()
+
+        # Get course details
+        course_result = client.table('courses').select('*').eq('id', course_id).execute()
+        if not course_result.data:
+            return jsonify({'error': 'Course not found'}), 404
+
+        course = course_result.data[0]
+
+        # Get course quests with quest details
+        course_quests_result = client.table('course_quests').select(
+            'quest_id, sequence_order, xp_threshold, custom_title, is_required, quests(id, title, description, header_image_url)'
+        ).eq('course_id', course_id).order('sequence_order').execute()
+
+        quests_with_data = []
+        for cq in (course_quests_result.data or []):
+            quest_data = cq.get('quests', {}) or {}
+            quest_id = quest_data.get('id') or cq.get('quest_id')
+
+            if not quest_id:
+                continue
+
+            # Get lessons for this quest
+            lessons_result = client.table('curriculum_lessons')\
+                .select('id, title, sequence_order, xp_threshold, linked_task_ids, estimated_duration_minutes')\
+                .eq('quest_id', quest_id)\
+                .order('sequence_order')\
+                .execute()
+
+            lessons = lessons_result.data or []
+
+            # Get user's quest enrollment
+            user_quest_result = client.table('user_quests')\
+                .select('id, is_active, completed_at, started_at')\
+                .eq('user_id', current_user_id)\
+                .eq('quest_id', quest_id)\
+                .execute()
+
+            quest_enrollment = user_quest_result.data[0] if user_quest_result.data else None
+
+            # Get task completion counts
+            completed_tasks = 0
+            total_tasks = 0
+
+            if quest_enrollment:
+                enrollment_id = quest_enrollment['id']
+
+                # Get approved tasks for this enrollment
+                user_tasks_result = client.table('user_quest_tasks')\
+                    .select('id')\
+                    .eq('user_quest_id', enrollment_id)\
+                    .eq('approval_status', 'approved')\
+                    .execute()
+
+                user_tasks = user_tasks_result.data or []
+                total_tasks = len(user_tasks)
+
+                if total_tasks > 0:
+                    task_ids = [t['id'] for t in user_tasks]
+                    completions_result = client.table('quest_task_completions')\
+                        .select('id')\
+                        .eq('user_id', current_user_id)\
+                        .in_('user_quest_task_id', task_ids)\
+                        .execute()
+
+                    completed_tasks = len(completions_result.data or [])
+
+            # Get lesson progress for this quest (non-blocking if table doesn't exist)
+            lesson_progress_map = {}
+            try:
+                lesson_progress_result = client.table('curriculum_lesson_progress')\
+                    .select('lesson_id, status, progress_percentage')\
+                    .eq('user_id', current_user_id)\
+                    .eq('quest_id', quest_id)\
+                    .execute()
+
+                for lp in (lesson_progress_result.data or []):
+                    lesson_progress_map[lp['lesson_id']] = {
+                        'status': lp['status'],
+                        'progress_percentage': lp['progress_percentage']
+                    }
+            except Exception as progress_err:
+                logger.warning(f"Could not fetch lesson progress: {progress_err}")
+
+            # Add progress to each lesson
+            for lesson in lessons:
+                progress = lesson_progress_map.get(lesson['id'], {})
+                lesson['progress'] = {
+                    'status': progress.get('status', 'not_started'),
+                    'percentage': progress.get('progress_percentage', 0)
+                }
+
+            quests_with_data.append({
+                'id': quest_id,
+                'title': cq.get('custom_title') or quest_data.get('title'),
+                'description': quest_data.get('description'),
+                'header_image_url': quest_data.get('header_image_url'),
+                'sequence_order': cq.get('sequence_order', 0),
+                'xp_threshold': cq.get('xp_threshold', 0),
+                'is_required': cq.get('is_required', True),
+                'lessons': lessons,
+                'enrollment': quest_enrollment,
+                'progress': {
+                    'completed_tasks': completed_tasks,
+                    'total_tasks': total_tasks,
+                    'percentage': round((completed_tasks / total_tasks * 100), 1) if total_tasks > 0 else 0,
+                    'is_completed': (quest_enrollment.get('completed_at') is not None and not quest_enrollment.get('is_active')) if quest_enrollment else False
+                }
+            })
+
+        # Get course enrollment status
+        enrollment_result = client.table('course_enrollments')\
+            .select('*')\
+            .eq('course_id', course_id)\
+            .eq('user_id', current_user_id)\
+            .execute()
+
+        enrollment = enrollment_result.data[0] if enrollment_result.data else None
+
+        # Calculate overall course progress
+        total_required_quests = len([q for q in quests_with_data if q.get('is_required', True)])
+        completed_quests = len([q for q in quests_with_data if q['progress']['is_completed'] and q.get('is_required', True)])
+        course_progress = round((completed_quests / total_required_quests * 100), 1) if total_required_quests > 0 else 0
+
+        return jsonify({
+            'success': True,
+            'course': {
+                'id': course['id'],
+                'title': course['title'],
+                'description': course.get('description'),
+                'cover_image_url': course.get('cover_image_url'),
+                'navigation_mode': course.get('navigation_mode', 'sequential'),
+                'status': course.get('status', 'draft')
+            },
+            'quests': quests_with_data,
+            'enrollment': enrollment,
+            'progress': {
+                'completed_quests': completed_quests,
+                'total_quests': total_required_quests,
+                'percentage': course_progress
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting course homepage for {course_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500

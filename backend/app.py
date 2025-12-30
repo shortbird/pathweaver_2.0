@@ -446,6 +446,15 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Error registering Curriculum Builder routes: {e}", exc_info=True)
 
+# Curriculum AI Enhancement - AI-powered content enhancement (superadmin only)
+try:
+    from routes.curriculum_enhance import bp as curriculum_enhance_bp
+    app.register_blueprint(curriculum_enhance_bp)  # /api/curriculum/enhance (blueprint has url_prefix)
+except ImportError as e:
+    logger.warning(f"Warning: Curriculum AI Enhancement module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Curriculum AI Enhancement routes: {e}", exc_info=True)
+
 # Notifications - user notification system
 try:
     from routes.notifications import bp as notifications_bp

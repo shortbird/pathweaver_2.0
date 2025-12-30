@@ -7,6 +7,9 @@ import {
   AcademicCapIcon,
   CheckCircleIcon,
   RocketLaunchIcon,
+  PencilSquareIcon,
+  PlusIcon,
+  EyeIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 
@@ -19,6 +22,9 @@ const CourseCatalog = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [enrolledCourseIds, setEnrolledCourseIds] = useState(new Set())
 
+  // Check if user can manage courses (see drafts, edit)
+  const canManageCourses = user?.role === 'superadmin' || user?.role === 'org_admin' || user?.role === 'advisor'
+
   useEffect(() => {
     fetchCourses()
   }, [])
@@ -28,13 +34,15 @@ const CourseCatalog = () => {
       setLoading(true)
       const response = await api.get('/api/courses')
 
-      // Filter to published courses only for students
-      const publishedCourses = response.data.courses.filter(c => c.status === 'published')
-      setCourses(publishedCourses)
+      // Show all courses to admins, only published to others
+      const coursesToShow = canManageCourses
+        ? response.data.courses
+        : response.data.courses.filter(c => c.status === 'published')
+      setCourses(coursesToShow)
 
       // Fetch enrollment status for each course
-      if (publishedCourses.length > 0) {
-        fetchEnrollmentStatus(publishedCourses)
+      if (coursesToShow.length > 0) {
+        fetchEnrollmentStatus(coursesToShow)
       }
     } catch (error) {
       console.error('Failed to fetch courses:', error)
@@ -93,13 +101,28 @@ const CourseCatalog = () => {
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex items-center gap-3 mb-2">
-            <AcademicCapIcon className="w-8 h-8 text-optio-purple" />
-            <h1 className="text-3xl font-bold text-gray-900">Course Catalog</h1>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <AcademicCapIcon className="w-8 h-8 text-optio-purple" />
+                <h1 className="text-3xl font-bold text-gray-900">Course Catalog</h1>
+              </div>
+              <p className="text-gray-600">
+                Explore structured learning pathways and enroll in courses
+              </p>
+            </div>
+
+            {/* Create Course Button (admins only) */}
+            {canManageCourses && (
+              <button
+                onClick={() => navigate('/courses/new')}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+              >
+                <PlusIcon className="w-5 h-5" />
+                Create Course
+              </button>
+            )}
           </div>
-          <p className="text-gray-600">
-            Explore structured learning pathways and enroll in courses
-          </p>
 
           {/* Search */}
           <div className="mt-6 relative max-w-md">
@@ -147,24 +170,43 @@ const CourseCatalog = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredCourses.map(course => {
               const isEnrolled = enrolledCourseIds.has(course.id)
+              const isDraft = course.status === 'draft'
+              const isArchived = course.status === 'archived'
 
               return (
                 <div
                   key={course.id}
-                  className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow"
+                  className={`bg-white rounded-xl border overflow-hidden hover:shadow-lg transition-shadow ${
+                    isDraft ? 'border-amber-300' : isArchived ? 'border-gray-300' : 'border-gray-200'
+                  }`}
                 >
                   {/* Cover Image */}
-                  {course.cover_url ? (
-                    <img
-                      src={course.cover_url}
-                      alt={course.title}
-                      className="w-full h-48 object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-48 bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center">
-                      <AcademicCapIcon className="w-16 h-16 text-white opacity-50" />
-                    </div>
-                  )}
+                  <div className="relative">
+                    {course.cover_image_url ? (
+                      <img
+                        src={course.cover_image_url}
+                        alt={course.title}
+                        className="w-full h-48 object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-48 bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center">
+                        <AcademicCapIcon className="w-16 h-16 text-white opacity-50" />
+                      </div>
+                    )}
+
+                    {/* Status Badge */}
+                    {canManageCourses && (isDraft || isArchived) && (
+                      <div className="absolute top-3 left-3">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          isDraft
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {isDraft ? 'Draft' : 'Archived'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Content */}
                   <div className="p-6">
@@ -186,8 +228,30 @@ const CourseCatalog = () => {
                       </div>
                     </div>
 
-                    {/* Action Button */}
-                    {isEnrolled ? (
+                    {/* Action Buttons */}
+                    {canManageCourses ? (
+                      /* Admin view - show Edit and View/Preview buttons */
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => navigate(`/courses/${course.id}/edit`)}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                        >
+                          <PencilSquareIcon className="w-5 h-5" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleViewCourse(course.id)}
+                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium ${
+                            isDraft
+                              ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                              : 'bg-optio-purple/10 text-optio-purple hover:bg-optio-purple/20'
+                          }`}
+                        >
+                          <EyeIcon className="w-5 h-5" />
+                          {isDraft ? 'Preview' : 'View'}
+                        </button>
+                      </div>
+                    ) : isEnrolled ? (
                       <button
                         onClick={() => handleViewCourse(course.id)}
                         className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors font-medium"

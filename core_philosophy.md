@@ -5,6 +5,63 @@
 
 Learning is not about reaching a destination or impressing others. It's about who you become through the journey of discovery, creation, and growth. Every quest, every learning log, every piece of evidence is valuable because of what it teaches you RIGHT NOW, not what it might prove later.
 
+## Motivation Through Self-Determination
+
+Student motivation is understood through the lens of **Self-Determination Theory (SDT)**. Intrinsic motivation flourishes when three psychological needs are met:
+
+### 1. Choice (Autonomy)
+The student makes meaningful decisions about their learning. They choose which quests to pursue, how to demonstrate their understanding, and what evidence to share. We never dictate a single path.
+
+**In practice:**
+- Multiple quest options within each pillar
+- Flexible evidence types for task completion
+- Student-driven pacing and sequencing
+- "Choose your adventure" framing throughout
+
+### 2. Competency
+The challenge is within the student's **zone of proximal development** - not so easy it's boring, not so hard it's discouraging. Tasks should stretch students just enough to feel accomplishment without overwhelming them.
+
+**In practice:**
+- Clear task descriptions that set appropriate expectations
+- XP values that reflect genuine effort, not artificial difficulty
+- Feedback that acknowledges growth, not just correctness
+- Progressive complexity within quest sequences
+
+### 3. Connection (Relatedness)
+The student feels a personal connection to the material. Learning feels relevant to who they are and who they're becoming. They see themselves in the content and community.
+
+**In practice:**
+- Tasks that invite personal reflection and real-world application
+- Evidence that captures the student's unique voice and perspective
+- Community features that foster belonging, not competition
+- Celebration of individual journeys, not standardized outcomes
+
+**When all three elements align, motivation becomes self-sustaining.**
+
+## Just-in-Time Teaching
+
+Optio courses follow the principle of **Just-in-Time Teaching**: lessons provide exactly the information students need to complete tasks satisfactorily, delivered at the moment of need.
+
+### Why This Matters
+- **Relevance**: Information is immediately applicable, not abstract
+- **Retention**: Learning sticks when it solves a real problem
+- **Efficiency**: No wasted time on content that won't be used
+- **Engagement**: Students are primed to receive what they're about to apply
+
+### Course Structure Implications
+1. **Lessons precede tasks** - Each lesson prepares students for the work ahead
+2. **Content is actionable** - Everything taught connects to something students will do
+3. **Less is more** - Provide what's needed, not everything possible
+4. **Context before content** - Help students understand why before how
+
+### The Anti-Pattern
+Traditional courses front-load information: "Learn all of this, then apply it later." This creates:
+- Cognitive overload
+- Disconnection between theory and practice
+- Forgotten material by the time it's needed
+
+**Optio inverts this**: "Here's what you need to do. Here's what you need to know to do it well."
+
 ## Language Principles
 
 ### 1. Present-Focused Value

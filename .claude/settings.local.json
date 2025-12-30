@@ -10,7 +10,18 @@
       "Bash(timeout /t 6 /nobreak)",
       "Bash(../venv/Scripts/python.exe:*)",
       "Bash(tasklist:*)",
-      "Bash(taskkill /f /im python.exe sleep 2 tasklist)"
+      "Bash(taskkill /f /im python.exe sleep 2 tasklist)",
+      "Bash(findstr:*)",
+      "Bash(npx kill-port:*)",
+      "Bash(timeout /t 3 /nobreak)",
+      "Bash(git add:*)",
+      "Bash(backend/routes/curriculum.py )",
+      "Bash(backend/services/curriculum_lesson_service.py )",
+      "Bash(frontend/src/components/curriculum/CurriculumView.jsx )",
+      "Bash(frontend/src/components/curriculum/LessonTaskPanel.jsx )",
+      "Bash(frontend/src/components/curriculum/StepEditor.jsx )",
+      "Bash(frontend/src/index.css )",
+      "Bash(frontend/src/pages/QuestDetail.jsx)"
     ]
   }
 }

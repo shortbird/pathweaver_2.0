@@ -1,9 +1,180 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircleIcon, ClockIcon, PlayIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ClockIcon, PlayIcon, DocumentTextIcon, LinkIcon, ArrowDownTrayIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
 import { getPillarData } from '../../utils/pillarMappings';
 import LessonContentRenderer from './LessonContentRenderer';
+
+// Helper to extract YouTube/Vimeo embed URL
+const getEmbedUrl = (url) => {
+  if (!url) return null;
+
+  // YouTube
+  const youtubeMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+  if (youtubeMatch) {
+    return `https://www.youtube.com/embed/${youtubeMatch[1]}`;
+  }
+
+  // Vimeo
+  const vimeoMatch = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if (vimeoMatch) {
+    return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+  }
+
+  // Google Drive
+  if (url.includes('drive.google.com')) {
+    const driveMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (driveMatch) {
+      return `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+    }
+  }
+
+  // Loom
+  if (url.includes('loom.com')) {
+    const loomMatch = url.match(/loom\.com\/share\/([a-zA-Z0-9]+)/);
+    if (loomMatch) {
+      return `https://www.loom.com/embed/${loomMatch[1]}`;
+    }
+  }
+
+  return url;
+};
+
+// Step renderer component for version 2 format
+const StepRenderer = ({ step, stepNumber }) => {
+  const embedUrl = step.video_url ? getEmbedUrl(step.video_url) : null;
+
+  return (
+    <div className="mb-8 last:mb-0">
+      {/* Step Header */}
+      <div className="flex items-center gap-3 mb-4">
+        <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full text-sm font-bold">
+          {stepNumber}
+        </span>
+        <h3 className="text-xl font-semibold text-gray-900" style={{ fontFamily: 'Poppins' }}>
+          {step.title || `Step ${stepNumber}`}
+        </h3>
+      </div>
+
+      {/* Step Content */}
+      <div className="pl-11">
+        {/* Text Content */}
+        {step.content && (
+          <div className="mb-4">
+            <LessonContentRenderer content={step.content} />
+          </div>
+        )}
+
+        {/* Video Embed */}
+        {step.type === 'video' && embedUrl && (
+          <div className="my-6">
+            <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+              <VideoCameraIcon className="w-4 h-4" />
+              <span>Video</span>
+            </div>
+            <div className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden shadow-md">
+              <iframe
+                src={embedUrl}
+                title={step.title || 'Video content'}
+                className="absolute inset-0 w-full h-full"
+                allowFullScreen
+                loading="lazy"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Files/Attachments */}
+        {step.attachments && step.attachments.length > 0 && (
+          <div className="my-4">
+            <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+              <ArrowDownTrayIcon className="w-4 h-4" />
+              <span>Downloads</span>
+            </div>
+            <div className="space-y-2">
+              {step.attachments.map((file, idx) => (
+                <a
+                  key={idx}
+                  href={file.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-gray-300 transition-all group"
+                >
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <DocumentTextIcon className="w-5 h-5 text-optio-purple" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 group-hover:text-optio-purple transition-colors truncate">
+                      {file.name || 'Download File'}
+                    </p>
+                    {file.size && (
+                      <p className="text-xs text-gray-500">{file.size}</p>
+                    )}
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Files (alternative format) */}
+        {step.files && step.files.length > 0 && (
+          <div className="my-4">
+            <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+              <ArrowDownTrayIcon className="w-4 h-4" />
+              <span>Files</span>
+            </div>
+            <div className="space-y-2">
+              {step.files.map((file, idx) => (
+                <a
+                  key={idx}
+                  href={file.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-gray-300 transition-all group"
+                >
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <DocumentTextIcon className="w-5 h-5 text-optio-purple" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 group-hover:text-optio-purple transition-colors truncate">
+                      {file.name || 'Download File'}
+                    </p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Links */}
+        {step.links && step.links.length > 0 && (
+          <div className="my-4">
+            <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+              <LinkIcon className="w-4 h-4" />
+              <span>Resources</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {step.links.map((link, idx) => (
+                <a
+                  key={idx}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-3 py-2 bg-optio-purple/10 text-optio-purple rounded-lg hover:bg-optio-purple/20 transition-colors text-sm font-medium"
+                >
+                  <LinkIcon className="w-4 h-4" />
+                  {link.text || link.url}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 /**
  * LessonViewer Component
@@ -141,7 +312,12 @@ const LessonViewer = ({
   };
 
   const isCompleted = progress?.status === 'completed';
+
+  // Determine content format
+  const isVersion2 = lesson?.content?.version === 2 && Array.isArray(lesson?.content?.steps);
+  const steps = isVersion2 ? lesson.content.steps.sort((a, b) => (a.order || 0) - (b.order || 0)) : [];
   const contentBlocks = lesson?.content?.blocks || [];
+  const hasContent = isVersion2 ? steps.length > 0 : contentBlocks.length > 0;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -183,10 +359,20 @@ const LessonViewer = ({
 
       {/* Lesson Content */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
-        {contentBlocks.length > 0 ? (
-          <div className="space-y-6">
-            {contentBlocks.map((block, index) => renderContentBlock(block, index))}
-          </div>
+        {hasContent ? (
+          isVersion2 ? (
+            // Version 2: Step-based format
+            <div>
+              {steps.map((step, index) => (
+                <StepRenderer key={step.id || index} step={step} stepNumber={index + 1} />
+              ))}
+            </div>
+          ) : (
+            // Legacy: Blocks format
+            <div className="space-y-6">
+              {contentBlocks.map((block, index) => renderContentBlock(block, index))}
+            </div>
+          )
         ) : (
           <div className="text-center py-12 text-gray-500">
             <DocumentTextIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />

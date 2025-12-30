@@ -1079,6 +1079,37 @@ def update_lesson_progress(user_id: str, quest_id: str, lesson_id: str):
         return jsonify({'error': 'Failed to update lesson progress'}), 500
 
 
+@bp.route('/<quest_id>/curriculum/progress/<lesson_id>', methods=['DELETE'])
+@require_auth
+def delete_lesson_progress(user_id: str, quest_id: str, lesson_id: str):
+    """
+    Delete/reset user's progress for a lesson.
+
+    Returns:
+        200: Progress deleted successfully
+        403: Permission denied
+        404: Progress not found
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        verify_curriculum_read_permission(user_id, quest_id, supabase)
+
+        # Delete the progress record
+        result = supabase.table('curriculum_lesson_progress').delete().eq('user_id', user_id).eq('lesson_id', lesson_id).execute()
+
+        return jsonify({
+            'success': True,
+            'message': 'Progress reset successfully'
+        }), 200
+
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), e.status_code or 400
+    except Exception as e:
+        logger.error(f"Error deleting lesson progress: {str(e)}")
+        return jsonify({'error': 'Failed to reset lesson progress'}), 500
+
+
 @bp.route('/<quest_id>/curriculum/lessons/search', methods=['GET'])
 @require_auth
 def search_lessons(user_id: str, quest_id: str):
@@ -1133,6 +1164,9 @@ def generate_ai_tasks(user_id: str, quest_id: str, lesson_id: str):
         num_tasks (int, optional): Number of tasks to generate (default 5)
         lesson_title (str, optional): Lesson title for context
         curriculum_context (str, optional): Additional curriculum context
+        focus_pillar (str, optional): Pillar to focus tasks on
+        custom_prompt (str, optional): Custom instructions for task generation
+        existing_tasks_context (str, optional): Context about existing tasks
 
     Returns:
         200: Generated tasks
@@ -1154,6 +1188,9 @@ def generate_ai_tasks(user_id: str, quest_id: str, lesson_id: str):
         num_tasks = data.get('num_tasks', 5)
         lesson_title = data.get('lesson_title')
         curriculum_context = data.get('curriculum_context')
+        focus_pillar = data.get('focus_pillar')
+        custom_prompt = data.get('custom_prompt')
+        existing_tasks_context = data.get('existing_tasks_context')
 
         # Get quest info for context
         quest_result = supabase.table('quests').select('title, description').eq('id', quest_id).execute()
@@ -1170,7 +1207,10 @@ def generate_ai_tasks(user_id: str, quest_id: str, lesson_id: str):
             lesson_title=lesson_title,
             quest_title=quest_title,
             quest_description=quest_description,
-            curriculum_context=curriculum_context
+            curriculum_context=curriculum_context,
+            focus_pillar=focus_pillar,
+            custom_prompt=custom_prompt,
+            existing_tasks_context=existing_tasks_context
         )
 
         return jsonify({

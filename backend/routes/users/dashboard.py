@@ -35,6 +35,84 @@ logger = get_logger(__name__)
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
+
+def get_enrolled_courses(supabase, user_id: str) -> tuple:
+    """
+    Get user's enrolled courses with progress data.
+    Returns (courses_list, course_quest_ids) where course_quest_ids is a set of
+    all quest IDs that belong to enrolled courses (for exclusion from standalone quests).
+    """
+    try:
+        # Fetch active course enrollments with course details
+        enrollments = supabase.table('course_enrollments')\
+            .select('*, courses(*)')\
+            .eq('user_id', user_id)\
+            .eq('status', 'active')\
+            .execute()
+
+        if not enrollments.data:
+            return [], set()
+
+        courses_with_progress = []
+        all_course_quest_ids = set()
+
+        for enrollment in enrollments.data:
+            course = enrollment.get('courses', {})
+            if not course:
+                continue
+
+            course_id = course.get('id')
+
+            # Get quests in this course
+            course_quests = supabase.table('course_quests')\
+                .select('quest_id, sequence_order')\
+                .eq('course_id', course_id)\
+                .order('sequence_order')\
+                .execute()
+
+            quest_ids = [cq['quest_id'] for cq in (course_quests.data or [])]
+            all_course_quest_ids.update(quest_ids)
+
+            # Calculate completion for each quest in course
+            completed_count = 0
+            total_count = len(quest_ids)
+
+            if quest_ids:
+                # Check user_quests for completed quests
+                user_quest_enrollments = supabase.table('user_quests')\
+                    .select('quest_id, is_active, completed_at')\
+                    .eq('user_id', user_id)\
+                    .in_('quest_id', quest_ids)\
+                    .execute()
+
+                for uq in (user_quest_enrollments.data or []):
+                    # A quest is completed if is_active=False AND completed_at is set
+                    if uq.get('completed_at') and not uq.get('is_active'):
+                        completed_count += 1
+
+            courses_with_progress.append({
+                'id': course_id,
+                'title': course.get('title'),
+                'description': course.get('description'),
+                'cover_image_url': course.get('cover_image_url'),
+                'status': enrollment.get('status'),
+                'enrolled_at': enrollment.get('enrolled_at'),
+                'current_quest_id': enrollment.get('current_quest_id'),
+                'progress': {
+                    'completed_quests': completed_count,
+                    'total_quests': total_count,
+                    'percentage': round((completed_count / total_count * 100), 1) if total_count > 0 else 0
+                },
+                'quest_ids': quest_ids
+            })
+
+        return courses_with_progress, all_course_quest_ids
+
+    except Exception as e:
+        logger.error(f"Error fetching enrolled courses: {str(e)}")
+        return [], set()
+
+
 @dashboard_bp.route('/subject-xp', methods=['GET'])
 @require_auth
 def get_user_subject_xp(user_id):
@@ -68,7 +146,7 @@ def get_user_subject_xp(user_id):
 @dashboard_bp.route('/dashboard', methods=['GET'])
 @require_auth
 def get_dashboard(user_id):
-    """Get user dashboard data including active quests and XP stats"""
+    """Get user dashboard data including active quests, enrolled courses, and XP stats"""
     # Admin client: Auth verified by decorator (ADR-002, Rule 3)
     supabase = get_supabase_admin_client()
 
@@ -79,8 +157,11 @@ def get_dashboard(user_id):
         if not user.data:
             raise NotFoundError('User', user_id)
 
-        # Get active quests
-        active_quests = get_active_quests(supabase, user_id)
+        # Get enrolled courses first (to exclude their quests from standalone list)
+        enrolled_courses, course_quest_ids = get_enrolled_courses(supabase, user_id)
+
+        # Get active quests (excluding quests that are part of enrolled courses)
+        active_quests = get_active_quests(supabase, user_id, exclude_quest_ids=course_quest_ids)
 
         # Get completed quests count and recent completions
         # IMPORTANT: A quest is truly completed only if is_active=False AND completed_at is set
@@ -117,6 +198,7 @@ def get_dashboard(user_id):
             'xp_by_category': skill_breakdown,
             'skill_xp_data': skill_data,
             'active_quests': active_quests,
+            'enrolled_courses': enrolled_courses,
             'recent_completed_quests': recent_completed_quests
         }
 
@@ -129,18 +211,29 @@ def get_dashboard(user_id):
         return jsonify({'error': 'Failed to load dashboard'}), 500
 
 
-def get_active_quests(supabase, user_id: str) -> list:
-    """Get user's active quests with details"""
+def get_active_quests(supabase, user_id: str, exclude_quest_ids: set = None) -> list:
+    """Get user's active quests with details.
+
+    Args:
+        supabase: Supabase client
+        user_id: User ID
+        exclude_quest_ids: Optional set of quest IDs to exclude (e.g., quests part of enrolled courses)
+    """
     try:
         # Get active enrollments with quest details
         # IMPORTANT: Only filter by is_active=True, NOT completed_at
         # Restarted quests have both is_active=True AND a completed_at timestamp from previous completion
         # If is_active=True, the quest is active regardless of completed_at value
-        active_quests = supabase.table('user_quests')\
+        query = supabase.table('user_quests')\
             .select('*, quests(*)')\
             .eq('user_id', user_id)\
-            .eq('is_active', True)\
-            .execute()
+            .eq('is_active', True)
+
+        # Exclude quests that are part of enrolled courses
+        if exclude_quest_ids:
+            query = query.not_.in_('quest_id', list(exclude_quest_ids))
+
+        active_quests = query.execute()
 
         if active_quests.data:
             # Filter out "stale" completed quests that were never properly ended
@@ -255,11 +348,16 @@ def get_active_quests(supabase, user_id: str) -> list:
         
         # Try simpler query without nested relations
         try:
-            active_quests = supabase.table('user_quests')\
+            fallback_query = supabase.table('user_quests')\
                 .select('*')\
                 .eq('user_id', user_id)\
-                .eq('is_active', True)\
-                .execute()
+                .eq('is_active', True)
+
+            # Apply same exclusion in fallback
+            if exclude_quest_ids:
+                fallback_query = fallback_query.not_.in_('quest_id', list(exclude_quest_ids))
+
+            active_quests = fallback_query.execute()
 
             if active_quests.data:
                 # Apply same filtering logic as primary query

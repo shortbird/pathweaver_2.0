@@ -31,6 +31,15 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
       )
     },
     {
+      name: 'Courses',
+      path: '/courses',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+        </svg>
+      )
+    },
+    {
       name: 'Calendar',
       path: '/calendar',
       icon: (
@@ -184,7 +193,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
         onMouseEnter={() => onHoverChange?.(true)}
         onMouseLeave={() => onHoverChange?.(false)}
       >
-        <div className={`flex-1 overflow-hidden ${isExpanded ? 'p-6' : 'p-2 pt-6'}`}>
+        <div className="flex-1 overflow-hidden pt-6 px-2">
           <nav className="space-y-2">
             {navItems.map((item) => {
               const isActive = isActiveRoute(item.path)
@@ -199,17 +208,19 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
                     flex items-center rounded-lg
                     font-poppins transition-colors duration-200
                     min-h-[44px] touch-manipulation
-                    ${isExpanded ? 'px-4 py-3' : 'px-3 py-3 justify-center'}
+                    px-3 py-3
                     ${isActive
                       ? 'bg-gradient-to-r from-[#F3EFF4] to-[#E7D5F2] text-optio-purple font-semibold'
-                      : 'text-neutral-700 font-medium hover:bg-neutral-100'
+                      : 'text-neutral-700 font-medium hover:bg-[#F3EFF4]'
                     }
                   `}
                 >
-                  <span className={`flex-shrink-0 ${isExpanded ? 'mr-3' : ''} ${isActive ? 'text-optio-purple' : 'text-neutral-500'}`}>
+                  <span className={`w-5 flex-shrink-0 ${isActive ? 'text-optio-purple' : 'text-neutral-500'}`}>
                     {item.icon}
                   </span>
-                  {isExpanded && <span className="whitespace-nowrap">{item.name}</span>}
+                  <span className={`ml-3 whitespace-nowrap overflow-hidden transition-all duration-200 ${isExpanded ? 'opacity-100 max-w-[200px]' : 'opacity-0 max-w-0'}`}>
+                    {item.name}
+                  </span>
                 </Link>
               )
             })}
@@ -217,16 +228,11 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
         </div>
 
         {/* Pin Toggle Button (Desktop Only) */}
-        <div className={`hidden lg:block border-t border-gray-200 ${isExpanded ? 'py-[10px] px-2' : 'py-[12px] px-1'}`}>
+        <div className="hidden lg:block border-t border-gray-200 py-2 px-2">
           <button
             onClick={onTogglePin}
             title={isPinned ? 'Unpin sidebar' : 'Pin sidebar open'}
-            className={`
-              w-full flex items-center rounded-lg font-poppins font-medium
-              text-neutral-600 hover:bg-neutral-100 transition-colors duration-200
-              min-h-[44px] touch-manipulation
-              ${isExpanded ? 'px-4 py-3' : 'px-2 py-3 justify-center'}
-            `}
+            className="w-full flex items-center rounded-lg font-poppins font-medium text-neutral-600 hover:bg-neutral-100 transition-colors duration-200 min-h-[44px] touch-manipulation px-3 py-3"
           >
             {isPinned ? (
               // Pinned icon (pushpin filled/active)
@@ -240,11 +246,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
               </svg>
             )}
-            {isExpanded && (
-              <span className="ml-3 whitespace-nowrap">
-                {isPinned ? 'Unpin sidebar' : 'Pin sidebar'}
-              </span>
-            )}
+            <span className={`ml-3 whitespace-nowrap overflow-hidden transition-all duration-200 ${isExpanded ? 'opacity-100 max-w-[200px]' : 'opacity-0 max-w-0'}`}>
+              {isPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+            </span>
           </button>
         </div>
 

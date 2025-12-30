@@ -595,11 +595,6 @@ const QuestDetail = () => {
                       setShowCurriculumModal(false);
                       setSelectedTask(task);
                     }}
-                    onGenerateTasks={() => {
-                      // Close curriculum modal and open AI personalization wizard
-                      setShowCurriculumModal(false);
-                      setShowPersonalizationWizard(true);
-                    }}
                   />
                 </Suspense>
               </div>
