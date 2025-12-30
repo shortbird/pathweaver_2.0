@@ -240,11 +240,14 @@ function AppContent() {
   return (
     <>
       <ScrollToTop />
+      {/* Masquerade Banner - Only show fixed version on mobile, sidebar handles desktop */}
       {masqueradeState && (
-        <MasqueradeBanner
-          targetUser={masqueradeState.target_user}
-          onExit={handleExitMasquerade}
-        />
+        <div className="lg:hidden">
+          <MasqueradeBanner
+            targetUser={masqueradeState.target_user}
+            onExit={handleExitMasquerade}
+          />
+        </div>
       )}
       {/* Acting As Banner - Only show fixed version on mobile, sidebar handles desktop */}
       {actingAsDependent && (

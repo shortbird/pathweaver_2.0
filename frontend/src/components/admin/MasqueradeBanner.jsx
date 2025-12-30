@@ -2,44 +2,53 @@ import React, { useState } from 'react';
 import { ExclamationTriangleIcon, ArrowLeftOnRectangleIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 /**
- * MasqueradeBanner - Floating badge shown during admin masquerade sessions
+ * MasqueradeBanner - Badge shown during admin masquerade sessions
  *
  * Displays when admin is viewing platform as another user
- * Positioned in bottom-left corner, below sidebar navigation
+ * Can be inline (in sidebar) or fixed position (fallback for mobile)
  * Expandable to show full user details
  * Provides quick exit button to return to admin session
  */
-const MasqueradeBanner = ({ targetUser, onExit }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+const MasqueradeBanner = ({ targetUser, onExit, inline = false, isExpanded: controlledExpanded, onToggleExpand }) => {
+  const [internalExpanded, setInternalExpanded] = useState(false);
+
+  // Support both controlled and uncontrolled expansion
+  const isExpanded = controlledExpanded !== undefined ? controlledExpanded : internalExpanded;
+  const handleToggleExpand = onToggleExpand || (() => setInternalExpanded(prev => !prev));
+
+  // For inline mode (inside sidebar), use relative positioning
+  const containerClass = inline
+    ? "relative transition-all duration-300"
+    : "fixed bottom-4 left-4 z-[60] transition-all duration-300";
 
   return (
-    <div className="fixed bottom-4 left-4 z-[60] transition-all duration-300">
+    <div className={containerClass}>
       {/* Collapsed Badge */}
       {!isExpanded && (
         <button
-          onClick={() => setIsExpanded(true)}
-          className="flex items-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-4 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all hover:scale-105"
+          onClick={() => handleToggleExpand()}
+          className="flex items-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-2 sm:px-4 sm:py-3 rounded-lg shadow-lg hover:shadow-xl transition-all hover:scale-105"
         >
-          <ExclamationTriangleIcon className="w-5 h-5 animate-pulse" />
-          <span className="font-semibold text-sm">
-            Masquerading
+          <ExclamationTriangleIcon className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
+          <span className="font-semibold text-xs sm:text-sm">
+            Masquerading as {targetUser?.display_name?.split(' ')[0] || 'User'}
           </span>
-          <ChevronUpIcon className="w-4 h-4" />
+          <ChevronUpIcon className="w-3 h-3 sm:w-4 sm:h-4" />
         </button>
       )}
 
       {/* Expanded Badge */}
       {isExpanded && (
-        <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg shadow-lg p-4 min-w-[280px] sm:min-w-[320px]">
+        <div className={`bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg shadow-lg p-3 sm:p-4 ${inline ? 'w-full' : 'min-w-[260px] sm:min-w-[300px] max-w-[90vw]'}`}>
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-2">
-              <ExclamationTriangleIcon className="w-5 h-5 flex-shrink-0" />
-              <span className="font-semibold text-sm">
+              <ExclamationTriangleIcon className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <span className="font-semibold text-xs sm:text-sm">
                 Masquerade Mode
               </span>
             </div>
             <button
-              onClick={() => setIsExpanded(false)}
+              onClick={() => handleToggleExpand()}
               className="text-white/80 hover:text-white transition-colors"
             >
               <ChevronDownIcon className="w-4 h-4" />

@@ -1,14 +1,51 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useActingAs } from '../../contexts/ActingAsContext'
 import ActingAsBanner from '../parent/ActingAsBanner'
+import MasqueradeBanner from '../admin/MasqueradeBanner'
+import { getMasqueradeState, exitMasquerade } from '../../services/masqueradeService'
+import api from '../../services/api'
+import { toast } from 'react-hot-toast'
 
 const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovered, onHoverChange }) => {
   const location = useLocation()
   const { user, logout, isAuthenticated } = useAuth()
   const { actingAsDependent, clearActingAs } = useActingAs()
   const [actingAsBannerExpanded, setActingAsBannerExpanded] = useState(false)
+  const [masqueradeBannerExpanded, setMasqueradeBannerExpanded] = useState(false)
+  const [masqueradeState, setMasqueradeState] = useState(null)
+
+  // Check for masquerade state on mount and periodically
+  useEffect(() => {
+    const checkMasquerade = () => {
+      const state = getMasqueradeState()
+      setMasqueradeState(state)
+    }
+
+    checkMasquerade()
+    // Listen for storage changes (in case masquerade is exited from mobile banner)
+    const handleStorageChange = () => checkMasquerade()
+    window.addEventListener('storage', handleStorageChange)
+
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [])
+
+  const handleExitMasquerade = async () => {
+    try {
+      const result = await exitMasquerade(api)
+      if (result.success) {
+        setMasqueradeState(null)
+        toast.success('Exited masquerade session')
+        window.location.href = '/admin/users'
+      } else {
+        toast.error(result.error || 'Failed to exit masquerade')
+      }
+    } catch (error) {
+      console.error('Exit masquerade error:', error)
+      toast.error('Failed to exit masquerade session')
+    }
+  }
 
   // Determine if sidebar should show expanded (full width with text)
   // Expanded when: pinned, or hovered while collapsed
@@ -257,6 +294,35 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Masquerade Banner (when admin is viewing as another user) */}
+        {masqueradeState && (
+          <div className="border-t border-gray-200 py-2 px-2 flex justify-center">
+            {isExpanded ? (
+              <MasqueradeBanner
+                targetUser={masqueradeState.target_user}
+                onExit={handleExitMasquerade}
+                inline={true}
+                isExpanded={masqueradeBannerExpanded}
+                onToggleExpand={() => setMasqueradeBannerExpanded(prev => !prev)}
+              />
+            ) : (
+              <button
+                onClick={() => {
+                  // When collapsed, expand sidebar and show banner
+                  onHoverChange?.(true)
+                  setMasqueradeBannerExpanded(true)
+                }}
+                title="Masquerading - click to expand"
+                className="w-full flex items-center justify-center rounded-lg bg-gradient-to-r from-yellow-500 to-orange-500 text-white min-h-[44px] touch-manipulation px-3 py-3"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </button>
             )}
