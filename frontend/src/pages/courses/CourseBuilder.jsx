@@ -32,8 +32,10 @@ import {
   ArrowUpTrayIcon,
   PencilIcon,
   EyeIcon,
+  EyeSlashIcon,
   Cog6ToothIcon,
   XMarkIcon,
+  EllipsisVerticalIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import courseService from '../../services/courseService'
@@ -231,7 +233,7 @@ const CourseCoverImage = ({ coverUrl, onUpdate, courseId, courseTitle, courseDes
 }
 
 // Sortable quest item component
-const SortableQuestItem = ({ quest, isSelected, onSelect, onRemove }) => {
+const SortableQuestItem = ({ quest, isSelected, onSelect, onRemove, onTogglePublish }) => {
   const {
     attributes,
     listeners,
@@ -247,6 +249,8 @@ const SortableQuestItem = ({ quest, isSelected, onSelect, onRemove }) => {
     opacity: isDragging ? 0.5 : 1,
   }
 
+  const isPublished = quest.is_published !== false
+
   return (
     <div
       ref={setNodeRef}
@@ -256,7 +260,7 @@ const SortableQuestItem = ({ quest, isSelected, onSelect, onRemove }) => {
         isSelected
           ? 'bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 border-2 border-optio-purple'
           : 'bg-white border border-gray-200 hover:border-optio-purple/50'
-      }`}
+      } ${!isPublished ? 'opacity-60' : ''}`}
     >
       <button
         type="button"
@@ -274,11 +278,31 @@ const SortableQuestItem = ({ quest, isSelected, onSelect, onRemove }) => {
           <span className="text-xs font-medium text-gray-500 mt-0.5">
             {quest.order_index + 1}
           </span>
-          <h4 className="font-medium text-gray-900 text-sm leading-snug">
+          <h4 className={`font-medium text-sm leading-snug ${isPublished ? 'text-gray-900' : 'text-gray-500'}`}>
             {quest.title || 'Untitled Project'}
           </h4>
+          {!isPublished && (
+            <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">Draft</span>
+          )}
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onTogglePublish(quest.id, !isPublished)
+        }}
+        className={`opacity-0 group-hover:opacity-100 p-1.5 rounded transition-all ${
+          isPublished
+            ? 'text-green-600 hover:bg-green-50'
+            : 'text-gray-400 hover:bg-gray-100'
+        }`}
+        aria-label={isPublished ? 'Unpublish project' : 'Publish project'}
+        title={isPublished ? 'Unpublish project' : 'Publish project'}
+      >
+        {isPublished ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
+      </button>
 
       <button
         type="button"
@@ -297,6 +321,9 @@ const SortableQuestItem = ({ quest, isSelected, onSelect, onRemove }) => {
 
 // Sortable lesson item component
 const SortableLessonItem = ({ lesson, isSelected, onSelect, onPreview, onEdit, onDelete }) => {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = React.useRef(null)
+
   const {
     attributes,
     listeners,
@@ -314,12 +341,25 @@ const SortableLessonItem = ({ lesson, isSelected, onSelect, onPreview, onEdit, o
 
   const taskCount = lesson.linked_task_ids?.length || 0
 
+  // Close menu when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false)
+      }
+    }
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [menuOpen])
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       onClick={() => onSelect?.(lesson)}
-      className={`flex items-center gap-3 p-3 rounded-lg border transition-colors group cursor-pointer ${
+      className={`relative flex items-center gap-3 p-3 rounded-lg border transition-colors group cursor-pointer ${
         isSelected
           ? 'border-optio-purple bg-optio-purple/5'
           : 'border-gray-200 hover:border-optio-purple/50'
@@ -350,38 +390,55 @@ const SortableLessonItem = ({ lesson, isSelected, onSelect, onPreview, onEdit, o
             <span className="text-gray-300">|</span>
           )}
           {lesson.xp_threshold > 0 && (
-            <span>{lesson.xp_threshold} XP to unlock</span>
+            <span>{lesson.xp_threshold} XP to complete</span>
           )}
         </div>
       </div>
-      <div className="hidden group-hover:flex items-center gap-2 flex-shrink-0">
+      <div className="relative flex-shrink-0" ref={menuRef}>
         <button
           onClick={(e) => {
             e.stopPropagation()
-            onPreview(lesson)
+            setMenuOpen(!menuOpen)
           }}
-          className="text-xs text-gray-600 hover:underline"
+          className="p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
+          aria-label="Lesson options"
         >
-          Preview
+          <EllipsisVerticalIcon className="w-5 h-5" />
         </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onEdit(lesson)
-          }}
-          className="text-xs text-optio-purple hover:underline"
-        >
-          Edit
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onDelete(lesson)
-          }}
-          className="text-xs text-red-600 hover:underline"
-        >
-          Delete
-        </button>
+        {menuOpen && (
+          <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10 min-w-[100px]">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setMenuOpen(false)
+                onPreview(lesson)
+              }}
+              className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100"
+            >
+              Preview
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setMenuOpen(false)
+                onEdit(lesson)
+              }}
+              className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100"
+            >
+              Edit
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setMenuOpen(false)
+                onDelete(lesson)
+              }}
+              className="w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50"
+            >
+              Delete
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -545,10 +602,10 @@ const AddQuestModal = ({ isOpen, onClose, onAddQuest, organizationId, existingQu
 const LessonEditorModal = ({ isOpen, questId, lesson, onSave, onClose }) => {
   const editorRef = React.useRef(null)
 
-  const handleClose = async () => {
-    // Auto-save before closing
-    if (editorRef.current) {
-      await editorRef.current.save()
+  const handleClose = () => {
+    // Fire autosave in background and close immediately
+    if (editorRef.current?.save) {
+      editorRef.current.save()
     }
     onClose()
   }
@@ -883,26 +940,25 @@ const CourseBuilder = () => {
     }
   }
 
-  // Update XP threshold for a quest in the course
-  const handleUpdateXpThreshold = async (questId, xpThreshold) => {
+  const handleToggleQuestPublish = async (questId, isPublished) => {
     try {
       await api.put(`/api/courses/${courseId}/quests/${questId}`, {
-        xp_threshold: xpThreshold
+        is_published: isPublished
       })
 
       // Update local state
       setQuests(quests.map(q =>
-        q.id === questId ? { ...q, xp_threshold: xpThreshold } : q
+        q.id === questId ? { ...q, is_published: isPublished } : q
       ))
 
       if (selectedQuest?.id === questId) {
-        setSelectedQuest({ ...selectedQuest, xp_threshold: xpThreshold })
+        setSelectedQuest({ ...selectedQuest, is_published: isPublished })
       }
 
-      toast.success('XP threshold updated')
+      toast.success(isPublished ? 'Project published' : 'Project unpublished')
     } catch (error) {
-      console.error('Failed to update XP threshold:', error)
-      toast.error('Failed to update XP threshold')
+      console.error('Failed to toggle project publish status:', error)
+      toast.error('Failed to update project')
     }
   }
 
@@ -1286,6 +1342,7 @@ const CourseBuilder = () => {
                           isSelected={selectedQuest?.id === quest.id}
                           onSelect={setSelectedQuest}
                           onRemove={handleRemoveQuest}
+                          onTogglePublish={handleToggleQuestPublish}
                         />
                       ))}
                     </div>
@@ -1308,32 +1365,6 @@ const CourseBuilder = () => {
                     )}
                   </div>
 
-                  {/* XP Threshold Control */}
-                  <div className="flex-shrink-0">
-                    {selectedQuest.order_index === 0 ? (
-                      <span className="inline-flex items-center px-3 py-1.5 text-xs font-medium bg-green-100 text-green-700 rounded-lg">
-                        Auto-unlocked
-                      </span>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-gray-500 whitespace-nowrap">Unlock at:</label>
-                        <input
-                          type="number"
-                          min="0"
-                          defaultValue={selectedQuest.xp_threshold || 0}
-                          key={selectedQuest.id}
-                          onBlur={(e) => {
-                            const newValue = parseInt(e.target.value) || 0
-                            if (newValue !== (selectedQuest.xp_threshold || 0)) {
-                              handleUpdateXpThreshold(selectedQuest.id, newValue)
-                            }
-                          }}
-                          className="w-20 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                        />
-                        <span className="text-xs text-gray-500">XP</span>
-                      </div>
-                    )}
-                  </div>
                 </div>
 
                 {/* Lessons and Tasks Section - Two Column Layout */}

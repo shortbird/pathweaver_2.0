@@ -1,10 +1,14 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { useActingAs } from '../../contexts/ActingAsContext'
+import ActingAsBanner from '../parent/ActingAsBanner'
 
 const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovered, onHoverChange }) => {
   const location = useLocation()
   const { user, logout, isAuthenticated } = useAuth()
+  const { actingAsDependent, clearActingAs } = useActingAs()
+  const [actingAsBannerExpanded, setActingAsBannerExpanded] = useState(false)
 
   // Determine if sidebar should show expanded (full width with text)
   // Expanded when: pinned, or hovered while collapsed
@@ -226,6 +230,38 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
             })}
           </nav>
         </div>
+
+        {/* Acting As Banner (when parent is viewing as child) */}
+        {actingAsDependent && (
+          <div className="border-t border-gray-200 py-2 px-2 flex justify-center">
+            {isExpanded ? (
+              <ActingAsBanner
+                dependent={actingAsDependent}
+                onSwitchBack={async () => {
+                  await clearActingAs()
+                  window.location.href = '/parent/dashboard'
+                }}
+                inline={true}
+                isExpanded={actingAsBannerExpanded}
+                onToggleExpand={() => setActingAsBannerExpanded(prev => !prev)}
+              />
+            ) : (
+              <button
+                onClick={() => {
+                  // When collapsed, expand sidebar and show banner
+                  onHoverChange?.(true)
+                  setActingAsBannerExpanded(true)
+                }}
+                title="Acting as child - click to expand"
+                className="w-full flex items-center justify-center rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white min-h-[44px] touch-manipulation px-3 py-3"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Pin Toggle Button (Desktop Only) */}
         <div className="hidden lg:block border-t border-gray-200 py-2 px-2">

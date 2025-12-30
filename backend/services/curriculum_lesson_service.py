@@ -190,7 +190,7 @@ class CurriculumLessonService(BaseService):
         is_required: bool = False,
         estimated_duration_minutes: Optional[int] = None,
         prerequisite_lesson_ids: Optional[List[str]] = None,
-        xp_threshold: Optional[int] = None,
+        xp_threshold: Optional[int] = 100,  # Default 100 XP to complete lesson
         video_url: Optional[str] = None,
         files: Optional[List[Dict]] = None
     ) -> Dict[str, Any]:
@@ -224,8 +224,8 @@ class CurriculumLessonService(BaseService):
                 lesson_data['estimated_duration_minutes'] = estimated_duration_minutes
             if prerequisite_lesson_ids:
                 lesson_data['prerequisite_lesson_ids'] = prerequisite_lesson_ids
-            if xp_threshold is not None:
-                lesson_data['xp_threshold'] = xp_threshold
+            # Always include xp_threshold (defaults to 100)
+            lesson_data['xp_threshold'] = xp_threshold if xp_threshold is not None else 100
             if video_url:
                 lesson_data['video_url'] = video_url
             if files:

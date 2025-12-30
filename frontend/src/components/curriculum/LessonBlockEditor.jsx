@@ -535,10 +535,10 @@ const LessonBlockEditor = ({ lesson, questId, onUpdate, showPreview }) => {
           />
         </div>
 
-        {/* XP Threshold - XP needed from this lesson to unlock the next */}
+        {/* XP Threshold - XP needed to complete this lesson */}
         <div className="pt-2 sm:pt-3 border-t border-gray-100">
           <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-            XP to Unlock Next Lesson
+            XP to Complete Lesson
           </label>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
             <div className="relative flex-shrink-0 w-full sm:w-[200px]">
@@ -546,17 +546,17 @@ const LessonBlockEditor = ({ lesson, questId, onUpdate, showPreview }) => {
                 type="number"
                 min="0"
                 step="10"
-                value={localLesson.xp_threshold || 0}
+                value={localLesson.xp_threshold ?? 100}
                 onChange={(e) => handleChange('xp_threshold', parseInt(e.target.value) || 0)}
-                placeholder="0"
+                placeholder="100"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent pr-12"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">XP</span>
             </div>
             <p className="text-xs text-gray-500">
               {localLesson.xp_threshold > 0
-                ? `Students must earn ${localLesson.xp_threshold} XP from this lesson's tasks to unlock the next lesson`
-                : 'No XP requirement - next lesson is always accessible'
+                ? `Students must earn ${localLesson.xp_threshold} XP from this lesson's tasks to complete this lesson`
+                : 'No XP requirement - lesson completes when content is finished'
               }
             </p>
           </div>

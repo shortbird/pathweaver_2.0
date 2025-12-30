@@ -217,7 +217,7 @@ const LessonEditor = forwardRef(({
 
   // Lesson metadata
   const [title, setTitle] = useState(lesson?.title || '')
-  const [xpThreshold, setXpThreshold] = useState(lesson?.xp_threshold || 0)
+  const [xpThreshold, setXpThreshold] = useState(lesson?.xp_threshold ?? 100)
 
   // Steps state - parse with legacy migration
   const [steps, setSteps] = useState(() =>
@@ -530,7 +530,7 @@ const LessonEditor = forwardRef(({
 
         <div className="w-32">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            XP to Unlock
+            XP to Complete
           </label>
           <input
             type="number"

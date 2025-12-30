@@ -246,11 +246,14 @@ function AppContent() {
           onExit={handleExitMasquerade}
         />
       )}
+      {/* Acting As Banner - Only show fixed version on mobile, sidebar handles desktop */}
       {actingAsDependent && (
-        <ActingAsBanner
-          dependent={actingAsDependent}
-          onSwitchBack={handleSwitchBackToParent}
-        />
+        <div className="lg:hidden">
+          <ActingAsBanner
+            dependent={actingAsDependent}
+            onSwitchBack={handleSwitchBackToParent}
+          />
+        </div>
       )}
       {consentBlockData && (
         <ConsentBlockedOverlay

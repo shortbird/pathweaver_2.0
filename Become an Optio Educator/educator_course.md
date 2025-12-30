@@ -13,13 +13,14 @@
 
 ---
 
-### PROJECT 1: "Embracing the Philosophy" (400 XP)
+### PROJECT 1: "Embracing the Philosophy" (450 XP)
 
 **Quest Focus:** Understanding and internalizing "The Process Is The Goal" and Self-Determination Theory
 
 **Key Concepts:**
 - **"The Process Is The Goal"** - Learning is valuable for what it teaches you RIGHT NOW
 - **Self-Determination Theory (SDT)** - Motivation comes from Choice, Competency, and Connection
+- **Universal Design for Learning (UDL)** - At Optio, every student gets an IEP. Same material, different paths.
 
 | # | Task | Description | XP | Pillar |
 |---|------|-------------|-----|--------|
@@ -28,8 +29,9 @@
 | 3 | The Three Keys to Motivation | Think of a student (or yourself) who was deeply engaged in learning. Analyze the experience through SDT: How was Choice present? How was Competency supported? How was Connection fostered? | 75 | Life & Wellness |
 | 4 | Language Inventory | List 10-15 phrases you commonly use when teaching. Identify which ones focus on future payoff, external validation, or comparison — and which ones celebrate present growth | 75 | Language & Communication |
 | 5 | Rewriting Your Voice | Transform your future/external phrases into present-focused, internally-motivated alternatives that still sound like you | 100 | Language & Communication |
+| 6 | Universal Design Reflection | Think of a student without an IEP/504 who needed individualization the system didn't provide. How would you have supported them if flexibility was the default? What would have been different? | 75 | Life & Wellness |
 
-**Evidence Suggestions:** Personal reflection (with SDT analysis), visual summary or mind map, motivation analysis, language inventory worksheet, transformed phrases document
+**Evidence Suggestions:** Personal reflection (with SDT analysis), visual summary or mind map, motivation analysis, language inventory worksheet, transformed phrases document, UDL reflection
 
 ---
 
@@ -90,8 +92,8 @@
 
 | Project | XP | Primary Pillars |
 |---------|-----|-----------------|
-| 1. Embracing the Philosophy | 400 | Life & Wellness, Language & Communication |
+| 1. Embracing the Philosophy | 450 | Life & Wellness, Language & Communication |
 | 2. Designing Your First Course | 400 | Language & Communication, Society & Culture, Life & Wellness |
 | 3. Rethinking Assessment | 400 | Language & Communication, Life & Wellness |
 | 4. Building Learning Community | 400 | Society & Culture, Arts & Creativity, Life & Wellness |
-| **TOTAL** | **1,600 XP** | |
+| **TOTAL** | **1,650 XP** | |

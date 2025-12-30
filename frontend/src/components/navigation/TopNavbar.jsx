@@ -11,7 +11,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
   const navigate = useNavigate()
   const { user, logout, isAuthenticated } = useAuth()
   const { organization } = useOrganization()
-  const { actingAsDependent } = useActingAs()
+  const { actingAsDependent, parentName } = useActingAs()
 
   const handleLogout = async () => {
     await logout()
@@ -110,6 +110,15 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
           <div className="flex items-center space-x-4">
             {isAuthenticated ? (
               <>
+                {/* Acting As Indicator - Show when parent is acting as child */}
+                {actingAsDependent && parentName && (
+                  <div className="hidden sm:flex items-center gap-1 text-xs font-poppins bg-gradient-to-r from-optio-purple to-optio-pink text-white px-2 py-1 rounded-full">
+                    <span className="font-medium">{parentName}</span>
+                    <span className="opacity-80">as</span>
+                    <span className="font-semibold">{actingAsDependent.display_name}</span>
+                  </div>
+                )}
+
                 {/* User Name - Show dependent's name when acting as them */}
                 <Link
                   to="/profile"

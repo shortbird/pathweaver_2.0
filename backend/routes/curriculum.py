@@ -8,7 +8,7 @@ Only accessible by school admins and advisors.
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
-from middleware.error_handler import ValidationError
+from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError
 from middleware.rate_limiter import rate_limit
 from services.curriculum_service import CurriculumService
 from services.curriculum_lesson_service import CurriculumLessonService
@@ -97,9 +97,12 @@ def verify_curriculum_read_permission(user_id: str, quest_id: str, supabase) -> 
         ValidationError: If permission denied
     """
     try:
+        if not user_id or not quest_id:
+            raise ValidationError("Missing user_id or quest_id")
+
         user_result = supabase.table('users').select('role, organization_id').eq('id', user_id).execute()
         if not user_result.data:
-            raise ValidationError("User not found", 404)
+            raise NotFoundError("User not found")
         user = user_result.data[0]
 
         user_role = user.get('role')
@@ -112,7 +115,7 @@ def verify_curriculum_read_permission(user_id: str, quest_id: str, supabase) -> 
         # Check if user is enrolled in quest
         quest_result = supabase.table('quests').select('organization_id').eq('id', quest_id).execute()
         if not quest_result.data:
-            raise ValidationError("Quest not found", 404)
+            raise NotFoundError("Quest not found")
         quest = quest_result.data[0]
 
         quest_org = quest.get('organization_id')
@@ -120,19 +123,40 @@ def verify_curriculum_read_permission(user_id: str, quest_id: str, supabase) -> 
         # For organization quests, user must be in same org
         # For public quests (no org), anyone can access if enrolled
         if quest_org is not None and quest_org != user_org:
-            raise ValidationError("You cannot access this quest", 403)
+            raise AuthorizationError("You cannot access this quest")
 
         # Check enrollment (user_quests is the correct table name)
         enrollment = supabase.table('user_quests').select('id').eq('user_id', user_id).eq('quest_id', quest_id).eq('is_active', True).execute()
-        if not enrollment.data:
-            raise ValidationError("You must be enrolled in this quest to access curriculum", 403)
+        if enrollment.data:
+            return True
 
-        return True
-    except ValidationError:
+        # Also check if user is enrolled in a course containing this quest
+        try:
+            course_enrollment = supabase.table('course_enrollments')\
+                .select('id, course_id')\
+                .eq('user_id', user_id)\
+                .eq('status', 'active')\
+                .execute()
+
+            if course_enrollment.data:
+                course_ids = [e['course_id'] for e in course_enrollment.data]
+                if course_ids:
+                    quest_in_course = supabase.table('course_quests')\
+                        .select('id')\
+                        .eq('quest_id', quest_id)\
+                        .in_('course_id', course_ids)\
+                        .execute()
+                    if quest_in_course.data:
+                        return True
+        except Exception as course_err:
+            logger.warning(f"Error checking course enrollment: {course_err}")
+
+        raise AuthorizationError("You must be enrolled in this quest to access curriculum")
+    except (ValidationError, AuthorizationError, NotFoundError):
         raise
     except Exception as e:
         logger.error(f"Error checking curriculum read permission: {str(e)}", exc_info=True)
-        raise ValidationError(f"Permission check failed: {str(e)}", 500)
+        raise AuthorizationError(f"Permission check failed: {str(e)}")
 
 
 def verify_curriculum_permission(user_id: str, quest_id: str, supabase) -> dict:
@@ -1231,9 +1255,10 @@ def generate_ai_tasks(user_id: str, quest_id: str, lesson_id: str):
 def get_quest_tasks(user_id: str, quest_id: str):
     """
     Get all tasks for a quest (for curriculum task linking).
+    Includes completion status for the current user.
 
     Returns:
-        200: List of quest tasks
+        200: List of quest tasks with is_completed field
         403: Permission denied
     """
     try:
@@ -1244,18 +1269,43 @@ def get_quest_tasks(user_id: str, quest_id: str):
 
         # Get all tasks for this quest
         result = supabase.table('user_quest_tasks')\
-            .select('id, title, description, pillar, xp_value, order_index')\
+            .select('id, title, description, pillar, xp_value, order_index, approval_status')\
             .eq('quest_id', quest_id)\
             .order('order_index')\
             .execute()
 
+        tasks = result.data or []
+
+        if tasks:
+            # Get task IDs
+            task_ids = [t['id'] for t in tasks]
+
+            # Get completion status for current user
+            completions_result = supabase.table('quest_task_completions')\
+                .select('task_id, user_quest_task_id')\
+                .eq('user_id', user_id)\
+                .eq('quest_id', quest_id)\
+                .execute()
+
+            # Create set of completed task IDs (check both task_id and user_quest_task_id)
+            completed_task_ids = set()
+            for comp in (completions_result.data or []):
+                if comp.get('task_id'):
+                    completed_task_ids.add(comp['task_id'])
+                if comp.get('user_quest_task_id'):
+                    completed_task_ids.add(comp['user_quest_task_id'])
+
+            # Add is_completed field to each task
+            for task in tasks:
+                task['is_completed'] = task['id'] in completed_task_ids
+
         return jsonify({
             'success': True,
-            'tasks': result.data or []
+            'tasks': tasks
         }), 200
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'code', 400)
     except Exception as e:
         logger.error(f"Error fetching quest tasks: {str(e)}")
         return jsonify({'error': 'Failed to fetch quest tasks'}), 500

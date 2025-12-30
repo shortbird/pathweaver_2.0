@@ -512,10 +512,15 @@ class SessionManager:
         return None
 
     def get_actual_admin_id(self) -> Optional[str]:
-        """Get the actual admin user ID (during masquerade, returns admin not target)"""
+        """Get the actual admin/parent user ID (during masquerade or acting-as, returns admin/parent not target)"""
         auth_header = request.headers.get('Authorization', '')
         if auth_header.startswith('Bearer '):
             token = auth_header.replace('Bearer ', '')
+
+            # Check if this is an acting-as token (parent acting as dependent)
+            acting_as_payload = self.verify_acting_as_token(token)
+            if acting_as_payload:
+                return acting_as_payload.get('user_id')  # This is the parent ID
 
             # Check if this is a masquerade token
             masquerade_payload = self.verify_masquerade_token(token)

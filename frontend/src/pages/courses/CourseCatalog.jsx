@@ -20,7 +20,6 @@ const CourseCatalog = () => {
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [enrolledCourseIds, setEnrolledCourseIds] = useState(new Set())
 
   // Check if user can manage courses (see drafts, edit)
   const canManageCourses = user?.role === 'superadmin' || user?.role === 'org_admin' || user?.role === 'advisor'
@@ -39,11 +38,6 @@ const CourseCatalog = () => {
         ? response.data.courses
         : response.data.courses.filter(c => c.status === 'published')
       setCourses(coursesToShow)
-
-      // Fetch enrollment status for each course
-      if (coursesToShow.length > 0) {
-        fetchEnrollmentStatus(coursesToShow)
-      }
     } catch (error) {
       console.error('Failed to fetch courses:', error)
       toast.error('Failed to load courses')
@@ -52,31 +46,18 @@ const CourseCatalog = () => {
     }
   }
 
-  const fetchEnrollmentStatus = async (coursesToCheck) => {
-    try {
-      const enrollmentPromises = coursesToCheck.map(course =>
-        api.get(`/api/courses/${course.id}/progress`)
-          .then(res => ({ courseId: course.id, enrolled: res.data.enrolled }))
-          .catch(() => ({ courseId: course.id, enrolled: false }))
-      )
-
-      const results = await Promise.all(enrollmentPromises)
-      const enrolledIds = new Set(
-        results.filter(r => r.enrolled).map(r => r.courseId)
-      )
-      setEnrolledCourseIds(enrolledIds)
-    } catch (error) {
-      console.error('Failed to fetch enrollment status:', error)
-    }
-  }
-
   const handleEnroll = async (courseId) => {
     try {
       await api.post(`/api/courses/${courseId}/enroll`, {})
       toast.success('Successfully enrolled in course')
 
-      // Update enrollment state
-      setEnrolledCourseIds(prev => new Set([...prev, courseId]))
+      // Update course enrollment state locally
+      setCourses(prev => prev.map(c =>
+        c.id === courseId ? { ...c, is_enrolled: true } : c
+      ))
+
+      // Navigate to the course after enrollment
+      navigate(`/courses/${courseId}`)
     } catch (error) {
       console.error('Failed to enroll in course:', error)
       toast.error(error.response?.data?.error || 'Failed to enroll in course')
@@ -169,7 +150,7 @@ const CourseCatalog = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredCourses.map(course => {
-              const isEnrolled = enrolledCourseIds.has(course.id)
+              const isEnrolled = course.is_enrolled
               const isDraft = course.status === 'draft'
               const isArchived = course.status === 'archived'
 

@@ -21,7 +21,10 @@
       "Bash(frontend/src/components/curriculum/LessonTaskPanel.jsx )",
       "Bash(frontend/src/components/curriculum/StepEditor.jsx )",
       "Bash(frontend/src/index.css )",
-      "Bash(frontend/src/pages/QuestDetail.jsx)"
+      "Bash(frontend/src/pages/QuestDetail.jsx)",
+      "Bash(npm run build:*)",
+      "Bash(timeout /t 5 /nobreak)",
+      "Bash(echo:*)"
     ]
   }
 }

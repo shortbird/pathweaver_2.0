@@ -11,8 +11,6 @@ import {
   XMarkIcon,
   ClipboardDocumentListIcon,
   SparklesIcon,
-  LockClosedIcon,
-  LockOpenIcon,
   PlayIcon,
   DocumentTextIcon,
   LinkIcon,
@@ -608,8 +606,8 @@ const LessonSlideViewer = ({
   totalStepsWithTasks = 0,
   questId,
   onTaskCreated,
-  nextLessonXpThreshold = 0,
-  nextLessonTitle = null,
+  lessonXpThreshold = 0,
+  lessonEarnedXP = 0,
 }) => {
   const [showPersonalizeWizard, setShowPersonalizeWizard] = useState(false)
 
@@ -664,25 +662,24 @@ const LessonSlideViewer = ({
           <div className="bg-optio-purple/5 border border-optio-purple/20 rounded-xl p-6 max-w-md w-full mb-6">
             <div className="flex items-center justify-center gap-2 mb-3">
               <TrophyIcon className="w-5 h-5 text-optio-purple" />
-              <span className="font-semibold text-gray-900">Earn XP to Progress</span>
+              <span className="font-semibold text-gray-900">Complete Tasks to Earn XP</span>
             </div>
-            {nextLessonXpThreshold > 0 && nextLessonTitle ? (
+            {lessonXpThreshold > 0 ? (
               <>
                 <p className="text-sm text-gray-600 mb-4">
-                  Earn <span className="font-semibold text-optio-purple">{nextLessonXpThreshold} XP</span> to unlock the next lesson: <span className="font-medium">{nextLessonTitle}</span>
+                  Earn <span className="font-semibold text-optio-purple">{lessonXpThreshold} XP</span> to complete this lesson
                 </p>
                 <div className="bg-white rounded-lg p-4 border border-gray-200 text-center">
-                  <p className="text-sm text-gray-500 mb-1">XP needed</p>
-                  <p className="text-2xl font-bold text-optio-purple">{nextLessonXpThreshold} XP</p>
+                  <p className="text-sm text-gray-500 mb-1">Progress</p>
+                  <p className="text-2xl font-bold text-optio-purple">{lessonEarnedXP} / {lessonXpThreshold} XP</p>
+                  {lessonEarnedXP >= lessonXpThreshold && (
+                    <p className="text-sm text-green-600 font-medium mt-2">Lesson Complete!</p>
+                  )}
                 </div>
               </>
-            ) : nextLessonTitle ? (
-              <p className="text-sm text-gray-600">
-                Complete tasks to continue to the next lesson: <span className="font-medium">{nextLessonTitle}</span>
-              </p>
             ) : (
               <p className="text-sm text-gray-600">
-                Complete tasks to finish the project and earn XP!
+                Complete tasks to earn XP and finish the project!
               </p>
             )}
           </div>
@@ -734,7 +731,8 @@ const LessonSlideViewer = ({
           <div className="grid gap-4 sm:grid-cols-2">
             {linkedTasks.map((task) => {
               const pillarData = getPillarData(task.pillar || 'wellness')
-              const isTaskCompleted = task.approval_status === 'approved' || task.is_completed
+              // Only check is_completed, not approval_status (which just means task is approved to work on)
+              const isTaskCompleted = task.is_completed === true
               return (
                 <button
                   key={task.id}
@@ -1042,37 +1040,49 @@ const LessonSlideViewer = ({
 
       {/* Navigation Footer */}
       {totalStepsWithTasks > 1 && (
-        <div className="mt-8 pt-6 border-t border-gray-200 flex items-center justify-between">
-          <button
-            onClick={onPrevStep}
-            disabled={currentStepIndex === 0}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeftIcon className="w-4 h-4" />
-            Previous
-          </button>
-
-          {currentStepIndex < totalContentSteps ? (
+        <div className="mt-8 pt-6 border-t border-gray-200">
+          <div className="flex items-center justify-between">
             <button
-              onClick={onNextStep}
-              className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-white bg-optio-purple rounded-lg hover:bg-optio-purple/90 transition-colors"
+              onClick={onPrevStep}
+              disabled={currentStepIndex === 0}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors group"
             >
-              Continue
-              <ChevronRightIcon className="w-4 h-4" />
+              <ChevronLeftIcon className="w-4 h-4" />
+              Previous
+              <kbd className="hidden sm:inline-flex ml-1 px-1.5 py-0.5 text-xs font-mono text-gray-400 bg-gray-100 rounded group-hover:bg-gray-200 group-disabled:hidden">
+                ←
+              </kbd>
             </button>
-          ) : !hasTasksStep ? (
-            <div className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg border border-green-200">
-              <CheckCircleSolidIcon className="w-5 h-5" />
-              Complete
-            </div>
-          ) : null}
+
+            {currentStepIndex < totalContentSteps ? (
+              <button
+                onClick={onNextStep}
+                className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-white bg-optio-purple rounded-lg hover:bg-optio-purple/90 transition-colors group"
+              >
+                Continue
+                <kbd className="hidden sm:inline-flex ml-1 px-1.5 py-0.5 text-xs font-mono text-white/60 bg-white/20 rounded">
+                  →
+                </kbd>
+                <ChevronRightIcon className="w-4 h-4" />
+              </button>
+            ) : !hasTasksStep ? (
+              <div className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg border border-green-200">
+                <CheckCircleSolidIcon className="w-5 h-5" />
+                Complete
+              </div>
+            ) : null}
+          </div>
+          {/* Keyboard hint */}
+          <p className="hidden sm:block text-center text-xs text-gray-400 mt-3">
+            Use arrow keys to navigate
+          </p>
         </div>
       )}
     </div>
   )
 }
 
-const LessonItem = ({ lesson, index, isSelected, isAdmin, isLocked, isUnlocked, xpProgress, onClick }) => {
+const LessonItem = ({ lesson, index, isSelected, isAdmin, xpThreshold, earnedXP, taskCount, onClick }) => {
   const {
     attributes,
     listeners,
@@ -1091,16 +1101,17 @@ const LessonItem = ({ lesson, index, isSelected, isAdmin, isLocked, isUnlocked, 
   const isCompleted = lesson.is_completed || false;
   const pillarData = getPillarData(lesson.pillar || 'art');
 
+  // XP threshold completion: lesson is "XP complete" when earned >= threshold
+  const hasXpThreshold = xpThreshold > 0;
+  const isXpComplete = hasXpThreshold ? earnedXP >= xpThreshold : true;
+
   return (
     <div
       ref={setNodeRef}
-      onClick={isLocked ? undefined : onClick}
+      onClick={onClick}
       className={`
         relative rounded-lg p-3 mb-2 transition-all duration-200
-        ${isLocked
-          ? 'cursor-not-allowed opacity-60'
-          : 'cursor-pointer hover:border-gray-300 hover:shadow-lg hover:scale-[1.02]'
-        }
+        cursor-pointer hover:border-gray-300 hover:shadow-lg hover:scale-[1.02]
         ${isSelected
           ? 'border-2 shadow-md scale-[1.02]'
           : 'border border-gray-200'
@@ -1109,7 +1120,7 @@ const LessonItem = ({ lesson, index, isSelected, isAdmin, isLocked, isUnlocked, 
       style={{
         ...style,
         borderColor: isSelected ? pillarData.color : undefined,
-        backgroundColor: isLocked ? '#f3f4f6' : (isSelected ? `${pillarData.color}15` : (isCompleted ? '#f0fdf4' : 'white'))
+        backgroundColor: isSelected ? `${pillarData.color}15` : (isCompleted ? '#f0fdf4' : 'white')
       }}
     >
       {/* Drag Handle (Admin Only) */}
@@ -1128,16 +1139,16 @@ const LessonItem = ({ lesson, index, isSelected, isAdmin, isLocked, isUnlocked, 
         {/* Lesson Number Badge */}
         <div className="relative flex-shrink-0">
           <div
-            className={`w-8 h-8 rounded-md flex items-center justify-center font-semibold text-sm ${isLocked ? 'bg-gray-400' : ''}`}
-            style={!isLocked ? {
+            className="w-8 h-8 rounded-md flex items-center justify-center font-semibold text-sm"
+            style={{
               backgroundImage: `linear-gradient(135deg, ${pillarData.color}ee, ${pillarData.color}88)`,
               color: 'white'
-            } : { color: 'white' }}
+            }}
           >
-            {isLocked ? <LockClosedIcon className="w-4 h-4" /> : index + 1}
+            {index + 1}
           </div>
           {/* Completion Overlay */}
-          {isCompleted && !isLocked && (
+          {isCompleted && (
             <div className="absolute inset-0 bg-green-600/30 rounded-md flex items-center justify-center">
               <CheckCircleIcon className="w-5 h-5 text-green-600" strokeWidth={2.5} />
             </div>
@@ -1146,35 +1157,42 @@ const LessonItem = ({ lesson, index, isSelected, isAdmin, isLocked, isUnlocked, 
 
         {/* Lesson Info */}
         <div className="flex-1 min-w-0">
-          <div className={`text-sm font-semibold truncate mb-1 ${isLocked ? 'text-gray-500' : 'text-gray-900'}`}>
+          <div className="text-sm font-semibold truncate mb-1 text-gray-900">
             {lesson.title || `Lesson ${index + 1}`}
           </div>
-          {isLocked && xpProgress ? (
-            <div className="flex items-center gap-1 text-xs text-amber-600">
-              <span>Complete Lesson {xpProgress.blockingLessonIndex}: {xpProgress.earned}/{xpProgress.required} XP</span>
-            </div>
-          ) : isLocked ? (
-            <div className="flex items-center gap-1 text-xs text-gray-500">
-              <span>Complete previous lessons first</span>
-            </div>
-          ) : isUnlocked ? (
-            <div className="flex items-center gap-1 text-xs text-green-600 font-medium">
-              <LockOpenIcon className="w-3 h-3" />
-              <span>Unlocked</span>
-            </div>
-          ) : lesson.duration_minutes ? (
-            <div className="flex items-center gap-1 text-xs text-gray-500">
-              <ClockIcon className="w-3 h-3" />
-              <span>{lesson.duration_minutes} min</span>
-            </div>
-          ) : null}
+          {/* Task count and XP Progress */}
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            {taskCount > 0 && (
+              <span className="flex items-center gap-1">
+                <ClipboardDocumentListIcon className="w-3 h-3" />
+                {taskCount} task{taskCount !== 1 ? 's' : ''}
+              </span>
+            )}
+            {taskCount > 0 && hasXpThreshold && (
+              <span className="text-gray-300">|</span>
+            )}
+            {hasXpThreshold && (
+              <span className={isXpComplete ? 'text-green-600 font-medium' : ''}>
+                {isXpComplete ? (
+                  <span className="flex items-center gap-1">
+                    <CheckCircleIcon className="w-3 h-3" />
+                    {earnedXP}/{xpThreshold} XP
+                  </span>
+                ) : (
+                  <span>{earnedXP}/{xpThreshold} XP to complete</span>
+                )}
+              </span>
+            )}
+            {!taskCount && !hasXpThreshold && lesson.duration_minutes && (
+              <span className="flex items-center gap-1">
+                <ClockIcon className="w-3 h-3" />
+                {lesson.duration_minutes} min
+              </span>
+            )}
+          </div>
         </div>
 
-        {isLocked ? (
-          <LockClosedIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
-        ) : (
-          <ChevronRightIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
-        )}
+        <ChevronRightIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
       </div>
     </div>
   );
@@ -1191,7 +1209,11 @@ const CurriculumView = ({
   className = '',
   questId, // Optional: if provided, will fetch lessons automatically
   embedded = false, // When true, hides sidebar (used within CourseHomepage)
-  initialLessonId // Optional: auto-select this lesson on mount
+  initialLessonId, // Optional: auto-select this lesson on mount
+  initialStepIndex: propInitialStepIndex, // Optional: start at this step (for back navigation)
+  onUnsavedChangesChange, // Callback when unsaved changes state changes
+  onSaveProgress, // Callback to save progress externally
+  onStepChange, // Callback when step index changes (for URL sync)
 }) => {
   // Start collapsed on mobile, open on desktop
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
@@ -1261,7 +1283,9 @@ const CurriculumView = ({
           }
 
           // Process tasks
-          setQuestTasks(tasksResult.data.tasks || []);
+          const tasks = tasksResult.data.tasks || [];
+          console.log('[CurriculumView] Fetched tasks:', tasks.length, tasks);
+          setQuestTasks(tasks);
 
           // Process progress
           const progressData = progressResult.data.progress || [];
@@ -1282,12 +1306,14 @@ const CurriculumView = ({
     }
   }, [questId, propLessons]);
 
-  // Handle initialLessonId prop
+  // Handle initialLessonId prop - always update when it changes
   useEffect(() => {
-    if (initialLessonId && !propSelectedLessonId) {
+    if (initialLessonId) {
       setInternalSelectedId(initialLessonId);
+      // Reset initialized lesson ID to force progress re-initialization for new lesson
+      setInitializedLessonId(null);
     }
-  }, [initialLessonId, propSelectedLessonId]);
+  }, [initialLessonId]);
 
   // Handle internal lesson selection
   const handleLessonSelect = (lesson) => {
@@ -1351,18 +1377,48 @@ const CurriculumView = ({
     return questTasks.filter(task => lesson.linked_task_ids.includes(task.id));
   };
 
+  // Alias for consistency
+  const getLinkedTasks = getLinkedTasksForLesson;
+
+  // Calculate earned XP for a lesson from completed linked tasks
+  const getLessonEarnedXP = (lesson) => {
+    const tasks = getLinkedTasks(lesson);
+    return tasks.reduce((total, task) => {
+      // Only count XP if the task has been completed (is_completed comes from quest_task_completions)
+      // Note: approval_status indicates if task is approved for student to work on, NOT completion status
+      const isCompleted = task.is_completed === true;
+      return total + (isCompleted ? (task.xp_value || 0) : 0);
+    }, 0);
+  };
+
   // Calculate total steps including virtual "finished" and "tasks" steps if there are linked tasks
   const linkedTasksForLesson = selectedLesson ? getLinkedTasksForLesson(selectedLesson) : [];
   const hasTasksStep = linkedTasksForLesson.length > 0;
   // When there are tasks: content steps + finished step + tasks step = totalSteps + 2
   const totalStepsWithTasks = hasTasksStep ? totalSteps + 2 : totalSteps;
 
-  // Find the next lesson's XP threshold
-  const currentLessonIndex = lessons.findIndex(l => l.id === selectedLessonId);
-  const nextLesson = currentLessonIndex >= 0 && currentLessonIndex < lessons.length - 1
-    ? lessons[currentLessonIndex + 1]
-    : null;
-  const nextLessonXpThreshold = nextLesson?.xp_threshold || 0;
+  // Debug logging
+  console.log('[CurriculumView] Task check:', {
+    selectedLessonId: selectedLesson?.id,
+    linked_task_ids: selectedLesson?.linked_task_ids,
+    questTasksCount: questTasks.length,
+    linkedTasksForLesson: linkedTasksForLesson.length,
+    hasTasksStep
+  });
+
+  // Get current lesson's XP threshold and calculate earned XP
+  const selectedLessonXpThreshold = selectedLesson?.xp_threshold || 0;
+  const selectedLessonEarnedXP = selectedLesson ? getLessonEarnedXP(selectedLesson) : 0;
+
+  // Debug XP threshold
+  console.log('[CurriculumView] XP Debug:', {
+    lessonId: selectedLesson?.id,
+    lessonTitle: selectedLesson?.title,
+    xp_threshold_raw: selectedLesson?.xp_threshold,
+    selectedLessonXpThreshold,
+    selectedLessonEarnedXP,
+    lessonKeys: selectedLesson ? Object.keys(selectedLesson) : []
+  });
 
   // Save progress to API
   const saveProgress = async (lessonId, completedStepsArray, currentStep) => {
@@ -1420,11 +1476,23 @@ const CurriculumView = ({
       selectedLessonId,
       savedProgress,
       savedPosition,
-      contentSteps
+      contentSteps,
+      propInitialStepIndex
     });
 
     // Mark this lesson as initialized
     setInitializedLessonId(selectedLessonId);
+
+    // If propInitialStepIndex is provided (e.g., from back navigation), use it directly
+    if (propInitialStepIndex !== null && propInitialStepIndex !== undefined) {
+      console.log('[Progress] Using initial step from prop:', propInitialStepIndex);
+      // Restore completed steps if we have saved progress
+      if (savedPosition && savedPosition.completed_steps) {
+        setCompletedSteps(new Set(savedPosition.completed_steps));
+      }
+      setCurrentStepIndex(propInitialStepIndex);
+      return;
+    }
 
     if (savedPosition && savedPosition.completed_steps) {
       const savedCompletedSteps = new Set(savedPosition.completed_steps);
@@ -1440,8 +1508,9 @@ const CurriculumView = ({
       });
 
       if (allContentComplete) {
-        // Lesson is complete - go to tasks step if available, otherwise step 0
-        setCurrentStepIndex(hasTasksStep ? contentSteps : 0);
+        // Lesson is complete - go directly to tasks step (skip "Lesson Complete" screen)
+        // Tasks step is at contentSteps + 1, "finished" screen is at contentSteps
+        setCurrentStepIndex(hasTasksStep ? contentSteps + 1 : 0);
       } else {
         // Find next incomplete step
         let nextIncomplete = 0;
@@ -1459,7 +1528,27 @@ const CurriculumView = ({
       setCurrentStepIndex(0);
       setCompletedSteps(new Set());
     }
-  }, [selectedLessonId, progressLoaded, lessonProgress, lessonSteps.length, hasTasksStep, initializedLessonId]);
+  }, [selectedLessonId, progressLoaded, lessonProgress, lessonSteps.length, hasTasksStep, initializedLessonId, propInitialStepIndex]);
+
+  // Track if there are unsaved changes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Notify parent when unsaved changes state changes
+  useEffect(() => {
+    onUnsavedChangesChange?.(hasUnsavedChanges);
+  }, [hasUnsavedChanges, onUnsavedChangesChange]);
+
+  // Expose save function to parent
+  useEffect(() => {
+    if (onSaveProgress) {
+      onSaveProgress(() => {
+        if (hasUnsavedChanges && selectedLessonId) {
+          saveProgress(selectedLessonId, Array.from(completedSteps).filter(s => s < totalSteps), currentStepIndex);
+          setHasUnsavedChanges(false);
+        }
+      });
+    }
+  }, [onSaveProgress, hasUnsavedChanges, selectedLessonId, completedSteps, currentStepIndex, totalSteps]);
 
   // Step navigation handlers
   const goToNextStep = () => {
@@ -1467,11 +1556,7 @@ const CurriculumView = ({
       const newCompleted = new Set([...completedSteps, currentStepIndex]);
       setCompletedSteps(newCompleted);
       setCurrentStepIndex(currentStepIndex + 1);
-
-      // Save progress (only track content steps, not tasks step)
-      if (selectedLessonId && currentStepIndex < totalSteps) {
-        saveProgress(selectedLessonId, Array.from(newCompleted).filter(s => s < totalSteps), currentStepIndex + 1);
-      }
+      setHasUnsavedChanges(true);
     }
   };
 
@@ -1484,6 +1569,36 @@ const CurriculumView = ({
   const goToStep = (index) => {
     setCurrentStepIndex(index);
   };
+
+  // Keyboard navigation for steps
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Only handle if not in an input/textarea
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (currentStepIndex < totalStepsWithTasks - 1) {
+          goToNextStep();
+        }
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (currentStepIndex > 0) {
+          goToPrevStep();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentStepIndex, totalStepsWithTasks]);
+
+  // Notify parent of step changes (for URL sync)
+  useEffect(() => {
+    if (onStepChange && selectedLessonId) {
+      onStepChange(currentStepIndex);
+    }
+  }, [currentStepIndex, onStepChange, selectedLessonId]);
 
   // Reset progress for current lesson (admin only)
   const resetLessonProgress = async () => {
@@ -1513,49 +1628,7 @@ const CurriculumView = ({
     }
   };
 
-  // Get linked tasks for the selected lesson
-  const getLinkedTasks = (lesson) => {
-    if (!lesson?.linked_task_ids || lesson.linked_task_ids.length === 0) {
-      return [];
-    }
-    return questTasks.filter(task => lesson.linked_task_ids.includes(task.id));
-  };
-
-  // Calculate earned XP for a lesson from completed linked tasks
-  const getLessonEarnedXP = (lesson) => {
-    const tasks = getLinkedTasks(lesson);
-    return tasks.reduce((total, task) => {
-      const isCompleted = task.approval_status === 'approved' || task.is_completed;
-      return total + (isCompleted ? (task.xp_value || 0) : 0);
-    }, 0);
-  };
-
-  // Check if a lesson is accessible based on previous lesson XP thresholds
-  const isLessonAccessible = (lessonIndex) => {
-    if (isAdmin) return true; // Admins can access all lessons
-    if (lessonIndex === 0) return true; // First lesson is always accessible
-
-    // Check the PREVIOUS lesson's XP threshold requirement
-    // Each lesson's xp_threshold determines the XP needed to unlock the NEXT lesson
-    const prevLesson = lessons[lessonIndex - 1];
-    if (prevLesson?.xp_threshold && prevLesson.xp_threshold > 0) {
-      const earnedXP = getLessonEarnedXP(prevLesson);
-      if (earnedXP < prevLesson.xp_threshold) {
-        return false;
-      }
-    }
-
-    // Also check all prior lessons are unlocked (cascading requirement)
-    if (lessonIndex > 1) {
-      return isLessonAccessible(lessonIndex - 1);
-    }
-
-    return true;
-  };
-
   const linkedTasks = selectedLesson ? getLinkedTasks(selectedLesson) : [];
-  const selectedLessonEarnedXP = selectedLesson ? getLessonEarnedXP(selectedLesson) : 0;
-  const selectedLessonXPThreshold = selectedLesson?.xp_threshold || 0;
 
   // Calculate progress
   const completedCount = lessons.filter(l => l.is_completed).length;
@@ -1660,37 +1733,12 @@ const CurriculumView = ({
                 strategy={verticalListSortingStrategy}
               >
                 {lessons.map((lesson, index) => {
-                  const isLocked = !isLessonAccessible(index);
+                  // Get XP progress for this lesson's completion threshold
+                  const xpThreshold = lesson?.xp_threshold || 0;
+                  const earnedXP = getLessonEarnedXP(lesson);
+                  const linkedTasks = getLinkedTasks(lesson);
+                  const taskCount = linkedTasks.length;
 
-                  // Check if this lesson was unlocked by meeting XP threshold
-                  // (not first lesson, previous lesson had threshold, and it was met)
-                  let isUnlocked = false;
-                  if (!isLocked && index > 0 && !isAdmin) {
-                    const prevLesson = lessons[index - 1];
-                    if (prevLesson?.xp_threshold && prevLesson.xp_threshold > 0) {
-                      isUnlocked = true; // Previous lesson had a threshold that was met
-                    }
-                  }
-
-                  // Get XP progress for locked lessons (threshold from the previous lesson)
-                  let xpProgress = null;
-                  if (isLocked && index > 0) {
-                    // Find which previous lesson is blocking access
-                    for (let i = index - 1; i >= 0; i--) {
-                      const prevLesson = lessons[i];
-                      if (prevLesson.xp_threshold && prevLesson.xp_threshold > 0) {
-                        const earned = getLessonEarnedXP(prevLesson);
-                        if (earned < prevLesson.xp_threshold) {
-                          xpProgress = {
-                            earned: earned,
-                            required: prevLesson.xp_threshold,
-                            blockingLessonIndex: i + 1
-                          };
-                          break;
-                        }
-                      }
-                    }
-                  }
                   return (
                     <LessonItem
                       key={lesson.id}
@@ -1698,9 +1746,9 @@ const CurriculumView = ({
                       index={index}
                       isSelected={lesson.id === selectedLessonId}
                       isAdmin={isAdmin}
-                      isLocked={isLocked}
-                      isUnlocked={isUnlocked}
-                      xpProgress={xpProgress}
+                      xpThreshold={xpThreshold}
+                      earnedXP={earnedXP}
+                      taskCount={taskCount}
                       onClick={() => handleLessonSelect(lesson)}
                     />
                   );
@@ -1766,7 +1814,16 @@ const CurriculumView = ({
 
         {/* Lesson Content */}
         <div className="flex-1 overflow-y-auto px-4 py-4 sm:p-6">
-          {!selectedLesson ? (
+          {/* Loading state - show when lesson is selected but data is still loading */}
+          {(loading || (initialLessonId && !selectedLesson)) ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center px-4">
+                <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-optio-purple mx-auto mb-4" />
+                <p className="text-base sm:text-lg font-medium text-gray-700">Loading lesson...</p>
+                <p className="text-sm text-gray-500 mt-1">Please wait</p>
+              </div>
+            </div>
+          ) : !selectedLesson ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-gray-500 px-4">
                 <ClockIcon className="w-10 sm:w-12 h-10 sm:h-12 mx-auto mb-3 text-gray-400" />
@@ -1905,8 +1962,8 @@ const CurriculumView = ({
                 hasTasksStep={hasTasksStep}
                 totalStepsWithTasks={totalStepsWithTasks}
                 questId={questId}
-                nextLessonXpThreshold={nextLessonXpThreshold}
-                nextLessonTitle={nextLesson?.title}
+                lessonXpThreshold={selectedLessonXpThreshold}
+                lessonEarnedXP={selectedLessonEarnedXP}
                 onTaskCreated={(newTask) => {
                   // Add new task to questTasks list
                   setQuestTasks(prev => [...prev, newTask])

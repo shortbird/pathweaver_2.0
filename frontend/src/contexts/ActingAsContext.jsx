@@ -17,6 +17,7 @@ export const ActingAsProvider = ({ children }) => {
   const { user, loading } = useAuth();
   const [actingAsDependent, setActingAsDependent] = useState(null);
   const [actingAsToken, setActingAsToken] = useState(null);
+  const [parentName, setParentName] = useState(null);
   const [hasInitialized, setHasInitialized] = useState(false);
 
   // Load acting-as state from sessionStorage on mount
@@ -25,6 +26,7 @@ export const ActingAsProvider = ({ children }) => {
     const restoreActingAsState = async () => {
       const stored = sessionStorage.getItem('acting_as_dependent');
       const storedToken = sessionStorage.getItem('acting_as_token');
+      const storedParentName = sessionStorage.getItem('acting_as_parent_name');
       if (stored && storedToken) {
         try {
           const parsed = JSON.parse(stored);
@@ -36,12 +38,16 @@ export const ActingAsProvider = ({ children }) => {
           startTransition(() => {
             setActingAsDependent(parsed);
             setActingAsToken(storedToken);
+            if (storedParentName) {
+              setParentName(storedParentName);
+            }
             logger.debug('[ActingAsContext] Restored acting-as token from sessionStorage');
           });
         } catch (error) {
           console.error('Failed to parse acting_as_dependent from sessionStorage:', error);
           sessionStorage.removeItem('acting_as_dependent');
           sessionStorage.removeItem('acting_as_token');
+          sessionStorage.removeItem('acting_as_parent_name');
         }
       }
       // Mark as initialized after attempting to restore
@@ -88,6 +94,7 @@ export const ActingAsProvider = ({ children }) => {
     // Clean up all acting-as state from sessionStorage
     sessionStorage.removeItem('acting_as_dependent');
     sessionStorage.removeItem('acting_as_token');
+    sessionStorage.removeItem('acting_as_parent_name');
     sessionStorage.removeItem('parent_access_token');
     sessionStorage.removeItem('parent_refresh_token');
 
@@ -95,6 +102,7 @@ export const ActingAsProvider = ({ children }) => {
     startTransition(() => {
       setActingAsDependent(null);
       setActingAsToken(null);
+      setParentName(null);
       logger.debug('[ActingAsContext] Cleared acting-as state');
     });
   }, []);
@@ -120,6 +128,12 @@ export const ActingAsProvider = ({ children }) => {
           sessionStorage.setItem('parent_access_token', parentAccess);
           sessionStorage.setItem('parent_refresh_token', parentRefresh);
           logger.debug('[ActingAsContext] Saved parent tokens before switching');
+        }
+
+        // Save parent's name for display in navbar
+        if (user) {
+          const parentDisplayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.display_name || 'Parent';
+          sessionStorage.setItem('acting_as_parent_name', parentDisplayName);
         }
 
         // Request acting-as token from backend
@@ -157,6 +171,7 @@ export const ActingAsProvider = ({ children }) => {
   const value = {
     actingAsDependent,
     actingAsToken,
+    parentName,
     setActingAs,
     clearActingAs,
     isActingAsDependent: !!actingAsDependent

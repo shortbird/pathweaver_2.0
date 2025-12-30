@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useActingAs } from '../contexts/ActingAsContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
 import QuestCardSimple from '../components/quest/QuestCardSimple'
-import CourseCard from '../components/course/CourseCard'
+import CourseCardWithQuests from '../components/course/CourseCardWithQuests'
 // Deprecated: Keeping for potential future use
 // import LearningEventModal from '../components/learning-events/LearningEventModal'
 import {
@@ -49,7 +49,7 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {/* Render enrolled courses first */}
       {allCourses.map(course => (
-        <CourseCard key={`course-${course.id}`} course={course} />
+        <CourseCardWithQuests key={`course-${course.id}`} course={course} />
       ))}
 
       {/* Then render standalone quests */}

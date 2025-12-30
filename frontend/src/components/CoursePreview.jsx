@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { XMarkIcon, LockClosedIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
 
 // Helper to extract HTML content from lesson content structure
@@ -66,15 +66,15 @@ const CoursePreview = ({ course, quests, onClose }) => {
     100
   )
 
-  const isProjectUnlocked = (project) => {
+  const isProjectComplete = (project) => {
     // Project XP threshold is stored directly on the project object (from course_quests table)
     const projectXpThreshold = project.xp_threshold || 0
-    return simulatedXp >= projectXpThreshold
+    return projectXpThreshold === 0 || simulatedXp >= projectXpThreshold
   }
 
-  const isLessonUnlocked = (lesson) => {
+  const isLessonComplete = (lesson) => {
     const lessonXpThreshold = lesson.xp_threshold || 0
-    return simulatedXp >= lessonXpThreshold
+    return lessonXpThreshold === 0 || simulatedXp >= lessonXpThreshold
   }
 
   const selectedProject = quests.find(q => q.id === selectedProjectId)
@@ -147,7 +147,7 @@ const CoursePreview = ({ course, quests, onClose }) => {
               </h4>
               <div className="space-y-2">
                 {quests.map((project, index) => {
-                  const unlocked = isProjectUnlocked(project)
+                  const isComplete = isProjectComplete(project)
                   const xpThreshold = project.xp_threshold || 0
                   const isSelected = selectedProjectId === project.id
 
@@ -155,21 +155,18 @@ const CoursePreview = ({ course, quests, onClose }) => {
                     <button
                       key={project.id}
                       onClick={() => setSelectedProjectId(project.id)}
-                      disabled={!unlocked}
                       className={`w-full text-left p-4 rounded-lg border transition-all ${
                         isSelected
                           ? 'border-optio-purple bg-optio-purple/5'
-                          : unlocked
-                          ? 'border-gray-200 hover:border-optio-purple/50 hover:bg-gray-50'
-                          : 'border-gray-200 bg-gray-100 cursor-not-allowed'
+                          : 'border-gray-200 hover:border-optio-purple/50 hover:bg-gray-50'
                       }`}
                     >
                       <div className="flex items-start gap-3">
                         <div className="flex-shrink-0 mt-0.5">
-                          {unlocked ? (
+                          {isComplete ? (
                             <CheckCircleIcon className="w-5 h-5 text-green-600" />
                           ) : (
-                            <LockClosedIcon className="w-5 h-5 text-gray-400" />
+                            <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -177,18 +174,16 @@ const CoursePreview = ({ course, quests, onClose }) => {
                             <span className="text-xs font-medium text-gray-500">
                               {index + 1}
                             </span>
-                            <h5 className={`font-medium truncate ${
-                              unlocked ? 'text-gray-900' : 'text-gray-500'
-                            }`}>
+                            <h5 className="font-medium truncate text-gray-900">
                               {project.title}
                             </h5>
                           </div>
-                          {!unlocked && xpThreshold > 0 && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Requires {xpThreshold} XP to unlock
+                          {xpThreshold > 0 && (
+                            <p className={`text-xs mt-1 ${isComplete ? 'text-green-600' : 'text-gray-500'}`}>
+                              {isComplete ? `${xpThreshold} XP requirement met` : `Requires ${xpThreshold} XP to complete`}
                             </p>
                           )}
-                          {project.description && unlocked && (
+                          {project.description && (
                             <p className="text-xs text-gray-600 mt-1 line-clamp-2">
                               {project.description}
                             </p>
@@ -230,45 +225,38 @@ const CoursePreview = ({ course, quests, onClose }) => {
                       {(projectLessons[selectedProjectId] || [])
                         .sort((a, b) => (a.sequence_order || a.order || 0) - (b.sequence_order || b.order || 0))
                         .map((lesson, index) => {
-                          const unlocked = isLessonUnlocked(lesson)
+                          const isComplete = isLessonComplete(lesson)
                           const xpThreshold = lesson.xp_threshold || 0
 
                           return (
                             <div
                               key={lesson.id || index}
-                              className={`p-4 rounded-lg border ${
-                                unlocked
-                                  ? 'border-gray-200 bg-white'
-                                  : 'border-gray-200 bg-gray-50'
-                              }`}
+                              className="p-4 rounded-lg border border-gray-200 bg-white"
                             >
                               <div className="flex items-start gap-3">
                                 <div className="flex-shrink-0 mt-0.5">
-                                  {unlocked ? (
+                                  {isComplete ? (
                                     <CheckCircleIcon className="w-5 h-5 text-green-600" />
                                   ) : (
-                                    <LockClosedIcon className="w-5 h-5 text-gray-400" />
+                                    <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
                                   )}
                                 </div>
                                 <div className="flex-1">
-                                  <h5 className={`font-medium ${
-                                    unlocked ? 'text-gray-900' : 'text-gray-500'
-                                  }`}>
+                                  <h5 className="font-medium text-gray-900">
                                     {lesson.title}
                                   </h5>
-                                  {!unlocked && xpThreshold > 0 && (
-                                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                                      <LockClosedIcon className="w-3 h-3" />
-                                      Requires {xpThreshold} XP to unlock
+                                  {xpThreshold > 0 && (
+                                    <p className={`text-xs mt-1 ${isComplete ? 'text-green-600' : 'text-gray-500'}`}>
+                                      {isComplete ? `${xpThreshold} XP requirement met` : `Requires ${xpThreshold} XP to complete`}
                                     </p>
                                   )}
-                                  {unlocked && lesson.content && getLessonHtmlContent(lesson.content) && (
+                                  {lesson.content && getLessonHtmlContent(lesson.content) && (
                                     <div
                                       className="prose prose-sm max-w-none mt-2 text-gray-600"
                                       dangerouslySetInnerHTML={{ __html: getLessonHtmlContent(lesson.content) }}
                                     />
                                   )}
-                                  {unlocked && lesson.video_url && (
+                                  {lesson.video_url && (
                                     <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
                                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                         <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
@@ -276,7 +264,7 @@ const CoursePreview = ({ course, quests, onClose }) => {
                                       Includes video
                                     </div>
                                   )}
-                                  {unlocked && lesson.files && lesson.files.length > 0 && (
+                                  {lesson.files && lesson.files.length > 0 && (
                                     <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
                                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clipRule="evenodd" />

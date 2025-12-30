@@ -430,8 +430,7 @@ def generate_acting_as_token(user_id, dependent_id):
 
 
 @bp.route('/stop-acting-as', methods=['POST'])
-@require_auth
-def stop_acting_as(user_id):
+def stop_acting_as():
     """
     Stop acting as a dependent and return fresh tokens for the parent.
 
@@ -440,15 +439,22 @@ def stop_acting_as(user_id):
     for the parent, bypassing any sessionStorage issues in cross-origin production
     environments.
 
-    The user_id parameter comes from the acting-as token's user_id claim,
-    which is the PARENT's ID (not the dependent).
+    Uses get_actual_admin_id() to extract the parent's ID from the acting-as token,
+    since @require_auth's get_effective_user_id() would return the dependent's ID.
 
     Returns:
         200: Fresh tokens for the parent
+        401: Not authenticated or not in acting-as mode
         404: Parent user not found
         500: Server error
     """
     try:
+        # Get the parent's ID from the acting-as token (not the dependent's ID)
+        user_id = session_manager.get_actual_admin_id()
+
+        if not user_id:
+            return jsonify({'success': False, 'error': 'Authentication required'}), 401
+
         supabase = get_supabase_admin_client()
 
         # Verify the parent user exists

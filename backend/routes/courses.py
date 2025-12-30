@@ -3,6 +3,7 @@ Course Routes
 API endpoints for course management, quest sequencing, and student enrollments.
 """
 
+from datetime import datetime
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth, require_admin
 from database import get_user_client, get_supabase_admin_client
@@ -63,9 +64,16 @@ def list_courses(user_id):
                 cid = cq['course_id']
                 count_map[cid] = count_map.get(cid, 0) + 1
 
-            # Add quest_count to each course
+            # Get enrollment status for current user
+            enrollments = client.table('course_enrollments').select('course_id').eq(
+                'user_id', user_id
+            ).in_('course_id', course_ids).execute()
+            enrolled_course_ids = set(e['course_id'] for e in (enrollments.data or []))
+
+            # Add quest_count and is_enrolled to each course
             for course in courses:
                 course['quest_count'] = count_map.get(course['id'], 0)
+                course['is_enrolled'] = course['id'] in enrolled_course_ids
 
         return jsonify({
             'success': True,
@@ -519,7 +527,7 @@ def get_course_quests(user_id, course_id: str):
 
         # Get course quests with quest details
         result = client.table('course_quests').select(
-            'id, sequence_order, custom_title, intro_content, is_required, xp_threshold, quest_id, quests(id, title, description, quest_type, header_image_url)'
+            'id, sequence_order, custom_title, intro_content, is_required, is_published, xp_threshold, quest_id, quests(id, title, description, quest_type, header_image_url)'
         ).eq('course_id', course_id).order('sequence_order').execute()
 
         # Flatten the quest data
@@ -534,6 +542,7 @@ def get_course_quests(user_id, course_id: str):
                 'header_image_url': quest_data.get('header_image_url'),
                 'order_index': item.get('sequence_order', 0),
                 'is_required': item.get('is_required', True),
+                'is_published': item.get('is_published', True),
                 'intro_content': item.get('intro_content'),
                 'xp_threshold': item.get('xp_threshold', 0)
             })
@@ -720,6 +729,12 @@ def update_course_quest(user_id, course_id: str, quest_id: str):
                 return jsonify({'error': 'xp_threshold must be a non-negative number'}), 400
             updates['xp_threshold'] = int(xp_threshold)
 
+        if 'is_published' in data:
+            is_published = data['is_published']
+            if not isinstance(is_published, bool):
+                return jsonify({'error': 'is_published must be a boolean'}), 400
+            updates['is_published'] = is_published
+
         if not updates:
             return jsonify({'error': 'No valid fields to update'}), 400
 
@@ -820,6 +835,8 @@ def reorder_course_quests(user_id, course_id: str):
 def enroll_in_course(user_id, course_id: str):
     """
     Enroll a student in a course.
+    Auto-enrolls the student in all quests associated with the course,
+    skipping the AI personalization wizard.
 
     Path params:
         course_id: Course UUID
@@ -864,27 +881,66 @@ def enroll_in_course(user_id, course_id: str):
                 'message': 'Already enrolled'
             }), 200
 
-        # Get first quest
-        first_quest = client.table('course_quests').select('quest_id').eq(
+        # Get all quests for the course (ordered by sequence)
+        course_quests = client.table('course_quests').select('quest_id').eq(
             'course_id', course_id
-        ).order('sequence_order').limit(1).execute()
+        ).order('sequence_order').execute()
 
+        first_quest_id = course_quests.data[0]['quest_id'] if course_quests.data else None
+
+        # Create course enrollment
         enrollment_data = {
             'course_id': course_id,
             'user_id': target_user_id,
             'status': 'active',
-            'current_quest_id': first_quest.data[0]['quest_id'] if first_quest.data else None
+            'current_quest_id': first_quest_id
         }
 
         result = client.table('course_enrollments').insert(enrollment_data).execute()
         if not result.data:
             return jsonify({'error': 'Failed to enroll'}), 500
 
-        logger.info(f"User {target_user_id} enrolled in course {course_id}")
+        # Auto-enroll in all course quests (skip AI personalization)
+        quest_enrollments_created = 0
+        if course_quests.data:
+            for course_quest in course_quests.data:
+                quest_id = course_quest['quest_id']
+
+                # Check if already enrolled in this quest
+                existing_quest_enrollment = client.table('user_quests').select('id').eq(
+                    'user_id', target_user_id
+                ).eq('quest_id', quest_id).execute()
+
+                if existing_quest_enrollment.data:
+                    # Already enrolled, skip
+                    continue
+
+                # Create quest enrollment with personalization_completed=True (skip wizard)
+                quest_enrollment_data = {
+                    'user_id': target_user_id,
+                    'quest_id': quest_id,
+                    'status': 'picked_up',
+                    'is_active': True,
+                    'times_picked_up': 1,
+                    'last_picked_up_at': datetime.utcnow().isoformat(),
+                    'started_at': datetime.utcnow().isoformat(),
+                    'personalization_completed': True  # Skip AI personalization for course quests
+                }
+
+                try:
+                    quest_result = client.table('user_quests').insert(quest_enrollment_data).execute()
+                    if quest_result.data:
+                        quest_enrollments_created += 1
+                        logger.info(f"Auto-enrolled user {target_user_id} in quest {quest_id} (course enrollment)")
+                except Exception as quest_err:
+                    logger.warning(f"Failed to auto-enroll in quest {quest_id}: {quest_err}")
+
+        logger.info(f"User {target_user_id} enrolled in course {course_id}, auto-enrolled in {quest_enrollments_created} quests")
 
         return jsonify({
             'success': True,
-            'enrollment': result.data[0]
+            'enrollment': result.data[0],
+            'quests_enrolled': quest_enrollments_created
         }), 201
 
     except Exception as e:
@@ -935,19 +991,21 @@ def get_course_progress(user_id, course_id: str):
                 'quests_total': 0
             }), 200
 
-        # Get all course quests
-        course_quests = client.table('course_quests').select('quest_id, is_required').eq(
+        # Get all published course quests
+        course_quests = client.table('course_quests').select('quest_id, is_required, is_published').eq(
             'course_id', course_id
         ).execute()
 
-        total_quests = len([q for q in course_quests.data if q['is_required']]) if course_quests.data else 0
+        # Only count published and required quests
+        published_quests = [q for q in (course_quests.data or []) if q.get('is_published') is not False]
+        total_quests = len([q for q in published_quests if q['is_required']])
 
-        # Get completed quests
+        # Get completed quests (user_quests with completed_at set)
         if total_quests > 0:
-            quest_ids = [q['quest_id'] for q in course_quests.data]
-            completed = client.table('user_quest_progress').select('quest_id').eq(
+            quest_ids = [q['quest_id'] for q in published_quests]
+            completed = client.table('user_quests').select('quest_id').eq(
                 'user_id', target_user_id
-            ).in_('quest_id', quest_ids).eq('status', 'completed').execute()
+            ).in_('quest_id', quest_ids).not_.is_('completed_at', 'null').execute()
 
             completed_count = len(completed.data) if completed.data else 0
             progress_pct = int((completed_count / total_quests) * 100) if total_quests > 0 else 0
@@ -1002,25 +1060,50 @@ def get_course_homepage(user_id, course_id: str):
 
         # Get course quests with quest details
         course_quests_result = client.table('course_quests').select(
-            'quest_id, sequence_order, xp_threshold, custom_title, is_required, quests(id, title, description, header_image_url)'
+            'quest_id, sequence_order, xp_threshold, custom_title, is_required, is_published, quests(id, title, description, header_image_url)'
         ).eq('course_id', course_id).order('sequence_order').execute()
 
         quests_with_data = []
         for cq in (course_quests_result.data or []):
+            # Skip unpublished projects (is_published defaults to True if not set)
+            if cq.get('is_published') is False:
+                continue
+
             quest_data = cq.get('quests', {}) or {}
             quest_id = quest_data.get('id') or cq.get('quest_id')
 
             if not quest_id:
                 continue
 
-            # Get lessons for this quest
+            # Get lessons for this quest (include content for preloading)
             lessons_result = client.table('curriculum_lessons')\
-                .select('id, title, sequence_order, estimated_duration_minutes')\
+                .select('id, title, sequence_order, estimated_duration_minutes, content, description, xp_threshold, is_published')\
                 .eq('quest_id', quest_id)\
                 .order('sequence_order')\
                 .execute()
 
-            lessons = lessons_result.data or []
+            # Filter out unpublished lessons
+            lessons = [l for l in (lessons_result.data or []) if l.get('is_published') is not False]
+
+            # Fetch linked task IDs for lessons
+            if lessons:
+                lesson_ids = [lesson['id'] for lesson in lessons]
+                links_result = client.table('curriculum_lesson_tasks')\
+                    .select('lesson_id, task_id')\
+                    .eq('quest_id', quest_id)\
+                    .execute()
+
+                # Build mapping of lesson_id -> list of task_ids
+                lesson_tasks_map = {}
+                for link in (links_result.data or []):
+                    lesson_id = link['lesson_id']
+                    if lesson_id not in lesson_tasks_map:
+                        lesson_tasks_map[lesson_id] = []
+                    lesson_tasks_map[lesson_id].append(link['task_id'])
+
+                # Add linked_task_ids to each lesson
+                for lesson in lessons:
+                    lesson['linked_task_ids'] = lesson_tasks_map.get(lesson['id'], [])
 
             # Get user's quest enrollment
             user_quest_result = client.table('user_quests')\
@@ -1031,30 +1114,35 @@ def get_course_homepage(user_id, course_id: str):
 
             quest_enrollment = user_quest_result.data[0] if user_quest_result.data else None
 
-            # Get task completion counts and XP
+            # Calculate XP progress from curriculum lessons
+            # total_xp = sum of xp_threshold from all lessons
+            # earned_xp = sum of XP from completed tasks linked to lessons
+            total_xp = sum(l.get('xp_threshold', 0) or 0 for l in lessons)
+            earned_xp = 0
             completed_tasks = 0
             total_tasks = 0
-            earned_xp = 0
-            total_xp = 0
 
-            if quest_enrollment:
+            # Get all linked task IDs from lessons
+            all_linked_task_ids = []
+            for lesson in lessons:
+                all_linked_task_ids.extend(lesson.get('linked_task_ids', []))
+
+            if all_linked_task_ids and quest_enrollment:
+                # Get user's tasks for this quest that are linked to lessons
                 enrollment_id = quest_enrollment['id']
-
-                # Get approved tasks for this enrollment with XP values
                 user_tasks_result = client.table('user_quest_tasks')\
-                    .select('id, xp_value')\
+                    .select('id, xp_value, task_template_id')\
                     .eq('user_quest_id', enrollment_id)\
-                    .eq('approval_status', 'approved')\
                     .execute()
 
                 user_tasks = user_tasks_result.data or []
-                total_tasks = len(user_tasks)
-                total_xp = sum(t.get('xp_value', 0) or 0 for t in user_tasks)
+                # Filter to only tasks linked to lessons (by template_id matching linked_task_ids)
+                linked_user_tasks = [t for t in user_tasks if t.get('task_template_id') in all_linked_task_ids]
+                total_tasks = len(linked_user_tasks)
 
-                if total_tasks > 0:
-                    task_ids = [t['id'] for t in user_tasks]
-                    # Create a map of task_id -> xp_value for quick lookup
-                    task_xp_map = {t['id']: t.get('xp_value', 0) or 0 for t in user_tasks}
+                if linked_user_tasks:
+                    task_ids = [t['id'] for t in linked_user_tasks]
+                    task_xp_map = {t['id']: t.get('xp_value', 0) or 0 for t in linked_user_tasks}
 
                     completions_result = client.table('quest_task_completions')\
                         .select('user_quest_task_id')\
@@ -1064,7 +1152,6 @@ def get_course_homepage(user_id, course_id: str):
 
                     completions = completions_result.data or []
                     completed_tasks = len(completions)
-                    # Sum XP from completed tasks using the task's xp_value
                     earned_xp = sum(task_xp_map.get(c['user_quest_task_id'], 0) for c in completions)
 
             # Get lesson progress for this quest (non-blocking if table doesn't exist)

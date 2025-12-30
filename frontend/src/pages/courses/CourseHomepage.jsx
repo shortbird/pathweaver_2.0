@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import {
   ChevronLeftIcon,
   ChevronDownIcon,
@@ -8,6 +8,8 @@ import {
   LockClosedIcon,
   PlayCircleIcon,
   BookOpenIcon,
+  ArrowsPointingOutIcon,
+  ArrowsPointingInIcon,
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 import { useCourseHomepage } from '../../hooks/api/useCourseData'
@@ -320,6 +322,8 @@ const QuestDetail = ({ quest, onSelectLesson, onStartQuest }) => {
 const CourseHomepage = () => {
   const { courseId } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
 
   // Fetch course data
   const { data, isLoading, error } = useCourseHomepage(courseId)
@@ -329,16 +333,74 @@ const CourseHomepage = () => {
   const [selectedQuest, setSelectedQuest] = useState(null)
   const [selectedLesson, setSelectedLesson] = useState(null)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [saveProgressFn, setSaveProgressFn] = useState(null)
+  const [initialStepIndex, setInitialStepIndex] = useState(null)
 
-  // Auto-expand first quest with lessons on load
+  // Restore state from URL params (for back button support)
   useEffect(() => {
-    if (data?.quests?.length > 0 && expandedQuestIds.size === 0) {
+    if (!data?.quests) return
+
+    const questId = searchParams.get('quest')
+    const lessonId = searchParams.get('lesson')
+    const step = searchParams.get('step')
+
+    if (questId) {
+      const quest = data.quests.find(q => q.id === questId)
+      if (quest) {
+        setSelectedQuest(quest)
+        setExpandedQuestIds(prev => new Set([...prev, questId]))
+
+        if (lessonId && quest.lessons) {
+          const lesson = quest.lessons.find(l => l.id === lessonId)
+          if (lesson) {
+            setSelectedLesson(lesson)
+            // Set initial step if coming back from task page
+            if (step !== null && step !== undefined) {
+              setInitialStepIndex(parseInt(step, 10))
+            }
+          }
+        }
+      }
+    }
+  }, [data?.quests, searchParams])
+
+  // Also check location.state for return navigation from quest page
+  useEffect(() => {
+    if (!data?.quests || !location.state?.returnToLesson) return
+
+    const { questId, lessonId, stepIndex } = location.state.returnToLesson
+    const quest = data.quests.find(q => q.id === questId)
+
+    if (quest) {
+      setSelectedQuest(quest)
+      setExpandedQuestIds(prev => new Set([...prev, questId]))
+
+      if (lessonId && quest.lessons) {
+        const lesson = quest.lessons.find(l => l.id === lessonId)
+        if (lesson) {
+          setSelectedLesson(lesson)
+          if (stepIndex !== null && stepIndex !== undefined) {
+            setInitialStepIndex(stepIndex)
+          }
+        }
+      }
+    }
+
+    // Clear the location state after restoring
+    window.history.replaceState({}, document.title)
+  }, [data?.quests, location.state])
+
+  // Auto-expand first quest with lessons on load (only if no URL state)
+  useEffect(() => {
+    if (data?.quests?.length > 0 && expandedQuestIds.size === 0 && !searchParams.get('quest')) {
       const firstQuestWithLessons = data.quests.find(q => q.lessons?.length > 0)
       if (firstQuestWithLessons) {
         setExpandedQuestIds(new Set([firstQuestWithLessons.id]))
       }
     }
-  }, [data?.quests])
+  }, [data?.quests, searchParams])
 
   const toggleQuestExpand = (questId) => {
     setExpandedQuestIds(prev => {
@@ -352,16 +414,25 @@ const CourseHomepage = () => {
     })
   }
 
+  // Track current step index from CurriculumView for back navigation
+  const [currentStepIndex, setCurrentStepIndex] = useState(0)
+
   const handleSelectQuest = (quest) => {
     setSelectedQuest(quest)
     setSelectedLesson(null)
     setIsMobileSidebarOpen(false)
+    setInitialStepIndex(null)
+    // Update URL params
+    setSearchParams({ quest: quest.id })
   }
 
   const handleSelectLesson = (quest, lesson) => {
     setSelectedQuest(quest)
     setSelectedLesson(lesson)
     setIsMobileSidebarOpen(false)
+    setInitialStepIndex(null)
+    // Update URL params
+    setSearchParams({ quest: quest.id, lesson: lesson.id })
   }
 
   const handleStartQuest = () => {
@@ -370,9 +441,56 @@ const CourseHomepage = () => {
     }
   }
 
+  const handleTaskClick = (task) => {
+    if (selectedQuest && selectedLesson) {
+      // Navigate to quest page with return state so back button works
+      navigate(`/quests/${selectedQuest.id}?task=${task.id}`, {
+        state: {
+          returnTo: {
+            pathname: `/courses/${courseId}`,
+            search: `?quest=${selectedQuest.id}&lesson=${selectedLesson.id}&step=${currentStepIndex}`,
+          }
+        }
+      })
+    } else if (selectedQuest) {
+      navigate(`/quests/${selectedQuest.id}?task=${task.id}`)
+    }
+  }
+
   const handleBackToOverview = () => {
     setSelectedQuest(null)
     setSelectedLesson(null)
+    setInitialStepIndex(null)
+    // Clear URL params
+    setSearchParams({})
+  }
+
+  const handleCloseLesson = () => {
+    if (hasUnsavedChanges) {
+      const shouldSave = window.confirm(
+        'You have unsaved progress. Would you like to save before leaving?\n\nClick OK to save and close, or Cancel to discard changes.'
+      )
+      if (shouldSave && saveProgressFn) {
+        saveProgressFn()
+      }
+    }
+    if (isFullscreen) setIsFullscreen(false)
+    setSelectedLesson(null)
+    setHasUnsavedChanges(false)
+    setInitialStepIndex(null)
+    // Update URL to just show quest
+    if (selectedQuest) {
+      setSearchParams({ quest: selectedQuest.id })
+    }
+  }
+
+  // Callback to track step changes from CurriculumView
+  const handleStepChange = (stepIndex) => {
+    setCurrentStepIndex(stepIndex)
+    // Update URL with current step for bookmarking/sharing
+    if (selectedQuest && selectedLesson) {
+      setSearchParams({ quest: selectedQuest.id, lesson: selectedLesson.id, step: stepIndex.toString() })
+    }
   }
 
   if (isLoading) {
@@ -392,7 +510,7 @@ const CourseHomepage = () => {
           <p className="text-gray-600 mb-2">Please try again later</p>
           <p className="text-sm text-gray-400 mb-4 font-mono">{errorMessage}</p>
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/courses')}
             className="px-4 py-2 bg-optio-purple text-white rounded-lg hover:opacity-90"
           >
             Go Back
@@ -412,7 +530,7 @@ const CourseHomepage = () => {
           <div className="flex items-center justify-between gap-2">
             {/* Left: Back + Title (clickable together) */}
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/courses')}
               className="flex items-center gap-2 sm:gap-3 p-2 -ml-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors min-w-0"
             >
               <ChevronLeftIcon className="w-5 h-5 flex-shrink-0" />
@@ -522,28 +640,54 @@ const CourseHomepage = () => {
             <div className="bg-white rounded-xl border border-gray-200 min-h-[600px]">
               {selectedLesson ? (
                 /* Lesson View - Embed CurriculumView */
-                <div className="h-full">
+                <div className={`h-full ${isFullscreen ? 'fixed inset-0 z-50 bg-white' : ''}`}>
                   <div className="p-4 border-b border-gray-200 flex items-center gap-2">
                     <button
-                      onClick={() => setSelectedLesson(null)}
-                      className="p-1 text-gray-600 hover:text-gray-900"
+                      onClick={handleCloseLesson}
+                      className="flex items-center gap-2 p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                     >
                       <ChevronLeftIcon className="w-5 h-5" />
+                      <span className="text-sm text-gray-500 truncate">
+                        {selectedQuest?.title}
+                      </span>
                     </button>
-                    <span className="text-sm text-gray-500">
-                      {selectedQuest?.title}
-                    </span>
-                    <ChevronRightIcon className="w-4 h-4 text-gray-400" />
-                    <span className="font-medium text-gray-900">
+                    <ChevronRightIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <span className="font-medium text-gray-900 truncate flex-1">
                       {selectedLesson.title}
                     </span>
+                    {/* Unsaved indicator */}
+                    {hasUnsavedChanges && (
+                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                        Unsaved
+                      </span>
+                    )}
+                    {/* Fullscreen Toggle */}
+                    <button
+                      onClick={() => setIsFullscreen(!isFullscreen)}
+                      className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+                      title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                    >
+                      {isFullscreen ? (
+                        <ArrowsPointingInIcon className="w-5 h-5" />
+                      ) : (
+                        <ArrowsPointingOutIcon className="w-5 h-5" />
+                      )}
+                    </button>
                   </div>
-                  <CurriculumView
-                    questId={selectedQuest?.id}
-                    isAdmin={false}
-                    initialLessonId={selectedLesson.id}
-                    embedded={true}
-                  />
+                  <div className={isFullscreen ? 'h-[calc(100vh-57px)] overflow-y-auto' : ''}>
+                    <CurriculumView
+                      questId={selectedQuest?.id}
+                      lessons={selectedQuest?.lessons}
+                      isAdmin={false}
+                      initialLessonId={selectedLesson.id}
+                      initialStepIndex={initialStepIndex}
+                      embedded={true}
+                      onUnsavedChangesChange={setHasUnsavedChanges}
+                      onSaveProgress={setSaveProgressFn}
+                      onTaskClick={handleTaskClick}
+                      onStepChange={handleStepChange}
+                    />
+                  </div>
                 </div>
               ) : selectedQuest ? (
                 /* Quest Detail View */

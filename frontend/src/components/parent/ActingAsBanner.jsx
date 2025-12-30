@@ -2,26 +2,35 @@ import React, { useState } from 'react';
 import { UserCircleIcon, XMarkIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 /**
- * ActingAsBanner - Floating badge shown when parent is managing a dependent's account
+ * ActingAsBanner - Badge shown when parent is managing a dependent's account
  *
  * Displays when parent is acting as a dependent child
- * Positioned in bottom-right corner (opposite of masquerade banner)
+ * Can be inline (in sidebar) or fixed position (fallback)
  * Mobile-responsive: compact on small screens, expandable to show details
  * Provides quick way to understand current context
  */
-const ActingAsBanner = ({ dependent, onSwitchBack }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+const ActingAsBanner = ({ dependent, onSwitchBack, inline = false, isExpanded: controlledExpanded, onToggleExpand }) => {
+  const [internalExpanded, setInternalExpanded] = useState(false);
+
+  // Support both controlled and uncontrolled expansion
+  const isExpanded = controlledExpanded !== undefined ? controlledExpanded : internalExpanded;
+  const handleToggleExpand = onToggleExpand || (() => setInternalExpanded(prev => !prev));
 
   if (!dependent) {
     return null;
   }
 
+  // For inline mode (inside sidebar), use relative positioning
+  const containerClass = inline
+    ? "relative transition-all duration-300"
+    : "fixed bottom-4 left-4 z-[60] transition-all duration-300";
+
   return (
-    <div className="fixed bottom-4 left-4 z-[60] transition-all duration-300">
+    <div className={containerClass}>
       {/* Collapsed Badge - Compact for mobile */}
       {!isExpanded && (
         <button
-          onClick={() => setIsExpanded(true)}
+          onClick={() => handleToggleExpand()}
           className="flex items-center gap-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white px-3 py-2 sm:px-4 sm:py-3 rounded-lg shadow-lg hover:shadow-xl transition-all hover:scale-105"
         >
           <UserCircleIcon className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -34,7 +43,7 @@ const ActingAsBanner = ({ dependent, onSwitchBack }) => {
 
       {/* Expanded Badge - Shows full details */}
       {isExpanded && (
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg shadow-lg p-3 sm:p-4 min-w-[260px] sm:min-w-[300px] max-w-[90vw]">
+        <div className={`bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg shadow-lg p-3 sm:p-4 ${inline ? 'w-full' : 'min-w-[260px] sm:min-w-[300px] max-w-[90vw]'}`}>
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-2">
               <UserCircleIcon className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
@@ -43,7 +52,7 @@ const ActingAsBanner = ({ dependent, onSwitchBack }) => {
               </span>
             </div>
             <button
-              onClick={() => setIsExpanded(false)}
+              onClick={() => handleToggleExpand()}
               className="text-white/80 hover:text-white transition-colors"
             >
               <ChevronDownIcon className="w-4 h-4" />
