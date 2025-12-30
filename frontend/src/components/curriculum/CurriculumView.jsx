@@ -1189,7 +1189,9 @@ const CurriculumView = ({
   orderingMode = 'sequential', // 'sequential' or 'free'
   isAdmin = false,
   className = '',
-  questId // Optional: if provided, will fetch lessons automatically
+  questId, // Optional: if provided, will fetch lessons automatically
+  embedded = false, // When true, hides sidebar (used within CourseHomepage)
+  initialLessonId // Optional: auto-select this lesson on mount
 }) => {
   // Start collapsed on mobile, open on desktop
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
@@ -1279,6 +1281,13 @@ const CurriculumView = ({
       fetchData();
     }
   }, [questId, propLessons]);
+
+  // Handle initialLessonId prop
+  useEffect(() => {
+    if (initialLessonId && !propSelectedLessonId) {
+      setInternalSelectedId(initialLessonId);
+    }
+  }, [initialLessonId, propSelectedLessonId]);
 
   // Handle internal lesson selection
   const handleLessonSelect = (lesson) => {
@@ -1554,15 +1563,16 @@ const CurriculumView = ({
 
   return (
     <div className={`flex h-full relative ${className}`}>
-      {/* Mobile overlay when sidebar is open */}
-      {isSidebarOpen && (
+      {/* Mobile overlay when sidebar is open - hidden in embedded mode */}
+      {!embedded && isSidebarOpen && (
         <div
           className="md:hidden fixed inset-0 bg-black/30 z-10"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar - Lesson List */}
+      {/* Sidebar - Lesson List - hidden in embedded mode */}
+      {!embedded && (
       <div
         className={`
           ${isSidebarOpen ? 'w-80 min-w-[280px] max-w-[320px]' : 'w-0'}
@@ -1707,10 +1717,12 @@ const CurriculumView = ({
           </div>
         )}
       </div>
+      )}
 
       {/* Main Content - Lesson Viewer */}
       <div className="flex-1 flex flex-col bg-white overflow-hidden">
-        {/* Mobile Header Bar - Shows current lesson and toggle */}
+        {/* Mobile Header Bar - Shows current lesson and toggle - hidden in embedded mode */}
+        {!embedded && (
         <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-gray-200 bg-white">
           <button
             onClick={() => setIsSidebarOpen(true)}
@@ -1739,9 +1751,10 @@ const CurriculumView = ({
             </div>
           )}
         </div>
+        )}
 
-        {/* Desktop toggle button (hidden on mobile since we have header bar) */}
-        {!isSidebarOpen && (
+        {/* Desktop toggle button (hidden on mobile since we have header bar) - hidden in embedded mode */}
+        {!embedded && !isSidebarOpen && (
           <button
             onClick={() => setIsSidebarOpen(true)}
             className="hidden md:flex absolute top-4 left-4 z-10 p-2 bg-white rounded-lg shadow-lg border border-gray-200 hover:bg-gray-50"

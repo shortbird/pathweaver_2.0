@@ -27,8 +27,9 @@ const ExpandableQuestItem = ({
   selectedLessonId,
 }) => {
   const isCompleted = quest.progress?.is_completed
-  const progressText = quest.progress?.total_tasks > 0
-    ? `${quest.progress.completed_tasks}/${quest.progress.total_tasks}`
+  const hasXP = quest.progress?.total_xp > 0
+  const xpText = hasXP
+    ? `${quest.progress.earned_xp || 0}/${quest.progress.total_xp} XP`
     : null
 
   return (
@@ -69,15 +70,15 @@ const ExpandableQuestItem = ({
           <h4 className="font-medium text-gray-900 text-sm leading-snug truncate">
             {quest.title || 'Untitled Project'}
           </h4>
-          {progressText && (
-            <span className="text-xs text-gray-500">{progressText} tasks</span>
+          {xpText && (
+            <span className="text-xs text-gray-500">{xpText}</span>
           )}
         </div>
 
         {/* Completion Status */}
         {isCompleted ? (
           <CheckCircleSolid className="w-5 h-5 text-green-500 flex-shrink-0" />
-        ) : progressText ? (
+        ) : hasXP ? (
           <span className="text-xs text-gray-500 flex-shrink-0">
             {Math.round(quest.progress.percentage)}%
           </span>
@@ -383,11 +384,13 @@ const CourseHomepage = () => {
   }
 
   if (error) {
+    const errorMessage = error?.response?.data?.error || error?.message || 'Unknown error'
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <h2 className="text-xl font-bold text-gray-900 mb-2">Unable to load course</h2>
-          <p className="text-gray-600 mb-4">Please try again later</p>
+          <p className="text-gray-600 mb-2">Please try again later</p>
+          <p className="text-sm text-gray-400 mb-4 font-mono">{errorMessage}</p>
           <button
             onClick={() => navigate(-1)}
             className="px-4 py-2 bg-optio-purple text-white rounded-lg hover:opacity-90"
@@ -407,26 +410,22 @@ const CourseHomepage = () => {
       <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-2">
-            {/* Left: Back + Title */}
-            <div className="flex items-center gap-2 sm:gap-3">
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <ChevronLeftIcon className="w-5 h-5" />
-              </button>
-              <div className="min-w-0">
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
-                  {course.title}
-                </h1>
-              </div>
-            </div>
+            {/* Left: Back + Title (clickable together) */}
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="flex items-center gap-2 sm:gap-3 p-2 -ml-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors min-w-0"
+            >
+              <ChevronLeftIcon className="w-5 h-5 flex-shrink-0" />
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
+                {course.title}
+              </h1>
+            </button>
 
             {/* Right: Progress */}
             <div className="flex items-center gap-3 flex-shrink-0">
               <div className="hidden sm:flex items-center gap-2">
                 <span className="text-sm text-gray-600">
-                  {progress.completed_quests}/{progress.total_quests} projects
+                  {progress.earned_xp || 0}/{progress.total_xp || 0} XP
                 </span>
                 <div className="w-24 bg-gray-200 rounded-full h-2">
                   <div
@@ -467,11 +466,20 @@ const CourseHomepage = () => {
             )}
 
             <div className="bg-white rounded-xl border border-gray-200 p-4 h-full lg:max-h-[calc(100vh-150px)] lg:overflow-y-auto">
-              {/* Course Progress Summary */}
-              <div className="mb-4 p-3 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-lg">
-                <div className="flex justify-between text-sm mb-2">
+              {/* Course Progress Summary - Clickable to go to overview */}
+              <button
+                onClick={() => {
+                  setSelectedQuest(null)
+                  setSelectedLesson(null)
+                }}
+                className="w-full mb-4 p-3 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-lg hover:from-optio-purple/10 hover:to-optio-pink/10 transition-colors text-left"
+              >
+                <div className="flex justify-between text-sm mb-1">
                   <span className="text-gray-600">Course Progress</span>
                   <span className="font-semibold">{Math.round(progress.percentage)}%</span>
+                </div>
+                <div className="text-xs text-gray-500 mb-2">
+                  {progress.earned_xp || 0} / {progress.total_xp || 0} XP
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
@@ -479,7 +487,7 @@ const CourseHomepage = () => {
                     style={{ width: `${progress.percentage}%` }}
                   />
                 </div>
-              </div>
+              </button>
 
               {/* Projects List */}
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -534,6 +542,7 @@ const CourseHomepage = () => {
                     questId={selectedQuest?.id}
                     isAdmin={false}
                     initialLessonId={selectedLesson.id}
+                    embedded={true}
                   />
                 </div>
               ) : selectedQuest ? (

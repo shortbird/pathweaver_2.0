@@ -16,6 +16,10 @@ const createCroppedImage = async (imageSrc, pixelCrop) => {
   canvas.width = pixelCrop.width
   canvas.height = pixelCrop.height
 
+  // Fill with white background (JPEG doesn't support transparency)
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
   // Draw the cropped image
   ctx.drawImage(
     image,

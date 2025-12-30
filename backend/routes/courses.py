@@ -1015,7 +1015,7 @@ def get_course_homepage(user_id, course_id: str):
 
             # Get lessons for this quest
             lessons_result = client.table('curriculum_lessons')\
-                .select('id, title, sequence_order, xp_threshold, linked_task_ids, estimated_duration_minutes')\
+                .select('id, title, sequence_order, estimated_duration_minutes')\
                 .eq('quest_id', quest_id)\
                 .order('sequence_order')\
                 .execute()
@@ -1031,32 +1031,41 @@ def get_course_homepage(user_id, course_id: str):
 
             quest_enrollment = user_quest_result.data[0] if user_quest_result.data else None
 
-            # Get task completion counts
+            # Get task completion counts and XP
             completed_tasks = 0
             total_tasks = 0
+            earned_xp = 0
+            total_xp = 0
 
             if quest_enrollment:
                 enrollment_id = quest_enrollment['id']
 
-                # Get approved tasks for this enrollment
+                # Get approved tasks for this enrollment with XP values
                 user_tasks_result = client.table('user_quest_tasks')\
-                    .select('id')\
+                    .select('id, xp_value')\
                     .eq('user_quest_id', enrollment_id)\
                     .eq('approval_status', 'approved')\
                     .execute()
 
                 user_tasks = user_tasks_result.data or []
                 total_tasks = len(user_tasks)
+                total_xp = sum(t.get('xp_value', 0) or 0 for t in user_tasks)
 
                 if total_tasks > 0:
                     task_ids = [t['id'] for t in user_tasks]
+                    # Create a map of task_id -> xp_value for quick lookup
+                    task_xp_map = {t['id']: t.get('xp_value', 0) or 0 for t in user_tasks}
+
                     completions_result = client.table('quest_task_completions')\
-                        .select('id')\
+                        .select('user_quest_task_id')\
                         .eq('user_id', current_user_id)\
                         .in_('user_quest_task_id', task_ids)\
                         .execute()
 
-                    completed_tasks = len(completions_result.data or [])
+                    completions = completions_result.data or []
+                    completed_tasks = len(completions)
+                    # Sum XP from completed tasks using the task's xp_value
+                    earned_xp = sum(task_xp_map.get(c['user_quest_task_id'], 0) for c in completions)
 
             # Get lesson progress for this quest (non-blocking if table doesn't exist)
             lesson_progress_map = {}
@@ -1096,7 +1105,9 @@ def get_course_homepage(user_id, course_id: str):
                 'progress': {
                     'completed_tasks': completed_tasks,
                     'total_tasks': total_tasks,
-                    'percentage': round((completed_tasks / total_tasks * 100), 1) if total_tasks > 0 else 0,
+                    'earned_xp': earned_xp,
+                    'total_xp': total_xp,
+                    'percentage': round((earned_xp / total_xp * 100), 1) if total_xp > 0 else 0,
                     'is_completed': (quest_enrollment.get('completed_at') is not None and not quest_enrollment.get('is_active')) if quest_enrollment else False
                 }
             })
@@ -1110,10 +1121,14 @@ def get_course_homepage(user_id, course_id: str):
 
         enrollment = enrollment_result.data[0] if enrollment_result.data else None
 
-        # Calculate overall course progress
+        # Calculate overall course progress (XP-based)
         total_required_quests = len([q for q in quests_with_data if q.get('is_required', True)])
         completed_quests = len([q for q in quests_with_data if q['progress']['is_completed'] and q.get('is_required', True)])
-        course_progress = round((completed_quests / total_required_quests * 100), 1) if total_required_quests > 0 else 0
+
+        # Sum XP across all required quests
+        course_earned_xp = sum(q['progress']['earned_xp'] for q in quests_with_data if q.get('is_required', True))
+        course_total_xp = sum(q['progress']['total_xp'] for q in quests_with_data if q.get('is_required', True))
+        course_progress = round((course_earned_xp / course_total_xp * 100), 1) if course_total_xp > 0 else 0
 
         return jsonify({
             'success': True,
@@ -1130,10 +1145,13 @@ def get_course_homepage(user_id, course_id: str):
             'progress': {
                 'completed_quests': completed_quests,
                 'total_quests': total_required_quests,
+                'earned_xp': course_earned_xp,
+                'total_xp': course_total_xp,
                 'percentage': course_progress
             }
         }), 200
 
     except Exception as e:
-        logger.error(f"Error getting course homepage for {course_id}: {str(e)}")
+        import traceback
+        logger.error(f"Error getting course homepage for {course_id}: {str(e)}\n{traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
