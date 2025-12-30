@@ -1129,20 +1129,20 @@ def get_course_homepage(user_id, course_id: str):
 
             if all_linked_task_ids and quest_enrollment:
                 # Get user's tasks for this quest that are linked to lessons
+                # Note: curriculum_lesson_tasks.task_id references user_quest_tasks.id directly
                 enrollment_id = quest_enrollment['id']
                 user_tasks_result = client.table('user_quest_tasks')\
-                    .select('id, xp_value, task_template_id')\
+                    .select('id, xp_value')\
                     .eq('user_quest_id', enrollment_id)\
+                    .in_('id', all_linked_task_ids)\
                     .execute()
 
                 user_tasks = user_tasks_result.data or []
-                # Filter to only tasks linked to lessons (by template_id matching linked_task_ids)
-                linked_user_tasks = [t for t in user_tasks if t.get('task_template_id') in all_linked_task_ids]
-                total_tasks = len(linked_user_tasks)
+                total_tasks = len(all_linked_task_ids)
 
-                if linked_user_tasks:
-                    task_ids = [t['id'] for t in linked_user_tasks]
-                    task_xp_map = {t['id']: t.get('xp_value', 0) or 0 for t in linked_user_tasks}
+                if user_tasks:
+                    task_ids = [t['id'] for t in user_tasks]
+                    task_xp_map = {t['id']: t.get('xp_value', 0) or 0 for t in user_tasks}
 
                     completions_result = client.table('quest_task_completions')\
                         .select('user_quest_task_id')\
