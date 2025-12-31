@@ -644,9 +644,10 @@ const LessonEditorModal = ({ isOpen, questId, lesson, onSave, onClose }) => {
 }
 
 // Course Details Modal (edit title, description, cover image)
-const CourseDetailsModal = ({ isOpen, onClose, course, courseId, onUpdate, isSaving }) => {
+const CourseDetailsModal = ({ isOpen, onClose, course, courseId, onUpdate, onDelete, isSaving, isDeleting }) => {
   const [localTitle, setLocalTitle] = useState(course?.title || '')
   const [localDescription, setLocalDescription] = useState(course?.description || '')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   useEffect(() => {
     if (course) {
@@ -735,6 +736,52 @@ const CourseDetailsModal = ({ isOpen, onClose, course, courseId, onUpdate, isSav
               {course?.status || 'draft'}
             </span>
           </div>
+
+          {/* Danger Zone */}
+          <div className="border-t border-gray-200 pt-6 mt-6">
+            <h3 className="text-sm font-medium text-red-600 mb-3">Danger Zone</h3>
+            {!showDeleteConfirm ? (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium"
+              >
+                <TrashIcon className="w-4 h-4" />
+                Delete Course
+              </button>
+            ) : (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-sm text-red-800 mb-3">
+                  Are you sure you want to delete this course? This will permanently remove the course and all enrollments. This action cannot be undone.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    disabled={isDeleting}
+                    className="px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={onDelete}
+                    disabled={isDeleting}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <TrashIcon className="w-4 h-4" />
+                        Delete Permanently
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="p-6 border-t border-gray-200 flex gap-3 justify-end">
@@ -782,6 +829,7 @@ const CourseBuilder = () => {
   const [editingLesson, setEditingLesson] = useState(null) // null = not editing, 'new' = creating, or lesson object
   const [showLessonEditor, setShowLessonEditor] = useState(false)
   const [previewingLesson, setPreviewingLesson] = useState(null) // Lesson to preview
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // DnD sensors
   const sensors = useSensors(
@@ -1078,6 +1126,21 @@ const CourseBuilder = () => {
       } finally {
         setIsPublishing(false)
       }
+    }
+  }
+
+  // Delete course
+  const handleDeleteCourse = async () => {
+    try {
+      setIsDeleting(true)
+      await courseService.deleteCourse(courseId)
+      toast.success('Course deleted successfully')
+      navigate('/courses')
+    } catch (error) {
+      console.error('Failed to delete course:', error)
+      toast.error(error.response?.data?.error || 'Failed to delete course')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -1518,7 +1581,9 @@ const CourseBuilder = () => {
         course={course}
         courseId={courseId}
         onUpdate={handleUpdateCourse}
+        onDelete={handleDeleteCourse}
         isSaving={saveStatus === 'saving'}
+        isDeleting={isDeleting}
       />
 
       {/* Lesson Preview Modal */}

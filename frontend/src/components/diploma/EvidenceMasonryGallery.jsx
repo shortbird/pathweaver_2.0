@@ -9,6 +9,44 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
   const [selectedPillar, setSelectedPillar] = useState('all');
   const [selectedQuest, setSelectedQuest] = useState('all');
 
+  // Extract YouTube video ID and generate thumbnail URL
+  const getYouTubeThumbnail = (url) => {
+    if (!url) return null;
+    const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\s?]+)/;
+    const match = url.match(regex);
+    return match ? `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg` : null;
+  };
+
+  // Extract Vimeo video ID for thumbnail (uses vumbnail service)
+  const getVimeoThumbnail = (url) => {
+    if (!url) return null;
+    const regex = /vimeo\.com\/(\d+)/;
+    const match = url.match(regex);
+    return match ? `https://vumbnail.com/${match[1]}.jpg` : null;
+  };
+
+  // Get video thumbnail URL
+  const getVideoThumbnail = (url) => {
+    if (!url) return null;
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      return getYouTubeThumbnail(url);
+    }
+    if (url.includes('vimeo.com')) {
+      return getVimeoThumbnail(url);
+    }
+    return null;
+  };
+
+  // Get domain from URL for display
+  const getDomain = (url) => {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.hostname.replace('www.', '');
+    } catch {
+      return url;
+    }
+  };
+
   // Extract all evidence blocks from achievements
   const allEvidence = useMemo(() => {
     const evidence = [];
@@ -232,31 +270,70 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
                 {/* Evidence Content */}
                 <div className="p-4">
                   {item.block ? (
-                    // Render specific block
+                    // Render specific block - handle both old format (content.url) and new format (content.items)
                     <div className="evidence-preview">
-                      {item.block.block_type === 'image' && (
-                        <img
-                          src={item.block.content.url}
-                          alt={item.block.content.alt_text || 'Evidence'}
-                          className="w-full h-auto rounded-lg"
-                          loading="lazy"
-                        />
-                      )}
-                      {item.block.block_type === 'video' && (
-                        <div className="relative">
-                          <video
-                            src={item.block.content.url}
+                      {item.block.block_type === 'image' && (() => {
+                        const imageUrl = item.block.content.items?.[0]?.url || item.block.content.url;
+                        const altText = item.block.content.items?.[0]?.alt || item.block.content.alt_text || 'Evidence';
+                        if (!imageUrl) return <div className="text-gray-400 text-sm">No image available</div>;
+                        return (
+                          <img
+                            src={imageUrl}
+                            alt={altText}
                             className="w-full h-auto rounded-lg"
-                            controls={false}
-                            preload="metadata"
+                            loading="lazy"
                           />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/10 rounded-lg">
-                            <svg className="w-12 h-12 text-white opacity-90" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-                            </svg>
+                        );
+                      })()}
+                      {item.block.block_type === 'video' && (() => {
+                        const videoUrl = item.block.content.items?.[0]?.url || item.block.content.url;
+                        const videoTitle = item.block.content.items?.[0]?.title || item.block.content.title;
+                        if (!videoUrl) return <div className="text-gray-400 text-sm">No video available</div>;
+                        const thumbnailUrl = getVideoThumbnail(videoUrl);
+
+                        if (thumbnailUrl) {
+                          // Show thumbnail for YouTube/Vimeo
+                          return (
+                            <div className="relative">
+                              <img
+                                src={thumbnailUrl}
+                                alt={videoTitle || 'Video thumbnail'}
+                                className="w-full h-auto rounded-lg object-cover"
+                                loading="lazy"
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg hover:bg-black/30 transition-colors">
+                                <div className="w-14 h-14 bg-white/90 rounded-full flex items-center justify-center shadow-lg">
+                                  <svg className="w-7 h-7 text-optio-purple ml-1" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                                  </svg>
+                                </div>
+                              </div>
+                              {videoTitle && (
+                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 rounded-b-lg">
+                                  <p className="text-white text-sm font-medium truncate">{videoTitle}</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        // Fallback for direct video files
+                        return (
+                          <div className="relative">
+                            <video
+                              src={videoUrl}
+                              className="w-full h-auto rounded-lg"
+                              controls={false}
+                              preload="metadata"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/10 rounded-lg">
+                              <svg className="w-12 h-12 text-white opacity-90" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                              </svg>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                       {item.block.block_type === 'text' && (
                         <div className="prose prose-sm max-w-none">
                           <p className="text-gray-700 line-clamp-4">
@@ -264,36 +341,50 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
                           </p>
                         </div>
                       )}
-                      {item.block.block_type === 'link' && (
-                        <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                          <svg className="w-5 h-5 text-optio-purple flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                          </svg>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {item.block.content.title || 'Link'}
-                            </p>
-                            <p className="text-xs text-gray-500 truncate">
-                              {item.block.content.url}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      {item.block.block_type === 'document' && (
-                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                          <svg className="w-8 h-8 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                          </svg>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {item.block.content.filename || 'Document'}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Click to view
+                      {item.block.block_type === 'link' && (() => {
+                        const linkItem = item.block.content.items?.[0] || {
+                          url: item.block.content.url,
+                          title: item.block.content.title
+                        };
+                        if (!linkItem.url) return <div className="text-gray-400 text-sm">No link available</div>;
+                        const domain = getDomain(linkItem.url);
+                        return (
+                          <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                            <div className="flex items-center gap-2">
+                              <svg className="w-4 h-4 text-optio-purple flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                              </svg>
+                              <p className="text-sm font-medium text-gray-900 truncate flex-1">
+                                {linkItem.title || domain}
+                              </p>
+                            </div>
+                            <p className="text-xs text-optio-purple mt-1 truncate">
+                              {domain}
                             </p>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
+                      {item.block.block_type === 'document' && (() => {
+                        const docItem = item.block.content.items?.[0] || {
+                          filename: item.block.content.filename,
+                          title: item.block.content.title
+                        };
+                        return (
+                          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                            <svg className="w-8 h-8 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                            </svg>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {docItem.title || docItem.filename || 'Document'}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Click to view
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   ) : (
                     // Render legacy evidence

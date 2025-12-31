@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { CheckCircleIcon, ClockIcon, PlayIcon, DocumentTextIcon, LinkIcon, ArrowDownTrayIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
 import { getPillarData } from '../../utils/pillarMappings';
@@ -189,7 +189,6 @@ const LessonViewer = ({
   onUpdateProgress,
   isCompleting = false
 }) => {
-  const navigate = useNavigate();
   const [timeSpent, setTimeSpent] = useState(progress?.time_spent_seconds || 0);
   const timerRef = useRef(null);
   const startTimeRef = useRef(Date.now());
@@ -391,10 +390,10 @@ const LessonViewer = ({
             {linkedTasks.map((task) => {
               const pillarData = getPillarData(task.pillar || 'wellness');
               return (
-                <button
+                <Link
                   key={task.id}
-                  onClick={() => navigate(`/quests/${task.quest_id}`, { state: { selectedTaskId: task.id } })}
-                  className={`p-4 rounded-lg border-2 ${pillarData.border} ${pillarData.bg} text-left hover:shadow-md transition-all group`}
+                  to={`/quests/${task.quest_id}?task=${task.id}`}
+                  className={`block p-4 rounded-lg border-2 ${pillarData.border} ${pillarData.bg} text-left hover:shadow-md transition-colors transition-shadow duration-150 group`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -416,7 +415,7 @@ const LessonViewer = ({
                       <CheckCircleSolidIcon className="w-6 h-6 text-green-500 flex-shrink-0" />
                     )}
                   </div>
-                </button>
+                </Link>
               );
             })}
           </div>

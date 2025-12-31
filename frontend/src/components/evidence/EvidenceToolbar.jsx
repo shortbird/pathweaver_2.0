@@ -1,5 +1,75 @@
 import React from 'react';
+import { CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 import { useEvidenceEditor } from './EvidenceEditorContext';
+
+// Standalone save status indicator component for use anywhere
+export const SaveStatusIndicator = ({ saveStatus, lastSaved, size = 'sm' }) => {
+  const sizeClasses = {
+    sm: 'text-xs',
+    md: 'text-sm',
+    lg: 'text-base'
+  };
+
+  const iconSizes = {
+    sm: 'w-3.5 h-3.5',
+    md: 'w-4 h-4',
+    lg: 'w-5 h-5'
+  };
+
+  const spinnerSizes = {
+    sm: 'w-3 h-3 border',
+    md: 'w-4 h-4 border-2',
+    lg: 'w-5 h-5 border-2'
+  };
+
+  if (saveStatus === 'saving') {
+    return (
+      <div className={`flex items-center gap-2 ${sizeClasses[size]} text-gray-600`}>
+        <div className={`${spinnerSizes[size]} border-optio-purple border-t-transparent rounded-full animate-spin`} />
+        <span className="font-medium">Saving...</span>
+      </div>
+    );
+  }
+
+  if (saveStatus === 'saved') {
+    const timeString = lastSaved
+      ? lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '';
+    return (
+      <div className={`flex items-center gap-2 ${sizeClasses[size]} text-green-600`}>
+        <CheckCircleIcon className={iconSizes[size]} />
+        <span className="font-medium">All changes saved</span>
+        {timeString && <span className="text-gray-400">({timeString})</span>}
+      </div>
+    );
+  }
+
+  if (saveStatus === 'unsaved') {
+    return (
+      <div className={`flex items-center gap-2 ${sizeClasses[size]} text-amber-600`}>
+        <div className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse" />
+        <span className="font-medium">Saving changes...</span>
+      </div>
+    );
+  }
+
+  if (saveStatus === 'error') {
+    return (
+      <div className={`flex items-center gap-2 ${sizeClasses[size]} text-red-600`}>
+        <ExclamationCircleIcon className={iconSizes[size]} />
+        <span className="font-medium">Save failed</span>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+// Context-connected save status (for use within EvidenceEditorProvider)
+export const ConnectedSaveStatus = ({ size = 'sm' }) => {
+  const { saveStatus, lastSaved } = useEvidenceEditor();
+  return <SaveStatusIndicator saveStatus={saveStatus} lastSaved={lastSaved} size={size} />;
+};
 
 export const EvidenceToolbar = ({ hideHeader }) => {
   const {
@@ -8,38 +78,8 @@ export const EvidenceToolbar = ({ hideHeader }) => {
     documentStatus
   } = useEvidenceEditor();
 
-  // Update parent container with save status when hideHeader is true
-  React.useEffect(() => {
-    if (hideHeader) {
-      const container = document.getElementById('evidence-save-status');
-      if (container) {
-        // Clear existing content
-        container.innerHTML = '';
-
-        // Create save status elements
-        if (saveStatus === 'saving') {
-          container.innerHTML = `
-            <div class="w-3 h-3 border-2 border-optio-purple border-t-transparent rounded-full animate-spin"></div>
-            <span class="text-gray-600">Saving...</span>
-          `;
-        } else if (saveStatus === 'saved') {
-          const timeString = lastSaved ? lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-          container.innerHTML = `
-            <svg class="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-            </svg>
-            <span class="text-green-600">Saved ${timeString}</span>
-          `;
-        } else if (saveStatus === 'unsaved') {
-          container.innerHTML = `
-            <div class="w-2 h-2 bg-orange-400 rounded-full"></div>
-            <span class="text-orange-600">Unsaved changes</span>
-          `;
-        }
-      }
-    }
-  }, [hideHeader, saveStatus, lastSaved]);
-
+  // When hideHeader is true, we don't render the toolbar but we still need
+  // to provide the save status to the parent via context
   if (hideHeader) {
     return null;
   }
@@ -49,40 +89,12 @@ export const EvidenceToolbar = ({ hideHeader }) => {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <h3 className="text-lg font-semibold text-gray-900">Evidence Document</h3>
-          <div className="flex items-center gap-2 text-sm">
-            {saveStatus === 'saving' && (
-              <>
-                <div className="w-4 h-4 border-2 border-optio-purple border-t-transparent rounded-full animate-spin"></div>
-                <span className="text-gray-600">Saving...</span>
-              </>
-            )}
-            {saveStatus === 'saved' && (
-              <>
-                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-green-600">Saved</span>
-                {lastSaved && (
-                  <span className="text-gray-500">
-                    {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
-              </>
-            )}
-            {saveStatus === 'unsaved' && (
-              <>
-                <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
-                <span className="text-orange-600">Unsaved changes</span>
-              </>
-            )}
-          </div>
+          <SaveStatusIndicator saveStatus={saveStatus} lastSaved={lastSaved} size="sm" />
         </div>
 
         {documentStatus === 'completed' && (
           <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-lg">
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
+            <CheckCircleIcon className="w-5 h-5" />
             <span className="font-medium">Task Completed</span>
           </div>
         )}

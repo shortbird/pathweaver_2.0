@@ -78,7 +78,7 @@ const ExpandableQuestItem = ({
         </div>
 
         {/* Completion Status */}
-        {isCompleted ? (
+        {isCompleted || quest.progress?.percentage >= 100 ? (
           <CheckCircleSolid className="w-5 h-5 text-green-500 flex-shrink-0" />
         ) : hasXP ? (
           <span className="text-xs text-gray-500 flex-shrink-0">
@@ -150,14 +150,25 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
               <span className="text-gray-600">
                 {progress.completed_quests} of {progress.total_quests} projects completed
               </span>
-              <span className="font-semibold text-gray-900">
-                {Math.round(progress.percentage)}%
-              </span>
+              {progress.percentage >= 100 ? (
+                <span className="inline-flex items-center gap-1 font-semibold text-green-600">
+                  <CheckCircleSolid className="w-5 h-5" />
+                  Complete
+                </span>
+              ) : (
+                <span className="font-semibold text-gray-900">
+                  {Math.round(progress.percentage)}%
+                </span>
+              )}
             </div>
             <div className="w-full bg-gray-200 rounded-full h-3">
               <div
-                className="bg-gradient-to-r from-optio-purple to-optio-pink h-3 rounded-full transition-all duration-300"
-                style={{ width: `${progress.percentage}%` }}
+                className={`h-3 rounded-full transition-all duration-300 ${
+                  progress.percentage >= 100
+                    ? 'bg-green-500'
+                    : 'bg-gradient-to-r from-optio-purple to-optio-pink'
+                }`}
+                style={{ width: `${Math.min(100, progress.percentage)}%` }}
               />
             </div>
           </div>
@@ -192,7 +203,7 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
 
                   {/* Progress */}
                   <div className="mt-3 flex items-center gap-2">
-                    {isCompleted ? (
+                    {isCompleted || quest.progress?.percentage >= 100 ? (
                       <span className="inline-flex items-center gap-1 text-sm text-green-600 font-medium">
                         <CheckCircleSolid className="w-4 h-4" />
                         Completed
@@ -247,14 +258,25 @@ const QuestDetail = ({ quest, onSelectLesson, onStartQuest }) => {
             <span className="text-gray-600">
               {quest.progress.completed_tasks} of {quest.progress.total_tasks} tasks completed
             </span>
-            <span className="font-semibold text-gray-900">
-              {Math.round(quest.progress.percentage)}%
-            </span>
+            {quest.progress.percentage >= 100 || isCompleted ? (
+              <span className="inline-flex items-center gap-1 font-semibold text-green-600">
+                <CheckCircleSolid className="w-5 h-5" />
+                Complete
+              </span>
+            ) : (
+              <span className="font-semibold text-gray-900">
+                {Math.round(quest.progress.percentage)}%
+              </span>
+            )}
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
-              className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full transition-all"
-              style={{ width: `${quest.progress.percentage}%` }}
+              className={`h-2 rounded-full transition-all ${
+                quest.progress.percentage >= 100 || isCompleted
+                  ? 'bg-green-500'
+                  : 'bg-gradient-to-r from-optio-purple to-optio-pink'
+              }`}
+              style={{ width: `${Math.min(100, quest.progress.percentage)}%` }}
             />
           </div>
         </div>
@@ -442,19 +464,15 @@ const CourseHomepage = () => {
   }
 
   const handleTaskClick = (task) => {
-    if (selectedQuest && selectedLesson) {
-      // Navigate to quest page with return state so back button works
-      navigate(`/quests/${selectedQuest.id}?task=${task.id}`, {
-        state: {
-          returnTo: {
-            pathname: `/courses/${courseId}`,
-            search: `?quest=${selectedQuest.id}&lesson=${selectedLesson.id}&step=${currentStepIndex}`,
-          }
-        }
-      })
-    } else if (selectedQuest) {
-      navigate(`/quests/${selectedQuest.id}?task=${task.id}`)
+    // Store return info in sessionStorage for back navigation
+    // Navigation is handled by the Link component in CurriculumView
+    const returnInfo = {
+      pathname: `/courses/${courseId}`,
+      search: `?quest=${selectedQuest?.id}&lesson=${selectedLesson?.id}&step=${currentStepIndex}`,
+      lessonTitle: selectedLesson?.title,
+      questTitle: selectedQuest?.title
     }
+    sessionStorage.setItem('courseTaskReturnInfo', JSON.stringify(returnInfo))
   }
 
   const handleBackToOverview = () => {
@@ -542,15 +560,24 @@ const CourseHomepage = () => {
             {/* Right: Progress */}
             <div className="flex items-center gap-3 flex-shrink-0">
               <div className="hidden sm:flex items-center gap-2">
-                <span className="text-sm text-gray-600">
-                  {progress.earned_xp || 0}/{progress.total_xp || 0} XP
-                </span>
-                <div className="w-24 bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full"
-                    style={{ width: `${progress.percentage}%` }}
-                  />
-                </div>
+                {progress.percentage >= 100 ? (
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-600">
+                    <CheckCircleSolid className="w-5 h-5" />
+                    Complete
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-sm text-gray-600">
+                      {progress.earned_xp || 0}/{progress.total_xp || 0} XP
+                    </span>
+                    <div className="w-24 bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full"
+                        style={{ width: `${progress.percentage}%` }}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Mobile Sidebar Toggle */}
@@ -594,15 +621,26 @@ const CourseHomepage = () => {
               >
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-gray-600">Course Progress</span>
-                  <span className="font-semibold">{Math.round(progress.percentage)}%</span>
+                  {progress.percentage >= 100 ? (
+                    <span className="inline-flex items-center gap-1 font-semibold text-green-600">
+                      <CheckCircleSolid className="w-4 h-4" />
+                      Complete
+                    </span>
+                  ) : (
+                    <span className="font-semibold">{Math.round(progress.percentage)}%</span>
+                  )}
                 </div>
                 <div className="text-xs text-gray-500 mb-2">
                   {progress.earned_xp || 0} / {progress.total_xp || 0} XP
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
-                    className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full"
-                    style={{ width: `${progress.percentage}%` }}
+                    className={`h-2 rounded-full ${
+                      progress.percentage >= 100
+                        ? 'bg-green-500'
+                        : 'bg-gradient-to-r from-optio-purple to-optio-pink'
+                    }`}
+                    style={{ width: `${Math.min(100, progress.percentage)}%` }}
                   />
                 </div>
               </button>

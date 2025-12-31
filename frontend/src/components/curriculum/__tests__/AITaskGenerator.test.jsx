@@ -2,32 +2,48 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AITaskGenerator from '../AITaskGenerator'
+import api from '../../../services/api'
 
-// Mock API
-global.fetch = vi.fn()
+// Mock API service
+vi.mock('../../../services/api', () => ({
+  default: {
+    post: vi.fn()
+  }
+}))
+
+// Mock react-hot-toast
+vi.mock('react-hot-toast', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn()
+  }
+}))
 
 describe('AITaskGenerator Component', () => {
   const defaultProps = {
     questId: 'quest-123',
     lessonId: 'lesson-456',
-    lessonContent: 'Sample lesson content about mathematics',
-    onTasksGenerated: vi.fn()
+    onTasksAdded: vi.fn()
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
-    global.fetch.mockReset()
   })
 
   describe('Basic Rendering', () => {
     it('renders generate button', () => {
       render(<AITaskGenerator {...defaultProps} />)
-      expect(screen.getByRole('button', { name: /generate/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /generate tasks from lesson/i })).toBeInTheDocument()
     })
 
-    it('shows task count selector', () => {
+    it('shows task count input', () => {
       render(<AITaskGenerator {...defaultProps} />)
-      expect(screen.getByLabelText(/number of tasks/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/number of tasks to generate/i)).toBeInTheDocument()
+    })
+
+    it('renders AI Task Generator heading', () => {
+      render(<AITaskGenerator {...defaultProps} />)
+      expect(screen.getByText('AI Task Generator')).toBeInTheDocument()
     })
   })
 
@@ -35,22 +51,24 @@ describe('AITaskGenerator Component', () => {
     it('calls API when generate button is clicked', async () => {
       const user = userEvent.setup()
       const mockTasks = [
-        { title: 'Task 1', description: 'Description 1', pillar: 'stem', estimated_xp: 100 }
+        { title: 'Task 1', description: 'Description 1', pillar: 'Growth Mindset', xp_value: 50 }
       ]
 
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, tasks: mockTasks })
+      api.post.mockResolvedValueOnce({
+        data: { success: true, tasks: mockTasks }
       })
 
       render(<AITaskGenerator {...defaultProps} />)
 
-      await user.click(screen.getByRole('button', { name: /generate/i }))
+      await user.click(screen.getByRole('button', { name: /generate tasks from lesson/i }))
 
       await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining('/curriculum/lessons/lesson-456/generate-tasks'),
-          expect.objectContaining({ method: 'POST' })
+        expect(api.post).toHaveBeenCalledWith(
+          '/api/lessons/lesson-456/generate-tasks',
+          expect.objectContaining({
+            count: 3,
+            quest_id: 'quest-123'
+          })
         )
       })
     })
@@ -58,17 +76,16 @@ describe('AITaskGenerator Component', () => {
     it('displays generated tasks', async () => {
       const user = userEvent.setup()
       const mockTasks = [
-        { title: 'Math Task', description: 'Solve equations', pillar: 'stem', estimated_xp: 100 }
+        { title: 'Math Task', description: 'Solve equations', pillar: 'Growth Mindset', xp_value: 50 }
       ]
 
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, tasks: mockTasks })
+      api.post.mockResolvedValueOnce({
+        data: { success: true, tasks: mockTasks }
       })
 
       render(<AITaskGenerator {...defaultProps} />)
 
-      await user.click(screen.getByRole('button', { name: /generate/i }))
+      await user.click(screen.getByRole('button', { name: /generate tasks from lesson/i }))
 
       await waitFor(() => {
         expect(screen.getByText('Math Task')).toBeInTheDocument()
@@ -78,13 +95,36 @@ describe('AITaskGenerator Component', () => {
     it('shows loading state during generation', async () => {
       const user = userEvent.setup()
 
-      global.fetch.mockImplementationOnce(() => new Promise(() => {}))
+      // Never resolve the promise to keep loading state
+      api.post.mockImplementationOnce(() => new Promise(() => {}))
 
       render(<AITaskGenerator {...defaultProps} />)
 
-      await user.click(screen.getByRole('button', { name: /generate/i }))
+      await user.click(screen.getByRole('button', { name: /generate tasks from lesson/i }))
 
-      expect(screen.getByText(/generating/i)).toBeInTheDocument()
+      expect(screen.getByText(/generating tasks/i)).toBeInTheDocument()
+    })
+
+    it('respects task count input', async () => {
+      const user = userEvent.setup()
+
+      api.post.mockResolvedValueOnce({
+        data: { success: true, tasks: [] }
+      })
+
+      render(<AITaskGenerator {...defaultProps} />)
+
+      const input = screen.getByLabelText(/number of tasks to generate/i)
+      await user.clear(input)
+      await user.type(input, '5')
+      await user.click(screen.getByRole('button', { name: /generate tasks from lesson/i }))
+
+      await waitFor(() => {
+        expect(api.post).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({ count: 5 })
+        )
+      })
     })
   })
 
@@ -92,43 +132,93 @@ describe('AITaskGenerator Component', () => {
     it('displays error message on API failure', async () => {
       const user = userEvent.setup()
 
-      global.fetch.mockRejectedValueOnce(new Error('API Error'))
+      api.post.mockRejectedValueOnce(new Error('API Error'))
 
       render(<AITaskGenerator {...defaultProps} />)
 
-      await user.click(screen.getByRole('button', { name: /generate/i }))
+      await user.click(screen.getByRole('button', { name: /generate tasks from lesson/i }))
 
       await waitFor(() => {
-        expect(screen.getByText(/error/i)).toBeInTheDocument()
+        expect(screen.getByText(/generation failed/i)).toBeInTheDocument()
       })
     })
 
-    it('handles missing lesson content', () => {
-      render(<AITaskGenerator {...defaultProps} lessonContent="" />)
-      expect(screen.getByRole('button')).toBeDisabled()
+    it('shows retry button on error', async () => {
+      const user = userEvent.setup()
+
+      api.post.mockRejectedValueOnce(new Error('API Error'))
+
+      render(<AITaskGenerator {...defaultProps} />)
+
+      await user.click(screen.getByRole('button', { name: /generate tasks from lesson/i }))
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+      })
     })
   })
 
-  describe('Task Selection', () => {
-    it('allows selecting individual tasks', async () => {
+  describe('Task Actions', () => {
+    it('allows accepting tasks', async () => {
       const user = userEvent.setup()
       const mockTasks = [
-        { title: 'Task 1', description: 'Desc 1', pillar: 'stem', estimated_xp: 100 }
+        { title: 'Task 1', description: 'Desc 1', pillar: 'Growth Mindset', xp_value: 50 }
       ]
 
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, tasks: mockTasks })
+      api.post.mockResolvedValueOnce({
+        data: { success: true, tasks: mockTasks }
       })
 
       render(<AITaskGenerator {...defaultProps} />)
 
-      await user.click(screen.getByRole('button', { name: /generate/i }))
+      await user.click(screen.getByRole('button', { name: /generate tasks from lesson/i }))
 
       await waitFor(() => {
-        const checkbox = screen.getByRole('checkbox')
-        expect(checkbox).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /accept task/i })).toBeInTheDocument()
       })
+    })
+
+    it('allows rejecting tasks', async () => {
+      const user = userEvent.setup()
+      const mockTasks = [
+        { title: 'Task 1', description: 'Desc 1', pillar: 'Growth Mindset', xp_value: 50 }
+      ]
+
+      api.post.mockResolvedValueOnce({
+        data: { success: true, tasks: mockTasks }
+      })
+
+      render(<AITaskGenerator {...defaultProps} />)
+
+      await user.click(screen.getByRole('button', { name: /generate tasks from lesson/i }))
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /reject task/i })).toBeInTheDocument()
+      })
+    })
+
+    it('shows Add to Quest button after accepting tasks', async () => {
+      const user = userEvent.setup()
+      const mockTasks = [
+        { title: 'Task 1', description: 'Desc 1', pillar: 'Growth Mindset', xp_value: 50 }
+      ]
+
+      api.post.mockResolvedValueOnce({
+        data: { success: true, tasks: mockTasks }
+      })
+
+      render(<AITaskGenerator {...defaultProps} />)
+
+      await user.click(screen.getByRole('button', { name: /generate tasks from lesson/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText('Task 1')).toBeInTheDocument()
+      })
+
+      // Accept the task
+      await user.click(screen.getByRole('button', { name: /accept task/i }))
+
+      expect(screen.getByRole('button', { name: /add 1 task to quest/i })).toBeInTheDocument()
     })
   })
 })

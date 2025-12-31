@@ -18,7 +18,6 @@ const QuestCompletionCelebration = lazy(() => import('../components/quest/QuestC
 const TaskTimeline = lazy(() => import('../components/quest/TaskTimeline'));
 const TaskWorkspace = lazy(() => import('../components/quest/TaskWorkspace'));
 const RestartQuestModal = lazy(() => import('../components/quest/RestartQuestModal'));
-const CurriculumView = lazy(() => import('../components/curriculum/CurriculumView'));
 
 // Loading spinner
 const LoadingFallback = () => (
@@ -88,7 +87,6 @@ const QuestDetail = () => {
   const [taskDetailToShow, setTaskDetailToShow] = React.useState(null);
   const [droppingTaskId, setDroppingTaskId] = React.useState(null);
   const [showMobileDrawer, setShowMobileDrawer] = React.useState(false);
-  const [showCurriculumModal, setShowCurriculumModal] = React.useState(false);
 
   const { earnedXP } = xpData;
 
@@ -271,6 +269,10 @@ const QuestDetail = () => {
       logger.debug('[QUEST_DETAIL] flushSync completed - all updates should be synchronous');
     }
 
+    // Invalidate course cache so XP updates immediately when navigating back
+    logger.debug('[QUEST_DETAIL] Invalidating course cache for XP update');
+    queryKeys.invalidateCourses(queryClient);
+
     logger.debug('[QUEST_DETAIL] Closing modal and clearing selectedTask');
     setShowTaskModal(false);
     setSelectedTask(null);
@@ -402,11 +404,10 @@ const QuestDetail = () => {
         isQuestCompleted={isQuestCompleted}
         onEndQuest={handleEndQuest}
         endQuestMutation={endQuestMutation}
-        onShowCurriculum={() => setShowCurriculumModal(true)}
       />
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {/* Enrollment and Sample/Preset Tasks */}
         <QuestEnrollment
           quest={quest}
@@ -418,80 +419,22 @@ const QuestDetail = () => {
           onPreloadWizard={preloadWizard}
         />
 
-        {/* Task Display - Two Column Layout */}
+        {/* Task Display - Single Container with Integrated Task List */}
         {quest.user_enrollment && quest.quest_tasks && quest.quest_tasks.length > 0 && (
-          <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-400px)] min-h-[600px]">
-            {/* Mobile: Hamburger Menu Button */}
-            <button
-              onClick={() => setShowMobileDrawer(true)}
-              className="md:hidden fixed bottom-6 left-6 z-40 w-14 h-14 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-
-            {/* Task Timeline (22%) */}
-            <div className="w-full md:w-[22%] bg-white rounded-xl shadow-md overflow-hidden hidden md:block">
-              <Suspense fallback={<LoadingFallback />}>
-                <TaskTimeline
-                  tasks={quest.quest_tasks}
-                  selectedTaskId={selectedTask?.id}
-                  onTaskSelect={handleTaskSelect}
-                  onTaskReorder={handleTaskReorder}
-                  onAddTask={() => setShowPersonalizationWizard(true)}
-                  onRemoveTask={handleDropTask}
-                  onPreloadWizard={preloadWizard}
-                  displayMode={displayMode}
-                  onDisplayModeChange={handleDisplayModeChange}
-                />
-              </Suspense>
-            </div>
-
-            {/* Task Workspace (78%) */}
-            <div className="flex-1 bg-white rounded-xl shadow-md overflow-hidden">
-              <Suspense fallback={<LoadingFallback />}>
-                <TaskWorkspace
-                  task={selectedTask}
-                  questId={quest.id}
-                  onTaskComplete={handleTaskCompletion}
-                  onClose={() => setSelectedTask(null)}
-                />
-              </Suspense>
-            </div>
-
-            {/* Mobile Drawer */}
-            {showMobileDrawer && (
-              <div className="fixed inset-0 z-50 md:hidden">
-                <div
-                  className="absolute inset-0 bg-black bg-opacity-50"
-                  onClick={() => setShowMobileDrawer(false)}
-                  role="button"
-                  tabIndex="0"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setShowMobileDrawer(false);
-                    }
-                  }}
-                  aria-label="Close mobile drawer"
-                />
-                <div className="absolute left-0 top-0 bottom-0 w-80 bg-white shadow-xl">
-                  <Suspense fallback={<LoadingFallback />}>
-                    <TaskTimeline
-                      tasks={quest.quest_tasks}
-                      selectedTaskId={selectedTask?.id}
-                      onTaskSelect={handleTaskSelect}
-                      onTaskReorder={handleTaskReorder}
-                      onAddTask={() => setShowPersonalizationWizard(true)}
-                      onPreloadWizard={preloadWizard}
-                      displayMode={displayMode}
-                      onDisplayModeChange={handleDisplayModeChange}
-                    />
-                  </Suspense>
-                </div>
-              </div>
-            )}
+          <div className="bg-white rounded-xl shadow-md overflow-hidden h-[calc(100vh-180px)] min-h-[500px]">
+            <Suspense fallback={<LoadingFallback />}>
+              <TaskWorkspace
+                task={selectedTask}
+                tasks={quest.quest_tasks}
+                questId={quest.id}
+                onTaskSelect={handleTaskSelect}
+                onTaskReorder={handleTaskReorder}
+                onTaskComplete={handleTaskCompletion}
+                onAddTask={() => setShowPersonalizationWizard(true)}
+                onRemoveTask={handleDropTask}
+                onClose={() => setSelectedTask(null)}
+              />
+            </Suspense>
           </div>
         )}
       </div>
@@ -564,44 +507,6 @@ const QuestDetail = () => {
         />
       </Suspense>
 
-      {/* Curriculum Modal */}
-      {showCurriculumModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setShowCurriculumModal(false)} />
-          <div className="relative min-h-screen flex items-center justify-center p-4">
-            <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
-              {/* Modal Header */}
-              <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>
-                  {quest?.title}
-                </h2>
-                <button
-                  onClick={() => setShowCurriculumModal(false)}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              {/* Modal Body */}
-              <div className="h-[calc(90vh-80px)]">
-                <Suspense fallback={<LoadingFallback />}>
-                  <CurriculumView
-                    questId={id}
-                    isAdmin={user?.role === 'school_admin' || user?.role === 'advisor' || user?.role === 'superadmin'}
-                    onTaskClick={(task) => {
-                      // Close curriculum modal and select the task on quest page
-                      setShowCurriculumModal(false);
-                      setSelectedTask(task);
-                    }}
-                  />
-                </Suspense>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

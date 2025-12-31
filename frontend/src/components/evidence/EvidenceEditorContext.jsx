@@ -34,6 +34,7 @@ export const EvidenceEditorProvider = ({
   const [collapsedBlocks, setCollapsedBlocks] = useState(new Set()); // Collapsed block IDs
   const [hasLegacyEvidence, setHasLegacyEvidence] = useState(false); // Track if we loaded legacy Spark evidence
   const autoSaverRef = useRef(null);
+  const skipNextAutoSaveRef = useRef(false); // Skip auto-save after manual save
 
   const cleanBlocksForSave = useCallback((blocksToClean) => {
     return blocksToClean.map(block => {
@@ -132,10 +133,19 @@ export const EvidenceEditorProvider = ({
     }
   }, [taskId, legacyEvidenceText, onError]);
 
-  // Initialize auto-saver and load document
-  useEffect(() => {
-    loadDocument();
+  // Load document on mount only - track loaded taskId to prevent re-loading
+  const loadedTaskIdRef = useRef(null);
 
+  useEffect(() => {
+    // Only load if this is a different task than we already loaded
+    if (loadedTaskIdRef.current !== taskId) {
+      loadedTaskIdRef.current = taskId;
+      loadDocument();
+    }
+  }, [taskId, loadDocument]);
+
+  // Initialize auto-saver separately
+  useEffect(() => {
     if (autoSaveEnabled) {
       autoSaverRef.current = evidenceDocumentService.createAutoSaver(
         taskId,
@@ -144,8 +154,11 @@ export const EvidenceEditorProvider = ({
           setLastSaved(new Date());
 
           // Update block IDs with real database UUIDs from save response
-          if (result.blocks && Array.isArray(result.blocks)) {
+          if (result.blocks && Array.isArray(result.blocks) && result.blocks.length > 0) {
             setBlocks(prevBlocks => {
+              // Only update if we have blocks to update
+              if (prevBlocks.length === 0) return prevBlocks;
+
               return prevBlocks.map((block, index) => {
                 // Find matching saved block by order_index
                 const savedBlock = result.blocks.find(sb => sb.order_index === index);
@@ -173,10 +186,17 @@ export const EvidenceEditorProvider = ({
         autoSaverRef.current.clearAutoSave();
       }
     };
-  }, [taskId, autoSaveEnabled, loadDocument, onError]);
+  }, [taskId, autoSaveEnabled, onError]);
 
   // Auto-save when blocks change (but NOT if task is completed)
   useEffect(() => {
+    // Skip if we just did a manual save
+    if (skipNextAutoSaveRef.current) {
+      skipNextAutoSaveRef.current = false;
+      logger.debug('[EVIDENCE] Skipping auto-save - manual save just completed');
+      return;
+    }
+
     // Debug logging for auto-save behavior
     logger.debug('[EVIDENCE] Auto-save check:', {
       isLoading,
@@ -240,6 +260,7 @@ export const EvidenceEditorProvider = ({
 
     // Refs
     autoSaverRef,
+    skipNextAutoSaveRef,
 
     // Methods
     cleanBlocksForSave,

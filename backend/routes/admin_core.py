@@ -391,17 +391,12 @@ def delete_user_account(admin_id, user_id):
         supabase.table('user_quests').delete().eq('user_id', user_id).execute()
         
         # Delete user profile
+        # Note: AFTER DELETE trigger automatically syncs deletion to auth.users
         response = supabase.table('users').delete().eq('id', user_id).execute()
-        
+
         if not response.data:
             return jsonify({'error': 'User not found'}), 404
-        
-        # Delete from auth.users
-        try:
-            supabase.auth.admin.delete_user(user_id)
-        except Exception as e:
-            logger.warning(f"Warning: Could not delete from auth.users: {e}")
-        
+
         return jsonify({'message': 'User account deleted successfully'}), 200
         
     except Exception as e:

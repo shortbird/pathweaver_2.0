@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useQuestDetail, useEnrollQuest, useCompleteTask, useEndQuest } from './api/useQuests';
 import { normalizePillarKey } from '../utils/pillarMappings';
@@ -14,6 +14,7 @@ import logger from '../utils/logger';
 export const useQuestDetailData = (questId) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
   // React Query hooks for data fetching
@@ -106,17 +107,30 @@ export const useQuestDetailData = (questId) => {
     }
   }, [location.state, questId, queryClient, refetchQuest, navigate, location.pathname]);
 
-  // Auto-select first task when quest loads
+  // Select task - either from URL param or auto-select first task
+  const taskIdFromUrl = searchParams.get('task');
+  const lastProcessedTaskIdRef = useRef(null);
+
   useEffect(() => {
-    if (quest?.quest_tasks?.length > 0 && !selectedTask && quest.user_enrollment) {
-      logger.debug('[QUEST_DETAIL] Auto-selecting first task:', {
-        id: quest.quest_tasks[0]?.id?.substring(0, 8),
-        title: quest.quest_tasks[0]?.title,
-        is_completed: quest.quest_tasks[0]?.is_completed
-      });
-      setSelectedTask(quest.quest_tasks[0]);
+    if (!quest?.quest_tasks?.length || !quest.user_enrollment) return;
+
+    // If URL has a task ID, select that task (only if it's a new/different task ID)
+    if (taskIdFromUrl && lastProcessedTaskIdRef.current !== taskIdFromUrl) {
+      const task = quest.quest_tasks.find(t => t.id === taskIdFromUrl);
+      if (task) {
+        lastProcessedTaskIdRef.current = taskIdFromUrl;
+        setSelectedTask(task);
+        return;
+      }
     }
-  }, [quest?.quest_tasks, quest?.user_enrollment, selectedTask]);
+
+    // Otherwise, auto-select first incomplete task (or first task) if none selected and no URL param
+    if (!selectedTask && !taskIdFromUrl) {
+      const firstIncomplete = quest.quest_tasks.find(t => !t.is_completed);
+      const taskToSelect = firstIncomplete || quest.quest_tasks[0];
+      setSelectedTask(taskToSelect);
+    }
+  }, [quest?.quest_tasks, quest?.user_enrollment, selectedTask, taskIdFromUrl]);
 
   // Progress calculations
   const totalTasks = quest?.quest_tasks?.length || 0;

@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { getPillarData } from '../../utils/pillarMappings';
 import { getQuestHeaderImageSync } from '../../utils/questSourceConfig';
-import { MapPinIcon, CalendarIcon, ArrowTopRightOnSquareIcon, BookOpenIcon, ArrowLeftIcon, AcademicCapIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { MapPinIcon, CalendarIcon, ArrowTopRightOnSquareIcon, BookOpenIcon, ArrowLeftIcon, AcademicCapIcon, PencilSquareIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 /**
  * QuestDetailHeader - Hero section with background image, title, progress, and metadata
@@ -17,11 +17,11 @@ const QuestDetailHeader = ({
   pillarBreakdown,
   isQuestCompleted,
   onEndQuest,
-  endQuestMutation,
-  onShowCurriculum
+  endQuestMutation
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [showDetails, setShowDetails] = useState(false);
 
   const getLocationDisplay = () => {
     if (!quest?.metadata) return null;
@@ -63,7 +63,7 @@ const QuestDetailHeader = ({
   const sparkLogoUrl = 'https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/onfire.png';
 
   return (
-    <div className="relative min-h-[500px] w-full overflow-hidden pb-8">
+    <div className="relative w-full overflow-hidden pb-4">
       {isSparkQuest ? (
         // Spark LMS: White background with logo on right
         <>
@@ -80,199 +80,217 @@ const QuestDetailHeader = ({
             className="absolute inset-0 bg-cover bg-center"
             style={{ backgroundImage: `url(${questImage})` }}
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-white via-white/80 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-white via-white/90 to-white/70" />
         </>
       )}
 
       {/* Content */}
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        {/* Back Button and View on Diploma Button */}
-        <div className="flex items-center justify-between mb-6">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+        {/* Back Button and Action Buttons */}
+        <div className="flex items-center justify-between mb-3">
           <button
-            onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+            onClick={() => {
+              // Check if we came from a course lesson
+              const returnInfoStr = sessionStorage.getItem('courseTaskReturnInfo');
+              if (returnInfoStr) {
+                try {
+                  const returnInfo = JSON.parse(returnInfoStr);
+                  sessionStorage.removeItem('courseTaskReturnInfo');
+                  navigate(returnInfo.pathname + returnInfo.search);
+                  return;
+                } catch (e) {
+                  // Fall through to default
+                }
+              }
+              navigate('/dashboard');
+            }}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors text-sm"
             style={{ fontFamily: 'Poppins' }}
           >
             <ArrowLeftIcon className="w-4 h-4" />
             BACK
           </button>
 
-          <div className="flex items-center gap-3">
-            {/* View Curriculum Button - Show when enrolled */}
-            {quest?.user_enrollment && onShowCurriculum && (
-              <button
-                onClick={onShowCurriculum}
-                className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm text-gray-700 border-2 border-gray-200 rounded-full hover:bg-white hover:border-optio-purple hover:text-optio-purple hover:shadow-lg transition-all font-semibold"
-                style={{ fontFamily: 'Poppins' }}
-              >
-                <AcademicCapIcon className="w-4 h-4" />
-                VIEW CURRICULUM
-              </button>
-            )}
-
+          <div className="flex items-center gap-2">
             {/* View on Diploma Button - Show when tasks completed */}
             {completedTasks > 0 && (
               <button
                 onClick={() => navigate('/diploma')}
-                className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm text-optio-purple border-2 border-purple-200 rounded-full hover:bg-white hover:border-purple-300 hover:shadow-lg transition-all font-semibold"
+                className="flex items-center gap-2 px-3 py-1.5 bg-white/90 backdrop-blur-sm text-optio-purple border border-purple-200 rounded-full hover:bg-white hover:border-purple-300 transition-all text-sm font-medium"
                 style={{ fontFamily: 'Poppins' }}
               >
                 <BookOpenIcon className="w-4 h-4" />
-                VIEW ON DIPLOMA
+                Diploma
               </button>
             )}
           </div>
         </div>
 
-        {/* Quest Title and Description */}
-        <div className="max-w-2xl mb-6">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins' }}>
-            {quest?.title}
-          </h1>
-          <p className="text-lg text-gray-700 leading-relaxed mb-6" style={{ fontFamily: 'Poppins' }}>
-            {quest?.big_idea || quest?.description}
-          </p>
+        {/* Title Row with Progress */}
+        <div className="flex items-start gap-6 mb-3">
+          {/* Title and Quick Actions */}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2 truncate" style={{ fontFamily: 'Poppins' }}>
+              {quest?.title}
+            </h1>
 
-          {/* Visit Course Button - Only show for course quests with material_link */}
-          {quest?.quest_type === 'course' && quest?.material_link && (
-            <a
-              href={quest.material_link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg hover:scale-105 transition-all duration-300 font-semibold text-base w-full sm:w-auto justify-center"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              <ArrowTopRightOnSquareIcon className="w-5 h-5" />
-              VISIT COURSE
-            </a>
-          )}
+            {/* Compact Progress Bar */}
+            {(quest?.user_enrollment || isQuestCompleted) && (
+              <div className="flex items-center gap-3 mb-2">
+                <div className="flex-1 max-w-xs bg-gray-200 rounded-full h-3 overflow-hidden relative">
+                  <div
+                    className="h-full bg-gradient-primary rounded-full transition-all duration-1000 ease-out"
+                    style={{ width: `${progressPercentage}%` }}
+                  />
+                </div>
+                <span className="text-sm font-semibold text-gray-700" style={{ fontFamily: 'Poppins' }}>
+                  {Math.round(progressPercentage)}%
+                </span>
+                <span className="text-sm text-gray-500" style={{ fontFamily: 'Poppins' }}>
+                  {completedTasks}/{totalTasks} tasks
+                </span>
+              </div>
+            )}
 
-          {/* Curriculum Buttons - Show if quest has curriculum lessons */}
-          {quest?.has_curriculum && (
-            <div className="flex flex-wrap gap-3 mt-4">
-              {/* View Curriculum Button - For enrolled users */}
-              {quest?.user_enrollment && (
+            {/* Quick Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Curriculum Button - conditional behavior based on quest type */}
+              {/* For course quests with material_link: external link */}
+              {/* For quests with has_curriculum: internal curriculum page */}
+              {quest?.quest_type === 'course' && quest?.material_link ? (
+                <a
+                  href={quest.material_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg transition-all text-sm font-semibold"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                  Curriculum
+                </a>
+              ) : quest?.has_curriculum && quest?.user_enrollment ? (
                 <button
                   onClick={() => navigate(`/quests/${quest.id}/curriculum`)}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg hover:scale-105 transition-all duration-300 font-semibold text-base"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg transition-all text-sm font-semibold"
                   style={{ fontFamily: 'Poppins' }}
                 >
-                  <AcademicCapIcon className="w-5 h-5" />
-                  VIEW CURRICULUM
+                  <AcademicCapIcon className="w-4 h-4" />
+                  Curriculum
                 </button>
-              )}
+              ) : null}
 
-              {/* Edit Curriculum Button - For admins/advisors/teachers */}
-              {user && ['admin', 'superadmin', 'advisor', 'teacher'].includes(user.role) && (
+              {quest?.has_curriculum && user && ['admin', 'superadmin', 'advisor', 'teacher'].includes(user.role) && (
                 <button
                   onClick={() => navigate(`/quests/${quest.id}/curriculum/edit`)}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-white border-2 border-optio-purple text-optio-purple rounded-full hover:bg-optio-purple hover:text-white hover:shadow-lg hover:scale-105 transition-all duration-300 font-semibold text-base"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-optio-purple text-optio-purple rounded-full hover:bg-optio-purple hover:text-white transition-all text-sm font-semibold"
                   style={{ fontFamily: 'Poppins' }}
                 >
-                  <PencilSquareIcon className="w-5 h-5" />
-                  EDIT CURRICULUM
+                  <PencilSquareIcon className="w-4 h-4" />
+                  Edit Curriculum
                 </button>
               )}
-            </div>
-          )}
-        </div>
-
-        {/* Quest Metadata */}
-        <div className="max-w-2xl mb-6">
-          <div className="flex flex-wrap gap-4 items-center text-sm mb-4">
-            {locationDisplay && (
-              <div className="flex items-center gap-2 text-gray-700">
-                <MapPinIcon className="w-4 h-4" />
-                <span>{locationDisplay}</span>
-              </div>
-            )}
-
-            {seasonalDisplay && (
-              <div className="flex items-center gap-2 text-gray-700">
-                <CalendarIcon className="w-4 h-4" />
-                <span>{seasonalDisplay}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Pillar XP Breakdown */}
-          {Object.keys(pillarBreakdown).length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(pillarBreakdown).map(([pillar, xp]) => {
-                const pillarData = getPillarData(pillar);
-                return (
-                  <div
-                    key={pillar}
-                    className={`px-3 py-1 rounded-full text-sm font-medium ${pillarData.bg} ${pillarData.text}`}
-                  >
-                    {pillarData.icon} {pillarData.name}: {xp} XP
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Progress Bar and Stats */}
-        {(quest?.user_enrollment || isQuestCompleted) && (
-          <div className="max-w-2xl">
-            {/* Progress Bar */}
-            <div className="w-full bg-gray-200 rounded-full h-6 mb-4 overflow-hidden relative">
-              <div
-                className="h-full bg-gradient-primary rounded-full transition-all duration-1000 ease-out"
-                style={{ width: `${progressPercentage}%` }}
-              />
-              <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-gray-700" style={{ fontFamily: 'Poppins' }}>
-                {Math.round(progressPercentage)}%
-              </div>
-            </div>
-
-            {/* Stats Row with Set Down Quest Button */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="px-4 py-2 bg-green-50 border-2 border-green-200 rounded-lg text-center">
-                <div className="text-xl font-bold text-green-700" style={{ fontFamily: 'Poppins' }}>{completedTasks}</div>
-                <div className="text-xs text-green-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Completed</div>
-              </div>
-              <div className="px-4 py-2 bg-blue-50 border-2 border-blue-200 rounded-lg text-center">
-                <div className="text-xl font-bold text-blue-700" style={{ fontFamily: 'Poppins' }}>{totalTasks - completedTasks}</div>
-                <div className="text-xs text-blue-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Remaining</div>
-              </div>
-              <div className="px-4 py-2 bg-purple-50 border-2 border-purple-200 rounded-lg text-center">
-                <div className="text-xl font-bold text-purple-700" style={{ fontFamily: 'Poppins' }}>{earnedXP}</div>
-                <div className="text-xs text-optio-purple font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>XP Earned</div>
-              </div>
-              <div className="px-4 py-2 bg-gray-100 border-2 border-gray-300 rounded-lg text-center">
-                <div className="text-xl font-bold text-gray-700" style={{ fontFamily: 'Poppins' }}>{completedTasks}/{totalTasks}</div>
-                <div className="text-xs text-gray-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Tasks</div>
-              </div>
 
               {/* Set Down Quest / Mark Completed Button */}
               {quest?.user_enrollment && !isQuestCompleted && (
                 quest?.lms_platform ? (
                   <button
                     onClick={() => {
-                      if (window.confirm('⚠️ Only mark this quest as completed if you are finished with the associated LMS class.\n\nIf you submit more evidence to this quest later, it will automatically be reactivated.')) {
+                      if (window.confirm('Only mark this quest as completed if you are finished with the associated LMS class.\n\nIf you submit more evidence to this quest later, it will automatically be reactivated.')) {
                         onEndQuest();
                       }
                     }}
                     disabled={endQuestMutation.isPending}
-                    className="px-6 py-2 bg-gradient-primary text-white rounded-full hover:shadow-lg transition-all font-bold disabled:opacity-50 ml-auto"
+                    className="px-4 py-2 bg-gradient-primary text-white rounded-full hover:shadow-lg transition-all text-sm font-semibold disabled:opacity-50"
                     style={{ fontFamily: 'Poppins' }}
                   >
-                    {endQuestMutation.isPending ? 'Marking Complete...' : 'MARK QUEST COMPLETED'}
+                    {endQuestMutation.isPending ? 'Marking...' : 'Mark Completed'}
                   </button>
                 ) : (
                   <button
                     onClick={onEndQuest}
                     disabled={endQuestMutation.isPending}
-                    className="px-6 py-2 bg-gradient-primary text-white rounded-full hover:shadow-lg transition-all font-bold disabled:opacity-50 ml-auto"
+                    className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-full hover:bg-gray-200 transition-all text-sm font-semibold disabled:opacity-50"
                     style={{ fontFamily: 'Poppins' }}
                   >
-                    {endQuestMutation.isPending ? 'Setting Down...' : 'SET DOWN QUEST'}
+                    {endQuestMutation.isPending ? 'Setting Down...' : 'Set Down Quest'}
                   </button>
                 )
               )}
+
+              {/* Show Details Toggle */}
+              <button
+                onClick={() => setShowDetails(!showDetails)}
+                className="flex items-center gap-1 px-3 py-2 text-gray-500 hover:text-gray-700 transition-colors text-sm"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                <ChevronDownIcon className={`w-4 h-4 transition-transform ${showDetails ? 'rotate-180' : ''}`} />
+                {showDetails ? 'Hide Details' : 'Show Details'}
+              </button>
             </div>
+          </div>
+        </div>
+
+        {/* Collapsible Details Section */}
+        {showDetails && (
+          <div className="border-t border-gray-200 pt-4 mt-2 animate-fade-in">
+            {/* Description */}
+            {(quest?.big_idea || quest?.description) && (
+              <p className="text-gray-700 mb-4 max-w-2xl" style={{ fontFamily: 'Poppins' }}>
+                {quest?.big_idea || quest?.description}
+              </p>
+            )}
+
+            {/* Metadata Row */}
+            <div className="flex flex-wrap gap-4 items-center text-sm mb-4">
+              {locationDisplay && (
+                <div className="flex items-center gap-2 text-gray-600">
+                  <MapPinIcon className="w-4 h-4" />
+                  <span>{locationDisplay}</span>
+                </div>
+              )}
+
+              {seasonalDisplay && (
+                <div className="flex items-center gap-2 text-gray-600">
+                  <CalendarIcon className="w-4 h-4" />
+                  <span>{seasonalDisplay}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Pillar XP Breakdown */}
+            {Object.keys(pillarBreakdown).length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {Object.entries(pillarBreakdown).map(([pillar, xp]) => {
+                  const pillarData = getPillarData(pillar);
+                  return (
+                    <div
+                      key={pillar}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium ${pillarData.bg} ${pillarData.text}`}
+                    >
+                      {pillarData.icon} {pillarData.name}: {xp} XP
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Stats Row */}
+            {(quest?.user_enrollment || isQuestCompleted) && (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg text-center">
+                  <div className="text-lg font-bold text-green-700" style={{ fontFamily: 'Poppins' }}>{completedTasks}</div>
+                  <div className="text-xs text-green-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Completed</div>
+                </div>
+                <div className="px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                  <div className="text-lg font-bold text-blue-700" style={{ fontFamily: 'Poppins' }}>{totalTasks - completedTasks}</div>
+                  <div className="text-xs text-blue-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Remaining</div>
+                </div>
+                <div className="px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-lg text-center">
+                  <div className="text-lg font-bold text-purple-700" style={{ fontFamily: 'Poppins' }}>{earnedXP}</div>
+                  <div className="text-xs text-optio-purple font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>XP Earned</div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

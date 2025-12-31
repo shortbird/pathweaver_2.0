@@ -11,6 +11,7 @@ import {
   PlusIcon,
   EyeIcon,
 } from '@heroicons/react/24/outline'
+import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 import api from '../../services/api'
 
 const CourseCatalog = () => {
@@ -153,12 +154,13 @@ const CourseCatalog = () => {
               const isEnrolled = course.is_enrolled
               const isDraft = course.status === 'draft'
               const isArchived = course.status === 'archived'
+              const isCompleted = course.progress?.percentage >= 100 || course.progress?.is_completed
 
               return (
                 <div
                   key={course.id}
                   className={`bg-white rounded-xl border overflow-hidden hover:shadow-lg transition-shadow ${
-                    isDraft ? 'border-amber-300' : isArchived ? 'border-gray-300' : 'border-gray-200'
+                    isDraft ? 'border-amber-300' : isArchived ? 'border-gray-300' : isCompleted ? 'border-green-300' : 'border-gray-200'
                   }`}
                 >
                   {/* Cover Image */}
@@ -176,7 +178,14 @@ const CourseCatalog = () => {
                     )}
 
                     {/* Status Badge */}
-                    {canManageCourses && (isDraft || isArchived) && (
+                    {isCompleted ? (
+                      <div className="absolute top-3 left-3">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                          <CheckCircleSolid className="w-3.5 h-3.5" />
+                          Completed
+                        </span>
+                      </div>
+                    ) : canManageCourses && (isDraft || isArchived) ? (
                       <div className="absolute top-3 left-3">
                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                           isDraft
@@ -186,7 +195,7 @@ const CourseCatalog = () => {
                           {isDraft ? 'Draft' : 'Archived'}
                         </span>
                       </div>
-                    )}
+                    ) : null}
                   </div>
 
                   {/* Content */}

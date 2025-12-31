@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import api from '../../services/api'
+import { queryKeys } from '../../utils/queryKeys'
 
 /**
  * Hook for fetching course homepage data
@@ -7,14 +8,14 @@ import api from '../../services/api'
  */
 export const useCourseHomepage = (courseId, options = {}) => {
   return useQuery({
-    queryKey: ['course', 'homepage', courseId],
+    queryKey: queryKeys.courses.homepage(courseId),
     queryFn: async () => {
       const response = await api.get(`/api/courses/${courseId}/homepage`)
       return response.data
     },
     enabled: !!courseId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    cacheTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 30 * 1000, // 30 seconds - shorter for better XP updates
+    gcTime: 5 * 60 * 1000, // 5 minutes (renamed from cacheTime in v5)
     ...options,
   })
 }
@@ -24,7 +25,7 @@ export const useCourseHomepage = (courseId, options = {}) => {
  */
 export const useCourseDetail = (courseId, options = {}) => {
   return useQuery({
-    queryKey: ['course', 'detail', courseId],
+    queryKey: queryKeys.courses.detail(courseId),
     queryFn: async () => {
       const response = await api.get(`/api/courses/${courseId}`)
       return response.data.course
@@ -40,7 +41,7 @@ export const useCourseDetail = (courseId, options = {}) => {
  */
 export const useCourses = (filters = {}, options = {}) => {
   return useQuery({
-    queryKey: ['courses', 'list', filters],
+    queryKey: queryKeys.courses.list(filters),
     queryFn: async () => {
       const params = new URLSearchParams(filters).toString()
       const response = await api.get(`/api/courses?${params}`)

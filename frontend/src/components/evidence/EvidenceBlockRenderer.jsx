@@ -1,45 +1,88 @@
 import React, { useRef } from 'react';
+import {
+  PlusIcon,
+  TrashIcon,
+  XMarkIcon,
+  DocumentTextIcon,
+  PhotoIcon,
+  VideoCameraIcon,
+  LinkIcon,
+  DocumentIcon
+} from '@heroicons/react/24/outline';
 import { useEvidenceEditor } from './EvidenceEditorContext';
+import toast from 'react-hot-toast';
 
 const blockTypes = {
   text: {
-    icon: '📝',
+    Icon: DocumentTextIcon,
     label: 'Text',
     color: 'from-blue-500 to-cyan-500',
     bgColor: 'bg-blue-50',
     borderColor: 'border-blue-200'
   },
   image: {
-    icon: '📸',
-    label: 'Image',
+    Icon: PhotoIcon,
+    label: 'Images',
     color: 'from-green-500 to-emerald-500',
     bgColor: 'bg-green-50',
     borderColor: 'border-green-200'
   },
   video: {
-    icon: '🎥',
-    label: 'Video',
+    Icon: VideoCameraIcon,
+    label: 'Videos',
     color: 'from-orange-500 to-red-500',
     bgColor: 'bg-orange-50',
     borderColor: 'border-orange-200'
   },
   link: {
-    icon: '🔗',
-    label: 'Link',
+    Icon: LinkIcon,
+    label: 'Links',
     color: 'from-purple-500 to-pink-500',
     bgColor: 'bg-purple-50',
     borderColor: 'border-purple-200'
   },
   document: {
-    icon: '📄',
-    label: 'Document',
+    Icon: DocumentIcon,
+    label: 'Documents',
     color: 'from-gray-500 to-gray-700',
     bgColor: 'bg-gray-50',
     borderColor: 'border-gray-200'
   }
 };
 
-export const EvidenceBlockRenderer = ({ block, index, dragHandleProps = {}, style = {}, mediaHandlers, addBlock, updateBlock, deleteBlock }) => {
+// Helper to normalize items - handles both old single-item format and new multi-item format
+const normalizeItems = (content, type) => {
+  if (content.items && Array.isArray(content.items)) {
+    return content.items;
+  }
+  // Legacy single-item format - convert to items array
+  if (type === 'image' && content.url) {
+    return [{ url: content.url, alt: content.alt || '', caption: content.caption || '' }];
+  }
+  if (type === 'video' && content.url) {
+    return [{ url: content.url, title: content.title || '' }];
+  }
+  if (type === 'link' && content.url) {
+    return [{ url: content.url, title: content.title || '', description: content.description || '' }];
+  }
+  if (type === 'document' && content.url) {
+    return [{ url: content.url, title: content.title || '', filename: content.filename || '' }];
+  }
+  return [];
+};
+
+export const EvidenceBlockRenderer = ({
+  block,
+  index,
+  sortableRef,
+  sortableStyle = {},
+  dragHandleProps = {},
+  mediaHandlers,
+  addBlock,
+  updateBlock,
+  deleteBlock,
+  isNew = false
+}) => {
   const {
     activeBlock,
     setActiveBlock,
@@ -56,21 +99,59 @@ export const EvidenceBlockRenderer = ({ block, index, dragHandleProps = {}, styl
   const isUploading = uploadingBlocks.has(block.id);
   const hasUploadError = uploadErrors[block.id];
 
+  // Get normalized items for multi-item blocks
+  const items = normalizeItems(block.content, block.type);
+
+  // Update items array helper
+  const updateItems = (newItems) => {
+    updateBlock(block.id, { items: newItems });
+  };
+
+  // Add new item to block
+  const addItem = (newItem) => {
+    const currentItems = normalizeItems(block.content, block.type);
+    updateItems([...currentItems, newItem]);
+  };
+
+  // Remove item from block
+  const removeItem = (itemIndex) => {
+    const currentItems = normalizeItems(block.content, block.type);
+    const newItems = currentItems.filter((_, i) => i !== itemIndex);
+    updateItems(newItems);
+  };
+
+  // Update specific item
+  const updateItem = (itemIndex, updates) => {
+    const currentItems = normalizeItems(block.content, block.type);
+    const newItems = currentItems.map((item, i) =>
+      i === itemIndex ? { ...item, ...updates } : item
+    );
+    updateItems(newItems);
+  };
+
   const getBlockPreview = (block) => {
+    const items = normalizeItems(block.content, block.type);
     switch (block.type) {
       case 'text':
         const text = block.content.text || '';
         return text.length > 50 ? `${text.substring(0, 50)}...` : text || 'Empty text block';
       case 'image':
-        return block.content.url ? (
-          <img src={block.content.url} alt={block.content.alt || 'Image preview'} className="h-12 w-auto object-contain rounded" />
-        ) : 'No image uploaded';
+        if (items.length === 0) return 'No images uploaded';
+        if (items.length === 1 && items[0].url) {
+          return (
+            <img src={items[0].url} alt={items[0].alt || 'Image preview'} className="h-12 w-auto object-contain rounded" />
+          );
+        }
+        return `${items.length} images`;
       case 'video':
-        return block.content.title || block.content.url || 'No video URL';
+        if (items.length === 0) return 'No videos added';
+        return items.length === 1 ? (items[0].title || items[0].url || 'No video URL') : `${items.length} videos`;
       case 'link':
-        return block.content.title || block.content.url || 'No link URL';
+        if (items.length === 0) return 'No links added';
+        return items.length === 1 ? (items[0].title || items[0].url || 'No link URL') : `${items.length} links`;
       case 'document':
-        return block.content.filename || block.content.title || 'No document uploaded';
+        if (items.length === 0) return 'No documents uploaded';
+        return items.length === 1 ? (items[0].filename || items[0].title || 'Document') : `${items.length} documents`;
       default:
         return 'Empty block';
     }
@@ -95,241 +176,293 @@ export const EvidenceBlockRenderer = ({ block, index, dragHandleProps = {}, styl
     </div>
   );
 
-  const renderImageBlock = (block) => (
-    <div className="space-y-3">
-      {block.content.url ? (
-        <div className="relative group">
-          <img
-            src={block.content.url}
-            alt={block.content.alt || 'Uploaded evidence image'}
-            className="w-full max-h-96 object-contain rounded-lg border border-gray-200"
-          />
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={() => updateBlock(block.id, { url: '', alt: '', caption: '' })}
-              className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+  const renderImageBlock = (block) => {
+    const handleFileSelect = async (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+
+      for (const file of files) {
+        try {
+          const fileInfo = await mediaHandlers.handleFileUpload(file, block.id, 'image');
+          addItem({
+            url: fileInfo.localUrl,
+            alt: file.name,
+            caption: ''
+          });
+        } catch (err) {
+          toast.error(`Failed to upload ${file.name}`);
+        }
+      }
+      e.target.value = ''; // Reset input
+    };
+
+    return (
+      <div className="space-y-4">
+        {/* Image Grid */}
+        {items.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {items.map((item, itemIndex) => (
+              <div key={itemIndex} className="relative group">
+                <img
+                  src={item.url}
+                  alt={item.alt || `Image ${itemIndex + 1}`}
+                  className="w-full h-40 object-cover rounded-lg border border-gray-200"
+                />
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => removeItem(itemIndex)}
+                    className="p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
+                    title="Remove image"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                </div>
+                {/* Caption input on hover */}
+                <input
+                  type="text"
+                  value={item.caption || ''}
+                  onChange={(e) => updateItem(itemIndex, { caption: e.target.value })}
+                  className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-black/60 text-white text-xs rounded-b-lg focus:outline-none"
+                  placeholder="Add caption..."
+                />
+              </div>
+            ))}
           </div>
-        </div>
-      ) : (
+        )}
+
+        {/* Upload Area */}
         <div
-          className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-gray-400 transition-colors"
-          onClick={() => {
-            fileInputRef.current.accept = 'image/*';
-            fileInputRef.current.onchange = async (e) => {
-              const file = e.target.files[0];
-              if (file) {
-                const fileInfo = await mediaHandlers.handleFileUpload(file, block.id, 'image');
-                updateBlock(block.id, {
-                  url: fileInfo.localUrl,
-                  alt: file.name
-                });
-              }
-            };
-            fileInputRef.current.click();
-          }}
+          className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-optio-purple hover:bg-optio-purple/5 transition-colors"
+          onClick={() => fileInputRef.current?.click()}
         >
-          <div className="text-4xl mb-2">📸</div>
-          <p className="text-sm text-gray-600">Click to upload an image</p>
+          <PhotoIcon className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+          <p className="text-sm font-medium text-gray-700">
+            {items.length > 0 ? 'Add more images' : 'Click to upload images'}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">Select multiple files at once</p>
         </div>
-      )}
 
-      {block.content.url && (
-        <div className="space-y-2">
-          <input
-            id={`image-alt-${block.id}`}
-            type="text"
-            value={block.content.alt || ''}
-            onChange={(e) => updateBlock(block.id, { alt: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
-            placeholder="Alt text (for accessibility)"
-            aria-label="Image alt text"
-          />
-          <input
-            id={`image-caption-${block.id}`}
-            type="text"
-            value={block.content.caption || ''}
-            onChange={(e) => updateBlock(block.id, { caption: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
-            placeholder="Caption (optional)"
-            aria-label="Image caption"
-          />
-        </div>
-      )}
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="hidden"
-      />
-    </div>
-  );
-
-  const renderVideoBlock = (block) => (
-    <div className="space-y-3">
-      <input
-        id={`video-url-${block.id}`}
-        type="url"
-        value={block.content.url || ''}
-        onChange={(e) => updateBlock(block.id, { url: e.target.value })}
-        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
-        placeholder="YouTube, Vimeo, or direct video URL"
-        aria-label="Video URL"
-      />
-      <input
-        id={`video-title-${block.id}`}
-        type="text"
-        value={block.content.title || ''}
-        onChange={(e) => updateBlock(block.id, { title: e.target.value })}
-        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
-        placeholder="Video title (optional)"
-        aria-label="Video title"
-      />
-
-      {block.content.url && (
-        <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-          <p className="text-xs text-gray-600 mb-1">Preview:</p>
-          <a
-            href={block.content.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-optio-purple hover:text-optio-pink font-medium break-all"
-          >
-            {block.content.title || block.content.url}
-          </a>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderLinkBlock = (block) => (
-    <div className="space-y-3">
-      <input
-        id={`link-url-${block.id}`}
-        type="url"
-        value={block.content.url || ''}
-        onChange={(e) => updateBlock(block.id, { url: e.target.value })}
-        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
-        placeholder="https://example.com/your-work"
-        aria-label="Link URL"
-      />
-      <input
-        id={`link-title-${block.id}`}
-        type="text"
-        value={block.content.title || ''}
-        onChange={(e) => updateBlock(block.id, { title: e.target.value })}
-        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
-        placeholder="Link title"
-        aria-label="Link title"
-      />
-      <textarea
-        id={`link-description-${block.id}`}
-        value={block.content.description || ''}
-        onChange={(e) => updateBlock(block.id, { description: e.target.value })}
-        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent resize-none"
-        rows={2}
-        placeholder="Description (optional)"
-        aria-label="Link description"
-      />
-
-      {block.content.url && (
-        <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-          <p className="text-xs text-gray-600 mb-1">Preview:</p>
-          <a
-            href={block.content.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-optio-purple hover:text-optio-pink font-medium break-all"
-          >
-            {block.content.title || block.content.url}
-          </a>
-          {block.content.description && (
-            <p className="text-xs text-gray-600 mt-1">{block.content.description}</p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-
-  const renderDocumentBlock = (block) => (
-    <div className="space-y-3">
-      {block.content.url ? (
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="text-2xl">📄</div>
-            <div>
-              <p className="text-sm font-medium text-gray-900">
-                {block.content.title || block.content.filename || 'Document'}
-              </p>
-              <p className="text-xs text-gray-500">{block.content.filename}</p>
-            </div>
-          </div>
-          <button
-            onClick={() => updateBlock(block.id, { url: '', title: '', filename: '' })}
-            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
-        </div>
-      ) : (
-        <div
-          className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-gray-400 transition-colors"
-          onClick={() => {
-            fileInputRef.current.accept = '.pdf,.doc,.docx';
-            fileInputRef.current.onchange = async (e) => {
-              const file = e.target.files[0];
-              if (file) {
-                const fileInfo = await mediaHandlers.handleFileUpload(file, block.id, 'document');
-                updateBlock(block.id, {
-                  url: fileInfo.localUrl,
-                  filename: file.name,
-                  title: file.name
-                });
-              }
-            };
-            fileInputRef.current.click();
-          }}
-        >
-          <div className="text-4xl mb-2">📄</div>
-          <p className="text-sm text-gray-600">Click to upload a document</p>
-          <p className="text-xs text-gray-500">PDF, DOC, DOCX</p>
-        </div>
-      )}
-
-      {block.content.url && (
         <input
-          id={`document-title-${block.id}`}
-          type="text"
-          value={block.content.title || ''}
-          onChange={(e) => updateBlock(block.id, { title: e.target.value })}
-          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
-          placeholder="Document title"
-          aria-label="Document title"
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleFileSelect}
+          className="hidden"
         />
-      )}
+      </div>
+    );
+  };
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="hidden"
-      />
-    </div>
-  );
+  const renderVideoBlock = (block) => {
+    const addVideoUrl = () => {
+      addItem({ url: '', title: '' });
+    };
+
+    return (
+      <div className="space-y-4">
+        {/* Video List */}
+        {items.map((item, itemIndex) => (
+          <div key={itemIndex} className="space-y-2 p-4 bg-orange-50/50 rounded-lg border border-orange-200">
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={item.url || ''}
+                onChange={(e) => updateItem(itemIndex, { url: e.target.value })}
+                className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent text-sm"
+                placeholder="YouTube, Vimeo, or video URL"
+              />
+              <button
+                onClick={() => removeItem(itemIndex)}
+                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                title="Remove video"
+              >
+                <TrashIcon className="w-4 h-4" />
+              </button>
+            </div>
+            <input
+              type="text"
+              value={item.title || ''}
+              onChange={(e) => updateItem(itemIndex, { title: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent text-sm"
+              placeholder="Video title (optional)"
+            />
+            {item.url && (
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-optio-purple hover:text-optio-pink break-all"
+              >
+                Open video
+              </a>
+            )}
+          </div>
+        ))}
+
+        {/* Add Video Button */}
+        <button
+          onClick={addVideoUrl}
+          className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors flex items-center justify-center gap-2"
+        >
+          <PlusIcon className="w-4 h-4" />
+          <span className="text-sm font-medium">Add video URL</span>
+        </button>
+      </div>
+    );
+  };
+
+  const renderLinkBlock = (block) => {
+    const addLinkUrl = () => {
+      addItem({ url: '', title: '', description: '' });
+    };
+
+    return (
+      <div className="space-y-4">
+        {/* Link List */}
+        {items.map((item, itemIndex) => (
+          <div key={itemIndex} className="space-y-2 p-4 bg-purple-50/50 rounded-lg border border-purple-200">
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={item.url || ''}
+                onChange={(e) => updateItem(itemIndex, { url: e.target.value })}
+                className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent text-sm"
+                placeholder="https://example.com/your-work"
+              />
+              <button
+                onClick={() => removeItem(itemIndex)}
+                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                title="Remove link"
+              >
+                <TrashIcon className="w-4 h-4" />
+              </button>
+            </div>
+            <input
+              type="text"
+              value={item.title || ''}
+              onChange={(e) => updateItem(itemIndex, { title: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent text-sm"
+              placeholder="Link title"
+            />
+            <textarea
+              value={item.description || ''}
+              onChange={(e) => updateItem(itemIndex, { description: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent text-sm resize-none"
+              rows={2}
+              placeholder="Description (optional)"
+            />
+            {item.url && (
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-optio-purple hover:text-optio-pink break-all"
+              >
+                {item.title || item.url}
+              </a>
+            )}
+          </div>
+        ))}
+
+        {/* Add Link Button */}
+        <button
+          onClick={addLinkUrl}
+          className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors flex items-center justify-center gap-2"
+        >
+          <PlusIcon className="w-4 h-4" />
+          <span className="text-sm font-medium">Add link</span>
+        </button>
+      </div>
+    );
+  };
+
+  const renderDocumentBlock = (block) => {
+    const handleFileSelect = async (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+
+      for (const file of files) {
+        try {
+          const fileInfo = await mediaHandlers.handleFileUpload(file, block.id, 'document');
+          addItem({
+            url: fileInfo.localUrl,
+            filename: file.name,
+            title: file.name
+          });
+        } catch (err) {
+          toast.error(`Failed to upload ${file.name}`);
+        }
+      }
+      e.target.value = ''; // Reset input
+    };
+
+    return (
+      <div className="space-y-4">
+        {/* Document List */}
+        {items.length > 0 && (
+          <div className="space-y-2">
+            {items.map((item, itemIndex) => (
+              <div key={itemIndex} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <DocumentIcon className="w-6 h-6 text-gray-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <input
+                      type="text"
+                      value={item.title || ''}
+                      onChange={(e) => updateItem(itemIndex, { title: e.target.value })}
+                      className="w-full px-2 py-1 text-sm font-medium text-gray-900 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-optio-purple focus:outline-none"
+                      placeholder="Document title"
+                    />
+                    <p className="text-xs text-gray-500 truncate">{item.filename}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => removeItem(itemIndex)}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors ml-2"
+                  title="Remove document"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Upload Area */}
+        <div
+          className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-optio-purple hover:bg-optio-purple/5 transition-colors"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <DocumentIcon className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+          <p className="text-sm font-medium text-gray-700">
+            {items.length > 0 ? 'Add more documents' : 'Click to upload documents'}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">PDF, DOC, DOCX - Select multiple files</p>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.doc,.docx"
+          multiple
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+      </div>
+    );
+  };
 
   return (
     <div
-      style={style}
+      ref={sortableRef}
+      style={sortableStyle}
       className={`
         relative group bg-white border-2 rounded-xl p-4 transition-all
         ${activeBlock === block.id ? config.borderColor : 'border-gray-200'}
         hover:border-gray-300
         ${isCollapsed ? 'bg-gray-50' : ''}
+        ${isNew ? 'animate-fade-in-up ring-2 ring-optio-purple ring-opacity-50' : ''}
       `}
     >
       {/* Upload Status Overlay */}
@@ -348,80 +481,69 @@ export const EvidenceBlockRenderer = ({ block, index, dragHandleProps = {}, styl
         </div>
       )}
 
-      {/* Block Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2 flex-1">
-          <div
-            {...dragHandleProps}
-            className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-gray-100"
-          >
-            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9h8M8 15h8" />
-            </svg>
-          </div>
-          <span className="text-lg">{config.icon}</span>
-          <span className="text-sm font-medium text-gray-700">{config.label}</span>
+      {/* Simplified Block Header */}
+      <div className="flex items-center gap-2 mb-3">
+        {/* Drag handle */}
+        <div
+          {...dragHandleProps}
+          className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-gray-100 -ml-1"
+        >
+          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9h8M8 15h8" />
+          </svg>
+        </div>
 
-          {/* Collapse/Expand Button */}
-          <button
-            onClick={() => toggleBlockCollapse(block.id)}
-            className="ml-2 p-1 text-gray-400 hover:text-gray-600 rounded"
-            title={isCollapsed ? 'Expand' : 'Collapse'}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {isCollapsed ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-              )}
-            </svg>
-          </button>
+        {/* Type icon */}
+        <config.Icon className="w-5 h-5 text-gray-500" />
 
-          {/* Private Evidence Toggle */}
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Private indicator (always visible if private) */}
+        {block.is_private && (
+          <span className="text-xs text-gray-500 flex items-center gap-1">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+            </svg>
+            Private
+          </span>
+        )}
+
+        {/* Hover actions */}
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Private toggle */}
           <button
             onClick={() => {
               setBlocks(prevBlocks => prevBlocks.map(b =>
                 b.id === block.id ? { ...b, is_private: !b.is_private } : b
               ));
             }}
-            className={`ml-2 p-1 rounded transition-colors ${
+            className={`p-1.5 rounded transition-colors ${
               block.is_private
                 ? 'text-gray-700 bg-gray-100'
-                : 'text-gray-400 hover:text-gray-600'
+                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
             }`}
-            title={block.is_private ? 'Private - Hidden from diploma' : 'Public - Visible on diploma'}
+            title={block.is_private ? 'Make public' : 'Make private'}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {block.is_private ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-              ) : (
                 <>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </>
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
               )}
             </svg>
           </button>
-        </div>
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => addBlock('text', index + 1)}
-            className="p-1 text-gray-400 hover:text-gray-600 rounded"
-            title="Add block below"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-          </button>
+          {/* Delete */}
           <button
             onClick={() => deleteBlock(block.id)}
-            className="p-1 text-red-400 hover:text-red-600 rounded"
+            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
             title="Delete block"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
+            <TrashIcon className="w-4 h-4" />
           </button>
         </div>
       </div>

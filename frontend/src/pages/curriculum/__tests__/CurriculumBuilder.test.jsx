@@ -165,9 +165,11 @@ describe('CurriculumBuilder', () => {
       })
 
       await waitFor(() => {
-        const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
-        await user.click(addTaskButton)
+        expect(screen.getByRole('button', { name: /Add Task/i })).toBeInTheDocument()
       })
+
+      const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
+      await user.click(addTaskButton)
 
       const xpInput = screen.getByLabelText(/XP Value/i)
       await user.clear(xpInput)
@@ -191,9 +193,11 @@ describe('CurriculumBuilder', () => {
       })
 
       await waitFor(() => {
-        const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
-        await user.click(addTaskButton)
+        expect(screen.getByRole('button', { name: /Add Task/i })).toBeInTheDocument()
       })
+
+      const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
+      await user.click(addTaskButton)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /Embed/i })).toBeInTheDocument()
@@ -206,9 +210,11 @@ describe('CurriculumBuilder', () => {
       })
 
       await waitFor(() => {
-        const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
-        await user.click(addTaskButton)
+        expect(screen.getByRole('button', { name: /Add Task/i })).toBeInTheDocument()
       })
+
+      const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
+      await user.click(addTaskButton)
 
       const embedButton = screen.getByRole('button', { name: /Embed/i })
       await user.click(embedButton)
@@ -224,9 +230,11 @@ describe('CurriculumBuilder', () => {
       })
 
       await waitFor(() => {
-        const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
-        await user.click(addTaskButton)
+        expect(screen.getByRole('button', { name: /Add Task/i })).toBeInTheDocument()
       })
+
+      const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
+      await user.click(addTaskButton)
 
       const embedButton = screen.getByRole('button', { name: /Embed/i })
       await user.click(embedButton)
@@ -248,9 +256,11 @@ describe('CurriculumBuilder', () => {
       })
 
       await waitFor(() => {
-        const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
-        await user.click(addTaskButton)
+        expect(screen.getByRole('button', { name: /Add Task/i })).toBeInTheDocument()
       })
+
+      const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
+      await user.click(addTaskButton)
 
       const embedButton = screen.getByRole('button', { name: /Embed/i })
       await user.click(embedButton)
@@ -272,9 +282,11 @@ describe('CurriculumBuilder', () => {
       })
 
       await waitFor(() => {
-        const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
-        await user.click(addTaskButton)
+        expect(screen.getByRole('button', { name: /Add Task/i })).toBeInTheDocument()
       })
+
+      const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
+      await user.click(addTaskButton)
 
       // Type markdown with iframe
       const contentEditor = screen.getByRole('textbox', { name: /Content/i })
@@ -336,9 +348,11 @@ describe('CurriculumBuilder', () => {
       })
 
       await waitFor(() => {
-        const titleInput = screen.getByLabelText(/Quest Title/i)
-        await user.type(titleInput, 'Test')
+        expect(screen.getByLabelText(/Quest Title/i)).toBeInTheDocument()
       })
+
+      const titleInput = screen.getByLabelText(/Quest Title/i)
+      await user.type(titleInput, 'Test')
 
       vi.advanceTimersByTime(30000)
 
@@ -353,9 +367,11 @@ describe('CurriculumBuilder', () => {
       })
 
       await waitFor(() => {
-        const titleInput = screen.getByLabelText(/Quest Title/i)
-        await user.type(titleInput, 'Test')
+        expect(screen.getByLabelText(/Quest Title/i)).toBeInTheDocument()
       })
+
+      const titleInput = screen.getByLabelText(/Quest Title/i)
+      await user.type(titleInput, 'Test')
 
       vi.advanceTimersByTime(30000)
 
@@ -451,9 +467,11 @@ describe('CurriculumBuilder', () => {
       })
 
       await waitFor(() => {
-        const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
-        await user.click(addTaskButton)
+        expect(screen.getByRole('button', { name: /Add Task/i })).toBeInTheDocument()
       })
+
+      const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
+      await user.click(addTaskButton)
 
       await waitFor(() => {
         const deleteButton = screen.getByRole('button', { name: /Delete.*Task/i })
@@ -488,9 +506,11 @@ describe('CurriculumBuilder', () => {
       })
 
       await waitFor(() => {
-        const titleInput = screen.getByLabelText(/Quest Title/i)
-        await user.type(titleInput, 'Preview Test')
+        expect(screen.getByLabelText(/Quest Title/i)).toBeInTheDocument()
       })
+
+      const titleInput = screen.getByLabelText(/Quest Title/i)
+      await user.type(titleInput, 'Preview Test')
 
       const preview = screen.getByTestId('live-preview')
       await waitFor(() => {
@@ -504,9 +524,11 @@ describe('CurriculumBuilder', () => {
       })
 
       await waitFor(() => {
-        const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
-        await user.click(addTaskButton)
+        expect(screen.getByRole('button', { name: /Add Task/i })).toBeInTheDocument()
       })
+
+      const addTaskButton = screen.getByRole('button', { name: /Add Task/i })
+      await user.click(addTaskButton)
 
       const contentEditor = screen.getByRole('textbox', { name: /Content/i })
       await user.type(contentEditor, '**Bold text**')

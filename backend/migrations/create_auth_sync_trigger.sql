@@ -20,7 +20,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_sync_auth_user_deletion ON public.users;
 
 CREATE TRIGGER trigger_sync_auth_user_deletion
-    BEFORE DELETE ON public.users
+    AFTER DELETE ON public.users
     FOR EACH ROW
     EXECUTE FUNCTION sync_auth_user_deletion();
 

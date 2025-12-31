@@ -1,18 +1,20 @@
-import React, { forwardRef, useImperativeHandle, useMemo } from 'react';
+import React, { forwardRef, useImperativeHandle, useMemo, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { evidenceDocumentService } from '../../services/evidenceDocumentService';
 import logger from '../../utils/logger';
+import toast from 'react-hot-toast';
 
 import { EvidenceEditorProvider, useEvidenceEditor } from './EvidenceEditorContext';
 import { EvidenceBlockRenderer } from './EvidenceBlockRenderer';
-import { EvidenceToolbar } from './EvidenceToolbar';
+import { EvidenceToolbar, ConnectedSaveStatus } from './EvidenceToolbar';
 import { EvidenceMediaHandlers } from './EvidenceMediaHandlers';
+import InlineBlockAdder from './InlineBlockAdder';
 
 // Sortable Block Wrapper Component
-const SortableBlock = ({ block, index, children, isDragging }) => {
+const SortableBlock = ({ block, children }) => {
   const {
     attributes,
     listeners,
@@ -26,10 +28,10 @@ const SortableBlock = ({ block, index, children, isDragging }) => {
     transition,
   };
 
-  // Clone children with drag props
+  // Clone children with drag props passed correctly
   return React.cloneElement(children, {
-    ref: setNodeRef,
-    style,
+    sortableRef: setNodeRef,
+    sortableStyle: style,
     dragHandleProps: { ...attributes, ...listeners },
   });
 };
@@ -39,16 +41,28 @@ const getDefaultContent = (type) => {
     case 'text':
       return { text: '' };
     case 'image':
-      return { url: '', alt: '', caption: '' };
+      // Support multiple images with items array
+      return { items: [], alt: '', caption: '' };
     case 'video':
-      return { url: '', title: '', platform: 'youtube' };
+      // Support multiple videos with items array
+      return { items: [], title: '' };
     case 'link':
-      return { url: '', title: '', description: '' };
+      // Support multiple links with items array
+      return { items: [] };
     case 'document':
-      return { url: '', title: '', filename: '' };
+      // Support multiple documents with items array
+      return { items: [] };
     default:
       return {};
   }
+};
+
+const BLOCK_TYPE_LABELS = {
+  text: 'Text',
+  image: 'Image',
+  video: 'Video',
+  link: 'Link',
+  document: 'Document'
 };
 
 // Main editor component (wrapped with context)
@@ -72,8 +86,15 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
     taskId,
     onComplete,
     onError,
-    setSaveStatus
+    setSaveStatus,
+    saveStatus,
+    lastSaved,
+    setLastSaved,
+    skipNextAutoSaveRef
   } = useEvidenceEditor();
+
+  // Track newly added blocks for animation
+  const [newBlockIds, setNewBlockIds] = useState(new Set());
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -101,33 +122,46 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
     onError
   }), [blocks, documentStatus, taskId, onError]);
 
-  const addBlock = (type, position = blocks.length) => {
+  const addBlock = (type, position) => {
     const newBlock = {
       id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type,
       content: getDefaultContent(type),
-      order: position,
+      order: 0,
       is_private: false // Default to public evidence
     };
 
-    const newBlocks = [...blocks];
-    newBlocks.splice(position, 0, newBlock);
+    // Use functional update to avoid stale closure issues
+    setBlocks(prevBlocks => {
+      const insertPosition = position !== undefined ? position : prevBlocks.length;
+      const newBlocks = [...prevBlocks];
+      newBlocks.splice(insertPosition, 0, newBlock);
 
-    // Update order indices
-    const reorderedBlocks = newBlocks.map((block, index) => ({
-      ...block,
-      order: index
-    }));
+      // Update order indices
+      return newBlocks.map((block, index) => ({
+        ...block,
+        order: index
+      }));
+    });
 
-    setBlocks(reorderedBlocks);
+    // Track new block for animation
+    setNewBlockIds(prev => new Set([...prev, newBlock.id]));
 
-    // Auto-collapse all existing blocks except the new one
-    const next = new Set(blocks.map(b => b.id));
-    next.delete(newBlock.id); // Keep new block expanded
+    // Remove from new blocks set after animation completes
+    setTimeout(() => {
+      setNewBlockIds(prev => {
+        const next = new Set(prev);
+        next.delete(newBlock.id);
+        return next;
+      });
+    }, 500);
+
+    // Show toast notification
+    toast.success(`${BLOCK_TYPE_LABELS[type] || 'Block'} block added`);
   };
 
   const updateBlock = (blockId, newContent) => {
-    setBlocks(blocks.map(block =>
+    setBlocks(prevBlocks => prevBlocks.map(block =>
       block.id === blockId
         ? { ...block, content: { ...block.content, ...newContent } }
         : block
@@ -135,12 +169,20 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
   };
 
   const deleteBlock = (blockId) => {
-    const filteredBlocks = blocks.filter(block => block.id !== blockId);
-    const reorderedBlocks = filteredBlocks.map((block, index) => ({
-      ...block,
-      order: index
-    }));
-    setBlocks(reorderedBlocks);
+    // Get block type before deleting for toast message
+    const blockToDelete = blocks.find(b => b.id === blockId);
+    const blockType = blockToDelete?.type || 'Block';
+
+    setBlocks(prevBlocks => {
+      const filteredBlocks = prevBlocks.filter(block => block.id !== blockId);
+      return filteredBlocks.map((block, index) => ({
+        ...block,
+        order: index
+      }));
+    });
+
+    // Show toast notification
+    toast.success(`${BLOCK_TYPE_LABELS[blockType] || 'Block'} block removed`);
   };
 
   const handleDragEnd = (event) => {
@@ -231,10 +273,50 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
     }
   };
 
-  // Expose methods to parent component via ref
+  // Manual save function
+  const saveNow = async () => {
+    if (blocks.length === 0) return { success: true };
+
+    // Clear any pending auto-save to prevent it from overwriting our status
+    if (autoSaverRef.current?.clearAutoSave) {
+      autoSaverRef.current.clearAutoSave();
+    }
+
+    try {
+      setSaveStatus('saving');
+      const cleanedBlocks = cleanBlocksForSave(blocks);
+      const result = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, 'draft');
+      setSaveStatus('saved');
+      setLastSaved(new Date());
+
+      // Update block IDs if returned - set flag to skip auto-save trigger
+      if (result.blocks && Array.isArray(result.blocks) && result.blocks.length > 0) {
+        skipNextAutoSaveRef.current = true;
+        setBlocks(prevBlocks => {
+          if (prevBlocks.length === 0) return prevBlocks;
+          return prevBlocks.map((block, index) => {
+            const savedBlock = result.blocks.find(sb => sb.order_index === index);
+            if (savedBlock?.id && savedBlock.id !== block.id) {
+              return { ...block, id: savedBlock.id };
+            }
+            return block;
+          });
+        });
+      }
+
+      return { success: true };
+    } catch (error) {
+      setSaveStatus('unsaved');
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Expose methods and state to parent component via ref
   useImperativeHandle(ref, () => ({
     addBlock,
-    submitTask: () => setShowCompleteConfirm(true)
+    submitTask: () => setShowCompleteConfirm(true),
+    getSaveStatus: () => ({ saveStatus, lastSaved }),
+    saveNow
   }));
 
   if (isLoading && blocks.length === 0) {
@@ -249,36 +331,47 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header with save status and add content options - conditionally hidden */}
-      <EvidenceToolbar hideHeader={hideHeader} />
+    <div className="w-full">
+      {/* Legacy toolbar - hidden by default with new inline adders */}
+      {!hideHeader && <EvidenceToolbar hideHeader={hideHeader} />}
 
-      {/* Evidence Blocks */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={blocks.map(b => b.id)}
-          strategy={verticalListSortingStrategy}
+      {/* Empty State - Inline Block Adder */}
+      {blocks.length === 0 ? (
+        <InlineBlockAdder mode="empty" onAddBlock={addBlock} />
+      ) : (
+        /* Evidence Blocks with inline adders between */
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
         >
-          <div className="space-y-4">
-            {blocks.map((block, index) => (
-              <SortableBlock key={block.id} block={block} index={index}>
-                <EvidenceBlockRenderer
-                  block={block}
-                  index={index}
-                  mediaHandlers={mediaHandlers}
-                  addBlock={addBlock}
-                  updateBlock={updateBlock}
-                  deleteBlock={deleteBlock}
-                />
-              </SortableBlock>
-            ))}
+          <SortableContext
+            items={blocks.map(b => b.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-2">
+              {blocks.map((block, index) => (
+                <SortableBlock key={block.id} block={block} index={index}>
+                  <EvidenceBlockRenderer
+                    block={block}
+                    index={index}
+                    mediaHandlers={mediaHandlers}
+                    addBlock={addBlock}
+                    updateBlock={updateBlock}
+                    deleteBlock={deleteBlock}
+                    isNew={newBlockIds.has(block.id)}
+                  />
+                </SortableBlock>
+              ))}
+            </div>
+          </SortableContext>
+
+          {/* Always visible add block button at bottom */}
+          <div className="mt-4">
+            <InlineBlockAdder mode="empty" onAddBlock={addBlock} />
           </div>
-        </SortableContext>
-      </DndContext>
+        </DndContext>
+      )}
 
       {/* Task Completion Confirmation Modal */}
       {showCompleteConfirm && (

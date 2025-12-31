@@ -79,6 +79,24 @@ export const evidenceDocumentService = {
     }
   },
 
+  // Upload file for a task (before block is created)
+  async uploadFile(file, taskId) {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await evidenceApi.post(`/documents/${taskId}/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      logger.error('Error uploading file:', error);
+      throw error;
+    }
+  },
+
   // Delete file from a content block
   async deleteBlockFile(blockId) {
     try {
@@ -95,8 +113,8 @@ export const evidenceDocumentService = {
     let saveTimeout = null;
     let lastSaveTime = 0;
     let isDisabled = false;
-    const SAVE_DEBOUNCE_DELAY = 3000; // 3 seconds
-    const MIN_SAVE_INTERVAL = 5000; // Minimum 5 seconds between saves
+    const SAVE_DEBOUNCE_DELAY = 1500; // 1.5 seconds (reduced for better UX)
+    const MIN_SAVE_INTERVAL = 3000; // Minimum 3 seconds between saves
 
     return {
       autoSave: (blocks) => {

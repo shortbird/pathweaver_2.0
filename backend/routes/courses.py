@@ -55,25 +55,107 @@ def list_courses(user_id):
         courses = result.data if result.data else []
         if courses:
             course_ids = [c['id'] for c in courses]
-            # Get counts from course_quests table
-            quest_counts = client.table('course_quests').select('course_id').in_('course_id', course_ids).execute()
+            # Get counts from course_quests table (only published quests)
+            quest_counts = client.table('course_quests').select('course_id, is_published').in_('course_id', course_ids).execute()
 
-            # Count quests per course
+            # Count only published quests per course
             count_map = {}
             for cq in (quest_counts.data or []):
+                if cq.get('is_published') is False:
+                    continue  # Skip unpublished quests
                 cid = cq['course_id']
                 count_map[cid] = count_map.get(cid, 0) + 1
 
             # Get enrollment status for current user
-            enrollments = client.table('course_enrollments').select('course_id').eq(
+            enrollments = client.table('course_enrollments').select('course_id, status').eq(
                 'user_id', user_id
             ).in_('course_id', course_ids).execute()
-            enrolled_course_ids = set(e['course_id'] for e in (enrollments.data or []))
+            enrollment_map = {e['course_id']: e for e in (enrollments.data or [])}
 
-            # Add quest_count and is_enrolled to each course
+            # Get progress for enrolled courses (XP-based)
+            # Also include courses where user is creator
+            progress_map = {}
+
+            # Build list of course IDs to calculate progress for
+            courses_to_check = set(e['course_id'] for e in (enrollments.data or []))
+            for course in courses:
+                if course['created_by'] == user_id:
+                    courses_to_check.add(course['id'])
+
+            for cid in courses_to_check:
+                # Get quests for this course
+                course_quests_result = client.table('course_quests').select(
+                    'quest_id, is_required, is_published'
+                ).eq('course_id', cid).execute()
+
+                # Only count published and required quests
+                published_quests = [q for q in (course_quests_result.data or []) if q.get('is_published') is not False]
+                required_quests = [q for q in published_quests if q.get('is_required', True)]
+
+                total_xp = 0
+                earned_xp = 0
+
+                if required_quests:
+                    quest_ids = [q['quest_id'] for q in required_quests]
+
+                    # Get lessons for these quests to calculate total XP
+                    lessons_result = client.table('curriculum_lessons').select(
+                        'id, quest_id, xp_threshold, is_published'
+                    ).in_('quest_id', quest_ids).execute()
+
+                    published_lessons = [l for l in (lessons_result.data or []) if l.get('is_published') is not False]
+                    total_xp = sum(l.get('xp_threshold', 0) or 0 for l in published_lessons)
+
+                    if published_lessons:
+                        lesson_ids = [l['id'] for l in published_lessons]
+
+                        # Get linked tasks for these lessons
+                        links_result = client.table('curriculum_lesson_tasks').select(
+                            'lesson_id, task_id'
+                        ).in_('lesson_id', lesson_ids).execute()
+
+                        if links_result.data:
+                            task_ids = [link['task_id'] for link in links_result.data]
+
+                            # Get user's quest enrollments
+                            user_quests_result = client.table('user_quests').select(
+                                'id, quest_id'
+                            ).eq('user_id', user_id).in_('quest_id', quest_ids).execute()
+
+                            if user_quests_result.data:
+                                enrollment_ids = [uq['id'] for uq in user_quests_result.data]
+
+                                # Get tasks with XP values
+                                user_tasks_result = client.table('user_quest_tasks').select(
+                                    'id, xp_value'
+                                ).in_('user_quest_id', enrollment_ids).in_('id', task_ids).execute()
+
+                                if user_tasks_result.data:
+                                    task_xp_map = {t['id']: t.get('xp_value', 0) or 0 for t in user_tasks_result.data}
+                                    user_task_ids = [t['id'] for t in user_tasks_result.data]
+
+                                    # Get completions
+                                    completions_result = client.table('quest_task_completions').select(
+                                        'user_quest_task_id'
+                                    ).eq('user_id', user_id).in_('user_quest_task_id', user_task_ids).execute()
+
+                                    earned_xp = sum(task_xp_map.get(c['user_quest_task_id'], 0) for c in (completions_result.data or []))
+
+                percentage = min(100, round((earned_xp / total_xp * 100), 1)) if total_xp > 0 else 0
+                progress_map[cid] = {
+                    'earned_xp': earned_xp,
+                    'total_xp': total_xp,
+                    'percentage': percentage,
+                    'is_completed': percentage >= 100
+                }
+
+            # Add quest_count, is_enrolled, and progress to each course
             for course in courses:
                 course['quest_count'] = count_map.get(course['id'], 0)
-                course['is_enrolled'] = course['id'] in enrolled_course_ids
+                # Creator is always considered enrolled
+                course['is_enrolled'] = course['id'] in enrollment_map or course['created_by'] == user_id
+                if course['id'] in progress_map:
+                    course['progress'] = progress_map[course['id']]
 
         return jsonify({
             'success': True,
@@ -977,12 +1059,21 @@ def get_course_progress(user_id, course_id: str):
             if user_data['role'] not in ['superadmin', 'org_admin', 'advisor']:
                 return jsonify({'error': 'Insufficient permissions'}), 403
 
+        # Get course to check creator status
+        course_result = client.table('courses').select('created_by').eq('id', course_id).execute()
+        if not course_result.data:
+            return jsonify({'error': 'Course not found'}), 404
+
+        course = course_result.data[0]
+        is_creator = course['created_by'] == target_user_id
+
         # Get enrollment
         enrollment = client.table('course_enrollments').select('*').eq(
             'course_id', course_id
         ).eq('user_id', target_user_id).execute()
 
-        if not enrollment.data:
+        # Creator is always considered enrolled, even without formal enrollment record
+        if not enrollment.data and not is_creator:
             return jsonify({
                 'success': True,
                 'enrolled': False,
@@ -1013,16 +1104,20 @@ def get_course_progress(user_id, course_id: str):
             completed_count = 0
             progress_pct = 0
 
+        # Handle response for both formal enrollments and creators without enrollment
+        enrollment_record = enrollment.data[0] if enrollment.data else None
+
         return jsonify({
             'success': True,
             'enrolled': True,
-            'status': enrollment.data[0]['status'],
-            'current_quest_id': enrollment.data[0].get('current_quest_id'),
+            'is_creator': is_creator,
+            'status': enrollment_record['status'] if enrollment_record else ('active' if is_creator else None),
+            'current_quest_id': enrollment_record.get('current_quest_id') if enrollment_record else None,
             'progress_percentage': progress_pct,
             'quests_completed': completed_count,
             'quests_total': total_quests,
-            'enrolled_at': enrollment.data[0]['enrolled_at'],
-            'completed_at': enrollment.data[0].get('completed_at')
+            'enrolled_at': enrollment_record['enrolled_at'] if enrollment_record else None,
+            'completed_at': enrollment_record.get('completed_at') if enrollment_record else None
         }), 200
 
     except Exception as e:
@@ -1194,7 +1289,7 @@ def get_course_homepage(user_id, course_id: str):
                     'total_tasks': total_tasks,
                     'earned_xp': earned_xp,
                     'total_xp': total_xp,
-                    'percentage': round((earned_xp / total_xp * 100), 1) if total_xp > 0 else 0,
+                    'percentage': min(100, round((earned_xp / total_xp * 100), 1)) if total_xp > 0 else 0,
                     'is_completed': (quest_enrollment.get('completed_at') is not None and not quest_enrollment.get('is_active')) if quest_enrollment else False
                 }
             })
@@ -1208,6 +1303,18 @@ def get_course_homepage(user_id, course_id: str):
 
         enrollment = enrollment_result.data[0] if enrollment_result.data else None
 
+        # Creator is always considered enrolled, even without formal enrollment
+        is_creator = course['created_by'] == current_user_id
+        if is_creator and not enrollment:
+            enrollment = {
+                'id': None,
+                'course_id': course_id,
+                'user_id': current_user_id,
+                'status': 'active',
+                'enrolled_at': course.get('created_at'),  # Use course creation date
+                'is_creator': True
+            }
+
         # Calculate overall course progress (XP-based)
         total_required_quests = len([q for q in quests_with_data if q.get('is_required', True)])
         completed_quests = len([q for q in quests_with_data if q['progress']['is_completed'] and q.get('is_required', True)])
@@ -1215,7 +1322,7 @@ def get_course_homepage(user_id, course_id: str):
         # Sum XP across all required quests
         course_earned_xp = sum(q['progress']['earned_xp'] for q in quests_with_data if q.get('is_required', True))
         course_total_xp = sum(q['progress']['total_xp'] for q in quests_with_data if q.get('is_required', True))
-        course_progress = round((course_earned_xp / course_total_xp * 100), 1) if course_total_xp > 0 else 0
+        course_progress = min(100, round((course_earned_xp / course_total_xp * 100), 1)) if course_total_xp > 0 else 0
 
         return jsonify({
             'success': True,

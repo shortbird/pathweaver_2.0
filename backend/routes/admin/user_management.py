@@ -354,18 +354,9 @@ def delete_user(user_id, target_user_id):
         if not user.data:
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
-        # Step 1: Delete from auth.users first (source of truth for authentication)
-        try:
-            supabase.auth.admin.delete_user(target_user_id)
-            logger.info(f"Deleted user {target_user_id} from auth.users")
-        except Exception as auth_error:
-            logger.error(f"Error deleting from auth.users: {str(auth_error)}")
-            # Continue to delete from public.users even if auth deletion fails
-            # (user might only exist in public.users due to sync issues)
-
-        # Step 2: Delete from public.users (cascade should handle related records)
+        # Delete from public.users (AFTER DELETE trigger syncs deletion to auth.users)
         supabase.table('users').delete().eq('id', target_user_id).execute()
-        logger.info(f"Deleted user {target_user_id} from public.users")
+        logger.info(f"Deleted user {target_user_id} from public.users (trigger syncs to auth.users)")
 
         return jsonify({
             'success': True,

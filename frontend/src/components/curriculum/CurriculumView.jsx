@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -725,7 +726,7 @@ const LessonSlideViewer = ({
           </div>
 
           <p className="text-gray-600 mb-6">
-            Select tasks that interest you. Complete them to earn XP and reinforce your learning.
+            Select tasks that interest you, or create your own. You don't need to complete all tasks - just enough to meet the project's XP requirements. If none of these tasks appeal to you, feel free to create your own!
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -733,14 +734,17 @@ const LessonSlideViewer = ({
               const pillarData = getPillarData(task.pillar || 'wellness')
               // Only check is_completed, not approval_status (which just means task is approved to work on)
               const isTaskCompleted = task.is_completed === true
+              const taskQuestId = task.quest_id || questId
               return (
-                <button
+                <Link
                   key={task.id}
+                  to={`/quests/${taskQuestId}?task=${task.id}`}
                   onClick={() => onTaskClick?.(task)}
                   className={`
-                    p-4 rounded-xl border-2 text-left transition-all
-                    hover:shadow-lg hover:scale-[1.02] active:scale-[0.99]
-                    ${isTaskCompleted ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200 hover:border-optio-purple/50'}
+                    block p-4 rounded-xl border-2 text-left cursor-pointer w-full
+                    transition-colors transition-shadow duration-150
+                    hover:shadow-lg hover:border-optio-purple/50 active:scale-[0.98]
+                    ${isTaskCompleted ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}
                   `}
                 >
                   <div className="flex items-start gap-3">
@@ -775,15 +779,16 @@ const LessonSlideViewer = ({
                     </div>
                     <ChevronRightIcon className="w-5 h-5 text-gray-400 flex-shrink-0 mt-2" />
                   </div>
-                </button>
+                </Link>
               )
             })}
 
             {/* Add Task Card */}
             {questId && !showPersonalizeWizard && (
               <button
+                type="button"
                 onClick={() => setShowPersonalizeWizard(true)}
-                className="p-4 rounded-xl border-2 border-dashed border-gray-300 text-left transition-all hover:border-optio-purple hover:bg-optio-purple/5 hover:shadow-lg hover:scale-[1.02] active:scale-[0.99] group"
+                className="p-4 rounded-xl border-2 border-dashed border-gray-300 text-left transition-colors transition-shadow duration-150 hover:border-optio-purple hover:bg-optio-purple/5 hover:shadow-lg group"
               >
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-optio-purple/20 to-optio-pink/20 group-hover:from-optio-purple/30 group-hover:to-optio-pink/30 transition-colors">
@@ -1231,7 +1236,7 @@ const CurriculumView = ({
   const [progressLoaded, setProgressLoaded] = useState(false);
 
   // Track which lesson we've initialized step state for (prevents re-init on save)
-  const [initializedLessonId, setInitializedLessonId] = useState(null);
+  const initializedLessonIdRef = useRef(null);
 
   // Use prop lessons if provided, otherwise use fetched lessons
   const lessons = propLessons || fetchedLessons;
@@ -1311,7 +1316,7 @@ const CurriculumView = ({
     if (initialLessonId) {
       setInternalSelectedId(initialLessonId);
       // Reset initialized lesson ID to force progress re-initialization for new lesson
-      setInitializedLessonId(null);
+      initializedLessonIdRef.current = null;
     }
   }, [initialLessonId]);
 
@@ -1397,39 +1402,16 @@ const CurriculumView = ({
   // When there are tasks: content steps + finished step + tasks step = totalSteps + 2
   const totalStepsWithTasks = hasTasksStep ? totalSteps + 2 : totalSteps;
 
-  // Debug logging
-  console.log('[CurriculumView] Task check:', {
-    selectedLessonId: selectedLesson?.id,
-    linked_task_ids: selectedLesson?.linked_task_ids,
-    questTasksCount: questTasks.length,
-    linkedTasksForLesson: linkedTasksForLesson.length,
-    hasTasksStep
-  });
-
   // Get current lesson's XP threshold and calculate earned XP
   const selectedLessonXpThreshold = selectedLesson?.xp_threshold || 0;
   const selectedLessonEarnedXP = selectedLesson ? getLessonEarnedXP(selectedLesson) : 0;
 
-  // Debug XP threshold
-  console.log('[CurriculumView] XP Debug:', {
-    lessonId: selectedLesson?.id,
-    lessonTitle: selectedLesson?.title,
-    xp_threshold_raw: selectedLesson?.xp_threshold,
-    selectedLessonXpThreshold,
-    selectedLessonEarnedXP,
-    lessonKeys: selectedLesson ? Object.keys(selectedLesson) : []
-  });
-
   // Save progress to API
   const saveProgress = async (lessonId, completedStepsArray, currentStep) => {
-    if (!questId) {
-      console.log('[Progress] Skipping save - no questId', { questId });
-      return;
-    }
+    if (!questId) return;
 
     try {
       const allContentStepsComplete = totalSteps > 0 && completedStepsArray.length >= totalSteps;
-      console.log('[Progress] Saving:', { lessonId, completedStepsArray, currentStep, allContentStepsComplete });
 
       const response = await api.post(`/api/quests/${questId}/curriculum/progress/${lessonId}`, {
         status: allContentStepsComplete ? 'completed' : 'in_progress',
@@ -1439,8 +1421,6 @@ const CurriculumView = ({
           current_step: currentStep
         }
       });
-
-      console.log('[Progress] Saved successfully:', response.data);
 
       // Update local progress state
       setLessonProgress(prev => ({
@@ -1459,58 +1439,79 @@ const CurriculumView = ({
     }
   };
 
+  // Track the last used propInitialStepIndex to detect changes
+  const [lastAppliedInitialStep, setLastAppliedInitialStep] = useState(null);
+
   // Load saved progress when a NEW lesson is selected (not on every progress update)
   useEffect(() => {
     if (!selectedLessonId || !progressLoaded) return;
 
-    // Only initialize if this is a different lesson than what we've already initialized
-    if (initializedLessonId === selectedLessonId) {
-      return;
-    }
-
     const savedProgress = lessonProgress[selectedLessonId];
     const savedPosition = savedProgress?.last_position;
     const contentSteps = lessonSteps.length;
+    const tasksStepIndex = contentSteps + 1;
 
-    console.log('[Progress] Initializing for lesson:', {
-      selectedLessonId,
-      savedProgress,
-      savedPosition,
-      contentSteps,
-      propInitialStepIndex
-    });
-
-    // Mark this lesson as initialized
-    setInitializedLessonId(selectedLessonId);
-
-    // If propInitialStepIndex is provided (e.g., from back navigation), use it directly
-    if (propInitialStepIndex !== null && propInitialStepIndex !== undefined) {
-      console.log('[Progress] Using initial step from prop:', propInitialStepIndex);
-      // Restore completed steps if we have saved progress
-      if (savedPosition && savedPosition.completed_steps) {
-        setCompletedSteps(new Set(savedPosition.completed_steps));
+    // Already initialized this lesson - only update if propInitialStepIndex is for tasks step (back navigation)
+    if (initializedLessonIdRef.current === selectedLessonId) {
+      // Only apply propInitialStepIndex if it's for the tasks step or beyond (back from task page)
+      if (propInitialStepIndex !== null &&
+          propInitialStepIndex !== undefined &&
+          propInitialStepIndex >= tasksStepIndex &&
+          propInitialStepIndex !== lastAppliedInitialStep) {
+        setCurrentStepIndex(propInitialStepIndex);
+        setLastAppliedInitialStep(propInitialStepIndex);
       }
-      setCurrentStepIndex(propInitialStepIndex);
       return;
     }
 
+    // Find the selected lesson to check completion status
+    const currentLesson = lessons.find(l => l.id === selectedLessonId);
+
+    // Mark this lesson as initialized FIRST to prevent re-entry
+    initializedLessonIdRef.current = selectedLessonId;
+
+    // Check if lesson is completed
+    const isLessonCompleted = currentLesson?.is_completed ||
+                               currentLesson?.progress?.status === 'completed';
+
+    // Restore completed steps if we have saved progress
+    if (savedPosition && savedPosition.completed_steps) {
+      setCompletedSteps(new Set(savedPosition.completed_steps));
+    }
+
+    // If lesson is marked as completed, always go to tasks step (unless propInitialStepIndex points to tasks step already)
+    if (isLessonCompleted && hasTasksStep) {
+      const tasksStepIndex = contentSteps + 1;
+      // Only use propInitialStepIndex if it's the tasks step or beyond
+      if (propInitialStepIndex !== null && propInitialStepIndex !== undefined && propInitialStepIndex >= tasksStepIndex) {
+        setCurrentStepIndex(propInitialStepIndex);
+        setLastAppliedInitialStep(propInitialStepIndex);
+      } else {
+        setCurrentStepIndex(tasksStepIndex);
+      }
+      return;
+    }
+
+    // For incomplete lessons, use propInitialStepIndex if provided (e.g., from back navigation)
+    if (propInitialStepIndex !== null && propInitialStepIndex !== undefined) {
+      setCurrentStepIndex(propInitialStepIndex);
+      setLastAppliedInitialStep(propInitialStepIndex);
+      return;
+    }
+
+    // Handle based on saved progress
     if (savedPosition && savedPosition.completed_steps) {
       const savedCompletedSteps = new Set(savedPosition.completed_steps);
-      setCompletedSteps(savedCompletedSteps);
 
       // Check if all content steps are complete
       const allContentComplete = contentSteps > 0 && savedCompletedSteps.size >= contentSteps;
 
-      console.log('[Progress] Restored completed steps:', {
-        completedSteps: savedPosition.completed_steps,
-        allContentComplete,
-        hasTasksStep
-      });
-
-      if (allContentComplete) {
-        // Lesson is complete - go directly to tasks step (skip "Lesson Complete" screen)
-        // Tasks step is at contentSteps + 1, "finished" screen is at contentSteps
-        setCurrentStepIndex(hasTasksStep ? contentSteps + 1 : 0);
+      if (allContentComplete && hasTasksStep) {
+        // All content complete - go to tasks step
+        setCurrentStepIndex(contentSteps + 1);
+      } else if (allContentComplete) {
+        // All content complete but no tasks - go to start
+        setCurrentStepIndex(0);
       } else {
         // Find next incomplete step
         let nextIncomplete = 0;
@@ -1524,11 +1525,10 @@ const CurriculumView = ({
       }
     } else {
       // No saved progress - start at step 0
-      console.log('[Progress] No saved progress, starting at step 0');
       setCurrentStepIndex(0);
       setCompletedSteps(new Set());
     }
-  }, [selectedLessonId, progressLoaded, lessonProgress, lessonSteps.length, hasTasksStep, initializedLessonId, propInitialStepIndex]);
+  }, [selectedLessonId, progressLoaded, lessonProgress, lessonSteps.length, hasTasksStep, propInitialStepIndex, lastAppliedInitialStep, lessons]);
 
   // Track if there are unsaved changes
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -1538,36 +1538,45 @@ const CurriculumView = ({
     onUnsavedChangesChange?.(hasUnsavedChanges);
   }, [hasUnsavedChanges, onUnsavedChangesChange]);
 
-  // Expose save function to parent
+  // Expose save function to parent - use ref to avoid dependency on changing values
+  const saveStateRef = useRef({ completedSteps, currentStepIndex, selectedLessonId, totalSteps });
+  saveStateRef.current = { completedSteps, currentStepIndex, selectedLessonId, totalSteps };
+
   useEffect(() => {
     if (onSaveProgress) {
       onSaveProgress(() => {
-        if (hasUnsavedChanges && selectedLessonId) {
-          saveProgress(selectedLessonId, Array.from(completedSteps).filter(s => s < totalSteps), currentStepIndex);
+        const { completedSteps: steps, currentStepIndex: stepIdx, selectedLessonId: lessonId, totalSteps: total } = saveStateRef.current;
+        if (hasUnsavedChanges && lessonId) {
+          saveProgress(lessonId, Array.from(steps).filter(s => s < total), stepIdx);
           setHasUnsavedChanges(false);
         }
       });
     }
-  }, [onSaveProgress, hasUnsavedChanges, selectedLessonId, completedSteps, currentStepIndex, totalSteps]);
+  }, [onSaveProgress, hasUnsavedChanges]);
 
-  // Step navigation handlers
+  // Step navigation handlers - call onStepChange directly (not via useEffect to avoid loops)
   const goToNextStep = () => {
     if (currentStepIndex < totalStepsWithTasks - 1) {
+      const newIndex = currentStepIndex + 1;
       const newCompleted = new Set([...completedSteps, currentStepIndex]);
       setCompletedSteps(newCompleted);
-      setCurrentStepIndex(currentStepIndex + 1);
+      setCurrentStepIndex(newIndex);
       setHasUnsavedChanges(true);
+      onStepChange?.(newIndex);
     }
   };
 
   const goToPrevStep = () => {
     if (currentStepIndex > 0) {
-      setCurrentStepIndex(currentStepIndex - 1);
+      const newIndex = currentStepIndex - 1;
+      setCurrentStepIndex(newIndex);
+      onStepChange?.(newIndex);
     }
   };
 
   const goToStep = (index) => {
     setCurrentStepIndex(index);
+    onStepChange?.(index);
   };
 
   // Keyboard navigation for steps
@@ -1593,12 +1602,6 @@ const CurriculumView = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentStepIndex, totalStepsWithTasks]);
 
-  // Notify parent of step changes (for URL sync)
-  useEffect(() => {
-    if (onStepChange && selectedLessonId) {
-      onStepChange(currentStepIndex);
-    }
-  }, [currentStepIndex, onStepChange, selectedLessonId]);
 
   // Reset progress for current lesson (admin only)
   const resetLessonProgress = async () => {
@@ -1620,7 +1623,7 @@ const CurriculumView = ({
       });
 
       // Reset initialized flag so we don't restore old progress
-      setInitializedLessonId(null);
+      initializedLessonIdRef.current = null;
 
       console.log('[Progress] Reset successfully for lesson:', selectedLessonId);
     } catch (err) {

@@ -354,6 +354,112 @@ def save_evidence_document(user_id: str, task_id: str):
             'error': 'Failed to save evidence document'
         }), 500
 
+@bp.route('/documents/<task_id>/upload', methods=['POST'])
+@rate_limit(limit=20, per=3600)  # 20 uploads per hour
+@require_auth
+def upload_task_file(user_id: str, task_id: str):
+    """
+    Upload a file for a task (before block is created).
+    Returns the public URL for the uploaded file.
+    """
+    try:
+        admin_supabase = get_supabase_admin_client()
+
+        # Validate task exists and user owns it
+        task_check = admin_supabase.table('user_quest_tasks')\
+            .select('id, user_id')\
+            .eq('id', task_id)\
+            .execute()
+
+        if not task_check.data:
+            return jsonify({
+                'success': False,
+                'error': 'Task not found'
+            }), 404
+
+        if task_check.data[0]['user_id'] != user_id:
+            return jsonify({
+                'success': False,
+                'error': 'Access denied'
+            }), 403
+
+        # Handle file upload
+        if 'file' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No file provided'
+            }), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': 'No file selected'
+            }), 400
+
+        # Validate file
+        filename = secure_filename(file.filename)
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+
+        # Allow both image and document extensions
+        allowed_extensions = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS
+        max_file_size = max(MAX_IMAGE_SIZE, MAX_DOCUMENT_SIZE)
+
+        if ext not in allowed_extensions:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'
+            }), 400
+
+        # Check file size
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)
+
+        if file_size > max_file_size:
+            max_size_mb = max_file_size // (1024*1024)
+            return jsonify({
+                'success': False,
+                'error': f'File too large ({file_size // (1024*1024)}MB). Maximum: {max_size_mb}MB.'
+            }), 413
+
+        # Upload to Supabase storage
+        try:
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            unique_filename = f"evidence-tasks/{user_id}/{task_id}_{timestamp}_{filename}"
+
+            file_content = file.read()
+            content_type = file.content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+
+            storage_response = admin_supabase.storage.from_('quest-evidence').upload(
+                path=unique_filename,
+                file=file_content,
+                file_options={"content-type": content_type}
+            )
+
+            public_url = admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename)
+
+            return jsonify({
+                'success': True,
+                'url': public_url,
+                'filename': filename,
+                'file_size': file_size
+            })
+
+        except Exception as upload_error:
+            logger.error(f"Error uploading file: {str(upload_error)}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to upload file'
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error in upload_task_file: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to process file upload'
+        }), 500
+
 @bp.route('/blocks/<block_id>/upload', methods=['POST'])
 @rate_limit(limit=20, per=3600)  # CVE-OPTIO-2025-017 FIX: 20 uploads per hour
 @require_auth
@@ -646,70 +752,61 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
 def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
     """
     Update the content blocks for a document.
-    Deletes removed blocks and creates/updates existing ones.
-    Optimized to use batch operations to reduce database connections.
+    Uses delete-and-reinsert strategy to avoid unique constraint violations
+    on (document_id, order_index) when reordering blocks.
     """
     try:
-        # Get existing blocks
+        # Get existing blocks with their uploader info to preserve it
         existing_blocks = supabase.table('evidence_document_blocks')\
-            .select('id')\
+            .select('id, uploaded_by_user_id, uploaded_by_role')\
             .eq('document_id', document_id)\
             .execute()
 
-        existing_block_ids = {block['id'] for block in existing_blocks.data}
-        # Filter out temporary IDs (legacy-, temp-, etc.) - only real UUIDs count
-        incoming_block_ids = {
-            block.get('id') for block in blocks
-            if block.get('id') and not str(block.get('id')).startswith(('legacy-', 'temp-', 'new-'))
+        # Build a map of existing block data to preserve uploader info
+        existing_block_map = {
+            block['id']: {
+                'uploaded_by_user_id': block.get('uploaded_by_user_id'),
+                'uploaded_by_role': block.get('uploaded_by_role', 'student')
+            }
+            for block in existing_blocks.data
         }
 
-        # Delete blocks that are no longer present
-        blocks_to_delete = existing_block_ids - incoming_block_ids
-        if blocks_to_delete:
+        # Delete ALL existing blocks for this document to avoid order_index conflicts
+        if existing_blocks.data:
             supabase.table('evidence_document_blocks')\
                 .delete()\
-                .in_('id', list(blocks_to_delete))\
+                .eq('document_id', document_id)\
                 .execute()
 
-        # Batch prepare blocks for insert/update
+        # Prepare all blocks for insert
         blocks_to_insert = []
-        blocks_to_update = []
-
         for index, block in enumerate(blocks):
+            block_id = block.get('id')
+            is_existing = block_id and not str(block_id).startswith(('legacy-', 'temp-', 'new-')) and block_id in existing_block_map
+
             block_data = {
                 'document_id': document_id,
                 'block_type': block['type'],
                 'content': block['content'],
                 'order_index': index,
-                'is_private': block.get('is_private', False)  # Support private evidence blocks
+                'is_private': block.get('is_private', False)
             }
 
-            block_id = block.get('id')
-            # Check if this is a real UUID that exists in the database
-            is_temporary_id = not block_id or str(block_id).startswith(('legacy-', 'temp-', 'new-'))
-
-            if block_id and not is_temporary_id and block_id in existing_block_ids:
-                # Update existing block (preserve uploader info - don't overwrite)
-                block_data['id'] = block_id
-                blocks_to_update.append(block_data)
+            # Preserve uploader info from existing blocks, or set defaults for new blocks
+            if is_existing:
+                existing_info = existing_block_map[block_id]
+                block_data['uploaded_by_user_id'] = existing_info.get('uploaded_by_user_id')
+                block_data['uploaded_by_role'] = existing_info.get('uploaded_by_role', 'student')
             else:
-                # Create new block - preserve uploader info if present, otherwise default to student
                 block_data['uploaded_by_user_id'] = block.get('uploaded_by_user_id')
                 block_data['uploaded_by_role'] = block.get('uploaded_by_role', 'student')
-                blocks_to_insert.append(block_data)
 
-        # Batch insert new blocks
+            blocks_to_insert.append(block_data)
+
+        # Batch insert all blocks
         if blocks_to_insert:
             supabase.table('evidence_document_blocks')\
                 .insert(blocks_to_insert)\
-                .execute()
-
-        # Batch update existing blocks (Supabase doesn't support batch update, so do individually but minimize calls)
-        for block_data in blocks_to_update:
-            block_id = block_data.pop('id')
-            supabase.table('evidence_document_blocks')\
-                .update(block_data)\
-                .eq('id', block_id)\
                 .execute()
 
     except Exception as e:

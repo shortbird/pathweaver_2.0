@@ -48,6 +48,15 @@ export const queryKeys = {
     task: (taskId) => [...queryKeys.evidence.all, 'task', taskId],
   },
 
+  // Course queries
+  courses: {
+    all: ['course'],
+    list: (filters) => [...queryKeys.courses.all, 'list', filters],
+    homepage: (courseId) => [...queryKeys.courses.all, 'homepage', courseId],
+    detail: (courseId) => [...queryKeys.courses.all, 'detail', courseId],
+    progress: (courseId) => [...queryKeys.courses.all, 'progress', courseId],
+  },
+
   // Admin queries
   admin: {
     all: ['admin'],
@@ -69,10 +78,16 @@ export const queryKeys = {
 
   invalidateQuests: (queryClient, userId) => {
     queryClient.invalidateQueries(queryKeys.quests.all)
+    // Also invalidate courses since quest progress affects course XP
+    queryClient.invalidateQueries(queryKeys.courses.all)
     if (userId) {
       queryClient.invalidateQueries(queryKeys.user.dashboard(userId))
       queryClient.invalidateQueries(queryKeys.portfolio.user(userId))
     }
+  },
+
+  invalidateCourses: (queryClient) => {
+    queryClient.invalidateQueries(queryKeys.courses.all)
   },
 
   invalidateSocial: (queryClient, userId) => {
