@@ -91,6 +91,7 @@ The OptioQuest Team`
       onClose={onClose}
       title="Send Bulk Email"
       size="md"
+      className="max-w-full sm:max-w-3xl mx-2 sm:mx-0"
       footer={
         <FormFooter
           onCancel={onClose}
@@ -109,7 +110,7 @@ The OptioQuest Team`
           </p>
           <div className="flex flex-wrap gap-2">
             {users.slice(0, 5).map(user => (
-              <span key={user.id} className="px-2 py-1 bg-white rounded text-sm">
+              <span key={user.id} className="px-2 py-1 bg-white rounded text-sm min-h-[36px] flex items-center">
                 {user.first_name} {user.last_name}
               </span>
             ))}
@@ -129,7 +130,7 @@ The OptioQuest Team`
           <select
             value={emailData.template}
             onChange={(e) => handleTemplateChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple min-h-[44px]"
           >
             <option value="custom">Custom Message</option>
             <option value="welcome_back">Welcome Back</option>
@@ -148,7 +149,7 @@ The OptioQuest Team`
             value={emailData.subject}
             onChange={(e) => setEmailData({ ...emailData, subject: e.target.value })}
             placeholder="Enter email subject..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple min-h-[44px]"
           />
         </div>
 
@@ -162,7 +163,7 @@ The OptioQuest Team`
             onChange={(e) => setEmailData({ ...emailData, message: e.target.value })}
             rows={10}
             placeholder="Enter your message..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple min-h-[200px]"
           />
           <p className="text-sm text-gray-500 mt-1">
             Available variables: {`{{first_name}}, {{last_name}}, {{email}}, {{total_xp}}`}

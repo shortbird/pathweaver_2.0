@@ -213,7 +213,7 @@ const CourseImport = ({ organizationId = null }) => {
       ) : (
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <h2 className="text-2xl font-bold text-gray-900">Import Preview</h2>
               <button
                 onClick={handleReset}
@@ -223,7 +223,7 @@ const CourseImport = ({ organizationId = null }) => {
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
               <div className="bg-blue-50 p-4 rounded-lg">
                 <p className="text-sm text-blue-600 font-medium">Total Assignments</p>
                 <p className="text-3xl font-bold text-blue-900">
@@ -264,7 +264,7 @@ const CourseImport = ({ organizationId = null }) => {
                   {previewData.badge_preview.description || 'No description provided'}
                 </p>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700">Course Code</label>
                   <p className="text-gray-900">
@@ -307,7 +307,7 @@ const CourseImport = ({ organizationId = null }) => {
                   {previewData.quest_preview.description || 'No description provided'}
                 </p>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700">Type</label>
                   <p className="text-gray-900 capitalize">{previewData.quest_preview.quest_type}</p>

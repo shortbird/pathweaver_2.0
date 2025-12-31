@@ -162,8 +162,8 @@ const AIQuestReviewModal = ({ isOpen, onClose, onApprove }) => {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-lg max-w-full sm:max-w-4xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
         <div className="px-6 py-4 border-b flex justify-between items-center bg-gradient-to-r from-optio-purple to-optio-pink">
           <div>
@@ -193,7 +193,7 @@ const AIQuestReviewModal = ({ isOpen, onClose, onApprove }) => {
                     setStatusFilter(status)
                     setCurrentPage(1)
                   }}
-                  className={`px-3 py-2 rounded-lg font-medium capitalize text-sm ${
+                  className={`min-h-[44px] px-3 py-2 rounded-lg font-medium capitalize text-sm ${
                     statusFilter === status
                       ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -227,7 +227,7 @@ const AIQuestReviewModal = ({ isOpen, onClose, onApprove }) => {
               <button
                 onClick={handleBulkApprove}
                 disabled={processing}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold text-sm flex items-center gap-2"
+                className="min-h-[44px] w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold text-sm flex items-center justify-center gap-2"
                 style={{ fontFamily: 'Poppins, sans-serif' }}
               >
                 <CheckCircleIcon className="w-4 h-4" />
@@ -252,7 +252,7 @@ const AIQuestReviewModal = ({ isOpen, onClose, onApprove }) => {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 max-h-[70vh]">
           {loading ? (
             <div className="flex justify-center items-center h-64">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
@@ -338,11 +338,11 @@ const AIQuestReviewModal = ({ isOpen, onClose, onApprove }) => {
 
                         {/* Actions */}
                         {quest.status === 'pending_review' && (
-                          <div className="flex gap-2">
+                          <div className="flex flex-col sm:flex-row gap-2">
                             <button
                               onClick={() => handleApprove(quest.id)}
                               disabled={processing}
-                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold text-sm flex items-center gap-2"
+                              className="min-h-[44px] w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold text-sm flex items-center justify-center gap-2"
                               style={{ fontFamily: 'Poppins, sans-serif' }}
                             >
                               <CheckCircleIcon className="w-4 h-4" />
@@ -351,7 +351,7 @@ const AIQuestReviewModal = ({ isOpen, onClose, onApprove }) => {
                             <button
                               onClick={() => handleReject(quest.id)}
                               disabled={processing}
-                              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-semibold text-sm flex items-center gap-2"
+                              className="min-h-[44px] w-full sm:w-auto px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-semibold text-sm flex items-center justify-center gap-2"
                               style={{ fontFamily: 'Poppins, sans-serif' }}
                             >
                               <XCircleIcon className="w-4 h-4" />
@@ -381,7 +381,7 @@ const AIQuestReviewModal = ({ isOpen, onClose, onApprove }) => {
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
-                  className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  className="min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                   style={{ fontFamily: 'Poppins, sans-serif' }}
                 >
                   Previous
@@ -394,7 +394,7 @@ const AIQuestReviewModal = ({ isOpen, onClose, onApprove }) => {
                 <button
                   onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}
-                  className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  className="min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                   style={{ fontFamily: 'Poppins, sans-serif' }}
                 >
                   Next

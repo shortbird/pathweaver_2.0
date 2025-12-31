@@ -49,11 +49,11 @@ const PillarInfoCard = ({ pillar, position, containerDimensions }) => {
         left: `${cardPosition.left}px`,
         zIndex: 100,
       }}
-      className="w-[280px] pointer-events-none"
+      className="w-full max-w-[280px] max-w-[calc(100vw-2rem)] pointer-events-none"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="bg-gray-900/95 backdrop-blur-md border border-white/20
-                      rounded-2xl p-5 shadow-2xl">
+                      rounded-2xl p-5 shadow-2xl break-words">
         {/* Pillar Name with Gradient */}
         <h3
           className="text-2xl font-bold mb-4 bg-gradient-to-r text-transparent bg-clip-text"

@@ -25,7 +25,7 @@ const BadgesModal = ({ isOpen, onClose, earnedBadges, isOwner, getStudentFirstNa
       aria-label="Close badges modal"
     >
       <div
-        className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-xl max-w-full sm:max-w-4xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleContentKeyDown}
         role="dialog"
@@ -33,7 +33,7 @@ const BadgesModal = ({ isOpen, onClose, earnedBadges, isOwner, getStudentFirstNa
         aria-label="Badges"
       >
         <div className="sticky top-0 p-6 bg-gradient-primary z-10">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
             <h2 className="text-2xl font-bold text-white">Earned Badges</h2>
             <button
               onClick={onClose}
@@ -52,7 +52,7 @@ const BadgesModal = ({ isOpen, onClose, earnedBadges, isOwner, getStudentFirstNa
           </p>
 
           {earnedBadges.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
               {earnedBadges.map((userBadge) => (
                 <BadgeCarouselCard
                   key={userBadge.badge_id || userBadge.id}

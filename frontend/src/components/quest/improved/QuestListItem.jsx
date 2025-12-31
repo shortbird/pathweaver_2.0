@@ -122,7 +122,7 @@ const QuestListItem = ({ quest, onEnroll }) => {
                   <Button
                     variant="primary"
                     size="sm"
-                    className="!bg-emerald-500 hover:!bg-emerald-600 !min-w-[120px]"
+                    className="!bg-emerald-500 hover:!bg-emerald-600 !min-w-[120px] !min-h-[44px]"
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate('/diploma');
@@ -135,7 +135,7 @@ const QuestListItem = ({ quest, onEnroll }) => {
                   <Button
                     variant="success"
                     size="sm"
-                    className="!min-w-[120px]"
+                    className="!min-w-[120px] !min-h-[44px]"
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/quests/${quest.id}`);
@@ -147,7 +147,7 @@ const QuestListItem = ({ quest, onEnroll }) => {
                   <Button
                     variant="primary"
                     size="sm"
-                    className="!min-w-[100px]"
+                    className="!min-w-[100px] !min-h-[44px]"
                     onClick={handleEnroll}
                   >
                     <span>Start Quest</span>

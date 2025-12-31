@@ -210,7 +210,7 @@ const ParentDashboardPage = () => {
           onClick={() => {
             clearActingAs();
           }}
-          className="px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-lg transition-shadow"
+          className="px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-lg transition-shadow min-h-[44px]"
           style={{ fontFamily: 'Poppins, sans-serif' }}
         >
           Switch Back to Parent View
@@ -259,7 +259,7 @@ const ParentDashboardPage = () => {
             {/* Create Dependent Profile (Under 13) */}
             <button
               onClick={() => setShowAddDependentModal(true)}
-              className="w-full bg-white border-2 border-optio-purple rounded-lg p-6 hover:shadow-lg transition-shadow text-left group"
+              className="w-full bg-white border-2 border-optio-purple rounded-lg p-6 hover:shadow-lg transition-shadow text-left group min-h-[44px]"
             >
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg flex items-center justify-center">
@@ -285,7 +285,7 @@ const ParentDashboardPage = () => {
             {/* Connect to Existing Student (13+) */}
             <button
               onClick={() => setShowRequestConnectionModal(true)}
-              className="w-full bg-white border-2 border-optio-pink rounded-lg p-6 hover:shadow-lg transition-shadow text-left group"
+              className="w-full bg-white border-2 border-optio-pink rounded-lg p-6 hover:shadow-lg transition-shadow text-left group min-h-[44px]"
             >
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-r from-optio-pink to-optio-purple rounded-lg flex items-center justify-center">
@@ -362,7 +362,7 @@ const ParentDashboardPage = () => {
         <div className="relative">
           <button
             onClick={() => setShowAddDependentModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-lg transition-shadow"
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-lg transition-shadow min-h-[44px]"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             <PlusIcon className="w-5 h-5" />
@@ -386,7 +386,7 @@ const ParentDashboardPage = () => {
           {/* Student Tabs */}
           {(children.length > 1 || dependents.length > 1 || (children.length > 0 && dependents.length > 0)) && (
             <div className="border-b border-gray-200 mb-6">
-              <nav className="flex gap-6 overflow-x-auto pb-4">
+              <nav className="flex gap-6 overflow-x-auto pb-4 -mb-px">
                 {/* Linked 13+ students */}
                 {children.map((child) => {
                   // Calculate age if date_of_birth is available
@@ -397,7 +397,7 @@ const ParentDashboardPage = () => {
                     <button
                       key={child.student_id}
                       onClick={() => setSelectedStudentId(child.student_id)}
-                      className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
+                      className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap min-h-[44px] ${
                         selectedStudentId === child.student_id
                           ? 'border-b-2 border-optio-purple text-optio-purple'
                           : 'text-gray-500 hover:text-gray-700'
@@ -421,7 +421,7 @@ const ParentDashboardPage = () => {
                     <button
                       key={dependent.id}
                       onClick={() => setSelectedStudentId(dependent.id)}
-                      className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
+                      className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap min-h-[44px] ${
                         isSelected
                           ? 'border-b-2 border-optio-purple text-optio-purple'
                           : 'text-gray-500 hover:text-gray-700'
@@ -461,7 +461,7 @@ const ParentDashboardPage = () => {
                   </div>
                   <button
                     onClick={() => handleActAsDependent(selectedDependent)}
-                    className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg text-sm font-semibold hover:opacity-90 shadow-sm whitespace-nowrap self-start sm:self-center"
+                    className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg text-sm font-semibold hover:opacity-90 shadow-sm whitespace-nowrap self-start sm:self-center min-h-[44px]"
                     style={{ fontFamily: 'Poppins, sans-serif' }}
                   >
                     Act As {firstName}
@@ -484,7 +484,7 @@ const ParentDashboardPage = () => {
                       <button
                         key={quest.quest_id}
                         onClick={() => navigate(`/parent/quest/${selectedStudentId}/${quest.quest_id}`)}
-                        className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer text-left"
+                        className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer text-left min-h-[44px]"
                       >
                         {quest.image_url && (
                           <img src={quest.image_url} alt={quest.title} className="w-full h-32 object-cover" />
@@ -639,7 +639,7 @@ const ParentDashboardPage = () => {
                       <button
                         key={quest.quest_id}
                         onClick={() => navigate(`/parent/quest/${selectedStudentId}/${quest.quest_id}`)}
-                        className="border border-green-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer text-left bg-green-50"
+                        className="border border-green-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer text-left bg-green-50 min-h-[44px]"
                       >
                         {quest.image_url && (
                           <img src={quest.image_url} alt={quest.title} className="w-full h-32 object-cover" />
@@ -702,7 +702,7 @@ const ParentDashboardPage = () => {
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-3">
                             <div
-                              className="bg-gradient-primary h-3 rounded-full transition-all"
+                              className="bg-gradient-primary h-3 rounded-full transition-all w-full"
                               style={{ width: `${Math.min(progressPercent, 100)}%` }}
                             />
                           </div>

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 import { evidenceDocumentService } from '../../services/evidenceDocumentService';
+import { useUploadQueue } from '../../hooks/useUploadQueue';
 import logger from '../../utils/logger';
 
 const EvidenceEditorContext = createContext(null);
@@ -29,12 +30,15 @@ export const EvidenceEditorProvider = ({
   const [documentStatus, setDocumentStatus] = useState('draft');
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
-  const [uploadingBlocks, setUploadingBlocks] = useState(new Set()); // Block IDs currently uploading
   const [uploadErrors, setUploadErrors] = useState({}); // Block ID → error message
   const [collapsedBlocks, setCollapsedBlocks] = useState(new Set()); // Collapsed block IDs
   const [hasLegacyEvidence, setHasLegacyEvidence] = useState(false); // Track if we loaded legacy Spark evidence
+  const [deletedBlocks, setDeletedBlocks] = useState([]); // Blocks deleted with undo support
   const autoSaverRef = useRef(null);
   const skipNextAutoSaveRef = useRef(false); // Skip auto-save after manual save
+
+  // Upload queue hook - replaces uploadingBlocks Set with full queue management
+  const uploadQueueState = useUploadQueue(taskId);
 
   const cleanBlocksForSave = useCallback((blocksToClean) => {
     return blocksToClean.map(block => {
@@ -231,6 +235,54 @@ export const EvidenceEditorProvider = ({
     });
   }, []);
 
+  /**
+   * Delete block with undo support
+   * Stores block in deletedBlocks array for 5 seconds
+   */
+  const deleteBlockWithUndo = useCallback((blockId) => {
+    const blockToDelete = blocks.find(b => b.id === blockId);
+    if (!blockToDelete) return;
+
+    // Remove from blocks array
+    setBlocks(prev => prev.filter(b => b.id !== blockId));
+
+    // Add to deleted blocks with timestamp
+    const deletedBlock = {
+      ...blockToDelete,
+      deletedAt: Date.now()
+    };
+    setDeletedBlocks(prev => [...prev, deletedBlock]);
+
+    // Auto-remove from deletedBlocks after 5 seconds
+    setTimeout(() => {
+      setDeletedBlocks(prev => prev.filter(b => b.id !== blockId));
+    }, 5000);
+  }, [blocks]);
+
+  /**
+   * Restore a deleted block from deletedBlocks array
+   */
+  const restoreBlock = useCallback((blockId) => {
+    const blockToRestore = deletedBlocks.find(b => b.id === blockId);
+    if (!blockToRestore) {
+      logger.warn('Cannot restore block - not found in deleted blocks:', blockId);
+      return;
+    }
+
+    // Remove deletedAt timestamp
+    const { deletedAt, ...cleanBlock } = blockToRestore;
+
+    // Add back to blocks array at original position
+    setBlocks(prev => {
+      const newBlocks = [...prev, cleanBlock];
+      // Sort by order to maintain proper position
+      return newBlocks.sort((a, b) => (a.order || 0) - (b.order || 0));
+    });
+
+    // Remove from deleted blocks
+    setDeletedBlocks(prev => prev.filter(b => b.id !== blockId));
+  }, [deletedBlocks]);
+
   const value = {
     // State
     blocks,
@@ -249,14 +301,28 @@ export const EvidenceEditorProvider = ({
     setShowCompleteConfirm,
     showAddMenu,
     setShowAddMenu,
-    uploadingBlocks,
-    setUploadingBlocks,
     uploadErrors,
     setUploadErrors,
     collapsedBlocks,
     setCollapsedBlocks,
     hasLegacyEvidence,
     setHasLegacyEvidence,
+    deletedBlocks,
+    setDeletedBlocks,
+
+    // Upload queue state (replaces uploadingBlocks)
+    uploadQueue: uploadQueueState.queue,
+    isOnline: uploadQueueState.isOnline,
+    pendingCount: uploadQueueState.pendingCount,
+    failedCount: uploadQueueState.failedCount,
+    addToQueue: uploadQueueState.addToQueue,
+    retryUpload: uploadQueueState.retryUpload,
+    cancelUpload: uploadQueueState.cancelUpload,
+    clearCompleted: uploadQueueState.clearCompleted,
+    updateUploadItem: uploadQueueState.updateItem,
+    markUploadComplete: uploadQueueState.markComplete,
+    markUploadFailed: uploadQueueState.markFailed,
+    updateUploadProgress: uploadQueueState.updateProgress,
 
     // Refs
     autoSaverRef,
@@ -266,6 +332,8 @@ export const EvidenceEditorProvider = ({
     cleanBlocksForSave,
     loadDocument,
     toggleBlockCollapse,
+    deleteBlockWithUndo,
+    restoreBlock,
 
     // Props
     taskId,

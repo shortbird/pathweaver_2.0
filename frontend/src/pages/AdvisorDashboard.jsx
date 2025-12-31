@@ -63,7 +63,7 @@ export default function AdvisorDashboard() {
           <p className="text-red-600">{error}</p>
           <button
             onClick={fetchDashboardData}
-            className="mt-4 px-4 py-2 bg-gradient-primary text-white rounded-lg"
+            className="mt-4 px-4 py-2 bg-gradient-primary text-white rounded-lg min-h-[44px] touch-manipulation"
           >
             Retry
           </button>
@@ -122,7 +122,7 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-sm font-medium text-gray-500">Total Students</div>
           <div className="mt-2 text-3xl font-bold text-gray-900">{stats.total_students || 0}</div>
@@ -146,7 +146,7 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
           <h2 className="text-lg font-semibold text-gray-900">My Students</h2>
           <button
             onClick={onRefresh}
-            className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90"
+            className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 min-h-[44px] touch-manipulation"
           >
             Refresh
           </button>
@@ -211,25 +211,25 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
                       <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => handleCheckin(student.id)}
-                          className="text-white bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-1 rounded-lg hover:opacity-90 font-medium"
+                          className="text-white bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-1 rounded-lg hover:opacity-90 font-medium min-h-[44px] touch-manipulation"
                         >
                           Check-in
                         </button>
                         <button
                           onClick={() => handleManageTasks(student)}
-                          className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-lg font-medium"
+                          className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-lg font-medium min-h-[44px] touch-manipulation"
                         >
                           Manage Tasks
                         </button>
                         <button
                           onClick={() => handleViewHistory(student)}
-                          className="text-optio-purple hover:text-optio-purple-dark font-medium"
+                          className="text-optio-purple hover:text-optio-purple-dark font-medium min-h-[44px] px-2 touch-manipulation"
                         >
                           History
                         </button>
                         <button
                           onClick={() => handleViewNotes(student)}
-                          className="text-optio-purple hover:text-optio-purple-dark font-medium"
+                          className="text-optio-purple hover:text-optio-purple-dark font-medium min-h-[44px] px-2 touch-manipulation"
                         >
                           Advisor Notes
                         </button>

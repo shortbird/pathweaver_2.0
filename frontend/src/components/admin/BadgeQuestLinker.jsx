@@ -460,7 +460,7 @@ export default function BadgeQuestLinker() {
           {/* AI Suggestions */}
           {selectedBadge && aiSuggestions.length > 0 && (
             <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <h3 className="text-lg font-semibold">
                   AI Recommendations ({aiSuggestions.length})
                 </h3>
@@ -482,7 +482,7 @@ export default function BadgeQuestLinker() {
                 </div>
               </div>
 
-              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+              <div className="space-y-3 max-h-[80vh] overflow-y-auto scroll-smooth-mobile">
                 {aiSuggestions.map((suggestion) => (
                   <div
                     key={suggestion.quest_id}
@@ -535,7 +535,7 @@ export default function BadgeQuestLinker() {
                 Bulk Analysis Results
               </h3>
 
-              <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                 <div className="text-center p-4 bg-blue-50 rounded-lg">
                   <div className="text-2xl font-bold text-blue-600">
                     {bulkAnalysisResults.badges_analyzed}
@@ -556,7 +556,7 @@ export default function BadgeQuestLinker() {
                 </div>
               </div>
 
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              <div className="space-y-2 max-h-[70vh] overflow-y-auto scroll-smooth-mobile">
                 {bulkAnalysisResults.badge_results.map((result) => (
                   <div key={result.badge_id} className="border border-gray-200 rounded-lg p-3">
                     <div className="flex items-center justify-between">
@@ -596,7 +596,7 @@ export default function BadgeQuestLinker() {
                 No quests linked yet. Select quests from the available list to add them.
               </p>
             ) : (
-              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+              <div className="space-y-3 max-h-[80vh] overflow-y-auto scroll-smooth-mobile">
                 {linkedQuests.map((quest, index) => (
                   <div
                     key={quest.id}
@@ -667,7 +667,7 @@ export default function BadgeQuestLinker() {
               </select>
             </div>
 
-            <div className="space-y-3 max-h-[600px] overflow-y-auto">
+            <div className="space-y-3 max-h-[80vh] overflow-y-auto scroll-smooth-mobile">
               {filteredAvailableQuests.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">
                   {searchTerm || pillarFilter !== 'all'

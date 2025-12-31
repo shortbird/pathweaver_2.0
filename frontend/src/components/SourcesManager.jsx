@@ -105,7 +105,7 @@ const SourcesManager = ({ onClose }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b px-6 py-4">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
             <h2 className="text-2xl font-bold text-gray-800">
               Manage Quest Source Images
             </h2>

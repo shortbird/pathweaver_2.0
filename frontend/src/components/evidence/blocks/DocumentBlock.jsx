@@ -73,7 +73,7 @@ const DocumentBlock = ({ block, displayMode }) => {
         target="_blank"
         rel="noopener noreferrer"
         download
-        className="block bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md hover:border-purple-300 transition-all"
+        className="block w-full bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md hover:border-purple-300 transition-all min-h-[56px]"
       >
         <div className="flex items-center gap-4">
           <div className="flex-shrink-0 w-14 h-14 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">

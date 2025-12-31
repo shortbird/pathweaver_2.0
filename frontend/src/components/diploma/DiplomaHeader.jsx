@@ -208,44 +208,47 @@ const DiplomaHeader = ({
       
       {/* Owner Controls */}
       {isOwner && !previewMode && (
-        <div className="absolute top-4 right-4 flex gap-2">
+        <div className="absolute top-4 right-4 flex flex-col sm:flex-row gap-2">
           <button
             onClick={onTogglePreview}
-            className="px-4 py-2 rounded-full transition-all font-semibold text-sm bg-white/20 backdrop-blur-sm text-white hover:bg-white/30"
+            className="px-4 py-2 rounded-full transition-all font-semibold text-sm bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 min-h-[44px]"
             title="Preview as public visitor"
           >
             <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
-            Preview as Public
+            <span className="hidden sm:inline">Preview as Public</span>
+            <span className="sm:hidden">Preview</span>
           </button>
           <button
             onClick={onShare}
-            className="px-4 py-2 rounded-full transition-all font-semibold text-sm bg-white text-optio-purple hover:shadow-lg"
+            className="px-4 py-2 rounded-full transition-all font-semibold text-sm bg-white text-optio-purple hover:shadow-lg min-h-[44px]"
             style={{ boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
           >
             <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m9.032 4.026a9.001 9.001 0 01-7.432 0m9.032-4.026A9.001 9.001 0 0112 3c-4.474 0-8.268 2.943-9.543 7a9.97 9.97 0 011.827 3.342m7.432 6.342A9.97 9.97 0 0112 21c4.474 0 8.268-2.943 9.543-7a9.97 9.97 0 00-1.827-3.342" />
             </svg>
-            Share Diploma
+            <span className="hidden sm:inline">Share Diploma</span>
+            <span className="sm:hidden">Share</span>
           </button>
         </div>
       )}
 
       {/* Preview Mode Indicator */}
       {isOwner && previewMode && (
-        <div className="absolute top-4 left-4 right-4 flex justify-between items-center">
-          <div className="px-4 py-2 rounded-full bg-yellow-400/90 text-yellow-900 font-semibold text-sm">
+        <div className="absolute top-4 left-4 right-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <div className="px-4 py-2 rounded-full bg-yellow-400/90 text-yellow-900 font-semibold text-sm min-h-[44px] flex items-center">
             <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
-            Preview Mode - This is how others see your diploma
+            <span className="hidden sm:inline">Preview Mode - This is how others see your diploma</span>
+            <span className="sm:hidden">Preview Mode</span>
           </div>
           <button
             onClick={onTogglePreview}
-            className="px-4 py-2 rounded-full bg-white text-optio-purple font-semibold text-sm hover:shadow-lg"
+            className="px-4 py-2 rounded-full bg-white text-optio-purple font-semibold text-sm hover:shadow-lg min-h-[44px] w-full sm:w-auto"
           >
             Exit Preview
           </button>
@@ -286,7 +289,7 @@ const DiplomaHeader = ({
           </div>
 
           {/* Date and Verification */}
-          <div className="mt-6 flex justify-center items-center gap-8">
+          <div className="mt-6 flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-8">
             <div className="flex items-center gap-2">
               <svg className="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />

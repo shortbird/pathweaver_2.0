@@ -215,12 +215,12 @@ const AddEvidenceModal = ({ isOpen, onClose, onSave, onUpdate, editingBlock = nu
       <h3 className="text-lg font-semibold text-gray-900 mb-4" style={{ fontFamily: 'Poppins' }}>
         What type of evidence?
       </h3>
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {EVIDENCE_TYPES.map((type) => (
           <button
             key={type.id}
             onClick={() => handleTypeSelect(type.id)}
-            className="flex flex-col items-center p-4 border-2 border-gray-200 rounded-xl hover:border-optio-purple hover:bg-optio-purple/5 transition-all group"
+            className="flex flex-col items-center p-4 border-2 border-gray-200 rounded-xl hover:border-optio-purple hover:bg-optio-purple/5 transition-all group min-h-[44px]"
           >
             <type.Icon className="w-8 h-8 text-gray-400 group-hover:text-optio-purple mb-2" />
             <span className="font-medium text-sm text-gray-700 group-hover:text-optio-purple" style={{ fontFamily: 'Poppins' }}>
@@ -241,7 +241,7 @@ const AddEvidenceModal = ({ isOpen, onClose, onSave, onUpdate, editingBlock = nu
           ...currentItem,
           content: { text: e.target.value }
         })}
-        className="w-full h-48 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none"
+        className="w-full h-48 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none min-h-[120px]"
         placeholder="Share your thoughts, process, or reflections..."
         style={{ fontFamily: 'Poppins' }}
       />
@@ -256,7 +256,7 @@ const AddEvidenceModal = ({ isOpen, onClose, onSave, onUpdate, editingBlock = nu
     <div className="space-y-4">
       {/* Uploaded images grid */}
       {currentItem?.content.items?.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {currentItem.content.items.map((item, index) => (
             <div key={index} className="relative group">
               <img
@@ -278,7 +278,7 @@ const AddEvidenceModal = ({ isOpen, onClose, onSave, onUpdate, editingBlock = nu
       {/* Upload area */}
       <div
         onClick={() => fileInputRef.current?.click()}
-        className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-optio-purple hover:bg-optio-purple/5 transition-colors"
+        className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-optio-purple hover:bg-optio-purple/5 transition-colors min-h-[150px] flex flex-col items-center justify-center"
       >
         <PhotoIcon className="w-10 h-10 mx-auto mb-3 text-gray-400" />
         <p className="font-medium text-gray-700" style={{ fontFamily: 'Poppins' }}>
@@ -410,7 +410,7 @@ const AddEvidenceModal = ({ isOpen, onClose, onSave, onUpdate, editingBlock = nu
       {/* Upload area */}
       <div
         onClick={() => fileInputRef.current?.click()}
-        className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-optio-purple hover:bg-optio-purple/5 transition-colors"
+        className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-optio-purple hover:bg-optio-purple/5 transition-colors min-h-[150px] flex flex-col items-center justify-center"
       >
         <DocumentIcon className="w-10 h-10 mx-auto mb-3 text-gray-400" />
         <p className="font-medium text-gray-700" style={{ fontFamily: 'Poppins' }}>
@@ -522,7 +522,7 @@ const AddEvidenceModal = ({ isOpen, onClose, onSave, onUpdate, editingBlock = nu
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden">
+              <Dialog.Panel className="w-full max-w-full sm:max-w-2xl mx-2 sm:mx-0 bg-white rounded-2xl shadow-xl overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
                   <Dialog.Title className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>
@@ -541,12 +541,12 @@ const AddEvidenceModal = ({ isOpen, onClose, onSave, onUpdate, editingBlock = nu
 
                 {/* Footer */}
                 {selectedType && (
-                  <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 gap-3">
                     {!isEditMode ? (
                       <button
                         onClick={handleAddAnother}
                         disabled={!isCurrentItemValid()}
-                        className="px-4 py-2 text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-4 py-2 text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-h-[44px] w-full sm:w-auto"
                         style={{ fontFamily: 'Poppins' }}
                       >
                         <PlusIcon className="w-4 h-4" />
@@ -555,10 +555,10 @@ const AddEvidenceModal = ({ isOpen, onClose, onSave, onUpdate, editingBlock = nu
                     ) : (
                       <div /> /* Spacer for edit mode */
                     )}
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                       <button
                         onClick={handleClose}
-                        className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+                        className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors min-h-[44px] w-full sm:w-auto"
                         style={{ fontFamily: 'Poppins' }}
                       >
                         Cancel
@@ -566,7 +566,7 @@ const AddEvidenceModal = ({ isOpen, onClose, onSave, onUpdate, editingBlock = nu
                       <button
                         onClick={handleSaveAll}
                         disabled={isEditMode ? !isCurrentItemValid() : (evidenceItems.length === 0 && !isCurrentItemValid())}
-                        className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-h-[44px] w-full sm:w-auto"
                         style={{ fontFamily: 'Poppins' }}
                       >
                         <CheckIcon className="w-4 h-4" />

@@ -57,33 +57,33 @@ const AchievementCelebration = ({ latestAchievement, onDismiss }) => {
       </div>
 
       {/* Celebration Card */}
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-scale">
-        <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-6 text-white text-center">
-          <div className="text-6xl mb-4 animate-bounce">🎉</div>
-          <h2 className="text-3xl font-bold mb-2">Congratulations!</h2>
-          <p className="text-white/90">You've achieved something amazing!</p>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-full sm:max-w-md mx-2 sm:mx-0 w-full overflow-hidden animate-scale">
+        <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-4 sm:p-6 text-white text-center">
+          <div className="text-5xl sm:text-6xl mb-3 sm:mb-4 animate-bounce">🎉</div>
+          <h2 className="text-2xl sm:text-3xl font-bold mb-2">Congratulations!</h2>
+          <p className="text-white/90 text-sm sm:text-base">You've achieved something amazing!</p>
         </div>
-        
-        <div className="p-6">
-          <div className="text-center mb-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
+
+        <div className="p-4 sm:p-6">
+          <div className="text-center mb-4 sm:mb-6">
+            <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
               {latestAchievement.type === 'quest' ? 'Quest Completed!' : 'Milestone Reached!'}
             </h3>
-            <p className="text-gray-600">
+            <p className="text-gray-600 text-sm sm:text-base">
               {latestAchievement.title || 'Great job on your progress!'}
             </p>
           </div>
 
           {/* Achievement Stats */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
             <div className="bg-purple-50 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-optio-purple">
+              <div className="text-xl sm:text-2xl font-bold text-optio-purple">
                 +{latestAchievement.xpEarned || 0}
               </div>
               <div className="text-xs text-gray-600">XP Earned</div>
             </div>
             <div className="bg-pink-50 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-optio-pink">
+              <div className="text-xl sm:text-2xl font-bold text-optio-pink">
                 {latestAchievement.tasksCompleted || 0}
               </div>
               <div className="text-xs text-gray-600">Tasks Done</div>
@@ -91,17 +91,17 @@ const AchievementCelebration = ({ latestAchievement, onDismiss }) => {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Button
               variant="primary"
-              className="flex-1"
+              className="flex-1 min-h-[44px]"
               onClick={() => navigate('/diploma')}
             >
               View Diploma
             </Button>
             <Button
               variant="outline"
-              className="flex-1"
+              className="flex-1 min-h-[44px]"
               onClick={handleDismiss}
             >
               Continue

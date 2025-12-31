@@ -366,7 +366,7 @@ class AuthService {
    * Check if user is admin
    */
   isAdmin() {
-    return ['admin', 'educator'].includes(this.getUserRole())
+    return ['org_admin', 'superadmin'].includes(this.getUserRole())
   }
 
   /**

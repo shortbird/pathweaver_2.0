@@ -98,10 +98,11 @@ const CourseCatalog = () => {
             {canManageCourses && (
               <button
                 onClick={() => navigate('/courses/new')}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity font-medium min-h-[44px]"
               >
                 <PlusIcon className="w-5 h-5" />
-                Create Course
+                <span className="hidden sm:inline">Create Course</span>
+                <span className="sm:hidden">Create</span>
               </button>
             )}
           </div>
@@ -123,7 +124,7 @@ const CourseCatalog = () => {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map(i => (
               <div key={i} className="bg-white rounded-xl border border-gray-200 overflow-hidden animate-pulse">
                 <div className="h-48 bg-gray-200" />
@@ -149,7 +150,7 @@ const CourseCatalog = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredCourses.map(course => {
               const isEnrolled = course.is_enrolled
               const isDraft = course.status === 'draft'
@@ -224,14 +225,14 @@ const CourseCatalog = () => {
                       <div className="flex gap-2">
                         <button
                           onClick={() => navigate(`/courses/${course.id}/edit`)}
-                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium min-h-[44px]"
                         >
                           <PencilSquareIcon className="w-5 h-5" />
                           Edit
                         </button>
                         <button
                           onClick={() => handleViewCourse(course.id)}
-                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium ${
+                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium min-h-[44px] ${
                             isDraft
                               ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
                               : 'bg-optio-purple/10 text-optio-purple hover:bg-optio-purple/20'
@@ -244,7 +245,7 @@ const CourseCatalog = () => {
                     ) : isEnrolled ? (
                       <button
                         onClick={() => handleViewCourse(course.id)}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors font-medium"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors font-medium min-h-[44px]"
                       >
                         <CheckCircleIcon className="w-5 h-5" />
                         View Course
@@ -252,7 +253,7 @@ const CourseCatalog = () => {
                     ) : (
                       <button
                         onClick={() => handleEnroll(course.id)}
-                        className="w-full px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+                        className="w-full px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity font-medium min-h-[44px]"
                       >
                         Enroll Now
                       </button>

@@ -22,7 +22,7 @@ const AccreditedDiplomaModal = ({ isOpen, onClose }) => {
     <ModalFooter className="justify-end">
       <button
         onClick={onClose}
-        className="px-6 py-3 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:shadow-lg transition-shadow font-medium"
+        className="px-6 py-3 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:shadow-lg transition-shadow font-medium min-h-[44px]"
       >
         Got it!
       </button>
@@ -35,7 +35,7 @@ const AccreditedDiplomaModal = ({ isOpen, onClose }) => {
       onClose={onClose}
       header={header}
       footer={footer}
-      size="lg"
+      className="max-w-full sm:max-w-3xl mx-2 sm:mx-0"
     >
 
       {/* Main Content */}

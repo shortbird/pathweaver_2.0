@@ -1,0 +1,10 @@
+{
+  "id": "modify_evidence_display_swipe",
+  "type": "implement_fix",
+  "priority": 2,
+  "payload": {
+    "description": "Modify EvidenceDisplay.jsx to add swipe-to-delete gestures. Wrap each evidence block in SwipeableBlock component. Integrate UndoToast on delete. Increase TouchSensor delay from 200ms to 350ms to prevent accidental drags during swipe. Add deleteBlockWithUndo from context.",
+    "files": ["frontend/src/components/evidence/EvidenceDisplay.jsx"],
+    "context": "Import SwipeableBlock and UndoToast from ui/mobile. Import useEvidenceEditor hook to access deleteBlockWithUndo. Wrap each block render in <SwipeableBlock onDelete={() => deleteBlockWithUndo(block.id)}>. Update dnd-kit TouchSensor config to { delay: 350, tolerance: 6 }. Show UndoToast when block deleted."
+  }
+}

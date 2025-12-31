@@ -58,7 +58,7 @@ const QuestCard = ({ quest, onEnroll }) => {
 
   return (
     <div
-      className="group bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100 touch-manipulation relative"
+      className="group bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300 sm:hover:shadow-xl sm:hover:-translate-y-1 border border-gray-100 touch-manipulation relative"
       onClick={handleCardClick}
     >
       {/* Quest Image Header */}
@@ -69,7 +69,7 @@ const QuestCard = ({ quest, onEnroll }) => {
             alt={quest.title}
             loading="lazy"
             decoding="async"
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className="w-full h-full object-cover transition-transform duration-300 sm:group-hover:scale-105"
           />
           {/* Gradient overlay for better text readability */}
           <div className={`absolute inset-0 bg-gradient-to-t from-black/40 to-transparent`} />
@@ -83,7 +83,7 @@ const QuestCard = ({ quest, onEnroll }) => {
       <div className="p-4 sm:p-6">
         {/* Title and Description - More prominent */}
         <div className="mb-4">
-          <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 group-hover:text-optio-purple transition-colors line-clamp-2 leading-tight">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:group-hover:text-optio-purple transition-colors line-clamp-2 leading-tight">
             {quest.title}
           </h3>
           <p className="text-gray-600 text-sm leading-relaxed line-clamp-3">
@@ -155,7 +155,7 @@ const QuestCard = ({ quest, onEnroll }) => {
             <Button
               variant="primary"
               size="md"
-              className="flex-1 !bg-gradient-to-r !from-amber-600 !to-yellow-500 hover:!from-amber-700 hover:!to-yellow-600 !min-h-[48px] touch-manipulation"
+              className="flex-1 !bg-gradient-to-r !from-amber-600 !to-yellow-500 sm:hover:!from-amber-700 sm:hover:!to-yellow-600 !min-h-[44px] touch-manipulation"
               onClick={(e) => {
                 e.stopPropagation();
                 navigate('/diploma');
@@ -169,7 +169,7 @@ const QuestCard = ({ quest, onEnroll }) => {
             <Button
               variant="success"
               size="md"
-              className="flex-1 !bg-gradient-to-r !from-indigo-600 !to-blue-500 hover:!from-indigo-700 hover:!to-blue-600 !min-h-[48px] touch-manipulation"
+              className="flex-1 !bg-gradient-to-r !from-indigo-600 !to-blue-500 sm:hover:!from-indigo-700 sm:hover:!to-blue-600 !min-h-[44px] touch-manipulation"
               onClick={(e) => {
                 e.stopPropagation();
                 navigate(`/quests/${quest.id}`);
@@ -185,7 +185,7 @@ const QuestCard = ({ quest, onEnroll }) => {
             <Button
               variant="primary"
               size="md"
-              className="w-full !min-h-[48px] touch-manipulation"
+              className="w-full !min-h-[44px] touch-manipulation"
               onClick={handleEnroll}
               loading={isEnrolling}
             >

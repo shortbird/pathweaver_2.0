@@ -297,7 +297,7 @@ const CurriculumEditor = ({ questId, initialLessons = [], onSave }) => {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
       {/* Left Panel: Lesson List */}
       <div className="lg:col-span-1 space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <h3 className="text-lg font-semibold text-gray-900">Lessons</h3>
           <button
             type="button"

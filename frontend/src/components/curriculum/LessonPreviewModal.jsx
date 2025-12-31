@@ -136,13 +136,13 @@ const LessonPreviewModal = ({
 
   return createPortal(
     <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+      <div className="bg-white rounded-2xl max-w-full sm:max-w-4xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
         <div className="relative bg-white border-b border-gray-200 p-6">
           {/* Close button */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors min-h-[44px] min-w-[44px]"
           >
             <XMarkIcon className="w-5 h-5" />
           </button>
@@ -184,7 +184,7 @@ const LessonPreviewModal = ({
         </div>
 
         {/* Content area */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 max-h-[70vh] overflow-y-auto">
           {hasContent && currentStep ? (
             <div className="p-8">
               {/* Current step title */}
@@ -197,7 +197,7 @@ const LessonPreviewModal = ({
               {/* TEXT STEP */}
               {currentStep.type === 'text' && currentStep.content && (
                 <div
-                  className="prose prose-lg max-w-none prose-headings:font-bold prose-headings:text-gray-900 prose-h2:text-xl prose-h2:mt-8 prose-h2:mb-4 prose-h2:pb-2 prose-h2:border-b prose-h2:border-gray-200 prose-h3:text-lg prose-h3:mt-6 prose-h3:mb-3 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-6 prose-li:text-gray-700 prose-li:my-1 prose-strong:text-gray-900 prose-blockquote:border-l-4 prose-blockquote:border-optio-purple prose-blockquote:bg-optio-purple/5 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-blockquote:not-italic prose-a:text-optio-purple prose-a:no-underline hover:prose-a:underline [&>p+p]:mt-6"
+                  className="prose prose-lg max-w-none prose-headings:font-bold prose-headings:text-gray-900 prose-h2:text-xl prose-h2:mt-8 prose-h2:mb-4 prose-h2:pb-2 prose-h2:border-b prose-h2:border-gray-200 prose-h3:text-lg prose-h3:mt-6 prose-h3:mb-3 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-6 prose-li:text-gray-700 prose-li:my-1 prose-strong:text-gray-900 prose-blockquote:border-l-4 prose-blockquote:border-optio-purple prose-blockquote:bg-optio-purple/5 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-blockquote:not-italic prose-a:text-optio-purple prose-a:no-underline hover:prose-a:underline prose-code:text-sm prose-code:overflow-x-auto prose-pre:text-sm prose-pre:overflow-x-auto [&>p+p]:mt-6"
                   dangerouslySetInnerHTML={{ __html: currentStep.content }}
                 />
               )}
@@ -403,7 +403,7 @@ const LessonPreviewModal = ({
               <button
                 onClick={goToPrevStep}
                 disabled={currentStepIndex === 0}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px]"
               >
                 <ChevronLeftIcon className="w-4 h-4" />
                 Previous
@@ -418,7 +418,7 @@ const LessonPreviewModal = ({
                   onClose()
                   onEdit(lesson)
                 }}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors min-h-[44px]"
               >
                 <PencilIcon className="w-4 h-4" />
                 Edit Lesson
@@ -431,7 +431,7 @@ const LessonPreviewModal = ({
                   onClose()
                   onEditStep(currentStep, currentStepIndex)
                 }}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-optio-purple bg-white border border-optio-purple rounded-lg hover:bg-optio-purple/10 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-optio-purple bg-white border border-optio-purple rounded-lg hover:bg-optio-purple/10 transition-colors min-h-[44px]"
               >
                 <PencilIcon className="w-4 h-4" />
                 Edit Step
@@ -441,7 +441,7 @@ const LessonPreviewModal = ({
             {totalSteps > 1 && currentStepIndex < totalSteps - 1 ? (
               <button
                 onClick={goToNextStep}
-                className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-white bg-optio-purple rounded-lg hover:bg-optio-purple/90 transition-colors"
+                className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-white bg-optio-purple rounded-lg hover:bg-optio-purple/90 transition-colors min-h-[44px]"
               >
                 Continue
                 <ChevronRightIcon className="w-4 h-4" />
@@ -449,7 +449,7 @@ const LessonPreviewModal = ({
             ) : (
               <button
                 onClick={onClose}
-                className="px-6 py-2 text-sm font-medium text-white bg-optio-purple rounded-lg hover:bg-optio-purple/90 transition-colors"
+                className="px-6 py-2 text-sm font-medium text-white bg-optio-purple rounded-lg hover:bg-optio-purple/90 transition-colors min-h-[44px]"
               >
                 {totalSteps > 1 ? 'Finish' : 'Close'}
               </button>

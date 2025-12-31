@@ -4,6 +4,18 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  safelist: [
+    'grid-cols-1',
+    'sm:grid-cols-2',
+    'md:grid-cols-3',
+    'lg:grid-cols-4',
+    'sm:opacity-0',
+    'sm:group-hover:opacity-100',
+    'md:col-span-1',
+    'md:col-span-2',
+    'md:col-span-3',
+    'md:col-span-4',
+  ],
   theme: {
     extend: {
       fontFamily: {
@@ -106,6 +118,16 @@ export default {
         'touch': '44px',
         'touch-sm': '40px',
         'touch-lg': '48px',
+        'safe-bottom': 'env(safe-area-inset-bottom)',
+        'safe-top': 'env(safe-area-inset-top)',
+        'safe-left': 'env(safe-area-inset-left)',
+        'safe-right': 'env(safe-area-inset-right)',
+      },
+      minHeight: {
+        'touch': '44px',
+      },
+      minWidth: {
+        'touch': '44px',
       },
       borderRadius: {
         'xl': '12px',

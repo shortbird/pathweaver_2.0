@@ -123,6 +123,24 @@ const AdminUsers = () => {
     }
   }
 
+  const handleBulkDelete = async () => {
+    if (selectedUsers.size === 0) return
+    if (!confirm(`Permanently delete ${selectedUsers.size} user(s)? This cannot be undone.`)) return
+
+    try {
+      const response = await api.post('/api/admin/users/bulk-delete', {
+        user_ids: Array.from(selectedUsers)
+      })
+      const { deleted, failed } = response.data
+      toast.success(`Deleted ${deleted} user(s)${failed > 0 ? `, ${failed} failed` : ''}`)
+      setSelectedUsers(new Set())
+      fetchUsers()
+    } catch (error) {
+      console.error('Failed to bulk delete users:', error)
+      toast.error(error.response?.data?.error || 'Failed to delete users')
+    }
+  }
+
   const handleEditUser = (user) => {
     setEditingUser(user)
     setShowUserModal(true)
@@ -130,22 +148,26 @@ const AdminUsers = () => {
 
   const getRoleBadge = (role) => {
     const badges = {
-      student: 'bg-blue-100 text-blue-700',
-      parent: 'bg-green-100 text-green-700',
+      superadmin: 'bg-red-700 text-white',
+      admin: 'bg-red-100 text-red-700',
       advisor: 'bg-purple-100 text-purple-700',
-      admin: 'bg-red-100 text-red-700'
+      parent: 'bg-green-100 text-green-700',
+      student: 'bg-blue-100 text-blue-700',
+      observer: 'bg-gray-100 text-gray-700'
     }
     return badges[role] || badges.student
   }
 
   const getRoleDisplayName = (role) => {
     const names = {
-      student: 'Student',
-      parent: 'Parent',
+      superadmin: 'Superadmin',
+      admin: 'Admin',
       advisor: 'Advisor',
-      admin: 'Admin'
+      parent: 'Parent',
+      student: 'Student',
+      observer: 'Observer'
     }
-    return names[role] || 'Student'
+    return names[role] || role
   }
 
   const formatDate = (date) => {
@@ -163,7 +185,7 @@ const AdminUsers = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
         <h2 className="text-2xl font-bold">Manage Users</h2>
         <div className="flex gap-3">
           {/* View Toggle */}
@@ -208,12 +230,23 @@ const AdminUsers = () => {
           >
             Email Selected ({selectedUsers.size})
           </button>
+          <button
+            onClick={handleBulkDelete}
+            disabled={selectedUsers.size === 0}
+            className={`px-4 py-2 rounded-lg ${
+              selectedUsers.size > 0
+                ? 'bg-red-600 text-white hover:bg-red-700'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            Delete Selected ({selectedUsers.size})
+          </button>
         </div>
       </div>
 
       {/* Search and Filters */}
       <div className="bg-white p-4 rounded-lg shadow mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <div className="md:col-span-2">
             <form onSubmit={handleSearch}>
               <input
@@ -245,10 +278,12 @@ const AdminUsers = () => {
             aria-label="Filter by role"
           >
             <option value="all">All Roles</option>
-            <option value="student">Students</option>
-            <option value="parent">Parents</option>
+            <option value="superadmin">Superadmins</option>
+            <option value="org_admin">Org Admins</option>
             <option value="advisor">Advisors</option>
-            <option value="admin">Admins</option>
+            <option value="parent">Parents</option>
+            <option value="student">Students</option>
+            <option value="observer">Observers</option>
           </select>
           <select
             value={filters.activity}
@@ -359,14 +394,14 @@ const AdminUsers = () => {
                     <div className="flex gap-2 justify-end">
                       <button
                         onClick={() => navigate(`/admin/user/${user.id}/activity`)}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                        className="px-4 py-2 min-h-[44px] min-w-[44px] bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 transition-colors text-sm font-medium touch-manipulation"
                         title="View activity logs"
                       >
                         Activity
                       </button>
                       <button
                         onClick={() => handleEditUser(user)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                        className="px-4 py-2 min-h-[44px] min-w-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors text-sm font-medium touch-manipulation"
                       >
                         Details
                       </button>
@@ -438,12 +473,12 @@ const AdminUsers = () => {
               {/* Avatar Section with Gradient Background */}
               <div className="relative h-32 bg-gradient-to-br from-blue-500 to-purple-600">
                 {/* Checkbox - Top Left */}
-                <div className="absolute top-3 left-3">
+                <div className="absolute top-3 left-3 min-w-[44px] min-h-[44px] flex items-center justify-center">
                   <input
                     type="checkbox"
                     checked={selectedUsers.has(user.id)}
                     onChange={() => toggleUserSelection(user.id)}
-                    className="w-5 h-5 rounded cursor-pointer"
+                    className="w-5 h-5 rounded cursor-pointer touch-manipulation"
                   />
                 </div>
 

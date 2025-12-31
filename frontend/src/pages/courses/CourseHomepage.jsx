@@ -98,7 +98,7 @@ const ExpandableQuestItem = ({
               <div
                 key={lesson.id}
                 onClick={() => onSelectLesson(quest, lesson)}
-                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors min-h-[56px] ${
                   isLessonSelected
                     ? 'bg-optio-purple/10 border border-optio-purple'
                     : 'hover:bg-gray-50 border border-transparent'
@@ -177,7 +177,7 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
 
       {/* Projects Grid */}
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Projects</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {quests.map((quest) => {
           const isCompleted = quest.progress?.is_completed
 
@@ -294,7 +294,7 @@ const QuestDetail = ({ quest, onSelectLesson, onStartQuest }) => {
                 <div
                   key={lesson.id}
                   onClick={() => onSelectLesson(quest, lesson)}
-                  className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-lg cursor-pointer hover:border-optio-purple/50 hover:shadow-sm transition-all"
+                  className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-lg cursor-pointer hover:border-optio-purple/50 hover:shadow-sm transition-all min-h-[56px]"
                 >
                   {/* Lesson Number */}
                   <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-optio-purple/10 text-optio-purple rounded-full text-sm font-medium">
@@ -328,7 +328,7 @@ const QuestDetail = ({ quest, onSelectLesson, onStartQuest }) => {
       {!isCompleted && (
         <button
           onClick={onStartQuest}
-          className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 transition-opacity"
+          className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 transition-opacity min-h-[44px]"
         >
           <PlayCircleIcon className="w-5 h-5" />
           {quest.enrollment ? 'Continue Project' : 'Start Project'}

@@ -135,7 +135,7 @@ const LearningEventDetailModal = ({ event, isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl max-w-full sm:max-w-2xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="bg-gradient-primary text-white p-6 rounded-t-xl sticky top-0 z-10">
           <div className="flex justify-between items-start">
@@ -156,11 +156,11 @@ const LearningEventDetailModal = ({ event, isOpen, onClose }) => {
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {/* Description */}
-          <div className="mb-6">
+          <div className="mb-4 sm:mb-6">
             <h3 className="text-sm font-semibold text-gray-900 mb-2">Description</h3>
-            <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
+            <p className="text-gray-800 leading-relaxed whitespace-pre-wrap text-base">
               {event.description}
             </p>
           </div>
@@ -188,10 +188,10 @@ const LearningEventDetailModal = ({ event, isOpen, onClose }) => {
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-200">
+        <div className="p-4 sm:p-6 border-t border-gray-200">
           <button
             onClick={onClose}
-            className="w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-semibold"
+            className="min-h-[44px] w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-semibold"
           >
             Close
           </button>

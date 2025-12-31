@@ -41,79 +41,79 @@ const AdminPage = () => {
         {isAdvisor ? 'Advisor Panel' : 'Admin Panel'}
       </h1>
 
-      <div className="flex gap-4 mb-8 border-b overflow-x-auto">
+      <div className="flex gap-4 mb-8 border-b overflow-x-auto scroll-smooth">
         {/* Admin-only tabs */}
         {isAdmin && (
           <>
             <Link
               to="/admin"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' || currentPath === 'quests' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'admin' || currentPath === 'quests' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Quests
             </Link>
             <Link
               to="/admin/analytics"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'analytics' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'analytics' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Analytics
             </Link>
             <Link
               to="/admin/badges"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'badges' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'badges' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Badges
             </Link>
             <Link
               to="/admin/users"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'users' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'users' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Users
             </Link>
             <Link
               to="/admin/connections"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'connections' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'connections' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Connections
             </Link>
             <Link
               to="/admin/settings"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'settings' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'settings' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Settings
             </Link>
             <Link
               to="/admin/lms-logs"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'lms-logs' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'lms-logs' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               LMS Logs
             </Link>
             <Link
               to="/admin/crm"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'crm' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'crm' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               CRM
             </Link>
             <Link
               to="/admin/subject-review"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'subject-review' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'subject-review' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Subject Review
             </Link>
             <Link
               to="/admin/organizations"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'organizations' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'organizations' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Organizations
             </Link>
             <Link
               to="/admin/observer-audit"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'observer-audit' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'observer-audit' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Observer Audit
             </Link>
             <Link
               to="/admin/parental-consent"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'parental-consent' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'parental-consent' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Parental Consent
             </Link>

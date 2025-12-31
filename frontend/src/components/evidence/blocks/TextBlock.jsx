@@ -17,7 +17,7 @@ const TextBlock = ({ block, isExpanded, onToggle, displayMode }) => {
     : text;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6">
+    <div className="w-full bg-white border border-gray-200 rounded-lg p-6">
       <div className="flex items-start gap-3 mb-3">
         <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
           <svg className="h-5 w-5 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -40,7 +40,7 @@ const TextBlock = ({ block, isExpanded, onToggle, displayMode }) => {
       {shouldTruncate && (
         <button
           onClick={onToggle}
-          className="mt-3 text-sm font-semibold text-optio-purple hover:text-purple-800 transition-colors"
+          className="mt-3 text-sm font-semibold text-optio-purple hover:text-purple-800 transition-colors min-h-[44px]"
           style={{ fontFamily: 'Poppins, sans-serif' }}
         >
           {isExpanded ? 'Show less' : 'Show more'}

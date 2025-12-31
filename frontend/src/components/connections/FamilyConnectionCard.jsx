@@ -59,7 +59,7 @@ const FamilyConnectionCard = ({ connection }) => {
         {/* Options Menu */}
         <div className="relative">
           <button
-            className="text-gray-400 hover:text-gray-600 transition-colors p-2"
+            className="text-gray-400 hover:text-gray-600 transition-colors p-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
             onClick={() => setShowMenu(!showMenu)}
             aria-label="Connection options"
           >
@@ -71,7 +71,7 @@ const FamilyConnectionCard = ({ connection }) => {
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border-2 border-gray-100 z-10">
               <div className="py-1">
                 <button
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors min-h-[44px]"
                   style={{ fontFamily: 'Poppins', fontWeight: 500 }}
                   onClick={() => setShowMenu(false)}
                   disabled

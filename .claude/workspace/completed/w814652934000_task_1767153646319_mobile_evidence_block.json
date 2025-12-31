@@ -1,0 +1,10 @@
+{
+  "id": "create_mobile_evidence_block",
+  "type": "implement_frontend",
+  "priority": 2,
+  "payload": {
+    "description": "Create MobileEvidenceBlock.jsx - touch-optimized evidence block wrapper with always-visible actions. 48x48px drag handle with 6-dot pattern, wraps content in SwipeableBlock for swipe-to-delete. Props: block, onUpdate, onDelete, onTogglePrivate, dragHandleProps, isUploading, uploadProgress. Shows upload progress overlay when uploading.",
+    "files": ["frontend/src/components/evidence/MobileEvidenceBlock.jsx"],
+    "context": "Uses TouchActionButton from ui/mobile for action buttons. Drag handle is 6 dots in 2x3 grid pattern. Always visible on mobile (not hover-only). Integrates with SwipeableBlock and UndoToast. Should use optio-purple/optio-pink colors. Min touch targets 44px."
+  }
+}

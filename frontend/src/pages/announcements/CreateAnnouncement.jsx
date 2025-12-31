@@ -133,7 +133,7 @@ const CreateAnnouncement = () => {
               name="title"
               value={formData.title}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
               placeholder="Enter announcement title"
               required
             />
@@ -160,12 +160,12 @@ const CreateAnnouncement = () => {
                 value={formData.content}
                 onChange={handleChange}
                 rows={10}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent font-mono text-sm"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent font-mono text-base"
                 placeholder="Write your announcement content here. Markdown is supported for formatting."
                 required
               />
             ) : (
-              <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 prose prose-sm max-w-none min-h-[250px]">
+              <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 prose prose-sm max-w-none min-h-[250px] overflow-y-auto max-h-[70vh]">
                 <div dangerouslySetInnerHTML={{ __html: formData.content.replace(/\n/g, '<br/>') }} />
               </div>
             )}
@@ -184,7 +184,7 @@ const CreateAnnouncement = () => {
               name="target_audience"
               value={formData.target_audience}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
             >
               <option value="all_students">All Students</option>
               <option value="specific_quest">Specific Quest</option>
@@ -203,7 +203,7 @@ const CreateAnnouncement = () => {
                 name="quest_id"
                 value={formData.quest_id || ''}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
                 required
               >
                 <option value="">Select a quest...</option>
@@ -227,7 +227,7 @@ const CreateAnnouncement = () => {
               name="expires_at"
               value={formData.expires_at}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
             />
             <p className="mt-1 text-xs text-gray-500">
               Leave empty for announcements that don't expire.
@@ -250,18 +250,18 @@ const CreateAnnouncement = () => {
           </div>
 
           {/* Submit buttons */}
-          <div className="flex items-center gap-4 pt-6 border-t border-gray-200">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-6 border-t border-gray-200">
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold rounded-lg hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+              className="min-h-[44px] w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold rounded-lg hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating...' : 'Create Announcement'}
             </button>
             <button
               type="button"
               onClick={() => navigate('/announcements')}
-              className="px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors"
+              className="min-h-[44px] w-full sm:w-auto px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>

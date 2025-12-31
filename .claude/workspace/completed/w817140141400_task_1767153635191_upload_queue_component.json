@@ -1,0 +1,10 @@
+{
+  "id": "create_upload_queue_component",
+  "type": "implement_frontend",
+  "priority": 2,
+  "payload": {
+    "description": "Create UploadQueue.jsx component showing visual upload progress. Collapsible/expandable on mobile, horizontal thumbnail strip with status badges. Shows per-item progress bars, retry/cancel buttons (44px min). Props: queue (array of UploadItem), onRetry, onCancel, position ('top'|'bottom'|'inline'). Offline banner when not connected.",
+    "files": ["frontend/src/components/evidence/UploadQueue.jsx"],
+    "context": "Status badges: gray spinner for uploading, green checkmark for complete, red exclamation for failed. Uses optio-purple/optio-pink colors. Thumbnail size ~64px. Gap between items 8px minimum. Retry button per failed item. Shows 'Offline - will resume' when navigator.onLine is false."
+  }
+}

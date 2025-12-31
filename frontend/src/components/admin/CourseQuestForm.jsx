@@ -278,7 +278,7 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label htmlFor="course-lms-platform" className="block text-sm font-medium mb-2 text-gray-600">
                   LMS Platform
@@ -345,7 +345,7 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
 
           {/* Tasks Section */}
           <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
               <h3 className="text-lg font-bold text-gray-900">Preset Tasks</h3>
               <button
                 type="button"
@@ -491,7 +491,7 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="px-6 py-2 min-h-[44px] border border-gray-300 rounded-lg hover:bg-gray-50 touch-manipulation"
               disabled={loading}
             >
               Cancel
@@ -499,7 +499,7 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 font-semibold"
+              className="px-6 py-2 min-h-[44px] bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 font-semibold touch-manipulation"
             >
               {loading ? (mode === 'edit' ? 'Updating...' : 'Creating...') : (mode === 'edit' ? 'Update Course Quest' : 'Create Course Quest')}
             </button>

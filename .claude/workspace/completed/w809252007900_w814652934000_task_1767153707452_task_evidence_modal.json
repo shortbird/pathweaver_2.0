@@ -1,0 +1,10 @@
+{
+  "id": "modify_task_evidence_modal",
+  "type": "implement_fix",
+  "priority": 2,
+  "payload": {
+    "description": "Modify TaskEvidenceModal.jsx to use MobileModal component on mobile. Replace fixed modal with MobileModal wrapper (fullScreenOnMobile=true, enableSwipeClose=true, safeAreaPadding=true). Add UploadQueue component below header showing upload status. Responsive breakpoint at 640px.",
+    "files": ["frontend/src/components/quest/TaskEvidenceModal.jsx"],
+    "context": "Import MobileModal from ui/mobile and UploadQueue from evidence. Replace Dialog/Transition with MobileModal starting at line ~51. Add UploadQueue below title in header area. Access uploadQueue from EvidenceEditorContext. Keep all existing functionality intact, just change container."
+  }
+}

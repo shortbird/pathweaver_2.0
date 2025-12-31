@@ -108,7 +108,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl max-w-2xl w-full p-8 relative max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-full sm:max-w-2xl w-full mx-2 sm:mx-0 p-8 relative max-h-[90vh] overflow-y-auto">
         <button
           onClick={() => onClose(false)}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
@@ -133,7 +133,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
               required
             />
           </div>
@@ -149,7 +149,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
               value={formData.description}
               onChange={handleChange}
               rows={3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none min-h-[100px] text-base"
               required
             />
           </div>
@@ -165,14 +165,14 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
               name="category"
               value={formData.category}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
               placeholder="e.g., Educational Consultations"
               required
             />
           </div>
 
           {/* Price (numeric) and Price Display (row) */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="price" className="block text-sm font-semibold text-gray-700 mb-1">
                 Price (numeric) <span className="text-red-500">*</span>
@@ -185,7 +185,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
                 onChange={handleChange}
                 min="0"
                 step="0.01"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
                 placeholder="19.00"
                 required
               />
@@ -202,7 +202,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
                 name="price_display"
                 value={formData.price_display}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
                 placeholder="e.g., $49/session (first FREE)"
                 required
               />
@@ -220,7 +220,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
               name="price_type"
               value={formData.price_type}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
               required
             >
               <option value="one-time">One-time Payment</option>
@@ -242,7 +242,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
               name="sort_order"
               value={formData.sort_order}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
               placeholder="0"
             />
             <p className="text-xs text-gray-500 mt-1">Lower numbers appear first</p>
@@ -281,12 +281,12 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
                     }
                   }}
                   placeholder="Add a feature..."
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
                 />
                 <button
                   type="button"
                   onClick={handleAddFeature}
-                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors min-h-[44px] min-w-[44px]"
                 >
                   <PlusIcon className="w-5 h-5" />
                 </button>
@@ -317,18 +317,18 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
           )}
 
           {/* Submit buttons */}
-          <div className="flex gap-3 pt-4">
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
             <button
               type="button"
               onClick={() => onClose(false)}
-              className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-colors font-semibold"
+              className="w-full sm:w-auto sm:flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-xl hover:bg-gray-200 transition-colors font-semibold min-h-[44px]"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 bg-gradient-to-r from-optio-purple to-optio-pink text-white py-3 px-6 rounded-xl hover:opacity-90 transition-opacity font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto sm:flex-1 bg-gradient-to-r from-optio-purple to-optio-pink text-white py-3 px-6 rounded-xl hover:opacity-90 transition-opacity font-semibold disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
             >
               {isSubmitting ? 'Saving...' : (isCreating ? 'Create Service' : 'Save Changes')}
             </button>

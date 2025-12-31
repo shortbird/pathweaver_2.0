@@ -82,7 +82,7 @@ const AnnouncementsFeed = () => {
         </div>
 
         {/* Filter tabs */}
-        <div className="flex items-center gap-4 mb-6 border-b border-gray-200">
+        <div className="flex flex-wrap items-center gap-2 mb-6 border-b border-gray-200">
           <button
             onClick={() => setFilter('all')}
             className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${

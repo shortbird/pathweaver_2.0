@@ -306,7 +306,7 @@ class AnnouncementService(BaseService):
             # Build role filter
             roles = []
             if 'all' in target_audience:
-                roles = ['student', 'advisor', 'parent', 'school_admin']
+                roles = ['student', 'advisor', 'parent', 'org_admin']
             else:
                 if 'students' in target_audience:
                     roles.append('student')

@@ -121,7 +121,7 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-full sm:max-w-3xl mx-2 sm:mx-0 max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center space-x-4">
@@ -185,7 +185,7 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
           {activeTab === 'overview' && (
             <div className="space-y-6">
               {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-4 text-white">
                   <div className="flex items-center space-x-3">
                     <FireIcon className="w-8 h-8" />
@@ -294,7 +294,7 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
           <div className="flex justify-end">
             <button
               onClick={onClose}
-              className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-md hover:opacity-90 transition-opacity"
+              className="px-6 py-2 min-h-[44px] bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-md hover:opacity-90 transition-opacity"
             >
               Close
             </button>

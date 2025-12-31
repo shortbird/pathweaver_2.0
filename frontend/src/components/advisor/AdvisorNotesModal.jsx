@@ -111,7 +111,7 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-xl shadow-2xl max-w-full sm:max-w-2xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 flex justify-between items-center">
           <div>
@@ -140,7 +140,7 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
               value={newNoteText}
               onChange={(e) => setNewNoteText(e.target.value)}
               placeholder="Enter your confidential notes here..."
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none resize-none"
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none resize-none min-h-[120px]"
               rows={4}
               disabled={submitting}
             />
@@ -148,7 +148,7 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
               <button
                 onClick={handleCreateNote}
                 disabled={!newNoteText.trim() || submitting}
-                className="px-4 py-2 bg-optio-purple text-white rounded-lg font-semibold hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                className="px-4 py-2 bg-optio-purple text-white rounded-lg font-semibold hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 transition-colors min-h-[44px] w-full sm:w-auto"
               >
                 <PlusIcon className="h-4 w-4" />
                 Add Note
@@ -179,14 +179,14 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[50vh] overflow-y-auto">
               <h3 className="font-bold text-gray-800 mb-4">Previous Notes ({notes.length})</h3>
               {notes.map((note) => (
                 <div
                   key={note.id}
                   className="bg-gray-50 border-2 border-gray-200 rounded-lg p-4"
                 >
-                  <div className="flex justify-between items-start mb-2">
+                  <div className="flex flex-col sm:flex-row justify-between items-start mb-2">
                     <div>
                       <p className="text-xs text-gray-500">
                         {formatDate(note.created_at)}
@@ -194,7 +194,7 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
                       </p>
                     </div>
                     {editingNoteId !== note.id && (
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 mt-2 sm:mt-0">
                         <button
                           onClick={() => startEditing(note)}
                           className="text-blue-600 hover:bg-blue-50 p-1.5 rounded transition-colors"
@@ -218,22 +218,22 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
                       <textarea
                         value={editingText}
                         onChange={(e) => setEditingText(e.target.value)}
-                        className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
+                        className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none resize-none min-h-[120px]"
                         rows={4}
                         disabled={submitting}
                       />
-                      <div className="flex justify-end gap-2 mt-2">
+                      <div className="flex flex-col sm:flex-row justify-end gap-2 mt-2">
                         <button
                           onClick={cancelEditing}
                           disabled={submitting}
-                          className="px-3 py-1.5 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                          className="px-3 py-1.5 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors min-h-[44px] w-full sm:w-auto"
                         >
                           Cancel
                         </button>
                         <button
                           onClick={() => handleUpdateNote(note.id)}
                           disabled={!editingText.trim() || submitting}
-                          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-1 transition-colors"
+                          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-1 transition-colors min-h-[44px] w-full sm:w-auto"
                         >
                           <ArrowDownTrayIcon className="h-4 w-4" />
                           Save

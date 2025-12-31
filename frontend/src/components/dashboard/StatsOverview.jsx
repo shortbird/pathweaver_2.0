@@ -55,11 +55,11 @@ const StatsOverview = ({ totalXP, questsCompleted, tasksCompleted, currentStreak
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
       {stats.map((stat, index) => (
         <div
           key={index}
-          className={`relative overflow-hidden rounded-xl p-6 ${stat.bgColor} border ${stat.borderColor} group hover:shadow-lg transition-all duration-300 hover:-translate-y-1`}
+          className={`relative overflow-hidden rounded-xl p-4 sm:p-6 min-h-[100px] ${stat.bgColor} border ${stat.borderColor} group hover:shadow-lg transition-all duration-300 hover:-translate-y-1`}
         >
           <div className="flex items-start justify-between mb-3">
             <div className={`p-2 rounded-lg bg-gradient-to-br ${stat.color} text-white`}>
@@ -70,10 +70,10 @@ const StatsOverview = ({ totalXP, questsCompleted, tasksCompleted, currentStreak
             )}
           </div>
           <div className="relative z-10">
-            <p className="text-3xl font-bold text-gray-900">
+            <p className="text-2xl sm:text-3xl font-bold text-gray-900">
               {typeof stat.value === 'number' ? stat.value.toLocaleString() : stat.value}
             </p>
-            <p className="text-sm text-gray-600 mt-1">{stat.label}</p>
+            <p className="text-xs sm:text-sm text-gray-600 mt-1">{stat.label}</p>
           </div>
           
           {/* Decorative background element */}

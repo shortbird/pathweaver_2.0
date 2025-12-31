@@ -81,7 +81,7 @@ const AIEnhanceModal = ({
 
   return createPortal(
     <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+      <div className="bg-white rounded-2xl max-w-full sm:max-w-3xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
         <div className="relative bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white">
           <button
@@ -106,8 +106,8 @@ const AIEnhanceModal = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
-          <div className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto max-h-[50vh] sm:max-h-[70vh]">
+          <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
             {/* Instructions */}
             <div className="p-4 bg-optio-purple/5 border border-optio-purple/20 rounded-lg">
               <p className="text-sm text-gray-700">
@@ -126,7 +126,7 @@ const AIEnhanceModal = ({
                 placeholder="Paste or type your lesson content here. The AI will split it into digestible steps and suggest where to add supporting resources..."
                 rows={10}
                 disabled={isLoading}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple resize-none disabled:bg-gray-50 disabled:text-gray-500"
+                className="w-full min-h-[44px] px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple resize-none disabled:bg-gray-50 disabled:text-gray-500 text-base"
               />
               <p className="mt-1 text-xs text-gray-500">
                 Include all the information you want students to learn. The AI will organize it.
@@ -199,19 +199,19 @@ const AIEnhanceModal = ({
           </div>
 
           {/* Footer */}
-          <div className="p-4 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-3">
+          <div className="p-4 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
               disabled={isLoading}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="min-h-[44px] w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isLoading || !content.trim()}
-              className="px-6 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+              className="min-h-[44px] w-full sm:w-auto px-6 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>

@@ -102,7 +102,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <ModalErrorBoundary onClose={onClose}>
-        <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="bg-white rounded-xl shadow-2xl max-w-full sm:max-w-2xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-xl">
           <div className="flex justify-between items-start">
@@ -127,8 +127,8 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
           <div className="mb-6 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
             <div className="mb-3">
               <h3 className="text-sm font-medium text-gray-600 mb-1">Task Reward</h3>
-              <div className="flex items-center gap-4">
-                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg bg-white shadow-sm border border-gray-200`}>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg bg-white shadow-sm border border-gray-200 w-full sm:w-auto`}>
                   <div className={`w-2 h-2 rounded-full bg-gradient-to-r
                     ${task.pillar === 'creativity' ? 'from-purple-500 to-pink-500' : ''}
                     ${task.pillar === 'critical_thinking' ? 'from-blue-500 to-cyan-500' : ''}
@@ -142,14 +142,14 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
                   <span className="text-lg font-bold text-green-600">+{task.xp_amount} XP</span>
                 </div>
                 {task.is_collaboration_eligible && (
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-50 border border-purple-200">
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-50 border border-purple-200 w-full sm:w-auto">
                     <span className="text-sm font-medium text-purple-700">🤝 Double XP Available</span>
                   </div>
                 )}
               </div>
             </div>
             {task.description && (
-              <p className="text-sm text-gray-700 mt-3 pt-3 border-t border-gray-200">{task.description}</p>
+              <p className="text-sm sm:text-base text-gray-700 mt-3 pt-3 border-t border-gray-200">{task.description}</p>
             )}
           </div>
 
@@ -197,10 +197,10 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-3">
+          <div className="flex flex-col sm:flex-row justify-end gap-3">
             <button
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              className="min-h-[44px] w-full sm:w-auto px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
               disabled={isSubmitting}
             >
               Cancel
@@ -208,7 +208,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
             <button
               onClick={handleSubmit}
               disabled={isSubmitting || !evidenceData || Object.keys(evidenceData).length === 0}
-              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="min-h-[44px] w-full sm:w-auto px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Submitting...' : 'Complete Task'}
             </button>

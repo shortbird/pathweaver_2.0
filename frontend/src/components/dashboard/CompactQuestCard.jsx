@@ -1,30 +1,114 @@
 import React, { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import { getPillarData, getPillarGradient } from '../../utils/pillarMappings';
-import { CheckCircleIcon, PlayIcon } from '@heroicons/react/24/solid';
+import { useQuestEngagement } from '../../hooks/api/useQuests';
+import {
+  CheckCircleIcon,
+  PlayIcon,
+  SparklesIcon,
+  ArrowTrendingUpIcon,
+  PauseCircleIcon,
+  SunIcon,
+  PlayCircleIcon
+} from '@heroicons/react/24/solid';
+
+// Rhythm state configuration for icons and colors
+const rhythmConfig = {
+  in_flow: {
+    icon: SparklesIcon,
+    bgClass: 'bg-gradient-to-r from-optio-purple/10 to-optio-pink/10',
+    textClass: 'text-optio-purple'
+  },
+  building: {
+    icon: ArrowTrendingUpIcon,
+    bgClass: 'bg-blue-50',
+    textClass: 'text-blue-700'
+  },
+  resting: {
+    icon: PauseCircleIcon,
+    bgClass: 'bg-green-50',
+    textClass: 'text-green-700'
+  },
+  fresh_return: {
+    icon: SunIcon,
+    bgClass: 'bg-amber-50',
+    textClass: 'text-amber-700'
+  },
+  ready_to_begin: {
+    icon: PlayCircleIcon,
+    bgClass: 'bg-gray-50',
+    textClass: 'text-gray-600'
+  },
+  ready_when_you_are: {
+    icon: SunIcon,
+    bgClass: 'bg-amber-50',
+    textClass: 'text-amber-700'
+  },
+  finding_rhythm: {
+    icon: ArrowTrendingUpIcon,
+    bgClass: 'bg-blue-50',
+    textClass: 'text-blue-700'
+  }
+};
+
+// Mini heat map component for 7-day activity
+const MiniHeatMap = ({ days }) => {
+  // Get last 7 days of data
+  const today = new Date();
+  const last7Days = [];
+
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+    const dayData = days?.find(d => d.date === dateStr);
+    last7Days.push({
+      date: dateStr,
+      intensity: dayData?.intensity || 0
+    });
+  }
+
+  const getIntensityClass = (intensity) => {
+    switch (intensity) {
+      case 0: return 'bg-gray-200';
+      case 1: return 'bg-purple-200';
+      case 2: return 'bg-purple-400';
+      case 3: return 'bg-purple-600';
+      case 4: return 'bg-gradient-to-r from-optio-purple to-optio-pink';
+      default: return 'bg-gray-200';
+    }
+  };
+
+  return (
+    <div className="flex gap-0.5">
+      {last7Days.map((day, idx) => (
+        <div
+          key={day.date}
+          className={`w-2.5 h-2.5 rounded-sm ${getIntensityClass(day.intensity)}`}
+          title={day.date}
+        />
+      ))}
+    </div>
+  );
+};
 
 const CompactQuestCard = memo(({ quest }) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   // Extract quest data
   const questData = quest.quests || quest;
   const questId = quest.quest_id || quest.id;
-  const tasksCompleted = quest.tasks_completed || quest.completed_tasks || 0;
-  const totalTasks = questData.task_count || questData.total_tasks || 1;
-  const progressPercent = totalTasks > 0 ? Math.round((tasksCompleted / totalTasks) * 100) : 0;
+
+  // Fetch engagement data for this quest
+  const { data: engagement } = useQuestEngagement(questId);
 
   // Determine quest status
-  const isCompleted = progressPercent === 100 || quest.status === 'completed' || quest.completed_at;
-  const isEnded = quest.status === 'ended' || quest.ended_at;
-  const isActive = !isCompleted && !isEnded;
+  const isCompleted = quest.status === 'completed' || quest.completed_at;
 
-  // Get pillar for styling
-  const pillarBreakdown = questData.pillar_breakdown || {};
-  const dominantPillar = Object.entries(pillarBreakdown).reduce((max, [pillar, xp]) =>
-    xp > (max.xp || 0) ? { pillar, xp } : max, {}).pillar || 'arts_creativity';
-  const dominantPillarGradient = getPillarGradient(dominantPillar);
+  // Get rhythm state and config
+  const rhythmState = engagement?.rhythm?.state || 'ready_to_begin';
+  const rhythmDisplay = engagement?.rhythm?.state_display || 'Ready to Begin';
+  const config = rhythmConfig[rhythmState] || rhythmConfig.finding_rhythm;
+  const RhythmIcon = config.icon;
 
   const handleClick = () => {
     if (isCompleted) {
@@ -37,11 +121,11 @@ const CompactQuestCard = memo(({ quest }) => {
   return (
     <div
       onClick={handleClick}
-      className="group bg-white rounded-lg border border-gray-200 p-4 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-purple-300 hover:-translate-y-0.5"
+      className="group bg-white rounded-lg border border-gray-200 p-4 cursor-pointer transition-all duration-200 sm:hover:shadow-md sm:hover:border-purple-300 sm:hover:-translate-y-0.5"
     >
       {/* Header with title and status */}
       <div className="flex items-start justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 flex-1 pr-2 group-hover:text-optio-purple transition-colors">
+        <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 flex-1 pr-2 sm:group-hover:text-optio-purple transition-colors">
           {questData.title || 'Untitled Quest'}
         </h3>
 
@@ -55,18 +139,15 @@ const CompactQuestCard = memo(({ quest }) => {
         </div>
       </div>
 
-      {/* Progress bar */}
-      <div className="mb-3">
-        <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-          <span>{tasksCompleted}/{totalTasks} tasks</span>
-          <span className="font-medium">{progressPercent}%</span>
+      {/* Rhythm indicator with mini heat map */}
+      <div className={`flex items-center justify-between mb-3 px-2 py-1.5 rounded-md ${config.bgClass}`}>
+        <div className="flex items-center gap-1.5">
+          <RhythmIcon className={`w-4 h-4 ${config.textClass}`} />
+          <span className={`text-xs font-medium ${config.textClass}`}>
+            {rhythmDisplay}
+          </span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-1.5">
-          <div
-            className={`h-1.5 bg-gradient-to-r ${dominantPillarGradient} rounded-full transition-all duration-300`}
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
+        <MiniHeatMap days={engagement?.calendar?.days} />
       </div>
 
       {/* Action button */}
@@ -75,10 +156,10 @@ const CompactQuestCard = memo(({ quest }) => {
           e.stopPropagation();
           handleClick();
         }}
-        className={`w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+        className={`w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 min-h-[44px] ${
           isCompleted
-            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-            : 'bg-green-500 text-white hover:bg-green-600 hover:shadow-md'
+            ? 'bg-emerald-50 text-emerald-700 sm:hover:bg-emerald-100'
+            : 'bg-green-500 text-white sm:hover:bg-green-600 sm:hover:shadow-md'
         }`}
       >
         {isCompleted ? (

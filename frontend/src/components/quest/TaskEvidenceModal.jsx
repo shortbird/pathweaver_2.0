@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { TrophyIcon, PhotoIcon, VideoCameraIcon, LinkIcon, DocumentTextIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
 import ModalErrorBoundary from '../ModalErrorBoundary';
+import MobileModal from '../ui/mobile/MobileModal';
 import { getPillarData } from '../../utils/pillarMappings';
 
 const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
@@ -48,89 +49,71 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        {/* Background overlay */}
-        <div
-          className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
-          onClick={onClose}
-        ></div>
-
-        {/* Center modal */}
-        <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-
-        {/* Modal panel */}
-        <ModalErrorBoundary onClose={onClose}>
-          <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[85vh] flex flex-col">
-            {/* Header - White background with pillar color accent */}
-            <div className="px-8 py-8 border-b border-gray-200 flex-shrink-0">
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex-1">
-                  {/* Row 1: Task title */}
-                  <h3 className="text-3xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins' }}>{task.title}</h3>
-
-                  {/* Row 2: Pillar name and XP pill */}
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="text-sm font-semibold uppercase tracking-wide" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>
-                      {pillarData.name}
-                    </div>
-                    <div
-                      className="px-4 py-1 rounded-full text-sm font-bold flex items-center gap-2"
-                      style={{
-                        backgroundColor: `${pillarData.color}20`,
-                        color: pillarData.color,
-                        fontFamily: 'Poppins'
-                      }}
-                    >
-                      <TrophyIcon className="w-4 h-4" />
-                      {task.xp_amount} XP
-                    </div>
-                  </div>
-
-                  {/* Row 3: Task description */}
-                  {task.description && (
-                    <div className="text-gray-600 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      {task.description.split('\n').map((line, idx) => {
-                        const trimmedLine = line.trim();
-                        if (trimmedLine.startsWith('•')) {
-                          return (
-                            <div key={idx} className="flex items-start mb-2">
-                              <span className="mr-3 mt-1 text-lg font-bold" style={{ color: pillarData.color }}>•</span>
-                              <span className="text-gray-600" style={{ fontFamily: 'Poppins' }}>{trimmedLine.substring(1).trim()}</span>
-                            </div>
-                          );
-                        } else if (trimmedLine) {
-                          return (
-                            <p key={idx} className="mb-2">{trimmedLine}</p>
-                          );
-                        }
-                        return null;
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Save & Close button (replaced X) */}
-                <button
-                  onClick={onClose}
-                  className="ml-4 px-6 py-2 text-white rounded-lg hover:shadow-lg transition-all font-semibold whitespace-nowrap"
-                  style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
-                >
-                  Save & Close
-                </button>
+    <ModalErrorBoundary onClose={onClose}>
+      <MobileModal
+        isOpen={true}
+        onClose={onClose}
+        fullScreenOnMobile={true}
+        enableSwipeClose={true}
+        safeAreaPadding={true}
+        size="xl"
+        showCloseButton={false}
+        bodyClassName="p-0"
+        header={
+          <div className="flex-1">
+            <h3 className="text-xl sm:text-2xl font-bold text-white mb-2" style={{ fontFamily: 'Poppins' }}>
+              {task.title}
+            </h3>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-white/90" style={{ fontFamily: 'Poppins' }}>
+                {getPillarData(task.pillar).name}
+              </div>
+              <div
+                className="px-3 py-1 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 bg-white/20 text-white"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                <TrophyIcon className="w-4 h-4" />
+                {task.xp_amount} XP
               </div>
             </div>
+          </div>
+        }
+      >
+        <div className="flex flex-col h-full">
+            {/* Task description section */}
+            {task.description && (
+              <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-gray-200 bg-white">
+                <div className="text-gray-600 text-sm sm:text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+                  {task.description.split('\n').map((line, idx) => {
+                    const trimmedLine = line.trim();
+                    if (trimmedLine.startsWith('•')) {
+                      return (
+                        <div key={idx} className="flex items-start mb-2">
+                          <span className="mr-3 mt-1 text-lg font-bold" style={{ color: pillarData.color }}>•</span>
+                          <span className="text-gray-600" style={{ fontFamily: 'Poppins' }}>{trimmedLine.substring(1).trim()}</span>
+                        </div>
+                      );
+                    } else if (trimmedLine) {
+                      return (
+                        <p key={idx} className="mb-2">{trimmedLine}</p>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Scrollable content area */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto bg-gray-50">
               {/* Add Content Block Section with Submit Button or Completion Indicator */}
-              <div className="sticky top-0 z-10 px-8 py-6 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-                <div className="flex items-center justify-between mb-3">
+              <div className="sticky top-0 z-10 px-4 sm:px-8 py-4 sm:py-6 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
                   <span className="text-sm font-semibold text-gray-700" style={{ fontFamily: 'Poppins' }}>Add new content block</span>
                   {!isTaskCompleted && (
                     <button
                       onClick={handleSubmitForXP}
-                      className="px-6 py-2 bg-gradient-primary text-white rounded-lg font-bold hover:shadow-lg transition-all flex items-center gap-2"
+                      className="px-4 sm:px-6 py-2 bg-gradient-primary text-white rounded-lg font-bold hover:shadow-lg transition-all flex items-center gap-2 w-full sm:w-auto justify-center touch-manipulation min-h-[44px]"
                       style={{ fontFamily: 'Poppins' }}
                     >
                       <TrophyIcon className="w-4 h-4" />
@@ -138,7 +121,7 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
                     </button>
                   )}
                   {isTaskCompleted && (
-                    <div className="px-6 py-2 bg-green-50 border-2 border-green-200 rounded-lg flex items-center gap-2">
+                    <div className="px-4 sm:px-6 py-2 bg-green-50 border-2 border-green-200 rounded-lg flex items-center gap-2 w-full sm:w-auto justify-center">
                       <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
                         <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -181,7 +164,7 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
               </div>
 
               {/* Content */}
-              <div className="px-8 py-6 space-y-6">
+              <div className="px-4 sm:px-8 py-4 sm:py-6 space-y-6">
               {/* Error Display */}
               {error && (
                 <div className="p-6 bg-red-50 border-2 border-red-200 rounded-xl">
@@ -226,11 +209,10 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
                 </p>
               </div>
             </div>
-            </div>
           </div>
-        </ModalErrorBoundary>
-      </div>
-    </div>
+        </div>
+      </MobileModal>
+    </ModalErrorBoundary>
   );
 };
 

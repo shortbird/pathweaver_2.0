@@ -68,6 +68,7 @@ const AddLearningPartnerModal = ({ isOpen, onClose, onSendRequest, isLoading = f
             },
             placeholder: 'partner@example.com',
             autoFocus: true,
+            className: 'min-h-[44px] text-base touch-manipulation',
             style: { fontFamily: 'Poppins', fontWeight: 500 }
           }}
         />
@@ -89,7 +90,7 @@ const AddLearningPartnerModal = ({ isOpen, onClose, onSendRequest, isLoading = f
                 setMessage(e.target.value)
               }
             }}
-            className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-optio-purple focus:outline-none resize-none"
+            className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-optio-purple focus:outline-none resize-none min-h-[100px] text-base touch-manipulation"
             style={{ fontFamily: 'Poppins', fontWeight: 500 }}
             rows={3}
             placeholder="I'm exploring [topic] and would love to connect and share our learning journeys!"

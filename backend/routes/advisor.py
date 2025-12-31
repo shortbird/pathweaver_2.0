@@ -403,7 +403,7 @@ def get_student_quests_with_tasks(user_id, student_id):
 # ==================== Quest Invitations ====================
 
 @advisor_bp.route('/invite-to-quest', methods=['POST'])
-@require_role('advisor', 'school_admin', 'admin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def invite_students_to_quest(user_id):
     """Invite students to a specific quest"""
     try:
@@ -453,7 +453,7 @@ def invite_students_to_quest(user_id):
 
 
 @advisor_bp.route('/quest-invitations', methods=['GET'])
-@require_role('advisor', 'school_admin', 'admin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def get_quest_invitations(user_id):
     """Get all quest invitations for advisor's organization"""
     try:

@@ -51,9 +51,9 @@ const BadgeCarouselCard = memo(({ badge }) => {
     <div
       onClick={handleClick}
       className="
-        flex-shrink-0 w-72 bg-white rounded-xl shadow-md hover:shadow-xl
+        flex-shrink-0 w-full bg-white rounded-xl shadow-md hover:shadow-xl
         transition-all duration-300 cursor-pointer overflow-hidden
-        transform hover:-translate-y-1 group
+        transform hover:-translate-y-1 group min-h-[120px]
       "
     >
       {/* Background Image Header (like quests) */}
@@ -66,7 +66,7 @@ const BadgeCarouselCard = memo(({ badge }) => {
               alt={`Badge: ${badge.name} - ${badge.pillar_primary || 'Achievement'} badge`}
               loading="lazy"
               decoding="async"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              className="w-full h-auto max-h-[100px] object-cover group-hover:scale-105 transition-transform duration-500 touch-manipulation"
             />
             {/* Dark overlay for text readability */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/20"></div>

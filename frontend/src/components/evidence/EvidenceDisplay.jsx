@@ -14,6 +14,8 @@ import {
   Bars3Icon,
   PencilIcon
 } from '@heroicons/react/24/outline';
+import SwipeableBlock from '../ui/mobile/SwipeableBlock';
+import UndoToast from '../ui/mobile/UndoToast';
 
 const EVIDENCE_ICONS = {
   text: DocumentTextIcon,
@@ -63,7 +65,7 @@ const ImageLightbox = ({ images, initialIndex, onClose }) => {
     <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center" onClick={onClose}>
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 p-2 text-white/80 hover:text-white"
+        className="absolute top-4 right-4 p-2 text-white/80 hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center"
       >
         <XMarkIcon className="w-8 h-8" />
       </button>
@@ -82,14 +84,14 @@ const ImageLightbox = ({ images, initialIndex, onClose }) => {
           <div className="flex items-center justify-center gap-4 mt-4">
             <button
               onClick={() => setCurrentIndex(i => (i - 1 + images.length) % images.length)}
-              className="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30"
+              className="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 min-h-[44px]"
             >
               Previous
             </button>
             <span className="text-white/60">{currentIndex + 1} / {images.length}</span>
             <button
               onClick={() => setCurrentIndex(i => (i + 1) % images.length)}
-              className="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30"
+              className="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 min-h-[44px]"
             >
               Next
             </button>
@@ -100,8 +102,8 @@ const ImageLightbox = ({ images, initialIndex, onClose }) => {
   );
 };
 
-// Sortable evidence block wrapper
-const SortableEvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit }) => {
+// Sortable evidence block wrapper with swipe-to-delete
+const SortableEvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, onDeleteWithUndo }) => {
   const {
     attributes,
     listeners,
@@ -119,14 +121,16 @@ const SortableEvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, o
 
   return (
     <div ref={setNodeRef} style={style}>
-      <EvidenceBlock
-        block={block}
-        onDelete={onDelete}
-        onDeleteItem={onDeleteItem}
-        onUpdateBlock={onUpdateBlock}
-        onEdit={onEdit}
-        dragHandleProps={{ ...attributes, ...listeners }}
-      />
+      <SwipeableBlock onDelete={() => onDeleteWithUndo?.(block.id)}>
+        <EvidenceBlock
+          block={block}
+          onDelete={onDelete}
+          onDeleteItem={onDeleteItem}
+          onUpdateBlock={onUpdateBlock}
+          onEdit={onEdit}
+          dragHandleProps={{ ...attributes, ...listeners }}
+        />
+      </SwipeableBlock>
     </div>
   );
 };
@@ -178,7 +182,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
 
     return (
       <>
-        <div className={`grid gap-2 ${items.length === 1 ? 'grid-cols-1' : items.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+        <div className={`grid gap-2 ${items.length === 1 ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-3'}`}>
           {items.map((item, index) => (
             <div
               key={index}
@@ -187,7 +191,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
               <img
                 src={item.url}
                 alt={item.alt || item.caption || `Image ${index + 1}`}
-                className="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                className="w-full h-auto min-h-[120px] sm:h-32 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={() => openLightbox(index)}
               />
               {/* Delete button for individual image */}
@@ -197,7 +201,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
                     e.stopPropagation();
                     handleDeleteItem(index);
                   }}
-                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover/image:opacity-100 transition-opacity hover:bg-red-600"
+                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover/image:opacity-100 transition-opacity hover:bg-red-600 min-h-[44px] min-w-[44px] flex items-center justify-center"
                   title="Remove image"
                 >
                   <XMarkIcon className="w-3.5 h-3.5" />
@@ -243,7 +247,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
             {onDeleteItem && (
               <button
                 onClick={() => handleDeleteItem(index)}
-                className="p-1.5 text-gray-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-all"
+                className="p-1.5 text-gray-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
                 title="Remove video"
               >
                 <TrashIcon className="w-4 h-4" />
@@ -284,7 +288,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
             {onDeleteItem && (
               <button
                 onClick={() => handleDeleteItem(index)}
-                className="p-1.5 text-gray-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-all"
+                className="p-1.5 text-gray-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
                 title="Remove link"
               >
                 <TrashIcon className="w-4 h-4" />
@@ -324,7 +328,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
             {onDeleteItem && (
               <button
                 onClick={() => handleDeleteItem(index)}
-                className="p-1.5 text-gray-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-all"
+                className="p-1.5 text-gray-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
                 title="Remove document"
               >
                 <TrashIcon className="w-4 h-4" />
@@ -363,7 +367,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
           {onEdit && (
             <button
               onClick={() => onEdit(block)}
-              className="p-1.5 text-gray-400 hover:text-optio-purple hover:bg-white/50 rounded-lg transition-colors"
+              className="p-1.5 text-gray-400 hover:text-optio-purple hover:bg-white/50 rounded-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
               title="Edit block"
             >
               <PencilIcon className="w-4 h-4" />
@@ -372,7 +376,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
           {onDelete && (
             <button
               onClick={() => onDelete(block.id)}
-              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-white/50 rounded-lg transition-colors"
+              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-white/50 rounded-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
               title="Delete block"
             >
               <TrashIcon className="w-4 h-4" />
@@ -413,12 +417,33 @@ const EvidenceDisplay = ({
   onReorder,
   onUpdateBlock,
   onEdit,
+  onDeleteWithUndo,
+  onUndoDelete,
   emptyMessage = 'No evidence submitted yet'
 }) => {
+  const [showUndoToast, setShowUndoToast] = useState(false);
+  const [lastDeletedBlockId, setLastDeletedBlockId] = useState(null);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } })
+    useSensor(TouchSensor, { activationConstraint: { delay: 350, tolerance: 6 } })
   );
+
+  const handleDeleteWithUndo = (blockId) => {
+    if (onDeleteWithUndo) {
+      onDeleteWithUndo(blockId);
+      setLastDeletedBlockId(blockId);
+      setShowUndoToast(true);
+    }
+  };
+
+  const handleUndo = () => {
+    if (onUndoDelete && lastDeletedBlockId) {
+      onUndoDelete(lastDeletedBlockId);
+      setShowUndoToast(false);
+      setLastDeletedBlockId(null);
+    }
+  };
 
   const handleDragEnd = (event) => {
     const { active, over } = event;
@@ -444,39 +469,59 @@ const EvidenceDisplay = ({
   // If reordering is enabled, use drag and drop
   if (onReorder) {
     return (
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-4">
-            {blocks.map((block) => (
-              <SortableEvidenceBlock
-                key={block.id}
-                block={block}
-                onDelete={onDelete}
-                onDeleteItem={onDeleteItem}
-                onUpdateBlock={onUpdateBlock}
-                onEdit={onEdit}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
+      <>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-4">
+              {blocks.map((block) => (
+                <SortableEvidenceBlock
+                  key={block.id}
+                  block={block}
+                  onDelete={onDelete}
+                  onDeleteItem={onDeleteItem}
+                  onUpdateBlock={onUpdateBlock}
+                  onEdit={onEdit}
+                  onDeleteWithUndo={handleDeleteWithUndo}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+        {showUndoToast && (
+          <UndoToast
+            message="Block deleted"
+            onUndo={handleUndo}
+            onClose={() => setShowUndoToast(false)}
+          />
+        )}
+      </>
     );
   }
 
   // Without reordering
   return (
-    <div className="space-y-4">
-      {blocks.map((block) => (
-        <EvidenceBlock
-          key={block.id}
-          block={block}
-          onDelete={onDelete}
-          onDeleteItem={onDeleteItem}
-          onUpdateBlock={onUpdateBlock}
-          onEdit={onEdit}
+    <>
+      <div className="space-y-4">
+        {blocks.map((block) => (
+          <SwipeableBlock key={block.id} onDelete={() => handleDeleteWithUndo(block.id)}>
+            <EvidenceBlock
+              block={block}
+              onDelete={onDelete}
+              onDeleteItem={onDeleteItem}
+              onUpdateBlock={onUpdateBlock}
+              onEdit={onEdit}
+            />
+          </SwipeableBlock>
+        ))}
+      </div>
+      {showUndoToast && (
+        <UndoToast
+          message="Block deleted"
+          onUndo={handleUndo}
+          onClose={() => setShowUndoToast(false)}
         />
-      ))}
-    </div>
+      )}
+    </>
   );
 };
 

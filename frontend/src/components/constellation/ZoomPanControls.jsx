@@ -15,7 +15,7 @@ const ZoomPanControls = ({ zoom, onZoomChange, onResetView, showTimeTravel, onTo
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.3 }}
-      className="fixed right-8 top-1/2 transform -translate-y-1/2 z-[100]"
+      className="fixed right-4 bottom-20 md:right-8 md:top-1/2 md:transform md:-translate-y-1/2 z-[100]"
     >
       <div className="bg-gray-900/90 backdrop-blur-md border border-white/20 rounded-2xl p-3 shadow-2xl">
         <div className="flex flex-col gap-3">
@@ -23,7 +23,7 @@ const ZoomPanControls = ({ zoom, onZoomChange, onResetView, showTimeTravel, onTo
           <button
             onClick={handleZoomIn}
             disabled={zoom >= 3}
-            className="w-12 h-12 flex items-center justify-center bg-white/10 hover:bg-white/20
+            className="min-w-[44px] min-h-[44px] w-12 h-12 flex items-center justify-center bg-white/10 sm:hover:bg-white/20
                        disabled:opacity-50 disabled:cursor-not-allowed
                        rounded-lg transition-all group"
             aria-label="Zoom in"
@@ -54,7 +54,7 @@ const ZoomPanControls = ({ zoom, onZoomChange, onResetView, showTimeTravel, onTo
           <button
             onClick={handleZoomOut}
             disabled={zoom <= 0.5}
-            className="w-12 h-12 flex items-center justify-center bg-white/10 hover:bg-white/20
+            className="min-w-[44px] min-h-[44px] w-12 h-12 flex items-center justify-center bg-white/10 sm:hover:bg-white/20
                        disabled:opacity-50 disabled:cursor-not-allowed
                        rounded-lg transition-all group"
             aria-label="Zoom out"
@@ -80,7 +80,7 @@ const ZoomPanControls = ({ zoom, onZoomChange, onResetView, showTimeTravel, onTo
           {/* Reset View Button */}
           <button
             onClick={onResetView}
-            className="w-12 h-12 flex items-center justify-center bg-white/10 hover:bg-white/20
+            className="min-w-[44px] min-h-[44px] w-12 h-12 flex items-center justify-center bg-white/10 sm:hover:bg-white/20
                        rounded-lg transition-all group"
             aria-label="Reset view"
             title="Reset zoom and pan"
@@ -108,10 +108,10 @@ const ZoomPanControls = ({ zoom, onZoomChange, onResetView, showTimeTravel, onTo
 
               <button
                 onClick={onToggleTimeTravel}
-                className={`w-12 h-12 flex items-center justify-center rounded-lg transition-all group
+                className={`min-w-[44px] min-h-[44px] w-12 h-12 flex items-center justify-center rounded-lg transition-all group
                   ${showTimeTravel
                     ? 'bg-gradient-primary'
-                    : 'bg-white/10 hover:bg-white/20'}`}
+                    : 'bg-white/10 sm:hover:bg-white/20'}`}
                 aria-label="Toggle time travel"
                 title="Time Travel Mode"
               >

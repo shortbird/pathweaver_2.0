@@ -260,7 +260,11 @@ def add_users_to_organization(current_user_id, current_org_id, is_superadmin, or
 @bp.route('/<org_id>/users/remove', methods=['POST'])
 @require_org_admin
 def remove_user_from_organization(current_user_id, current_org_id, is_superadmin, org_id):
-    """Remove user from organization (superadmin or org admin)"""
+    """Remove user from organization (superadmin or org admin)
+
+    Moves user to default Optio organization since organization_id is NOT NULL.
+    To fully delete a user, use the delete user endpoint instead.
+    """
     try:
         # Verify access
         if not is_superadmin and current_org_id != org_id:
@@ -268,21 +272,294 @@ def remove_user_from_organization(current_user_id, current_org_id, is_superadmin
 
         data = request.get_json()
         user_id = data.get('user_id')
+        delete_user = data.get('delete_user', False)
 
         if not user_id:
             return jsonify({'error': 'user_id is required'}), 400
 
         client = get_supabase_admin_client()
 
-        # Set user's organization_id to null
-        client.table('users')\
-            .update({'organization_id': None})\
-            .eq('id', user_id)\
-            .execute()
+        if delete_user and is_superadmin:
+            # Superadmin can fully delete user
+            try:
+                # Delete from Supabase Auth
+                client.auth.admin.delete_user(user_id)
+                logger.info(f"Deleted user {user_id} from organization {org_id}")
+                return jsonify({'message': 'User deleted successfully'}), 200
+            except Exception as auth_error:
+                logger.error(f"Failed to delete auth user {user_id}: {auth_error}")
+                return jsonify({'error': 'Failed to delete user from auth system'}), 500
+        else:
+            # Move user to default Optio organization
+            DEFAULT_OPTIO_ORG_ID = 'e88b7aae-b9ad-4c71-bc3a-eef0701f5852'
 
-        logger.info(f"Removed user {user_id} from organization {org_id}")
+            client.table('users')\
+                .update({'organization_id': DEFAULT_OPTIO_ORG_ID})\
+                .eq('id', user_id)\
+                .execute()
 
-        return jsonify({'message': 'User removed from organization'}), 200
+            logger.info(f"Removed user {user_id} from organization {org_id} (moved to default org)")
+
+            return jsonify({
+                'message': 'User removed from organization',
+                'note': 'User moved to default Optio organization'
+            }), 200
     except Exception as e:
         logger.error(f"Error removing user from org {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<org_id>/users/bulk-remove', methods=['POST'])
+@require_org_admin
+def bulk_remove_users_from_organization(current_user_id, current_org_id, is_superadmin, org_id):
+    """Remove multiple users from organization (superadmin or org admin)
+
+    Moves users to default Optio organization since organization_id is NOT NULL.
+    """
+    try:
+        # Verify access
+        if not is_superadmin and current_org_id != org_id:
+            return jsonify({'error': 'Access denied'}), 403
+
+        data = request.get_json()
+        user_ids = data.get('user_ids', [])
+
+        if not user_ids:
+            return jsonify({'error': 'No user IDs provided'}), 400
+
+        if len(user_ids) > 50:
+            return jsonify({'error': 'Maximum 50 users can be removed at once'}), 400
+
+        client = get_supabase_admin_client()
+        DEFAULT_OPTIO_ORG_ID = 'e88b7aae-b9ad-4c71-bc3a-eef0701f5852'
+
+        removed = []
+        failed = []
+
+        for user_id in user_ids:
+            try:
+                client.table('users')\
+                    .update({'organization_id': DEFAULT_OPTIO_ORG_ID})\
+                    .eq('id', user_id)\
+                    .eq('organization_id', org_id)\
+                    .execute()
+                removed.append(user_id)
+            except Exception as e:
+                logger.error(f"Failed to remove user {user_id} from org {org_id}: {e}")
+                failed.append({'id': user_id, 'error': str(e)[:100]})
+
+        logger.info(f"Bulk removed {len(removed)} users from organization {org_id}")
+
+        return jsonify({
+            'success': True,
+            'removed': len(removed),
+            'failed': len(failed),
+            'removed_ids': removed,
+            'failed_details': failed
+        }), 200
+    except Exception as e:
+        logger.error(f"Error bulk removing users from org {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<org_id>/students/progress', methods=['GET'])
+@require_org_admin
+def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id):
+    """
+    Get detailed progress report for all students in an organization.
+
+    Query params:
+        start_date: Optional start date filter (YYYY-MM-DD)
+        end_date: Optional end date filter (YYYY-MM-DD)
+        format: 'json' (default) or 'csv'
+        role: Filter by role (default: 'student')
+
+    Returns per-student:
+        - name, email
+        - total XP
+        - quests enrolled / completed
+        - tasks completed (period and all-time)
+        - last active date
+        - badge count
+    """
+    from datetime import datetime, timedelta
+    import csv
+    import io
+
+    try:
+        # Verify access
+        if not is_superadmin and current_org_id != org_id:
+            return jsonify({'error': 'Access denied'}), 403
+
+        # Parse query params
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        output_format = request.args.get('format', 'json')
+        role_filter = request.args.get('role', 'student')
+
+        # Default date range: last 30 days
+        if not end_date:
+            end_date = datetime.now().strftime('%Y-%m-%d')
+        if not start_date:
+            start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+
+        client = get_supabase_admin_client()
+
+        # Get students in organization
+        users_query = client.table('users')\
+            .select('id, email, display_name, first_name, last_name, total_xp, last_active, created_at')\
+            .eq('organization_id', org_id)\
+            .eq('role', role_filter)\
+            .order('first_name')
+
+        users_response = users_query.execute()
+        students = users_response.data or []
+
+        if not students:
+            return jsonify({
+                'success': True,
+                'students': [],
+                'summary': {
+                    'total_students': 0,
+                    'total_xp': 0,
+                    'total_completions': 0,
+                    'avg_xp': 0,
+                    'date_range': {'start': start_date, 'end': end_date}
+                }
+            }), 200
+
+        student_ids = [s['id'] for s in students]
+
+        # Get quest enrollments for all students
+        user_quests = client.table('user_quests')\
+            .select('user_id, quest_id, status')\
+            .in_('user_id', student_ids)\
+            .execute()
+
+        # Get task completions for all students (in date range)
+        completions_period = client.table('quest_task_completions')\
+            .select('user_id, id, completed_at')\
+            .in_('user_id', student_ids)\
+            .gte('completed_at', f"{start_date}T00:00:00")\
+            .lte('completed_at', f"{end_date}T23:59:59")\
+            .execute()
+
+        # Get all-time task completions
+        completions_all = client.table('quest_task_completions')\
+            .select('user_id, id')\
+            .in_('user_id', student_ids)\
+            .execute()
+
+        # Get badges for all students
+        badges = client.table('user_badges')\
+            .select('user_id, id')\
+            .in_('user_id', student_ids)\
+            .execute()
+
+        # Aggregate data by student
+        quest_data = {}
+        for uq in (user_quests.data or []):
+            uid = uq['user_id']
+            if uid not in quest_data:
+                quest_data[uid] = {'enrolled': 0, 'completed': 0}
+            quest_data[uid]['enrolled'] += 1
+            if uq.get('status') in ['completed', 'set_down']:
+                quest_data[uid]['completed'] += 1
+
+        completion_period_data = {}
+        for c in (completions_period.data or []):
+            uid = c['user_id']
+            completion_period_data[uid] = completion_period_data.get(uid, 0) + 1
+
+        completion_all_data = {}
+        for c in (completions_all.data or []):
+            uid = c['user_id']
+            completion_all_data[uid] = completion_all_data.get(uid, 0) + 1
+
+        badge_data = {}
+        for b in (badges.data or []):
+            uid = b['user_id']
+            badge_data[uid] = badge_data.get(uid, 0) + 1
+
+        # Build student progress list
+        student_progress = []
+        total_xp = 0
+        total_completions = 0
+
+        for student in students:
+            sid = student['id']
+            xp = student.get('total_xp') or 0
+            total_xp += xp
+
+            quests = quest_data.get(sid, {'enrolled': 0, 'completed': 0})
+            tasks_period = completion_period_data.get(sid, 0)
+            tasks_all = completion_all_data.get(sid, 0)
+            badge_count = badge_data.get(sid, 0)
+
+            total_completions += tasks_period
+
+            display_name = student.get('display_name') or \
+                f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or \
+                student.get('email', 'Unknown')
+
+            student_progress.append({
+                'id': sid,
+                'name': display_name,
+                'email': student.get('email'),
+                'total_xp': xp,
+                'quests_enrolled': quests['enrolled'],
+                'quests_completed': quests['completed'],
+                'tasks_completed_period': tasks_period,
+                'tasks_completed_all': tasks_all,
+                'badge_count': badge_count,
+                'last_active': student.get('last_active'),
+                'joined': student.get('created_at')
+            })
+
+        # Sort by total XP (descending) by default
+        student_progress.sort(key=lambda x: x['total_xp'], reverse=True)
+
+        # Calculate summary
+        avg_xp = total_xp / len(students) if students else 0
+
+        summary = {
+            'total_students': len(students),
+            'total_xp': total_xp,
+            'total_completions_period': total_completions,
+            'avg_xp': round(avg_xp, 2),
+            'date_range': {'start': start_date, 'end': end_date}
+        }
+
+        # Handle CSV export
+        if output_format == 'csv':
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow([
+                'Name', 'Email', 'Total XP', 'Quests Enrolled', 'Quests Completed',
+                'Tasks (Period)', 'Tasks (All Time)', 'Badges', 'Last Active', 'Joined'
+            ])
+            for s in student_progress:
+                writer.writerow([
+                    s['name'], s['email'], s['total_xp'], s['quests_enrolled'],
+                    s['quests_completed'], s['tasks_completed_period'],
+                    s['tasks_completed_all'], s['badge_count'],
+                    s['last_active'] or '', s['joined'] or ''
+                ])
+
+            output.seek(0)
+            from flask import Response
+            return Response(
+                output.getvalue(),
+                mimetype='text/csv',
+                headers={'Content-Disposition': f'attachment; filename=student_progress_{org_id}_{start_date}_to_{end_date}.csv'}
+            )
+
+        return jsonify({
+            'success': True,
+            'students': student_progress,
+            'summary': summary
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting student progress for org {org_id}: {e}")
         return jsonify({'error': str(e)}), 500

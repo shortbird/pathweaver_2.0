@@ -71,10 +71,10 @@ def test_require_role_with_correct_role(client, mock_verify_token, mock_auth_sup
     
     mock_auth_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = sample_user
     
-    @require_role('student', 'educator')
+    @require_role('student', 'advisor')
     def role_route(user_id):
         return {'access': True}, 200
-    
+
     with client.application.test_request_context(
         headers={'Authorization': 'Bearer student-token'}
     ):
@@ -84,10 +84,10 @@ def test_require_role_with_correct_role(client, mock_verify_token, mock_auth_sup
 
 def test_require_role_with_incorrect_role(client, mock_verify_token, mock_auth_supabase, sample_user):
     """Test require_role decorator with incorrect role"""
-    
+
     mock_auth_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = sample_user
-    
-    @require_role('admin', 'educator')
+
+    @require_role('org_admin', 'superadmin')
     def role_route(user_id):
         return {'access': True}, 200
     

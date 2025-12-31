@@ -32,6 +32,18 @@ const ObserverAuditLog = () => {
     end_date: ''
   })
   const [showFilters, setShowFilters] = useState(false)
+  const [viewMode, setViewMode] = useState(window.innerWidth < 768 ? 'cards' : 'table')
+
+  // Auto-switch viewMode on resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768 && viewMode === 'table') {
+        setViewMode('cards')
+      }
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [viewMode])
 
   useEffect(() => {
     fetchAuditLogs()
@@ -139,17 +151,51 @@ const ObserverAuditLog = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
           <h2 className="text-2xl font-bold text-gray-900">Observer Access Audit Log</h2>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="px-4 py-2 bg-optio-purple text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-            </svg>
-            {showFilters ? 'Hide Filters' : 'Show Filters'}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`min-h-[44px] min-w-[44px] p-2 flex items-center justify-center transition-colors ${
+                  viewMode === 'table'
+                    ? 'bg-optio-purple text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title="Table view"
+                aria-label="Table view"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setViewMode('cards')}
+                className={`min-h-[44px] min-w-[44px] p-2 flex items-center justify-center transition-colors ${
+                  viewMode === 'cards'
+                    ? 'bg-optio-purple text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title="Card view"
+                aria-label="Card view"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+              </button>
+            </div>
+            {/* Filter Toggle */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="min-h-[44px] px-4 py-2 bg-optio-purple text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              <span className="hidden sm:inline">{showFilters ? 'Hide Filters' : 'Show Filters'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Statistics Overview */}
@@ -189,7 +235,7 @@ const ObserverAuditLog = () => {
                   value={filters.observer_id}
                   onChange={(e) => handleFilterChange('observer_id', e.target.value)}
                   placeholder="UUID of observer"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
                 />
               </div>
               <div>
@@ -199,7 +245,7 @@ const ObserverAuditLog = () => {
                   value={filters.student_id}
                   onChange={(e) => handleFilterChange('student_id', e.target.value)}
                   placeholder="UUID of student"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
                 />
               </div>
               <div>
@@ -207,7 +253,7 @@ const ObserverAuditLog = () => {
                 <select
                   value={filters.action_type}
                   onChange={(e) => handleFilterChange('action_type', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
                 >
                   <option value="">All Actions</option>
                   <option value="view_portfolio">View Portfolio</option>
@@ -223,7 +269,7 @@ const ObserverAuditLog = () => {
                   type="date"
                   value={filters.start_date}
                   onChange={(e) => handleFilterChange('start_date', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
                 />
               </div>
               <div>
@@ -232,20 +278,20 @@ const ObserverAuditLog = () => {
                   type="date"
                   value={filters.end_date}
                   onChange={(e) => handleFilterChange('end_date', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px] text-base"
                 />
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <button
                 onClick={applyFilters}
-                className="px-4 py-2 bg-optio-purple text-white rounded-lg hover:bg-purple-700 transition-colors"
+                className="min-h-[44px] w-full sm:w-auto px-4 py-2 bg-optio-purple text-white rounded-lg hover:bg-purple-700 transition-colors"
               >
                 Apply Filters
               </button>
               <button
                 onClick={clearFilters}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                className="min-h-[44px] w-full sm:w-auto px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
               >
                 Clear Filters
               </button>
@@ -254,8 +300,63 @@ const ObserverAuditLog = () => {
         )}
       </div>
 
-      {/* Audit Logs Table */}
+      {/* Audit Logs */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
+        {/* Mobile Card View */}
+        {viewMode === 'cards' && (
+          <div className="divide-y divide-gray-100">
+            {loading ? (
+              <div className="px-4 py-12 text-center text-gray-500">
+                <div className="flex justify-center items-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
+                  <span className="ml-3">Loading audit logs...</span>
+                </div>
+              </div>
+            ) : logs.length === 0 ? (
+              <div className="px-4 py-12 text-center text-gray-500">
+                No audit logs found
+              </div>
+            ) : (
+              logs.map((log) => (
+                <div key={log.id} className="p-4 border-l-4 border-optio-purple">
+                  {/* Date/Time - Top Right */}
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getActionTypeBadge(log.action_type)}`}>
+                        {log.action_type.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    <span className="text-xs text-gray-400">{formatDate(log.created_at)}</span>
+                  </div>
+
+                  {/* Observer -> Student */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{log.observer?.display_name || 'Unknown'}</div>
+                      <div className="text-xs text-gray-500">{log.observer?.email}</div>
+                    </div>
+                    <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <div className="flex-1 text-right">
+                      <div className="font-medium text-gray-900">{log.student?.display_name || 'Unknown'}</div>
+                      <div className="text-xs text-gray-500">{log.student?.email}</div>
+                    </div>
+                  </div>
+
+                  {/* Resource & IP - Bottom */}
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>{log.resource_type || 'N/A'}</span>
+                    <span>IP: {log.ip_address || 'N/A'}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Desktop Table View */}
+        {viewMode === 'table' && (
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -344,25 +445,26 @@ const ObserverAuditLog = () => {
             </tbody>
           </table>
         </div>
+        )}
 
         {/* Pagination */}
         {pagination.pages > 1 && (
-          <div className="bg-gray-50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
-            <div className="text-sm text-gray-700">
+          <div className="bg-gray-50 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-gray-200">
+            <div className="text-sm text-gray-700 text-center sm:text-left">
               Showing page {pagination.page} of {pagination.pages} ({pagination.total} total records)
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
                 disabled={pagination.page === 1}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="min-h-[44px] px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Previous
               </button>
               <button
                 onClick={() => setPagination(prev => ({ ...prev, page: Math.min(prev.pages, prev.page + 1) }))}
                 disabled={pagination.page === pagination.pages}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="min-h-[44px] px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next
               </button>

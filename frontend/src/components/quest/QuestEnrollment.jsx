@@ -41,7 +41,7 @@ const QuestEnrollment = ({
               onMouseEnter={onPreloadWizard}
               onFocus={onPreloadWizard}
               disabled={isEnrolling}
-              className="flex-1 bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] touch-manipulation"
             >
               <FireIcon className="w-5 h-5 inline mr-2" />
               {isEnrolling ? 'Picking Up...' : 'Pick Up Quest'}
@@ -66,7 +66,7 @@ const QuestEnrollment = ({
             onClick={() => onShowPersonalizationWizard()}
             onMouseEnter={onPreloadWizard}
             onFocus={onPreloadWizard}
-            className="px-6 py-3 bg-gradient-primary text-white rounded-lg font-semibold hover:opacity-90"
+            className="px-6 py-3 bg-gradient-primary text-white rounded-lg font-semibold hover:opacity-90 min-h-[44px] touch-manipulation"
             style={{ fontFamily: 'Poppins' }}
           >
             Start Personalizing

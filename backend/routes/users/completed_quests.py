@@ -127,13 +127,13 @@ def calculate_quest_xp(quest: dict, user_id: str = None) -> dict:
 
         # Get all completed tasks for this quest
         completed_tasks = supabase.table('quest_task_completions')\
-            .select('xp_awarded, task_id')\
+            .select('task_id')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
             .execute()
 
         if completed_tasks.data:
-            # Get task details to find pillar assignments
+            # Get task details to find pillar assignments and XP values
             task_ids = [task['task_id'] for task in completed_tasks.data]
 
             if task_ids:
@@ -143,17 +143,21 @@ def calculate_quest_xp(quest: dict, user_id: str = None) -> dict:
                     .eq('user_id', user_id)\
                     .execute()
 
-                # Create a map of task_id to pillar
-                task_pillar_map = {}
+                # Create a map of task_id to pillar and xp
+                task_info_map = {}
                 if tasks.data:
                     for task in tasks.data:
-                        task_pillar_map[task['id']] = task.get('pillar', 'stem')
+                        task_info_map[task['id']] = {
+                            'pillar': task.get('pillar', 'stem'),
+                            'xp_value': task.get('xp_value', 0)
+                        }
 
-                # Aggregate XP by pillar
+                # Aggregate XP by pillar from user_quest_tasks.xp_value
                 for completion in completed_tasks.data:
-                    xp = completion.get('xp_awarded', 0)
                     task_id = completion.get('task_id')
-                    pillar = task_pillar_map.get(task_id, 'stem')
+                    task_info = task_info_map.get(task_id, {'pillar': 'stem', 'xp_value': 0})
+                    xp = task_info['xp_value'] or 0
+                    pillar = task_info['pillar']
 
                     # Use NEW simplified pillar names (stem, wellness, communication, civics, art)
                     xp_breakdown[pillar] = xp_breakdown.get(pillar, 0) + xp

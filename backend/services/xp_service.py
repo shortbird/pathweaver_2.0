@@ -367,60 +367,52 @@ class XPService(BaseService):
         """
         Validate that a user's XP totals are consistent.
         Used to detect potential XP manipulation.
-        
+
         Args:
             user_id: User to validate
-            
+
         Returns:
             True if XP appears valid, False if inconsistencies detected
         """
         try:
-            # Get all completed tasks for user
-            completed_tasks = self.supabase.table('user_quest_tasks')\
-                .select('xp_awarded, quest_task_id, quest_tasks(xp_amount, pillar)')\
+            # Get all completed tasks for user (join to get xp_value and pillar from user_quest_tasks)
+            completed_tasks = self.supabase.table('quest_task_completions')\
+                .select('task_id, user_quest_tasks(xp_value, pillar)')\
                 .eq('user_id', user_id)\
                 .execute()
-            
+
             if not completed_tasks.data:
                 return True  # No tasks completed yet
-            
-            # Calculate expected XP per pillar (using new pillar keys)
+
+            # Calculate expected XP per pillar (using simplified pillar keys)
             expected_xp = {
-                'arts_creativity': 0,
-                'stem_logic': 0,
-                'life_wellness': 0,
-                'language_communication': 0,
-                'society_culture': 0
+                'stem': 0,
+                'wellness': 0,
+                'communication': 0,
+                'civics': 0,
+                'art': 0
             }
-            
-            # Pillar mapping for normalization
-            pillar_mapping = {
-                'creativity': 'arts_creativity',
-                'critical_thinking': 'stem_logic',
-                'practical_skills': 'life_wellness',
-                'communication': 'language_communication',
-                'cultural_literacy': 'society_culture'
-            }
-            
+
             for task in completed_tasks.data:
-                if task.get('quest_tasks'):
-                    old_pillar = task['quest_tasks']['pillar']
-                    new_pillar = pillar_mapping.get(old_pillar, old_pillar)
-                    if new_pillar in expected_xp:
-                        expected_xp[new_pillar] += task['xp_awarded']
-            
+                user_task = task.get('user_quest_tasks')
+                if user_task:
+                    pillar = user_task.get('pillar', 'stem')
+                    xp = user_task.get('xp_value', 0) or 0
+                    if pillar in expected_xp:
+                        expected_xp[pillar] += xp
+
             # Get actual XP from user_skill_xp
             actual_xp = self.get_user_total_xp(user_id)
-            
+
             # Check for discrepancies
             for pillar, expected in expected_xp.items():
                 actual = actual_xp.get(pillar, 0)
                 if actual != expected:
                     logger.info(f"XP discrepancy for user {user_id}, pillar {pillar}: expected {expected}, actual {actual}")
                     return False
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Error validating XP integrity: {str(e)}")
             return False

@@ -56,12 +56,12 @@ const SortableTaskItem = ({ task, isSelected, onClick, onRemove }) => {
       {/* Drag handle */}
       <button
         type="button"
-        className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-0.5 flex-shrink-0 mt-0.5"
+        className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-3 -m-2 min-w-[44px] min-h-[44px] touch-manipulation flex-shrink-0 flex items-center justify-center"
         {...attributes}
         {...listeners}
         onClick={(e) => e.stopPropagation()}
       >
-        <Bars3Icon className="w-3.5 h-3.5" />
+        <Bars3Icon className="w-5 h-5" />
       </button>
 
       {/* Completion indicator */}
@@ -90,9 +90,9 @@ const SortableTaskItem = ({ task, isSelected, onClick, onRemove }) => {
               e.stopPropagation();
               onRemove(task.id);
             }}
-            className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+            className="sm:opacity-0 sm:group-hover:opacity-100 p-2 min-w-[44px] min-h-[44px] text-red-400 hover:text-red-600 hover:bg-red-50 active:bg-red-100 rounded transition-all touch-manipulation flex items-center justify-center"
           >
-            <TrashIcon className="w-3.5 h-3.5" />
+            <TrashIcon className="w-4 h-4" />
           </button>
         )}
       </div>
@@ -119,6 +119,7 @@ const TaskWorkspace = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isTaskListOpen, setIsTaskListOpen] = useState(true);
   const [editingBlock, setEditingBlock] = useState(null);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   // Drag sensors for task reordering
   const sensors = useSensors(
@@ -126,8 +127,9 @@ const TaskWorkspace = ({
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } })
   );
 
-  // Load existing evidence when task changes
+  // Load existing evidence when task changes and reset description state
   useEffect(() => {
+    setIsDescriptionExpanded(false);
     if (task?.id) {
       loadEvidence();
     } else {
@@ -512,46 +514,59 @@ const TaskWorkspace = ({
   return (
     <div className="h-full flex flex-col">
       {/* Full-width Header */}
-      <div className="px-6 py-4 border-b border-gray-200">
-        <div className="flex items-start gap-3">
-          {task ? (
-            <>
-              <div className="flex-1 min-w-0">
-                <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>
-                  {task.title}
-                </h2>
-                {task.description && (
-                  <p className="mt-1 text-sm text-gray-600 line-clamp-2" style={{ fontFamily: 'Poppins' }}>
-                    {task.description}
-                  </p>
+      <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+        {task ? (
+          <div className="space-y-2">
+            {/* Title - always fully visible, wraps on mobile */}
+            <h2 className="text-base sm:text-xl font-bold text-gray-900 break-words" style={{ fontFamily: 'Poppins' }}>
+              {task.title}
+            </h2>
+            {/* Description - expandable on tap */}
+            {task.description && (
+              <div>
+                <p
+                  className={`text-sm text-gray-600 ${isDescriptionExpanded ? '' : 'line-clamp-2'}`}
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  {task.description}
+                </p>
+                {task.description.length > 100 && (
+                  <button
+                    onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                    className="text-xs text-optio-purple font-medium mt-1 touch-manipulation min-h-[32px] flex items-center"
+                    style={{ fontFamily: 'Poppins' }}
+                  >
+                    {isDescriptionExpanded ? 'Show less' : 'Show more'}
+                  </button>
                 )}
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <div
-                  className="px-3 py-1 rounded-full text-xs font-semibold text-white"
-                  style={{ backgroundColor: pillarData?.color, fontFamily: 'Poppins' }}
-                >
-                  {pillarData?.name}
-                </div>
-                <div
-                  className="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"
-                  style={{
-                    backgroundColor: `${pillarData?.color}20`,
-                    color: pillarData?.color,
-                    fontFamily: 'Poppins'
-                  }}
-                >
-                  <TrophyIcon className="w-3.5 h-3.5" />
-                  {task.xp_amount} XP
-                </div>
+            )}
+            {/* Pillar and XP badges - below title/description */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div
+                className="px-3 py-1 rounded-full text-xs font-semibold text-white"
+                style={{ backgroundColor: pillarData?.color, fontFamily: 'Poppins' }}
+              >
+                {pillarData?.name}
               </div>
-            </>
-          ) : (
-            <div className="flex-1 text-gray-400">
-              <p className="font-medium" style={{ fontFamily: 'Poppins' }}>Select a task to get started</p>
+              <div
+                className="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"
+                style={{
+                  backgroundColor: `${pillarData?.color}20`,
+                  color: pillarData?.color,
+                  fontFamily: 'Poppins'
+                }}
+              >
+                <TrophyIcon className="w-3.5 h-3.5" />
+                {task.xp_amount} XP
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="text-gray-400">
+            <p className="font-medium" style={{ fontFamily: 'Poppins' }}>Select a task to get started</p>
+          </div>
+        )}
       </div>
 
       {/* Content Area with Collapsible Sidebar */}
@@ -645,64 +660,66 @@ const TaskWorkspace = ({
           {task ? (
             <div className="flex-1 overflow-y-auto">
               {/* Sticky Header with My Evidence + Action Buttons */}
-              <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-3 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>
+              <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3 shadow-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide whitespace-nowrap" style={{ fontFamily: 'Poppins' }}>
                     My Evidence
                   </h3>
-                  <div className="flex items-center gap-2">
-                    {/* Save Button */}
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    {/* Save Button - icon only on mobile */}
                     <button
                       onClick={() => saveEvidence(evidenceBlocks)}
                       disabled={isSaving || evidenceBlocks.length === 0}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 touch-manipulation"
                       style={{ fontFamily: 'Poppins' }}
+                      title="Save"
                     >
                       {isSaving ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                          Saving...
-                        </>
+                        <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
                       ) : (
-                        'Save'
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 sm:hidden">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 3.75H6.912a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H15M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859M12 3v8.25m0 0l-3-3m3 3l3-3" />
+                          </svg>
+                          <span className="hidden sm:inline">Save</span>
+                        </>
                       )}
                     </button>
 
-                    {/* Add Evidence Button */}
+                    {/* Add Evidence Button - icon only on mobile */}
                     <button
                       onClick={() => setIsModalOpen(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-optio-purple hover:bg-optio-purple/10 border border-optio-purple/30 rounded-lg transition-colors"
+                      className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-1.5 text-sm font-medium text-optio-purple hover:bg-optio-purple/10 border border-optio-purple/30 rounded-lg transition-colors min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 touch-manipulation"
                       style={{ fontFamily: 'Poppins' }}
+                      title="Add Evidence"
                     >
                       <PlusIcon className="w-4 h-4" />
-                      Add Evidence
+                      <span className="hidden sm:inline">Add</span>
                     </button>
 
-                    {/* Mark Complete Button */}
+                    {/* Mark Complete Button - compact on mobile */}
                     {!isTaskCompleted ? (
                       <button
                         onClick={handleMarkComplete}
                         disabled={isCompleting || isSaving}
-                        className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-4 sm:py-1.5 text-xs sm:text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[36px] touch-manipulation"
                         style={{ fontFamily: 'Poppins' }}
                       >
                         {isCompleting ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            Completing...
-                          </>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         ) : (
                           <>
                             <CheckCircleIcon className="w-4 h-4" />
-                            Mark Complete
+                            <span className="hidden sm:inline">Done</span>
                           </>
                         )}
                       </button>
                     ) : (
-                      <div className="flex items-center gap-1.5 px-4 py-1.5 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-4 sm:py-1.5 bg-green-50 border border-green-200 rounded-lg">
                         <CheckCircleIcon className="w-4 h-4 text-green-600" />
-                        <span className="text-green-700 text-sm font-semibold" style={{ fontFamily: 'Poppins' }}>
-                          Completed! +{task.xp_amount} XP
+                        <span className="text-green-700 text-xs sm:text-sm font-semibold whitespace-nowrap" style={{ fontFamily: 'Poppins' }}>
+                          <span className="sm:hidden">+{task.xp_amount} XP</span>
+                          <span className="hidden sm:inline">Completed! +{task.xp_amount} XP</span>
                         </span>
                       </div>
                     )}

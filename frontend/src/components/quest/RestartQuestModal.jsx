@@ -6,7 +6,7 @@ const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPrevio
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden">
+      <div className="bg-white rounded-xl shadow-2xl max-w-full sm:max-w-lg mx-2 sm:mx-0 w-full overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white relative">
           <button
@@ -55,7 +55,7 @@ const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPrevio
             {/* Load Previous Tasks Option */}
             <button
               onClick={onLoadPreviousTasks}
-              className="w-full bg-gradient-to-r from-optio-purple to-optio-pink text-white p-4 rounded-lg hover:shadow-lg transition-all duration-300 text-left group"
+              className="min-h-[44px] w-full bg-gradient-to-r from-optio-purple to-optio-pink text-white p-4 rounded-lg hover:shadow-lg transition-all duration-300 text-left group"
             >
               <div className="flex items-start gap-3">
                 <ArrowPathIcon className="w-6 h-6 flex-shrink-0 group-hover:rotate-180 transition-transform duration-500" />
@@ -73,7 +73,7 @@ const RestartQuestModal = ({ isOpen, questTitle, previousTaskCount, onLoadPrevio
             {/* Start Fresh Option */}
             <button
               onClick={onStartFresh}
-              className="w-full bg-white border-2 border-gray-300 text-gray-900 p-4 rounded-lg hover:border-optio-purple hover:bg-purple-50 transition-all duration-300 text-left group"
+              className="min-h-[44px] w-full bg-white border-2 border-gray-300 text-gray-900 p-4 rounded-lg hover:border-optio-purple hover:bg-purple-50 transition-all duration-300 text-left group"
             >
               <div className="flex items-start gap-3">
                 <SparklesIcon className="w-6 h-6 flex-shrink-0 text-optio-purple group-hover:scale-110 transition-transform" />

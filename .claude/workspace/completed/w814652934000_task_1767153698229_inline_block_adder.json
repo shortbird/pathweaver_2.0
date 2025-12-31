@@ -1,0 +1,10 @@
+{
+  "id": "modify_inline_block_adder_responsive",
+  "type": "implement_fix",
+  "priority": 2,
+  "payload": {
+    "description": "Modify InlineBlockAdder.jsx to add responsive detection and render MobileBlockAdder on mobile (<640px). Add useIsMobile hook from hooks/useSwipeGesture. Conditionally render MobileBlockAdder when isMobile is true, otherwise render existing desktop layout. Pass all props through.",
+    "files": ["frontend/src/components/evidence/InlineBlockAdder.jsx"],
+    "context": "Import useIsMobile and MobileBlockAdder. Pattern: const isMobile = useIsMobile(); return isMobile ? <MobileBlockAdder ... /> : <existing desktop code>. Keep all existing desktop functionality unchanged. Breakpoint is 640px (sm:)."
+  }
+}

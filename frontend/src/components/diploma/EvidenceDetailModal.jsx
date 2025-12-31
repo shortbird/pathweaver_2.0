@@ -28,7 +28,7 @@ const EvidenceDetailModal = ({ isOpen, onClose, evidenceItem }) => {
       aria-label="Close evidence detail modal"
     >
       <div
-        className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-xl max-w-full sm:max-w-3xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
         role="dialog"
@@ -43,7 +43,7 @@ const EvidenceDetailModal = ({ isOpen, onClose, evidenceItem }) => {
             </div>
             <button
               onClick={onClose}
-              className="text-white hover:bg-white/20 rounded-full p-2 transition-colors flex-shrink-0 ml-4"
+              className="text-white hover:bg-white/20 rounded-full p-2 transition-colors flex-shrink-0 ml-4 min-h-[44px] min-w-[44px]"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

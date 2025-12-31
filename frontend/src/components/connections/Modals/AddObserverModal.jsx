@@ -118,6 +118,7 @@ const AddObserverModal = ({ isOpen, onClose, onSendRequest, isLoading = false })
             onChange: (e) => handleInputChange('name', e.target.value),
             placeholder: 'Dr. Jane Smith',
             autoFocus: true,
+            className: 'min-h-[44px] text-base touch-manipulation',
             style: { fontFamily: 'Poppins', fontWeight: 500 }
           }}
         />
@@ -133,6 +134,7 @@ const AddObserverModal = ({ isOpen, onClose, onSendRequest, isLoading = false })
             value: formData.email,
             onChange: (e) => handleInputChange('email', e.target.value),
             placeholder: 'observer@example.com',
+            className: 'min-h-[44px] text-base touch-manipulation',
             style: { fontFamily: 'Poppins', fontWeight: 500 }
           }}
         />
@@ -150,7 +152,7 @@ const AddObserverModal = ({ isOpen, onClose, onSendRequest, isLoading = false })
             id="relationship"
             value={formData.relationship}
             onChange={(e) => handleInputChange('relationship', e.target.value)}
-            className={`w-full px-4 py-3 rounded-lg border-2 transition-all focus:outline-none appearance-none bg-white ${
+            className={`w-full px-4 py-3 rounded-lg border-2 transition-all focus:outline-none appearance-none bg-white min-h-[44px] text-base touch-manipulation ${
               errors.relationship
                 ? 'border-red-500 focus:border-red-500'
                 : 'border-gray-200 focus:border-optio-purple'
@@ -187,7 +189,7 @@ const AddObserverModal = ({ isOpen, onClose, onSendRequest, isLoading = false })
                 handleInputChange('message', e.target.value)
               }
             }}
-            className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-optio-purple focus:outline-none resize-none"
+            className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-optio-purple focus:outline-none resize-none min-h-[100px] text-base touch-manipulation"
             style={{ fontFamily: 'Poppins', fontWeight: 500 }}
             rows={3}
             placeholder="Dr. Smith is my biology teacher and has been supporting my science journey..."

@@ -64,16 +64,16 @@ const SkillsChart = ({ skillData }) => {
   }
 
   return (
-    <div className="bg-white rounded-xl p-6 border border-gray-200">
+    <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200">
       {/* Header with chart type toggle */}
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-900">Skill Development</h2>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 sm:mb-6">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900">Skill Development</h2>
         <div className="flex gap-2">
           <button
             onClick={() => setChartType('radar')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              chartType === 'radar' 
-                ? 'bg-purple-100 text-purple-700' 
+            className={`min-h-[44px] px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              chartType === 'radar'
+                ? 'bg-purple-100 text-purple-700'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -81,9 +81,9 @@ const SkillsChart = ({ skillData }) => {
           </button>
           <button
             onClick={() => setChartType('bar')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              chartType === 'bar' 
-                ? 'bg-purple-100 text-purple-700' 
+            className={`min-h-[44px] px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              chartType === 'bar'
+                ? 'bg-purple-100 text-purple-700'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -152,19 +152,19 @@ const SkillsChart = ({ skillData }) => {
       )}
 
       {/* Skill Summary */}
-      <div className="mt-6 grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="mt-4 sm:mt-6 grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3">
         {skillData.map((skill, index) => (
-          <div 
+          <div
             key={index}
             className="text-center p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
           >
-            <div 
-              className="w-10 h-10 rounded-full mx-auto mb-1 flex items-center justify-center text-white font-bold"
+            <div
+              className="w-8 sm:w-10 h-8 sm:h-10 rounded-full mx-auto mb-1 flex items-center justify-center text-white text-xs sm:text-sm font-bold"
               style={{ backgroundColor: skillColors[skill.category] || '#6D469B' }}
             >
               {skill.xp > 0 ? skill.xp : '-'}
             </div>
-            <p className="text-xs text-gray-600 font-medium">
+            <p className="text-xs text-gray-600 font-medium truncate">
               {skill.category.split(' ')[0]}
             </p>
           </div>

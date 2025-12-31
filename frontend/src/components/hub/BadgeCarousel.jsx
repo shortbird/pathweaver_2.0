@@ -49,7 +49,7 @@ export default function BadgeCarousel({ pillar, badges }) {
   return (
     <div className="mb-8">
       {/* Pillar header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <h2 className={`text-2xl font-bold ${pillarColor}`}>
           {pillarDisplayName}
         </h2>

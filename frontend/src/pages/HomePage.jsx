@@ -118,7 +118,7 @@ const HomePage = () => {
               <img
                 src={getImageUrl(images, 'portfolio', '')}
                 alt="Student reviewing portfolio"
-                className="w-full h-[400px] object-cover transition-transform duration-500 group-hover:scale-105"
+                className="w-full h-auto min-h-[250px] sm:h-[400px] object-cover transition-transform duration-500 group-hover:scale-105"
                 loading="lazy"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
@@ -172,7 +172,7 @@ const HomePage = () => {
               <img
                 src={getImageUrl(images, 'ai_tutor', '')}
                 alt="Student with AI tutor"
-                className="w-full h-[400px] object-cover transition-transform duration-500 group-hover:scale-105"
+                className="w-full h-auto min-h-[250px] sm:h-[400px] object-cover transition-transform duration-500 group-hover:scale-105"
                 loading="lazy"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
@@ -191,7 +191,7 @@ const HomePage = () => {
               <img
                 src={getImageUrl(images, 'connections', '')}
                 alt="Community connections"
-                className="w-full h-[400px] object-cover transition-transform duration-500 group-hover:scale-105"
+                className="w-full h-auto min-h-[250px] sm:h-[400px] object-cover transition-transform duration-500 group-hover:scale-105"
                 loading="lazy"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
@@ -235,7 +235,7 @@ const HomePage = () => {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {/* Step 1 */}
             <div
               ref={(el) => (sectionRefs.current.step1 = el)}
@@ -340,7 +340,7 @@ const HomePage = () => {
           <div className="text-center mt-12">
             <Link
               to="/register"
-              className="inline-flex items-center bg-gradient-primary text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+              className="inline-flex items-center justify-center bg-gradient-primary text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all min-h-[44px] w-full sm:w-auto max-w-md mx-auto"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
               <BookOpenIcon className="mr-2 w-5 h-5" />
@@ -365,7 +365,7 @@ const HomePage = () => {
               <img
                 src={getImageUrl(images, 'accreditation', '')}
                 alt="Student holding diploma"
-                className="w-full h-[500px] object-cover transition-transform duration-500 group-hover:scale-105"
+                className="w-full h-auto min-h-[300px] sm:h-[500px] object-cover transition-transform duration-500 group-hover:scale-105"
                 loading="lazy"
               />
             </div>
@@ -423,7 +423,7 @@ const HomePage = () => {
           <div className="text-center mt-12">
             <Link
               to="/register"
-              className="inline-flex items-center bg-gradient-primary text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+              className="inline-flex items-center justify-center bg-gradient-primary text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all min-h-[44px] w-full sm:w-auto max-w-md mx-auto"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
               Start Your Accredited Journey
@@ -450,7 +450,7 @@ const HomePage = () => {
 
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl border-2 border-white/20 p-6 sm:p-8 mb-8">
             <h3 className="text-xl font-bold mb-4 text-center" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>What You Get:</h3>
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex items-start">
                 <CheckCircleIcon className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
                 <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Automatic portfolio building with zero friction</span>
@@ -481,7 +481,7 @@ const HomePage = () => {
           <div className="text-center">
             <Link
               to="/register"
-              className="inline-flex items-center bg-white text-optio-purple hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all"
+              className="inline-flex items-center justify-center bg-white text-optio-purple hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all min-h-[44px] w-full sm:w-auto max-w-md mx-auto"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
               <BookOpenIcon className="mr-2 w-5 h-5" />
@@ -629,7 +629,7 @@ const HomePage = () => {
           </p>
           <button
             onClick={() => setPhilosophyModalOpen(true)}
-            className="inline-flex items-center bg-white text-optio-purple hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all"
+            className="inline-flex items-center justify-center bg-white text-optio-purple hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all min-h-[44px] w-full sm:w-auto max-w-md mx-auto"
             style={{ fontFamily: 'Poppins', fontWeight: 700 }}
           >
             Learn More About Our Philosophy
@@ -648,7 +648,7 @@ const HomePage = () => {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Link
                 to="/register"
-                className="bg-gradient-primary text-white hover:shadow-lg text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center transform hover:scale-105"
+                className="bg-gradient-primary text-white hover:shadow-lg text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center justify-center transform hover:scale-105 min-h-[44px] w-full sm:w-auto"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 <BookOpenIcon className="mr-2 w-5 h-5" aria-hidden="true" />
@@ -656,7 +656,7 @@ const HomePage = () => {
               </Link>
               <Link
                 to="/demo"
-                className="bg-white border-2 border-optio-purple text-optio-purple hover:bg-optio-purple hover:text-white text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center"
+                className="bg-white border-2 border-optio-purple text-optio-purple hover:bg-optio-purple hover:text-white text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center justify-center min-h-[44px] w-full sm:w-auto"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 <PlayIcon className="mr-2 w-5 h-5" aria-hidden="true" />
@@ -671,7 +671,7 @@ const HomePage = () => {
       {philosophyModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
               <h3 className="text-2xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Our Philosophy: The Process Is The Goal</h3>
               <button
                 onClick={() => setPhilosophyModalOpen(false)}
@@ -755,7 +755,7 @@ const HomePage = () => {
             <div className="mt-6 flex justify-center">
               <Link
                 to="/demo"
-                className="bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all"
+                className="bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all inline-flex items-center justify-center min-h-[44px] w-full sm:w-auto max-w-md mx-auto"
                 style={{ fontFamily: 'Poppins', fontWeight: 600 }}
               >
                 Experience It Yourself

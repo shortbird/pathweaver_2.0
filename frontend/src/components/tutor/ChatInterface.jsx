@@ -277,12 +277,12 @@ const ChatInterface = ({
   }
 
   return (
-    <div className={`flex flex-col h-full bg-white ${hideHeader ? '' : 'rounded-lg shadow-lg'} ${className}`}>
+    <div className={`flex flex-col h-full w-full max-w-4xl mx-auto bg-white ${hideHeader ? '' : 'rounded-lg shadow-lg'} ${className}`}>
       {/* Header - Only show if not hidden */}
       {!hideHeader && (
         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-primary rounded-t-lg">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-full flex items-center justify-center">
               <ChatBubbleLeftEllipsisIcon className="w-6 h-6 text-optio-purple" />
             </div>
             <div>
@@ -296,7 +296,7 @@ const ChatInterface = ({
             {conversation && (
               <button
                 onClick={handleCreateNewConversation}
-                className="bg-white/20 text-white px-3 py-2 rounded-lg hover:bg-white/30 transition-colors text-sm flex items-center space-x-1"
+                className="bg-white/20 text-white px-3 py-2 rounded-lg hover:bg-white/30 transition-colors text-sm flex items-center space-x-1 min-h-[44px]"
                 title="Start new conversation"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -309,7 +309,7 @@ const ChatInterface = ({
             {/* History Button */}
             <button
               onClick={handleShowHistory}
-              className="bg-white/20 text-white p-2 rounded-lg hover:bg-white/30 transition-colors"
+              className="bg-white/20 text-white p-2 rounded-lg hover:bg-white/30 transition-colors min-h-[44px] min-w-[44px]"
               title="View conversation history"
             >
               <ClockIcon className="w-4 h-4" />
@@ -319,7 +319,7 @@ const ChatInterface = ({
             <div className="relative">
               <button
                 onClick={() => setShowModeSelector(!showModeSelector)}
-                className="bg-white/20 text-white px-3 py-1 rounded-full text-sm hover:bg-white/30 transition-colors"
+                className="bg-white/20 text-white px-3 py-1 rounded-full text-sm hover:bg-white/30 transition-colors min-h-[44px]"
               >
                 {currentModeInfo?.label}
               </button>
@@ -383,7 +383,7 @@ const ChatInterface = ({
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[60vh]">
         {messages.length === 0 && (
           <div className="text-center py-8">
             <ChatBubbleLeftEllipsisIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -399,7 +399,7 @@ const ChatInterface = ({
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] ${
+              className={`max-w-[85%] sm:max-w-[70%] ${
                 message.role === 'user'
                   ? 'bg-optio-purple text-white rounded-l-2xl rounded-tr-2xl'
                   : 'bg-gray-100 text-gray-800 rounded-r-2xl rounded-tl-2xl'
@@ -438,7 +438,7 @@ const ChatInterface = ({
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-r-2xl rounded-tl-2xl p-3 shadow-sm max-w-[80%]">
+            <div className="bg-gray-100 rounded-r-2xl rounded-tl-2xl p-3 shadow-sm max-w-[85%] sm:max-w-[70%]">
               <div className="flex items-center space-x-2">
                 <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-optio-purple" />
                 <div className="flex space-x-1">
@@ -467,7 +467,7 @@ const ChatInterface = ({
 
       {/* Input */}
       <div className="p-4 border-t border-gray-200 bg-white">
-        <div className="flex space-x-2">
+        <div className="flex space-x-2 w-full">
           <input
             ref={inputRef}
             type="text"
@@ -476,13 +476,13 @@ const ChatInterface = ({
             onKeyPress={handleKeyPress}
             placeholder="Ask me anything about your learning..."
             disabled={isLoading || (usageStats && usageStats.messages_remaining <= 0)}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="flex-1 w-full px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed min-h-[44px]"
             maxLength={2000}
           />
           <button
             onClick={sendMessage}
             disabled={!inputMessage.trim() || isLoading || (usageStats && usageStats.messages_remaining <= 0)}
-            className="bg-gradient-primary text-white p-2 rounded-full hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-gradient-primary text-white p-2 rounded-full hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] min-w-[44px]"
           >
             <PaperAirplaneIcon className="w-5 h-5" />
           </button>

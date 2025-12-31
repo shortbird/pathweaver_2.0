@@ -10,6 +10,9 @@ import {
   DocumentIcon
 } from '@heroicons/react/24/outline';
 import { useEvidenceEditor } from './EvidenceEditorContext';
+import { TouchActionGroup } from '../ui/mobile/TouchActionButton';
+import { ResponsiveGrid } from '../ui/mobile/ResponsiveGrid';
+import { useIsMobile } from '../../hooks/useSwipeGesture';
 import toast from 'react-hot-toast';
 
 const blockTypes = {
@@ -81,7 +84,9 @@ export const EvidenceBlockRenderer = ({
   addBlock,
   updateBlock,
   deleteBlock,
-  isNew = false
+  isNew = false,
+  moveBlockUp,
+  moveBlockDown
 }) => {
   const {
     activeBlock,
@@ -98,6 +103,36 @@ export const EvidenceBlockRenderer = ({
   const isCollapsed = collapsedBlocks.has(block.id);
   const isUploading = uploadingBlocks.has(block.id);
   const hasUploadError = uploadErrors[block.id];
+
+  // Keyboard navigation handler
+  const handleKeyDown = (e) => {
+    // Only handle keyboard events when the drag handle is focused
+    if (e.target.getAttribute('aria-label') !== 'Drag to reorder block') return;
+
+    switch (e.key) {
+      case 'ArrowUp':
+        e.preventDefault();
+        if (moveBlockUp) {
+          moveBlockUp(block.id);
+        }
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        if (moveBlockDown) {
+          moveBlockDown(block.id);
+        }
+        break;
+      case 'Delete':
+      case 'Backspace':
+        e.preventDefault();
+        if (window.confirm('Delete this block?')) {
+          deleteBlock(block.id);
+        }
+        break;
+      default:
+        break;
+    }
+  };
 
   // Get normalized items for multi-item blocks
   const items = normalizeItems(block.content, block.type);
@@ -200,7 +235,7 @@ export const EvidenceBlockRenderer = ({
       <div className="space-y-4">
         {/* Image Grid */}
         {items.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <ResponsiveGrid cols={{ mobile: 2, tablet: 3, desktop: 3 }} gap="gap-4">
             {items.map((item, itemIndex) => (
               <div key={itemIndex} className="relative group">
                 <img
@@ -208,16 +243,17 @@ export const EvidenceBlockRenderer = ({
                   alt={item.alt || `Image ${itemIndex + 1}`}
                   className="w-full h-40 object-cover rounded-lg border border-gray-200"
                 />
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <TouchActionGroup className="absolute top-2 right-2">
                   <button
                     onClick={() => removeItem(itemIndex)}
-                    className="p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
+                    className="min-h-[44px] min-w-[44px] p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg touch-manipulation"
                     title="Remove image"
+                    aria-label={`Remove image ${itemIndex + 1}`}
                   >
-                    <XMarkIcon className="w-4 h-4" />
+                    <XMarkIcon className="w-5 h-5" />
                   </button>
-                </div>
-                {/* Caption input on hover */}
+                </TouchActionGroup>
+                {/* Caption input */}
                 <input
                   type="text"
                   value={item.caption || ''}
@@ -227,7 +263,7 @@ export const EvidenceBlockRenderer = ({
                 />
               </div>
             ))}
-          </div>
+          </ResponsiveGrid>
         )}
 
         {/* Upload Area */}
@@ -483,13 +519,22 @@ export const EvidenceBlockRenderer = ({
 
       {/* Simplified Block Header */}
       <div className="flex items-center gap-2 mb-3">
-        {/* Drag handle */}
+        {/* Drag handle - Touch-friendly 44x44px */}
         <div
           {...dragHandleProps}
-          className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-gray-100 -ml-1"
+          className="cursor-grab active:cursor-grabbing min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-gray-100 -ml-1 touch-manipulation focus:outline-none focus:ring-2 focus:ring-optio-purple"
+          role="button"
+          aria-label="Drag to reorder block"
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
         >
-          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9h8M8 15h8" />
+          <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+            <circle cx="8" cy="6" r="1.5" />
+            <circle cx="8" cy="12" r="1.5" />
+            <circle cx="8" cy="18" r="1.5" />
+            <circle cx="14" cy="6" r="1.5" />
+            <circle cx="14" cy="12" r="1.5" />
+            <circle cx="14" cy="18" r="1.5" />
           </svg>
         </div>
 
@@ -509,8 +554,8 @@ export const EvidenceBlockRenderer = ({
           </span>
         )}
 
-        {/* Hover actions */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Action buttons - Always visible on mobile, hover on desktop */}
+        <TouchActionGroup>
           {/* Private toggle */}
           <button
             onClick={() => {
@@ -518,14 +563,15 @@ export const EvidenceBlockRenderer = ({
                 b.id === block.id ? { ...b, is_private: !b.is_private } : b
               ));
             }}
-            className={`p-1.5 rounded transition-colors ${
+            className={`min-h-[44px] min-w-[44px] p-2 rounded transition-colors touch-manipulation ${
               block.is_private
                 ? 'text-gray-700 bg-gray-100'
                 : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
             }`}
             title={block.is_private ? 'Make public' : 'Make private'}
+            aria-label={block.is_private ? 'Make block public' : 'Make block private'}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {block.is_private ? (
                 <>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -540,12 +586,13 @@ export const EvidenceBlockRenderer = ({
           {/* Delete */}
           <button
             onClick={() => deleteBlock(block.id)}
-            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+            className="min-h-[44px] min-w-[44px] p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors touch-manipulation"
             title="Delete block"
+            aria-label="Delete block"
           >
-            <TrashIcon className="w-4 h-4" />
+            <TrashIcon className="w-5 h-5" />
           </button>
-        </div>
+        </TouchActionGroup>
       </div>
 
       {/* Block Content or Preview */}

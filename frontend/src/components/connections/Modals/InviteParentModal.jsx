@@ -50,6 +50,7 @@ const InviteParentModal = ({ isOpen, onClose, onSendInvite, isLoading }) => {
             onChange: (e) => setEmail(e.target.value),
             placeholder: 'parent@example.com',
             autoFocus: true,
+            className: 'min-h-[44px] text-base touch-manipulation',
             style: { fontFamily: 'Poppins', fontWeight: 500 }
           }}
         />
@@ -69,7 +70,7 @@ const InviteParentModal = ({ isOpen, onClose, onSendInvite, isLoading }) => {
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Add a personal message to your invitation..."
             rows={3}
-            className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors resize-none"
+            className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors resize-none min-h-[100px] text-base touch-manipulation"
             style={{ fontFamily: 'Poppins', fontWeight: 500 }}
           />
         </div>

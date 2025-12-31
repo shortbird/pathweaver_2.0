@@ -7,7 +7,8 @@ const QuestTooltip = ({ quest, position, containerDimensions }) => {
   // Calculate smart positioning
   const getTooltipPosition = () => {
     const tooltipHeight = 160;
-    const tooltipWidth = 260;
+    // Use responsive width: smaller on mobile, larger on desktop
+    const tooltipWidth = Math.min(280, containerDimensions.width - 32); // 32px = 2rem margin
     const spacing = 15;
 
     let top = position.y + spacing;
@@ -18,8 +19,8 @@ const QuestTooltip = ({ quest, position, containerDimensions }) => {
       top = position.y - tooltipHeight - spacing;
     }
 
-    // Keep within horizontal bounds
-    left = Math.max(20, Math.min(left, containerDimensions.width - tooltipWidth - 20));
+    // Keep within horizontal bounds with minimum 16px margin (1rem)
+    left = Math.max(16, Math.min(left, containerDimensions.width - tooltipWidth - 16));
 
     return { top, left };
   };
@@ -72,12 +73,12 @@ const QuestTooltip = ({ quest, position, containerDimensions }) => {
         left: `${tooltipPosition.left}px`,
         zIndex: 100,
       }}
-      className="w-[260px] pointer-events-none"
+      className="max-w-[calc(100vw-2rem)] sm:max-w-[280px] pointer-events-none"
     >
       <div className="bg-gray-900/95 backdrop-blur-md border border-white/20
-                      rounded-xl p-4 shadow-2xl">
+                      rounded-xl p-4 shadow-2xl break-words">
         {/* Quest Title */}
-        <h4 className="text-white font-semibold text-sm mb-3 line-clamp-2">
+        <h4 className="text-white font-semibold text-sm mb-3 line-clamp-2 break-words">
           {quest.title}
         </h4>
 

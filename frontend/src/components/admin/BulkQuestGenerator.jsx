@@ -52,10 +52,10 @@ const BulkQuestGenerator = ({ onClose, onSuccess }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-full sm:max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-gradient-to-r from-optio-purple to-optio-pink p-6 rounded-t-2xl">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
             <h2 className="text-2xl font-bold text-white">Bulk Quest Generator</h2>
             <button
               onClick={onClose}
@@ -103,7 +103,7 @@ const BulkQuestGenerator = ({ onClose, onSuccess }) => {
                 value={similarityThreshold}
                 onChange={(e) => setSimilarityThreshold(parseFloat(e.target.value))}
                 disabled={isGenerating}
-                className="w-full"
+                className="w-full h-8 md:h-auto"
               />
               <div className="flex justify-between text-xs text-gray-500 mt-1">
                 <span>More Similar (0.5)</span>
@@ -160,7 +160,7 @@ const BulkQuestGenerator = ({ onClose, onSuccess }) => {
                 </div>
               )}
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
                   <div className="text-3xl font-bold text-green-600">
                     {results.submitted_to_review}
@@ -218,7 +218,7 @@ const BulkQuestGenerator = ({ onClose, onSuccess }) => {
               {results.similarity_metrics && results.similarity_metrics.filter(m => m.similarity_score > 0.6).length > 0 && (
                 <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                   <h4 className="font-semibold text-orange-900 mb-2">High Similarity Warnings</h4>
-                  <div className="text-sm text-orange-800 space-y-1 max-h-40 overflow-y-auto">
+                  <div className="text-sm text-orange-800 space-y-1 max-h-40 md:overflow-y-auto">
                     {results.similarity_metrics
                       .filter(m => m.similarity_score > 0.6)
                       .map((metric, idx) => (

@@ -7,6 +7,10 @@ import api from '../../services/api';
 import QuestVisibilityManager from '../../components/admin/QuestVisibilityManager';
 
 const CourseImport = lazy(() => import('../../components/admin/CourseImport'));
+const BulkUserImport = lazy(() => import('../../components/admin/BulkUserImport'));
+const PendingInvitationsList = lazy(() => import('../../components/admin/PendingInvitationsList'));
+const OrgAnnouncementsTab = lazy(() => import('../../components/admin/OrgAnnouncementsTab'));
+const OrgStudentProgress = lazy(() => import('../../components/admin/OrgStudentProgress'));
 
 export default function OrganizationManagement() {
   const { orgId: urlOrgId } = useParams();
@@ -126,6 +130,18 @@ export default function OrganizationManagement() {
           >
             Courses
           </button>
+          <button
+            onClick={() => handleTabChange('announcements')}
+            className={`px-4 py-2 ${activeTab === 'announcements' ? 'border-b-2 border-optio-purple font-medium' : 'text-gray-600 hover:text-gray-900'}`}
+          >
+            Announcements
+          </button>
+          <button
+            onClick={() => handleTabChange('progress')}
+            className={`px-4 py-2 ${activeTab === 'progress' ? 'border-b-2 border-optio-purple font-medium' : 'text-gray-600 hover:text-gray-900'}`}
+          >
+            Progress
+          </button>
         </nav>
       </div>
 
@@ -133,6 +149,24 @@ export default function OrganizationManagement() {
       {activeTab === 'users' && <UsersTab orgId={orgId} users={orgData.users} onUpdate={fetchOrganizationData} />}
       {activeTab === 'quests' && <QuestsTab orgId={orgId} orgData={orgData} onUpdate={fetchOrganizationData} siteSettings={siteSettings} />}
       {activeTab === 'courses' && <CourseTab orgId={orgId} orgData={orgData} />}
+      {activeTab === 'announcements' && (
+        <Suspense fallback={
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
+          </div>
+        }>
+          <OrgAnnouncementsTab orgId={orgId} />
+        </Suspense>
+      )}
+      {activeTab === 'progress' && (
+        <Suspense fallback={
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
+          </div>
+        }>
+          <OrgStudentProgress orgId={orgId} />
+        </Suspense>
+      )}
     </div>
   );
 }
@@ -251,7 +285,7 @@ function OverviewTab({ orgId, orgData, onUpdate, onLogoChange }) {
     <div className="grid gap-6">
       {/* Organization Details */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        <div className="flex justify-between items-start mb-4">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-4">
           <h2 className="text-xl font-bold">Organization Details</h2>
           <button
             onClick={() => setShowEditModal(true)}
@@ -493,11 +527,12 @@ function UsersTab({ orgId, users, onUpdate }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [userSubTab, setUserSubTab] = useState('list'); // 'list', 'import', or 'invite'
+  const [selectedUsers, setSelectedUsers] = useState(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const usersPerPage = 25;
 
-  const handleRemoveUser = async (userId, userName) => {
-    if (!confirm(`Remove ${userName} from this organization?`)) return;
-
+  const handleRemoveUser = async (userId) => {
     try {
       await api.post(`/api/admin/organizations/${orgId}/users/remove`, {
         user_id: userId
@@ -506,6 +541,47 @@ function UsersTab({ orgId, users, onUpdate }) {
     } catch (error) {
       console.error('Failed to remove user:', error);
       alert(error.response?.data?.error || 'Failed to remove user');
+    }
+  };
+
+  const handleBulkRemove = async () => {
+    if (selectedUsers.size === 0) return;
+    if (!confirm(`Remove ${selectedUsers.size} user(s) from this organization?`)) return;
+
+    setBulkActionLoading(true);
+    try {
+      const response = await api.post(`/api/admin/organizations/${orgId}/users/bulk-remove`, {
+        user_ids: Array.from(selectedUsers)
+      });
+      const { removed, failed } = response.data;
+      alert(`Removed ${removed} user(s)${failed > 0 ? `, ${failed} failed` : ''}`);
+      setSelectedUsers(new Set());
+      onUpdate();
+    } catch (error) {
+      console.error('Failed to bulk remove users:', error);
+      alert(error.response?.data?.error || 'Failed to remove users');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  const toggleUserSelection = (userId) => {
+    setSelectedUsers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllVisible = () => {
+    if (selectedUsers.size === paginatedUsers.length) {
+      setSelectedUsers(new Set());
+    } else {
+      setSelectedUsers(new Set(paginatedUsers.map(u => u.id)));
     }
   };
 
@@ -537,10 +613,77 @@ function UsersTab({ orgId, users, onUpdate }) {
   }, [searchTerm, roleFilter]);
 
   return (
-    <div>
+    <div className="space-y-4">
+      {/* Subtab Navigation */}
+      <div className="flex gap-2 border-b border-gray-200 pb-2">
+        <button
+          onClick={() => setUserSubTab('list')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            userSubTab === 'list'
+              ? 'bg-white border border-b-white border-gray-200 -mb-[3px] text-optio-purple'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          User List
+        </button>
+        <button
+          onClick={() => setUserSubTab('invite')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            userSubTab === 'invite'
+              ? 'bg-white border border-b-white border-gray-200 -mb-[3px] text-optio-purple'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Invite Users
+        </button>
+        <button
+          onClick={() => setUserSubTab('import')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            userSubTab === 'import'
+              ? 'bg-white border border-b-white border-gray-200 -mb-[3px] text-optio-purple'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Bulk Import
+        </button>
+      </div>
+
+      {userSubTab === 'invite' ? (
+        <Suspense fallback={
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
+          </div>
+        }>
+          <PendingInvitationsList
+            organizationId={orgId}
+            onUpdate={() => onUpdate()}
+          />
+        </Suspense>
+      ) : userSubTab === 'import' ? (
+        <Suspense fallback={
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
+          </div>
+        }>
+          <BulkUserImport
+            organizationId={orgId}
+            onImportComplete={() => onUpdate()}
+          />
+        </Suspense>
+      ) : (
+        <>
       <div className="mb-4 flex flex-wrap gap-4 justify-between items-center">
         <h2 className="text-xl font-bold">Organization Users ({filteredUsers.length})</h2>
         <div className="flex gap-3 items-center">
+          {selectedUsers.size > 0 && (
+            <button
+              onClick={handleBulkRemove}
+              disabled={bulkActionLoading}
+              className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
+            >
+              {bulkActionLoading ? 'Removing...' : `Remove ${selectedUsers.size} Selected`}
+            </button>
+          )}
           <input
             type="text"
             placeholder="Search users..."
@@ -557,7 +700,7 @@ function UsersTab({ orgId, users, onUpdate }) {
             <option value="student">Student</option>
             <option value="parent">Parent</option>
             <option value="advisor">Advisor</option>
-            <option value="admin">Admin</option>
+            <option value="org_admin">Org Admin</option>
           </select>
         </div>
       </div>
@@ -566,6 +709,14 @@ function UsersTab({ orgId, users, onUpdate }) {
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
+              <th className="px-4 py-4 text-left">
+                <input
+                  type="checkbox"
+                  checked={selectedUsers.size === paginatedUsers.length && paginatedUsers.length > 0}
+                  onChange={selectAllVisible}
+                  className="w-4 h-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+                />
+              </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
@@ -575,13 +726,21 @@ function UsersTab({ orgId, users, onUpdate }) {
           <tbody className="divide-y divide-gray-100">
             {paginatedUsers.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                   {searchTerm ? 'No users match your search' : 'No users in this organization'}
                 </td>
               </tr>
             ) : (
               paginatedUsers.map(user => (
-                <tr key={user.id} className="hover:bg-gray-50">
+                <tr key={user.id} className={`hover:bg-gray-50 ${selectedUsers.has(user.id) ? 'bg-optio-purple/5' : ''}`}>
+                  <td className="px-4 py-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.has(user.id)}
+                      onChange={() => toggleUserSelection(user.id)}
+                      className="w-4 h-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+                    />
+                  </td>
                   <td className="px-6 py-4">
                     {(() => {
                       const name = user.display_name || (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.first_name || user.last_name);
@@ -682,12 +841,13 @@ function UsersTab({ orgId, users, onUpdate }) {
             onUpdate();
           }}
           onRemove={() => {
-            const name = selectedUser.display_name || (selectedUser.first_name && selectedUser.last_name ? `${selectedUser.first_name} ${selectedUser.last_name}` : selectedUser.first_name || selectedUser.last_name) || selectedUser.email;
-            handleRemoveUser(selectedUser.id, name);
+            handleRemoveUser(selectedUser.id);
             setShowEditModal(false);
             setSelectedUser(null);
           }}
         />
+      )}
+        </>
       )}
     </div>
   );

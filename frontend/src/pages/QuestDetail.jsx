@@ -9,6 +9,7 @@ import QuestDetailHeader from '../components/quest/QuestDetailHeader';
 import QuestEnrollment from '../components/quest/QuestEnrollment';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
+import { useActivityTracking } from '../hooks/useActivityTracking';
 
 // Lazy load heavy components
 const TaskEvidenceModal = lazy(() => import('../components/quest/TaskEvidenceModal'));
@@ -50,6 +51,7 @@ const QuestDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { trackTabSwitch, trackButtonClick, trackModalOpen, trackModalClose } = useActivityTracking('QuestDetail');
 
   // Use custom hook for all data management
   const {
@@ -312,7 +314,11 @@ const QuestDetail = () => {
   };
 
   const handleDisplayModeChange = async (newMode) => {
+    const previousMode = displayMode;
     setDisplayMode(newMode);
+
+    // Track tab switch
+    trackTabSwitch(newMode, previousMode);
 
     try {
       await api.put(`/api/quests/${id}/display-mode`, {
@@ -345,13 +351,13 @@ const QuestDetail = () => {
           <p className="text-gray-600 mb-4">{errorMsg}</p>
           <button
             onClick={() => refetchQuest()}
-            className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:shadow-lg transition-all mr-4"
+            className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:shadow-lg transition-all mr-4 min-h-[44px] touch-manipulation"
           >
             Retry
           </button>
           <button
             onClick={() => navigate('/quests')}
-            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all"
+            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all min-h-[44px] touch-manipulation"
           >
             Back to Quests
           </button>
@@ -382,7 +388,7 @@ const QuestDetail = () => {
           <div className="text-red-500 text-xl mb-4">Quest not found</div>
           <button
             onClick={() => navigate('/quests')}
-            className="bg-gradient-primary text-white px-6 py-3 rounded-[30px] hover:shadow-lg transition-all"
+            className="bg-gradient-primary text-white px-6 py-3 rounded-[30px] hover:shadow-lg transition-all min-h-[44px] touch-manipulation"
           >
             Back to Quests
           </button>
@@ -392,22 +398,18 @@ const QuestDetail = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-[50px] sm:pt-0">
+    <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
       <QuestDetailHeader
         quest={quest}
-        completedTasks={completedTasks}
-        totalTasks={totalTasks}
-        progressPercentage={progressPercentage}
         earnedXP={earnedXP}
-        pillarBreakdown={pillarBreakdown}
         isQuestCompleted={isQuestCompleted}
         onEndQuest={handleEndQuest}
         endQuestMutation={endQuestMutation}
       />
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-4">
         {/* Enrollment and Sample/Preset Tasks */}
         <QuestEnrollment
           quest={quest}

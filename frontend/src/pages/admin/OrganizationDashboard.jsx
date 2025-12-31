@@ -27,7 +27,7 @@ export default function OrganizationDashboard() {
 
   return (
     <div className="container mx-auto p-8">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
         <h1 className="text-3xl font-bold">Organizations</h1>
         <button
           onClick={() => setShowCreateModal(true)}

@@ -50,7 +50,7 @@ const AchievementDetailModal = ({ isOpen, onClose, achievement }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
+      <div className="bg-white rounded-xl max-w-full sm:max-w-3xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-y-auto" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
         <div className="sticky top-0 p-4 sm:p-8 z-10 bg-gradient-primary">
           <div className="flex justify-between items-start gap-4">
             <div className="flex-1 min-w-0">
@@ -73,7 +73,7 @@ const AchievementDetailModal = ({ isOpen, onClose, achievement }) => {
             </div>
             <button
               onClick={onClose}
-              className="text-white hover:bg-white/20 rounded-full p-2 transition-colors shrink-0">
+              className="text-white hover:bg-white/20 rounded-full p-2 transition-colors shrink-0 min-h-[44px] min-w-[44px]">
               <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>

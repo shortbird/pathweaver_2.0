@@ -142,7 +142,7 @@ const CourseDetailPage = () => {
               <button
                 onClick={handleEnroll}
                 disabled={isEnrolling}
-                className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] w-full sm:w-auto"
               >
                 {isEnrolling ? 'Enrolling...' : 'Enroll Now'}
               </button>
@@ -202,7 +202,7 @@ const CourseDetailPage = () => {
                       <button
                         key={quest.id}
                         onClick={() => handleQuestClick(quest.id)}
-                        className="w-full flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:border-optio-purple hover:shadow-md transition-all duration-200 text-left"
+                        className="w-full flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:border-optio-purple hover:shadow-md transition-all duration-200 text-left min-h-[56px]"
                       >
                         {/* Quest Number */}
                         <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center text-white font-bold">

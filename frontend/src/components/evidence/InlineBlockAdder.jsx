@@ -7,6 +7,8 @@ import {
   DocumentIcon,
   PlusIcon
 } from '@heroicons/react/24/outline';
+import { useIsMobile } from '../../hooks/useSwipeGesture';
+import MobileBlockAdder from './MobileBlockAdder';
 
 const BLOCK_TYPES = [
   { id: 'text', label: 'Text', icon: DocumentTextIcon },
@@ -24,10 +26,16 @@ const BLOCK_TYPES = [
  * @param {number} position - Position to insert block
  */
 const InlineBlockAdder = ({ onAddBlock, mode = 'empty', position }) => {
+  const isMobile = useIsMobile();
 
   const handleAddBlock = (type) => {
     onAddBlock(type, position);
   };
+
+  // Use mobile-optimized adder on small screens
+  if (isMobile) {
+    return <MobileBlockAdder onAddBlock={handleAddBlock} mode={mode} />;
+  }
 
   // Empty state - large, inviting buttons with description
   if (mode === 'empty') {
@@ -45,7 +53,7 @@ const InlineBlockAdder = ({ onAddBlock, mode = 'empty', position }) => {
               key={type.id}
               onClick={() => handleAddBlock(type.id)}
               className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg
-                         hover:border-optio-purple hover:bg-optio-purple/5 transition-all group"
+                         hover:border-optio-purple hover:bg-optio-purple/5 transition-all group min-h-[44px]"
             >
               <type.icon className="w-5 h-5 text-gray-400 group-hover:text-optio-purple transition-colors" />
               <span className="font-medium text-sm text-gray-700 group-hover:text-optio-purple transition-colors" style={{ fontFamily: 'Poppins' }}>
@@ -66,7 +74,7 @@ const InlineBlockAdder = ({ onAddBlock, mode = 'empty', position }) => {
         <button
           key={type.id}
           onClick={() => handleAddBlock(type.id)}
-          className="p-2 rounded-lg text-gray-400 hover:text-optio-purple hover:bg-optio-purple/10 transition-all"
+          className="p-2 rounded-lg text-gray-400 hover:text-optio-purple hover:bg-optio-purple/10 transition-all min-h-[44px] min-w-[44px]"
           title={`Add ${type.label}`}
         >
           <type.icon className="w-5 h-5" />

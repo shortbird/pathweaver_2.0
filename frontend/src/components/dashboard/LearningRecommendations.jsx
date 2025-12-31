@@ -63,30 +63,30 @@ const LearningRecommendations = ({ userSkills, recentActivity }) => {
   ];
 
   return (
-    <div className="bg-white rounded-xl p-6 border border-gray-200">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-900">Recommended for You</h2>
+    <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4 sm:mb-6">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900">Recommended for You</h2>
         <span className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full font-semibold">
           PERSONALIZED
         </span>
       </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {recommendations.map((rec, index) => (
-          <div 
+          <div
             key={index}
             className="relative group hover:shadow-lg transition-all duration-300 rounded-lg border border-gray-100 overflow-hidden"
           >
             <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${rec.color}`} />
-            
+
             <div className="p-4">
-              <div className="text-3xl mb-3">{rec.icon}</div>
-              <h3 className="font-semibold text-gray-900 mb-2">{rec.title}</h3>
-              <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+              <div className="text-2xl sm:text-3xl mb-3">{rec.icon}</div>
+              <h3 className="font-semibold text-gray-900 mb-2 text-sm sm:text-base">{rec.title}</h3>
+              <p className="text-xs sm:text-sm text-gray-600 mb-4 line-clamp-2">
                 {rec.description}
               </p>
               <Link to={rec.link}>
-                <Button variant="outline" size="sm" className="w-full">
+                <Button variant="outline" size="sm" className="w-full min-h-[44px]">
                   {rec.action}
                 </Button>
               </Link>

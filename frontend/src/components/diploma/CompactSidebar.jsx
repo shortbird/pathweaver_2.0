@@ -22,13 +22,58 @@ const CompactSidebar = ({
   const [isRadarExpanded, setIsRadarExpanded] = useState(true);
   const [isBadgesExpanded, setIsBadgesExpanded] = useState(true);
   const [isCreditsExpanded, setIsCreditsExpanded] = useState(true);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
   const totalCreditsEarned = calculateTotalCredits(subjectXP);
   const meetsRequirements = meetsGraduationRequirements(subjectXP);
   const creditProgress = getAllCreditProgress(subjectXP);
 
   return (
-    <div className="compact-sidebar space-y-6">
+    <>
+      {/* Mobile Toggle Button */}
+      <button
+        onClick={() => setIsMobileDrawerOpen(true)}
+        className="md:hidden fixed bottom-4 right-4 z-40 w-14 h-14 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full shadow-lg flex items-center justify-center"
+        aria-label="Open sidebar"
+      >
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      {/* Mobile Backdrop */}
+      {isMobileDrawerOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+          onClick={() => setIsMobileDrawerOpen(false)}
+        />
+      )}
+
+      {/* Sidebar - Desktop: always visible, Mobile: drawer */}
+      <div
+        className={`
+          compact-sidebar space-y-6
+          md:relative md:translate-x-0
+          fixed inset-y-0 right-0 w-[280px] bg-white z-50
+          transform transition-transform duration-300 ease-in-out
+          ${isMobileDrawerOpen ? 'translate-x-0' : 'translate-x-full'}
+          md:bg-transparent
+          overflow-y-auto
+        `}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        {/* Mobile Close Button */}
+        <button
+          onClick={() => setIsMobileDrawerOpen(false)}
+          className="md:hidden absolute top-4 right-4 z-10 p-2 text-gray-500 hover:text-gray-700"
+          aria-label="Close sidebar"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div className="md:pt-0 pt-16 px-4 md:px-0">
       {/* Skills Radar Chart Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <button
@@ -228,7 +273,9 @@ const CompactSidebar = ({
           </div>
         )}
       </div>
-    </div>
+        </div>
+      </div>
+    </>
   );
 };
 

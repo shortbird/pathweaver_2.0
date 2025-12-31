@@ -20,37 +20,37 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
         <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
 
         {/* Modal panel */}
-        <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[85vh] overflow-y-auto">
+        <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle max-w-full sm:max-w-2xl mx-2 sm:mx-0 w-full max-h-[85vh] overflow-y-auto">
           {/* Header with Pillar Color */}
           <div
-            className="px-8 py-8"
+            className="px-4 sm:px-8 py-6 sm:py-8"
             style={{ backgroundColor: pillarData.color }}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <div className="text-sm font-semibold uppercase tracking-wide text-white/90 mb-2" style={{ fontFamily: 'Poppins' }}>
+                <div className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-white/90 mb-2" style={{ fontFamily: 'Poppins' }}>
                   {pillarData.name}
                 </div>
-                <h3 className="text-3xl font-bold text-white mb-4" style={{ fontFamily: 'Poppins' }}>{task.title}</h3>
+                <h3 className="text-2xl sm:text-3xl font-bold text-white mb-4" style={{ fontFamily: 'Poppins' }}>{task.title}</h3>
                 <div className="flex items-center gap-3">
-                  <div className="px-6 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full text-lg font-bold flex items-center gap-2" style={{ fontFamily: 'Poppins' }}>
-                    <TrophyIcon className="w-5 h-5" />
+                  <div className="px-4 sm:px-6 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full text-base sm:text-lg font-bold flex items-center gap-2" style={{ fontFamily: 'Poppins' }}>
+                    <TrophyIcon className="w-4 sm:w-5 h-4 sm:h-5" />
                     {task.xp_amount || task.xp_value} XP
                   </div>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="ml-4 text-white hover:text-white/80 transition-colors"
+                className="ml-2 sm:ml-4 text-white hover:text-white/80 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
                 aria-label="Close task details"
               >
-                <XMarkIcon className="w-8 h-8" />
+                <XMarkIcon className="w-6 sm:w-8 h-6 sm:h-8" />
               </button>
             </div>
           </div>
 
           {/* Content */}
-          <div className="px-8 py-6 space-y-6">
+          <div className="px-4 sm:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
             {/* Description */}
             {task.description && (
               <div
@@ -174,10 +174,10 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
           </div>
 
           {/* Footer */}
-          <div className="bg-gray-50 px-8 py-6">
+          <div className="bg-gray-50 px-4 sm:px-8 py-4 sm:py-6">
             <button
               onClick={onClose}
-              className="w-full px-6 py-3 text-white rounded-lg hover:shadow-xl transition-all font-bold text-lg"
+              className="min-h-[44px] w-full px-6 py-3 text-white rounded-lg hover:shadow-xl transition-all font-bold text-base sm:text-lg"
               style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
             >
               Close

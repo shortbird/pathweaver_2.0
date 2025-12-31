@@ -1,0 +1,10 @@
+{
+  "id": "create_upload_queue_hook",
+  "type": "implement_frontend",
+  "priority": 1,
+  "payload": {
+    "description": "Create useUploadQueue.js hook for upload queue state management with offline support. Returns { queue, addToQueue, retryUpload, cancelUpload, clearCompleted, isOnline, pendingCount, failedCount }. Uses navigator.onLine for connectivity, persists to localStorage, exponential backoff for retries (max 3 attempts).",
+    "files": ["frontend/src/hooks/useUploadQueue.js"],
+    "context": "UploadItem interface: { id, blockId, file, filename, status: 'queued'|'uploading'|'complete'|'failed', progress: 0-100, error, retryCount, createdAt }. Listen to online/offline events. Persist queue to localStorage with key 'evidence_upload_queue_{taskId}'. Auto-retry failed uploads when back online."
+  }
+}

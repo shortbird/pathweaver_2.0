@@ -1,0 +1,10 @@
+{
+  "id": "create_swipeable_block_component",
+  "type": "implement_frontend",
+  "priority": 1,
+  "payload": {
+    "description": "Create SwipeableBlock.jsx component using framer-motion for swipe-to-delete animations. Should use useSwipeGesture hook (already created), reveal red delete zone on swipe left, spring animation back if not past threshold. Props: onDelete, deleteThreshold (default 160), disabled.",
+    "files": ["frontend/src/components/ui/mobile/SwipeableBlock.jsx"],
+    "context": "Uses framer-motion v12.23.22 (already installed). Should show red delete zone with trash icon when swiped left. Delete zone width should match swipe offset. Include haptic feedback at thresholds using haptics utility."
+  }
+}

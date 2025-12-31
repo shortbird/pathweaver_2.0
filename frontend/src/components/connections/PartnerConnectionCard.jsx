@@ -96,7 +96,7 @@ const PartnerConnectionCard = ({ partner }) => {
         {/* View Journey Button */}
         <Link
           to={`/diploma/${partner.id || partner.user_id}`}
-          className="px-4 py-2 border-2 border-purple-300 text-purple-700 rounded-full font-medium hover:bg-gradient-primary hover:text-white hover:border-transparent transition-all whitespace-nowrap"
+          className="px-4 py-2 border-2 border-purple-300 text-purple-700 rounded-full font-medium hover:bg-gradient-primary hover:text-white hover:border-transparent transition-all whitespace-nowrap min-h-[44px] flex items-center touch-manipulation"
           style={{ fontFamily: 'Poppins', fontWeight: 500 }}
         >
           View Journey

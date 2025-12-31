@@ -1,17 +1,155 @@
-import React, { useEffect, memo } from 'react'
+import React, { useEffect, memo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useActingAs } from '../contexts/ActingAsContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
+import { useGlobalEngagement } from '../hooks/api/useQuests'
 import QuestCardSimple from '../components/quest/QuestCardSimple'
 import CourseCardWithQuests from '../components/course/CourseCardWithQuests'
+import RhythmIndicator from '../components/quest/RhythmIndicator'
+import EngagementCalendar from '../components/quest/EngagementCalendar'
+import RhythmExplainerModal from '../components/quest/RhythmExplainerModal'
 // Deprecated: Keeping for potential future use
 // import LearningEventModal from '../components/learning-events/LearningEventModal'
 import {
-  RocketLaunchIcon
+  RocketLaunchIcon,
+  CheckCircleIcon,
+  ArrowRightIcon
 } from '@heroicons/react/24/outline'
 
 // Note: SSO token extraction now happens at App.jsx level before routing
+
+// Pillar color styles for task cards
+const pillarStyles = {
+  stem: {
+    bg: 'bg-blue-50/60',
+    border: 'border-blue-100',
+    hoverBorder: 'hover:border-blue-300',
+    accent: 'bg-blue-400'
+  },
+  civics: {
+    bg: 'bg-purple-50/60',
+    border: 'border-purple-100',
+    hoverBorder: 'hover:border-purple-300',
+    accent: 'bg-purple-400'
+  },
+  art: {
+    bg: 'bg-pink-50/60',
+    border: 'border-pink-100',
+    hoverBorder: 'hover:border-pink-300',
+    accent: 'bg-pink-400'
+  },
+  communication: {
+    bg: 'bg-orange-50/60',
+    border: 'border-orange-100',
+    hoverBorder: 'hover:border-orange-300',
+    accent: 'bg-orange-400'
+  },
+  wellness: {
+    bg: 'bg-green-50/60',
+    border: 'border-green-100',
+    hoverBorder: 'hover:border-green-300',
+    accent: 'bg-green-400'
+  }
+};
+
+// Memoized component for Upcoming Tasks
+const UpcomingTasks = memo(({ activeQuests }) => {
+  // Get one incomplete task from each active quest, prioritizing pillar variety
+  const upcomingTasks = React.useMemo(() => {
+    if (!activeQuests || activeQuests.length === 0) return [];
+
+    // Collect first incomplete task from each quest
+    const allNextTasks = [];
+    activeQuests.forEach(quest => {
+      const questData = quest.quests || quest;
+      const questTasks = questData.quest_tasks || [];
+
+      const nextTask = questTasks.find(task => !task.is_completed);
+      if (nextTask) {
+        allNextTasks.push({
+          ...nextTask,
+          questId: quest.quest_id || quest.id,
+          questTitle: questData.title
+        });
+      }
+    });
+
+    // Prioritize variety: one task per pillar first
+    const selectedTasks = [];
+    const usedPillars = new Set();
+    const usedQuestIds = new Set();
+
+    // First pass: select one task from each unique pillar
+    for (const task of allNextTasks) {
+      const pillar = task.pillar?.toLowerCase() || 'wellness';
+      if (!usedPillars.has(pillar) && selectedTasks.length < 4) {
+        selectedTasks.push(task);
+        usedPillars.add(pillar);
+        usedQuestIds.add(task.questId);
+      }
+    }
+
+    // Second pass: fill remaining slots with tasks from different quests
+    for (const task of allNextTasks) {
+      if (!usedQuestIds.has(task.questId) && selectedTasks.length < 4) {
+        selectedTasks.push(task);
+        usedQuestIds.add(task.questId);
+      }
+    }
+
+    return selectedTasks;
+  }, [activeQuests]);
+
+  if (upcomingTasks.length === 0) {
+    return (
+      <div className="text-center py-6">
+        <CheckCircleIcon className="w-12 h-12 text-green-300 mx-auto mb-3" />
+        <p className="text-gray-600 text-sm" style={{ fontFamily: 'Poppins' }}>
+          All caught up! No pending tasks.
+        </p>
+        <Link
+          to="/quests"
+          className="inline-block mt-3 text-sm text-optio-purple hover:text-purple-800 font-medium"
+        >
+          Browse quests for more
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {upcomingTasks.map((task, index) => {
+        const pillar = task.pillar?.toLowerCase() || 'wellness';
+        const styles = pillarStyles[pillar] || pillarStyles.wellness;
+
+        return (
+          <Link
+            key={task.id || index}
+            to={`/quests/${task.questId}`}
+            className={`block p-3 rounded-lg border ${styles.bg} ${styles.border} ${styles.hoverBorder} transition-all group`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                <div className={`w-1.5 h-1.5 rounded-full ${styles.accent} mt-1.5 flex-shrink-0`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate group-hover:text-gray-700 transition-colors" style={{ fontFamily: 'Poppins' }}>
+                    {task.title}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                    {task.questTitle}
+                  </p>
+                </div>
+              </div>
+              <ArrowRightIcon className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0 mt-0.5" />
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+});
 
 // Memoized component for Active Quests section (now includes courses)
 const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount = 0 }) => {
@@ -35,7 +173,7 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
         <p className="text-gray-600 mb-4">{emptyMessage}</p>
         <Link
           to="/quests"
-          className="inline-flex items-center px-6 py-3 bg-gradient-primary text-white rounded-lg font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+          className="inline-flex items-center px-6 py-3 bg-gradient-primary text-white rounded-lg font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 min-h-[44px]"
           style={{ fontFamily: 'Poppins, sans-serif' }}
         >
           <RocketLaunchIcon className="w-5 h-5 mr-2" />
@@ -54,7 +192,6 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
 
       {/* Then render standalone quests */}
       {allQuests.map(quest => {
-        // Transform quest data to match QuestCardSimple expectations
         const questData = quest.quests || quest;
         const completedTasks = quest.tasks_completed || quest.completed_tasks || 0;
         const totalTasks = questData.task_count || questData.total_tasks || 1;
@@ -65,9 +202,7 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
           description: questData.description || questData.big_idea,
           image_url: questData.image_url,
           header_image_url: questData.header_image_url,
-          user_enrollment: true, // Dashboard only shows enrolled quests
-          // IMPORTANT: Don't check completed_at alone - restarted quests have it set
-          // A quest is only completed if is_active=False (properly ended)
+          user_enrollment: true,
           completed_enrollment: quest.status === 'completed' || (!quest.is_active && quest.completed_at),
           progress: {
             completed_tasks: completedTasks,
@@ -88,11 +223,15 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
 const DashboardPage = () => {
   const { user } = useAuth()
   const { actingAsDependent } = useActingAs()
+  const [showRhythmModal, setShowRhythmModal] = useState(false)
   // Deprecated: Keeping state for potential future use
   // const [showLearningEventModal, setShowLearningEventModal] = useState(false)
 
   // Determine which user ID to use: dependent if acting as one, otherwise logged-in user
   const effectiveUserId = actingAsDependent?.id || user?.id
+
+  // Fetch global engagement data
+  const { data: engagement } = useGlobalEngagement()
 
   // ✅ SSO FIX: Clear sso_pending flag from URL on mount
   useEffect(() => {
@@ -128,7 +267,7 @@ const DashboardPage = () => {
           <p className="text-gray-600 mb-4">Please try refreshing the page</p>
           <button
             onClick={() => refetchDashboard()}
-            className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:shadow-lg transition-all"
+            className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:shadow-lg transition-all min-h-[44px]"
           >
             Retry
           </button>
@@ -156,7 +295,7 @@ const DashboardPage = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header Section with Capture Button */}
-      <div className="mb-8 flex items-start justify-between gap-4">
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
             {isNewUser ? `Welcome to Optio, ${displayName}!` : `Welcome back, ${displayName}!`}
@@ -169,7 +308,7 @@ const DashboardPage = () => {
         </div>
         <Link
           to="/diploma"
-          className="flex-shrink-0 bg-gradient-primary text-white px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-300 flex items-center gap-2 font-medium text-sm"
+          className="self-start bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-all duration-300 flex items-center gap-2 font-medium text-sm min-h-[44px]"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -189,9 +328,51 @@ const DashboardPage = () => {
         */}
       </div>
 
+      {/* Dashboard Overview - Two Column Layout */}
+      <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: Learning Rhythm */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>
+              Your Learning Rhythm
+            </h2>
+            {engagement?.rhythm && (
+              <RhythmIndicator
+                state={engagement.rhythm.state}
+                stateDisplay={engagement.rhythm.state_display}
+                message={engagement.rhythm.message}
+                patternDescription={engagement.rhythm.pattern_description}
+                onClick={() => setShowRhythmModal(true)}
+                compact
+              />
+            )}
+          </div>
+          {engagement?.rhythm && (
+            <p className="text-sm text-gray-500 mb-4" style={{ fontFamily: 'Poppins' }}>
+              {engagement.rhythm.message}
+            </p>
+          )}
+          {engagement?.calendar && (
+            <EngagementCalendar
+              days={engagement.calendar.days}
+              weeksActive={engagement.calendar.weeks_active}
+              firstActivityDate={engagement.calendar.first_activity_date}
+            />
+          )}
+        </div>
+
+        {/* Right: Upcoming Tasks */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins' }}>
+            Next Up
+          </h2>
+          <UpcomingTasks activeQuests={dashboardData?.active_quests} />
+        </div>
+      </div>
+
       {/* Active Quests Panel */}
       <div className="mb-12">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
           <h2 className="text-xl font-bold text-gray-900 font-['Poppins']">Current Quests</h2>
           <Link
             to="/quests"
@@ -281,6 +462,13 @@ const DashboardPage = () => {
         }}
       />
       */}
+
+      {/* Rhythm Explainer Modal */}
+      <RhythmExplainerModal
+        isOpen={showRhythmModal}
+        onClose={() => setShowRhythmModal(false)}
+        currentState={engagement?.rhythm?.state}
+      />
     </div>
   )
 }

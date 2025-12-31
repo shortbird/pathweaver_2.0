@@ -17,6 +17,7 @@ import { getMasqueradeState, exitMasquerade, restoreMasqueradeToken } from './se
 import { queryKeys } from './utils/queryKeys'
 import logger from './utils/logger'
 import api from './services/api'
+import { activityTracker } from './services/activityTracker'
 import { toast } from 'react-hot-toast'
 
 // Always-loaded components (critical for initial render)
@@ -33,6 +34,7 @@ import PrivateRoute from './components/PrivateRoute'
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
+const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'))
 const PromoLandingPage = lazy(() => import('./pages/PromoLandingPage'))
 const ConsultationPage = lazy(() => import('./pages/ConsultationPage'))
 const CreditTrackerLandingPage = lazy(() => import('./pages/CreditTrackerLandingPage'))
@@ -292,6 +294,15 @@ function App() {
     warmupBackend(`${apiUrl}/api`);
   }, []);
 
+  // Initialize activity tracking for client-side event capture
+  useEffect(() => {
+    activityTracker.init()
+
+    return () => {
+      activityTracker.destroy()
+    }
+  }, [])
+
   return (
     <ErrorBoundary>
       <HelmetProvider>
@@ -337,6 +348,7 @@ function App() {
                 <Route path="join/:slug" element={<OrganizationSignup />} />
                 <Route path="forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="reset-password" element={<ResetPasswordPage />} />
+                <Route path="invitation/:code" element={<AcceptInvitationPage />} />
                 <Route path="auth/callback" element={<AuthCallback />} />
                 <Route path="email-verification" element={<EmailVerificationPage />} />
                 <Route path="terms" element={<TermsOfService />} />

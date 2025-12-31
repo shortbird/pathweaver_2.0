@@ -195,7 +195,7 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
     <textarea
       value={block.content.text || ''}
       onChange={(e) => updateBlock(block.id, { text: e.target.value })}
-      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] resize-none"
+      className="w-full min-h-[44px] px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] resize-none text-base"
       rows={4}
       placeholder="Share your thoughts, process, or reflections..."
     />
@@ -242,14 +242,14 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
         type="url"
         value={block.content.url || ''}
         onChange={(e) => updateBlock(block.id, { url: e.target.value })}
-        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b]"
+        className="w-full min-h-[44px] px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] text-base"
         placeholder="YouTube, Vimeo, or video URL"
       />
       <input
         type="text"
         value={block.content.title || ''}
         onChange={(e) => updateBlock(block.id, { title: e.target.value })}
-        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b]"
+        className="w-full min-h-[44px] px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] text-base"
         placeholder="Video title (optional)"
       />
     </div>
@@ -261,20 +261,20 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
         type="url"
         value={block.content.url || ''}
         onChange={(e) => updateBlock(block.id, { url: e.target.value })}
-        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b]"
+        className="w-full min-h-[44px] px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] text-base"
         placeholder="https://example.com"
       />
       <input
         type="text"
         value={block.content.title || ''}
         onChange={(e) => updateBlock(block.id, { title: e.target.value })}
-        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b]"
+        className="w-full min-h-[44px] px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] text-base"
         placeholder="Link title"
       />
       <textarea
         value={block.content.description || ''}
         onChange={(e) => updateBlock(block.id, { description: e.target.value })}
-        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] resize-none"
+        className="w-full min-h-[44px] px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] resize-none text-base"
         rows={2}
         placeholder="Description (optional)"
       />
@@ -322,7 +322,7 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl max-w-full sm:max-w-2xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="bg-gradient-primary text-white p-6 rounded-t-xl sticky top-0 z-10">
           <div className="flex justify-between items-start">
@@ -351,7 +351,7 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent resize-none"
+              className="w-full min-h-[44px] px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent resize-none text-base"
               rows={4}
               placeholder="Describe what you learned, created, or figured out..."
               maxLength={5000}
@@ -418,17 +418,17 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
               onClick={handleClose}
-              className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
+              className="min-h-[44px] w-full sm:w-auto flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={isSubmitting || !description.trim()}
-              className="flex-1 px-6 py-3 bg-gradient-primary text-white rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold flex items-center justify-center gap-2"
+              className="min-h-[44px] w-full sm:w-auto flex-1 px-6 py-3 bg-gradient-primary text-white rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
                 <>

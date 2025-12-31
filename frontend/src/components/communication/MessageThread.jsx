@@ -51,7 +51,7 @@ const MessageThread = ({ messages, otherUser, isLoading }) => {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-4">
+    <div className="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-4 w-full">
       {messages.map((message) => {
         const isSender = message.sender_id === user?.id
         const isRecipient = message.recipient_id === user?.id
@@ -62,16 +62,16 @@ const MessageThread = ({ messages, otherUser, isLoading }) => {
             className={`flex ${isSender ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[70%] ${
+              className={`max-w-[85%] ${
                 isSender
                   ? 'bg-gradient-primary text-white rounded-l-2xl rounded-tr-2xl'
                   : 'bg-white text-gray-800 rounded-r-2xl rounded-tl-2xl shadow-sm'
               } p-3`}
             >
-              <p className="whitespace-pre-wrap break-words">
+              <p className="whitespace-pre-wrap break-all">
                 {message.message_content}
               </p>
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-opacity-20 border-current gap-2">
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-opacity-20 border-current gap-2 flex-wrap">
                 <span className={`text-xs ${isSender ? 'text-white/80' : 'text-gray-500'}`}>
                   {formatTime(message.created_at)}
                 </span>

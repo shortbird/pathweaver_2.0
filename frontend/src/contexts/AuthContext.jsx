@@ -365,7 +365,7 @@ export const AuthProvider = ({ children }) => {
     refreshUser,
     loginTimestamp, // Expose timestamp to trigger data refresh
     isAuthenticated: !!user,
-    isAdmin: user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'educator',
+    isAdmin: user?.role === 'org_admin' || user?.role === 'superadmin',
     isCreator: user?.subscription_tier === 'creator' || user?.subscription_tier === 'enterprise',
     isAcademy: user?.subscription_tier === 'enterprise', // Academy tier uses 'enterprise' in database
     isFree: user?.subscription_tier === 'free' || user?.subscription_tier === 'explorer' || !user?.subscription_tier

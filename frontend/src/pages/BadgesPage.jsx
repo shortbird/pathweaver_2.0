@@ -125,13 +125,13 @@ const BadgesPage = () => {
         {/* Available Courses Section */}
         {courses.length > 0 && (
           <div className="mb-12">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
               <h2 className="text-2xl font-bold text-gray-900">
                 Available Courses
               </h2>
               <button
                 onClick={() => setShowCourses(!showCourses)}
-                className="text-optio-purple hover:text-optio-pink font-medium flex items-center gap-2"
+                className="text-optio-purple hover:text-optio-pink font-medium flex items-center gap-2 min-h-[44px]"
               >
                 {showCourses ? 'Hide' : 'Show'}
                 <svg
@@ -163,7 +163,7 @@ const BadgesPage = () => {
         {userBadges.length > 0 && (
           <div className="mb-12">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Your Badges</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {userBadges.map(userBadge => {
                 const badge = allBadges.find(b => b.id === userBadge.badge_id);
                 if (!badge) return null;
@@ -172,13 +172,13 @@ const BadgesPage = () => {
                   <div
                     key={userBadge.id}
                     onClick={() => navigate(`/badges/${badge.id}`)}
-                    className="bg-white rounded-lg shadow-md border-2 border-optio-purple overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300 flex flex-col items-center p-6"
+                    className="bg-white rounded-lg shadow-md border-2 border-optio-purple overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300 flex flex-col items-center p-6 min-h-[140px]"
                   >
                     {badge.image_url ? (
                       <img
                         src={badge.image_url}
                         alt={badge.name}
-                        className="w-24 h-24 object-cover rounded-full mb-4"
+                        className="w-full max-h-[80px] object-contain rounded-full mb-4"
                       />
                     ) : (
                       <div className="w-24 h-24 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center mb-4">
@@ -202,18 +202,18 @@ const BadgesPage = () => {
         {claimableBadges.length > 0 && (
           <div className="mb-12">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Claimable Badges</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {claimableBadges.slice(0, 8).map(badge => (
                 <div
                   key={badge.id}
                   onClick={() => navigate(`/badges/${badge.id}`)}
-                  className="bg-white rounded-lg shadow-md border-2 border-gray-100 overflow-hidden cursor-pointer hover:shadow-xl hover:border-optio-purple transition-all duration-300 flex flex-col items-center p-6"
+                  className="bg-white rounded-lg shadow-md border-2 border-gray-100 overflow-hidden cursor-pointer hover:shadow-xl hover:border-optio-purple transition-all duration-300 flex flex-col items-center p-6 min-h-[140px]"
                 >
                   {badge.image_url ? (
                     <img
                       src={badge.image_url}
                       alt={badge.name}
-                      className="w-24 h-24 object-cover rounded-full mb-4"
+                      className="w-full max-h-[80px] object-contain rounded-full mb-4"
                     />
                   ) : (
                     <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center mb-4">
@@ -236,7 +236,7 @@ const BadgesPage = () => {
         {allBadges.length > claimableBadges.length && (
           <div className="mb-12">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Explore Badges</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {allBadges
                 .filter(badge => !userBadges.some(ub => ub.badge_id === badge.id))
                 .slice(0, 8)
@@ -244,13 +244,13 @@ const BadgesPage = () => {
                   <div
                     key={badge.id}
                     onClick={() => navigate(`/badges/${badge.id}`)}
-                    className="bg-white rounded-lg shadow-md border-2 border-gray-100 overflow-hidden cursor-pointer hover:shadow-xl hover:border-optio-purple transition-all duration-300 flex flex-col items-center p-6"
+                    className="bg-white rounded-lg shadow-md border-2 border-gray-100 overflow-hidden cursor-pointer hover:shadow-xl hover:border-optio-purple transition-all duration-300 flex flex-col items-center p-6 min-h-[140px]"
                   >
                     {badge.image_url ? (
                       <img
                         src={badge.image_url}
                         alt={badge.name}
-                        className="w-24 h-24 object-cover rounded-full mb-4 opacity-60"
+                        className="w-full max-h-[80px] object-contain rounded-full mb-4 opacity-60"
                       />
                     ) : (
                       <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center mb-4 opacity-60">
@@ -289,7 +289,7 @@ const BadgesPage = () => {
           </p>
           <button
             onClick={() => navigate('/quests')}
-            className="inline-block bg-white text-optio-purple font-semibold px-8 py-3 rounded-lg hover:bg-gray-100 transition-colors shadow-lg"
+            className="inline-block bg-white text-optio-purple font-semibold px-8 py-3 rounded-lg hover:bg-gray-100 transition-colors shadow-lg min-h-[44px]"
           >
             Explore Quests
           </button>

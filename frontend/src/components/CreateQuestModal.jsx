@@ -77,7 +77,7 @@ const CreateQuestModal = ({ isOpen, onClose, onSuccess }) => {
       isOpen={isOpen}
       onClose={onClose}
       title="Create Your Own Quest"
-      size="md"
+      className="max-w-full sm:max-w-2xl mx-2 sm:mx-0"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Info box */}
@@ -104,7 +104,7 @@ const CreateQuestModal = ({ isOpen, onClose, onSuccess }) => {
             value={formData.title}
             onChange={handleChange}
             placeholder="e.g., Learn to Play Guitar, Build a Personal Website, etc."
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px]"
             disabled={isSubmitting}
             maxLength={200}
           />
@@ -124,7 +124,7 @@ const CreateQuestModal = ({ isOpen, onClose, onSuccess }) => {
             value={formData.description}
             onChange={handleChange}
             placeholder="Describe what you want to learn or accomplish. What skills will you develop? What will you create?"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none min-h-[120px]"
             rows={6}
             disabled={isSubmitting}
             maxLength={2000}

@@ -77,7 +77,7 @@ const ChatLogsModal = ({ user, onClose }) => {
     <Modal
       isOpen={true}
       onClose={onClose}
-      size="xl"
+      className="max-w-full sm:max-w-4xl mx-2 sm:mx-0"
       header={
         <div className="flex items-center gap-3">
           <ChatBubbleLeftRightIcon className="w-6 h-6 text-white" />
@@ -91,9 +91,9 @@ const ChatLogsModal = ({ user, onClose }) => {
       }
       bodyClassName="p-0"
     >
-      <div className="flex h-[70vh] overflow-hidden">
+      <div className="flex flex-col sm:flex-row h-[70vh] overflow-hidden">
           {/* Conversations List */}
-          <div className="w-1/3 border-r bg-gray-50 flex flex-col">
+          <div className="w-full sm:w-1/3 border-r border-b sm:border-b-0 bg-gray-50 flex flex-col">
             <div className="p-4 border-b">
               <h3 className="font-semibold text-gray-900">Conversations</h3>
               <p className="text-sm text-gray-600">
@@ -117,7 +117,7 @@ const ChatLogsModal = ({ user, onClose }) => {
                     <button
                       key={conv.id}
                       onClick={() => fetchConversationMessages(conv.id)}
-                      className={`w-full text-left p-3 rounded-lg hover:bg-white transition-colors ${
+                      className={`w-full text-left p-3 rounded-lg hover:bg-white transition-colors min-h-[44px] ${
                         selectedConversation?.id === conv.id ? 'bg-white shadow-sm border border-optio-purple' : ''
                       }`}
                     >
@@ -160,7 +160,7 @@ const ChatLogsModal = ({ user, onClose }) => {
                       <h3 className="font-semibold text-gray-900">
                         {selectedConversation.title || 'Untitled Chat'}
                       </h3>
-                      <div className="text-sm text-gray-600 space-x-4 mt-1">
+                      <div className="text-xs sm:text-sm text-gray-600 flex flex-col sm:flex-row gap-2 sm:space-x-4 mt-1">
                         <span>Mode: {getModeDisplay(selectedConversation.conversation_mode)}</span>
                         <span>Created: {formatDate(selectedConversation.created_at)}</span>
                         <span>Messages: {messages.length}</span>
@@ -170,7 +170,7 @@ const ChatLogsModal = ({ user, onClose }) => {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="flex-1 max-h-[60vh] overflow-y-auto p-4 space-y-4">
                   {loadingConversation ? (
                     <div className="flex items-center justify-center h-64">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
@@ -187,7 +187,7 @@ const ChatLogsModal = ({ user, onClose }) => {
                         className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                       >
                         <div
-                          className={`max-w-[80%] ${
+                          className={`max-w-[85%] ${
                             message.role === 'user'
                               ? 'bg-optio-purple text-white rounded-l-2xl rounded-tr-2xl'
                               : 'bg-gray-100 text-gray-800 rounded-r-2xl rounded-tl-2xl'

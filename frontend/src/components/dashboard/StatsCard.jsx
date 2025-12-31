@@ -76,7 +76,7 @@ const StatsCard = ({ stats }) => {
   ];
 
   return (
-    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 sm:p-6">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
           <ChartBarIcon className="w-5 h-5 text-white" />
@@ -89,16 +89,16 @@ const StatsCard = ({ stats }) => {
         {statItems.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <div key={index} className={`${stat.color} rounded-lg p-4 border border-gray-200`}>
-              <div className="flex items-center gap-3">
-                <div className={`p-2 ${stat.bgColor} rounded-lg flex-shrink-0`}>
-                  <Icon className="w-5 h-5" />
+            <div key={index} className={`${stat.color} rounded-lg p-3 sm:p-4 min-h-[80px] border border-gray-200`}>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className={`p-1.5 sm:p-2 ${stat.bgColor} rounded-lg flex-shrink-0`}>
+                  <Icon className="w-4 sm:w-5 h-4 sm:h-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-xl font-bold">
+                  <div className="text-lg sm:text-xl font-bold">
                     {stat.value}{stat.suffix || ''}
                   </div>
-                  <div className="text-sm opacity-75 leading-tight">{stat.label}</div>
+                  <div className="text-xs sm:text-sm opacity-75 leading-tight">{stat.label}</div>
                 </div>
               </div>
             </div>

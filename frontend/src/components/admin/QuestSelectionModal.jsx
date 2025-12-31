@@ -73,7 +73,7 @@ const QuestSelectionModal = ({ student, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-lg w-full max-w-full sm:max-w-3xl mx-2 sm:mx-0 max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="border-b px-6 py-4 flex justify-between items-center bg-gradient-primary">
           <div className="text-white">
@@ -82,7 +82,7 @@ const QuestSelectionModal = ({ student, onClose }) => {
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/20 rounded-full text-white"
+            className="p-2 hover:bg-white/20 rounded-full text-white min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation"
           >
             <XMarkIcon size={24} />
           </button>
@@ -97,13 +97,13 @@ const QuestSelectionModal = ({ student, onClose }) => {
               placeholder="Search quests..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]"
             />
           </div>
         </div>
 
         {/* Quest Lists */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 max-h-[60vh]">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <ArrowPathIcon className="animate-spin text-optio-purple" size={32} />
@@ -121,7 +121,7 @@ const QuestSelectionModal = ({ student, onClose }) => {
                       <div
                         key={quest.quest_id}
                         onClick={() => handleQuestSelect(quest)}
-                        className="border border-purple-200 bg-purple-50 rounded-lg p-4 cursor-pointer hover:shadow-md transition-all group"
+                        className="border border-purple-200 bg-purple-50 rounded-lg p-4 cursor-pointer hover:shadow-md transition-all group min-h-[56px] touch-manipulation"
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -165,7 +165,7 @@ const QuestSelectionModal = ({ student, onClose }) => {
                       <div
                         key={quest.quest_id}
                         onClick={() => handleQuestSelect(quest)}
-                        className="border border-gray-200 rounded-lg p-4 cursor-pointer hover:border-purple-300 hover:shadow-md transition-all group"
+                        className="border border-gray-200 rounded-lg p-4 cursor-pointer hover:border-purple-300 hover:shadow-md transition-all group min-h-[56px] touch-manipulation"
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -214,7 +214,7 @@ const QuestSelectionModal = ({ student, onClose }) => {
           </div>
           <button
             onClick={onClose}
-            className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px] touch-manipulation"
           >
             Close
           </button>

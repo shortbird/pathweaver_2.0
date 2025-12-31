@@ -194,7 +194,7 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
       case 'text':
         return (
           <textarea
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none min-h-[120px]"
             rows="6"
             placeholder="Enter text explanation, reflection, or notes..."
             value={content.text || ''}
@@ -234,7 +234,7 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
                   setContent({});
                   setPendingFile(null);
                 }}
-                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors min-h-[44px] ${
                   uploadMode === 'file'
                     ? 'bg-optio-purple text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -249,7 +249,7 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
                   setContent({});
                   setPendingFile(null);
                 }}
-                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors min-h-[44px] ${
                   uploadMode === 'url'
                     ? 'bg-optio-purple text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -286,7 +286,7 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
                 ) : (
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-optio-purple transition-colors"
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-optio-purple transition-colors min-h-[150px] flex flex-col items-center justify-center"
                   >
                     <div className="text-4xl mb-2">📸</div>
                     <p className="text-sm font-medium text-gray-900">Click to upload image</p>
@@ -346,7 +346,7 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
                   setContent({});
                   setPendingFile(null);
                 }}
-                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors min-h-[44px] ${
                   uploadMode === 'file'
                     ? 'bg-optio-purple text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -361,7 +361,7 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
                   setContent({});
                   setPendingFile(null);
                 }}
-                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors min-h-[44px] ${
                   uploadMode === 'url'
                     ? 'bg-optio-purple text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -401,7 +401,7 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
                 ) : (
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-optio-purple transition-colors"
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-optio-purple transition-colors min-h-[150px] flex flex-col items-center justify-center"
                   >
                     <div className="text-4xl mb-2">📄</div>
                     <p className="text-sm font-medium text-gray-900">Click to upload document</p>
@@ -457,7 +457,7 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
           aria-label="Close modal"
         />
 
-        <div className="inline-block w-full max-w-4xl my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-xl">
+        <div className="inline-block w-full max-w-full sm:max-w-2xl mx-2 sm:mx-0 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-xl">
           {/* Header */}
           <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-optio-purple to-optio-pink">
             <div className="flex items-center justify-between">
@@ -553,7 +553,7 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
                     <label className="block mb-2 text-sm font-semibold text-gray-700">
                       3. Select Evidence Type
                     </label>
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {BLOCK_TYPES.map((type) => (
                         <button
                           key={type.value}
@@ -561,7 +561,7 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
                             setBlockType(type.value);
                             setContent({});
                           }}
-                          className={`p-3 text-center border-2 rounded-lg transition-all ${
+                          className={`p-3 text-center border-2 rounded-lg transition-all min-h-[44px] ${
                             blockType === type.value
                               ? 'border-optio-purple bg-purple-50'
                               : 'border-gray-200 hover:border-gray-300'
@@ -593,17 +593,17 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
 
           {/* Footer */}
           <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-            <div className="flex justify-end space-x-3">
+            <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-3">
               <button
                 onClick={handleClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px] w-full sm:w-auto"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={!selectedTask || submitting}
-                className="px-4 py-2 text-sm font-medium text-white rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm font-medium text-white rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] w-full sm:w-auto"
               >
                 {submitting ? 'Adding Evidence...' : 'Add Evidence'}
               </button>

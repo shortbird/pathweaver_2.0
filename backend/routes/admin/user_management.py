@@ -94,7 +94,11 @@ def get_users(user_id):
         # Subscription filter removed - no subscription tiers in Phase 2
 
         if role_filter != 'all' and assigned_student_ids is None:  # Only admins can filter by role
-            query = query.eq('role', role_filter)
+            if role_filter == 'org_admin':
+                # Special filter for org admins (users with is_org_admin = true)
+                query = query.eq('is_org_admin', True)
+            else:
+                query = query.eq('role', role_filter)
 
         # Organization filter
         if organization_filter != 'all':
@@ -291,12 +295,12 @@ def update_user_role(user_id, target_user_id):
         if not new_role:
             return jsonify({'success': False, 'error': 'Role is required'}), 400
 
-        valid_roles = ['student', 'parent', 'advisor', 'educator', 'admin', 'school_admin']
+        valid_roles = ['student', 'parent', 'advisor', 'org_admin', 'superadmin', 'observer']
         if new_role not in valid_roles:
             return jsonify({'success': False, 'error': f'Invalid role. Must be one of: {valid_roles}'}), 400
 
         # Prevent user from removing their own admin role
-        if target_user_id == user_id and new_role != 'admin':
+        if target_user_id == user_id and new_role not in ['org_admin', 'superadmin']:
             return jsonify({'success': False, 'error': 'Cannot remove your own admin privileges'}), 403
 
         # Update role (note: users table has no updated_at column)
@@ -369,6 +373,56 @@ def delete_user(user_id, target_user_id):
             'success': False,
             'error': f'Failed to delete user: {str(e)}'
         }), 500
+
+
+@bp.route('/users/bulk-delete', methods=['POST'])
+@require_admin
+def bulk_delete_users(user_id):
+    """Delete multiple user accounts (admin only)"""
+    supabase = get_supabase_admin_client()
+
+    try:
+        data = request.json
+        user_ids = data.get('user_ids', [])
+
+        if not user_ids:
+            return jsonify({'success': False, 'error': 'No user IDs provided'}), 400
+
+        if len(user_ids) > 50:
+            return jsonify({'success': False, 'error': 'Maximum 50 users can be deleted at once'}), 400
+
+        # Prevent admin from deleting themselves
+        if user_id in user_ids:
+            return jsonify({'success': False, 'error': 'Cannot delete your own account'}), 403
+
+        deleted = []
+        failed = []
+
+        for target_user_id in user_ids:
+            try:
+                # Delete from public.users (trigger syncs to auth.users)
+                supabase.table('users').delete().eq('id', target_user_id).execute()
+                deleted.append(target_user_id)
+                logger.info(f"Bulk delete: Deleted user {target_user_id}")
+            except Exception as e:
+                logger.error(f"Bulk delete: Failed to delete user {target_user_id}: {e}")
+                failed.append({'id': target_user_id, 'error': str(e)[:100]})
+
+        return jsonify({
+            'success': True,
+            'deleted': len(deleted),
+            'failed': len(failed),
+            'deleted_ids': deleted,
+            'failed_details': failed
+        })
+
+    except Exception as e:
+        logger.error(f"Error in bulk delete: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to delete users: {str(e)}'
+        }), 500
+
 
 @bp.route('/users/<target_user_id>/reset-password', methods=['POST'])
 @require_admin
@@ -925,11 +979,11 @@ def assign_advisor_role(user_id, target_user_id):
         # Check if superadmin
         is_superadmin = (requester_role == 'superadmin')
 
-        # Only school_admin and superadmin can assign advisor role
-        if not (is_superadmin or requester_role == 'school_admin'):
+        # Only org_admin and superadmin can assign advisor role
+        if not (is_superadmin or requester_role == 'org_admin'):
             return jsonify({
                 'success': False,
-                'error': 'Only school admins can assign advisor role'
+                'error': 'Only org admins can assign advisor role'
             }), 403
 
         # Get target user's info
@@ -944,7 +998,7 @@ def assign_advisor_role(user_id, target_user_id):
 
         target_org_id = target_user.data.get('organization_id')
 
-        # School admins can only assign within their org
+        # Org admins can only assign within their org
         if not is_superadmin and requester_org_id != target_org_id:
             return jsonify({
                 'success': False,
@@ -1013,11 +1067,11 @@ def revoke_advisor_role(user_id, target_user_id):
         # Check if superadmin
         is_superadmin = (requester_role == 'superadmin')
 
-        # Only school_admin and superadmin can revoke advisor role
-        if not (is_superadmin or requester_role == 'school_admin'):
+        # Only org_admin and superadmin can revoke advisor role
+        if not (is_superadmin or requester_role == 'org_admin'):
             return jsonify({
                 'success': False,
-                'error': 'Only school admins can revoke advisor role'
+                'error': 'Only org admins can revoke advisor role'
             }), 403
 
         # Get target user's info
@@ -1032,7 +1086,7 @@ def revoke_advisor_role(user_id, target_user_id):
 
         target_org_id = target_user.data.get('organization_id')
 
-        # School admins can only revoke within their org
+        # Org admins can only revoke within their org
         if not is_superadmin and requester_org_id != target_org_id:
             return jsonify({
                 'success': False,

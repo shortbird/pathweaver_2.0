@@ -152,7 +152,7 @@ const AdminDashboard = () => {
 
 
         {/* Key Performance Indicators */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -229,7 +229,7 @@ const AdminDashboard = () => {
         </div>
 
         {/* Secondary Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">User Growth</h3>
@@ -256,7 +256,7 @@ const AdminDashboard = () => {
 
         {/* Analytics & Trends Section */}
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h2 className="text-xl font-semibold text-gray-900">Platform Analytics & Trends</h2>
             <div className="text-sm text-gray-500">Last 30 days</div>
           </div>
@@ -314,11 +314,11 @@ const AdminDashboard = () => {
             <div className="text-sm text-gray-500">Quick access to key functions</div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* User Management */}
             <button
               onClick={() => window.location.href = '/admin/users'}
-              className="group relative p-6 bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl hover:from-blue-100 hover:to-blue-200 transition-all duration-200 text-left"
+              className="group relative p-6 bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl hover:from-blue-100 hover:to-blue-200 transition-all duration-200 text-left min-h-[44px]"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="p-3 bg-blue-500 rounded-lg">
@@ -337,7 +337,7 @@ const AdminDashboard = () => {
             {/* Quest Management */}
             <button
               onClick={() => window.location.href = '/admin/quests'}
-              className="group relative p-6 bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl hover:from-green-100 hover:to-green-200 transition-all duration-200 text-left"
+              className="group relative p-6 bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl hover:from-green-100 hover:to-green-200 transition-all duration-200 text-left min-h-[44px]"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="p-3 bg-green-500 rounded-lg">
@@ -356,7 +356,7 @@ const AdminDashboard = () => {
             {/* Flagged Tasks Review */}
             <button
               onClick={() => window.location.href = '/admin/flagged-tasks'}
-              className={`group relative p-6 rounded-xl transition-all duration-200 text-left border ${
+              className={`group relative p-6 rounded-xl transition-all duration-200 text-left border min-h-[44px] ${
                 (overviewData?.flagged_tasks_count || 0) > 0
                   ? 'bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 hover:from-orange-100 hover:to-orange-200'
                   : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200 hover:from-gray-100 hover:to-gray-200'
@@ -395,7 +395,7 @@ const AdminDashboard = () => {
             {/* AI Tools */}
             <button
               onClick={() => window.location.href = '/admin/ai-pipeline'}
-              className="group relative p-6 bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 rounded-xl hover:from-indigo-100 hover:to-indigo-200 transition-all duration-200 text-left"
+              className="group relative p-6 bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 rounded-xl hover:from-indigo-100 hover:to-indigo-200 transition-all duration-200 text-left min-h-[44px]"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="p-3 bg-indigo-500 rounded-lg">

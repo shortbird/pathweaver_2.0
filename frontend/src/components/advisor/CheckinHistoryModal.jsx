@@ -43,7 +43,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-full sm:max-w-2xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white">
           <div className="flex items-start justify-between">
@@ -81,7 +81,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
               <p className="text-gray-400 text-sm mt-2">Check-ins will appear here after your first meeting</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[50vh] overflow-y-auto">
               {checkins.map((checkin) => (
                 <div
                   key={checkin.id}
@@ -92,7 +92,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
                     className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
                     onClick={() => toggleExpanded(checkin.id)}
                   >
-                    <div className="flex items-start justify-between">
+                    <div className="flex flex-col sm:flex-row items-start justify-between gap-2">
                       <div className="flex-1">
                         <p className="font-bold text-gray-800 text-lg">
                           {checkin.checkin_date_formatted || formatDate(checkin.checkin_date)}
@@ -104,7 +104,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
                         )}
                       </div>
                       <button
-                        className="ml-4 text-optio-purple font-semibold text-sm hover:text-purple-700"
+                        className="ml-0 sm:ml-4 text-optio-purple font-semibold text-sm hover:text-purple-700 min-h-[44px] self-start"
                       >
                         {expandedCheckinId === checkin.id ? 'Hide' : 'View Details'}
                       </button>
@@ -214,7 +214,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
         <div className="border-t-2 border-gray-200 p-4 bg-gray-50">
           <button
             onClick={onClose}
-            className="w-full px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+            className="w-full px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors min-h-[44px]"
           >
             Close
           </button>

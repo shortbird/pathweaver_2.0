@@ -494,22 +494,26 @@ const QuestBadgeHub = () => {
         <div className="mb-8 space-y-6">
           {/* Tab toggle, search, and suggest button */}
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-            <TabToggle activeTab={activeTab} onTabChange={setActiveTab} />
+            <div className="min-h-[44px]">
+              <TabToggle activeTab={activeTab} onTabChange={setActiveTab} />
+            </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto flex-wrap">
               <div className="w-full sm:w-96">
-                <HubSearch
-                  value={searchTerm}
-                  onChange={setSearchTerm}
-                  placeholder="SEARCH"
-                />
+                <div className="min-h-[44px]">
+                  <HubSearch
+                    value={searchTerm}
+                    onChange={setSearchTerm}
+                    placeholder="SEARCH"
+                  />
+                </div>
               </div>
 
               {/* Create Quest button for authenticated users - now in header row */}
               {activeTab === 'quests' && canCreateQuests && (
                 <button
                   onClick={handleCreateQuest}
-                  className="bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg whitespace-nowrap"
+                  className="bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg whitespace-nowrap min-h-[44px]"
                   style={{ fontFamily: 'Poppins, sans-serif' }}
                 >
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">

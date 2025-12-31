@@ -19,17 +19,17 @@ const ConstellationExit = ({ onExit }) => {
       initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ delay: 0.3, duration: 0.3 }}
-      whileHover={{ scale: 1.1 }}
+      whileHover={{ scale: window.innerWidth >= 640 ? 1.1 : 1 }}
       whileTap={{ scale: 0.95 }}
       onClick={handleExit}
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
-      className="fixed top-6 right-6 z-[100]
-                 w-12 h-12 rounded-full
+      className="fixed top-4 right-4 z-[100]
+                 min-w-[44px] min-h-[44px] w-12 h-12 rounded-full
                  bg-white/10 backdrop-blur-md
                  border border-white/20
                  flex items-center justify-center
-                 hover:bg-white/20 transition-all
+                 sm:hover:bg-white/20 transition-all
                  group"
       aria-label="Exit constellation view"
     >

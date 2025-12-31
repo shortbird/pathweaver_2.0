@@ -89,7 +89,7 @@ const VideoBlock = ({ block, displayMode }) => {
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="block bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md hover:border-purple-300 transition-all"
+        className="block w-full bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md hover:border-purple-300 transition-all min-h-[56px]"
       >
         <div className="flex items-start gap-4">
           <div className="flex-shrink-0 w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">
@@ -121,7 +121,7 @@ const VideoBlock = ({ block, displayMode }) => {
 
   // Render all video items
   return (
-    <div className="space-y-4">
+    <div className="w-full space-y-4">
       {items.map((item, index) => renderVideoItem(item, index))}
     </div>
   );

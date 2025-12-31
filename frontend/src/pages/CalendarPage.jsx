@@ -84,7 +84,7 @@ const CalendarPage = () => {
       />
 
       {/* Main Calendar Area */}
-      <div className="flex gap-6 mt-8">
+      <div className="flex flex-col lg:flex-row gap-6 mt-8">
         {/* Calendar/List View */}
         <div className="flex-1 min-w-0">
           <Suspense fallback={<LoadingFallback />}>
@@ -105,7 +105,7 @@ const CalendarPage = () => {
         </div>
 
         {/* Unscheduled Items Sidebar */}
-        <div className="w-80 flex-shrink-0 hidden xl:block">
+        <div className="w-full lg:w-80 flex-shrink-0">
           <ScheduleSidebar
             userId={user?.id}
             calendarData={calendarData}

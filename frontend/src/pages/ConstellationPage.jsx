@@ -336,19 +336,19 @@ const ConstellationPage = () => {
           <p className="text-gray-400 mb-8 text-lg">
             We're having trouble connecting to the stars
           </p>
-          <div className="flex gap-4 justify-center">
+          <div className="flex gap-4 justify-center flex-wrap">
             <button
               onClick={handleRetry}
               className="px-8 py-3 bg-gradient-primary
                          text-white font-medium rounded-lg
-                         hover:shadow-xl transition-all transform hover:scale-105"
+                         hover:shadow-xl transition-all transform hover:scale-105 min-h-[44px]"
             >
               Try Again
             </button>
             <button
               onClick={handleExit}
               className="px-8 py-3 bg-white/10 text-white font-medium rounded-lg
-                         hover:bg-white/20 transition-all"
+                         hover:bg-white/20 transition-all min-h-[44px]"
             >
               Exit
             </button>
@@ -380,21 +380,23 @@ const ConstellationPage = () => {
             Start exploring quests to light up your first stars and watch your
             unique learning constellation take shape across the universe
           </p>
-          <button
-            onClick={() => navigate('/quests')}
-            className="px-10 py-4 bg-gradient-primary
-                       text-white font-semibold text-lg rounded-lg
-                       hover:shadow-2xl transition-all transform hover:scale-105"
-          >
-            Begin Your Journey
-          </button>
-          <button
-            onClick={handleExit}
-            className="ml-4 px-8 py-4 bg-white/10 text-white font-medium text-lg rounded-lg
-                       hover:bg-white/20 transition-all"
-          >
-            Back to Dashboard
-          </button>
+          <div className="flex gap-4 justify-center flex-wrap">
+            <button
+              onClick={() => navigate('/quests')}
+              className="px-10 py-4 bg-gradient-primary
+                         text-white font-semibold text-lg rounded-lg
+                         hover:shadow-2xl transition-all transform hover:scale-105 min-h-[44px]"
+            >
+              Begin Your Journey
+            </button>
+            <button
+              onClick={handleExit}
+              className="px-8 py-4 bg-white/10 text-white font-medium text-lg rounded-lg
+                         hover:bg-white/20 transition-all min-h-[44px]"
+            >
+              Back to Dashboard
+            </button>
+          </div>
         </div>
       </div>
     );

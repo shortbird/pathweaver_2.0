@@ -15,6 +15,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   const [actingAsBannerExpanded, setActingAsBannerExpanded] = useState(false)
   const [masqueradeBannerExpanded, setMasqueradeBannerExpanded] = useState(false)
   const [masqueradeState, setMasqueradeState] = useState(null)
+  const [unreadAnnouncementCount, setUnreadAnnouncementCount] = useState(0)
 
   // Check for masquerade state on mount and periodically
   useEffect(() => {
@@ -30,6 +31,24 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
 
     return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
+
+  // Fetch unread announcement count
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      if (!isAuthenticated || !user?.organization_id) return
+      try {
+        const response = await api.get('/api/announcements/unread-count')
+        setUnreadAnnouncementCount(response.data.unread_count || 0)
+      } catch (error) {
+        console.error('Error fetching unread announcement count:', error)
+      }
+    }
+
+    fetchUnreadCount()
+    // Refresh every 60 seconds
+    const interval = setInterval(fetchUnreadCount, 60000)
+    return () => clearInterval(interval)
+  }, [isAuthenticated, user?.organization_id])
 
   const handleExitMasquerade = async () => {
     try {
@@ -97,6 +116,16 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
         </svg>
       )
+    },
+    {
+      name: 'Announcements',
+      path: '/announcements',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+        </svg>
+      ),
+      badge: unreadAnnouncementCount > 0 ? unreadAnnouncementCount : null
     },
     {
       name: 'Connections',
@@ -246,7 +275,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
                   onClick={handleNavClick}
                   title={!isExpanded ? item.name : undefined}
                   className={`
-                    flex items-center rounded-lg
+                    flex items-center rounded-lg relative
                     font-poppins transition-colors duration-200
                     min-h-[44px] touch-manipulation
                     px-3 py-3
@@ -256,11 +285,23 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
                     }
                   `}
                 >
-                  <span className={`w-5 flex-shrink-0 ${isActive ? 'text-optio-purple' : 'text-neutral-500'}`}>
+                  <span className={`w-5 flex-shrink-0 relative ${isActive ? 'text-optio-purple' : 'text-neutral-500'}`}>
                     {item.icon}
+                    {/* Badge for collapsed sidebar */}
+                    {item.badge && !isExpanded && (
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 text-[10px] font-bold text-white bg-optio-pink rounded-full">
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </span>
+                    )}
                   </span>
-                  <span className={`ml-3 whitespace-nowrap overflow-hidden transition-all duration-200 ${isExpanded ? 'opacity-100 max-w-[200px]' : 'opacity-0 max-w-0'}`}>
+                  <span className={`ml-3 whitespace-nowrap overflow-hidden transition-all duration-200 flex items-center gap-2 ${isExpanded ? 'opacity-100 max-w-[200px]' : 'opacity-0 max-w-0'}`}>
                     {item.name}
+                    {/* Badge for expanded sidebar */}
+                    {item.badge && isExpanded && (
+                      <span className="min-w-[20px] h-5 flex items-center justify-center px-1.5 text-xs font-bold text-white bg-optio-pink rounded-full">
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </span>
+                    )}
                   </span>
                 </Link>
               )
@@ -359,12 +400,13 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
           <div className="lg:hidden border-t border-gray-200 p-4">
             <button
               onClick={handleLogout}
-              className="w-full flex items-center justify-center px-4 py-3 rounded-lg font-poppins font-semibold text-neutral-700 hover:bg-neutral-100 transition-colors duration-200 min-h-[44px] touch-manipulation"
+              className="w-full flex items-center justify-center p-3 rounded-lg text-neutral-700 hover:bg-neutral-100 transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation"
+              aria-label="Logout"
+              title="Logout"
             >
-              <svg className="w-5 h-5 mr-3 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
-              <span>Logout</span>
             </button>
           </div>
         )}

@@ -12,6 +12,7 @@ export default function FlaggedTasksPanel() {
   const [actionLoading, setActionLoading] = useState(false);
   const [showFlagModal, setShowFlagModal] = useState(false);
   const [deleteConfirmTask, setDeleteConfirmTask] = useState(null);
+  const [viewMode, setViewMode] = useState('table');
 
   useEffect(() => {
     loadFlaggedTasks();
@@ -110,16 +111,104 @@ export default function FlaggedTasksPanel() {
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
-          Flagged Tasks Review
-        </h1>
-        <p className="text-gray-600" style={{ fontFamily: 'Poppins' }}>
-          {flaggedTasks.length} task{flaggedTasks.length !== 1 ? 's' : ''} flagged for review
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
+              Flagged Tasks Review
+            </h1>
+            <p className="text-gray-600" style={{ fontFamily: 'Poppins' }}>
+              {flaggedTasks.length} task{flaggedTasks.length !== 1 ? 's' : ''} flagged for review
+            </p>
+          </div>
+          {/* View Mode Toggle - Hidden on mobile (auto-shows cards) */}
+          <div className="hidden md:flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-1.5 min-h-[44px] rounded-lg text-sm font-medium transition-colors touch-manipulation ${
+                viewMode === 'table'
+                  ? 'bg-optio-purple text-white'
+                  : 'bg-transparent text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`px-3 py-1.5 min-h-[44px] rounded-lg text-sm font-medium transition-colors touch-manipulation ${
+                viewMode === 'cards'
+                  ? 'bg-optio-purple text-white'
+                  : 'bg-transparent text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Cards
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Tasks Table */}
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
+      {/* Mobile Card View - shown on mobile or when viewMode === 'cards' */}
+      <div className={`grid grid-cols-1 gap-4 ${viewMode === 'cards' ? 'block' : 'md:hidden'}`}>
+        {flaggedTasks.map(task => {
+          const pillarData = getPillarData(task.pillar);
+          const severityColor = getSeverityColor(task.flag_count);
+          const borderColor = task.flag_count >= 5 ? 'border-red-500' : task.flag_count >= 3 ? 'border-yellow-500' : 'border-gray-300';
+
+          return (
+            <div
+              key={task.id}
+              className={`bg-white rounded-xl p-4 border-l-4 shadow-sm ${borderColor}`}
+            >
+              <p className="text-xs text-gray-500 mb-1" style={{ fontFamily: 'Poppins' }}>
+                {task.quests?.title || 'Unknown Quest'}
+              </p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
+                {task.title}
+              </h3>
+              <p className="text-sm text-gray-600 line-clamp-2 mb-3">
+                {task.description}
+              </p>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold">
+                  {pillarData.name}
+                </span>
+                <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border-2 ${severityColor}`}>
+                  <FlagIcon className="w-3 h-3" />
+                  <span className="text-xs font-bold">{task.flag_count}</span>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setSelectedTask(task); loadTaskFlags(task.id); }}
+                  className="flex-1 min-h-[44px] px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm font-semibold flex items-center justify-center gap-1"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  <EyeIcon className="w-4 h-4" />
+                  View
+                </button>
+                <button
+                  onClick={() => handleApproveTask(task.id)}
+                  disabled={actionLoading}
+                  className="flex-1 min-h-[44px] px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-1"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  <CheckIcon className="w-4 h-4" />
+                  Approve
+                </button>
+                <button
+                  onClick={() => setDeleteConfirmTask(task)}
+                  disabled={actionLoading}
+                  className="min-h-[44px] min-w-[44px] px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all disabled:opacity-50 flex items-center justify-center"
+                >
+                  <TrashIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop Table View - hidden on mobile, shown when viewMode === 'table' */}
+      <div className={`bg-white rounded-xl shadow-md overflow-hidden ${viewMode === 'table' ? 'hidden md:block' : 'hidden'}`}>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b-2 border-gray-200">
@@ -176,35 +265,27 @@ export default function FlaggedTasksPanel() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {/* View Flags Button */}
                         <button
-                          onClick={() => {
-                            setSelectedTask(task);
-                            loadTaskFlags(task.id);
-                          }}
-                          className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm font-semibold flex items-center gap-1"
+                          onClick={() => { setSelectedTask(task); loadTaskFlags(task.id); }}
+                          className="min-h-[44px] px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm font-semibold flex items-center gap-1"
                           style={{ fontFamily: 'Poppins' }}
                         >
                           <EyeIcon className="w-4 h-4" />
                           View Flags
                         </button>
-
-                        {/* Approve Button */}
                         <button
                           onClick={() => handleApproveTask(task.id)}
                           disabled={actionLoading}
-                          className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-semibold disabled:opacity-50 flex items-center gap-1"
+                          className="min-h-[44px] px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all text-sm font-semibold disabled:opacity-50 flex items-center gap-1"
                           style={{ fontFamily: 'Poppins' }}
                         >
                           <CheckIcon className="w-4 h-4" />
                           Approve
                         </button>
-
-                        {/* Delete Button */}
                         <button
                           onClick={() => setDeleteConfirmTask(task)}
                           disabled={actionLoading}
-                          className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all text-sm font-semibold disabled:opacity-50 flex items-center gap-1"
+                          className="min-h-[44px] px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all text-sm font-semibold disabled:opacity-50 flex items-center gap-1"
                           style={{ fontFamily: 'Poppins' }}
                         >
                           <TrashIcon className="w-4 h-4" />
@@ -223,7 +304,7 @@ export default function FlaggedTasksPanel() {
       {/* Flag Details Modal */}
       {showFlagModal && selectedTask && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-8 max-w-3xl w-full max-h-[80vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl p-4 sm:p-8 max-w-full sm:max-w-3xl w-full mx-2 sm:mx-0 max-h-[90vh] sm:max-h-[80vh] overflow-y-auto">
             <div className="flex items-start justify-between mb-6">
               <div className="flex-1">
                 <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Poppins' }}>
@@ -328,7 +409,7 @@ export default function FlaggedTasksPanel() {
       {/* Delete Confirmation Modal */}
       {deleteConfirmTask && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-8 max-w-md w-full">
+          <div className="bg-white rounded-2xl p-4 sm:p-8 max-w-full sm:max-w-md w-full mx-2 sm:mx-0">
             <div className="text-center mb-6">
               <ExclamationTriangleIcon className="w-16 h-16 text-red-500 mx-auto mb-4" />
               <h3 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
@@ -345,7 +426,7 @@ export default function FlaggedTasksPanel() {
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirmTask(null)}
-                className="flex-1 px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-all"
+                className="flex-1 px-6 py-3 min-h-[44px] border-2 border-gray-300 rounded-xl hover:bg-gray-50 active:bg-gray-100 font-semibold transition-all touch-manipulation"
                 style={{ fontFamily: 'Poppins' }}
               >
                 Cancel
@@ -353,7 +434,7 @@ export default function FlaggedTasksPanel() {
               <button
                 onClick={() => handleDeleteTask(deleteConfirmTask.id)}
                 disabled={actionLoading}
-                className="flex-1 px-6 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600 font-bold transition-all disabled:opacity-50"
+                className="flex-1 px-6 py-3 min-h-[44px] bg-red-500 text-white rounded-xl hover:bg-red-600 active:bg-red-700 font-bold transition-all disabled:opacity-50 touch-manipulation"
                 style={{ fontFamily: 'Poppins' }}
               >
                 {actionLoading ? 'Deleting...' : 'Delete'}

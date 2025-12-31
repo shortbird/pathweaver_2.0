@@ -336,14 +336,17 @@ class CourseService(BaseService):
 
         total_xp = sum(task['xp_value'] or 0 for task in all_tasks.data) if all_tasks.data else 0
 
-        # Get XP earned by user
+        # Get XP earned by user (xp_value stored in user_quest_tasks, not completions)
         completions = supabase.table('quest_task_completions')\
-            .select('xp_awarded')\
+            .select('task_id, user_quest_tasks(xp_value)')\
             .eq('user_id', user_id)\
             .in_('quest_id', quest_ids)\
             .execute()
 
-        xp_earned = sum(c['xp_awarded'] or 0 for c in completions.data) if completions.data else 0
+        xp_earned = sum(
+            (c.get('user_quest_tasks', {}) or {}).get('xp_value', 0) or 0
+            for c in completions.data
+        ) if completions.data else 0
 
         # Count completed quests
         user_quests = supabase.table('user_quests')\

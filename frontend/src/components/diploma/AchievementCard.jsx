@@ -45,8 +45,8 @@ const AchievementCard = ({ achievement, onClick }) => {
   };
 
   return (
-    <div 
-      className="bg-white rounded-2xl overflow-hidden transition-all cursor-pointer hover:transform hover:-translate-y-2 hover:shadow-2xl group border border-gray-100"
+    <div
+      className="bg-white rounded-2xl overflow-hidden transition-all cursor-pointer sm:hover:transform sm:hover:-translate-y-2 sm:hover:shadow-2xl group border border-gray-100 min-h-[44px]"
       style={{ boxShadow: '0 8px 25px rgba(109, 70, 155, 0.08)' }}
       onClick={() => onClick(achievement)}
     >
@@ -57,7 +57,7 @@ const AchievementCard = ({ achievement, onClick }) => {
             <img
               src={achievement.quest.header_image_url}
               alt={`Quest: ${achievement.quest.title}`}
-              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              className="absolute inset-0 w-full h-full object-cover sm:group-hover:scale-105 transition-transform duration-500"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent" />
           </>
@@ -89,7 +89,7 @@ const AchievementCard = ({ achievement, onClick }) => {
 
       <div className="p-6">
         <div className="mb-3">
-          <h3 className="font-bold text-xl mb-2 text-gray-800 group-hover:text-optio-purple transition-colors leading-tight">
+          <h3 className="font-bold text-xl mb-2 text-gray-800 sm:group-hover:text-optio-purple transition-colors leading-tight">
             {achievement.quest.title}
           </h3>
           
@@ -118,7 +118,7 @@ const AchievementCard = ({ achievement, onClick }) => {
               Completed {formatDate(achievement.completed_at)}
             </span>
           </div>
-          <div className="flex items-center gap-1 text-optio-purple font-semibold text-sm group-hover:gap-2 transition-all">
+          <div className="flex items-center gap-1 text-optio-purple font-semibold text-sm sm:group-hover:gap-2 transition-all">
             <span>Explore Journey</span>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />

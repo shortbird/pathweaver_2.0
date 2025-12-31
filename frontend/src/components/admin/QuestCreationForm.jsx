@@ -375,34 +375,34 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
     return (
       <div className="border rounded-lg p-4 mb-4 bg-gray-50">
         <h4 className="font-semibold mb-2">Create New Source</h4>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <input
             type="text"
             placeholder="Source ID (e.g., khan_academy)"
             value={newSource.id}
             onChange={(e) => setNewSource({ ...newSource, id: e.target.value })}
-            className="px-3 py-2 border rounded"
+            className="px-3 py-2 min-h-[44px] text-base border rounded"
           />
           <input
             type="text"
             placeholder="Display Name"
             value={newSource.name}
             onChange={(e) => setNewSource({ ...newSource, name: e.target.value })}
-            className="px-3 py-2 border rounded"
+            className="px-3 py-2 min-h-[44px] text-base border rounded"
           />
         </div>
-        <div className="flex gap-2 mt-2">
+        <div className="flex flex-col sm:flex-row gap-2 mt-2">
           <button
             type="button"
             onClick={handleCreateSource}
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            className="px-4 py-2 min-h-[44px] bg-green-600 text-white rounded hover:bg-green-700"
           >
             Create Source
           </button>
           <button
             type="button"
             onClick={() => setShowNewSourceForm(false)}
-            className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+            className="px-4 py-2 min-h-[44px] bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
           >
             Cancel
           </button>
@@ -413,7 +413,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg max-w-full sm:max-w-3xl w-full max-h-[90vh] overflow-y-auto mx-2 sm:mx-0">
         <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
           <h2 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             Create New Quest
@@ -459,7 +459,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     setErrors({ ...errors, title: '' })
                   }
                 }}
-                className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
+                className={`w-full px-4 py-3 min-h-[44px] text-base border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
                 placeholder="e.g., Build a Community Garden"
               />
               <p className="text-xs text-gray-500 mt-1">
@@ -489,7 +489,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     setErrors({ ...errors, big_idea: '' })
                   }
                 }}
-                className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
+                className="w-full px-3 py-2 min-h-[88px] text-base border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                 rows={3}
                 placeholder="Describe the quest's main concept and learning goals (optional)"
               />
@@ -498,7 +498,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
               </p>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="quest-source" className="block text-sm font-medium mb-2">Source</label>
                 {showNewSourceForm ? (
@@ -509,7 +509,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                       id="quest-source"
                       value={formData.source}
                       onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                      className="flex-1 px-3 py-2 border rounded-lg"
+                      className="flex-1 px-3 py-2 min-h-[44px] text-base border rounded-lg"
                     >
                       {sources.map(source => (
                         <option key={source.id} value={source.id}>
@@ -520,7 +520,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     <button
                       type="button"
                       onClick={() => setShowNewSourceForm(true)}
-                      className="px-3 py-2 bg-optio-purple text-white rounded-lg hover:bg-purple-700"
+                      className="px-3 py-2 min-h-[44px] bg-optio-purple text-white rounded-lg hover:bg-purple-700"
                       aria-label="Add new source"
                     >
                       <PlusIcon size={20} />
@@ -535,7 +535,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                   id="quest-status"
                   value={formData.is_active.toString()}
                   onChange={(e) => setFormData({ ...formData, is_active: e.target.value === 'true' })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 min-h-[44px] text-base border rounded-lg"
                 >
                   <option value="true">Active</option>
                   <option value="false">Inactive</option>
@@ -581,7 +581,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                       id={`task-${index}-title`}
                       value={task.title}
                       onChange={(e) => updateTask(index, 'title', e.target.value)}
-                      className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_title`] ? 'border-red-500' : 'border-gray-300'}`}
+                      className={`w-full px-4 py-3 min-h-[44px] text-base border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_title`] ? 'border-red-500' : 'border-gray-300'}`}
                       placeholder="e.g., Research local plant species"
                     />
                     {errors[`task_${index}_title`] && (
@@ -601,7 +601,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                         id={`task-${index}-pillar`}
                         value={task.pillar}
                         onChange={(e) => updateTask(index, 'pillar', e.target.value)}
-                        className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_pillar`] ? 'border-red-500' : 'border-gray-300'}`}
+                        className={`w-full px-4 py-3 min-h-[44px] text-base border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_pillar`] ? 'border-red-500' : 'border-gray-300'}`}
                       >
                         <option value="">Choose a learning pillar...</option>
                         {pillarOptions.map(pillar => (
@@ -726,7 +726,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                         id={`task-${index}-xp`}
                         value={task.xp_value}
                         onChange={(e) => updateTask(index, 'xp_value', parseInt(e.target.value) || 0)}
-                        className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_xp`] ? 'border-red-500' : 'border-gray-300'}`}
+                        className={`w-full px-4 py-3 min-h-[44px] text-base border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_xp`] ? 'border-red-500' : 'border-gray-300'}`}
                         min="0"
                         step="50"
                         placeholder="100"
@@ -766,7 +766,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                           id={`task-${index}-description`}
                           value={task.description}
                           onChange={(e) => updateTask(index, 'description', e.target.value)}
-                          className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
+                          className="w-full px-3 py-2 min-h-[88px] text-base border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                           rows={3}
                           placeholder="Provide detailed instructions for students (optional)"
                         />
@@ -782,7 +782,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                           id={`task-${index}-evidence-prompt`}
                           value={task.evidence_prompt}
                           onChange={(e) => updateTask(index, 'evidence_prompt', e.target.value)}
-                          className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
+                          className="w-full px-3 py-2 min-h-[44px] text-base border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                           placeholder="What should students submit as proof? (photos, videos, documents, etc.)"
                         />
                         <p className="text-xs text-gray-500 mt-1">
@@ -817,7 +817,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                         <button
                           type="button"
                           onClick={() => addMaterial(index)}
-                          className="px-4 py-2 bg-optio-purple text-white rounded-lg hover:bg-purple-700 transition-all text-sm"
+                          className="px-4 py-2 min-h-[44px] bg-optio-purple text-white rounded-lg hover:bg-purple-700 transition-all text-sm"
                         >
                           <PlusIcon size={16} className="inline mr-1" /> Add Material
                         </button>
@@ -836,7 +836,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
               <button
                 type="button"
                 onClick={addTask}
-                className="px-6 py-3 bg-gradient-primary text-white rounded-lg hover:opacity-90 transition-all shadow-md hover:shadow-lg"
+                className="px-6 py-3 min-h-[44px] bg-gradient-primary text-white rounded-lg hover:opacity-90 transition-all shadow-md hover:shadow-lg"
               >
                 <PlusIcon size={20} className="inline mr-2" />
                 Add Another Task
@@ -851,7 +851,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
           />
             
           <div className="space-y-6 mb-8">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <OptionalFieldLabel htmlFor="quest-location-type">Location Type</OptionalFieldLabel>
                 <select
@@ -861,7 +861,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     ...formData,
                     metadata: { ...formData.metadata, location_type: e.target.value }
                   })}
-                  className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
+                  className="w-full px-3 py-2 min-h-[44px] text-base border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                 >
                   {locationTypes.map(type => (
                     <option key={type.value} value={type.value}>
@@ -883,7 +883,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                         ...formData,
                         metadata: { ...formData.metadata, venue_name: e.target.value }
                       })}
-                      className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
+                      className="w-full px-3 py-2 min-h-[44px] text-base border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                       placeholder="e.g., Community Center"
                     />
                   </div>
@@ -898,7 +898,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                         ...formData,
                         metadata: { ...formData.metadata, location_address: e.target.value }
                       })}
-                      className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
+                      className="w-full px-3 py-2 min-h-[44px] text-base border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                       placeholder="Full address"
                     />
                   </div>
@@ -915,7 +915,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     ...formData,
                     metadata: { ...formData.metadata, seasonal_start: e.target.value }
                   })}
-                  className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
+                  className="w-full px-3 py-2 min-h-[44px] text-base border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                 />
               </div>
 
@@ -929,25 +929,25 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     ...formData,
                     metadata: { ...formData.metadata, seasonal_end: e.target.value }
                   })}
-                  className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
+                  className="w-full px-3 py-2 min-h-[44px] text-base border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                 />
               </div>
             </div>
           </div>
           
           {/* Form Actions */}
-          <div className="flex justify-end gap-4 pt-4 border-t">
+          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="w-full sm:w-auto px-6 py-2 min-h-[44px] border border-gray-300 rounded-lg hover:bg-gray-50"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+              className="w-full sm:w-auto px-6 py-2 min-h-[44px] bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50"
               disabled={loading}
             >
               {loading ? 'Creating...' : 'Create Quest'}

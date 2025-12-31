@@ -190,24 +190,24 @@ const ProfilePage = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Header with Brand Gradient */}
-      <header className="bg-gradient-primary text-white py-12 px-6">
+      <header className="bg-gradient-primary text-white py-8 sm:py-12 px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="flex items-center gap-6">
+          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
             {/* Avatar Circle with Initials */}
             <div
-              className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-2 border-white/30 shadow-lg flex-shrink-0"
+              className="w-20 sm:w-24 h-20 sm:h-24 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-2 border-white/30 shadow-lg flex-shrink-0"
             >
-              <span className="text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <span className="text-3xl sm:text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                 {initials}
               </span>
             </div>
 
             {/* User Info */}
-            <div className="flex-1">
-              <h1 className="text-3xl sm:text-4xl font-bold mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+            <div className="flex-1 text-center sm:text-left">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                 {profileData?.user?.first_name} {profileData?.user?.last_name}
               </h1>
-              <p className="text-white/90 text-base sm:text-lg" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              <p className="text-white/90 text-sm sm:text-base md:text-lg" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
                 Learning since {memberSince}
               </p>
             </div>
@@ -216,12 +216,12 @@ const ProfilePage = () => {
       </header>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="space-y-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="space-y-6">
 
           {/* Personal Information Card */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
               <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                 Personal Information
               </h2>
@@ -239,7 +239,7 @@ const ProfilePage = () => {
 
             {editing ? (
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
                       First Name
@@ -249,7 +249,7 @@ const ProfilePage = () => {
                         required: 'First name is required'
                       })}
                       type="text"
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors"
+                      className="min-h-[44px] w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors text-base"
                       style={{ fontFamily: 'Poppins', fontWeight: 500 }}
                     />
                     {errors.first_name && (
@@ -268,7 +268,7 @@ const ProfilePage = () => {
                         required: 'Last name is required'
                       })}
                       type="text"
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors"
+                      className="min-h-[44px] w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors text-base"
                       style={{ fontFamily: 'Poppins', fontWeight: 500 }}
                     />
                     {errors.last_name && (
@@ -279,10 +279,10 @@ const ProfilePage = () => {
                   </div>
                 </div>
 
-                <div className="flex gap-3 pt-2">
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-gradient-primary text-white rounded-lg font-semibold shadow-sm hover:shadow-md transition-all"
+                    className="min-h-[44px] w-full sm:w-auto px-6 py-2.5 bg-gradient-primary text-white rounded-lg font-semibold shadow-sm hover:shadow-md transition-all"
                     style={{ fontFamily: 'Poppins', fontWeight: 600 }}
                   >
                     Save Changes
@@ -296,7 +296,7 @@ const ProfilePage = () => {
                         last_name: profileData.user.last_name
                       })
                     }}
-                    className="px-6 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                    className="min-h-[44px] w-full sm:w-auto px-6 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
                     style={{ fontFamily: 'Poppins', fontWeight: 600 }}
                   >
                     Cancel
@@ -476,7 +476,7 @@ const ProfilePage = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     onClick={downloadQRCode}
-                    className="flex items-center justify-center gap-2 px-4 py-3 bg-gradient-primary text-white rounded-lg font-semibold shadow-sm hover:shadow-md transition-all"
+                    className="min-h-[44px] flex items-center justify-center gap-2 px-4 py-3 bg-gradient-primary text-white rounded-lg font-semibold shadow-sm hover:shadow-md transition-all"
                     style={{ fontFamily: 'Poppins', fontWeight: 600 }}
                   >
                     <ArrowDownTrayIcon className="w-5 h-5" />
@@ -484,7 +484,7 @@ const ProfilePage = () => {
                   </button>
                   <button
                     onClick={copyPortfolioLink}
-                    className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-optio-purple text-optio-purple rounded-lg font-semibold hover:bg-purple-50 transition-all"
+                    className="min-h-[44px] flex items-center justify-center gap-2 px-4 py-3 border-2 border-optio-purple text-optio-purple rounded-lg font-semibold hover:bg-purple-50 transition-all"
                     style={{ fontFamily: 'Poppins', fontWeight: 600 }}
                   >
                     <LinkIcon className="w-5 h-5" />
@@ -521,7 +521,7 @@ const ProfilePage = () => {
                 </div>
                 <button
                   onClick={cancelAccountDeletion}
-                  className="w-full px-6 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-colors shadow-sm"
+                  className="min-h-[44px] w-full px-6 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-colors shadow-sm"
                   style={{ fontFamily: 'Poppins', fontWeight: 700 }}
                 >
                   Cancel Deletion
@@ -534,7 +534,7 @@ const ProfilePage = () => {
                 </p>
                 <button
                   onClick={requestAccountDeletion}
-                  className="w-full px-6 py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-colors shadow-sm"
+                  className="min-h-[44px] w-full px-6 py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-colors shadow-sm"
                   style={{ fontFamily: 'Poppins', fontWeight: 700 }}
                 >
                   Delete My Account

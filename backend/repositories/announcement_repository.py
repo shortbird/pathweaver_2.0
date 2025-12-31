@@ -241,9 +241,12 @@ class AnnouncementRepository(BaseRepository):
             DatabaseError: If operation fails
         """
         try:
-            # Use upsert to avoid duplicates
+            from database import get_supabase_admin_client
+            admin_client = get_supabase_admin_client()
+
+            # Use upsert to avoid duplicates (admin client bypasses RLS)
             response = (
-                self.client.table('announcement_reads')
+                admin_client.table('announcement_reads')
                 .upsert({
                     'announcement_id': announcement_id,
                     'user_id': user_id
@@ -272,9 +275,12 @@ class AnnouncementRepository(BaseRepository):
             DatabaseError: If query fails
         """
         try:
+            from database import get_supabase_admin_client
+            admin_client = get_supabase_admin_client()
+
             # Get all announcement IDs for the org
             announcements = (
-                self.client.table(self.table_name)
+                admin_client.table(self.table_name)
                 .select('id')
                 .eq('organization_id', organization_id)
                 .execute()
@@ -285,9 +291,9 @@ class AnnouncementRepository(BaseRepository):
             if not announcement_ids:
                 return 0
 
-            # Get read announcement IDs for this user
+            # Get read announcement IDs for this user (use admin client to bypass RLS)
             read_announcements = (
-                self.client.table('announcement_reads')
+                admin_client.table('announcement_reads')
                 .select('announcement_id')
                 .eq('user_id', user_id)
                 .in_('announcement_id', announcement_ids)

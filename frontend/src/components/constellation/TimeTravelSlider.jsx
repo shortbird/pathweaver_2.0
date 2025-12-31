@@ -18,7 +18,7 @@ const TimeTravelSlider = ({ onTimeChange, currentTime, minTime, maxTime }) => {
       transition={{ duration: 0.3 }}
       className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[100]"
     >
-      <div className="bg-gray-900/90 backdrop-blur-md border border-white/20 rounded-2xl px-8 py-5 shadow-2xl">
+      <div className="bg-gray-900/90 backdrop-blur-md border border-white/20 rounded-2xl px-4 sm:px-8 py-5 shadow-2xl">
         <div className="flex items-center gap-6">
           {/* Time Travel Icon */}
           <div className="flex items-center gap-2">
@@ -52,9 +52,9 @@ const TimeTravelSlider = ({ onTimeChange, currentTime, minTime, maxTime }) => {
               max={maxTime}
               value={currentTime}
               onChange={handleSliderChange}
-              className="w-64 h-2 bg-white/20 rounded-lg appearance-none cursor-pointer
+              className="w-full max-w-[180px] sm:w-64 h-3 sm:h-2 bg-white/20 rounded-lg appearance-none cursor-pointer
                          focus:outline-none focus:ring-2 focus:ring-white/40
-                         slider-thumb"
+                         slider-thumb touch-manipulation"
               style={{
                 background: `linear-gradient(to right,
                   #ef597b 0%,
@@ -80,8 +80,8 @@ const TimeTravelSlider = ({ onTimeChange, currentTime, minTime, maxTime }) => {
         {`
           .slider-thumb::-webkit-slider-thumb {
             appearance: none;
-            width: 18px;
-            height: 18px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             background: white;
             cursor: pointer;
@@ -95,8 +95,8 @@ const TimeTravelSlider = ({ onTimeChange, currentTime, minTime, maxTime }) => {
           }
 
           .slider-thumb::-moz-range-thumb {
-            width: 18px;
-            height: 18px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             background: white;
             cursor: pointer;

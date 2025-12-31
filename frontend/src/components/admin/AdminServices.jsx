@@ -10,6 +10,7 @@ const AdminServices = () => {
   const [selectedService, setSelectedService] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [viewMode, setViewMode] = useState('table'); // 'table' or 'card'
 
   useEffect(() => {
     fetchServices();
@@ -112,8 +113,70 @@ const AdminServices = () => {
         </div>
       )}
 
-      {/* Services Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      {/* Services - Mobile Card View */}
+      <div className="md:hidden space-y-4">
+        {services.length === 0 ? (
+          <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+            No services found. Click "Add Service" to create one.
+          </div>
+        ) : (
+          services.map((service) => (
+            <div
+              key={service.id}
+              className={`bg-white rounded-lg shadow p-4 ${!service.is_active ? 'opacity-60' : ''}`}
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1">
+                  <h3 className="text-lg font-medium text-gray-900">{service.name}</h3>
+                  <p className="text-sm text-gray-600 mt-1">{service.category}</p>
+                </div>
+                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                  service.is_active
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {service.is_active ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 mb-4 text-sm">
+                <div>
+                  <span className="text-gray-500">Price:</span>
+                  <span className="ml-2 font-medium">{service.price_display || `$${service.price}`}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Sort:</span>
+                  <span className="ml-2 font-medium">{service.sort_order}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleToggleActive(service)}
+                  className="flex-1 min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  {service.is_active ? 'Deactivate' : 'Activate'}
+                </button>
+                <button
+                  onClick={() => handleEdit(service)}
+                  className="flex-1 min-h-[44px] px-4 py-2 bg-optio-purple text-white rounded-lg text-sm font-medium hover:opacity-90"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(service.id)}
+                  className="min-h-[44px] min-w-[44px] px-3 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
+                >
+                  <TrashIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Services - Desktop Table View */}
+      <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -173,21 +236,21 @@ const AdminServices = () => {
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => handleToggleActive(service)}
-                          className="text-gray-600 hover:text-gray-900"
+                          className="min-h-[44px] text-gray-600 hover:text-gray-900"
                           title={service.is_active ? 'Deactivate' : 'Activate'}
                         >
                           {service.is_active ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
                         </button>
                         <button
                           onClick={() => handleEdit(service)}
-                          className="text-optio-purple hover:text-purple-900"
+                          className="min-h-[44px] text-optio-purple hover:text-purple-900"
                           title="Edit"
                         >
                           <PencilSquareIcon className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(service.id)}
-                          className="text-red-600 hover:text-red-900"
+                          className="min-h-[44px] text-red-600 hover:text-red-900"
                           title="Delete"
                         >
                           <TrashIcon className="w-4 h-4" />

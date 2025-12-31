@@ -208,3 +208,38 @@ export const useQuestProgress = (userId, questId, options = {}) => {
     ...options,
   })
 }
+
+/**
+ * Hook for fetching quest engagement/rhythm metrics
+ * Used for the GitHub-style activity calendar and rhythm indicator
+ */
+export const useQuestEngagement = (questId, options = {}) => {
+  return useQuery({
+    queryKey: ['quest-engagement', questId],
+    queryFn: async () => {
+      const response = await api.get(`/api/quests/${questId}/engagement`)
+      return response.data.engagement
+    },
+    enabled: !!questId,
+    staleTime: 60 * 1000, // 1 minute
+    cacheTime: 5 * 60 * 1000, // 5 minutes
+    ...options,
+  })
+}
+
+/**
+ * Hook for fetching global user engagement/rhythm metrics
+ * Used on the dashboard for overall platform engagement
+ */
+export const useGlobalEngagement = (options = {}) => {
+  return useQuery({
+    queryKey: ['user-engagement'],
+    queryFn: async () => {
+      const response = await api.get('/api/users/me/engagement')
+      return response.data.engagement
+    },
+    staleTime: 60 * 1000, // 1 minute
+    cacheTime: 5 * 60 * 1000, // 5 minutes
+    ...options,
+  })
+}

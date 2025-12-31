@@ -62,7 +62,7 @@ export default function TaskEditModal({ task, onClose, onSave }) {
       isOpen={true}
       onClose={onClose}
       title="Edit Task"
-      size="md"
+      className="max-w-full sm:max-w-2xl mx-2 sm:mx-0"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
@@ -81,7 +81,7 @@ export default function TaskEditModal({ task, onClose, onSave }) {
               id="title"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-optio-purple focus:border-optio-purple min-h-[44px]"
               placeholder="Enter task title"
               required
             />
@@ -97,7 +97,7 @@ export default function TaskEditModal({ task, onClose, onSave }) {
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-optio-purple focus:border-optio-purple resize-none"
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-optio-purple focus:border-optio-purple resize-none min-h-[120px]"
               placeholder="Enter task description"
             />
           </div>
@@ -114,7 +114,7 @@ export default function TaskEditModal({ task, onClose, onSave }) {
                   type="button"
                   onClick={() => setFormData({ ...formData, pillar: pillar.value })}
                   className={`
-                    px-4 py-3 rounded-md border-2 transition-all
+                    px-4 py-3 rounded-md border-2 transition-all min-h-[44px]
                     ${formData.pillar === pillar.value
                       ? 'border-optio-purple bg-optio-purple bg-opacity-10'
                       : 'border-gray-200 hover:border-gray-300'
@@ -142,7 +142,7 @@ export default function TaskEditModal({ task, onClose, onSave }) {
               onChange={(e) => setFormData({ ...formData, xp_value: parseInt(e.target.value) || 0 })}
               min="1"
               step="1"
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-optio-purple focus:border-optio-purple min-h-[44px]"
               required
             />
             <p className="mt-1 text-xs text-gray-500">

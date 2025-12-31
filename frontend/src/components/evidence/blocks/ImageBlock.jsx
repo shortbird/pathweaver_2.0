@@ -1,16 +1,21 @@
 /**
  * ImageBlock - Displays image evidence with lightbox
  * Supports both old format (content.url) and new format (content.items)
+ * Mobile: swipe left/right for navigation, swipe down to close, pinch-to-zoom, double-tap
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const ImageBlock = ({ block, displayMode }) => {
   const { content } = block;
   const [showLightbox, setShowLightbox] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [imageErrors, setImageErrors] = useState({});
+  const [scale, setScale] = useState(1);
+  const lastTapRef = useRef(0);
+  const dragStartYRef = useRef(0);
 
   // Handle both old format (content.url) and new format (content.items)
   const items = content?.items || (content?.url ? [{
@@ -36,6 +41,46 @@ const ImageBlock = ({ block, displayMode }) => {
   const openLightbox = (index) => {
     setLightboxIndex(index);
     setShowLightbox(true);
+    setScale(1); // Reset zoom
+  };
+
+  const closeLightbox = () => {
+    setShowLightbox(false);
+    setScale(1);
+  };
+
+  // Handle horizontal swipe for navigation
+  const handleHorizontalDragEnd = (event, info) => {
+    const swipeThreshold = 50;
+    if (Math.abs(info.offset.x) > swipeThreshold && items.length > 1) {
+      if (info.offset.x > 0) {
+        // Swiped right - previous image
+        setLightboxIndex((prev) => (prev - 1 + items.length) % items.length);
+      } else {
+        // Swiped left - next image
+        setLightboxIndex((prev) => (prev + 1) % items.length);
+      }
+      setScale(1); // Reset zoom on navigation
+    }
+  };
+
+  // Handle vertical swipe to close
+  const handleVerticalDragEnd = (event, info) => {
+    if (info.offset.y > 150) {
+      closeLightbox();
+    }
+  };
+
+  // Double-tap to zoom
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+
+    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+      // Double tap detected
+      setScale(scale === 1 ? 2 : 1);
+    }
+    lastTapRef.current = now;
   };
 
   // Render a single image item
@@ -98,79 +143,115 @@ const ImageBlock = ({ block, displayMode }) => {
   return (
     <>
       {/* Image grid */}
-      <div className={`${items.length === 1 ? '' : 'grid gap-3'} ${items.length === 2 ? 'grid-cols-2' : items.length >= 3 ? 'grid-cols-3' : ''}`}>
+      <div className={`w-full ${items.length === 1 ? '' : 'grid gap-3'} ${items.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : items.length >= 3 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : ''}`}>
         {items.map((item, index) => renderImageItem(item, index))}
       </div>
 
       {/* Lightbox Modal */}
-      {showLightbox && currentItem.url && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowLightbox(false)}
-        >
-          <button
-            onClick={() => setShowLightbox(false)}
-            className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors"
-            aria-label="Close lightbox"
+      <AnimatePresence>
+        {showLightbox && currentItem.url && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
+            onClick={closeLightbox}
           >
-            <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+            <button
+              onClick={closeLightbox}
+              className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors min-h-[44px] min-w-[44px] z-10"
+              aria-label="Close lightbox"
+            >
+              <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
 
-          {/* Navigation arrows for multiple images */}
-          {items.length > 1 && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightboxIndex((prev) => (prev - 1 + items.length) % items.length);
-                }}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 transition-colors p-2"
-                aria-label="Previous image"
-              >
-                <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightboxIndex((prev) => (prev + 1) % items.length);
-                }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 transition-colors p-2"
-                aria-label="Next image"
-              >
-                <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </>
-          )}
+            {/* Navigation arrows for multiple images */}
+            {items.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxIndex((prev) => (prev - 1 + items.length) % items.length);
+                    setScale(1);
+                  }}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 transition-colors p-2 min-h-[44px] min-w-[44px] z-10"
+                  aria-label="Previous image"
+                >
+                  <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxIndex((prev) => (prev + 1) % items.length);
+                    setScale(1);
+                  }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 transition-colors p-2 min-h-[44px] min-w-[44px] z-10"
+                  aria-label="Next image"
+                >
+                  <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </>
+            )}
 
-          <img
-            src={currentItem.url}
-            alt={currentItem.alt || currentItem.caption || 'Student evidence image'}
-            className="max-w-full max-h-full object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
+            {/* Image container with gestures */}
+            <motion.div
+              drag
+              dragConstraints={{ left: 0, right: 0, top: 0, bottom: 500 }}
+              dragElastic={0.2}
+              onDragEnd={(event, info) => {
+                // Prioritize vertical drag for closing
+                if (Math.abs(info.offset.y) > Math.abs(info.offset.x)) {
+                  handleVerticalDragEnd(event, info);
+                } else {
+                  handleHorizontalDragEnd(event, info);
+                }
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDoubleTap();
+              }}
+              className="relative max-w-full max-h-full flex items-center justify-center cursor-grab active:cursor-grabbing touch-manipulation"
+              style={{
+                transform: `scale(${scale})`,
+                transition: 'transform 0.3s ease-out'
+              }}
+            >
+              <img
+                src={currentItem.url}
+                alt={currentItem.alt || currentItem.caption || 'Student evidence image'}
+                className="max-w-full max-h-full object-contain pointer-events-none"
+                draggable={false}
+              />
+            </motion.div>
 
-          {(currentItem.caption || items.length > 1) && (
-            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-75 p-4 text-center">
-              {currentItem.caption && (
-                <p className="text-white font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  {currentItem.caption}
-                </p>
-              )}
-              {items.length > 1 && (
-                <p className="text-white/70 text-sm mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  {lightboxIndex + 1} / {items.length}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+            {(currentItem.caption || items.length > 1) && (
+              <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-75 p-4 text-center">
+                {currentItem.caption && (
+                  <p className="text-white font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    {currentItem.caption}
+                  </p>
+                )}
+                {items.length > 1 && (
+                  <p className="text-white/70 text-sm mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    {lightboxIndex + 1} / {items.length}
+                  </p>
+                )}
+                {scale > 1 && (
+                  <p className="text-white/50 text-xs mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Double-tap to zoom out
+                  </p>
+                )}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 };

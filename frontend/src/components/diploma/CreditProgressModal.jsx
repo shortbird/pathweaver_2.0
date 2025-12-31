@@ -24,7 +24,7 @@ const CreditProgressModal = ({ isOpen, onClose, subjectXP, isOwner, getStudentFi
       aria-label="Close credit progress modal"
     >
       <div
-        className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-xl max-w-full sm:max-w-4xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
         role="dialog"
@@ -32,11 +32,11 @@ const CreditProgressModal = ({ isOpen, onClose, subjectXP, isOwner, getStudentFi
         aria-label="Credit Progress"
       >
         <div className="sticky top-0 p-6 bg-gradient-primary z-10">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
             <h2 className="text-2xl font-bold text-white">Diploma Credits Breakdown</h2>
             <button
               onClick={onClose}
-              className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+              className="text-white hover:bg-white/20 rounded-full p-2 min-h-[44px] min-w-[44px] transition-colors"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -52,7 +52,7 @@ const CreditProgressModal = ({ isOpen, onClose, subjectXP, isOwner, getStudentFi
             </p>
             <button
               onClick={onAccreditedDiplomaClick}
-              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 rounded-lg transition-all duration-200 text-sm"
+              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 min-h-[44px] rounded-lg transition-all duration-200 text-sm"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -106,7 +106,7 @@ const CreditProgressModal = ({ isOpen, onClose, subjectXP, isOwner, getStudentFi
           </div>
 
           {/* Subject Credits Grid with Circular Progress */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {creditProgress.map((credit) => {
               const radius = 45;
               const circumference = 2 * Math.PI * radius;

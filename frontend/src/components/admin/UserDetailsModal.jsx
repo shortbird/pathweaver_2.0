@@ -120,10 +120,12 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
   const handleUpdateRole = async () => {
     const roleDisplayNames = {
-      student: 'Student',
-      parent: 'Parent',
+      superadmin: 'Superadmin',
+      admin: 'Administrator',
       advisor: 'Advisor',
-      admin: 'Administrator'
+      parent: 'Parent',
+      student: 'Student',
+      observer: 'Observer'
     };
     const displayName = roleDisplayNames[formData.role] || formData.role;
     if (window.confirm(`Change role to ${displayName}?`)) {
@@ -315,29 +317,33 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
   const getRoleDisplayName = (role) => {
     const roleNames = {
-      student: 'Student',
-      parent: 'Parent',
+      superadmin: 'Superadmin',
+      admin: 'Administrator',
       advisor: 'Advisor',
-      admin: 'Administrator'
+      parent: 'Parent',
+      student: 'Student',
+      observer: 'Observer'
     }
     return roleNames[role] || role
   }
 
   const getRoleBadge = (role) => {
     const colors = {
-      student: 'bg-blue-100 text-blue-700',
-      parent: 'bg-green-100 text-green-700',
+      superadmin: 'bg-red-700 text-white',
+      admin: 'bg-red-100 text-red-700',
       advisor: 'bg-yellow-100 text-yellow-700',
-      admin: 'bg-red-100 text-red-700'
+      parent: 'bg-green-100 text-green-700',
+      student: 'bg-blue-100 text-blue-700',
+      observer: 'bg-gray-100 text-gray-700'
     }
     return colors[role] || 'bg-gray-100 text-gray-700'
   }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-lg max-w-full sm:max-w-2xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 p-6 border-b">
           <h2 className="text-2xl font-bold">User Details</h2>
           <button
             onClick={onClose}
@@ -350,12 +356,12 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b">
+        <div className="flex border-b overflow-x-auto">
           {['profile', 'role', 'actions'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-6 py-3 font-medium capitalize ${
+              className={`px-3 sm:px-6 py-3 min-h-[44px] font-medium capitalize whitespace-nowrap ${
                 activeTab === tab
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
@@ -395,7 +401,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 <button
                   onClick={handleUploadAvatar}
                   disabled={uploadingAvatar}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
+                  className="px-4 py-2 min-h-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -405,7 +411,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 <p className="text-xs text-gray-500 mt-2">JPEG, PNG, GIF, or WEBP (max 5MB)</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="user-first-name" className="block text-sm font-medium text-gray-700 mb-1">
                     First Name
@@ -416,7 +422,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     name="first_name"
                     value={formData.first_name}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -429,7 +435,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     name="last_name"
                     value={formData.last_name}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -443,7 +449,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -457,7 +463,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   value={formData.phone_number}
                   onChange={handleInputChange}
                   placeholder="(555) 123-4567"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -470,7 +476,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   name="date_of_birth"
                   value={formData.date_of_birth}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -484,7 +490,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   value={formData.address_line1}
                   onChange={handleInputChange}
                   placeholder="123 Main Street"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -498,10 +504,10 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   value={formData.address_line2}
                   onChange={handleInputChange}
                   placeholder="Apt, Suite, Unit (optional)"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="user-city" className="block text-sm font-medium text-gray-700 mb-1">
                     City
@@ -513,7 +519,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     value={formData.city}
                     onChange={handleInputChange}
                     placeholder="New York"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -527,11 +533,11 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     value={formData.state}
                     onChange={handleInputChange}
                     placeholder="NY"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="user-postal-code" className="block text-sm font-medium text-gray-700 mb-1">
                     Postal Code
@@ -543,7 +549,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     value={formData.postal_code}
                     onChange={handleInputChange}
                     placeholder="10001"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -557,13 +563,13 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     value={formData.country}
                     onChange={handleInputChange}
                     placeholder="United States"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
               <div className="pt-4 border-t border-gray-200">
                 <p className="text-sm font-medium text-gray-700 mb-2">Read-Only Information</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">
                       User ID
@@ -591,7 +597,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
               <button
                 onClick={handleSaveProfile}
                 disabled={loading}
-                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium"
+                className="w-full bg-blue-600 text-white py-2 min-h-[44px] rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium"
               >
                 {loading ? 'Saving...' : 'Save Profile Changes'}
               </button>
@@ -620,12 +626,14 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     name="role"
                     value={formData.role}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="student">Student</option>
                     <option value="parent">Parent</option>
                     <option value="advisor">Advisor</option>
+                    <option value="observer">Observer</option>
                     <option value="admin">Administrator</option>
+                    <option value="superadmin">Superadmin</option>
                   </select>
                 </div>
 
@@ -636,14 +644,16 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     <li><span className="font-semibold">Student:</span> Can complete quests and build diploma</li>
                     <li><span className="font-semibold">Parent:</span> Can view linked children's progress</li>
                     <li><span className="font-semibold">Advisor:</span> Can manage student groups and provide guidance</li>
+                    <li><span className="font-semibold">Observer:</span> View-only access to linked students</li>
                     <li><span className="font-semibold">Admin:</span> Full system access and user management</li>
+                    <li><span className="font-semibold">Superadmin:</span> Platform-wide superadmin access</li>
                   </ul>
                 </div>
 
                 <button
                   onClick={handleUpdateRole}
                   disabled={loading || formData.role === (user.role || 'student')}
-                  className={`w-full py-2 rounded-lg font-medium ${
+                  className={`w-full py-2 min-h-[44px] rounded-lg font-medium ${
                     formData.role === (user.role || 'student')
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : 'bg-optio-purple text-white hover:bg-purple-700'
@@ -673,7 +683,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     name="organization_id"
                     value={formData.organization_id}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">No Organization</option>
                     {organizations.map(org => (
@@ -693,7 +703,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 <button
                   onClick={handleUpdateOrganization}
                   disabled={loading || formData.organization_id === originalOrgId}
-                  className={`w-full py-2 rounded-lg font-medium ${
+                  className={`w-full py-2 min-h-[44px] rounded-lg font-medium ${
                     formData.organization_id === originalOrgId
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : 'bg-blue-600 text-white hover:bg-blue-700'
@@ -725,7 +735,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     name="org_role"
                     value={formData.org_role}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="member">Member</option>
                     <option value="admin">Organization Admin</option>
@@ -741,7 +751,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 <button
                   onClick={handleUpdateOrgRole}
                   disabled={loading || formData.org_role === originalOrgRole}
-                  className={`w-full py-2 rounded-lg font-medium ${
+                  className={`w-full py-2 min-h-[44px] rounded-lg font-medium ${
                     formData.org_role === originalOrgRole
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : 'bg-optio-purple text-white hover:bg-purple-700'
@@ -760,7 +770,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
               {/* View Chat Logs */}
               <button
                 onClick={handleViewChatLogs}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors font-medium text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors font-medium text-left"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -774,7 +784,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
               {/* View Advisor Check-ins */}
               <button
                 onClick={handleViewAdvisorCheckins}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-medium text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-medium text-left"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
@@ -789,7 +799,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
               <button
                 onClick={handleMasquerade}
                 disabled={masquerading}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors font-medium text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors font-medium text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -804,7 +814,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
               {/* Set Password */}
               <button
                 onClick={handleResetPassword}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors font-medium text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors font-medium text-left"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
@@ -818,7 +828,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
               {/* Verify Email */}
               <button
                 onClick={handleVerifyEmail}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100 transition-colors font-medium text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100 transition-colors font-medium text-left"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -832,7 +842,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
               {/* Delete Account */}
               <button
                 onClick={handleDeleteUser}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors font-medium text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors font-medium text-left"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -948,7 +958,7 @@ const ResetPasswordModal = ({ user, onClose, onSuccess }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+      <div className="bg-white rounded-lg p-6 max-w-full sm:max-w-md w-full mx-4">
         <h3 className="text-xl font-bold mb-4">Reset Password</h3>
         <p className="text-gray-600 mb-4">
           Set a new password for <strong>{user.first_name} {user.last_name}</strong> ({user.email})
@@ -963,7 +973,7 @@ const ResetPasswordModal = ({ user, onClose, onSuccess }) => {
               type="password"
               value={newPassword}
               onChange={(e) => handlePasswordChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
             {newPassword && (
@@ -990,7 +1000,7 @@ const ResetPasswordModal = ({ user, onClose, onSuccess }) => {
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
@@ -1006,18 +1016,18 @@ const ResetPasswordModal = ({ user, onClose, onSuccess }) => {
             </ul>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              className="flex-1 px-4 py-2 min-h-[44px] border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              className="flex-1 px-4 py-2 min-h-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               disabled={loading || !newPassword || !confirmPassword}
             >
               {loading ? 'Resetting...' : 'Reset Password'}

@@ -78,7 +78,7 @@ const CurriculumPage = () => {
         setQuest(questData)
 
         // Fetch lessons (published only for students, all for admins)
-        const isAdmin = ['admin', 'school_admin', 'advisor', 'teacher', 'superadmin'].includes(user?.role)
+        const isAdmin = ['org_admin', 'advisor', 'superadmin'].includes(user?.role)
         const lessonsResponse = await api.get(
           `/api/quests/${questId}/curriculum/lessons${isAdmin ? '?include_unpublished=true' : ''}`
         )
@@ -138,7 +138,7 @@ const CurriculumPage = () => {
     }
   }
 
-  const isAdmin = ['admin', 'school_admin', 'advisor', 'teacher', 'superadmin'].includes(user?.role)
+  const isAdmin = ['org_admin', 'advisor', 'superadmin'].includes(user?.role)
 
   // If admin, redirect to builder
   if (isAdmin && !isLoading) {

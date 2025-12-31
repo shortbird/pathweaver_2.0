@@ -145,7 +145,7 @@ class DependentProgressService(BaseService):
         try:
             # Get all task completions in the date range
             completions = self.client.table('quest_task_completions')\
-                .select('xp_awarded, user_quest_tasks(pillar), completed_at')\
+                .select('completed_at, user_quest_tasks(pillar, xp_value)')\
                 .eq('user_id', dependent_id)\
                 .gte('completed_at', start_date)\
                 .lte('completed_at', end_date)\
@@ -157,7 +157,7 @@ class DependentProgressService(BaseService):
                 task = completion.get('user_quest_tasks')
                 if task and task.get('pillar'):
                     pillar = task['pillar']
-                    xp = completion.get('xp_awarded', 0)
+                    xp = task.get('xp_value', 0) or 0
 
                     if pillar not in pillar_xp:
                         pillar_xp[pillar] = {'xp': 0, 'task_count': 0}
@@ -203,7 +203,7 @@ class DependentProgressService(BaseService):
         try:
             # Get recent task completions
             activities = self.client.table('quest_task_completions')\
-                .select('completed_at, xp_awarded, user_quest_tasks(title, pillar)')\
+                .select('completed_at, user_quest_tasks(title, pillar, xp_value)')\
                 .eq('user_id', dependent_id)\
                 .gte('completed_at', start_date)\
                 .lte('completed_at', end_date)\
@@ -219,7 +219,7 @@ class DependentProgressService(BaseService):
                         'type': 'task_completed',
                         'title': task.get('title'),
                         'pillar': task.get('pillar'),
-                        'xp': activity.get('xp_awarded', 0),
+                        'xp': task.get('xp_value', 0) or 0,
                         'timestamp': activity.get('completed_at')
                     })
 

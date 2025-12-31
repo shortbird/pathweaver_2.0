@@ -39,12 +39,12 @@ export const FormFooter = ({
   }
 
   return (
-    <div className={`flex gap-3 pt-4 ${className}`}>
+    <div className={`flex flex-col sm:flex-row gap-3 pt-4 ${className}`}>
       {showCancel && (
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          className="w-full sm:w-auto sm:flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors min-h-[44px] touch-manipulation"
           disabled={isSubmitting}
         >
           {cancelText}
@@ -54,7 +54,7 @@ export const FormFooter = ({
         type={onSubmit ? 'button' : 'submit'}
         onClick={onSubmit}
         disabled={disabled || isSubmitting}
-        className={`flex-1 px-4 py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${submitVariants[submitVariant]}`}
+        className={`w-full sm:w-auto sm:flex-1 px-4 py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] touch-manipulation ${submitVariants[submitVariant]}`}
       >
         {isSubmitting ? 'Loading...' : submitText}
       </button>
