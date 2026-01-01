@@ -41,8 +41,27 @@ def list_courses(user_id):
 
         org_id = user_result.data[0]['organization_id']
 
-        # Build query
-        query = client.table('courses').select('*').eq('organization_id', org_id)
+        # Build query - include org courses AND public courses from other orgs
+        # Use filter parameter to control: 'org_only' shows only org courses, default shows all accessible
+        filter_mode = request.args.get('filter', 'all')
+
+        if filter_mode == 'org_only':
+            # Only show courses from user's organization
+            if org_id:
+                query = client.table('courses').select('*').eq('organization_id', org_id)
+            else:
+                # User has no org - show only public published courses
+                query = client.table('courses').select('*').eq('visibility', 'public').eq('status', 'published')
+        else:
+            # Show org courses + published public courses from other orgs
+            if org_id:
+                # Using or_ filter: (organization_id = org_id) OR (visibility = 'public' AND status = 'published')
+                query = client.table('courses').select('*').or_(
+                    f"organization_id.eq.{org_id},and(visibility.eq.public,status.eq.published)"
+                )
+            else:
+                # User has no org - show only public published courses
+                query = client.table('courses').select('*').eq('visibility', 'public').eq('status', 'published')
 
         if request.args.get('status'):
             query = query.eq('status', request.args.get('status'))
@@ -149,11 +168,13 @@ def list_courses(user_id):
                     'is_completed': percentage >= 100
                 }
 
-            # Add quest_count, is_enrolled, and progress to each course
+            # Add quest_count, is_enrolled, is_external, and progress to each course
             for course in courses:
                 course['quest_count'] = count_map.get(course['id'], 0)
                 # Creator is always considered enrolled
                 course['is_enrolled'] = course['id'] in enrollment_map or course['created_by'] == user_id
+                # Mark courses from other organizations as external
+                course['is_external'] = course.get('organization_id') != org_id
                 if course['id'] in progress_map:
                     course['progress'] = progress_map[course['id']]
 

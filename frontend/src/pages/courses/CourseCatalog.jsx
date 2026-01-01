@@ -10,6 +10,7 @@ import {
   PencilSquareIcon,
   PlusIcon,
   EyeIcon,
+  GlobeAltIcon,
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 import api from '../../services/api'
@@ -156,12 +157,13 @@ const CourseCatalog = () => {
               const isDraft = course.status === 'draft'
               const isArchived = course.status === 'archived'
               const isCompleted = course.progress?.percentage >= 100 || course.progress?.is_completed
+              const isExternal = course.is_external
 
               return (
                 <div
                   key={course.id}
                   className={`bg-white rounded-xl border overflow-hidden hover:shadow-lg transition-shadow ${
-                    isDraft ? 'border-amber-300' : isArchived ? 'border-gray-300' : isCompleted ? 'border-green-300' : 'border-gray-200'
+                    isDraft ? 'border-amber-300' : isArchived ? 'border-gray-300' : isCompleted ? 'border-green-300' : isExternal ? 'border-blue-200' : 'border-gray-200'
                   }`}
                 >
                   {/* Cover Image */}
@@ -197,6 +199,16 @@ const CourseCatalog = () => {
                         </span>
                       </div>
                     ) : null}
+
+                    {/* External/Public Course Badge */}
+                    {isExternal && (
+                      <div className="absolute top-3 right-3">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                          <GlobeAltIcon className="w-3.5 h-3.5" />
+                          Public
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Content */}

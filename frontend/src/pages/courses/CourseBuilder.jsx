@@ -737,6 +737,29 @@ const CourseDetailsModal = ({ isOpen, onClose, course, courseId, onUpdate, onDel
             </span>
           </div>
 
+          {/* Visibility Setting */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Visibility
+            </label>
+            <select
+              value={course?.visibility || 'organization'}
+              onChange={(e) => onUpdate({ visibility: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent bg-white"
+            >
+              <option value="organization">Organization Only</option>
+              <option value="public">Public (All Organizations)</option>
+              <option value="private">Private (Only Me)</option>
+            </select>
+            <p className="mt-2 text-sm text-gray-500">
+              {course?.visibility === 'public'
+                ? 'This course is visible to users in all organizations.'
+                : course?.visibility === 'private'
+                ? 'This course is only visible to you.'
+                : 'This course is only visible to users in your organization.'}
+            </p>
+          </div>
+
           {/* Danger Zone */}
           <div className="border-t border-gray-200 pt-6 mt-6">
             <h3 className="text-sm font-medium text-red-600 mb-3">Danger Zone</h3>
