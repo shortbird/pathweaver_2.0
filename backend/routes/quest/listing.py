@@ -71,6 +71,8 @@ def list_quests():
         search = sanitize_search_input(request.args.get('search', ''))
         pillar_filter = sanitize_search_input(request.args.get('pillar', ''), max_length=50)
         subject_filter = sanitize_search_input(request.args.get('subject', ''), max_length=50)
+        topic_filter = sanitize_search_input(request.args.get('topic', ''), max_length=50)
+        subtopic_filter = sanitize_search_input(request.args.get('subtopic', ''), max_length=50)
         admin_view = request.args.get('admin_view', '').lower() == 'true'
 
         # Log search parameter for debugging
@@ -122,6 +124,10 @@ def list_quests():
                 filters['pillar'] = pillar_filter
             if search:
                 filters['search'] = search
+            if topic_filter:
+                filters['topic'] = topic_filter
+            if subtopic_filter:
+                filters['subtopic'] = subtopic_filter
 
             # Use organization-aware filtering from repository
             # This respects the user's organization quest visibility policy
@@ -205,12 +211,24 @@ def list_quests():
                         base_url='/api/quests'
                     )
 
-        # Apply search filter if provided (search in title only for simplicity)
+        # Apply search filter if provided (search in title and big_idea)
         if search:
             logger.info(f"[SEARCH DEBUG] Applying search filter: '{search}'")
-            # Search title only (simple, works with infinite scroll)
-            query = query.ilike('title', f'%{search}%')
+            # Search title and big_idea using OR filter
+            query = query.or_(f"title.ilike.%{search}%,big_idea.ilike.%{search}%")
             logger.info(f"[SEARCH DEBUG] Query after filter applied")
+
+        # Apply topic filter if provided
+        if topic_filter:
+            logger.info(f"[TOPIC DEBUG] Applying topic filter: '{topic_filter}'")
+            # Filter by topic_primary (main category)
+            query = query.eq('topic_primary', topic_filter)
+
+        # Apply subtopic filter if provided
+        if subtopic_filter:
+            logger.info(f"[SUBTOPIC DEBUG] Applying subtopic filter: '{subtopic_filter}'")
+            # Filter by topics array (contains subtopic)
+            query = query.contains('topics', [subtopic_filter])
 
         # Apply ordering and pagination based on mode
         if use_cursor_pagination:
@@ -331,3 +349,79 @@ def get_quest_sources():
     except Exception as e:
         logger.error(f"Error fetching public quest sources: {str(e)}")
         return jsonify({'error': 'Failed to fetch quest sources'}), 500
+
+
+@bp.route('/topics', methods=['GET'])
+def get_quest_topics():
+    """
+    Get topic statistics for quest discovery map.
+    Returns counts of quests per topic category.
+    Public endpoint - no auth required.
+    """
+    try:
+        from services.topic_generation_service import get_topic_generation_service
+
+        topic_service = get_topic_generation_service()
+        stats = topic_service.get_topic_stats()
+
+        if stats['success']:
+            return jsonify({
+                'success': True,
+                'topics': stats['topics'],
+                'total': stats['total']
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': stats.get('error', 'Failed to get topic stats'),
+                'topics': [],
+                'total': 0
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error fetching topic stats: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch topic statistics',
+            'topics': [],
+            'total': 0
+        }), 500
+
+
+@bp.route('/topics/backfill', methods=['POST'])
+def backfill_quest_topics():
+    """
+    Admin endpoint to backfill topics for all quests.
+    Requires superadmin role.
+    """
+    try:
+        from utils.auth.decorators import require_role
+        from functools import wraps
+
+        # Check for superadmin
+        from utils.session_manager import session_manager
+        user_id = session_manager.get_effective_user_id()
+
+        if not user_id:
+            return jsonify({'error': 'Authentication required'}), 401
+
+        # Verify superadmin role
+        supabase = get_supabase_admin_client()
+        user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
+
+        if not user_result.data or user_result.data.get('role') != 'superadmin':
+            return jsonify({'error': 'Superadmin access required'}), 403
+
+        from services.topic_generation_service import get_topic_generation_service
+
+        topic_service = get_topic_generation_service()
+        result = topic_service.backfill_all_quests()
+
+        return jsonify(result), 200 if result['success'] else 500
+
+    except Exception as e:
+        logger.error(f"Error backfilling topics: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to backfill topics: {str(e)}'
+        }), 500

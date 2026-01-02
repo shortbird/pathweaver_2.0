@@ -10,6 +10,9 @@ from database import get_user_client, get_supabase_admin_client
 from utils.session_manager import session_manager
 from middleware.error_handler import ValidationError
 from repositories.base_repository import NotFoundError
+from services.course_progress_service import CourseProgressService
+from services.file_upload_service import FileUploadService
+from services.course_service import CourseService
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -91,82 +94,24 @@ def list_courses(user_id):
             ).in_('course_id', course_ids).execute()
             enrollment_map = {e['course_id']: e for e in (enrollments.data or [])}
 
-            # Get progress for enrolled courses (XP-based)
-            # Also include courses where user is creator
-            progress_map = {}
+            # Get progress for enrolled courses using CourseProgressService
+            progress_service = CourseProgressService(client)
 
-            # Build list of course IDs to calculate progress for
-            courses_to_check = set(e['course_id'] for e in (enrollments.data or []))
+            courses_to_check = list(set(e['course_id'] for e in (enrollments.data or [])))
             for course in courses:
-                if course['created_by'] == user_id:
-                    courses_to_check.add(course['id'])
+                if course['created_by'] == user_id and course['id'] not in courses_to_check:
+                    courses_to_check.append(course['id'])
 
-            for cid in courses_to_check:
-                # Get quests for this course
-                course_quests_result = client.table('course_quests').select(
-                    'quest_id, is_required, is_published'
-                ).eq('course_id', cid).execute()
-
-                # Only count published and required quests
-                published_quests = [q for q in (course_quests_result.data or []) if q.get('is_published') is not False]
-                required_quests = [q for q in published_quests if q.get('is_required', True)]
-
-                total_xp = 0
-                earned_xp = 0
-
-                if required_quests:
-                    quest_ids = [q['quest_id'] for q in required_quests]
-
-                    # Get lessons for these quests to calculate total XP
-                    lessons_result = client.table('curriculum_lessons').select(
-                        'id, quest_id, xp_threshold, is_published'
-                    ).in_('quest_id', quest_ids).execute()
-
-                    published_lessons = [l for l in (lessons_result.data or []) if l.get('is_published') is not False]
-                    total_xp = sum(l.get('xp_threshold', 0) or 0 for l in published_lessons)
-
-                    if published_lessons:
-                        lesson_ids = [l['id'] for l in published_lessons]
-
-                        # Get linked tasks for these lessons
-                        links_result = client.table('curriculum_lesson_tasks').select(
-                            'lesson_id, task_id'
-                        ).in_('lesson_id', lesson_ids).execute()
-
-                        if links_result.data:
-                            task_ids = [link['task_id'] for link in links_result.data]
-
-                            # Get user's quest enrollments
-                            user_quests_result = client.table('user_quests').select(
-                                'id, quest_id'
-                            ).eq('user_id', user_id).in_('quest_id', quest_ids).execute()
-
-                            if user_quests_result.data:
-                                enrollment_ids = [uq['id'] for uq in user_quests_result.data]
-
-                                # Get tasks with XP values
-                                user_tasks_result = client.table('user_quest_tasks').select(
-                                    'id, xp_value'
-                                ).in_('user_quest_id', enrollment_ids).in_('id', task_ids).execute()
-
-                                if user_tasks_result.data:
-                                    task_xp_map = {t['id']: t.get('xp_value', 0) or 0 for t in user_tasks_result.data}
-                                    user_task_ids = [t['id'] for t in user_tasks_result.data]
-
-                                    # Get completions
-                                    completions_result = client.table('quest_task_completions').select(
-                                        'user_quest_task_id'
-                                    ).eq('user_id', user_id).in_('user_quest_task_id', user_task_ids).execute()
-
-                                    earned_xp = sum(task_xp_map.get(c['user_quest_task_id'], 0) for c in (completions_result.data or []))
-
-                percentage = min(100, round((earned_xp / total_xp * 100), 1)) if total_xp > 0 else 0
-                progress_map[cid] = {
-                    'earned_xp': earned_xp,
-                    'total_xp': total_xp,
-                    'percentage': percentage,
-                    'is_completed': percentage >= 100
+            progress_results = progress_service.calculate_bulk_progress(user_id, courses_to_check)
+            progress_map = {
+                cid: {
+                    'earned_xp': progress.earned_xp,
+                    'total_xp': progress.total_xp,
+                    'percentage': progress.percentage,
+                    'is_completed': progress.is_completed
                 }
+                for cid, progress in progress_results.items()
+            }
 
             # Add quest_count, is_enrolled, is_external, and progress to each course
             for course in courses:
@@ -384,10 +329,10 @@ def upload_course_cover_image(user_id, course_id: str):
     Form data:
         - image: Image file (jpg, jpeg, png, gif, webp)
     """
-    import uuid as uuid_module
     try:
         user_id = session_manager.get_effective_user_id()
         client = get_supabase_admin_client()
+        upload_service = FileUploadService(client)
 
         # Check course exists and user has permission
         course_result = client.table('courses').select('created_by, organization_id').eq('id', course_id).execute()
@@ -406,7 +351,6 @@ def upload_course_cover_image(user_id, course_id: str):
         if not (is_creator or is_admin):
             return jsonify({'error': 'Insufficient permissions'}), 403
 
-        # Check if file was provided
         if 'image' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
 
@@ -414,65 +358,23 @@ def upload_course_cover_image(user_id, course_id: str):
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
 
-        # Validate file type
-        allowed_extensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
-        file_extension = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+        result = upload_service.upload_course_cover(file=file, course_id=course_id)
 
-        if file_extension not in allowed_extensions:
-            return jsonify({
-                'error': f'Invalid file type. Allowed types: {", ".join(allowed_extensions)}'
-            }), 400
-
-        # Check file size (10MB max for cover images)
-        file.seek(0, 2)
-        file_size = file.tell()
-        file.seek(0)
-
-        max_size = 10 * 1024 * 1024  # 10MB
-        if file_size > max_size:
-            return jsonify({'error': 'File size exceeds 10MB limit'}), 400
-
-        # Use existing quest-images bucket with courses prefix
-        try:
-            client.storage.create_bucket('quest-images', {'public': True})
-        except:
-            pass  # Bucket already exists
-
-        # Generate unique filename with courses prefix
-        unique_filename = f"courses/{course_id}/{uuid_module.uuid4()}.{file_extension}"
-
-        # Read file content
-        file_content = file.read()
-
-        # Upload to Supabase Storage
-        logger.info(f"Uploading file: {unique_filename}, size: {len(file_content)}, type: {file.content_type}")
-        try:
-            upload_result = client.storage.from_('quest-images').upload(
-                path=unique_filename,
-                file=file_content,
-                file_options={"content-type": file.content_type or f"image/{file_extension}"}
-            )
-            logger.info(f"Upload result: {upload_result}")
-        except Exception as upload_err:
-            logger.error(f"Storage upload failed: {str(upload_err)}")
-            return jsonify({'error': f'Storage upload failed: {str(upload_err)}'}), 500
-
-        # Get public URL
-        url = client.storage.from_('quest-images').get_public_url(unique_filename)
+        if not result.success:
+            return jsonify({'error': result.error_message}), 400
 
         # Update course with new cover image URL
-        client.table('courses').update({'cover_image_url': url}).eq('id', course_id).execute()
+        client.table('courses').update({'cover_image_url': result.url}).eq('id', course_id).execute()
 
-        logger.info(f"Cover image uploaded for course {course_id}: {url}")
+        logger.info(f"Cover image uploaded for course {course_id}: {result.url}")
 
         return jsonify({
             'success': True,
-            'url': url
+            'url': result.url
         }), 200
 
     except Exception as e:
-        import traceback
-        logger.error(f"Error uploading cover image for course {course_id}: {str(e)}\n{traceback.format_exc()}")
+        logger.error(f"Error uploading cover image for course {course_id}: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
@@ -1165,208 +1067,20 @@ def get_course_homepage(user_id, course_id: str):
     """
     try:
         current_user_id = session_manager.get_effective_user_id()
-        client = get_supabase_admin_client()
 
-        # Get course details
-        course_result = client.table('courses').select('*').eq('id', course_id).execute()
-        if not course_result.data:
-            return jsonify({'error': 'Course not found'}), 404
+        result = CourseService.get_course_homepage_data(course_id, current_user_id)
 
-        course = course_result.data[0]
-
-        # Get course quests with quest details
-        course_quests_result = client.table('course_quests').select(
-            'quest_id, sequence_order, xp_threshold, custom_title, is_required, is_published, quests(id, title, description, header_image_url)'
-        ).eq('course_id', course_id).order('sequence_order').execute()
-
-        quests_with_data = []
-        for cq in (course_quests_result.data or []):
-            # Skip unpublished projects (is_published defaults to True if not set)
-            if cq.get('is_published') is False:
-                continue
-
-            quest_data = cq.get('quests', {}) or {}
-            quest_id = quest_data.get('id') or cq.get('quest_id')
-
-            if not quest_id:
-                continue
-
-            # Get lessons for this quest (include content for preloading)
-            lessons_result = client.table('curriculum_lessons')\
-                .select('id, title, sequence_order, estimated_duration_minutes, content, description, xp_threshold, is_published')\
-                .eq('quest_id', quest_id)\
-                .order('sequence_order')\
-                .execute()
-
-            # Filter out unpublished lessons
-            lessons = [l for l in (lessons_result.data or []) if l.get('is_published') is not False]
-
-            # Fetch linked task IDs for lessons
-            if lessons:
-                lesson_ids = [lesson['id'] for lesson in lessons]
-                links_result = client.table('curriculum_lesson_tasks')\
-                    .select('lesson_id, task_id')\
-                    .eq('quest_id', quest_id)\
-                    .execute()
-
-                # Build mapping of lesson_id -> list of task_ids
-                lesson_tasks_map = {}
-                for link in (links_result.data or []):
-                    lesson_id = link['lesson_id']
-                    if lesson_id not in lesson_tasks_map:
-                        lesson_tasks_map[lesson_id] = []
-                    lesson_tasks_map[lesson_id].append(link['task_id'])
-
-                # Add linked_task_ids to each lesson
-                for lesson in lessons:
-                    lesson['linked_task_ids'] = lesson_tasks_map.get(lesson['id'], [])
-
-            # Get user's quest enrollment
-            user_quest_result = client.table('user_quests')\
-                .select('id, is_active, completed_at, started_at')\
-                .eq('user_id', current_user_id)\
-                .eq('quest_id', quest_id)\
-                .execute()
-
-            quest_enrollment = user_quest_result.data[0] if user_quest_result.data else None
-
-            # Calculate XP progress from curriculum lessons
-            # total_xp = sum of xp_threshold from all lessons
-            # earned_xp = sum of XP from completed tasks linked to lessons
-            total_xp = sum(l.get('xp_threshold', 0) or 0 for l in lessons)
-            earned_xp = 0
-            completed_tasks = 0
-            total_tasks = 0
-
-            # Get all linked task IDs from lessons
-            all_linked_task_ids = []
-            for lesson in lessons:
-                all_linked_task_ids.extend(lesson.get('linked_task_ids', []))
-
-            if all_linked_task_ids and quest_enrollment:
-                # Get user's tasks for this quest that are linked to lessons
-                # Note: curriculum_lesson_tasks.task_id references user_quest_tasks.id directly
-                enrollment_id = quest_enrollment['id']
-                user_tasks_result = client.table('user_quest_tasks')\
-                    .select('id, xp_value')\
-                    .eq('user_quest_id', enrollment_id)\
-                    .in_('id', all_linked_task_ids)\
-                    .execute()
-
-                user_tasks = user_tasks_result.data or []
-                total_tasks = len(all_linked_task_ids)
-
-                if user_tasks:
-                    task_ids = [t['id'] for t in user_tasks]
-                    task_xp_map = {t['id']: t.get('xp_value', 0) or 0 for t in user_tasks}
-
-                    completions_result = client.table('quest_task_completions')\
-                        .select('user_quest_task_id')\
-                        .eq('user_id', current_user_id)\
-                        .in_('user_quest_task_id', task_ids)\
-                        .execute()
-
-                    completions = completions_result.data or []
-                    completed_tasks = len(completions)
-                    earned_xp = sum(task_xp_map.get(c['user_quest_task_id'], 0) for c in completions)
-
-            # Get lesson progress for this quest (non-blocking if table doesn't exist)
-            lesson_progress_map = {}
-            try:
-                lesson_progress_result = client.table('curriculum_lesson_progress')\
-                    .select('lesson_id, status, progress_percentage')\
-                    .eq('user_id', current_user_id)\
-                    .eq('quest_id', quest_id)\
-                    .execute()
-
-                for lp in (lesson_progress_result.data or []):
-                    lesson_progress_map[lp['lesson_id']] = {
-                        'status': lp['status'],
-                        'progress_percentage': lp['progress_percentage']
-                    }
-            except Exception as progress_err:
-                logger.warning(f"Could not fetch lesson progress: {progress_err}")
-
-            # Add progress to each lesson
-            for lesson in lessons:
-                progress = lesson_progress_map.get(lesson['id'], {})
-                lesson['progress'] = {
-                    'status': progress.get('status', 'not_started'),
-                    'percentage': progress.get('progress_percentage', 0)
-                }
-
-            quests_with_data.append({
-                'id': quest_id,
-                'title': cq.get('custom_title') or quest_data.get('title'),
-                'description': quest_data.get('description'),
-                'header_image_url': quest_data.get('header_image_url'),
-                'sequence_order': cq.get('sequence_order', 0),
-                'xp_threshold': cq.get('xp_threshold', 0),
-                'is_required': cq.get('is_required', True),
-                'lessons': lessons,
-                'enrollment': quest_enrollment,
-                'progress': {
-                    'completed_tasks': completed_tasks,
-                    'total_tasks': total_tasks,
-                    'earned_xp': earned_xp,
-                    'total_xp': total_xp,
-                    'percentage': min(100, round((earned_xp / total_xp * 100), 1)) if total_xp > 0 else 0,
-                    'is_completed': (quest_enrollment.get('completed_at') is not None and not quest_enrollment.get('is_active')) if quest_enrollment else False
-                }
-            })
-
-        # Get course enrollment status
-        enrollment_result = client.table('course_enrollments')\
-            .select('*')\
-            .eq('course_id', course_id)\
-            .eq('user_id', current_user_id)\
-            .execute()
-
-        enrollment = enrollment_result.data[0] if enrollment_result.data else None
-
-        # Creator is always considered enrolled, even without formal enrollment
-        is_creator = course['created_by'] == current_user_id
-        if is_creator and not enrollment:
-            enrollment = {
-                'id': None,
-                'course_id': course_id,
-                'user_id': current_user_id,
-                'status': 'active',
-                'enrolled_at': course.get('created_at'),  # Use course creation date
-                'is_creator': True
-            }
-
-        # Calculate overall course progress (XP-based)
-        total_required_quests = len([q for q in quests_with_data if q.get('is_required', True)])
-        completed_quests = len([q for q in quests_with_data if q['progress']['is_completed'] and q.get('is_required', True)])
-
-        # Sum XP across all required quests
-        course_earned_xp = sum(q['progress']['earned_xp'] for q in quests_with_data if q.get('is_required', True))
-        course_total_xp = sum(q['progress']['total_xp'] for q in quests_with_data if q.get('is_required', True))
-        course_progress = min(100, round((course_earned_xp / course_total_xp * 100), 1)) if course_total_xp > 0 else 0
+        if 'error' in result:
+            return jsonify({'error': result['error']}), result.get('status_code', 404)
 
         return jsonify({
             'success': True,
-            'course': {
-                'id': course['id'],
-                'title': course['title'],
-                'description': course.get('description'),
-                'cover_image_url': course.get('cover_image_url'),
-                'navigation_mode': course.get('navigation_mode', 'sequential'),
-                'status': course.get('status', 'draft')
-            },
-            'quests': quests_with_data,
-            'enrollment': enrollment,
-            'progress': {
-                'completed_quests': completed_quests,
-                'total_quests': total_required_quests,
-                'earned_xp': course_earned_xp,
-                'total_xp': course_total_xp,
-                'percentage': course_progress
-            }
+            'course': result['course'],
+            'quests': result['quests'],
+            'enrollment': result['enrollment'],
+            'progress': result['progress']
         }), 200
 
     except Exception as e:
-        import traceback
-        logger.error(f"Error getting course homepage for {course_id}: {str(e)}\n{traceback.format_exc()}")
+        logger.error(f"Error getting course homepage for {course_id}: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500

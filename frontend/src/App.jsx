@@ -49,7 +49,8 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
 const OptioAcademyAgreement = lazy(() => import('./pages/OptioAcademyAgreement'))
 const OptioAcademyHandbook = lazy(() => import('./pages/OptioAcademyHandbook'))
 // Quest Pages
-const QuestBadgeHub = lazy(() => import('./pages/QuestBadgeHub'))
+const QuestDiscovery = lazy(() => import('./pages/QuestDiscovery'))
+const QuestBadgeHub = lazy(() => import('./pages/QuestBadgeHub')) // Legacy - to be removed
 const BadgesPage = lazy(() => import('./pages/BadgesPage'))
 const QuestDetail = lazy(() => import('./pages/QuestDetail'))
 const TaskLibraryBrowser = lazy(() => import('./pages/TaskLibraryBrowser'))
@@ -361,7 +362,7 @@ function App() {
               <Route element={<PrivateRoute />}>
                 <Route path="dashboard" element={<DashboardPage />} />
                 {/* Quest Routes */}
-                <Route path="quests" element={<QuestBadgeHub />} />
+                <Route path="quests" element={<QuestDiscovery />} />
                 <Route path="quests/:id" element={<QuestDetail />} />
                 <Route path="quests/:id/curriculum" element={<CurriculumPage />} />
                 <Route path="quests/:questId/library" element={<TaskLibraryBrowser />} />

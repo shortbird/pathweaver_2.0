@@ -568,8 +568,9 @@ class QuestRepository(BaseRepository):
             query = admin.table('quests').select('*', count='exact').eq('is_active', True).eq('is_public', True)
 
             # Apply search FIRST (before org filtering) to reduce result set
+            # Search in title and big_idea
             if search_term:
-                query = query.ilike('title', f'%{search_term}%')
+                query = query.or_(f"title.ilike.%{search_term}%,big_idea.ilike.%{search_term}%")
 
             # Apply organization visibility policy
             # Note: Since we applied search first, the org filtering now operates on a smaller set
@@ -625,6 +626,12 @@ class QuestRepository(BaseRepository):
                 query = query.eq('pillar_primary', filters['pillar'])
             if filters.get('quest_type'):
                 query = query.eq('quest_type', filters['quest_type'])
+            if filters.get('topic'):
+                logger.info(f"[TOPIC FILTER] Filtering by topic_primary: {filters['topic']}")
+                query = query.eq('topic_primary', filters['topic'])
+            if filters.get('subtopic'):
+                logger.info(f"[SUBTOPIC FILTER] Filtering by topics containing: {filters['subtopic']}")
+                query = query.contains('topics', [filters['subtopic']])
 
             # Pagination for infinite scroll
             offset = (page - 1) * limit

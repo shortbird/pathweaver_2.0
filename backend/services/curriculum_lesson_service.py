@@ -670,3 +670,124 @@ Return ONLY a valid JSON array with these exact field names. No markdown, no cod
         except Exception as e:
             logger.error(f"Error unlinking task from lesson: {str(e)}")
             raise
+
+    def create_tasks_from_suggestions(
+        self,
+        quest_id: str,
+        lesson_id: str,
+        user_id: str,
+        tasks: List[Dict[str, Any]],
+        link_to_lesson: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        Create quest tasks from AI-generated suggestions.
+
+        Handles:
+        - Getting or creating user_quest enrollment
+        - Validating task data (pillars, XP values)
+        - Creating tasks in user_quest_tasks table
+        - Optionally linking tasks to the lesson
+
+        Args:
+            quest_id: Quest ID
+            lesson_id: Lesson ID to link tasks to
+            user_id: User ID creating the tasks
+            tasks: List of task objects with title, description, pillar, xp_value
+            link_to_lesson: Whether to link created tasks to the lesson
+
+        Returns:
+            List of created task records
+
+        Raises:
+            ValidationError: If validation fails
+        """
+        from datetime import datetime
+
+        try:
+            if not tasks:
+                raise ValidationError("At least one task is required", 400)
+
+            # Get or create user_quest enrollment for the creating user
+            enrollment = self.supabase.table('user_quests')\
+                .select('id')\
+                .eq('user_id', user_id)\
+                .eq('quest_id', quest_id)\
+                .eq('is_active', True)\
+                .execute()
+
+            if enrollment.data:
+                user_quest_id = enrollment.data[0]['id']
+            else:
+                # Create enrollment for the user
+                new_enrollment = self.supabase.table('user_quests').insert({
+                    'user_id': user_id,
+                    'quest_id': quest_id,
+                    'started_at': datetime.utcnow().isoformat(),
+                    'is_active': True,
+                    'personalization_completed': True
+                }).execute()
+
+                if not new_enrollment.data:
+                    raise ValidationError("Failed to create quest enrollment", 500)
+                user_quest_id = new_enrollment.data[0]['id']
+
+            # Get current max order_index for quest tasks
+            existing_tasks = self.supabase.table('user_quest_tasks')\
+                .select('order_index')\
+                .eq('quest_id', quest_id)\
+                .order('order_index', desc=True)\
+                .limit(1)\
+                .execute()
+            max_order = existing_tasks.data[0]['order_index'] if existing_tasks.data else 0
+
+            created_tasks = []
+            valid_pillars = ['stem', 'wellness', 'communication', 'civics', 'art']
+
+            for i, task in enumerate(tasks):
+                title = task.get('title')
+                if not title:
+                    continue
+
+                pillar = task.get('pillar', 'stem').lower()
+                if pillar not in valid_pillars:
+                    pillar = 'stem'
+
+                xp_value = task.get('xp_value', 100)
+                xp_value = max(50, min(300, int(xp_value)))
+
+                # Build task data with only columns that exist in user_quest_tasks
+                task_data = {
+                    'user_id': user_id,
+                    'quest_id': quest_id,
+                    'user_quest_id': user_quest_id,
+                    'title': title,
+                    'description': task.get('description', ''),
+                    'pillar': pillar,
+                    'xp_value': xp_value,
+                    'order_index': max_order + i + 1,
+                    'is_required': False,
+                    'is_manual': False,
+                    'approval_status': 'approved'
+                }
+
+                result = self.supabase.table('user_quest_tasks').insert(task_data).execute()
+
+                if result.data:
+                    created_task = result.data[0]
+                    created_tasks.append(created_task)
+
+                    # Link to lesson if requested
+                    if link_to_lesson:
+                        try:
+                            self.link_task_to_lesson(lesson_id, created_task['id'], quest_id)
+                        except Exception as link_err:
+                            logger.warning(f"Failed to link task to lesson: {link_err}")
+
+            logger.info(f"Created {len(created_tasks)} curriculum tasks for quest {quest_id[:8]}")
+            return created_tasks
+
+        except ValidationError:
+            raise
+        except Exception as e:
+            logger.error(f"Error creating curriculum tasks: {str(e)}", exc_info=True)
+            raise ValidationError(f"Failed to create tasks: {str(e)}", 500)

@@ -495,3 +495,329 @@ class CourseService(BaseService):
         except Exception as e:
             logger.error(f"Error reordering quests: {str(e)}")
             raise ValueError(f"Failed to reorder quests: {str(e)}")
+
+    @staticmethod
+    def get_course_homepage_data(course_id: str, user_id: str) -> Dict:
+        """
+        Get comprehensive course data for the student homepage view.
+
+        Aggregates:
+        - Course details
+        - Quests with lessons and linked tasks
+        - User's enrollment and progress
+        - Lesson progress for each quest
+
+        This method consolidates the logic from courses.py get_course_homepage()
+        into a reusable service method.
+
+        Args:
+            course_id: Course ID
+            user_id: Current user ID
+
+        Returns:
+            Dict with course, quests, enrollment, and progress data
+
+        Raises:
+            NotFoundError: If course doesn't exist
+        """
+        supabase = get_supabase_admin_client()
+
+        # Get course details
+        course_result = supabase.table('courses').select('*').eq('id', course_id).execute()
+        if not course_result.data:
+            raise NotFoundError(f"Course {course_id} not found")
+
+        course = course_result.data[0]
+
+        # Get course quests with quest details
+        course_quests_result = supabase.table('course_quests').select(
+            'quest_id, sequence_order, xp_threshold, custom_title, is_required, is_published, quests(id, title, description, header_image_url)'
+        ).eq('course_id', course_id).order('sequence_order').execute()
+
+        quests_with_data = []
+        for cq in (course_quests_result.data or []):
+            # Skip unpublished projects
+            if cq.get('is_published') is False:
+                continue
+
+            quest_data = cq.get('quests', {}) or {}
+            quest_id = quest_data.get('id') or cq.get('quest_id')
+
+            if not quest_id:
+                continue
+
+            # Get lessons for this quest
+            lessons_result = supabase.table('curriculum_lessons')\
+                .select('id, title, sequence_order, estimated_duration_minutes, content, description, xp_threshold, is_published')\
+                .eq('quest_id', quest_id)\
+                .order('sequence_order')\
+                .execute()
+
+            # Filter out unpublished lessons
+            lessons = [l for l in (lessons_result.data or []) if l.get('is_published') is not False]
+
+            # Fetch linked task IDs for lessons
+            if lessons:
+                lesson_ids = [lesson['id'] for lesson in lessons]
+                links_result = supabase.table('curriculum_lesson_tasks')\
+                    .select('lesson_id, task_id')\
+                    .eq('quest_id', quest_id)\
+                    .execute()
+
+                # Build mapping of lesson_id -> list of task_ids
+                lesson_tasks_map = {}
+                for link in (links_result.data or []):
+                    lesson_id = link['lesson_id']
+                    if lesson_id not in lesson_tasks_map:
+                        lesson_tasks_map[lesson_id] = []
+                    lesson_tasks_map[lesson_id].append(link['task_id'])
+
+                # Add linked_task_ids to each lesson
+                for lesson in lessons:
+                    lesson['linked_task_ids'] = lesson_tasks_map.get(lesson['id'], [])
+
+            # Get user's quest enrollment
+            user_quest_result = supabase.table('user_quests')\
+                .select('id, is_active, completed_at, started_at')\
+                .eq('user_id', user_id)\
+                .eq('quest_id', quest_id)\
+                .execute()
+
+            quest_enrollment = user_quest_result.data[0] if user_quest_result.data else None
+
+            # Calculate XP progress from curriculum lessons
+            total_xp = sum(l.get('xp_threshold', 0) or 0 for l in lessons)
+            earned_xp = 0
+            completed_tasks = 0
+            total_tasks = 0
+
+            # Get all linked task IDs from lessons
+            all_linked_task_ids = []
+            for lesson in lessons:
+                all_linked_task_ids.extend(lesson.get('linked_task_ids', []))
+
+            if all_linked_task_ids and quest_enrollment:
+                enrollment_id = quest_enrollment['id']
+                user_tasks_result = supabase.table('user_quest_tasks')\
+                    .select('id, xp_value')\
+                    .eq('user_quest_id', enrollment_id)\
+                    .in_('id', all_linked_task_ids)\
+                    .execute()
+
+                user_tasks = user_tasks_result.data or []
+                total_tasks = len(all_linked_task_ids)
+
+                if user_tasks:
+                    task_ids = [t['id'] for t in user_tasks]
+                    task_xp_map = {t['id']: t.get('xp_value', 0) or 0 for t in user_tasks}
+
+                    completions_result = supabase.table('quest_task_completions')\
+                        .select('user_quest_task_id')\
+                        .eq('user_id', user_id)\
+                        .in_('user_quest_task_id', task_ids)\
+                        .execute()
+
+                    completions = completions_result.data or []
+                    completed_tasks = len(completions)
+                    earned_xp = sum(task_xp_map.get(c['user_quest_task_id'], 0) for c in completions)
+
+            # Get lesson progress for this quest
+            lesson_progress_map = {}
+            try:
+                lesson_progress_result = supabase.table('curriculum_lesson_progress')\
+                    .select('lesson_id, status, progress_percentage')\
+                    .eq('user_id', user_id)\
+                    .eq('quest_id', quest_id)\
+                    .execute()
+
+                for lp in (lesson_progress_result.data or []):
+                    lesson_progress_map[lp['lesson_id']] = {
+                        'status': lp['status'],
+                        'progress_percentage': lp['progress_percentage']
+                    }
+            except Exception as progress_err:
+                logger.warning(f"Could not fetch lesson progress: {progress_err}")
+
+            # Add progress to each lesson
+            for lesson in lessons:
+                progress = lesson_progress_map.get(lesson['id'], {})
+                lesson['progress'] = {
+                    'status': progress.get('status', 'not_started'),
+                    'percentage': progress.get('progress_percentage', 0)
+                }
+
+            quests_with_data.append({
+                'id': quest_id,
+                'title': cq.get('custom_title') or quest_data.get('title'),
+                'description': quest_data.get('description'),
+                'header_image_url': quest_data.get('header_image_url'),
+                'sequence_order': cq.get('sequence_order', 0),
+                'xp_threshold': cq.get('xp_threshold', 0),
+                'is_required': cq.get('is_required', True),
+                'lessons': lessons,
+                'enrollment': quest_enrollment,
+                'progress': {
+                    'completed_tasks': completed_tasks,
+                    'total_tasks': total_tasks,
+                    'earned_xp': earned_xp,
+                    'total_xp': total_xp,
+                    'percentage': min(100, round((earned_xp / total_xp * 100), 1)) if total_xp > 0 else 0,
+                    'is_completed': (quest_enrollment.get('completed_at') is not None and not quest_enrollment.get('is_active')) if quest_enrollment else False
+                }
+            })
+
+        # Get course enrollment status
+        enrollment_result = supabase.table('course_enrollments')\
+            .select('*')\
+            .eq('course_id', course_id)\
+            .eq('user_id', user_id)\
+            .execute()
+
+        enrollment = enrollment_result.data[0] if enrollment_result.data else None
+
+        # Creator is always considered enrolled
+        is_creator = course['created_by'] == user_id
+        if is_creator and not enrollment:
+            enrollment = {
+                'id': None,
+                'course_id': course_id,
+                'user_id': user_id,
+                'status': 'active',
+                'enrolled_at': course.get('created_at'),
+                'is_creator': True
+            }
+
+        # Calculate overall course progress
+        total_required_quests = len([q for q in quests_with_data if q.get('is_required', True)])
+        completed_quests = len([q for q in quests_with_data if q['progress']['is_completed'] and q.get('is_required', True)])
+
+        # Sum XP across all required quests
+        course_earned_xp = sum(q['progress']['earned_xp'] for q in quests_with_data if q.get('is_required', True))
+        course_total_xp = sum(q['progress']['total_xp'] for q in quests_with_data if q.get('is_required', True))
+        course_progress = min(100, round((course_earned_xp / course_total_xp * 100), 1)) if course_total_xp > 0 else 0
+
+        return {
+            'course': {
+                'id': course['id'],
+                'title': course['title'],
+                'description': course.get('description'),
+                'cover_image_url': course.get('cover_image_url'),
+                'navigation_mode': course.get('navigation_mode', 'sequential'),
+                'status': course.get('status', 'draft')
+            },
+            'quests': quests_with_data,
+            'enrollment': enrollment,
+            'progress': {
+                'completed_quests': completed_quests,
+                'total_quests': total_required_quests,
+                'earned_xp': course_earned_xp,
+                'total_xp': course_total_xp,
+                'percentage': course_progress
+            }
+        }
+
+    @staticmethod
+    def enroll_user_in_course(
+        course_id: str,
+        user_id: str,
+        enrolled_by: Optional[str] = None,
+        skip_personalization: bool = True
+    ) -> Dict:
+        """
+        Full course enrollment with quest auto-enrollment.
+
+        Enhanced version of enroll_student that:
+        - Creates course enrollment
+        - Auto-enrolls user in all published course quests
+        - Skips AI personalization for course quests
+        - Handles existing enrollments gracefully
+
+        Args:
+            course_id: Course ID
+            user_id: User ID to enroll
+            enrolled_by: ID of user performing enrollment (for admin enrollments)
+            skip_personalization: Skip AI task personalization (default True for courses)
+
+        Returns:
+            Dict with enrollment record and list of quest enrollments
+
+        Raises:
+            NotFoundError: If course doesn't exist
+        """
+        supabase = get_supabase_admin_client()
+
+        # Get course with quests
+        course_result = supabase.table('courses')\
+            .select('*, course_quests(quest_id, is_published)')\
+            .eq('id', course_id)\
+            .execute()
+
+        if not course_result.data:
+            raise NotFoundError(f"Course {course_id} not found")
+
+        course = course_result.data[0]
+
+        # Check for existing enrollment
+        existing = supabase.table('course_enrollments')\
+            .select('*')\
+            .eq('course_id', course_id)\
+            .eq('user_id', user_id)\
+            .execute()
+
+        if existing.data:
+            # Reactivate if inactive
+            enrollment = existing.data[0]
+            if enrollment.get('status') != 'active':
+                supabase.table('course_enrollments')\
+                    .update({'status': 'active'})\
+                    .eq('id', enrollment['id'])\
+                    .execute()
+                enrollment['status'] = 'active'
+        else:
+            # Create new enrollment
+            enrollment_data = {
+                'course_id': course_id,
+                'user_id': user_id,
+                'enrolled_at': datetime.utcnow().isoformat(),
+                'status': 'active'
+            }
+            if enrolled_by:
+                enrollment_data['enrolled_by'] = enrolled_by
+
+            result = supabase.table('course_enrollments').insert(enrollment_data).execute()
+            enrollment = result.data[0] if result.data else enrollment_data
+
+        # Auto-enroll in course quests (only published ones)
+        quest_enrollments = []
+        course_quests = [cq for cq in (course.get('course_quests') or []) if cq.get('is_published') is not False]
+
+        for cq in course_quests:
+            quest_id = cq['quest_id']
+
+            # Check for existing quest enrollment
+            existing_quest = supabase.table('user_quests')\
+                .select('id')\
+                .eq('user_id', user_id)\
+                .eq('quest_id', quest_id)\
+                .execute()
+
+            if not existing_quest.data:
+                # Create quest enrollment
+                quest_enrollment = supabase.table('user_quests').insert({
+                    'user_id': user_id,
+                    'quest_id': quest_id,
+                    'started_at': datetime.utcnow().isoformat(),
+                    'is_active': True,
+                    'personalization_completed': skip_personalization
+                }).execute()
+
+                if quest_enrollment.data:
+                    quest_enrollments.append(quest_enrollment.data[0])
+
+        logger.info(f"User {user_id[:8]} enrolled in course {course_id[:8]} with {len(quest_enrollments)} new quest enrollments")
+
+        return {
+            'enrollment': enrollment,
+            'quest_enrollments': quest_enrollments,
+            'total_quests': len(course_quests)
+        }

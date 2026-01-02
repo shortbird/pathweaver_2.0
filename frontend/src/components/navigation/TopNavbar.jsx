@@ -100,7 +100,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                   onClick={() => navigate('/quests')}
                   className={getToggleButtonClasses('/quests')}
                 >
-                  Explore New Quests
+                  Quests
                 </button>
               </div>
             )}
@@ -174,7 +174,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
             onClick={() => navigate('/quests')}
             className={getToggleButtonClasses('/quests')}
           >
-            Explore
+            Quests
           </button>
         </div>
       )}

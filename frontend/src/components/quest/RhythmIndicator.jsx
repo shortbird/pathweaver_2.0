@@ -61,11 +61,11 @@ const RhythmIndicator = ({
       textClass: 'text-gray-600'
     },
     ready_when_you_are: {
-      icon: SunIcon,
-      bgClass: 'bg-amber-50',
-      borderClass: 'border-amber-200',
-      iconClass: 'text-amber-600',
-      textClass: 'text-amber-700'
+      icon: PlayCircleIcon,
+      bgClass: 'bg-gray-50',
+      borderClass: 'border-gray-200',
+      iconClass: 'text-gray-500',
+      textClass: 'text-gray-600'
     },
     finding_rhythm: {
       icon: ArrowTrendingUpIcon,

@@ -20,6 +20,7 @@
     "@tiptap/extension-text-align": "^3.14.0",
     "@tiptap/react": "^3.14.0",
     "@tiptap/starter-kit": "^3.14.0",
+    "@xyflow/react": "^12.10.0",
     "axios": "^1.7.2",
     "canvas-confetti": "^1.9.4",
     "date-fns": "^4.1.0",

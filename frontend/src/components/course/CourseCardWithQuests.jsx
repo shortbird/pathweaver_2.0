@@ -38,9 +38,9 @@ const rhythmConfig = {
     textClass: 'text-gray-600'
   },
   ready_when_you_are: {
-    icon: SunIcon,
-    bgClass: 'bg-amber-50',
-    textClass: 'text-amber-700'
+    icon: PlayCircleIcon,
+    bgClass: 'bg-gray-50',
+    textClass: 'text-gray-600'
   },
   finding_rhythm: {
     icon: ArrowTrendingUpIcon,

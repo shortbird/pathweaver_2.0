@@ -12,282 +12,46 @@ from middleware.error_handler import ValidationError, AuthorizationError, NotFou
 from middleware.rate_limiter import rate_limit
 from services.curriculum_service import CurriculumService
 from services.curriculum_lesson_service import CurriculumLessonService
-# Simple file validation - curriculum files (PDFs, docs, images, etc.)
-from werkzeug.utils import secure_filename
+from services.curriculum_permission_service import CurriculumPermissionService
+from services.file_upload_service import FileUploadService
 from utils.logger import get_logger
-import uuid
 
 logger = get_logger(__name__)
 
 bp = Blueprint('curriculum', __name__, url_prefix='/api/quests')
 
 
-# Debug endpoint - remove after testing
-@bp.route('/_debug/<quest_id>', methods=['GET'])
-def debug_curriculum(quest_id: str):
-    """Debug endpoint to test curriculum service without auth."""
-    import traceback
-    try:
-        supabase = get_supabase_admin_client()
-        service = CurriculumService(supabase)
-
-        # Test the service
-        curriculum = service.get_curriculum(quest_id)
-        attachments = service.get_attachments(quest_id)
-
-        return jsonify({
-            'success': True,
-            'quest': curriculum.get('quest') if curriculum else None,
-            'curriculum_content': curriculum.get('curriculum_content') if curriculum else None,
-            'attachments': attachments,
-            'debug': 'OK'
-        }), 200
-    except Exception as e:
-        tb = traceback.format_exc()
-        print(f"DEBUG ERROR: {tb}")
-        return jsonify({
-            'error': str(e),
-            'type': type(e).__name__,
-            'traceback': tb
-        }), 500
+def _check_read_permission(user_id: str, quest_id: str, supabase) -> bool:
+    """Verify read permission using CurriculumPermissionService."""
+    permission_service = CurriculumPermissionService(supabase)
+    result = permission_service.can_read_curriculum(user_id, quest_id)
+    if not result.permitted:
+        if result.error_code == 404:
+            raise NotFoundError(result.error_message)
+        raise AuthorizationError(result.error_message)
+    return True
 
 
-# Debug endpoint for lessons - remove after testing
-@bp.route('/_debug_lessons/<quest_id>', methods=['GET'])
-def debug_lessons(quest_id: str):
-    """Debug endpoint to test lessons service without auth."""
-    import traceback
-    try:
-        supabase = get_supabase_admin_client()
-        lesson_service = CurriculumLessonService(supabase)
-
-        # Test the service
-        lessons = lesson_service.get_lessons(quest_id, include_unpublished=True)
-
-        return jsonify({
-            'success': True,
-            'lessons': lessons,
-            'count': len(lessons),
-            'debug': 'OK'
-        }), 200
-    except Exception as e:
-        tb = traceback.format_exc()
-        print(f"DEBUG LESSONS ERROR: {tb}")
-        return jsonify({
-            'error': str(e),
-            'type': type(e).__name__,
-            'traceback': tb
-        }), 500
+def _check_edit_permission(user_id: str, quest_id: str, supabase) -> dict:
+    """Verify edit permission using CurriculumPermissionService."""
+    permission_service = CurriculumPermissionService(supabase)
+    result = permission_service.can_edit_curriculum(user_id, quest_id)
+    if not result.permitted:
+        if result.error_code == 404:
+            raise NotFoundError(result.error_message)
+        raise ValidationError(result.error_message, result.error_code)
+    return result.data
 
 
-def verify_curriculum_read_permission(user_id: str, quest_id: str, supabase) -> bool:
-    """
-    Verify user can read curriculum for this quest.
-    Allows enrolled students, advisors, and admins.
-
-    Args:
-        user_id: User ID to check
-        quest_id: Quest ID
-        supabase: Supabase client
-
-    Returns:
-        True if permitted
-
-    Raises:
-        ValidationError: If permission denied
-    """
-    try:
-        if not user_id or not quest_id:
-            raise ValidationError("Missing user_id or quest_id")
-
-        user_result = supabase.table('users').select('role, organization_id').eq('id', user_id).execute()
-        if not user_result.data:
-            raise NotFoundError("User not found")
-        user = user_result.data[0]
-
-        user_role = user.get('role')
-        user_org = user.get('organization_id')
-
-        # Admins, advisors, and teachers can always read
-        if user_role in ['superadmin', 'org_admin', 'advisor']:
-            return True
-
-        # Check if user is enrolled in quest
-        quest_result = supabase.table('quests').select('organization_id').eq('id', quest_id).execute()
-        if not quest_result.data:
-            raise NotFoundError("Quest not found")
-        quest = quest_result.data[0]
-
-        quest_org = quest.get('organization_id')
-
-        # For organization quests, user must be in same org
-        # For public quests (no org), anyone can access if enrolled
-        if quest_org is not None and quest_org != user_org:
-            raise AuthorizationError("You cannot access this quest")
-
-        # Check enrollment (user_quests is the correct table name)
-        enrollment = supabase.table('user_quests').select('id').eq('user_id', user_id).eq('quest_id', quest_id).eq('is_active', True).execute()
-        if enrollment.data:
-            return True
-
-        # Also check if user is enrolled in a course containing this quest
-        try:
-            course_enrollment = supabase.table('course_enrollments')\
-                .select('id, course_id')\
-                .eq('user_id', user_id)\
-                .eq('status', 'active')\
-                .execute()
-
-            if course_enrollment.data:
-                course_ids = [e['course_id'] for e in course_enrollment.data]
-                if course_ids:
-                    quest_in_course = supabase.table('course_quests')\
-                        .select('id')\
-                        .eq('quest_id', quest_id)\
-                        .in_('course_id', course_ids)\
-                        .execute()
-                    if quest_in_course.data:
-                        return True
-        except Exception as course_err:
-            logger.warning(f"Error checking course enrollment: {course_err}")
-
-        raise AuthorizationError("You must be enrolled in this quest to access curriculum")
-    except (ValidationError, AuthorizationError, NotFoundError):
-        raise
-    except Exception as e:
-        logger.error(f"Error checking curriculum read permission: {str(e)}", exc_info=True)
-        raise AuthorizationError(f"Permission check failed: {str(e)}")
-
-
-def verify_curriculum_permission(user_id: str, quest_id: str, supabase) -> dict:
-    """
-    Verify user has permission to CREATE curriculum for this quest.
-    This allows creating org-specific curriculum for any quest.
-
-    Args:
-        user_id: User ID to check
-        quest_id: Quest ID
-        supabase: Supabase client
-
-    Returns:
-        Quest data with organization_id and user info
-
-    Raises:
-        ValidationError: If permission denied
-    """
-    try:
-        # Get user role and organization
-        user_result = supabase.table('users')\
-            .select('role, organization_id')\
-            .eq('id', user_id)\
-            .execute()
-
-        if not user_result.data:
-            raise ValidationError("User not found", 404)
-        user = user_result.data[0]
-
-        user_role = user.get('role')
-        user_org = user.get('organization_id')
-
-        # Check role - allow admins, advisors, teachers, and superadmins
-        if user_role not in ['superadmin', 'org_admin', 'advisor']:
-            raise ValidationError(
-                "Only administrators and advisors can edit curriculum",
-                403
-            )
-
-        # Get quest organization
-        quest_result = supabase.table('quests')\
-            .select('organization_id, title')\
-            .eq('id', quest_id)\
-            .execute()
-
-        if not quest_result.data:
-            raise ValidationError("Quest not found", 404)
-        quest = quest_result.data[0]
-
-        quest_org = quest.get('organization_id')
-
-        # For org-specific quests, user must be in the same org (unless superadmin)
-        if user_role != 'superadmin' and quest_org is not None and quest_org != user_org:
-            raise ValidationError(
-                "You can only edit curriculum for quests in your organization",
-                403
-            )
-
-        # Add user info to quest for downstream use
-        quest['_user_role'] = user_role
-        quest['_user_org'] = user_org
-
-        return quest
-    except ValidationError:
-        raise
-    except Exception as e:
-        logger.error(f"Error checking curriculum permission: {str(e)}", exc_info=True)
-        raise ValidationError(f"Permission check failed: {str(e)}", 500)
-
-
-def verify_lesson_edit_permission(user_id: str, lesson_id: str, quest_id: str, supabase) -> dict:
-    """
-    Verify user has permission to EDIT a specific lesson.
-    Users can only edit lessons created by their organization.
-
-    Args:
-        user_id: User ID to check
-        lesson_id: Lesson ID to edit
-        quest_id: Quest ID
-        supabase: Supabase client
-
-    Returns:
-        Lesson data
-
-    Raises:
-        ValidationError: If permission denied
-    """
-    try:
-        # Get user info
-        user_result = supabase.table('users')\
-            .select('role, organization_id')\
-            .eq('id', user_id)\
-            .execute()
-
-        if not user_result.data:
-            raise ValidationError("User not found", 404)
-        user = user_result.data[0]
-
-        user_role = user.get('role')
-        user_org = user.get('organization_id')
-
-        # Get lesson info
-        lesson_result = supabase.table('curriculum_lessons')\
-            .select('id, quest_id, organization_id, created_by')\
-            .eq('id', lesson_id)\
-            .eq('quest_id', quest_id)\
-            .execute()
-
-        if not lesson_result.data:
-            raise ValidationError("Lesson not found", 404)
-        lesson = lesson_result.data[0]
-
-        lesson_org = lesson.get('organization_id')
-
-        # Superadmins can edit anything
-        if user_role == 'superadmin':
-            return lesson
-
-        # Non-superadmins can only edit lessons from their organization
-        if lesson_org != user_org:
-            raise ValidationError(
-                "You can only edit curriculum created by your organization",
-                403
-            )
-
-        return lesson
-    except ValidationError:
-        raise
-    except Exception as e:
-        logger.error(f"Error checking lesson edit permission: {str(e)}", exc_info=True)
-        raise ValidationError(f"Permission check failed: {str(e)}", 500)
+def _check_lesson_edit_permission(user_id: str, lesson_id: str, quest_id: str, supabase) -> dict:
+    """Verify lesson edit permission using CurriculumPermissionService."""
+    permission_service = CurriculumPermissionService(supabase)
+    result = permission_service.can_edit_lesson(user_id, lesson_id, quest_id)
+    if not result.permitted:
+        if result.error_code == 404:
+            raise NotFoundError(result.error_message)
+        raise ValidationError(result.error_message, result.error_code)
+    return result.data
 
 
 @bp.route('/<quest_id>/curriculum', methods=['GET'])
@@ -304,13 +68,9 @@ def get_curriculum(user_id: str, quest_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumService(supabase)
 
-        # Verify read permission (less restrictive than edit)
-        verify_curriculum_read_permission(user_id, quest_id, supabase)
+        _check_read_permission(user_id, quest_id, supabase)
 
-        # Get curriculum content
         curriculum = service.get_curriculum(quest_id)
-
-        # Get attachments
         attachments = service.get_attachments(quest_id)
 
         return jsonify({
@@ -320,18 +80,11 @@ def get_curriculum(user_id: str, quest_id: str):
             'attachments': attachments
         }), 200
 
-    except ValidationError as e:
-        logger.error(f"ValidationError in get_curriculum: {str(e)}")
-        return jsonify({'error': str(e), 'error_type': 'validation'}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        logger.error(f"Error fetching curriculum: {str(e)}\n{tb}")
-        return jsonify({
-            'error': f'Failed to fetch curriculum: {str(e)}',
-            'error_type': type(e).__name__,
-            'traceback': tb
-        }), 500
+        logger.error(f"Error fetching curriculum: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch curriculum'}), 500
 
 
 @bp.route('/<quest_id>/curriculum', methods=['PUT'])
@@ -353,23 +106,18 @@ def save_curriculum(user_id: str, quest_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumService(supabase)
 
-        # Verify permission
-        quest = verify_curriculum_permission(user_id, quest_id, supabase)
+        quest = _check_edit_permission(user_id, quest_id, supabase)
 
-        # Get request data
         data = request.get_json()
         if not data:
             return jsonify({'error': 'Request body required'}), 400
 
-        # Support both 'content' and 'curriculum_content' keys
         content = data.get('curriculum_content') or data.get('content', {})
 
-        # Validate content length (if string)
         content_str = str(content) if not isinstance(content, str) else content
-        if len(content_str) > 1000000:  # 1MB text limit
+        if len(content_str) > 1000000:
             return jsonify({'error': 'Content too large (max 1MB)'}), 400
 
-        # Save curriculum
         result = service.save_curriculum(
             quest_id=quest_id,
             content=content,
@@ -383,8 +131,8 @@ def save_curriculum(user_id: str, quest_id: str):
             'message': 'Curriculum saved successfully'
         }), 200
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error saving curriculum: {str(e)}")
         return jsonify({'error': 'Failed to save curriculum'}), 500
@@ -406,91 +154,34 @@ def upload_attachment(user_id: str, quest_id: str):
     """
     try:
         supabase = get_supabase_admin_client()
-        service = CurriculumService(supabase)
+        curriculum_service = CurriculumService(supabase)
+        upload_service = FileUploadService(supabase)
 
-        # Verify permission (returns quest data including organization_id)
-        quest = verify_curriculum_permission(user_id, quest_id, supabase)
-        organization_id = quest.get('organization_id')  # May be None for public quests
+        quest = _check_edit_permission(user_id, quest_id, supabase)
+        organization_id = quest.get('organization_id')
 
-        # Check file provided
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
 
         file = request.files['file']
-
         if not file or file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
 
-        # Validate file type (documents, images, videos)
-        allowed_extensions = {
-            'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx',  # Documents
-            'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg',  # Images
-            'mp4', 'mov', 'avi', 'webm',  # Videos
-            'mp3', 'wav', 'm4a',  # Audio
-            'zip', 'txt', 'csv'  # Other
-        }
-        original_filename = file.filename
-        file_extension = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else ''
-
-        if file_extension not in allowed_extensions:
-            return jsonify({
-                'error': f'Invalid file type ".{file_extension}". Allowed: PDF, Word, PowerPoint, Excel, images, videos, audio'
-            }), 400
-
-        # Check file size (50MB max for curriculum files)
-        file.seek(0, 2)  # Seek to end
-        file_size = file.tell()
-        file.seek(0)  # Reset to beginning
-
-        max_size = 50 * 1024 * 1024  # 50MB
-        if file_size > max_size:
-            return jsonify({'error': 'File size exceeds 50MB limit'}), 400
-
-        # Read file content
-        file_data = file.read()
-
-        # Sanitize filename
-        safe_filename = secure_filename(original_filename)
-        if not safe_filename or '..' in safe_filename:
-            return jsonify({'error': 'Invalid filename'}), 400
-
-        # Generate unique filename
-        file_ext = safe_filename.rsplit('.', 1)[-1] if '.' in safe_filename else 'bin'
-        unique_filename = f"{quest_id}_{uuid.uuid4().hex[:12]}.{file_ext}"
-
-        # Create curriculum bucket if needed
-        try:
-            supabase.storage.create_bucket('curriculum', {'public': True})
-            logger.info("Created 'curriculum' storage bucket")
-        except Exception as bucket_err:
-            # Bucket might already exist, which is fine
-            if 'already exists' not in str(bucket_err).lower():
-                logger.warning(f"Bucket creation note: {bucket_err}")
-
-        # Upload to storage
-        file_path = f"quest_{quest_id}/{unique_filename}"
-        try:
-            supabase.storage.from_('curriculum').upload(
-                file_path,
-                file_data,
-                {'content-type': file.content_type or 'application/octet-stream'}
-            )
-        except Exception as upload_err:
-            error_msg = str(upload_err)
-            if 'not found' in error_msg.lower() or 'bucket' in error_msg.lower():
-                logger.error(f"Storage bucket 'curriculum' not found. Please create it in Supabase dashboard.")
-                return jsonify({'error': "Storage not configured. Please contact administrator."}), 500
-            raise
-
-        # Get public URL
-        file_url = supabase.storage.from_('curriculum').get_public_url(file_path)
-
-        # Record attachment in database
-        attachment = service.add_attachment(
+        result = upload_service.upload_attachment(
+            file=file,
             quest_id=quest_id,
-            filename=original_filename,
-            file_url=file_url,
-            file_size=len(file_data),
+            user_id=user_id,
+            organization_id=organization_id
+        )
+
+        if not result.success:
+            return jsonify({'error': result.error_message}), 400
+
+        attachment = curriculum_service.add_attachment(
+            quest_id=quest_id,
+            filename=result.filename,
+            file_url=result.url,
+            file_size=result.file_size,
             mime_type=file.content_type or 'application/octet-stream',
             user_id=user_id,
             organization_id=organization_id
@@ -502,8 +193,8 @@ def upload_attachment(user_id: str, quest_id: str):
             'message': 'File uploaded successfully'
         }), 201
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error uploading attachment: {str(e)}")
         return jsonify({'error': 'Failed to upload file'}), 500
@@ -525,122 +216,35 @@ def upload_image(user_id: str, quest_id: str):
         403: Permission denied
     """
     try:
-        import io
-
-        # Try to import PIL for image resizing (optional)
-        try:
-            from PIL import Image
-            PIL_AVAILABLE = True
-        except ImportError:
-            PIL_AVAILABLE = False
-            logger.warning("PIL not available - images will be uploaded without resizing")
-
         supabase = get_supabase_admin_client()
+        upload_service = FileUploadService(supabase)
 
-        # Verify permission
-        verify_curriculum_permission(user_id, quest_id, supabase)
+        _check_edit_permission(user_id, quest_id, supabase)
 
-        # Check file provided
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
 
         file = request.files['file']
-
         if not file or file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
 
-        # Validate file type (images only)
-        allowed_extensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
-        original_filename = file.filename
-        file_extension = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else ''
+        result = upload_service.upload_image(
+            file=file,
+            quest_id=quest_id,
+            max_width=2000
+        )
 
-        if file_extension not in allowed_extensions:
-            return jsonify({
-                'error': f'Invalid file type ".{file_extension}". Allowed: jpg, jpeg, png, gif, webp'
-            }), 400
-
-        # Check file size (25MB max)
-        file.seek(0, 2)  # Seek to end
-        file_size = file.tell()
-        file.seek(0)  # Reset to beginning
-
-        max_size = 25 * 1024 * 1024  # 25MB
-        if file_size > max_size:
-            return jsonify({'error': 'File size exceeds 25MB limit'}), 400
-
-        # Read and process image
-        file_data = file.read()
-
-        # Resize image if PIL is available and image is too large
-        if PIL_AVAILABLE:
-            try:
-                img = Image.open(io.BytesIO(file_data))
-
-                # Resize if width > 2000px
-                max_width = 2000
-                if img.width > max_width:
-                    ratio = max_width / img.width
-                    new_height = int(img.height * ratio)
-                    img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
-
-                    # Save resized image
-                    output = io.BytesIO()
-                    img_format = 'PNG' if file_extension == 'png' else 'JPEG'
-                    img.save(output, format=img_format, quality=90, optimize=True)
-                    file_data = output.getvalue()
-            except Exception as img_error:
-                logger.warning(f"Image processing skipped: {img_error}")
-                # Continue with original file data
-
-        # Generate unique filename
-        unique_filename = f"{uuid.uuid4().hex[:16]}.{file_extension}"
-
-        # Ensure curriculum-images bucket exists
-        bucket_name = 'curriculum-images'
-        try:
-            # Try to get the bucket first
-            bucket = supabase.storage.get_bucket(bucket_name)
-            if not bucket:
-                raise Exception("Bucket not found")
-        except Exception:
-            # Bucket doesn't exist, create it
-            try:
-                supabase.storage.create_bucket(
-                    bucket_name,
-                    options={"public": True}
-                )
-                logger.info(f"Created '{bucket_name}' storage bucket")
-            except Exception as create_err:
-                error_str = str(create_err).lower()
-                if 'already exists' not in error_str and 'duplicate' not in error_str:
-                    logger.warning(f"Bucket creation note: {create_err}")
-
-        # Upload to storage
-        file_path = f"quests/{quest_id}/images/{unique_filename}"
-        try:
-            supabase.storage.from_('curriculum-images').upload(
-                file_path,
-                file_data,
-                {'content-type': file.content_type or 'image/jpeg'}
-            )
-        except Exception as upload_err:
-            error_msg = str(upload_err)
-            if 'not found' in error_msg.lower() or 'bucket' in error_msg.lower():
-                logger.error(f"Storage bucket 'curriculum-images' not found.")
-                return jsonify({'error': "Storage not configured. Please contact administrator."}), 500
-            raise
-
-        # Get public URL
-        file_url = supabase.storage.from_('curriculum-images').get_public_url(file_path)
+        if not result.success:
+            return jsonify({'error': result.error_message}), 400
 
         return jsonify({
             'success': True,
-            'url': file_url,
+            'url': result.url,
             'message': 'Image uploaded successfully'
         }), 201
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error uploading image: {str(e)}")
         return jsonify({'error': 'Failed to upload image'}), 500
@@ -663,8 +267,7 @@ def rename_attachment(user_id: str, quest_id: str, attachment_id: str):
     try:
         supabase = get_supabase_admin_client()
 
-        # Verify permission
-        verify_curriculum_permission(user_id, quest_id, supabase)
+        _check_edit_permission(user_id, quest_id, supabase)
 
         data = request.get_json()
         if not data or 'file_name' not in data:
@@ -674,7 +277,6 @@ def rename_attachment(user_id: str, quest_id: str, attachment_id: str):
         if not new_name:
             return jsonify({'error': 'file_name cannot be empty'}), 400
 
-        # Update attachment name
         result = supabase.table('curriculum_attachments')\
             .update({'file_name': new_name})\
             .eq('id', attachment_id)\
@@ -690,8 +292,8 @@ def rename_attachment(user_id: str, quest_id: str, attachment_id: str):
             'message': 'Attachment renamed successfully'
         }), 200
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error renaming attachment: {str(e)}")
         return jsonify({'error': 'Failed to rename attachment'}), 500
@@ -712,10 +314,8 @@ def delete_attachment(user_id: str, quest_id: str, attachment_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumService(supabase)
 
-        # Verify permission
-        verify_curriculum_permission(user_id, quest_id, supabase)
+        _check_edit_permission(user_id, quest_id, supabase)
 
-        # Delete attachment
         service.delete_attachment(attachment_id, quest_id)
 
         return jsonify({
@@ -723,8 +323,8 @@ def delete_attachment(user_id: str, quest_id: str, attachment_id: str):
             'message': 'Attachment deleted successfully'
         }), 200
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error deleting attachment: {str(e)}")
         return jsonify({'error': 'Failed to delete attachment'}), 500
@@ -761,7 +361,7 @@ def create_lesson(user_id: str, quest_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 
-        quest = verify_curriculum_permission(user_id, quest_id, supabase)
+        quest = _check_edit_permission(user_id, quest_id, supabase)
 
         data = request.get_json()
         if not data:
@@ -771,19 +371,7 @@ def create_lesson(user_id: str, quest_id: str):
         if not title:
             return jsonify({'error': 'Title is required'}), 400
 
-        # Debug logging for content
-        logger.info(f"[CREATE_LESSON] Received data keys: {list(data.keys())}")
-        logger.info(f"[CREATE_LESSON] Content type: {type(data.get('content'))}")
-        content_val = data.get('content')
-        if content_val:
-            logger.info(f"[CREATE_LESSON] Content preview: {str(content_val)[:200]}")
-        else:
-            logger.info(f"[CREATE_LESSON] Content is None/empty")
-
-        # Get the creating user's organization_id (required for curriculum_lessons)
-        user_result = supabase.table('users').select('organization_id').eq('id', user_id).execute()
-        user_org_id = user_result.data[0].get('organization_id') if user_result.data else None
-
+        user_org_id = quest.get('_user_org')
         if not user_org_id:
             return jsonify({'error': 'User must belong to an organization to create lessons'}), 400
 
@@ -810,8 +398,8 @@ def create_lesson(user_id: str, quest_id: str):
             'message': 'Lesson created successfully'
         }), 201
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error creating lesson: {str(e)}")
         return jsonify({'error': 'Failed to create lesson'}), 500
@@ -834,10 +422,11 @@ def get_lessons(user_id: str, quest_id: str):
     try:
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
+        permission_service = CurriculumPermissionService(supabase)
 
-        verify_curriculum_read_permission(user_id, quest_id, supabase)
+        _check_read_permission(user_id, quest_id, supabase)
 
-        # Get user's organization_id for filtering
+        # Get user info from permission service
         user_result = supabase.table('users')\
             .select('organization_id, role')\
             .eq('id', user_id)\
@@ -845,15 +434,11 @@ def get_lessons(user_id: str, quest_id: str):
         user_org_id = user_result.data[0].get('organization_id') if user_result.data else None
         user_role = user_result.data[0].get('role') if user_result.data else None
 
-        # DEBUG: Log org filtering info
-        logger.info(f"[CURRICULUM] get_lessons: user_id={user_id[:8]}..., org_id={user_org_id}, role={user_role}, quest_id={quest_id[:8]}...")
-
         include_unpublished = request.args.get('include_unpublished', 'false').lower() == 'true'
 
         if include_unpublished:
-            verify_curriculum_permission(user_id, quest_id, supabase)
+            _check_edit_permission(user_id, quest_id, supabase)
 
-        # Get lessons filtered by user's organization
         lessons = service.get_lessons_for_organization(
             quest_id,
             organization_id=user_org_id,
@@ -861,16 +446,13 @@ def get_lessons(user_id: str, quest_id: str):
             is_superadmin=(user_role == 'superadmin')
         )
 
-        # DEBUG: Log how many lessons returned
-        logger.info(f"[CURRICULUM] get_lessons: Returning {len(lessons)} lessons for org {user_org_id}")
-
         return jsonify({
             'success': True,
             'lessons': lessons
         }), 200
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error fetching lessons: {str(e)}")
         return jsonify({'error': 'Failed to fetch lessons'}), 500
@@ -896,16 +478,11 @@ def update_lesson(user_id: str, quest_id: str, lesson_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 
-        # Verify user can edit THIS specific lesson (org ownership check)
-        verify_lesson_edit_permission(user_id, lesson_id, quest_id, supabase)
+        _check_lesson_edit_permission(user_id, lesson_id, quest_id, supabase)
 
         data = request.get_json()
         if not data:
             return jsonify({'error': 'Request body required'}), 400
-
-        # Debug logging
-        logger.info(f"[UPDATE_LESSON] Received data keys: {list(data.keys())}")
-        logger.info(f"[UPDATE_LESSON] Content type: {type(data.get('content'))}, preview: {str(data.get('content'))[:100] if data.get('content') else 'None'}")
 
         lesson = service.update_lesson(lesson_id, quest_id, user_id, **data)
 
@@ -915,13 +492,11 @@ def update_lesson(user_id: str, quest_id: str, lesson_id: str):
             'message': 'Lesson updated successfully'
         }), 200
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        logger.error(f"Error updating lesson: {str(e)}\n{tb}")
-        return jsonify({'error': f'Failed to update lesson: {str(e)}'}), 500
+        logger.error(f"Error updating lesson: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to update lesson'}), 500
 
 
 @bp.route('/<quest_id>/curriculum/lessons/<lesson_id>', methods=['DELETE'])
@@ -940,8 +515,7 @@ def delete_lesson(user_id: str, quest_id: str, lesson_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 
-        # Verify user can delete THIS specific lesson (org ownership check)
-        verify_lesson_edit_permission(user_id, lesson_id, quest_id, supabase)
+        _check_lesson_edit_permission(user_id, lesson_id, quest_id, supabase)
 
         service.delete_lesson(lesson_id, quest_id)
 
@@ -950,8 +524,8 @@ def delete_lesson(user_id: str, quest_id: str, lesson_id: str):
             'message': 'Lesson deleted successfully'
         }), 200
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error deleting lesson: {str(e)}")
         return jsonify({'error': 'Failed to delete lesson'}), 500
@@ -977,7 +551,7 @@ def reorder_lessons(user_id: str, quest_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 
-        quest = verify_curriculum_permission(user_id, quest_id, supabase)
+        quest = _check_edit_permission(user_id, quest_id, supabase)
 
         data = request.get_json()
         if not data or 'lesson_order' not in data:
@@ -987,12 +561,10 @@ def reorder_lessons(user_id: str, quest_id: str):
         if not isinstance(lesson_order, list):
             return jsonify({'error': 'lesson_order must be an array'}), 400
 
-        # Verify all lessons being reordered belong to user's organization
         user_org = quest.get('_user_org')
         user_role = quest.get('_user_role')
 
         if user_role != 'superadmin' and lesson_order:
-            # Check that all lessons belong to user's org
             lessons_result = supabase.table('curriculum_lessons')\
                 .select('id, organization_id')\
                 .in_('id', lesson_order)\
@@ -1013,8 +585,8 @@ def reorder_lessons(user_id: str, quest_id: str):
             'message': 'Lessons reordered successfully'
         }), 200
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error reordering lessons: {str(e)}")
         return jsonify({'error': 'Failed to reorder lessons'}), 500
@@ -1034,7 +606,7 @@ def get_lesson_progress(user_id: str, quest_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 
-        verify_curriculum_read_permission(user_id, quest_id, supabase)
+        _check_read_permission(user_id, quest_id, supabase)
 
         progress = service.get_lesson_progress(user_id, quest_id)
 
@@ -1043,8 +615,8 @@ def get_lesson_progress(user_id: str, quest_id: str):
             'progress': progress
         }), 200
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error fetching lesson progress: {str(e)}")
         return jsonify({'error': 'Failed to fetch lesson progress'}), 500
@@ -1072,7 +644,7 @@ def update_lesson_progress(user_id: str, quest_id: str, lesson_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 
-        verify_curriculum_read_permission(user_id, quest_id, supabase)
+        _check_read_permission(user_id, quest_id, supabase)
 
         user = supabase.table('users').select('organization_id').eq('id', user_id).single().execute()
         organization_id = user.data.get('organization_id')
@@ -1096,8 +668,8 @@ def update_lesson_progress(user_id: str, quest_id: str, lesson_id: str):
             'message': 'Progress updated successfully'
         }), 200
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error updating lesson progress: {str(e)}")
         return jsonify({'error': 'Failed to update lesson progress'}), 500
@@ -1117,18 +689,17 @@ def delete_lesson_progress(user_id: str, quest_id: str, lesson_id: str):
     try:
         supabase = get_supabase_admin_client()
 
-        verify_curriculum_read_permission(user_id, quest_id, supabase)
+        _check_read_permission(user_id, quest_id, supabase)
 
-        # Delete the progress record
-        result = supabase.table('curriculum_lesson_progress').delete().eq('user_id', user_id).eq('lesson_id', lesson_id).execute()
+        supabase.table('curriculum_lesson_progress').delete().eq('user_id', user_id).eq('lesson_id', lesson_id).execute()
 
         return jsonify({
             'success': True,
             'message': 'Progress reset successfully'
         }), 200
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error deleting lesson progress: {str(e)}")
         return jsonify({'error': 'Failed to reset lesson progress'}), 500
@@ -1153,7 +724,7 @@ def search_lessons(user_id: str, quest_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 
-        verify_curriculum_read_permission(user_id, quest_id, supabase)
+        _check_read_permission(user_id, quest_id, supabase)
 
         query = request.args.get('q', '').strip()
         if not query:
@@ -1169,8 +740,8 @@ def search_lessons(user_id: str, quest_id: str):
             'query': query
         }), 200
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error searching lessons: {str(e)}")
         return jsonify({'error': 'Failed to search lessons'}), 500
@@ -1202,39 +773,27 @@ def generate_ai_tasks(user_id: str, quest_id: str, lesson_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 
-        verify_curriculum_permission(user_id, quest_id, supabase)
+        _check_edit_permission(user_id, quest_id, supabase)
 
         data = request.get_json()
         if not data or 'lesson_content' not in data:
             return jsonify({'error': 'lesson_content is required'}), 400
 
-        lesson_content = data.get('lesson_content')
-        num_tasks = data.get('num_tasks', 5)
-        lesson_title = data.get('lesson_title')
-        curriculum_context = data.get('curriculum_context')
-        focus_pillar = data.get('focus_pillar')
-        custom_prompt = data.get('custom_prompt')
-        existing_tasks_context = data.get('existing_tasks_context')
-
-        # Get quest info for context
         quest_result = supabase.table('quests').select('title, description').eq('id', quest_id).execute()
-        quest_title = None
-        quest_description = None
-        if quest_result.data:
-            quest_title = quest_result.data[0].get('title')
-            quest_description = quest_result.data[0].get('description')
+        quest_title = quest_result.data[0].get('title') if quest_result.data else None
+        quest_description = quest_result.data[0].get('description') if quest_result.data else None
 
         tasks = service.generate_ai_tasks(
             lesson_id=lesson_id,
-            lesson_content=lesson_content,
-            num_tasks=num_tasks,
-            lesson_title=lesson_title,
+            lesson_content=data.get('lesson_content'),
+            num_tasks=data.get('num_tasks', 5),
+            lesson_title=data.get('lesson_title'),
             quest_title=quest_title,
             quest_description=quest_description,
-            curriculum_context=curriculum_context,
-            focus_pillar=focus_pillar,
-            custom_prompt=custom_prompt,
-            existing_tasks_context=existing_tasks_context
+            curriculum_context=data.get('curriculum_context'),
+            focus_pillar=data.get('focus_pillar'),
+            custom_prompt=data.get('custom_prompt'),
+            existing_tasks_context=data.get('existing_tasks_context')
         )
 
         return jsonify({
@@ -1243,8 +802,8 @@ def generate_ai_tasks(user_id: str, quest_id: str, lesson_id: str):
             'message': f'Generated {len(tasks)} task suggestions'
         }), 200
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error generating AI tasks: {str(e)}")
         return jsonify({'error': 'Failed to generate AI tasks'}), 500
@@ -1264,10 +823,8 @@ def get_quest_tasks(user_id: str, quest_id: str):
     try:
         supabase = get_supabase_admin_client()
 
-        # Verify user has curriculum permission for this quest
-        verify_curriculum_read_permission(user_id, quest_id, supabase)
+        _check_read_permission(user_id, quest_id, supabase)
 
-        # Get all tasks for this quest
         result = supabase.table('user_quest_tasks')\
             .select('id, title, description, pillar, xp_value, order_index, approval_status')\
             .eq('quest_id', quest_id)\
@@ -1277,17 +834,14 @@ def get_quest_tasks(user_id: str, quest_id: str):
         tasks = result.data or []
 
         if tasks:
-            # Get task IDs
             task_ids = [t['id'] for t in tasks]
 
-            # Get completion status for current user
             completions_result = supabase.table('quest_task_completions')\
                 .select('task_id, user_quest_task_id')\
                 .eq('user_id', user_id)\
                 .eq('quest_id', quest_id)\
                 .execute()
 
-            # Create set of completed task IDs (check both task_id and user_quest_task_id)
             completed_task_ids = set()
             for comp in (completions_result.data or []):
                 if comp.get('task_id'):
@@ -1295,7 +849,6 @@ def get_quest_tasks(user_id: str, quest_id: str):
                 if comp.get('user_quest_task_id'):
                     completed_task_ids.add(comp['user_quest_task_id'])
 
-            # Add is_completed field to each task
             for task in tasks:
                 task['is_completed'] = task['id'] in completed_task_ids
 
@@ -1305,7 +858,7 @@ def get_quest_tasks(user_id: str, quest_id: str):
         }), 200
 
     except (ValidationError, AuthorizationError, NotFoundError) as e:
-        return jsonify({'error': str(e)}), getattr(e, 'code', 400)
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error fetching quest tasks: {str(e)}")
         return jsonify({'error': 'Failed to fetch quest tasks'}), 500
@@ -1331,15 +884,13 @@ def link_task_to_lesson(user_id: str, quest_id: str, lesson_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 
-        verify_curriculum_permission(user_id, quest_id, supabase)
+        _check_edit_permission(user_id, quest_id, supabase)
 
         data = request.get_json()
         if not data or 'task_id' not in data:
             return jsonify({'error': 'task_id is required'}), 400
 
-        task_id = data.get('task_id')
-
-        link = service.link_task_to_lesson(lesson_id, task_id, quest_id)
+        link = service.link_task_to_lesson(lesson_id, data.get('task_id'), quest_id)
 
         return jsonify({
             'success': True,
@@ -1347,8 +898,8 @@ def link_task_to_lesson(user_id: str, quest_id: str, lesson_id: str):
             'message': 'Task linked to lesson successfully'
         }), 201
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error linking task to lesson: {str(e)}")
         return jsonify({'error': 'Failed to link task to lesson'}), 500
@@ -1368,7 +919,7 @@ def unlink_task_from_lesson(user_id: str, quest_id: str, lesson_id: str, task_id
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 
-        verify_curriculum_permission(user_id, quest_id, supabase)
+        _check_edit_permission(user_id, quest_id, supabase)
 
         service.unlink_task_from_lesson(lesson_id, task_id)
 
@@ -1377,8 +928,8 @@ def unlink_task_from_lesson(user_id: str, quest_id: str, lesson_id: str, task_id
             'message': 'Task unlinked from lesson successfully'
         }), 200
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error unlinking task from lesson: {str(e)}")
         return jsonify({'error': 'Failed to unlink task from lesson'}), 500
@@ -1404,96 +955,23 @@ def create_curriculum_tasks(user_id: str, quest_id: str, lesson_id: str):
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 
-        quest = verify_curriculum_permission(user_id, quest_id, supabase)
+        _check_edit_permission(user_id, quest_id, supabase)
 
         data = request.get_json()
         if not data or 'tasks' not in data:
             return jsonify({'error': 'tasks array is required'}), 400
 
         tasks = data.get('tasks', [])
-        link_to_lesson = data.get('link_to_lesson', True)
-
         if not tasks:
             return jsonify({'error': 'At least one task is required'}), 400
 
-        # Get or create user_quest enrollment for the creating user
-        enrollment = supabase.table('user_quests')\
-            .select('id')\
-            .eq('user_id', user_id)\
-            .eq('quest_id', quest_id)\
-            .eq('is_active', True)\
-            .execute()
-
-        if enrollment.data:
-            user_quest_id = enrollment.data[0]['id']
-        else:
-            # Create enrollment for the user
-            from datetime import datetime
-            new_enrollment = supabase.table('user_quests').insert({
-                'user_id': user_id,
-                'quest_id': quest_id,
-                'started_at': datetime.utcnow().isoformat(),
-                'is_active': True,
-                'personalization_completed': True
-            }).execute()
-
-            if not new_enrollment.data:
-                return jsonify({'error': 'Failed to create quest enrollment'}), 500
-            user_quest_id = new_enrollment.data[0]['id']
-
-        # Get current max order_index for quest tasks
-        existing_tasks = supabase.table('user_quest_tasks')\
-            .select('order_index')\
-            .eq('quest_id', quest_id)\
-            .order('order_index', desc=True)\
-            .limit(1)\
-            .execute()
-        max_order = existing_tasks.data[0]['order_index'] if existing_tasks.data else 0
-
-        created_tasks = []
-        valid_pillars = ['stem', 'wellness', 'communication', 'civics', 'art']
-
-        for i, task in enumerate(tasks):
-            title = task.get('title')
-            if not title:
-                continue
-
-            pillar = task.get('pillar', 'stem').lower()
-            if pillar not in valid_pillars:
-                pillar = 'stem'
-
-            xp_value = task.get('xp_value', 100)
-            xp_value = max(50, min(300, int(xp_value)))
-
-            # Build task data with only columns that exist in user_quest_tasks
-            task_data = {
-                'user_id': user_id,
-                'quest_id': quest_id,
-                'user_quest_id': user_quest_id,
-                'title': title,
-                'description': task.get('description', ''),
-                'pillar': pillar,
-                'xp_value': xp_value,
-                'order_index': max_order + i + 1,
-                'is_required': False,
-                'is_manual': False,
-                'approval_status': 'approved'
-            }
-
-            result = supabase.table('user_quest_tasks').insert(task_data).execute()
-
-            if result.data:
-                created_task = result.data[0]
-                created_tasks.append(created_task)
-
-                # Link to lesson if requested
-                if link_to_lesson:
-                    try:
-                        service.link_task_to_lesson(lesson_id, created_task['id'], quest_id)
-                    except Exception as link_err:
-                        logger.warning(f"Failed to link task to lesson: {link_err}")
-
-        logger.info(f"Created {len(created_tasks)} curriculum tasks for quest {quest_id}")
+        created_tasks = service.create_tasks_from_suggestions(
+            quest_id=quest_id,
+            lesson_id=lesson_id,
+            user_id=user_id,
+            tasks=tasks,
+            link_to_lesson=data.get('link_to_lesson', True)
+        )
 
         return jsonify({
             'success': True,
@@ -1501,8 +979,8 @@ def create_curriculum_tasks(user_id: str, quest_id: str, lesson_id: str):
             'message': f'Created {len(created_tasks)} tasks'
         }), 201
 
-    except ValidationError as e:
-        return jsonify({'error': str(e)}), e.status_code or 400
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
     except Exception as e:
         logger.error(f"Error creating curriculum tasks: {str(e)}")
         return jsonify({'error': 'Failed to create tasks'}), 500

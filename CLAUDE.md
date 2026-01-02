@@ -1,6 +1,6 @@
 # Optio Platform - AI Agent Guide
 
-**Last Updated**: December 27, 2025 | **Local Dev**: Enabled | **Multi-Agent**: Available
+**Last Updated**: January 1, 2026 | **Local Dev**: Enabled | **Multi-Agent**: Available
 
 ---
 
@@ -22,7 +22,7 @@
 | `advisor` | Org-specific advisor access |
 | `parent` | Org-specific parent access |
 | `student` | Org-specific student access |
-| `observer` | View-only access to linked students (not yet fully implemented) |
+| `observer` | View-only access to linked students, can comment on student work |
 
 **INVALID roles** (do NOT use): `admin`, `teacher`, `educator`, `school_admin`
 

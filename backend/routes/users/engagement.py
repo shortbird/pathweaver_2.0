@@ -111,7 +111,7 @@ def calculate_rhythm_state(activity_dates: list, today: date_type) -> dict:
     if days_since_last > 14:
         return {
             "state": "ready_when_you_are",
-            "state_display": "Ready When You Are",
+            "state_display": "Ready to Begin",
             "message": "Your learning journey awaits",
             "pattern_description": "Pick up where you left off"
         }
