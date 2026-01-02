@@ -24,12 +24,7 @@ bp = Blueprint('curriculum', __name__, url_prefix='/api/quests')
 def _check_read_permission(user_id: str, quest_id: str, supabase) -> bool:
     """Verify read permission using CurriculumPermissionService."""
     permission_service = CurriculumPermissionService(supabase)
-    result = permission_service.can_read_curriculum(user_id, quest_id)
-    if not result.permitted:
-        if result.error_code == 404:
-            raise NotFoundError(result.error_message)
-        raise AuthorizationError(result.error_message)
-    return True
+    return permission_service.can_read_curriculum(user_id, quest_id)
 
 
 def _check_edit_permission(user_id: str, quest_id: str, supabase) -> dict:

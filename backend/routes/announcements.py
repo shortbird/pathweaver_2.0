@@ -51,7 +51,7 @@ def create_announcement(user_id):
 
         # Get user info to verify role and org
         user = supabase.table('users')\
-            .select('id, role, organization_id')\
+            .select('id, role, organization_id, is_org_admin')\
             .eq('id', user_id)\
             .single()\
             .execute()
@@ -61,9 +61,10 @@ def create_announcement(user_id):
 
         user_role = user.data.get('role')
         organization_id = user.data.get('organization_id')
+        is_org_admin = user.data.get('is_org_admin', False)
 
         # Only advisors and admins can create announcements
-        if user_role not in ['advisor', 'org_admin', 'superadmin']:
+        if user_role not in ['advisor', 'org_admin', 'superadmin'] and not is_org_admin:
             return jsonify({'error': 'Only advisors and admins can create announcements'}), 403
 
         # Validate request
@@ -116,7 +117,7 @@ def list_announcements(user_id):
 
         # Get user info
         user = supabase.table('users')\
-            .select('id, role, organization_id')\
+            .select('id, role, organization_id, is_org_admin')\
             .eq('id', user_id)\
             .single()\
             .execute()
@@ -126,6 +127,7 @@ def list_announcements(user_id):
 
         user_role = user.data.get('role')
         organization_id = user.data.get('organization_id')
+        is_org_admin = user.data.get('is_org_admin', False)
 
         if not organization_id:
             return jsonify({'error': 'User is not part of an organization'}), 400
@@ -138,7 +140,9 @@ def list_announcements(user_id):
         # List announcements
         announcements = get_announcement_service().list_announcements(
             organization_id=organization_id,
+            user_id=user_id,
             user_role=user_role,
+            is_org_admin=is_org_admin,
             pinned_only=pinned_only,
             limit=limit,
             offset=offset
@@ -252,7 +256,7 @@ def delete_announcement(user_id, announcement_id):
 
         # Get user role
         user = supabase.table('users')\
-            .select('role')\
+            .select('role, is_org_admin')\
             .eq('id', user_id)\
             .single()\
             .execute()
@@ -261,12 +265,14 @@ def delete_announcement(user_id, announcement_id):
             return jsonify({'error': 'User not found'}), 404
 
         user_role = user.data.get('role')
+        is_org_admin = user.data.get('is_org_admin', False)
 
         # Delete announcement
         get_announcement_service().delete_announcement(
             announcement_id=announcement_id,
             user_id=user_id,
-            user_role=user_role
+            user_role=user_role,
+            is_org_admin=is_org_admin
         )
 
         return jsonify({

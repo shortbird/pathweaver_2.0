@@ -9,7 +9,7 @@ import LearningEventCard from '../components/learning-events/LearningEventCard';
 import EvidenceMasonryGallery from '../components/diploma/EvidenceMasonryGallery';
 import CompactSidebar from '../components/diploma/CompactSidebar';
 import CreditProgressModal from '../components/diploma/CreditProgressModal';
-import BadgesModal from '../components/diploma/BadgesModal';
+// BadgesModal removed (January 2026 - Microschool client feedback)
 import EvidenceDetailModal from '../components/diploma/EvidenceDetailModal';
 import AchievementDetailModal from '../components/diploma/AchievementDetailModal';
 import DiplomaExplanationModal from '../components/diploma/DiplomaExplanationModal';
@@ -40,7 +40,8 @@ const DiplomaPage = () => {
   const [achievements, setAchievements] = useState([]);
   const [totalXP, setTotalXP] = useState({});
   const [subjectXP, setSubjectXP] = useState({});  // NEW: Subject-specific XP
-  const [earnedBadges, setEarnedBadges] = useState([]);  // Earned badges
+  const [pendingSubjectXP, setPendingSubjectXP] = useState({});  // XP awaiting teacher verification
+  // earnedBadges state removed (January 2026 - Microschool client feedback)
   const [learningEvents, setLearningEvents] = useState([]);  // Learning events
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAchievement, setSelectedAchievement] = useState(null);
@@ -52,7 +53,7 @@ const DiplomaPage = () => {
   const [showDiplomaExplanation, setShowDiplomaExplanation] = useState(false);
   const [showAccreditedDiplomaModal, setShowAccreditedDiplomaModal] = useState(false);
   const [showFullCreditsModal, setShowFullCreditsModal] = useState(false);
-  const [showAllBadgesModal, setShowAllBadgesModal] = useState(false);
+  // showAllBadgesModal state removed (January 2026 - Microschool client feedback)
   const [selectedEvidenceItem, setSelectedEvidenceItem] = useState(null);
 
   // All features are now free for all users (Phase 2 refactoring - January 2025)
@@ -71,6 +72,7 @@ const DiplomaPage = () => {
     setAchievements([]);
     setTotalXP({});
     setSubjectXP({});
+    setPendingSubjectXP({});
     setTotalXPCount(0);
     setIsLoading(true);
 
@@ -88,7 +90,7 @@ const DiplomaPage = () => {
         Promise.allSettled([
           fetchAchievements().catch(err => console.error('Failed to fetch achievements:', err)),
           fetchSubjectXP().catch(err => console.error('Failed to fetch subject XP:', err)),
-          fetchEarnedBadges().catch(err => console.error('Failed to fetch badges:', err)),
+          // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
           fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err))
         ]).finally(() => {
           // Ensure loading state is cleared even if some fetches fail
@@ -112,7 +114,7 @@ const DiplomaPage = () => {
       Promise.allSettled([
         fetchAchievements().catch(err => console.error('Failed to fetch achievements:', err)),
         fetchSubjectXP().catch(err => console.error('Failed to fetch subject XP:', err)),
-        fetchEarnedBadges().catch(err => console.error('Failed to fetch badges:', err)),
+        // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
         fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err))
       ]);
     }
@@ -124,7 +126,7 @@ const DiplomaPage = () => {
       Promise.allSettled([
         fetchAchievements().catch(err => console.error('Failed to fetch achievements:', err)),
         fetchSubjectXP().catch(err => console.error('Failed to fetch subject XP:', err)),
-        fetchEarnedBadges().catch(err => console.error('Failed to fetch badges:', err)),
+        // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
         fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err))
       ]);
     }
@@ -148,9 +150,9 @@ const DiplomaPage = () => {
       const diplomaData = response.data;
       setDiploma(diplomaData);
 
-      // Fetch badges and learning events for public diploma if user_id is available
+      // Fetch learning events for public diploma if user_id is available
+      // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
       if (diplomaData?.user_id) {
-        await fetchEarnedBadges(diplomaData.user_id);
         await fetchLearningEvents(diplomaData.user_id);
       }
 
@@ -201,9 +203,9 @@ const DiplomaPage = () => {
         setSubjectXP(subjectXPMap);
       }
 
-      // Fetch badges and learning events for public diploma
+      // Fetch learning events for public diploma
+      // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
       if (userId) {
-        await fetchEarnedBadges(userId);
         await fetchLearningEvents(userId);
       }
     } catch (error) {
@@ -297,45 +299,32 @@ const DiplomaPage = () => {
         const data = response.data;
         // Transform array to object with subject as key
         const subjectXPMap = {};
+        const pendingXPMap = {};
         if (data.subject_xp) {
           data.subject_xp.forEach(item => {
-            subjectXPMap[item.school_subject] = item.xp_amount;
+            // Use verified_xp if available, otherwise fall back to xp_amount for backwards compatibility
+            subjectXPMap[item.school_subject] = item.verified_xp ?? item.xp_amount;
+            // Track pending XP separately (awaiting teacher verification)
+            if (item.pending_xp) {
+              pendingXPMap[item.school_subject] = item.pending_xp;
+            }
           });
         }
         setSubjectXP(subjectXPMap);
+        setPendingSubjectXP(pendingXPMap);
       } else {
         // If endpoint doesn't exist yet, silently handle
         setSubjectXP({});
+        setPendingSubjectXP({});
       }
     } catch (error) {
       // Silently handle error for now
       setSubjectXP({});
+      setPendingSubjectXP({});
     }
   }, []);
 
-  const fetchEarnedBadges = useCallback(async (targetUserId = null) => {
-    try {
-      const userIdToFetch = targetUserId || user?.id;
-      if (!userIdToFetch) return;
-
-      const response = await api.get(`/api/badges/user/${userIdToFetch}`, {
-        headers: {
-          'Cache-Control': 'no-cache'
-        }
-      });
-
-      if (response.data && response.data.user_badges) {
-        // Filter to only show earned badges on diploma
-        const earned = response.data.user_badges.filter(b => b.is_earned);
-        setEarnedBadges(earned);
-      } else {
-        setEarnedBadges([]);
-      }
-    } catch (error) {
-      // Silently handle error - badges are optional
-      setEarnedBadges([]);
-    }
-  }, [user?.id]);
+  // fetchEarnedBadges function removed (January 2026 - Microschool client feedback)
 
   const fetchLearningEvents = useCallback(async (targetUserId = null) => {
     try {
@@ -623,12 +612,10 @@ const DiplomaPage = () => {
               <CompactSidebar
                 totalXP={totalXP}
                 subjectXP={subjectXP}
-                earnedBadges={earnedBadges}
                 totalXPCount={totalXPCount}
                 isOwner={isOwner}
                 studentName={getStudentFirstName()}
                 onCreditsClick={() => setShowFullCreditsModal(true)}
-                onBadgesClick={() => setShowAllBadgesModal(true)}
               />
             </div>
           </aside>
@@ -681,19 +668,13 @@ const DiplomaPage = () => {
           isOpen={showFullCreditsModal}
           onClose={() => setShowFullCreditsModal(false)}
           subjectXP={subjectXP}
+          pendingSubjectXP={pendingSubjectXP}
           isOwner={isOwner}
           getStudentFirstName={getStudentFirstName}
           onAccreditedDiplomaClick={() => setShowAccreditedDiplomaModal(true)}
         />
 
-        {/* All Badges Modal */}
-        <BadgesModal
-          isOpen={showAllBadgesModal}
-          onClose={() => setShowAllBadgesModal(false)}
-          earnedBadges={earnedBadges}
-          isOwner={isOwner}
-          getStudentFirstName={getStudentFirstName}
-        />
+        {/* Badge system removed (January 2026 - Microschool client feedback) */}
 
         {/* Evidence Detail Modal */}
         <EvidenceDetailModal

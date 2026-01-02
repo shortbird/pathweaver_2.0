@@ -28,7 +28,8 @@ from routes.courses import bp as courses_bp
 # Import routes
 from routes import tasks, admin_core, evidence_documents, analytics as analytics_routes, webhooks
 from routes.quest import register_quest_blueprints  # Refactored quest routes (P2-ARCH-1)
-from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management, observer_audit, ferpa_compliance, bulk_import, user_invitations
+from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management, observer_audit, ferpa_compliance, bulk_import, user_invitations
+# badge_management import removed (January 2026 - Microschool client feedback)
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -137,6 +138,14 @@ app.register_blueprint(evidence_documents.bp)  # /api/evidence (blueprint has ur
 from routes import helper_evidence
 app.register_blueprint(helper_evidence.bp)  # /api/evidence/helper (blueprint has url_prefix='/api/evidence/helper')
 
+# Register collaboration routes (collaborative quests and evidence sharing)
+from routes.collaborations import collaborations_bp
+app.register_blueprint(collaborations_bp, url_prefix='/api/collaborations')  # /api/collaborations
+
+# Register teacher verification routes (diploma subject verification workflow)
+from routes.teacher_verification import bp as teacher_verification_bp
+app.register_blueprint(teacher_verification_bp)  # /api/teacher
+
 # Register subject backfill blueprint (AI-powered subject XP classification)
 try:
     from routes.admin.subject_backfill import bp as subject_backfill_bp
@@ -150,7 +159,7 @@ except Exception as e:
 app.register_blueprint(admin_core.bp)   # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(user_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(quest_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
-app.register_blueprint(badge_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
+# badge_management.bp removed (January 2026 - Microschool client feedback)
 app.register_blueprint(analytics.bp)  # /api/admin/analytics (blueprint has url_prefix='/api/admin/analytics')
 app.register_blueprint(student_task_management.bp)  # /api/admin/users (blueprint has url_prefix='/api/admin/users')
 app.register_blueprint(sample_task_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
@@ -231,24 +240,21 @@ except Exception as e:
     logger.error(f"Error registering Observer role routes: {e}", exc_info=True)
 
 
-# Register Badge System blueprints
+# Badge system removed (January 2026 - Microschool client feedback)
+# Register Credits blueprint only (credits are still used for diploma)
 try:
-    from routes import badges, credits, admin_badge_seed, quest_badge_hub
-    app.register_blueprint(badges.bp)  # /api/badges
+    from routes import credits
     app.register_blueprint(credits.bp)  # /api/credits
-    app.register_blueprint(admin_badge_seed.bp)  # /api/admin/seed
-    app.register_blueprint(quest_badge_hub.bp)  # /api/hub
 except ImportError as e:
-    logger.warning(f"Warning: Badge system module not available: {e}")
+    logger.warning(f"Warning: Credits module not available: {e}")
 except Exception as e:
-    logger.error(f"Error registering Badge system routes: {e}", exc_info=True)
+    logger.error(f"Error registering Credits routes: {e}", exc_info=True)
 
 # Register Quest Lifecycle blueprints (Pick Up/Set Down system - January 2025)
 try:
     from routes.quest_lifecycle import quest_lifecycle_bp
-    from routes.badge_claiming import badge_claiming_bp
+    # badge_claiming blueprint removed (January 2026 - Microschool client feedback)
     app.register_blueprint(quest_lifecycle_bp, url_prefix='/api')  # /api/quests/:id/pickup, /api/quests/:id/setdown
-    app.register_blueprint(badge_claiming_bp, url_prefix='/api')  # /api/badges/:id/claim, /api/badges/claimable
 except ImportError as e:
     logger.warning(f"Warning: Quest Lifecycle module not available: {e}")
 except Exception as e:
@@ -370,14 +376,16 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Error registering AI Quest Review routes: {e}", exc_info=True)
 
-# Register Batch Badge Generation blueprint (admin)
+# Register AI Prompts Management blueprint (admin - superadmin only)
 try:
-    from routes.admin import batch_badge_generation
-    app.register_blueprint(batch_badge_generation.batch_badge_generation_bp, url_prefix='/api/admin/batch-badge-generation')  # /api/admin/batch-badge-generation/*
+    from routes.admin import ai_prompts
+    app.register_blueprint(ai_prompts.ai_prompts_bp, url_prefix='/api/admin/ai')  # /api/admin/ai/*
 except ImportError as e:
-    logger.warning(f"Warning: Batch Badge Generation module not available: {e}")
+    logger.warning(f"Warning: AI Prompts module not available: {e}")
 except Exception as e:
-    logger.error(f"Error registering Batch Badge Generation routes: {e}", exc_info=True)
+    logger.error(f"Error registering AI Prompts routes: {e}", exc_info=True)
+
+# Batch Badge Generation removed (January 2026 - Microschool client feedback)
 
 # Register Calendar blueprint
 try:

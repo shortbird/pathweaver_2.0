@@ -92,14 +92,24 @@ def get_organization(current_user_id, current_org_id, is_superadmin, org_id):
 
 
 @bp.route('/<org_id>', methods=['PUT'])
-@require_superadmin
-def update_organization(superadmin_user_id, org_id):
-    """Update organization (superadmin only)"""
+@require_org_admin
+def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
+    """Update organization (org_admin for own org, superadmin for any)"""
     try:
+        # Org admins can only update their own organization
+        if not is_superadmin and current_org_id != org_id:
+            return jsonify({'error': 'You can only update your own organization'}), 403
+
         data = request.get_json()
 
-        # Only allow updating specific fields
-        allowed_fields = ['name', 'quest_visibility_policy', 'branding_config', 'is_active']
+        # Define allowed fields based on role
+        # Org admins can update branding but not deactivate org or change visibility policy
+        if is_superadmin:
+            allowed_fields = ['name', 'quest_visibility_policy', 'branding_config', 'is_active']
+        else:
+            # Org admins can update name and branding only
+            allowed_fields = ['name', 'branding_config']
+
         update_data = {k: v for k, v in data.items() if k in allowed_fields}
 
         if not update_data:
@@ -107,12 +117,12 @@ def update_organization(superadmin_user_id, org_id):
 
         service = OrganizationService()
 
-        # If updating policy, use dedicated method
+        # If updating policy, use dedicated method (superadmin only)
         if 'quest_visibility_policy' in update_data:
             org = service.update_organization_policy(
                 org_id,
                 update_data['quest_visibility_policy'],
-                superadmin_user_id
+                current_user_id
             )
         else:
             # Use repository directly for other updates

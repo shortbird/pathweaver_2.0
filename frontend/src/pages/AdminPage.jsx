@@ -18,6 +18,7 @@ const OrganizationDashboard = lazy(() => import('./admin/OrganizationDashboard')
 const OrganizationManagement = lazy(() => import('./admin/OrganizationManagement'))
 const ObserverAuditLog = lazy(() => import('../components/admin/ObserverAuditLog'))
 const ParentalConsentReviewPage = lazy(() => import('./admin/ParentalConsentReviewPage'))
+const AIManagement = lazy(() => import('./admin/AIManagement'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -33,6 +34,7 @@ const AdminPage = () => {
 
   // Determine if user is admin or advisor
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
+  const isSuperadmin = user?.role === 'superadmin'
   const isAdvisor = user?.role === 'advisor'
 
   return (
@@ -120,6 +122,16 @@ const AdminPage = () => {
           </>
         )}
 
+        {/* Superadmin-only tabs */}
+        {isSuperadmin && (
+          <Link
+            to="/admin/ai"
+            className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'ai' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+          >
+            AI Management
+          </Link>
+        )}
+
         {/* Quests tab - visible to advisors */}
         {isAdvisor && !isAdmin && (
           <Link
@@ -149,6 +161,7 @@ const AdminPage = () => {
           <Route path="organizations/:orgId" element={<OrganizationManagement />} />
           <Route path="observer-audit" element={<ObserverAuditLog />} />
           <Route path="parental-consent" element={<ParentalConsentReviewPage />} />
+          <Route path="ai/*" element={<AIManagement />} />
         </Routes>
       </Suspense>
     </div>

@@ -114,7 +114,9 @@ class AnnouncementService(BaseService):
     def list_announcements(
         self,
         organization_id: str,
+        user_id: Optional[str] = None,
         user_role: Optional[str] = None,
+        is_org_admin: bool = False,
         pinned_only: bool = False,
         limit: int = 20,
         offset: int = 0
@@ -124,22 +126,24 @@ class AnnouncementService(BaseService):
 
         Args:
             organization_id: UUID of the organization
+            user_id: UUID of the requesting user (for read status)
             user_role: Role of the requesting user (filters target_audience)
+            is_org_admin: Whether user has is_org_admin flag set
             pinned_only: Only return pinned announcements
             limit: Maximum number of results
             offset: Offset for pagination
 
         Returns:
-            List of announcement records
+            List of announcement records with is_read flag
         """
         try:
             # Map role to target_audience
             audience_filter = None
-            if user_role == 'student':
-                audience_filter = 'students'
-            elif user_role in ['advisor', 'org_admin', 'superadmin']:
+            if user_role in ['advisor', 'org_admin', 'superadmin'] or is_org_admin:
                 # Admins/advisors see all announcements
                 audience_filter = None
+            elif user_role == 'student':
+                audience_filter = 'students'
             elif user_role == 'parent':
                 audience_filter = 'parents'
 
@@ -148,8 +152,21 @@ class AnnouncementService(BaseService):
                 target_audience=audience_filter,
                 pinned_only=pinned_only,
                 limit=limit,
-                offset=offset
+                offset=offset,
+                user_id=user_id
             )
+
+            # Flatten author info for easier frontend access
+            for announcement in announcements:
+                if announcement.get('author'):
+                    author = announcement['author']
+                    announcement['author_name'] = (
+                        author.get('display_name') or
+                        f"{author.get('first_name', '')} {author.get('last_name', '')}".strip() or
+                        'Advisor'
+                    )
+                else:
+                    announcement['author_name'] = 'Advisor'
 
             return announcements
 
@@ -205,7 +222,7 @@ class AnnouncementService(BaseService):
             print(f"Traceback: {traceback.format_exc()}", file=sys.stderr, flush=True)
             raise
 
-    def delete_announcement(self, announcement_id: str, user_id: str, user_role: str) -> bool:
+    def delete_announcement(self, announcement_id: str, user_id: str, user_role: str, is_org_admin: bool = False) -> bool:
         """
         Delete an announcement.
 
@@ -213,6 +230,7 @@ class AnnouncementService(BaseService):
             announcement_id: UUID of the announcement
             user_id: UUID of the requesting user
             user_role: Role of the requesting user
+            is_org_admin: Whether user has is_org_admin flag set
 
         Returns:
             True if deleted successfully
@@ -228,7 +246,7 @@ class AnnouncementService(BaseService):
 
             # Only author or superadmin/org_admin can delete
             is_author = announcement['author_id'] == user_id
-            is_admin = user_role in ['org_admin', 'superadmin']
+            is_admin = user_role in ['org_admin', 'superadmin'] or is_org_admin
 
             if not (is_author or is_admin):
                 raise PermissionError("You do not have permission to delete this announcement")

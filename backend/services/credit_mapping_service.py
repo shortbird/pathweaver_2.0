@@ -78,6 +78,9 @@ class CreditMappingService(BaseService):
         Convert task XP to academic credits and record in ledger.
         Called when a task is completed.
 
+        Only creates credit_ledger entries for tasks with credit_status = 'approved' or 'adjusted'.
+        Uses verified_subject_distribution if present, otherwise falls back to subject_xp_distribution.
+
         Args:
             user_id: User ID
             task_id: Task ID
@@ -88,9 +91,9 @@ class CreditMappingService(BaseService):
         """
         supabase = get_supabase_admin_client()
 
-        # Get task details
+        # Get task details including credit_status and verified_subject_distribution
         task = supabase.table('quest_tasks')\
-            .select('xp_amount, subject_xp_distribution')\
+            .select('xp_amount, subject_xp_distribution, credit_status, verified_subject_distribution')\
             .eq('id', task_id)\
             .single()\
             .execute()
@@ -98,7 +101,16 @@ class CreditMappingService(BaseService):
         if not task.data:
             raise ValueError(f"Task {task_id} not found")
 
-        subject_xp_distribution = task.data.get('subject_xp_distribution', {})
+        # Check if task has been verified for credit
+        credit_status = task.data.get('credit_status')
+        if credit_status not in ['approved', 'adjusted']:
+            # Task not yet verified - no credits awarded
+            logger.info(f"Task {task_id} credit_status is '{credit_status}' - no credits awarded")
+            return {'credits_awarded': {}, 'pending_verification': True}
+
+        # Use verified_subject_distribution if present, otherwise fall back to subject_xp_distribution
+        subject_xp_distribution = task.data.get('verified_subject_distribution') or task.data.get('subject_xp_distribution', {})
+
         if not subject_xp_distribution:
             # No credit mapping for this task
             return {'credits_awarded': {}}

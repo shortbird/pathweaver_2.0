@@ -1,17 +1,17 @@
 """
 AI Tutor Service for educational assistance and concept explanation.
 Provides safe, encouraging, and educational AI tutoring for students.
+
+Refactored (Jan 2026): Now extends BaseAIService for unified Gemini access
+and uses shared prompt components from prompts.components.
 """
 
-import json
 import re
-import os
-from typing import Dict, List, Optional, Any, Tuple
-from services.base_service import BaseService
+from typing import Dict, List, Optional, Any
+from services.base_ai_service import BaseAIService
 from database import get_supabase_admin_client
 from dataclasses import dataclass
 from enum import Enum
-import google.generativeai as genai
 
 from utils.logger import get_logger
 
@@ -19,6 +19,20 @@ logger = get_logger(__name__)
 
 from services.safety_service import SafetyService, SafetyLevel
 from utils.pillar_utils import get_pillar_name
+
+# Import shared prompt components
+from prompts.components import (
+    OPTIO_AI_PERSONA,
+    CORE_PHILOSOPHY,
+    TONE_LEVELS,
+    PILLAR_DEFINITIONS_DETAILED,
+    PILLAR_DISPLAY_NAMES,
+    CONVERSATION_MODE_INSTRUCTIONS,
+    LEARNING_STYLE_INSTRUCTIONS,
+    ACTION_TYPE_INSTRUCTIONS,
+    build_quest_context,
+    build_lesson_context,
+)
 
 class ConversationMode(Enum):
     """Different modes for AI tutor conversations"""
@@ -35,6 +49,8 @@ class TutorContext:
     user_age: Optional[int] = None
     current_quest: Optional[Dict] = None
     current_task: Optional[Dict] = None
+    current_lesson: Optional[Dict] = None  # Lesson context for lesson-integrated chatbot
+    lesson_action_type: Optional[str] = None  # example, analogy, draw, debate
     learning_style: Optional[str] = None
     conversation_mode: ConversationMode = ConversationMode.TEACHER
     previous_messages: List[Dict] = None
@@ -49,22 +65,17 @@ class TutorResponse:
     xp_bonus_eligible: bool = False
     requires_parent_notification: bool = False
 
-class AITutorService(BaseService):
+class AITutorService(BaseAIService):
     """AI-powered educational tutor service"""
 
     def __init__(self):
-        """Initialize AI tutor service"""
+        """Initialize AI tutor service.
+
+        Gemini model initialization is handled by BaseAIService (singleton).
+        """
         super().__init__()
         self.supabase = get_supabase_admin_client()
-        self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
-        self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
-
-        if not self.api_key:
-            raise ValueError("GOOGLE_API_KEY not configured. Set GEMINI_API_KEY environment variable.")
-
-        genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel(self.model_name)
-        self.safety_service = SafetyService()
+        # Safety service is lazy-loaded from BaseAIService
 
         # Load educational knowledge base
         self.pillar_knowledge = self._load_pillar_knowledge()
@@ -161,20 +172,51 @@ class AITutorService(BaseService):
         return parsed_response
 
     def _build_tutor_prompt(self, message: str, context: TutorContext) -> str:
-        """Build optimized prompt for concise, well-formatted responses"""
+        """Build optimized prompt for concise, well-formatted responses.
 
-        # Dynamic greeting to avoid repetition
-        greeting_style = self._get_dynamic_greeting_style(context)
+        Uses shared components from prompts.components for consistency.
+        For lesson helper actions (pre-set buttons), uses a direct, non-conversational style.
+        """
 
-        # Base system prompt with natural conversation requirements
-        base_prompt = f"""You are OptioBot, a friendly AI learning companion for teenagers on Optio.
+        # Check if this is a lesson helper action (pre-set button, not free-form chat)
+        is_lesson_helper = context.lesson_action_type and context.current_lesson
+
+        if is_lesson_helper:
+            # Use direct, prepared-content style for lesson helper
+            base_prompt = f"""You are an educational content assistant helping a student understand lesson material.
+
+{TONE_LEVELS['content_generation']}
+
+{CORE_PHILOSOPHY}
+
+SAFETY RULES:
+- Only educational topics
+- Age-appropriate language for teenagers
+- No external links or personal information requests
+
+{PILLAR_DEFINITIONS_DETAILED}
+
+"""
+        else:
+            # Use conversational style for regular chat
+            # Dynamic greeting to avoid repetition
+            greeting_style = self._get_dynamic_greeting_style(context)
+
+            # Get conversation mode instructions from shared components
+            mode_key = context.conversation_mode.value
+            mode_instructions = CONVERSATION_MODE_INSTRUCTIONS.get(mode_key, '')
+
+            # Base system prompt with natural conversation requirements
+            base_prompt = f"""{OPTIO_AI_PERSONA}
+
+{TONE_LEVELS['student_facing']}
 
 CONVERSATION STYLE:
-- Talk like a knowledgeable friend who's genuinely excited about learning
+- Talk like a knowledgeable friend who's genuinely curious about learning
 - Be natural and conversational, not formal or robotic
 - Keep responses 50-150 words maximum
 - AVOID rigid templates - let the conversation flow naturally
-- Use bullet points only when they genuinely help organize information (like listing steps or options)
+- Use bullet points only when they genuinely help organize information
 
 GREETING STYLE: {greeting_style}
 
@@ -186,12 +228,7 @@ RESPONSE APPROACH:
 - Share insights like you're thinking out loud together
 - Make them feel heard and understood
 
-CORE PRINCIPLES:
-- "Process over outcomes" - Focus on the learning journey
-- Growth mindset - celebrate curiosity, effort, and even mistakes
-- Ask "What do you think..." instead of just giving answers
-- Spark curiosity rather than just provide information
-- Make learning feel exciting and accessible
+{CORE_PHILOSOPHY}
 
 CONVERSATION MODE: {context.conversation_mode.value.replace('_', ' ').title()}
 
@@ -201,12 +238,7 @@ SAFETY RULES:
 - No external links or personal information requests
 - Redirect off-topic questions back to learning
 
-LEARNING PILLARS:
-1. STEM & Logic (math, science, technology, programming, logic)
-2. Life & Wellness (health, mindfulness, personal growth, life skills)
-3. Language & Communication (writing, reading, speaking, literature)
-4. Society & Culture (history, geography, cultures, communities)
-5. Arts & Creativity (visual arts, music, creative writing, design)
+{PILLAR_DEFINITIONS_DETAILED}
 
 """
 
@@ -214,15 +246,99 @@ LEARNING PILLARS:
         if context.user_age:
             base_prompt += f"USER AGE: {context.user_age} years old\n"
 
-        # Only include quest/task context if actually provided
-        if context.current_quest and context.current_quest.get('title'):
-            quest_title = context.current_quest.get('title')
-            base_prompt += f"CURRENT QUEST: {quest_title}\n"
+        # Add quest context - handle both rich context (from quest_id) and simple context (legacy)
+        if context.current_quest:
+            # Check if this is rich quest context (from build_quest_context)
+            if 'quest' in context.current_quest and 'tasks' in context.current_quest:
+                quest_data = context.current_quest
+                quest = quest_data['quest']
+                tasks = quest_data['tasks']
+                completed = quest_data['completed_count']
+                total = quest_data['total_count']
+
+                base_prompt += f"\n--- QUEST CONTEXT ---\n"
+                base_prompt += f"QUEST: {quest.get('title', 'Unknown')}\n"
+                if quest.get('description'):
+                    base_prompt += f"DESCRIPTION: {quest['description'][:200]}...\n" if len(quest.get('description', '')) > 200 else f"DESCRIPTION: {quest['description']}\n"
+                if quest.get('big_idea'):
+                    base_prompt += f"BIG IDEA: {quest['big_idea']}\n"
+                if quest.get('pillar_primary'):
+                    base_prompt += f"PRIMARY PILLAR: {quest['pillar_primary']}\n"
+
+                base_prompt += f"\nPROGRESS: {completed}/{total} tasks completed\n"
+
+                # List remaining tasks
+                remaining_tasks = [t for t in tasks if not t.get('is_completed')]
+                if remaining_tasks:
+                    base_prompt += "REMAINING TASKS:\n"
+                    for task in remaining_tasks[:5]:  # Limit to 5
+                        base_prompt += f"  - {task['title']} ({task.get('pillar', 'General')}, {task.get('xp_value', 0)} XP)\n"
+
+                # Include recent evidence for context
+                evidence = quest_data.get('recent_evidence', [])
+                if evidence:
+                    base_prompt += "\nRECENT WORK (student's own words):\n"
+                    for ev in evidence[:2]:  # Limit to 2
+                        base_prompt += f"  - Task '{ev['task_title']}': \"{ev['evidence_text'][:150]}...\"\n" if len(ev.get('evidence_text', '')) > 150 else f"  - Task '{ev['task_title']}': \"{ev['evidence_text']}\"\n"
+
+                base_prompt += "--- END QUEST CONTEXT ---\n\n"
+                base_prompt += "QUEST-SPECIFIC INSTRUCTIONS:\n"
+                base_prompt += "- Reference the quest goals and remaining tasks when relevant\n"
+                base_prompt += "- Celebrate completed work and evidence the student has shared\n"
+                base_prompt += "- Help them understand how current questions connect to their quest\n"
+                base_prompt += "- Suggest next steps when appropriate\n\n"
+
+            # Legacy simple quest context (backwards compatibility)
+            elif context.current_quest.get('title'):
+                quest_title = context.current_quest.get('title')
+                base_prompt += f"CURRENT QUEST: {quest_title}\n"
 
         if context.current_task and context.current_task.get('title'):
             task_title = context.current_task.get('title')
             task_pillar = context.current_task.get('pillar', 'General')
             base_prompt += f"CURRENT TASK: {task_title} (Pillar: {task_pillar})\n"
+
+        # Add lesson context if available (lesson-integrated chatbot)
+        if context.current_lesson:
+            lesson_data = context.current_lesson
+            lesson = lesson_data.get('lesson', {})
+            current_block = lesson_data.get('current_block')
+            progress = lesson_data.get('progress', {})
+            linked_tasks = lesson_data.get('linked_tasks', [])
+            learning_style = lesson_data.get('learning_style', 'mixed')
+
+            base_prompt += f"\n--- LESSON CONTEXT ---\n"
+            base_prompt += f"LESSON: {lesson.get('title', 'Unknown')}\n"
+            base_prompt += f"QUEST: {lesson.get('quest_title', 'Unknown')}\n"
+            if lesson.get('description'):
+                base_prompt += f"LESSON DESCRIPTION: {lesson['description'][:200]}\n"
+
+            # Include the specific content block the student is viewing
+            if current_block:
+                base_prompt += f"\nSTUDENT IS VIEWING (Block {current_block['index'] + 1}):\n"
+                base_prompt += f'"""\n{current_block["content"]}\n"""\n'
+
+            # Include progress info
+            base_prompt += f"\nPROGRESS: {progress.get('progress_percentage', 0)}% complete, "
+            base_prompt += f"{progress.get('time_spent_seconds', 0) // 60} minutes spent\n"
+
+            # Include linked tasks
+            if linked_tasks:
+                base_prompt += "\nRELATED TASKS:\n"
+                for task in linked_tasks[:3]:
+                    base_prompt += f"  - {task.get('title')} ({task.get('pillar')})\n"
+
+            base_prompt += f"\nSTUDENT'S LEARNING STYLE: {learning_style}\n"
+            base_prompt += "--- END LESSON CONTEXT ---\n\n"
+
+            # Add action-specific instructions based on what button the student clicked
+            action_type = context.lesson_action_type
+            if action_type and action_type in ACTION_TYPE_INSTRUCTIONS:
+                base_prompt += f"\n{ACTION_TYPE_INSTRUCTIONS[action_type]}\n\n"
+
+            # Learning style adaptations from shared components
+            if learning_style in LEARNING_STYLE_INSTRUCTIONS:
+                base_prompt += f"\nLEARNING STYLE ADAPTATION: {LEARNING_STYLE_INSTRUCTIONS[learning_style]}\n\n"
 
         # Add conversation history context (filter out quest-specific references)
         if context.previous_messages:
@@ -251,12 +367,24 @@ LEARNING PILLARS:
 
                 base_prompt += f"{role}: {filtered_content}\n"
 
-        # Mode-specific instructions
-        mode_instructions = self._get_mode_instructions(context.conversation_mode)
-        base_prompt += f"\n{mode_instructions}\n"
+        # Final instructions differ based on whether this is lesson helper or chat
+        if is_lesson_helper:
+            # For lesson helper: direct content delivery, no conversation
+            base_prompt += f"""
+STUDENT REQUEST: "{message}"
 
-        # Final instructions
-        base_prompt += f"""
+Deliver the requested content directly. No greetings, no follow-up questions, no conversational phrases.
+Just provide focused, helpful educational content about the lesson material shown above.
+"""
+        else:
+            # For regular chat: conversational style
+            greeting_style = self._get_dynamic_greeting_style(context)
+
+            # Mode-specific instructions
+            mode_instructions = self._get_mode_instructions(context.conversation_mode)
+            base_prompt += f"\n{mode_instructions}\n"
+
+            base_prompt += f"""
 CURRENT STUDENT MESSAGE: "{message}"
 
 CRITICAL REMINDERS:
@@ -295,40 +423,12 @@ Remember: Be genuine, curious, and encouraging!
         return selected_style
 
     def _get_mode_instructions(self, mode: ConversationMode) -> str:
-        """Get concise, formatting-focused instructions for conversation mode"""
-        instructions = {
-            ConversationMode.STUDY_BUDDY: """
-STUDY BUDDY MODE - Collaborative & Encouraging:
-- Use "we" language and explore together
-- **Response format**: Topic + 2-3 bullet insights + collaborative question
-- **Tone**: Casual but focused, celebrate curiosity together
-""",
-            ConversationMode.TEACHER: """
-TEACHER MODE - Structured & Clear:
-- **Response format**: **Concept definition** + bullet steps + check understanding
-- Break complex ideas into digestible pieces with clear formatting
-- **Tone**: Clear, methodical, but still warm and encouraging
-""",
-            ConversationMode.DISCOVERY: """
-DISCOVERY MODE - Question-Driven Learning:
-- **Response format**: Thought-provoking observation + guided thinking points + deeper question
-- Guide them to discover answers through structured questioning
-- **Tone**: Curious, exploratory, focus on "What do you think?" questions
-""",
-            ConversationMode.REVIEW: """
-REVIEW MODE - Consolidation & Connection:
-- **Response format**: **What we know** + connections between ideas + reflection question
-- Help them explain concepts in their own words
-- **Tone**: Confidence-building, connect previous learning
-""",
-            ConversationMode.CREATIVE: """
-CREATIVE MODE - Imagination & Innovation:
-- **Response format**: **Exciting possibilities** + bullet brainstorm points + creative challenge
-- Celebrate unique ideas and out-of-box thinking
-- **Tone**: Enthusiastic about creativity, support experimentation
-"""
-        }
-        return instructions.get(mode, instructions[ConversationMode.STUDY_BUDDY])
+        """Get concise, formatting-focused instructions for conversation mode.
+
+        Uses shared CONVERSATION_MODE_INSTRUCTIONS from prompts.components.
+        """
+        mode_key = mode.value  # e.g., 'study_buddy', 'teacher'
+        return CONVERSATION_MODE_INSTRUCTIONS.get(mode_key, CONVERSATION_MODE_INSTRUCTIONS['study_buddy'])
 
     def _parse_and_enhance_response(self, ai_response: str, context: TutorContext) -> TutorResponse:
         """Parse AI response and add enhancements"""
@@ -336,6 +436,20 @@ CREATIVE MODE - Imagination & Innovation:
         # Clean up the response
         message = ai_response.strip()
 
+        # Check if this is a lesson helper action (pre-set button)
+        is_lesson_helper = context.lesson_action_type and context.current_lesson
+
+        if is_lesson_helper:
+            # For lesson helper: return clean response without chat enhancements
+            return TutorResponse(
+                message=message,
+                suggestions=[],
+                next_questions=[],
+                xp_bonus_eligible=False,
+                requires_parent_notification=False
+            )
+
+        # For regular chat: add full enhancements
         # Generate helpful suggestions based on context
         suggestions = self._generate_suggestions(context)
 
@@ -452,29 +566,33 @@ CREATIVE MODE - Imagination & Innovation:
         return any(trigger in response_lower for trigger in notification_triggers)
 
     def _load_pillar_knowledge(self) -> Dict[str, Any]:
-        """Load knowledge base organized by learning pillars"""
+        """Load knowledge base organized by learning pillars.
+
+        Uses PILLAR_DISPLAY_NAMES from shared components for consistency.
+        """
+        # Map using display names from shared components
         return {
-            'STEM & Logic': {
+            PILLAR_DISPLAY_NAMES.get('stem', 'STEM & Logic'): {
                 'keywords': ['math', 'science', 'technology', 'programming', 'logic', 'engineering'],
                 'concepts': ['problem solving', 'critical thinking', 'hypothesis', 'experiment'],
                 'encouragement': 'Your logical thinking is developing beautifully!'
             },
-            'Life & Wellness': {
+            PILLAR_DISPLAY_NAMES.get('wellness', 'Life & Wellness'): {
                 'keywords': ['health', 'wellness', 'mindfulness', 'growth', 'habits'],
                 'concepts': ['self-care', 'emotional intelligence', 'goal setting', 'reflection'],
                 'encouragement': 'You\'re growing into an amazing person!'
             },
-            'Language & Communication': {
+            PILLAR_DISPLAY_NAMES.get('communication', 'Language & Communication'): {
                 'keywords': ['writing', 'reading', 'speaking', 'literature', 'grammar'],
                 'concepts': ['expression', 'storytelling', 'communication', 'creativity'],
                 'encouragement': 'Your voice and ideas are unique and valuable!'
             },
-            'Society & Culture': {
+            PILLAR_DISPLAY_NAMES.get('civics', 'Society & Culture'): {
                 'keywords': ['history', 'culture', 'geography', 'community', 'tradition'],
                 'concepts': ['diversity', 'perspective', 'change', 'connection'],
                 'encouragement': 'You\'re discovering the rich tapestry of human experience!'
             },
-            'Arts & Creativity': {
+            PILLAR_DISPLAY_NAMES.get('art', 'Arts & Creativity'): {
                 'keywords': ['art', 'music', 'creative', 'design', 'imagination'],
                 'concepts': ['expression', 'originality', 'aesthetics', 'innovation'],
                 'encouragement': 'Your creativity is bringing something new into the world!'

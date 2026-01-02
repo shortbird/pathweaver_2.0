@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import SkillsRadarChart from './SkillsRadarChart';
-import BadgeCarouselCard from '../hub/BadgeCarouselCard';
+// BadgeCarouselCard import removed (January 2026 - Microschool client feedback)
 import {
   getAllCreditProgress,
   calculateTotalCredits,
@@ -12,15 +12,15 @@ import {
 const CompactSidebar = ({
   totalXP,
   subjectXP,
-  earnedBadges,
+  // earnedBadges prop removed (January 2026 - Microschool client feedback)
   totalXPCount,
   isOwner,
   studentName,
-  onCreditsClick,
-  onBadgesClick
+  onCreditsClick
+  // onBadgesClick prop removed (January 2026 - Microschool client feedback)
 }) => {
   const [isRadarExpanded, setIsRadarExpanded] = useState(true);
-  const [isBadgesExpanded, setIsBadgesExpanded] = useState(true);
+  // isBadgesExpanded state removed (January 2026 - Microschool client feedback)
   const [isCreditsExpanded, setIsCreditsExpanded] = useState(true);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
@@ -208,71 +208,7 @@ const CompactSidebar = ({
         )}
       </div>
 
-      {/* Badges Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <button
-          onClick={() => setIsBadgesExpanded(!isBadgesExpanded)}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
-        >
-          <h3 className="font-bold text-gray-800 text-sm">
-            Badges ({earnedBadges.length})
-          </h3>
-          <svg
-            className={`w-5 h-5 text-gray-500 transition-transform ${isBadgesExpanded ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-
-        {isBadgesExpanded && (
-          <div className="p-4 border-t border-gray-100">
-            {earnedBadges.length > 0 ? (
-              <div className="space-y-3">
-                {earnedBadges.slice(0, 3).map((badge) => (
-                  <div
-                    key={badge.badge_id || badge.id}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <img
-                      src={badge.image_url}
-                      alt={`Badge: ${badge.name} - ${badge.pillar_primary || 'Achievement'} badge`}
-                      className="w-12 h-12 object-contain flex-shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">
-                        {badge.name}
-                      </p>
-                      {badge.pillar_primary && (
-                        <p className="text-xs text-gray-500">
-                          {badge.pillar_primary}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-
-                {earnedBadges.length > 3 && onBadgesClick && (
-                  <button
-                    onClick={onBadgesClick}
-                    className="w-full text-sm text-optio-purple hover:text-purple-800 font-medium text-center py-2 hover:bg-purple-50 rounded-lg transition-colors"
-                  >
-                    View All {earnedBadges.length} Badges
-                  </button>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500 text-center py-4">
-                {isOwner
-                  ? 'No badges earned yet'
-                  : `${studentName} hasn't earned any badges yet`}
-              </p>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Badges Section removed (January 2026 - Microschool client feedback) */}
         </div>
       </div>
     </>
@@ -282,12 +218,12 @@ const CompactSidebar = ({
 CompactSidebar.propTypes = {
   totalXP: PropTypes.object.isRequired,
   subjectXP: PropTypes.object.isRequired,
-  earnedBadges: PropTypes.array.isRequired,
+  // earnedBadges prop removed (January 2026 - Microschool client feedback)
   totalXPCount: PropTypes.number,
   isOwner: PropTypes.bool,
   studentName: PropTypes.string,
-  onCreditsClick: PropTypes.func,
-  onBadgesClick: PropTypes.func
+  onCreditsClick: PropTypes.func
+  // onBadgesClick prop removed (January 2026 - Microschool client feedback)
 };
 
 export default CompactSidebar;

@@ -14,7 +14,8 @@ import RhythmExplainerModal from '../components/quest/RhythmExplainerModal'
 import {
   RocketLaunchIcon,
   CheckCircleIcon,
-  ArrowRightIcon
+  ArrowRightIcon,
+  ClipboardDocumentListIcon
 } from '@heroicons/react/24/outline'
 
 // Note: SSO token extraction now happens at App.jsx level before routing
@@ -102,6 +103,31 @@ const UpcomingTasks = memo(({ activeQuests }) => {
   }, [activeQuests]);
 
   if (upcomingTasks.length === 0) {
+    // Check if user has no active quests (new user) vs all tasks completed
+    const hasActiveQuests = activeQuests && activeQuests.length > 0;
+
+    if (!hasActiveQuests) {
+      // New user - explain how the panel works
+      return (
+        <div className="text-center py-6">
+          <ClipboardDocumentListIcon className="w-12 h-12 text-optio-purple/40 mx-auto mb-3" />
+          <p className="text-gray-700 text-sm font-medium mb-1" style={{ fontFamily: 'Poppins' }}>
+            Your tasks will appear here
+          </p>
+          <p className="text-gray-500 text-xs mb-3" style={{ fontFamily: 'Poppins' }}>
+            Start a quest to see your next steps and track your progress.
+          </p>
+          <Link
+            to="/quests"
+            className="inline-block text-sm text-optio-purple hover:text-purple-800 font-medium"
+          >
+            Browse quests to get started
+          </Link>
+        </div>
+      );
+    }
+
+    // User has active quests but all tasks are complete
     return (
       <div className="text-center py-6">
         <CheckCircleIcon className="w-12 h-12 text-green-300 mx-auto mb-3" />

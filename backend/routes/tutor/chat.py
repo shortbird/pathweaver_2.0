@@ -133,14 +133,35 @@ def send_message(user_id: str):
         # Build context for AI tutor
         context = conversation_service.build_tutor_context(user_id, conversation, conversation_mode)
 
-        # Get user's current quest/task context if available
-        current_quest_data = data.get('current_quest')
-        current_task_data = data.get('current_task')
+        # Get quest context - prefer quest_id (server-side fetch) over current_quest (client-provided)
+        quest_id = data.get('quest_id')
+        if quest_id:
+            # Fetch rich quest context server-side
+            quest_context = conversation_service.build_quest_context(user_id, quest_id)
+            if quest_context:
+                context.current_quest = quest_context
+        else:
+            # Fallback to client-provided quest data for backwards compatibility
+            current_quest_data = data.get('current_quest')
+            if current_quest_data:
+                context.current_quest = current_quest_data
 
-        if current_quest_data:
-            context.current_quest = current_quest_data
+        # Get task context if provided
+        current_task_data = data.get('current_task')
         if current_task_data:
             context.current_task = current_task_data
+
+        # Get lesson context if lesson_id provided (for lesson-integrated chatbot)
+        lesson_id = data.get('lesson_id')
+        block_index = data.get('block_index')  # Optional: which content block user is viewing
+        action_type = data.get('action_type')  # Optional: example, analogy, draw, debate
+
+        if lesson_id:
+            lesson_context = conversation_service.build_lesson_context(user_id, lesson_id, block_index)
+            if lesson_context:
+                context.current_lesson = lesson_context
+                context.lesson_action_type = action_type
+                logger.info(f"Built lesson context for lesson {lesson_id}, block {block_index}, action {action_type}")
 
         # Store user message
         user_message = conversation_service.store_message(

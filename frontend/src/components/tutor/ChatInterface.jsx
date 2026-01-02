@@ -15,7 +15,8 @@ const CONVERSATION_MODES = [
 
 const ChatInterface = ({
   conversationId = null,
-  currentQuest = null,
+  questId = null,  // New: pass quest ID for server-side context fetching
+  currentQuest = null,  // Legacy: client-provided quest context
   currentTask = null,
   onClose = null,
   selectedMode: propSelectedMode = null,
@@ -120,13 +121,23 @@ const ChatInterface = ({
     setMessages(prev => [...prev, userMessage]);
 
     try {
-      const response = await api.post('/api/tutor/chat', {
+      // Build request payload - prefer quest_id for server-side context
+      const payload = {
         message,
         conversation_id: conversationId,
         mode: selectedMode,
-        current_quest: currentQuest,
         current_task: currentTask
-      });
+      };
+
+      // If questId is provided, use server-side context fetching (richer context)
+      // Otherwise fall back to legacy client-provided quest data
+      if (questId) {
+        payload.quest_id = questId;
+      } else if (currentQuest) {
+        payload.current_quest = currentQuest;
+      }
+
+      const response = await api.post('/api/tutor/chat', payload);
 
       // Add AI response to messages
       const responseData = response.data.data || response.data;

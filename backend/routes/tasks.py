@@ -281,6 +281,53 @@ def complete_task(user_id: str, task_id: str):
                 status=500
             )
 
+        # Check for collaboration and share evidence with collaborators
+        try:
+            # Check if user is in a collaboration for this quest
+            collaboration_check = admin_supabase.table('quest_collaborations')\
+                .select('id, members')\
+                .eq('quest_id', quest_id)\
+                .contains('members', [effective_user_id])\
+                .execute()
+
+            if collaboration_check.data and len(collaboration_check.data) > 0:
+                collaboration = collaboration_check.data[0]
+                collaboration_id = collaboration['id']
+                members = collaboration.get('members', [])
+
+                # Get collaborators (all members except the submitter)
+                collaborators = [m for m in members if m != effective_user_id]
+
+                if collaborators and not is_confidential:
+                    # Create shared evidence record
+                    shared_evidence = {
+                        'collaboration_id': collaboration_id,
+                        'task_completion_id': completion_data.get('id'),
+                        'submitted_by': effective_user_id,
+                        'evidence_type': evidence_type,
+                        'evidence_content': evidence_content,
+                        'shared_at': datetime.utcnow().isoformat()
+                    }
+                    admin_supabase.table('shared_evidence').insert(shared_evidence).execute()
+
+                    # Create pending approvals for all collaborators
+                    approvals = []
+                    for collaborator_id in collaborators:
+                        approvals.append({
+                            'collaboration_id': collaboration_id,
+                            'task_completion_id': completion_data.get('id'),
+                            'reviewer_id': collaborator_id,
+                            'status': 'pending',
+                            'created_at': datetime.utcnow().isoformat()
+                        })
+
+                    if approvals:
+                        admin_supabase.table('collaboration_approvals').insert(approvals).execute()
+                        logger.info(f"Created {len(approvals)} pending approvals for collaboration {collaboration_id}")
+        except Exception as collab_error:
+            # Don't fail task completion if collaboration sharing fails
+            logger.warning(f"Failed to share evidence with collaborators: {str(collab_error)}")
+
         # Award XP to user
         logger.debug(f"=== TASK COMPLETION XP DEBUG ===")
         logger.info(f"Task ID: {task_id}, User ID: {effective_user_id}")

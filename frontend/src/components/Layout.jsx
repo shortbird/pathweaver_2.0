@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet, useLocation, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import Sidebar from './navigation/Sidebar'
 import TopNavbar from './navigation/TopNavbar'
+import TutorWidget from './tutor/TutorWidget'
 
 const SIDEBAR_PINNED_KEY = 'optio-sidebar-pinned'
 
@@ -12,6 +13,17 @@ const Layout = () => {
   const location = useLocation()
   const [siteSettings, setSiteSettings] = React.useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Extract quest ID from URL if on a quest page (e.g., /quests/:id or /quests/:id/curriculum)
+  const questIdFromUrl = React.useMemo(() => {
+    const match = location.pathname.match(/\/quests\/([^/]+)/)
+    return match ? match[1] : null
+  }, [location.pathname])
+
+  // Check if on curriculum/lesson page (where LessonChatPopover is shown instead)
+  const isOnCurriculumPage = location.pathname.includes('/curriculum') ||
+    location.pathname.includes('/lessons') ||
+    location.pathname.includes('/courses')
 
   // Initialize pinned state from localStorage (defaults to true for first-time users)
   const [sidebarPinned, setSidebarPinned] = useState(() => {
@@ -107,6 +119,14 @@ const Layout = () => {
           </p>
         </div>
       </footer>
+
+      {/* OptioBot Tutor Widget - Available for authenticated users (hidden on curriculum pages where LessonChatPopover is used) */}
+      {isAuthenticated && !isOnCurriculumPage && (
+        <TutorWidget
+          questId={questIdFromUrl}
+          position="bottom-right"
+        />
+      )}
     </div>
   )
 }

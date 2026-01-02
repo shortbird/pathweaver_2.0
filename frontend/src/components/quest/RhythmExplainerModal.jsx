@@ -1,5 +1,5 @@
 import React from 'react';
-import { XMarkIcon, SparklesIcon, ArrowTrendingUpIcon, PauseCircleIcon, SunIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, BoltIcon, ArrowTrendingUpIcon, MoonIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
 /**
  * RhythmExplainerModal - Explains the rhythm tracking feature
@@ -12,7 +12,7 @@ const RhythmExplainerModal = ({ isOpen, onClose, currentState }) => {
   const rhythmStates = [
     {
       state: 'in_flow',
-      icon: SparklesIcon,
+      icon: BoltIcon,
       name: 'In Flow',
       description: 'You have a consistent learning rhythm, engaging regularly.',
       color: 'text-optio-purple',
@@ -28,7 +28,7 @@ const RhythmExplainerModal = ({ isOpen, onClose, currentState }) => {
     },
     {
       state: 'resting',
-      icon: PauseCircleIcon,
+      icon: MoonIcon,
       name: 'Resting',
       description: 'Taking time to absorb what you\'ve learned. Breaks are part of the process.',
       color: 'text-green-600',
@@ -36,7 +36,7 @@ const RhythmExplainerModal = ({ isOpen, onClose, currentState }) => {
     },
     {
       state: 'fresh_return',
-      icon: SunIcon,
+      icon: ArrowPathIcon,
       name: 'Welcome Back',
       description: 'You\'ve returned after a break. Great to see you again!',
       color: 'text-amber-600',

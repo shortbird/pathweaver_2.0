@@ -50,13 +50,10 @@ const OptioAcademyAgreement = lazy(() => import('./pages/OptioAcademyAgreement')
 const OptioAcademyHandbook = lazy(() => import('./pages/OptioAcademyHandbook'))
 // Quest Pages
 const QuestDiscovery = lazy(() => import('./pages/QuestDiscovery'))
-const QuestBadgeHub = lazy(() => import('./pages/QuestBadgeHub')) // Legacy - to be removed
-const BadgesPage = lazy(() => import('./pages/BadgesPage'))
+// Badge system removed (January 2026 - Microschool client feedback)
 const QuestDetail = lazy(() => import('./pages/QuestDetail'))
 const TaskLibraryBrowser = lazy(() => import('./pages/TaskLibraryBrowser'))
-// Badge Pages
-const BadgeDetail = lazy(() => import('./pages/BadgeDetail'))
-const BadgeProgressPage = lazy(() => import('./pages/BadgeProgressPage'))
+// Badge Pages removed (January 2026 - Microschool client feedback)
 const ConstellationPage = lazy(() => import('./pages/ConstellationPage'))
 // Credit & Transcript Pages
 const CreditTrackerPage = lazy(() => import('./pages/CreditTrackerPage'))
@@ -72,8 +69,10 @@ const CalendarPage = lazy(() => import('./pages/CalendarPage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const OrganizationManagement = lazy(() => import('./pages/admin/OrganizationManagement'))
 const AdvisorDashboard = lazy(() => import('./pages/AdvisorDashboard'))
-const AdvisorBadgeForm = lazy(() => import('./pages/AdvisorBadgeForm'))
+// AdvisorBadgeForm removed (January 2026 - Microschool client feedback)
 const AdvisorCheckinPage = lazy(() => import('./pages/AdvisorCheckinPage'))
+const TeacherVerificationPage = lazy(() => import('./pages/TeacherVerificationPage'))
+const CollaborationsPage = lazy(() => import('./pages/advisor/CollaborationsPage'))
 const ParentDashboardPage = lazy(() => import('./pages/ParentDashboardPage'))
 const ParentQuestView = lazy(() => import('./pages/ParentQuestView'))
 // Observer Pages (January 2025)
@@ -366,10 +365,7 @@ function App() {
                 <Route path="quests/:id" element={<QuestDetail />} />
                 <Route path="quests/:id/curriculum" element={<CurriculumPage />} />
                 <Route path="quests/:questId/library" element={<TaskLibraryBrowser />} />
-                {/* Badge Routes */}
-                <Route path="badges" element={<BadgesPage />} />
-                <Route path="badges/:badgeId" element={<BadgeDetail />} />
-                <Route path="badge-progress" element={<BadgeProgressPage />} />
+                {/* Badge Routes removed (January 2026 - Microschool client feedback) */}
                 <Route path="constellation" element={<ConstellationPage />} />
                 {/* Course Routes */}
                 <Route path="courses" element={<CourseCatalog />} />
@@ -399,12 +395,13 @@ function App() {
                 <Route path="organization" element={<OrganizationManagement />} />
               </Route>
 
-              <Route element={<PrivateRoute requiredRole={["advisor", "admin"]} />}>
+              <Route element={<PrivateRoute requiredRole={["advisor", "org_admin", "superadmin"]} />}>
                 <Route path="advisor" element={<Navigate to="/advisor/dashboard" replace />} />
                 <Route path="advisor/dashboard" element={<AdvisorDashboard />} />
                 <Route path="advisor/checkin/:studentId" element={<AdvisorCheckinPage />} />
-                <Route path="advisor/badges/create" element={<AdvisorBadgeForm />} />
-                <Route path="advisor/badges/:badgeId/edit" element={<AdvisorBadgeForm />} />
+                <Route path="advisor/verification" element={<TeacherVerificationPage />} />
+                <Route path="advisor/collaborations" element={<CollaborationsPage />} />
+                {/* Advisor badge routes removed (January 2026 - Microschool client feedback) */}
                 {/* LMS Features - Advisor */}
                 <Route path="advisor/invitations" element={<QuestInvitations />} />
                 <Route path="announcements/new" element={<CreateAnnouncement />} />

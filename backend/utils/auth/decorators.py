@@ -209,7 +209,8 @@ def require_advisor(f):
     Decorator to require advisor, org_admin, or superadmin access for routes.
 
     Uses httpOnly cookies exclusively for enhanced security.
-    Verifies user has 'advisor', 'org_admin', or 'superadmin' role.
+    Verifies user has 'advisor', 'org_admin', or 'superadmin' role,
+    OR has is_org_admin=True (for users who are org admins but have a different base role).
     Advisors can create quest drafts but need admin approval to publish.
 
     When masquerading, this checks the actual admin identity, not the masquerade target.
@@ -234,9 +235,16 @@ def require_advisor(f):
         supabase = get_supabase_admin_client()
 
         try:
-            user = supabase.table('users').select('role').eq('id', user_id).execute()
+            user = supabase.table('users').select('role, is_org_admin').eq('id', user_id).execute()
 
-            if not user.data or len(user.data) == 0 or user.data[0].get('role') not in ['advisor', 'org_admin', 'superadmin']:
+            if not user.data or len(user.data) == 0:
+                raise AuthorizationError('User not found')
+
+            user_role = user.data[0].get('role')
+            is_org_admin = user.data[0].get('is_org_admin', False)
+
+            # Allow access if user has advisor/org_admin/superadmin role OR is_org_admin=True
+            if user_role not in ['advisor', 'org_admin', 'superadmin'] and not is_org_admin:
                 raise AuthorizationError('Advisor access required')
 
             return f(user_id, *args, **kwargs)

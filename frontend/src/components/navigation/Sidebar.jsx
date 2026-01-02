@@ -47,7 +47,15 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     fetchUnreadCount()
     // Refresh every 60 seconds
     const interval = setInterval(fetchUnreadCount, 60000)
-    return () => clearInterval(interval)
+
+    // Listen for announcement-read events to update immediately
+    const handleAnnouncementRead = () => fetchUnreadCount()
+    window.addEventListener('announcement-read', handleAnnouncementRead)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('announcement-read', handleAnnouncementRead)
+    }
   }, [isAuthenticated, user?.organization_id])
 
   const handleExitMasquerade = async () => {

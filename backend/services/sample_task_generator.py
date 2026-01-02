@@ -4,18 +4,28 @@ Sample Task Generator Service
 
 Generates AI-powered sample tasks for Optio quests using Gemini API.
 Aligned with core philosophy: process-focused, real-world application, present-tense language.
+
+Refactored (Jan 2026): Now uses shared prompt components and BaseAIService.
 """
 
-import os
 import json
 from typing import List, Dict, Optional
 from utils.logger import get_logger
 
-logger = get_logger(__name__)
+# Import shared components
+from prompts.components import (
+    CORE_PHILOSOPHY,
+    LANGUAGE_GUIDELINES,
+    PILLAR_DEFINITIONS,
+    VALID_PILLARS,
+    JSON_OUTPUT_INSTRUCTIONS,
+    FORBIDDEN_WORDS,
+    ENCOURAGED_WORDS,
+    TONE_LEVELS,
+)
+from services.base_ai_service import get_gemini_model, BaseAIService
 
-# Gemini API setup
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-GEMINI_MODEL = 'gemini-2.0-flash-lite'  # Using the specified model from CLAUDE.md
+logger = get_logger(__name__)
 
 def generate_sample_tasks(quest_title: str, quest_description: str, count: int = 20) -> List[Dict]:
     """
@@ -32,19 +42,12 @@ def generate_sample_tasks(quest_title: str, quest_description: str, count: int =
     Raises:
         Exception: If API call fails or response is invalid
     """
-
-    if not GEMINI_API_KEY:
-        raise Exception("GEMINI_API_KEY not configured")
+    # Get singleton Gemini model from BaseAIService
+    model = get_gemini_model()
 
     prompt = _build_prompt(quest_title, quest_description, count)
 
     try:
-        # Import here to avoid issues if google-generativeai not installed
-        import google.generativeai as genai
-
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel(GEMINI_MODEL)
-
         logger.info(f"Generating {count} sample tasks for quest: {quest_title}")
 
         response = model.generate_content(prompt)
@@ -52,21 +55,19 @@ def generate_sample_tasks(quest_title: str, quest_description: str, count: int =
         if not response or not response.text:
             raise Exception("Empty response from Gemini API")
 
-        # Parse JSON response
-        response_text = response.text.strip()
+        # Use unified JSON extraction from BaseAIService
+        service = BaseAIService()
+        tasks = service.extract_json(response.text)
 
-        # Remove markdown code blocks if present
-        if response_text.startswith('```'):
-            # Find first { and last }
-            start = response_text.find('[')
-            end = response_text.rfind(']') + 1
-            if start != -1 and end > start:
-                response_text = response_text[start:end]
-
-        tasks = json.loads(response_text)
+        if not tasks:
+            raise Exception("Failed to parse JSON from response")
 
         if not isinstance(tasks, list):
-            raise Exception("Response is not a JSON array")
+            # Handle case where response is wrapped in an object
+            if isinstance(tasks, dict) and 'tasks' in tasks:
+                tasks = tasks['tasks']
+            else:
+                raise Exception("Response is not a JSON array")
 
         # Validate and normalize tasks
         validated_tasks = []
@@ -82,10 +83,6 @@ def generate_sample_tasks(quest_title: str, quest_description: str, count: int =
 
         return validated_tasks
 
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse Gemini response as JSON: {str(e)}")
-        logger.error(f"Response text: {response_text[:500]}")
-        raise Exception("Invalid JSON response from AI")
     except Exception as e:
         logger.error(f"Error generating sample tasks: {str(e)}")
         raise
@@ -94,29 +91,16 @@ def generate_sample_tasks(quest_title: str, quest_description: str, count: int =
 def _build_prompt(quest_title: str, quest_description: str, count: int) -> str:
     """
     Build the Gemini prompt for sample task generation.
-    Aligned with core philosophy from core_philosophy.md.
+    Uses shared components from prompts.components.
     """
 
     return f"""You are creating sample tasks for a self-directed learning quest in the Optio platform.
 
-CORE PHILOSOPHY (from core_philosophy.md):
-- "The Process Is The Goal" - learning is about growth RIGHT NOW, not future outcomes
-- Celebrate curiosity, creation, and discovery for its own sake
-- Focus on how learning FEELS, not how it LOOKS
-- Every step is valuable, mistakes are celebrated
-- Use present-focused, process-oriented language
-- NEVER use external validation language
+{CORE_PHILOSOPHY}
 
-LANGUAGE GUIDELINES:
-✅ USE: "Discover...", "Explore...", "Create...", "Experiment with...", "Dive into..."
-✅ USE: Present-tense, active verbs that celebrate the journey
-✅ USE: Real-world application and personal connection
+{LANGUAGE_GUIDELINES}
 
-❌ NEVER USE: "Prove", "demonstrate", "show", "impress", "showcase"
-❌ NEVER USE: Future-focused language ("will help you", "for college", "for your career")
-❌ NEVER USE: Traditional study approaches (textbooks, lectures, practice tests, worksheets)
-❌ NEVER USE: External validation language ("build resume", "stand out", "get ahead")
-❌ NEVER USE: Competition language
+{TONE_LEVELS['content_generation']}
 
 QUEST DETAILS:
 Title: {quest_title}
@@ -130,36 +114,45 @@ Generate exactly {count} diverse sample tasks that:
 5. Celebrate the journey, not the destination
 6. Avoid ALL traditional study approaches (no textbooks, lectures, practice tests)
 
-TASK TITLE EXAMPLES (concise, inspiring, 3-8 words):
+{PILLAR_DEFINITIONS}
+
+TASK TITLE EXAMPLES (concise, clear, 3-8 words):
 - "Explore [concept] Through Your Favorite Hobby"
 - "Create [artifact] That Connects to Your Life"
 - "Discover Patterns in [topic] Around You"
 - "Experiment with [skill] in Nature"
 
-TASK DESCRIPTION EXAMPLES (2-3 sentences, philosophy-aligned):
-- "Dive into how [concept] appears in your favorite sport or hobby. Document what you discover through photos, videos, or drawings. You're becoming an explorer of everyday science!"
-- "Create something unique that connects [topic] to what matters to you. Let your curiosity guide the process. You're making original connections!"
-- "Observe [subject] in your daily routine for a week. Notice patterns, changes, and surprises. You're training your eye to see the world differently!"
+TASK DESCRIPTION EXAMPLES (2-3 sentences, process-focused, no exclamation points):
+- "Dive into how [concept] appears in your favorite sport or hobby. Document what you discover through photos, videos, or drawings."
+- "Create something unique that connects [topic] to what matters to you. Let your curiosity guide the process and see what connections emerge."
+- "Observe [subject] in your daily routine for a week. Notice patterns, changes, and surprises as you pay closer attention."
+
+IMPORTANT - TONE RULES:
+- NO exclamation points
+- NO "You're becoming..." or similar motivational phrases
+- Focus on WHAT they will do, not how they will feel
+- Let the activity speak for itself without hype
+- Simple, direct, inviting language
 
 For each task, provide:
-- title: Concise, inspiring (3-8 words)
-- description: 2-3 sentences, philosophy-aligned, specific but flexible
+- title: Concise, clear (3-8 words)
+- description: 2-3 sentences, process-focused, specific but flexible
 - pillar: Must be one of: "stem", "wellness", "communication", "civics", "art"
 - xp_value: Integer between 50-200 (most should be 100-150, complex tasks can be 150-200)
 
-Return ONLY a valid JSON array with exactly {count} task objects. No markdown formatting, no code blocks, just the raw JSON array.
+{JSON_OUTPUT_INSTRUCTIONS}
 
 Example format:
 [
   {{
     "title": "Explore Geometry in Your Neighborhood",
-    "description": "Take a walk and discover geometric shapes in buildings, nature, and everyday objects. Capture photos and create a visual collection. You're seeing math come alive around you!",
+    "description": "Take a walk and notice geometric shapes in buildings, nature, and everyday objects. Capture photos and create a visual collection of the patterns you find.",
     "pillar": "stem",
     "xp_value": 100
   }},
   {{
-    "title": "Create a Wellness Ritual You Love",
-    "description": "Design a daily practice that helps you feel centered and energized. Experiment with movement, breathing, or mindfulness. You're discovering what makes you thrive!",
+    "title": "Create a Wellness Ritual",
+    "description": "Design a daily practice that helps you feel centered and energized. Experiment with movement, breathing, or mindfulness to find what works for you.",
     "pillar": "wellness",
     "xp_value": 125
   }}
@@ -169,6 +162,7 @@ Example format:
 def _validate_task(task: Dict) -> Optional[Dict]:
     """
     Validate and normalize a generated task.
+    Uses VALID_PILLARS from shared components.
 
     Returns None if task is invalid, otherwise returns normalized task.
     """
@@ -185,9 +179,8 @@ def _validate_task(task: Dict) -> Optional[Dict]:
     # Normalize pillar to lowercase
     pillar = task['pillar'].lower().strip()
 
-    # Validate pillar
-    valid_pillars = ['stem', 'wellness', 'communication', 'civics', 'art']
-    if pillar not in valid_pillars:
+    # Validate pillar using shared constant
+    if pillar not in VALID_PILLARS:
         logger.warning(f"Invalid pillar: {pillar}")
         return None
 
@@ -217,33 +210,19 @@ def _validate_task(task: Dict) -> Optional[Dict]:
 def validate_sample_tasks_quality(tasks: List[Dict]) -> Dict:
     """
     Analyze quality of generated sample tasks for philosophy alignment.
+    Uses FORBIDDEN_WORDS and ENCOURAGED_WORDS from shared components.
 
     Returns a report dict with scores and flagged issues.
     """
-
-    # Forbidden words/phrases (external validation)
-    forbidden_words = [
-        'prove', 'demonstrate', 'show', 'impress', 'showcase',
-        'resume', 'career', 'college', 'future', 'stand out',
-        'get ahead', 'compete', 'better than', 'textbook',
-        'lecture', 'test', 'worksheet', 'practice problems'
-    ]
-
-    # Encouraged words (process-focused)
-    encouraged_words = [
-        'explore', 'discover', 'create', 'experiment', 'dive',
-        'observe', 'notice', 'feel', 'experience', 'play'
-    ]
-
     issues = []
     pillar_distribution = {}
     xp_distribution = {'50-100': 0, '101-150': 0, '151-200': 0}
 
     for i, task in enumerate(tasks):
-        # Check for forbidden words
+        # Check for forbidden words using shared constant
         text = f"{task.get('title', '')} {task.get('description', '')}".lower()
 
-        for word in forbidden_words:
+        for word in FORBIDDEN_WORDS:
             if word in text:
                 issues.append(f"Task {i+1} contains forbidden word: '{word}'")
 
@@ -264,11 +243,11 @@ def validate_sample_tasks_quality(tasks: List[Dict]) -> Dict:
     if len(pillar_distribution) < 5:
         issues.append(f"Only {len(pillar_distribution)} pillars covered, should have all 5")
 
-    # Calculate encouraged word usage
+    # Calculate encouraged word usage using shared constant
     encouraged_count = 0
     for task in tasks:
         text = f"{task.get('title', '')} {task.get('description', '')}".lower()
-        if any(word in text for word in encouraged_words):
+        if any(word in text for word in ENCOURAGED_WORDS):
             encouraged_count += 1
 
     return {

@@ -93,7 +93,8 @@ class AnnouncementRepository(BaseRepository):
         target_audience: Optional[str] = None,
         pinned_only: bool = False,
         limit: int = 20,
-        offset: int = 0
+        offset: int = 0,
+        user_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         List announcements for an organization.
@@ -104,9 +105,10 @@ class AnnouncementRepository(BaseRepository):
             pinned_only: Only return pinned announcements
             limit: Maximum number of results
             offset: Offset for pagination
+            user_id: Optional user ID to check read status
 
         Returns:
-            List of announcement records with author info
+            List of announcement records with author info and is_read flag
 
         Raises:
             DatabaseError: If query fails
@@ -128,8 +130,30 @@ class AnnouncementRepository(BaseRepository):
                 query = query.eq('pinned', True)
 
             response = query.execute()
+            announcements = response.data or []
 
-            return response.data or []
+            # Add read status if user_id provided
+            if user_id and announcements:
+                from database import get_supabase_admin_client
+                admin_client = get_supabase_admin_client()
+
+                announcement_ids = [a['id'] for a in announcements]
+                read_response = (
+                    admin_client.table('announcement_reads')
+                    .select('announcement_id')
+                    .eq('user_id', user_id)
+                    .in_('announcement_id', announcement_ids)
+                    .execute()
+                )
+                read_ids = {r['announcement_id'] for r in (read_response.data or [])}
+
+                for announcement in announcements:
+                    announcement['is_read'] = announcement['id'] in read_ids
+            else:
+                for announcement in announcements:
+                    announcement['is_read'] = False
+
+            return announcements
 
         except APIError as e:
             logger.error(f"Error listing announcements for org {organization_id}: {e}")

@@ -13,7 +13,8 @@ const CONVERSATION_MODES = [
 const OptioBotModal = ({
   isOpen,
   onClose,
-  currentQuest = null,
+  questId = null,  // New: pass quest ID for server-side context fetching
+  currentQuest = null,  // Legacy: client-provided quest context
   currentTask = null,
   conversationId = null,
   onConversationCreate = null,
@@ -137,8 +138,9 @@ const OptioBotModal = ({
         <div className="flex-1 overflow-hidden">
           <ChatInterface
             conversationId={conversationId}
-            currentQuest={null}
-            currentTask={null}
+            questId={questId}
+            currentQuest={currentQuest}
+            currentTask={currentTask}
             onClose={onClose}
             selectedMode={selectedMode}
             hideHeader={true}

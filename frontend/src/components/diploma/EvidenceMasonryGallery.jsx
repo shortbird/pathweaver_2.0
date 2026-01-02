@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import Masonry from 'react-masonry-css';
 import UnifiedEvidenceDisplay from '../evidence/UnifiedEvidenceDisplay';
+import CollaborationBadge from '../collaboration/CollaborationBadge';
 import { getPillarGradient, getPillarDisplayName } from '../../config/pillars';
 import './EvidenceMasonryGallery.css';
 
@@ -72,7 +73,8 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
               completedAt: taskEvidence.completed_at,
               block,
               evidence: taskEvidence,
-              achievementStatus: achievement.status
+              achievementStatus: achievement.status,
+              isCollaborative: taskEvidence.is_collaborative || false
             });
           });
         } else if (hasLegacyText || hasLegacyUrl) {
@@ -87,7 +89,8 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
             completedAt: taskEvidence.completed_at,
             block: null,
             evidence: taskEvidence,
-            achievementStatus: achievement.status
+            achievementStatus: achievement.status,
+            isCollaborative: taskEvidence.is_collaborative || false
           });
         }
       });
@@ -258,6 +261,11 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
                       <p className="text-white/90 text-xs truncate">
                         {item.taskTitle}
                       </p>
+                      {item.isCollaborative && (
+                        <div className="mt-1.5">
+                          <CollaborationBadge size="xs" />
+                        </div>
+                      )}
                     </div>
                     <div className="flex-shrink-0">
                       <span className="inline-block px-2 py-0.5 bg-white/20 backdrop-blur-sm rounded text-white text-xs font-medium">

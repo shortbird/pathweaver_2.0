@@ -1,45 +1,53 @@
 """
 AI-powered quest generation service using Google Gemini API.
 Provides intelligent assistance for creating quests, tasks, and educational content.
+
+Refactored (Jan 2026): Now extends BaseAIService for unified Gemini access
+and uses shared prompt components from prompts.components.
 """
 
 import json
 import re
-import os
-from typing import Dict, List, Optional, Any, Tuple
-import google.generativeai as genai
+import time
+from typing import Dict, List, Optional, Any
 
-from services.base_service import BaseService
+from services.base_ai_service import BaseAIService
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 
+# Import shared prompt components
+from prompts.components import (
+    CORE_PHILOSOPHY,
+    TONE_LEVELS,
+    PILLAR_DEFINITIONS,
+    VALID_PILLARS,
+    JSON_OUTPUT_INSTRUCTIONS,
+    SCHOOL_SUBJECTS,
+    SCHOOL_SUBJECT_DISPLAY_NAMES,
+)
+
 logger = get_logger(__name__)
 
-class QuestAIService(BaseService):
-    """Service for AI-powered quest generation using Gemini API"""
+class QuestAIService(BaseAIService):
+    """Service for AI-powered quest generation using Gemini API.
+
+    Refactored to extend BaseAIService for unified Gemini management.
+    """
 
     def __init__(self, prompt_version: Optional[str] = None):
-        """Initialize the AI service with Gemini configuration"""
+        """Initialize the AI service.
+
+        Gemini model initialization is handled by BaseAIService (singleton).
+        """
         super().__init__()
         # Lazy-initialize client to avoid Flask context issues at import time
         self._supabase = None
-        self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
-        self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
-
-        if not self.api_key:
-            raise ValueError("GOOGLE_API_KEY not configured. Set GEMINI_API_KEY environment variable.")
-
-        genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel(self.model_name)
 
         # Prompt version for A/B testing
         self.prompt_version = prompt_version or self._get_active_prompt_version()
 
-        # Valid pillars for validation (updated January 2025: single-word format)
-        self.valid_pillars = ['stem', 'wellness', 'communication', 'civics', 'art']
-
-        # School subjects (separate from pillars)
-        from utils.school_subjects import SCHOOL_SUBJECTS, SCHOOL_SUBJECT_DISPLAY_NAMES
+        # Use shared components for pillars and subjects
+        self.valid_pillars = VALID_PILLARS
         self.school_subjects = SCHOOL_SUBJECTS
         self.school_subject_display_names = SCHOOL_SUBJECT_DISPLAY_NAMES
 
@@ -397,6 +405,8 @@ Return ONLY valid JSON (no markdown code blocks):
         return f"""
         Generate {target_task_count} educational tasks based on this lesson content:{title_context}
 
+{TONE_LEVELS['content_generation']}
+
         Lesson Content:
         {lesson_snippet}
 
@@ -535,6 +545,10 @@ Return ONLY valid JSON (no markdown code blocks):
         return f"""
         Create a quest concept for a learning experience students can pursue in the real world.
 
+{TONE_LEVELS['content_generation']}
+
+{CORE_PHILOSOPHY}
+
         Philosophy: These quests are "cognitive playgrounds" - structures for unstructured, personalized learning.
         The quest serves as a starting point. Students will receive personalized tasks when they enroll.
 
@@ -576,6 +590,10 @@ Return ONLY valid JSON (no markdown code blocks):
         return f"""
         Create an educational quest on the topic: {topic}{objectives_text}
 
+{TONE_LEVELS['content_generation']}
+
+{CORE_PHILOSOPHY}
+
         Generate a quest with:
         1. title: Simple, clear quest name (e.g. "Build Your Own Solar System", "Create a Family Recipe Book", "Start a Small Business")
         2. big_idea: Brief 2-3 sentence description explaining what students will create and why it matters
@@ -600,81 +618,74 @@ Return ONLY valid JSON (no markdown code blocks):
         """
     
     def _parse_quest_concept_response(self, response_text: str) -> Dict[str, Any]:
-        """Parse and extract quest concept from AI response"""
-        try:
-            # Remove markdown code blocks if present
-            response_text = re.sub(r'```json\s*|\s*```', '', response_text)
+        """Parse and extract quest concept from AI response.
 
-            # Try to find JSON object in the response
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
-                concept = json.loads(json_str)
-            else:
-                # Fallback: try to parse the whole response as JSON
-                concept = json.loads(response_text)
+        Uses unified extract_json from BaseAIService.
+        """
+        concept = self.extract_json(response_text)
 
-            # Validate required fields
-            if 'title' not in concept:
-                concept['title'] = 'AI Generated Quest'
-            if 'big_idea' not in concept:
-                concept['big_idea'] = 'A learning experience generated by AI.'
-
-            # Add metadata
-            concept['source'] = 'ai_generated'
-
-            return concept
-
-        except json.JSONDecodeError:
-            # If JSON parsing fails, create a fallback structure
+        if not concept:
+            # Fallback structure
             return {
                 'title': 'AI Generated Quest',
                 'big_idea': 'A learning experience generated by AI.',
                 'source': 'ai_generated'
             }
 
+        # Validate required fields
+        if 'title' not in concept:
+            concept['title'] = 'AI Generated Quest'
+        if 'big_idea' not in concept:
+            concept['big_idea'] = 'A learning experience generated by AI.'
+
+        # Add metadata
+        concept['source'] = 'ai_generated'
+
+        return concept
+
     def _parse_quest_response(self, response_text: str) -> Dict[str, Any]:
-        """Parse and extract quest data from AI response"""
-        try:
-            # Try to find JSON in the response
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
-                return json.loads(json_str)
-            else:
-                # Fallback: try to parse the whole response as JSON
-                return json.loads(response_text)
-        except json.JSONDecodeError:
-            # If JSON parsing fails, create a fallback structure
+        """Parse and extract quest data from AI response.
+
+        Uses unified extract_json from BaseAIService.
+        """
+        result = self.extract_json(response_text)
+
+        if not result:
+            # Fallback structure
             return {
                 'title': 'Generated Quest',
                 'big_idea': 'This quest was generated by AI but parsing failed.',
                 'tasks': []
             }
+
+        return result
     
     def _parse_tasks_response(self, response_text: str) -> List[Dict[str, Any]]:
-        """Parse tasks from AI response"""
-        try:
-            # Try to find JSON array in the response
-            json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
-                return json.loads(json_str)
-            else:
-                return json.loads(response_text)
-        except json.JSONDecodeError:
+        """Parse tasks from AI response.
+
+        Uses unified extract_json from BaseAIService.
+        """
+        result = self.extract_json(response_text)
+
+        if not result:
+            return []
+
+        # Handle both list and dict responses
+        if isinstance(result, list):
+            return result
+        elif isinstance(result, dict) and 'tasks' in result:
+            return result['tasks']
+        else:
             return []
     
     def _parse_validation_response(self, response_text: str) -> Dict[str, Any]:
-        """Parse validation feedback from AI response"""
-        try:
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
-                return json.loads(json_str)
-            else:
-                return json.loads(response_text)
-        except json.JSONDecodeError:
+        """Parse validation feedback from AI response.
+
+        Uses unified extract_json from BaseAIService.
+        """
+        result = self.extract_json(response_text)
+
+        if not result:
             return {
                 'quality_score': 5,
                 'strengths': ['AI analysis unavailable'],
@@ -682,26 +693,24 @@ Return ONLY valid JSON (no markdown code blocks):
                 'missing_elements': []
             }
 
-    def _parse_cleanup_response(self, response_text: str) -> Dict[str, Any]:
-        """Parse cleanup response from AI"""
-        try:
-            # Remove markdown code blocks if present
-            response_text = re.sub(r'```json\s*|\s*```', '', response_text)
+        return result
 
-            # Try to find JSON object in the response
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
-                return json.loads(json_str)
-            else:
-                return json.loads(response_text)
-        except json.JSONDecodeError:
+    def _parse_cleanup_response(self, response_text: str) -> Dict[str, Any]:
+        """Parse cleanup response from AI.
+
+        Uses unified extract_json from BaseAIService.
+        """
+        result = self.extract_json(response_text)
+
+        if not result:
             return {
                 'cleaned_title': '',
                 'cleaned_big_idea': '',
                 'changes_made': ['Failed to parse AI response'],
                 'quality_score': 0
             }
+
+        return result
     
     def _validate_and_fix_quest_data(self, quest_data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate and fix quest data structure and values"""
@@ -939,6 +948,10 @@ Return ONLY valid JSON (no markdown code blocks):
 
         return f"""
         Create an educational quest aligned with this learning badge:
+
+{TONE_LEVELS['content_generation']}
+
+{CORE_PHILOSOPHY}
 
         Badge: {badge_name}
         Identity Statement: {identity_statement}

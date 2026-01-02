@@ -8,6 +8,8 @@ Provides AI-powered assistance for students when:
 - Validating quest idea viability
 
 Uses Gemini API for intelligent, context-aware feedback.
+
+Refactored (Jan 2026): Now uses shared prompt components for consistency.
 """
 
 import google.generativeai as genai
@@ -19,6 +21,16 @@ from database import get_supabase_admin_client
 from datetime import datetime
 
 from utils.logger import get_logger
+
+# Import shared prompt components
+from prompts.components import (
+    OPTIO_AI_PERSONA,
+    CORE_PHILOSOPHY,
+    LANGUAGE_GUIDELINES,
+    TONE_LEVELS,
+    PILLAR_DEFINITIONS,
+    PILLAR_DISPLAY_NAMES,
+)
 
 logger = get_logger(__name__)
 
@@ -38,22 +50,8 @@ class StudentAIAssistantService(BaseService):
         # Use gemini-2.5-flash-lite as per CLAUDE.md specification
         self.model = genai.GenerativeModel('gemini-2.5-flash-lite')
 
-        # Optio philosophy and pillars for context
-        self.philosophy = """
-        Optio's Core Philosophy: "The Process Is The Goal"
-        - Learning is about who you become through the journey
-        - Celebrate growth happening RIGHT NOW, not future potential
-        - Focus on how learning FEELS, not how it LOOKS
-        - Every step, attempt, and mistake is valuable
-        """
-
-        self.pillars = [
-            "STEM & Logic",
-            "Life & Wellness",
-            "Language & Communication",
-            "Society & Culture",
-            "Arts & Creativity"
-        ]
+        # Use shared pillar display names from components
+        self.pillars = list(PILLAR_DISPLAY_NAMES.values())
 
         # XP guidelines for different complexity levels
         self.xp_guidelines = {
@@ -85,7 +83,11 @@ class StudentAIAssistantService(BaseService):
         if user_context:
             context_str = f"\nStudent context: {json.dumps(user_context, indent=2)}"
 
-        prompt = f"""{self.philosophy}
+        prompt = f"""{OPTIO_AI_PERSONA}
+
+{CORE_PHILOSOPHY}
+
+{TONE_LEVELS['student_facing']}
 
 TASK: Analyze this student's quest idea and provide constructive, encouraging feedback.
 
@@ -197,7 +199,11 @@ GUIDELINES:
                 "xp": quest.get("total_xp", 0)
             })
 
-        prompt = f"""{self.philosophy}
+        prompt = f"""{OPTIO_AI_PERSONA}
+
+{CORE_PHILOSOPHY}
+
+{TONE_LEVELS['student_facing']}
 
 TASK: Find {limit} existing quests most similar to the student's idea for inspiration.
 
@@ -272,7 +278,11 @@ Return the {limit} most relevant quests.
         if suggested_tasks:
             tasks_str = f"\nSuggested Tasks:\n" + "\n".join([f"- {task}" for task in suggested_tasks])
 
-        prompt = f"""{self.philosophy}
+        prompt = f"""{OPTIO_AI_PERSONA}
+
+{CORE_PHILOSOPHY}
+
+{TONE_LEVELS['student_facing']}
 
 TASK: Validate if this quest idea is ready for submission and provide constructive feedback.
 
@@ -352,7 +362,11 @@ Be constructive and encouraging. Focus on helping the student improve their idea
         Returns:
             Dict with task recommendations
         """
-        prompt = f"""{self.philosophy}
+        prompt = f"""{OPTIO_AI_PERSONA}
+
+{CORE_PHILOSOPHY}
+
+{TONE_LEVELS['student_facing']}
 
 TASK: Suggest {num_tasks} concrete tasks for this quest idea.
 

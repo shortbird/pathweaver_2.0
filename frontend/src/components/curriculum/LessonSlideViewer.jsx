@@ -14,6 +14,7 @@ import {
   ClipboardDocumentListIcon,
   DocumentTextIcon,
   TrophyIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid'
 import { getPillarData } from '../../utils/pillarMappings'
@@ -26,6 +27,7 @@ import {
   StepAttachments
 } from './content'
 import AddTaskWizard from './AddTaskWizard'
+import LessonHelperModal from './LessonHelperModal'
 
 export const LessonSlideViewer = ({
   lesson,
@@ -44,6 +46,7 @@ export const LessonSlideViewer = ({
   lessonEarnedXP = 0,
 }) => {
   const [showPersonalizeWizard, setShowPersonalizeWizard] = useState(false)
+  const [showHelperModal, setShowHelperModal] = useState(false)
 
   const totalContentSteps = steps.length
   // Finished step is at index totalContentSteps (right after content)
@@ -274,11 +277,33 @@ export const LessonSlideViewer = ({
   return (
     <div className="flex flex-col min-h-[400px]">
       <div className="flex-1">
-        {/* Step Title */}
+        {/* Step Title with Helper Button */}
         {currentStep && totalContentSteps > 1 && currentStep.title && (
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">
-            {currentStep.title}
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold text-gray-900">
+              {currentStep.title}
+            </h3>
+            <button
+              onClick={() => setShowHelperModal(true)}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-optio-purple hover:bg-optio-purple/5 transition-colors"
+              title="Need help with this?"
+            >
+              <SparklesIcon className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
+        {/* Helper button for steps without title */}
+        {currentStep && (totalContentSteps === 1 || !currentStep.title) && (
+          <div className="flex justify-end mb-4">
+            <button
+              onClick={() => setShowHelperModal(true)}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-optio-purple hover:bg-optio-purple/5 transition-colors"
+              title="Need help with this?"
+            >
+              <SparklesIcon className="w-5 h-5" />
+            </button>
+          </div>
         )}
 
         {/* Step Content */}
@@ -348,6 +373,17 @@ export const LessonSlideViewer = ({
           </p>
         </div>
       )}
+
+      {/* Lesson Helper Modal */}
+      <LessonHelperModal
+        isOpen={showHelperModal}
+        onClose={() => setShowHelperModal(false)}
+        lessonId={lesson?.id}
+        blockIndex={currentStepIndex}
+        stepTitle={currentStep?.title || ''}
+        totalSteps={totalContentSteps}
+        currentStepIndex={currentStepIndex}
+      />
     </div>
   )
 }

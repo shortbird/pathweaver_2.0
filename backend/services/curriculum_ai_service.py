@@ -3,6 +3,8 @@ AI-powered curriculum content enhancement service using Google Gemini API.
 Enhances lesson content by splitting into digestible steps with better formatting.
 
 RESTRICTED: Only available to superadmin users.
+
+Refactored (Jan 2026): Now uses shared prompt components for consistency.
 """
 
 import json
@@ -12,6 +14,12 @@ from typing import Dict, List, Optional, Any
 import google.generativeai as genai
 
 from utils.logger import get_logger
+
+# Import shared prompt components
+from prompts.components import (
+    CORE_PHILOSOPHY,
+    TONE_LEVELS,
+)
 
 logger = get_logger(__name__)
 
@@ -166,7 +174,13 @@ For FILE/RESOURCE suggestion steps:
 Place resource suggestion steps at logical points in the lesson flow where they would enhance understanding.
 Do NOT add resource steps after every text step - be strategic about placement."""
 
-        return f"""You are an expert educational content organizer. Your ONLY task is to split the following lesson content into logical steps while PRESERVING THE EXACT ORIGINAL TEXT.
+        return f"""You are an expert educational content organizer for the Optio learning platform.
+
+{TONE_LEVELS['admin_tools']}
+
+{CORE_PHILOSOPHY}
+
+Your ONLY task is to split the following lesson content into logical steps while PRESERVING THE EXACT ORIGINAL TEXT.
 
 {title_context}
 

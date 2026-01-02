@@ -1,9 +1,9 @@
 import React from 'react';
 import {
-  SparklesIcon,
+  BoltIcon,
   ArrowTrendingUpIcon,
-  PauseCircleIcon,
-  SunIcon,
+  MoonIcon,
+  ArrowPathIcon,
   PlayCircleIcon
 } from '@heroicons/react/24/outline';
 
@@ -26,7 +26,7 @@ const RhythmIndicator = ({
   // State-specific styling and icons
   const stateConfig = {
     in_flow: {
-      icon: SparklesIcon,
+      icon: BoltIcon,
       bgClass: 'bg-gradient-to-r from-optio-purple/10 to-optio-pink/10',
       borderClass: 'border-optio-purple/30',
       iconClass: 'text-optio-purple',
@@ -40,14 +40,14 @@ const RhythmIndicator = ({
       textClass: 'text-blue-700'
     },
     resting: {
-      icon: PauseCircleIcon,
+      icon: MoonIcon,
       bgClass: 'bg-green-50',
       borderClass: 'border-green-200',
       iconClass: 'text-green-600',
       textClass: 'text-green-700'
     },
     fresh_return: {
-      icon: SunIcon,
+      icon: ArrowPathIcon,
       bgClass: 'bg-amber-50',
       borderClass: 'border-amber-200',
       iconClass: 'text-amber-600',

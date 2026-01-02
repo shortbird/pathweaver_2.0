@@ -89,8 +89,30 @@ const QuestDetail = () => {
   const [taskDetailToShow, setTaskDetailToShow] = React.useState(null);
   const [droppingTaskId, setDroppingTaskId] = React.useState(null);
   const [showMobileDrawer, setShowMobileDrawer] = React.useState(false);
+  const [collaborators, setCollaborators] = React.useState([]);
 
   const { earnedXP } = xpData;
+
+  // Fetch collaborators for this quest
+  React.useEffect(() => {
+    const fetchCollaborators = async () => {
+      if (!quest?.id || !user) return;
+
+      try {
+        const response = await api.get(`/api/collaborations/quest/${quest.id}/members`);
+        if (response.data.success && response.data.members?.length > 1) {
+          // Filter out current user from collaborators list
+          const otherMembers = response.data.members.filter(m => m.id !== user.id);
+          setCollaborators(otherMembers);
+        }
+      } catch (err) {
+        // Silently fail - collaboration is optional
+        console.debug('No collaboration for this quest:', err);
+      }
+    };
+
+    fetchCollaborators();
+  }, [quest?.id, user]);
 
   // Handle enrollment
   const handleEnroll = async (options = {}) => {
@@ -410,6 +432,36 @@ const QuestDetail = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-4">
+        {/* Collaborators Section */}
+        {collaborators.length > 0 && (
+          <div className="bg-white rounded-xl shadow-md p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-gray-900">Collaborating With</h3>
+              <span className="text-sm text-gray-500">{collaborators.length} {collaborators.length === 1 ? 'person' : 'people'}</span>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {collaborators.map(member => (
+                <div
+                  key={member.id}
+                  className="flex items-center gap-2 bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 rounded-lg px-3 py-2 border border-optio-purple/20"
+                >
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center text-white font-semibold text-sm">
+                    {member.display_name?.charAt(0)?.toUpperCase() || member.email?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-gray-900">
+                      {member.display_name || member.email}
+                    </span>
+                    {member.display_name && member.email && (
+                      <span className="text-xs text-gray-500">{member.email}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Enrollment and Sample/Preset Tasks */}
         <QuestEnrollment
           quest={quest}

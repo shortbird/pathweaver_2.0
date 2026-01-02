@@ -5,7 +5,8 @@ import OptioBotModal from './OptioBotModal';
 import api from '../../services/api';
 
 const TutorWidget = ({
-  currentQuest = null,
+  questId = null,  // New: pass quest ID for server-side context fetching
+  currentQuest = null,  // Legacy: client-provided quest context
   currentTask = null,
   position = 'bottom-right',
   className = ''
@@ -147,8 +148,9 @@ const TutorWidget = ({
       <OptioBotModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        currentQuest={null}
-        currentTask={null}
+        questId={questId}
+        currentQuest={currentQuest}
+        currentTask={currentTask}
         conversationId={persistentConversationId}
         onConversationCreate={persistConversationId}
         onStartNewConversation={startNewConversation}

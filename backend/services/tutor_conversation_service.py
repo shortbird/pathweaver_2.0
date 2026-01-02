@@ -12,6 +12,7 @@ import logging
 
 from services.ai_tutor_service import TutorContext, ConversationMode
 from utils.logger import get_logger
+from repositories import QuestRepository
 
 logger = get_logger(__name__)
 
@@ -192,6 +193,201 @@ class TutorConversationService:
             logger.error(f"Warning: Failed to build full context for user {user_id}: {e}")
 
         return context
+
+    def build_quest_context(self, user_id: str, quest_id: str) -> Optional[Dict]:
+        """
+        Build rich quest context for AI tutor including tasks and completions.
+
+        Args:
+            user_id: User UUID
+            quest_id: Quest UUID
+
+        Returns:
+            Dict with quest details, tasks, completions, and evidence or None if not found
+        """
+        try:
+            quest_repo = QuestRepository(self.client)
+
+            # Get quest details
+            quest_result = self.client.table('quests').select(
+                'id, title, description, pillar_primary, quest_topics, big_idea'
+            ).eq('id', quest_id).execute()
+
+            if not quest_result.data or len(quest_result.data) == 0:
+                logger.warning(f"Quest {quest_id} not found")
+                return None
+
+            quest = quest_result.data[0]
+
+            # Get all tasks for this quest and user
+            tasks_result = self.client.table('user_quest_tasks').select(
+                'id, title, pillar, xp_value, is_completed'
+            ).eq('quest_id', quest_id).eq('user_id', user_id).execute()
+
+            tasks = tasks_result.data if tasks_result.data else []
+
+            # Get completed tasks with evidence
+            completions_result = self.client.table('quest_task_completions').select(
+                'task_id, evidence_text, completed_at'
+            ).eq('quest_id', quest_id).eq('user_id', user_id).order(
+                'completed_at', desc=True
+            ).limit(5).execute()
+
+            completions = completions_result.data if completions_result.data else []
+
+            # Map completions to task titles for evidence context
+            task_id_to_title = {t['id']: t['title'] for t in tasks}
+            recent_evidence = []
+            for completion in completions:
+                task_title = task_id_to_title.get(completion['task_id'], 'Unknown Task')
+                if completion.get('evidence_text'):
+                    recent_evidence.append({
+                        'task_title': task_title,
+                        'evidence_text': completion['evidence_text'],
+                        'completed_at': completion['completed_at']
+                    })
+
+            # Build task list with completion status
+            completed_task_ids = {c['task_id'] for c in completions}
+            tasks_with_status = []
+            for task in tasks:
+                tasks_with_status.append({
+                    'id': task['id'],
+                    'title': task['title'],
+                    'pillar': task['pillar'],
+                    'xp_value': task['xp_value'],
+                    'is_completed': task['id'] in completed_task_ids or task.get('is_completed', False)
+                })
+
+            completed_count = sum(1 for t in tasks_with_status if t['is_completed'])
+
+            return {
+                'quest': {
+                    'id': quest['id'],
+                    'title': quest['title'],
+                    'description': quest.get('description', ''),
+                    'big_idea': quest.get('big_idea', ''),
+                    'pillar_primary': quest.get('pillar_primary', ''),
+                    'topics': quest.get('quest_topics', [])
+                },
+                'tasks': tasks_with_status,
+                'completed_count': completed_count,
+                'total_count': len(tasks_with_status),
+                'recent_evidence': recent_evidence[:3]  # Limit to 3 most recent
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to build quest context for quest {quest_id}: {e}")
+            return None
+
+    def build_lesson_context(
+        self,
+        user_id: str,
+        lesson_id: str,
+        block_index: Optional[int] = None
+    ) -> Optional[Dict]:
+        """
+        Build rich lesson context for AI tutor including current content block and linked tasks.
+
+        Args:
+            user_id: User UUID
+            lesson_id: Lesson UUID
+            block_index: Optional index of the current content block being viewed
+
+        Returns:
+            Dict with lesson details, current block, progress, and linked tasks or None if not found
+        """
+        try:
+            # Get lesson details with quest info
+            lesson_result = self.client.table('curriculum_lessons').select(
+                'id, quest_id, title, description, content, sequence_order, estimated_duration_minutes'
+            ).eq('id', lesson_id).execute()
+
+            if not lesson_result.data or len(lesson_result.data) == 0:
+                logger.warning(f"Lesson {lesson_id} not found")
+                return None
+
+            lesson = lesson_result.data[0]
+
+            # Get quest title for context
+            quest_result = self.client.table('quests').select('id, title').eq(
+                'id', lesson['quest_id']
+            ).execute()
+            quest_title = quest_result.data[0]['title'] if quest_result.data else 'Unknown Quest'
+
+            # Parse lesson content blocks
+            content_blocks = lesson.get('content', {}).get('blocks', [])
+
+            # Get current block if index provided
+            current_block = None
+            if block_index is not None and 0 <= block_index < len(content_blocks):
+                block = content_blocks[block_index]
+                current_block = {
+                    'index': block_index,
+                    'type': block.get('type', 'text'),
+                    'content': block.get('content', '')[:500]  # Limit content length
+                }
+
+            # Get lesson progress for this user
+            progress_result = self.client.table('curriculum_lesson_progress').select(
+                'status, progress_percentage, time_spent_seconds'
+            ).eq('lesson_id', lesson_id).eq('user_id', user_id).execute()
+
+            progress = {
+                'status': 'not_started',
+                'progress_percentage': 0,
+                'time_spent_seconds': 0
+            }
+            if progress_result.data and len(progress_result.data) > 0:
+                progress = {
+                    'status': progress_result.data[0].get('status', 'not_started'),
+                    'progress_percentage': progress_result.data[0].get('progress_percentage', 0),
+                    'time_spent_seconds': progress_result.data[0].get('time_spent_seconds', 0)
+                }
+
+            # Get tasks linked to this lesson
+            linked_tasks_result = self.client.table('curriculum_lesson_tasks').select(
+                'task_id, user_quest_tasks!inner(id, title, pillar)'
+            ).eq('lesson_id', lesson_id).execute()
+
+            linked_tasks = []
+            if linked_tasks_result.data:
+                for link in linked_tasks_result.data:
+                    task = link.get('user_quest_tasks', {})
+                    if task:
+                        linked_tasks.append({
+                            'id': task.get('id'),
+                            'title': task.get('title'),
+                            'pillar': task.get('pillar')
+                        })
+
+            # Get user's learning style
+            settings_result = self.client.table('tutor_settings').select(
+                'learning_style'
+            ).eq('user_id', user_id).execute()
+
+            learning_style = 'mixed'
+            if settings_result.data and len(settings_result.data) > 0:
+                learning_style = settings_result.data[0].get('learning_style', 'mixed')
+
+            return {
+                'lesson': {
+                    'id': lesson['id'],
+                    'title': lesson['title'],
+                    'description': lesson.get('description', ''),
+                    'quest_id': lesson['quest_id'],
+                    'quest_title': quest_title,
+                    'estimated_duration': lesson.get('estimated_duration_minutes')
+                },
+                'current_block': current_block,
+                'progress': progress,
+                'linked_tasks': linked_tasks[:5],  # Limit to 5 tasks
+                'learning_style': learning_style
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to build lesson context for lesson {lesson_id}: {e}")
+            return None
 
     def create_default_settings(self, user_id: str) -> Dict:
         """

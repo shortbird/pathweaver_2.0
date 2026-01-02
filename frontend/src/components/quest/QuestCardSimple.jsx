@@ -2,17 +2,17 @@ import React, { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuestEngagement } from '../../hooks/api/useQuests';
 import {
-  SparklesIcon,
+  BoltIcon,
   ArrowTrendingUpIcon,
-  PauseCircleIcon,
-  SunIcon,
+  MoonIcon,
+  ArrowPathIcon,
   PlayCircleIcon
 } from '@heroicons/react/24/solid';
 
 // Rhythm state configuration
 const rhythmConfig = {
   in_flow: {
-    icon: SparklesIcon,
+    icon: BoltIcon,
     bgClass: 'bg-gradient-to-r from-optio-purple/10 to-optio-pink/10',
     textClass: 'text-optio-purple'
   },
@@ -22,12 +22,12 @@ const rhythmConfig = {
     textClass: 'text-blue-700'
   },
   resting: {
-    icon: PauseCircleIcon,
+    icon: MoonIcon,
     bgClass: 'bg-green-50',
     textClass: 'text-green-700'
   },
   fresh_return: {
-    icon: SunIcon,
+    icon: ArrowPathIcon,
     bgClass: 'bg-amber-50',
     textClass: 'text-amber-700'
   },
