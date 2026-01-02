@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
 import logger from '../utils/logger'
+import GoogleButton from '../components/auth/GoogleButton'
 
 const LoginPage = () => {
   const { register, handleSubmit, formState: { errors } } = useForm()
@@ -155,7 +156,24 @@ const LoginPage = () => {
               )}
             </button>
           </div>
-          
+
+          {/* Divider */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-background text-gray-500">Or continue with</span>
+            </div>
+          </div>
+
+          {/* Google Sign-in */}
+          <GoogleButton
+            mode="signin"
+            onError={(error) => setLoginError(error)}
+            disabled={loading}
+          />
+
           <div className="text-sm text-center">
             <Link to="/forgot-password" className="font-medium text-primary hover:text-purple-500">
               Forgot your password?

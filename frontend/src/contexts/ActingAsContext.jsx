@@ -112,10 +112,21 @@ export const ActingAsProvider = ({ children }) => {
   // Otherwise this wipes sessionStorage before we can restore acting-as state
   useEffect(() => {
     if (hasInitialized && !loading && !user) {
-      logger.debug('[ActingAsContext] User logged out, clearing acting-as state');
-      clearActingAs();
+      // Only clear if there's actually an acting-as state to clear
+      // This prevents unnecessary API calls and 401 errors on public pages
+      if (actingAsDependent || actingAsToken) {
+        logger.debug('[ActingAsContext] User logged out, clearing acting-as state');
+        clearActingAs();
+      } else {
+        // Just clear sessionStorage without API call if no acting-as state
+        sessionStorage.removeItem('acting_as_dependent');
+        sessionStorage.removeItem('acting_as_token');
+        sessionStorage.removeItem('acting_as_parent_name');
+        sessionStorage.removeItem('parent_access_token');
+        sessionStorage.removeItem('parent_refresh_token');
+      }
     }
-  }, [user, loading, hasInitialized, clearActingAs]);
+  }, [user, loading, hasInitialized, clearActingAs, actingAsDependent, actingAsToken]);
 
   const setActingAs = async (dependent) => {
     if (dependent) {

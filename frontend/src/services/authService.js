@@ -12,6 +12,7 @@
 import api, { tokenStore, csrfTokenStore } from './api'
 import { shouldUseAuthHeaders } from '../utils/browserDetection'
 import logger from '../utils/logger'
+import { supabase } from './supabaseClient'
 
 class AuthService {
   constructor() {
@@ -208,6 +209,111 @@ class AuthService {
 
     } catch (error) {
       const errorMessage = error.response?.data?.error || 'Registration failed'
+      return { success: false, error: errorMessage }
+    }
+  }
+
+  /**
+   * Sign in with Google OAuth
+   *
+   * Initiates the Google OAuth flow via Supabase.
+   * User will be redirected to Google, then back to /auth/callback
+   */
+  async signInWithGoogle() {
+    try {
+      logger.debug('[AuthService] Initiating Google OAuth flow')
+
+      // Get the callback URL based on current environment
+      const redirectTo = `${window.location.origin}/auth/callback`
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
+        }
+      })
+
+      if (error) {
+        logger.error('[AuthService] Google OAuth error:', error)
+        return { success: false, error: error.message }
+      }
+
+      // The user will be redirected to Google
+      // After authentication, they'll be redirected to /auth/callback
+      return { success: true, redirecting: true }
+
+    } catch (error) {
+      logger.error('[AuthService] Google OAuth unexpected error:', error)
+      return { success: false, error: 'Failed to initiate Google sign-in' }
+    }
+  }
+
+  /**
+   * Handle Google OAuth callback
+   *
+   * Called from the /auth/callback page after Google redirects back.
+   * Exchanges Supabase token for our app session.
+   */
+  async handleGoogleCallback() {
+    try {
+      logger.debug('[AuthService] Processing Google OAuth callback')
+
+      // Get session from Supabase (set via URL hash after redirect)
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+      if (sessionError) {
+        logger.error('[AuthService] Failed to get Supabase session:', sessionError)
+        return { success: false, error: 'Failed to complete Google sign-in' }
+      }
+
+      if (!session) {
+        logger.error('[AuthService] No session found after OAuth callback')
+        return { success: false, error: 'No authentication session found' }
+      }
+
+      // Exchange Supabase token for our app session
+      const response = await api.post('/api/auth/google/callback', {
+        access_token: session.access_token,
+        refresh_token: session.refresh_token
+      })
+
+      this.user = response.data.user
+      this.isAuthenticated = true
+
+      // Store tokens for Safari/iOS/Firefox if needed
+      if (shouldUseAuthHeaders()) {
+        const appAccessToken = response.data.app_access_token
+        const appRefreshToken = response.data.app_refresh_token
+
+        if (appAccessToken && appRefreshToken) {
+          await this.setTokens(appAccessToken, appRefreshToken)
+          logger.debug('[AuthService] Google OAuth tokens stored for Authorization header usage')
+        }
+      }
+
+      // Store user data for quick access
+      if (this.user) {
+        localStorage.setItem('user', JSON.stringify(this.user))
+      }
+
+      // Start token health monitoring
+      this.startTokenHealthMonitoring()
+
+      this.notifyListeners()
+
+      return {
+        success: true,
+        user: this.user,
+        isNewUser: response.data.is_new_user
+      }
+
+    } catch (error) {
+      logger.error('[AuthService] Google callback error:', error)
+      const errorMessage = error.response?.data?.message || 'Failed to complete Google sign-in'
       return { success: false, error: errorMessage }
     }
   }

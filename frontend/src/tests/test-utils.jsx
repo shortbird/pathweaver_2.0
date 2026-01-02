@@ -2,15 +2,23 @@ import React, { createContext } from 'react'
 import { render } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { OrganizationProvider } from '../contexts/OrganizationContext'
 
-// Create a mock AuthContext for testing
-// This is used by tests instead of the real AuthContext
+// Router future flags to suppress React Router v7 warnings
+const routerFutureFlags = { v7_startTransition: true, v7_relativeSplatPath: true }
+
+// Create mock contexts for testing
+// These are used by tests instead of the real contexts
 const MockAuthContext = createContext()
+const MockOrganizationContext = createContext()
 
 // Mock AuthProvider that accepts a value prop for testing
 function MockAuthProvider({ children, value }) {
   return <MockAuthContext.Provider value={value}>{children}</MockAuthContext.Provider>
+}
+
+// Mock OrganizationProvider that accepts a value prop for testing
+function MockOrganizationProvider({ children, value }) {
+  return <MockOrganizationContext.Provider value={value}>{children}</MockOrganizationContext.Provider>
 }
 
 /**
@@ -68,11 +76,11 @@ export function renderWithProviders(
   function Wrapper({ children }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
+        <BrowserRouter future={routerFutureFlags}>
           <MockAuthProvider value={authValue}>
-            <OrganizationProvider value={organizationValue}>
+            <MockOrganizationProvider value={organizationValue}>
               {children}
-            </OrganizationProvider>
+            </MockOrganizationProvider>
           </MockAuthProvider>
         </BrowserRouter>
       </QueryClientProvider>

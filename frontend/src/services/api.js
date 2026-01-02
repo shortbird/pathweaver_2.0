@@ -205,10 +205,15 @@ api.interceptors.response.use(
 
     // Handle 401 responses by attempting token refresh
     // BUT: Don't refresh on login failures - those are genuine wrong credentials
+    // AND: Don't refresh for /auth/me if we have no tokens (initial session check)
+    const hasTokens = !!tokenStore.getAccessToken() || !!tokenStore.getRefreshToken()
+    const isInitialSessionCheck = originalRequest.url?.includes('/auth/me') && !hasTokens
+
     if (error.response?.status === 401 &&
         !originalRequest._retry &&
         !originalRequest.url?.includes('/auth/refresh') &&
-        !originalRequest.url?.includes('/auth/login')) {
+        !originalRequest.url?.includes('/auth/login') &&
+        !isInitialSessionCheck) {
       originalRequest._retry = true
 
       try {

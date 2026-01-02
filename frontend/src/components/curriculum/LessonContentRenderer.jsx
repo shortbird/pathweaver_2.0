@@ -13,6 +13,7 @@ import {
   VideoCameraIcon,
 } from '@heroicons/react/24/outline'
 import { CALLOUT_VARIANTS } from './blocks/index'
+import { sanitizeHtml } from '../../utils/sanitize'
 
 // Helper to extract YouTube/Vimeo embed URL
 const getEmbedUrl = (url) => {
@@ -116,7 +117,7 @@ const LessonContentRenderer = ({ content, className = '' }) => {
                 {/* Text Content */}
                 {step.content && step.content !== '<p></p>' && (
                   <div className={proseClasses}>
-                    <div dangerouslySetInnerHTML={{ __html: step.content }} />
+                    <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(step.content) }} />
                   </div>
                 )}
 
@@ -258,7 +259,7 @@ const LessonContentRenderer = ({ content, className = '' }) => {
             <div className={proseClasses}>
               {block.data?.format === 'html' || block.content.includes('<') ? (
                 // Render HTML content from TipTap editor
-                <div dangerouslySetInnerHTML={{ __html: block.content }} />
+                <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(block.content) }} />
               ) : (
                 // Legacy markdown content
                 <ReactMarkdown>{block.content}</ReactMarkdown>

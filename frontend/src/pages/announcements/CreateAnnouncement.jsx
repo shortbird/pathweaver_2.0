@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { textToSafeHtml } from '../../utils/sanitize';
 
 /**
  * CreateAnnouncement
@@ -166,7 +167,7 @@ const CreateAnnouncement = () => {
               />
             ) : (
               <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 prose prose-sm max-w-none min-h-[250px] overflow-y-auto max-h-[70vh]">
-                <div dangerouslySetInnerHTML={{ __html: formData.content.replace(/\n/g, '<br/>') }} />
+                <div dangerouslySetInnerHTML={{ __html: textToSafeHtml(formData.content) }} />
               </div>
             )}
             <p className="mt-1 text-xs text-gray-500">

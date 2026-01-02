@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
 import PasswordStrengthMeter from '../components/auth/PasswordStrengthMeter'
+import GoogleButton from '../components/auth/GoogleButton'
 import logger from '../utils/logger'
 
 const RegisterPage = () => {
@@ -13,6 +14,7 @@ const RegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isUnder13, setIsUnder13] = useState(false)
+  const [googleError, setGoogleError] = useState('')
   const password = watch('password')
   const dateOfBirth = watch('date_of_birth')
 
@@ -74,7 +76,31 @@ const RegisterPage = () => {
             </Link>
           </p>
         </div>
-        
+
+        {/* Google Sign-up Option */}
+        <div className="mt-6">
+          {googleError && (
+            <div className="mb-4 bg-red-50 border-l-4 border-red-500 rounded-md p-4">
+              <p className="text-sm text-red-800">{googleError}</p>
+            </div>
+          )}
+          <GoogleButton
+            mode="signup"
+            onError={(error) => setGoogleError(error)}
+            disabled={loading}
+          />
+        </div>
+
+        {/* Divider */}
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-background text-gray-500">Or register with email</span>
+          </div>
+        </div>
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">

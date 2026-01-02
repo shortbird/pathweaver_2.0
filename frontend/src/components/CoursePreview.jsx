@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
+import { sanitizeHtml } from '../utils/sanitize'
 
 // Helper to extract HTML content from lesson content structure
 const getLessonHtmlContent = (content) => {
@@ -253,7 +254,7 @@ const CoursePreview = ({ course, quests, onClose }) => {
                                   {lesson.content && getLessonHtmlContent(lesson.content) && (
                                     <div
                                       className="prose prose-sm max-w-none mt-2 text-gray-600"
-                                      dangerouslySetInnerHTML={{ __html: getLessonHtmlContent(lesson.content) }}
+                                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(getLessonHtmlContent(lesson.content)) }}
                                     />
                                   )}
                                   {lesson.video_url && (

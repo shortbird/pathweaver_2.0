@@ -1,23 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { tokenStore } from '../services/api'
-import api from '../services/api'
+import authService from '../services/authService'
 import { useQueryClient } from '@tanstack/react-query'
-import { queryKeys } from '../utils/queryKeys'
 
 /**
- * OAuth Authorization Code Callback Page
+ * OAuth Authorization Callback Page
  *
- * Handles the auth code exchange for Spark SSO login.
- * Implements OAuth 2.0 authorization code flow for security:
- * 1. Receives one-time auth code from SSO redirect
- * 2. Exchanges code for access/refresh tokens via POST
- * 3. Stores tokens in memory (not localStorage - XSS protection)
- * 4. Updates AuthContext with user session via React Query cache
- * 5. Redirects to dashboard
+ * Handles OAuth callbacks from multiple providers:
+ * 1. Spark SSO - Uses query param 'code' for token exchange
+ * 2. Google OAuth - Uses Supabase auth with URL hash fragments
  *
- * SECURITY: Tokens never appear in URL, only the one-time code does.
- * NOTE: Must update React Query cache BEFORE navigation to avoid race condition.
+ * For Spark SSO (query param 'code'):
+ * - Receives one-time auth code from SSO redirect
+ * - Exchanges code for tokens via POST to /spark/token
+ *
+ * For Google OAuth (URL hash with access_token):
+ * - Supabase handles the OAuth flow
+ * - We exchange Supabase token for app session
  */
 export default function AuthCallback() {
   const [searchParams] = useSearchParams()
@@ -27,64 +27,110 @@ export default function AuthCallback() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    const exchangeCode = async () => {
+    const handleCallback = async () => {
       const code = searchParams.get('code')
 
-      if (!code) {
-        setError('Missing authorization code')
+      // Check if this is a Supabase OAuth callback (Google, etc.)
+      // Supabase uses URL hash fragments, not query params
+      const hashParams = new URLSearchParams(window.location.hash.substring(1))
+      const accessToken = hashParams.get('access_token')
+      const isSupabaseOAuth = accessToken || window.location.hash.includes('access_token')
+
+      if (isSupabaseOAuth) {
+        // Handle Google OAuth via Supabase
+        await handleGoogleOAuth()
+      } else if (code) {
+        // Handle Spark SSO
+        await handleSparkSSO(code)
+      } else {
+        setError('Missing authorization data')
         setStatus('error')
-        return
       }
+    }
 
-      try {
-        // Exchange code for tokens (OAuth 2.0 token endpoint)
-        // Note: Spark endpoints are at root level, not under /api
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+    handleCallback()
+  }, [searchParams, navigate])
 
-        const response = await fetch(`${apiUrl}/spark/token`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',  // ✅ CRITICAL: Enable cookie sending/receiving
-          body: JSON.stringify({ code }),
-        })
+  /**
+   * Handle Google OAuth callback via Supabase
+   */
+  const handleGoogleOAuth = async () => {
+    try {
+      const result = await authService.handleGoogleCallback()
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Token exchange failed')
-        }
-
-        const data = await response.json()
-        const { user_id, app_access_token, app_refresh_token } = data
-
-        // ✅ CROSS-ORIGIN FIX: Store tokens from response body
-        // httpOnly cookies don't work cross-origin, so backend returns tokens in body
-        // Tokens are stored in localStorage and added to Authorization header
-        if (app_access_token && app_refresh_token) {
-          tokenStore.setTokens(app_access_token, app_refresh_token)
-        }
-
+      if (result.success) {
         setStatus('success')
 
-        // Force full page reload to /dashboard
-        // This ensures AuthContext runs checkSession() with the newly stored tokens
-        // and prevents the brief login page flash from PrivateRoute race condition
-        window.location.href = '/dashboard'
-      } catch (err) {
-        console.error('Token exchange failed:', err)
-        setError(err.response?.data?.error || 'Authentication failed')
+        // Determine redirect path based on user role
+        const user = result.user
+        const redirectPath = user?.role === 'parent' ? '/parent/dashboard' : '/dashboard'
+
+        // Force full page reload to ensure AuthContext is updated
+        window.location.href = redirectPath
+      } else {
+        setError(result.error || 'Google authentication failed')
         setStatus('error')
 
-        // Redirect to login after error display
         setTimeout(() => {
           navigate('/login', { replace: true })
         }, 3000)
       }
-    }
+    } catch (err) {
+      console.error('Google OAuth failed:', err)
+      setError('Google authentication failed')
+      setStatus('error')
 
-    exchangeCode()
-  }, [searchParams, navigate])
+      setTimeout(() => {
+        navigate('/login', { replace: true })
+      }, 3000)
+    }
+  }
+
+  /**
+   * Handle Spark SSO callback
+   */
+  const handleSparkSSO = async (code) => {
+    try {
+      // Exchange code for tokens (OAuth 2.0 token endpoint)
+      // Note: Spark endpoints are at root level, not under /api
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
+      const response = await fetch(`${apiUrl}/spark/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ code }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Token exchange failed')
+      }
+
+      const data = await response.json()
+      const { app_access_token, app_refresh_token } = data
+
+      // Store tokens for cross-origin support
+      if (app_access_token && app_refresh_token) {
+        tokenStore.setTokens(app_access_token, app_refresh_token)
+      }
+
+      setStatus('success')
+
+      // Force full page reload to /dashboard
+      window.location.href = '/dashboard'
+    } catch (err) {
+      console.error('Spark SSO failed:', err)
+      setError(err.message || 'Authentication failed')
+      setStatus('error')
+
+      setTimeout(() => {
+        navigate('/login', { replace: true })
+      }, 3000)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center p-4">

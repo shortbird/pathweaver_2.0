@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { crmAPI } from '../../../services/crmAPI'
 import toast from 'react-hot-toast'
 import logger from '../../../utils/logger'
+import { sanitizeHtml } from '../../../utils/sanitize'
 
 const TemplateEditor = ({ template, onClose, onSave }) => {
   const [templateKey, setTemplateKey] = useState('')
@@ -578,7 +579,7 @@ Looking forward to connecting!"
               {/* Email body - exact recipient view */}
               <div
                 className="min-h-96 overflow-auto"
-                dangerouslySetInnerHTML={{ __html: previewHtml || '<p class="text-gray-400 text-center py-12">Preview will appear here...</p>' }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewHtml) || '<p class="text-gray-400 text-center py-12">Preview will appear here...</p>' }}
               />
             </div>
           </div>

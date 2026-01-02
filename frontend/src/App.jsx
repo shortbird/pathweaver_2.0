@@ -307,7 +307,7 @@ function App() {
     <ErrorBoundary>
       <HelmetProvider>
         <QueryClientProvider client={queryClient}>
-          <Router>
+          <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           {/* Skip Navigation Link - WCAG 2.1 AA Accessibility */}
           <a
             href="#main-content"

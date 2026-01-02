@@ -4,7 +4,10 @@ import { visualizer } from 'rollup-plugin-visualizer'
 import { copyFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode }) => {
+  const isProduction = mode === 'production'
+
+  return {
   plugins: [
     react(),
     // Bundle analyzer - only in analyze mode
@@ -52,7 +55,8 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // Disable source maps in production to prevent source code exposure
+    sourcemap: !isProduction,
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
@@ -125,4 +129,4 @@ export default defineConfig(({ mode }) => ({
       },
     },
   }
-}))
+}})

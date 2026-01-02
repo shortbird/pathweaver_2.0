@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
+import { useAuth } from './AuthContext';
 
 const OrganizationContext = createContext(null);
 
@@ -12,12 +13,22 @@ export const useOrganization = () => {
 };
 
 export const OrganizationProvider = ({ children }) => {
+  const { user, loading: authLoading } = useAuth();
   const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchOrganization();
-  }, []);
+    // Only fetch organization when auth is done loading and user is authenticated
+    if (!authLoading) {
+      if (user) {
+        fetchOrganization();
+      } else {
+        // Not authenticated - no organization to fetch
+        setOrganization(null);
+        setLoading(false);
+      }
+    }
+  }, [user, authLoading]);
 
   const fetchOrganization = async () => {
     try {

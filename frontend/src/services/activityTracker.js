@@ -12,6 +12,7 @@
  */
 
 import api from './api'
+import logger from '../utils/logger'
 
 // Event type constants
 export const EVENT_TYPES = {
@@ -112,7 +113,7 @@ class ActivityTracker {
     })
 
     this.initialized = true
-    console.debug('[ActivityTracker] Initialized')
+    logger.debug('[ActivityTracker] Initialized')
   }
 
   /**
@@ -250,7 +251,7 @@ class ActivityTracker {
     this.flushSync()
 
     this.initialized = false
-    console.debug('[ActivityTracker] Destroyed')
+    logger.debug('[ActivityTracker] Destroyed')
   }
 
   // Convenience methods for common events
