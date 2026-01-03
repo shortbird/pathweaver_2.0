@@ -11,11 +11,13 @@ import {
   ExclamationTriangleIcon,
   UserIcon,
   PlusIcon,
-  UserGroupIcon
+  UserGroupIcon,
+  Cog6ToothIcon
 } from '@heroicons/react/24/outline';
 import AddDependentModal from '../components/parent/AddDependentModal';
 import RequestStudentConnectionModal from '../components/parent/RequestStudentConnectionModal';
 import VisibilityApprovalSection from '../components/parent/VisibilityApprovalSection';
+import DependentSettingsModal from '../components/parent/DependentSettingsModal';
 
 const ParentDashboardPage = () => {
   const { user } = useAuth();
@@ -34,6 +36,9 @@ const ParentDashboardPage = () => {
   const [completedQuests, setCompletedQuests] = useState([]);
   const [showAddDependentModal, setShowAddDependentModal] = useState(false);
   const [showRequestConnectionModal, setShowRequestConnectionModal] = useState(false);
+  const [showDependentSettingsModal, setShowDependentSettingsModal] = useState(false);
+  const [selectedDependentForSettings, setSelectedDependentForSettings] = useState(null);
+  const [selectedChildIsDependent, setSelectedChildIsDependent] = useState(true);
 
   // Pillar display names mapping
   const pillarDisplayNames = {
@@ -460,13 +465,64 @@ const ParentDashboardPage = () => {
                       You're viewing as a parent. Click "Act as {firstName}" to use the full platform as your student.
                     </p>
                   </div>
-                  <button
-                    onClick={() => handleActAsDependent(selectedDependent)}
-                    className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg text-sm font-semibold hover:opacity-90 shadow-sm whitespace-nowrap self-start sm:self-center min-h-[44px]"
-                    style={{ fontFamily: 'Poppins, sans-serif' }}
-                  >
-                    Act As {firstName}
-                  </button>
+                  <div className="flex gap-2 self-start sm:self-center">
+                    <button
+                      onClick={() => {
+                        setSelectedDependentForSettings(selectedDependent);
+                        setSelectedChildIsDependent(true);
+                        setShowDependentSettingsModal(true);
+                      }}
+                      className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 shadow-sm whitespace-nowrap min-h-[44px] flex items-center gap-1"
+                      style={{ fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      <Cog6ToothIcon className="w-4 h-4" />
+                      Settings
+                    </button>
+                    <button
+                      onClick={() => handleActAsDependent(selectedDependent)}
+                      className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg text-sm font-semibold hover:opacity-90 shadow-sm whitespace-nowrap min-h-[44px]"
+                      style={{ fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      Act As {firstName}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Settings Banner for Linked Students (non-dependents) */}
+          {(() => {
+            const selectedChild = children.find(c => c.student_id === selectedStudentId);
+            if (!selectedChild) return null;
+
+            const firstName = selectedChild.student_first_name || selectedChild.student_name || 'Child';
+
+            return (
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-500 px-4 sm:px-6 py-3 mb-6 rounded-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900 text-sm sm:text-base" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      {firstName}'s Dashboard
+                    </p>
+                    <p className="text-xs sm:text-sm text-gray-600 mt-0.5" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      You're viewing your linked student's progress and learning activities.
+                    </p>
+                  </div>
+                  <div className="flex gap-2 self-start sm:self-center">
+                    <button
+                      onClick={() => {
+                        setSelectedDependentForSettings(selectedChild);
+                        setSelectedChildIsDependent(false);
+                        setShowDependentSettingsModal(true);
+                      }}
+                      className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 shadow-sm whitespace-nowrap min-h-[44px] flex items-center gap-1"
+                      style={{ fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      <Cog6ToothIcon className="w-4 h-4" />
+                      AI Settings
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -732,6 +788,30 @@ const ParentDashboardPage = () => {
       <RequestStudentConnectionModal
         isOpen={showRequestConnectionModal}
         onClose={() => setShowRequestConnectionModal(false)}
+      />
+
+      {/* Child Settings Modal (for both dependents and linked students) */}
+      <DependentSettingsModal
+        isOpen={showDependentSettingsModal}
+        onClose={() => {
+          setShowDependentSettingsModal(false);
+          setSelectedDependentForSettings(null);
+        }}
+        child={selectedDependentForSettings}
+        isDependent={selectedChildIsDependent}
+        onUpdate={async () => {
+          // Reload dependents and children list to get updated data
+          try {
+            const [childrenResponse, dependentsResponse] = await Promise.all([
+              parentAPI.getMyChildren(),
+              getMyDependents()
+            ]);
+            setChildren(childrenResponse.data.children || []);
+            setDependents(dependentsResponse.dependents || []);
+          } catch (error) {
+            console.error('Error reloading children:', error);
+          }
+        }}
       />
     </div>
   );

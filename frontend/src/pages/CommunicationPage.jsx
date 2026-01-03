@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { useAIAccess } from '../contexts/AIAccessContext'
 import { useConversations } from '../hooks/api/useDirectMessages'
 import ConversationList from '../components/communication/ConversationList'
 import ChatWindow from '../components/communication/ChatWindow'
@@ -7,6 +8,7 @@ import api from '../services/api'
 
 const CommunicationPage = () => {
   const { user } = useAuth()
+  const { canUseChatbot, loading: aiAccessLoading } = useAIAccess()
   const [selectedConversation, setSelectedConversation] = useState(null)
 
   // React Query hook for conversations
@@ -17,9 +19,9 @@ const CommunicationPage = () => {
     enabled: !!user?.id
   })
 
-  // Auto-select OptioBot on initial load with empty chat (always start fresh)
+  // Auto-select OptioBot on initial load with empty chat (only if chatbot is enabled)
   useEffect(() => {
-    if (!selectedConversation && user?.id) {
+    if (!selectedConversation && user?.id && !aiAccessLoading && canUseChatbot) {
       // Select OptioBot by default with a fresh, empty chat
       setSelectedConversation({
         id: 'optiobot',
@@ -36,7 +38,7 @@ const CommunicationPage = () => {
         unread_count: 0
       })
     }
-  }, [selectedConversation, user?.id])
+  }, [selectedConversation, user?.id, aiAccessLoading, canUseChatbot])
 
   // Scroll to top when page loads
   useEffect(() => {

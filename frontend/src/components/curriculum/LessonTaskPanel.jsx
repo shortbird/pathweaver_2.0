@@ -11,6 +11,7 @@ import {
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { getPillarData, PILLAR_KEYS } from '../../utils/pillarMappings'
+import { useAIAccess } from '../../contexts/AIAccessContext'
 
 // Task card component for displaying linked tasks
 const TaskCard = ({ task, onClick, onUnlink }) => {
@@ -374,6 +375,7 @@ const LessonTaskPanel = ({
   const [savingTask, setSavingTask] = useState(false)
   const [generatingAI, setGeneratingAI] = useState(false)
   const [aiTasks, setAiTasks] = useState([])
+  const { canUseTaskGeneration } = useAIAccess()
 
   // Fetch linked tasks when lesson changes
   useEffect(() => {
@@ -607,19 +609,21 @@ const LessonTaskPanel = ({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleGenerateAI}
-            disabled={generatingAI}
-            className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors disabled:opacity-50"
-            title="Generate tasks with AI"
-          >
-            {generatingAI ? (
-              <div className="w-3.5 h-3.5 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <SparklesIcon className="w-3.5 h-3.5" />
-            )}
-            <span className="hidden sm:inline">AI</span>
-          </button>
+          {canUseTaskGeneration && (
+            <button
+              onClick={handleGenerateAI}
+              disabled={generatingAI}
+              className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors disabled:opacity-50"
+              title="Generate tasks with AI"
+            >
+              {generatingAI ? (
+                <div className="w-3.5 h-3.5 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <SparklesIcon className="w-3.5 h-3.5" />
+              )}
+              <span className="hidden sm:inline">AI</span>
+            </button>
+          )}
           <button
             onClick={() => {
               setEditingTask(null)

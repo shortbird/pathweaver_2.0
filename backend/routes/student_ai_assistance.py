@@ -18,6 +18,7 @@ All endpoints require authentication but are available to all student tier level
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
+from utils.ai_access import require_ai_access
 from services.student_ai_assistant_service import StudentAIAssistantService
 from database import get_supabase_admin_client
 from repositories import (
@@ -74,6 +75,11 @@ def suggest_improvements(user_id):
     }
     """
     try:
+        # Check AI access (user-level for dependents, org-level for all)
+        access_denied = require_ai_access(user_id)
+        if access_denied:
+            return access_denied
+
         data = request.get_json()
 
         if not data or 'title' not in data or 'description' not in data:
@@ -147,6 +153,11 @@ def find_similar_quests(user_id):
     }
     """
     try:
+        # Check AI access (user-level for dependents, org-level for all)
+        access_denied = require_ai_access(user_id)
+        if access_denied:
+            return access_denied
+
         data = request.get_json()
 
         if not data or 'title' not in data or 'description' not in data:
@@ -241,6 +252,11 @@ def validate_idea(user_id):
     }
     """
     try:
+        # Check AI access (user-level for dependents, org-level for all)
+        access_denied = require_ai_access(user_id)
+        if access_denied:
+            return access_denied
+
         data = request.get_json()
 
         if not data or 'title' not in data or 'description' not in data:
@@ -314,6 +330,11 @@ def recommend_tasks(user_id):
     }
     """
     try:
+        # Check AI access (user-level for dependents, org-level for all)
+        access_denied = require_ai_access(user_id)
+        if access_denied:
+            return access_denied
+
         data = request.get_json()
 
         if not data or 'title' not in data or 'description' not in data:

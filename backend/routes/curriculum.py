@@ -15,6 +15,7 @@ from services.curriculum_lesson_service import CurriculumLessonService
 from services.curriculum_permission_service import CurriculumPermissionService
 from services.file_upload_service import FileUploadService
 from utils.logger import get_logger
+from utils.ai_access import require_ai_access
 
 logger = get_logger(__name__)
 
@@ -765,6 +766,11 @@ def generate_ai_tasks(user_id: str, quest_id: str, lesson_id: str):
         503: AI not available
     """
     try:
+        # Check AI access before proceeding
+        ai_access_error = require_ai_access(user_id)
+        if ai_access_error:
+            return ai_access_error
+
         supabase = get_supabase_admin_client()
         service = CurriculumLessonService(supabase)
 

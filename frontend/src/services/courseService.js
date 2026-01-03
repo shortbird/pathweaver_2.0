@@ -176,6 +176,22 @@ export const enrollInCourse = async (courseId) => {
 }
 
 /**
+ * Unenroll from a course and all related quests
+ * @param {string} courseId - Course ID
+ * @returns {Promise<{success: boolean, quests_unenrolled: number, tasks_deleted: number}>}
+ */
+export const unenrollFromCourse = async (courseId) => {
+  try {
+    // ✅ CSRF: Empty body required for POST requests
+    const response = await api.post(`/api/courses/${courseId}/unenroll`, {})
+    return response.data
+  } catch (error) {
+    console.error(`Error unenrolling from course ${courseId}:`, error)
+    throw error
+  }
+}
+
+/**
  * Get course progress for the current user
  * @param {string} courseId - Course ID
  * @returns {Promise<{success: boolean, progress: Object}>}

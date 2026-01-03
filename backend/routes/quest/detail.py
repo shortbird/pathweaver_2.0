@@ -230,6 +230,35 @@ def get_quest_detail(user_id: str, quest_id: str):
             quest_data['sample_tasks'] = []
             quest_data['preset_tasks'] = []
 
+        # Check if this quest is part of an active course enrollment
+        # This is used to disable the "End Quest" button for course quests
+        active_course_enrollment = None
+        try:
+            # Find courses that contain this quest
+            course_quests_result = supabase.table('course_quests')\
+                .select('course_id')\
+                .eq('quest_id', quest_id)\
+                .execute()
+
+            if course_quests_result.data:
+                course_ids = [cq['course_id'] for cq in course_quests_result.data]
+
+                # Check if user has active enrollment in any of these courses
+                course_enrollments = supabase.table('course_enrollments')\
+                    .select('id, course_id, status')\
+                    .eq('user_id', user_id)\
+                    .in_('course_id', course_ids)\
+                    .eq('status', 'active')\
+                    .execute()
+
+                if course_enrollments.data:
+                    active_course_enrollment = course_enrollments.data[0]
+                    logger.info(f"[QUEST DETAIL] Quest {quest_id[:8]} is part of active course enrollment {active_course_enrollment['id'][:8]}")
+        except Exception as course_err:
+            logger.warning(f"[QUEST DETAIL] Error checking course enrollment: {course_err}")
+
+        quest_data['active_course_enrollment'] = active_course_enrollment
+
         return jsonify({
             'success': True,
             'quest': quest_data

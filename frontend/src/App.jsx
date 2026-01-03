@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import { Toaster } from 'react-hot-toast'
 import { HelmetProvider } from 'react-helmet-async'
 import { AuthProvider } from './contexts/AuthContext'
+import { AIAccessProvider } from './contexts/AIAccessContext'
 import { DemoProvider } from './contexts/DemoContext'
 import { OrganizationProvider } from './contexts/OrganizationContext'
 import { ActingAsProvider, useActingAs } from './contexts/ActingAsContext'
@@ -316,6 +317,7 @@ function App() {
             Skip to main content
           </a>
           <AuthProvider>
+            <AIAccessProvider>
             <OrganizationProvider>
             <ActingAsProvider>
             <AppContent />
@@ -435,6 +437,7 @@ function App() {
           </Suspense>
             </ActingAsProvider>
             </OrganizationProvider>
+            </AIAccessProvider>
         </AuthProvider>
         </Router>
       </QueryClientProvider>

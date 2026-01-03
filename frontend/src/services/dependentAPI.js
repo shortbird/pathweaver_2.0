@@ -103,11 +103,68 @@ export const promoteDependent = async (dependentId, credentials) => {
   }
 }
 
+/**
+ * Add login credentials to a dependent (child keeps dependent status)
+ * Unlike promotion, the child remains under parental management.
+ * @param {string} dependentId - Dependent user ID
+ * @param {Object} credentials - Login credentials
+ * @param {string} credentials.email - Email address
+ * @param {string} credentials.password - Password (min 12 characters)
+ * @returns {Promise<{success: boolean, dependent: Object, message: string}>}
+ */
+export const addDependentLogin = async (dependentId, credentials) => {
+  try {
+    const response = await api.post(`/api/dependents/${dependentId}/add-login`, credentials)
+    return response.data
+  } catch (error) {
+    console.error(`Error adding login for dependent ${dependentId}:`, error)
+    throw error
+  }
+}
+
+/**
+ * Toggle AI features access for a dependent
+ * @param {string} dependentId - Dependent user ID
+ * @param {boolean} enabled - Whether to enable or disable AI features
+ * @returns {Promise<{success: boolean, dependent_id: string, ai_features_enabled: boolean, message: string}>}
+ */
+export const toggleDependentAIAccess = async (dependentId, enabled) => {
+  try {
+    const response = await api.post(`/api/dependents/${dependentId}/ai-access`, { enabled })
+    return response.data
+  } catch (error) {
+    console.error(`Error toggling AI access for dependent ${dependentId}:`, error)
+    throw error
+  }
+}
+
+/**
+ * Update individual AI feature settings for a dependent
+ * @param {string} dependentId - Dependent user ID
+ * @param {Object} features - Feature settings to update
+ * @param {boolean} [features.chatbot] - AI Tutor/chatbot enabled
+ * @param {boolean} [features.lesson_helper] - Lesson helper enabled
+ * @param {boolean} [features.task_generation] - Task generation enabled
+ * @returns {Promise<{success: boolean, dependent_id: string, features: Object, message: string}>}
+ */
+export const updateDependentAIFeatures = async (dependentId, features) => {
+  try {
+    const response = await api.put(`/api/dependents/${dependentId}/ai-features`, features)
+    return response.data
+  } catch (error) {
+    console.error(`Error updating AI features for dependent ${dependentId}:`, error)
+    throw error
+  }
+}
+
 export default {
   getMyDependents,
   createDependent,
   getDependent,
   updateDependent,
   deleteDependent,
-  promoteDependent
+  promoteDependent,
+  addDependentLogin,
+  toggleDependentAIAccess,
+  updateDependentAIFeatures
 }

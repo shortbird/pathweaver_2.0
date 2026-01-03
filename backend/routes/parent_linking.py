@@ -60,7 +60,8 @@ def get_linked_children(user_id):
                 last_name,
                 avatar_url,
                 level,
-                total_xp
+                total_xp,
+                ai_features_enabled
             )
         ''').eq('parent_user_id', user_id).eq('status', 'approved').execute()
 
@@ -80,6 +81,7 @@ def get_linked_children(user_id):
                     'student_avatar_url': student.get('avatar_url'),
                     'student_level': student.get('level', 1),
                     'student_total_xp': student.get('total_xp', 0),
+                    'ai_features_enabled': student.get('ai_features_enabled', False),
                     'linked_since': link['created_at']
                 })
 

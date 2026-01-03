@@ -10,6 +10,7 @@ const routerFutureFlags = { v7_startTransition: true, v7_relativeSplatPath: true
 // These are used by tests instead of the real contexts
 const MockAuthContext = createContext()
 const MockOrganizationContext = createContext()
+const MockAIAccessContext = createContext()
 
 // Mock AuthProvider that accepts a value prop for testing
 function MockAuthProvider({ children, value }) {
@@ -19,6 +20,11 @@ function MockAuthProvider({ children, value }) {
 // Mock OrganizationProvider that accepts a value prop for testing
 function MockOrganizationProvider({ children, value }) {
   return <MockOrganizationContext.Provider value={value}>{children}</MockOrganizationContext.Provider>
+}
+
+// Mock AIAccessProvider that accepts a value prop for testing
+function MockAIAccessProvider({ children, value }) {
+  return <MockAIAccessContext.Provider value={value}>{children}</MockAIAccessContext.Provider>
 }
 
 /**
@@ -55,6 +61,28 @@ export function renderWithProviders(
       loading: false,
     },
 
+    // AI Access context options
+    aiAccessValue = {
+      hasAccess: true,
+      loading: false,
+      reason: null,
+      code: null,
+      features: {
+        chatbot: true,
+        lesson_helper: true,
+        task_generation: true,
+      },
+      orgLimits: {
+        chatbot: true,
+        lesson_helper: true,
+        task_generation: true,
+      },
+      canUseChatbot: true,
+      canUseLessonHelper: true,
+      canUseTaskGeneration: true,
+      refreshAIAccess: vi.fn(),
+    },
+
     // Other render options
     ...renderOptions
   } = {}
@@ -78,9 +106,11 @@ export function renderWithProviders(
       <QueryClientProvider client={queryClient}>
         <BrowserRouter future={routerFutureFlags}>
           <MockAuthProvider value={authValue}>
-            <MockOrganizationProvider value={organizationValue}>
-              {children}
-            </MockOrganizationProvider>
+            <MockAIAccessProvider value={aiAccessValue}>
+              <MockOrganizationProvider value={organizationValue}>
+                {children}
+              </MockOrganizationProvider>
+            </MockAIAccessProvider>
           </MockAuthProvider>
         </BrowserRouter>
       </QueryClientProvider>

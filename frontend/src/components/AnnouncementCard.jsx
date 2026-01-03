@@ -108,15 +108,14 @@ export const AnnouncementModal = ({ announcement, isOpen, onClose, onDelete, can
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto" onClick={onClose}>
-      <div className="flex min-h-full items-center justify-center p-4">
-        {/* Backdrop */}
-        <div className="fixed inset-0 bg-black/50 transition-opacity" />
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={onClose} />
 
+      <div className="flex min-h-full items-center justify-center p-4">
         {/* Modal */}
         <div
           className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-start justify-between">

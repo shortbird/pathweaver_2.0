@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import toast from 'react-hot-toast';
 import { getQuestHeaderImageSync } from '../../utils/questSourceConfig';
 import { useQuestEngagement } from '../../hooks/api/useQuests';
 import RhythmIndicator from './RhythmIndicator';
@@ -132,16 +133,28 @@ const QuestDetailHeader = ({
             )}
             {/* End Quest Button - pill style */}
             {quest?.user_enrollment && !isQuestCompleted && !quest?.lms_platform && (
-              <button
-                onClick={onEndQuest}
-                disabled={endQuestMutation.isPending}
-                className="flex items-center justify-center gap-1 p-2 sm:px-3 sm:py-1.5 bg-white/90 backdrop-blur-sm text-red-500 border border-red-200 rounded-full hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-all text-xs sm:text-sm font-medium min-h-[36px] min-w-[36px] sm:min-w-0 touch-manipulation disabled:opacity-50"
-                style={{ fontFamily: 'Poppins' }}
-                title="End Quest"
-              >
-                <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">{endQuestMutation.isPending ? '...' : 'End Quest'}</span>
-              </button>
+              quest?.active_course_enrollment ? (
+                <button
+                  onClick={() => toast.error('This quest is part of an active course. To end this quest, unenroll from the course first.')}
+                  className="flex items-center justify-center gap-1 p-2 sm:px-3 sm:py-1.5 bg-gray-100 text-gray-400 border border-gray-200 rounded-full cursor-not-allowed text-xs sm:text-sm font-medium min-h-[36px] min-w-[36px] sm:min-w-0"
+                  style={{ fontFamily: 'Poppins' }}
+                  title="Cannot end quest - part of active course"
+                >
+                  <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">End Quest</span>
+                </button>
+              ) : (
+                <button
+                  onClick={onEndQuest}
+                  disabled={endQuestMutation.isPending}
+                  className="flex items-center justify-center gap-1 p-2 sm:px-3 sm:py-1.5 bg-white/90 backdrop-blur-sm text-red-500 border border-red-200 rounded-full hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-all text-xs sm:text-sm font-medium min-h-[36px] min-w-[36px] sm:min-w-0 touch-manipulation disabled:opacity-50"
+                  style={{ fontFamily: 'Poppins' }}
+                  title="End Quest"
+                >
+                  <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{endQuestMutation.isPending ? '...' : 'End Quest'}</span>
+                </button>
+              )
             )}
           </div>
         </div>

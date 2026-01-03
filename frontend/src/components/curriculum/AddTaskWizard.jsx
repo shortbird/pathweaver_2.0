@@ -17,6 +17,7 @@ import {
 import { getPillarData, PILLAR_KEYS } from '../../utils/pillarMappings'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
+import { useAIAccess } from '../../contexts/AIAccessContext'
 
 export const AddTaskWizard = ({
   lesson,
@@ -28,6 +29,7 @@ export const AddTaskWizard = ({
 }) => {
   // 'choose' | 'manual' | 'ai-customize' | 'ai-generating' | 'ai-results'
   const [wizardStep, setWizardStep] = useState('choose')
+  const { canUseTaskGeneration } = useAIAccess()
   const [aiOptions, setAiOptions] = useState({
     focusPillars: [],
     customPrompt: ''
@@ -221,18 +223,20 @@ export const AddTaskWizard = ({
                 </div>
                 <p className="text-sm text-gray-500">Write a custom task from scratch</p>
               </button>
-              <button
-                onClick={() => setWizardStep('ai-customize')}
-                className="p-4 rounded-lg border-2 border-gray-200 hover:border-optio-purple hover:bg-optio-purple/5 transition-all text-left group"
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-optio-purple/20 to-optio-pink/20 group-hover:from-optio-purple/30 group-hover:to-optio-pink/30 flex items-center justify-center transition-colors">
-                    <SparklesIcon className="w-5 h-5 text-optio-purple" />
+              {canUseTaskGeneration && (
+                <button
+                  onClick={() => setWizardStep('ai-customize')}
+                  className="p-4 rounded-lg border-2 border-gray-200 hover:border-optio-purple hover:bg-optio-purple/5 transition-all text-left group"
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-optio-purple/20 to-optio-pink/20 group-hover:from-optio-purple/30 group-hover:to-optio-pink/30 flex items-center justify-center transition-colors">
+                      <SparklesIcon className="w-5 h-5 text-optio-purple" />
+                    </div>
+                    <span className="font-semibold text-gray-900">Use AI</span>
                   </div>
-                  <span className="font-semibold text-gray-900">Use AI</span>
-                </div>
-                <p className="text-sm text-gray-500">Generate ideas based on lesson content</p>
-              </button>
+                  <p className="text-sm text-gray-500">Generate ideas based on lesson content</p>
+                </button>
+              )}
             </div>
           </div>
         )}

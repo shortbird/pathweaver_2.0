@@ -27,16 +27,22 @@ const EngagementCalendar = ({ days = [], weeksActive = 1, firstActivityDate }) =
       const dayRect = hoveredRef.current.getBoundingClientRect();
       const containerRect = containerRef.current.getBoundingClientRect();
 
+      // Check if near top (not enough space for tooltip above)
+      const isNearTop = dayRect.top - containerRect.top < 60;
+
       // Check horizontal position
       const isNearLeft = dayRect.left - containerRect.left < 80;
       const isNearRight = containerRect.right - dayRect.right < 80;
 
+      // Determine position: bottom if near top, otherwise top
+      const vertical = isNearTop ? 'bottom' : 'top';
+
       if (isNearLeft) {
-        setTooltipPosition('top-left');
+        setTooltipPosition(`${vertical}-left`);
       } else if (isNearRight) {
-        setTooltipPosition('top-right');
+        setTooltipPosition(`${vertical}-right`);
       } else {
-        setTooltipPosition('top');
+        setTooltipPosition(vertical);
       }
     }
   }, [hoveredDay]);
@@ -87,29 +93,59 @@ const EngagementCalendar = ({ days = [], weeksActive = 1, firstActivityDate }) =
 
   // Get tooltip position classes
   const getTooltipClasses = () => {
-    const base = 'absolute mb-2 px-2 py-1.5 bg-gray-900 text-white text-xs rounded-lg shadow-lg whitespace-nowrap z-50 pointer-events-none';
+    const base = 'absolute px-2 py-1.5 bg-gray-900 text-white text-xs rounded-lg shadow-lg whitespace-nowrap z-50 pointer-events-none';
 
     switch (tooltipPosition) {
       case 'top-left':
-        return `${base} bottom-full left-0`;
+        return `${base} bottom-full mb-2 left-0`;
       case 'top-right':
-        return `${base} bottom-full right-0`;
+        return `${base} bottom-full mb-2 right-0`;
+      case 'top':
+        return `${base} bottom-full mb-2 left-1/2 -translate-x-1/2`;
+      case 'bottom-left':
+        return `${base} top-full mt-2 left-0`;
+      case 'bottom-right':
+        return `${base} top-full mt-2 right-0`;
+      case 'bottom':
+        return `${base} top-full mt-2 left-1/2 -translate-x-1/2`;
       default:
-        return `${base} bottom-full left-1/2 -translate-x-1/2`;
+        return `${base} bottom-full mb-2 left-1/2 -translate-x-1/2`;
     }
   };
 
   const getArrowClasses = () => {
-    const base = 'absolute top-full -mt-px';
+    const isBottom = tooltipPosition.startsWith('bottom');
 
-    switch (tooltipPosition) {
-      case 'top-left':
-        return `${base} left-3`;
-      case 'top-right':
-        return `${base} right-3`;
-      default:
-        return `${base} left-1/2 -translate-x-1/2`;
+    if (isBottom) {
+      // Arrow points up (tooltip is below)
+      const base = 'absolute bottom-full -mb-px';
+      switch (tooltipPosition) {
+        case 'bottom-left':
+          return `${base} left-3`;
+        case 'bottom-right':
+          return `${base} right-3`;
+        default:
+          return `${base} left-1/2 -translate-x-1/2`;
+      }
+    } else {
+      // Arrow points down (tooltip is above)
+      const base = 'absolute top-full -mt-px';
+      switch (tooltipPosition) {
+        case 'top-left':
+          return `${base} left-3`;
+        case 'top-right':
+          return `${base} right-3`;
+        default:
+          return `${base} left-1/2 -translate-x-1/2`;
+      }
     }
+  };
+
+  const getArrowBorderClasses = () => {
+    const isBottom = tooltipPosition.startsWith('bottom');
+    return isBottom
+      ? 'border-4 border-transparent border-b-gray-900'
+      : 'border-4 border-transparent border-t-gray-900';
   };
 
   // No data yet
@@ -142,7 +178,7 @@ const EngagementCalendar = ({ days = [], weeksActive = 1, firstActivityDate }) =
   }
 
   return (
-    <div className="space-y-2" ref={containerRef}>
+    <div className="space-y-2 overflow-visible" ref={containerRef}>
       {/* Date range header */}
       <div className="flex items-center justify-between text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>
         <span>
@@ -154,7 +190,7 @@ const EngagementCalendar = ({ days = [], weeksActive = 1, firstActivityDate }) =
       </div>
 
       {/* Activity grid */}
-      <div className="overflow-x-auto pb-1 -mx-1 px-1">
+      <div className="overflow-visible pb-1 -mx-1 px-1">
         <div className="flex gap-1 flex-wrap" style={{ maxWidth: '100%' }}>
           {days.map((day, index) => (
             <div
@@ -182,7 +218,7 @@ const EngagementCalendar = ({ days = [], weeksActive = 1, firstActivityDate }) =
                   )}
                   {/* Arrow */}
                   <div className={getArrowClasses()}>
-                    <div className="border-4 border-transparent border-t-gray-900" />
+                    <div className={getArrowBorderClasses()} />
                   </div>
                 </div>
               )}

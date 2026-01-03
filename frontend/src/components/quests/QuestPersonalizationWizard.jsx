@@ -5,6 +5,7 @@ import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
 import ManualTaskCreator from './ManualTaskCreator';
 import logger from '../../utils/logger';
+import { useAIAccess } from '../../contexts/AIAccessContext';
 
 const INTEREST_OPTIONS = [
   { id: 'sports', label: 'Sports & Athletics', icon: '⚽' },
@@ -33,6 +34,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+  const { canUseTaskGeneration } = useAIAccess();
 
   // NEW: Creation method selection
   const [creationMethod, setCreationMethod] = useState(null); // 'ai' or 'manual'
@@ -288,21 +290,23 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             Choose how you want to build your quest for "{questTitle}"
           </p>
 
-          <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto mb-6">
+          <div className={`grid ${canUseTaskGeneration ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-md'} gap-6 max-w-3xl mx-auto mb-6`}>
             {/* AI Generation Option */}
-            <button
-              onClick={() => startSession('ai')}
-              disabled={loading}
-              className="group p-6 sm:p-8 border-2 border-gray-300 rounded-xl hover:border-purple-500 hover:shadow-xl transition-all text-left disabled:opacity-50 min-h-[44px]"
-            >
-              <div className="text-4xl sm:text-5xl mb-4">✨</div>
-              <h3 className="text-xl sm:text-2xl font-bold mb-2 group-hover:text-optio-purple transition-colors" style={{ fontFamily: 'Poppins' }}>
-                AI Generate
-              </h3>
-              <p className="text-sm sm:text-base text-gray-600" style={{ fontFamily: 'Poppins' }}>
-                Let AI create personalized tasks based on your interests and learning style
-              </p>
-            </button>
+            {canUseTaskGeneration && (
+              <button
+                onClick={() => startSession('ai')}
+                disabled={loading}
+                className="group p-6 sm:p-8 border-2 border-gray-300 rounded-xl hover:border-purple-500 hover:shadow-xl transition-all text-left disabled:opacity-50 min-h-[44px]"
+              >
+                <div className="text-4xl sm:text-5xl mb-4">✨</div>
+                <h3 className="text-xl sm:text-2xl font-bold mb-2 group-hover:text-optio-purple transition-colors" style={{ fontFamily: 'Poppins' }}>
+                  AI Generate
+                </h3>
+                <p className="text-sm sm:text-base text-gray-600" style={{ fontFamily: 'Poppins' }}>
+                  Let AI create personalized tasks based on your interests and learning style
+                </p>
+              </button>
+            )}
 
             {/* Manual Creation Option */}
             <button

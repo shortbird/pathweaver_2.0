@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { SparklesIcon, CheckCircleIcon, XMarkIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
+import { useAIAccess } from '../../contexts/AIAccessContext'
 
 const TaskPreviewCard = ({ task, onEdit, onAccept, onReject }) => {
   const [isEditing, setIsEditing] = useState(false)
@@ -141,12 +142,18 @@ const TaskPreviewCard = ({ task, onEdit, onAccept, onReject }) => {
 }
 
 const AITaskGenerator = ({ lessonId, questId, onTasksAdded }) => {
+  const { canUseTaskGeneration } = useAIAccess()
   const [taskCount, setTaskCount] = useState(3)
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedTasks, setGeneratedTasks] = useState([])
   const [acceptedTasks, setAcceptedTasks] = useState([])
   const [error, setError] = useState(null)
   const [isAdding, setIsAdding] = useState(false)
+
+  // Don't render if AI task generation is disabled
+  if (!canUseTaskGeneration) {
+    return null
+  }
 
   const handleGenerate = async () => {
     setIsGenerating(true)

@@ -138,6 +138,8 @@ def list_announcements(user_id):
         offset = int(request.args.get('offset', 0))
 
         # List announcements
+        print(f"[ROUTE DEBUG] list_announcements called: user_id={user_id}, role={user_role}, org={organization_id}, is_org_admin={is_org_admin}", flush=True)
+
         announcements = get_announcement_service().list_announcements(
             organization_id=organization_id,
             user_id=user_id,
@@ -147,6 +149,8 @@ def list_announcements(user_id):
             limit=limit,
             offset=offset
         )
+
+        print(f"[ROUTE DEBUG] Got {len(announcements)} announcements", file=sys.stderr, flush=True)
 
         return jsonify({
             'success': True,
@@ -303,9 +307,9 @@ def get_unread_count(user_id):
     try:
         supabase = get_supabase_admin_client()
 
-        # Get user org
+        # Get user org and role
         user = supabase.table('users')\
-            .select('organization_id')\
+            .select('organization_id, role, is_org_admin')\
             .eq('id', user_id)\
             .single()\
             .execute()
@@ -314,10 +318,21 @@ def get_unread_count(user_id):
             return jsonify({'unread_count': 0}), 200
 
         organization_id = user.data['organization_id']
+        user_role = user.data.get('role')
+        is_org_admin = user.data.get('is_org_admin', False)
+
+        # Map role to target_audience filter (same logic as list_announcements)
+        audience_filter = None
+        if user_role in ['advisor', 'org_admin', 'superadmin'] or is_org_admin:
+            audience_filter = None  # Admins/advisors see all
+        elif user_role == 'student':
+            audience_filter = 'students'
+        elif user_role == 'parent':
+            audience_filter = 'parents'
 
         # Get unread count
         repo = AnnouncementRepository(user_id=user_id)
-        unread_count = repo.get_unread_count(organization_id, user_id)
+        unread_count = repo.get_unread_count(organization_id, user_id, audience_filter)
 
         return jsonify({
             'success': True,

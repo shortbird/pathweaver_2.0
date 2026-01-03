@@ -10,10 +10,13 @@ import {
   BookOpenIcon,
   ArrowsPointingOutIcon,
   ArrowsPointingInIcon,
+  ArrowRightStartOnRectangleIcon,
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 import { useCourseHomepage } from '../../hooks/api/useCourseData'
 import CurriculumView from '../../components/curriculum/CurriculumView'
+import { unenrollFromCourse } from '../../services/courseService'
+import toast from 'react-hot-toast'
 
 /**
  * ExpandableQuestItem - Sidebar quest item with nested lessons
@@ -359,6 +362,26 @@ const CourseHomepage = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [saveProgressFn, setSaveProgressFn] = useState(null)
   const [initialStepIndex, setInitialStepIndex] = useState(null)
+  const [isUnenrolling, setIsUnenrolling] = useState(false)
+
+  // Handle unenroll from course
+  const handleUnenroll = async () => {
+    if (!window.confirm('Are you sure you want to unenroll from this course? This will remove your progress from all projects in this course.')) {
+      return
+    }
+
+    try {
+      setIsUnenrolling(true)
+      await unenrollFromCourse(courseId)
+      toast.success('Successfully unenrolled from course')
+      navigate('/courses')
+    } catch (error) {
+      console.error('Failed to unenroll:', error)
+      toast.error(error.response?.data?.message || 'Failed to unenroll from course')
+    } finally {
+      setIsUnenrolling(false)
+    }
+  }
 
   // Restore state from URL params (for back button support)
   useEffect(() => {
@@ -579,6 +602,17 @@ const CourseHomepage = () => {
                   </>
                 )}
               </div>
+
+              {/* Unenroll Button */}
+              <button
+                onClick={handleUnenroll}
+                disabled={isUnenrolling}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
+                title="Unenroll from course"
+              >
+                <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">{isUnenrolling ? 'Unenrolling...' : 'Unenroll'}</span>
+              </button>
 
               {/* Mobile Sidebar Toggle */}
               <button

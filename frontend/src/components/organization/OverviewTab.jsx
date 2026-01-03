@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 
 function EditOrganizationModal({ orgId, orgData, onClose, onSuccess }) {
@@ -90,6 +91,14 @@ export default function OverviewTab({ orgId, orgData, onUpdate, onLogoChange }) 
   const [saving, setSaving] = useState(false)
   const [analytics, setAnalytics] = useState(null)
   const [analyticsLoading, setAnalyticsLoading] = useState(true)
+  const [aiEnabled, setAiEnabled] = useState(orgData?.organization?.ai_features_enabled ?? true)
+  const [savingAi, setSavingAi] = useState(false)
+
+  // Granular AI feature toggles
+  const [chatbotEnabled, setChatbotEnabled] = useState(orgData?.organization?.ai_chatbot_enabled ?? true)
+  const [lessonHelperEnabled, setLessonHelperEnabled] = useState(orgData?.organization?.ai_lesson_helper_enabled ?? true)
+  const [taskGenerationEnabled, setTaskGenerationEnabled] = useState(orgData?.organization?.ai_task_generation_enabled ?? true)
+  const [savingFeature, setSavingFeature] = useState(false)
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -188,6 +197,69 @@ export default function OverviewTab({ orgId, orgData, onUpdate, onLogoChange }) 
       setSaving(false)
     }
   }
+
+  const handleToggleAi = async () => {
+    const newValue = !aiEnabled
+    setSavingAi(true)
+    try {
+      await api.post(`/api/admin/organizations/${orgId}/ai-access`, {
+        enabled: newValue
+      })
+      setAiEnabled(newValue)
+      onUpdate()
+    } catch (error) {
+      console.error('Failed to toggle AI access:', error)
+      alert(error.response?.data?.error || 'Failed to update AI settings')
+    } finally {
+      setSavingAi(false)
+    }
+  }
+
+  const handleToggleFeature = async (feature, currentValue, setter) => {
+    const newValue = !currentValue
+    setSavingFeature(true)
+    try {
+      await api.put(`/api/admin/organizations/${orgId}`, {
+        [`ai_${feature}_enabled`]: newValue
+      })
+      setter(newValue)
+      onUpdate()
+    } catch (error) {
+      console.error(`Failed to toggle ${feature}:`, error)
+      alert(error.response?.data?.error || 'Failed to update AI feature')
+    } finally {
+      setSavingFeature(false)
+    }
+  }
+
+  const FeatureToggle = ({ label, description, icon: Icon, enabled, onToggle, disabled }) => (
+    <div className="p-4 border border-gray-200 rounded-lg bg-white">
+      <div className="flex items-start gap-3">
+        <div className="p-2 rounded-lg bg-optio-purple/10">
+          <Icon className="w-5 h-5 text-optio-purple" />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-medium text-gray-900">{label}</span>
+            <button
+              onClick={onToggle}
+              disabled={disabled}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                enabled ? 'bg-optio-purple' : 'bg-gray-300'
+              } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                  enabled ? 'translate-x-4' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          <p className="text-xs text-gray-500">{description}</p>
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <div className="grid gap-6">
@@ -303,6 +375,77 @@ export default function OverviewTab({ orgId, orgData, onUpdate, onLogoChange }) 
             </p>
           </div>
         </div>
+      </div>
+
+      {/* AI Features */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <h2 className="text-xl font-bold mb-2">AI Features</h2>
+        <p className="text-gray-600 mb-4">
+          Control access to AI-powered features for all users in your organization.
+        </p>
+
+        {/* Master Toggle */}
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div>
+            <h3 className="font-medium text-gray-900">Enable AI Features</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Master toggle for all AI functionality. Uses Google's Gemini API.
+            </p>
+          </div>
+          <button
+            onClick={handleToggleAi}
+            disabled={savingAi}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+              aiEnabled ? 'bg-optio-purple' : 'bg-gray-300'
+            } ${savingAi ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                aiEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Granular Controls - only shown when master toggle is ON */}
+        {aiEnabled && (
+          <div className="mt-4 space-y-3">
+            <p className="text-sm text-gray-500 font-medium">Individual Features</p>
+
+            <FeatureToggle
+              label="AI Tutor"
+              description="Students can have educational conversations with an AI tutor."
+              icon={ChatBubbleLeftRightIcon}
+              enabled={chatbotEnabled}
+              onToggle={() => handleToggleFeature('chatbot', chatbotEnabled, setChatbotEnabled)}
+              disabled={savingFeature}
+            />
+
+            <FeatureToggle
+              label="Lesson Helper"
+              description="AI assistance within lessons to explain concepts."
+              icon={LightBulbIcon}
+              enabled={lessonHelperEnabled}
+              onToggle={() => handleToggleFeature('lesson_helper', lessonHelperEnabled, setLessonHelperEnabled)}
+              disabled={savingFeature}
+            />
+
+            <FeatureToggle
+              label="Task Suggestions"
+              description="AI recommends tasks and provides quest feedback."
+              icon={ClipboardDocumentListIcon}
+              enabled={taskGenerationEnabled}
+              onToggle={() => handleToggleFeature('task_generation', taskGenerationEnabled, setTaskGenerationEnabled)}
+              disabled={savingFeature}
+            />
+          </div>
+        )}
+
+        <p className="text-sm text-gray-500 mt-3">
+          {aiEnabled
+            ? 'AI features are enabled. Parents can still control access for individual children.'
+            : 'AI features are disabled for all users in this organization.'}
+        </p>
       </div>
 
       {/* Stats */}

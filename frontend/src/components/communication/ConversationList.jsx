@@ -1,12 +1,14 @@
 import React from 'react'
 import { AcademicCapIcon, ChatBubbleLeftEllipsisIcon, EyeIcon, MagnifyingGlassIcon, MapPinIcon, UserIcon, UsersIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
+import { useAIAccess } from '../../contexts/AIAccessContext'
 import { useQuery } from '@tanstack/react-query'
 import { parentAPI, friendsAPI, observerAPI } from '../../services/api'
 import { useMessagingContacts } from '../../hooks/api/useDirectMessages'
 
 const ConversationList = ({ conversations, selectedConversation, onSelectConversation, isLoading }) => {
   const { user } = useAuth()
+  const { canUseChatbot } = useAIAccess()
   const [searchQuery, setSearchQuery] = React.useState('')
 
   // Fetch linked children if user is a parent (with optimized caching)
@@ -82,20 +84,22 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
   const pinnedConversations = []
   const friendConversations = []
 
-  // Always add OptioBot as first pinned
-  pinnedConversations.push({
-    id: 'optiobot',
-    type: 'bot',
-    other_user: {
-      id: 'bot',
-      display_name: 'OptioBot',
-      first_name: 'OptioBot',
-      role: 'bot'
-    },
-    last_message_at: new Date().toISOString(),
-    last_message_preview: 'Your AI Learning Companion',
-    unread_count: 0
-  })
+  // Only add OptioBot if AI chatbot is enabled
+  if (canUseChatbot) {
+    pinnedConversations.push({
+      id: 'optiobot',
+      type: 'bot',
+      other_user: {
+        id: 'bot',
+        display_name: 'OptioBot',
+        first_name: 'OptioBot',
+        role: 'bot'
+      },
+      last_message_at: new Date().toISOString(),
+      last_message_preview: 'Your AI Learning Companion',
+      unread_count: 0
+    })
+  }
 
   // Add advisor if user has one
   if (user?.advisor_id) {

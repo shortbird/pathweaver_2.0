@@ -51,6 +51,7 @@ from middleware.error_handler import ValidationError, AuthorizationError
 from middleware.rate_limiter import rate_limit
 from utils.validation.validators import validate_required_fields, validate_string_length
 from utils.api_response import success_response, error_response
+from utils.ai_access import require_ai_access
 
 bp = Blueprint('tutor', __name__, url_prefix='/api/tutor')
 
@@ -102,6 +103,11 @@ def get_safety_service():
 def send_message(user_id: str):
     """Send a message to AI tutor and get response"""
     try:
+        # Check AI access (user-level for dependents, org-level for all)
+        access_denied = require_ai_access(user_id)
+        if access_denied:
+            return access_denied
+
         data = request.get_json()
 
         # Validate required fields

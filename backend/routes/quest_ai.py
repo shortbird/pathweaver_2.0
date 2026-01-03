@@ -12,6 +12,7 @@ Provides AI-powered quest generation and enhancement capabilities.
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth, require_admin
 from utils.validation.sanitizers import sanitize_search_input, sanitize_integer
+from utils.ai_access import require_ai_access
 import json
 
 from utils.logger import get_logger
@@ -295,6 +296,11 @@ def enhance_student_quest_idea(user_id: str):
     Available to all authenticated users.
     """
     try:
+        # Check AI access (user-level for dependents, org-level for all)
+        access_denied = require_ai_access(user_id)
+        if access_denied:
+            return access_denied
+
         data = request.get_json()
         if not data:
             return jsonify({

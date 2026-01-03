@@ -116,7 +116,14 @@ export const useQuestDetailData = (questId) => {
 
     // If URL has a task ID, select that task (only if it's a new/different task ID)
     if (taskIdFromUrl && lastProcessedTaskIdRef.current !== taskIdFromUrl) {
-      const task = quest.quest_tasks.find(t => t.id === taskIdFromUrl);
+      // Try direct match first
+      let task = quest.quest_tasks.find(t => t.id === taskIdFromUrl);
+
+      // If not found, try source_task_id match (for course-copied tasks)
+      if (!task) {
+        task = quest.quest_tasks.find(t => t.source_task_id === taskIdFromUrl);
+      }
+
       if (task) {
         lastProcessedTaskIdRef.current = taskIdFromUrl;
         setSelectedTask(task);

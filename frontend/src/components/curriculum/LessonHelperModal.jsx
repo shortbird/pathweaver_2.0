@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import { renderMarkdown } from '../../utils/markdownRenderer';
+import { useAIAccess } from '../../contexts/AIAccessContext';
 
 // Category definitions
 const CATEGORIES = [
@@ -65,6 +66,8 @@ const LessonHelperModal = ({
   totalSteps = 1,
   currentStepIndex = 0
 }) => {
+  const { canUseLessonHelper } = useAIAccess();
+
   // View state: 'menu' | 'submenu' | 'response'
   const [view, setView] = useState('menu');
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -91,6 +94,11 @@ const LessonHelperModal = ({
       responseRef.current.scrollTop = 0;
     }
   }, [response]);
+
+  // Don't render if AI lesson helper is disabled
+  if (!canUseLessonHelper) {
+    return null;
+  }
 
   const sendRequest = async (prompt, actionType) => {
     setIsLoading(true);
@@ -153,7 +161,7 @@ const LessonHelperModal = ({
   };
 
   return (
-    <Dialog open={isOpen} onClose={handleClose} className="relative z-50">
+    <Dialog open={isOpen} onClose={handleClose} className="z-50">
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/40" aria-hidden="true" />
 

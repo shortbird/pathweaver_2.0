@@ -130,7 +130,7 @@ def register():
         original_last_name = data['last_name'].strip()
         email = data['email'].strip().lower()  # Normalize email to lowercase
         date_of_birth = data.get('date_of_birth')  # Optional
-        parent_email = data.get('parent_email')  # Required if user is under 13
+        parent_email = data.get('parent_email')  # Deprecated: under-13 now blocked entirely
         org_slug = data.get('org_slug')  # Optional organization slug for signup
 
         # Mask email in logs
@@ -147,12 +147,13 @@ def register():
                 age = (date.today() - dob).days / 365.25
                 requires_parental_consent = age < 13
 
-                # If user is under 13, parent email is required
-                if requires_parental_consent and not parent_email:
-                    logger.info(f"[REGISTRATION] User under 13 without parent email - COPPA block")
+                # Block all under-13 self-registration - parent must create account first
+                if requires_parental_consent:
+                    logger.info(f"[REGISTRATION] User under 13 - blocking self-registration (COPPA)")
                     return jsonify({
-                        'error': 'Users under 13 require parental consent',
-                        'require_parent_email': True
+                        'error': 'under_13_registration_blocked',
+                        'message': 'Users under 13 cannot create their own account. A parent or guardian must create an account first, then add you as a child profile.',
+                        'action_required': 'parent_registration'
                     }), 403
             except ValueError:
                 raise ValidationError("Invalid date of birth format. Use YYYY-MM-DD")

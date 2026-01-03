@@ -20,6 +20,7 @@ from services.task_quality_service import TaskQualityService
 from datetime import datetime
 
 from utils.logger import get_logger
+from utils.ai_access import require_ai_access
 from routes.personalization_validators import (
     validate_generate_tasks_request,
     validate_edit_task_request,
@@ -109,6 +110,11 @@ def generate_tasks(user_id: str, quest_id: str):
     }
     """
     try:
+        # Check AI access before proceeding
+        ai_access_error = require_ai_access(user_id)
+        if ai_access_error:
+            return ai_access_error
+
         data = request.get_json()
 
         # Validate request

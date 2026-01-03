@@ -3,6 +3,7 @@ import { ChatBubbleLeftEllipsisIcon, ChatBubbleLeftRightIcon, QuestionMarkCircle
 import ChatInterface from './ChatInterface';
 import OptioBotModal from './OptioBotModal';
 import api from '../../services/api';
+import { useAIAccess } from '../../contexts/AIAccessContext';
 
 const TutorWidget = ({
   questId = null,  // New: pass quest ID for server-side context fetching
@@ -11,6 +12,7 @@ const TutorWidget = ({
   position = 'bottom-right',
   className = ''
 }) => {
+  const { canUseChatbot, loading: aiAccessLoading } = useAIAccess();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [hasNewSuggestions, setHasNewSuggestions] = useState(false);
   const [usageStats, setUsageStats] = useState(null);
@@ -95,6 +97,11 @@ const TutorWidget = ({
     };
     return positions[position] || positions['bottom-right'];
   };
+
+  // Don't show widget if AI access is disabled or still loading
+  if (aiAccessLoading || !canUseChatbot) {
+    return null;
+  }
 
   // Don't show widget if user has no messages left
   if (usageStats && usageStats.messages_remaining <= 0) {

@@ -103,12 +103,14 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
         data = request.get_json()
 
         # Define allowed fields based on role
-        # Org admins can update branding but not deactivate org or change visibility policy
+        # Org admins can update branding and AI settings but not deactivate org or change visibility policy
         if is_superadmin:
-            allowed_fields = ['name', 'quest_visibility_policy', 'branding_config', 'is_active']
+            allowed_fields = ['name', 'quest_visibility_policy', 'branding_config', 'is_active',
+                            'ai_features_enabled', 'ai_chatbot_enabled', 'ai_lesson_helper_enabled', 'ai_task_generation_enabled']
         else:
-            # Org admins can update name and branding only
-            allowed_fields = ['name', 'branding_config']
+            # Org admins can update name, branding, and AI settings
+            allowed_fields = ['name', 'branding_config', 'ai_features_enabled',
+                            'ai_chatbot_enabled', 'ai_lesson_helper_enabled', 'ai_task_generation_enabled']
 
         update_data = {k: v for k, v in data.items() if k in allowed_fields}
 
@@ -229,6 +231,63 @@ def get_organization_analytics(current_user_id, current_org_id, is_superadmin, o
         return jsonify(analytics), 200
     except Exception as e:
         logger.error(f"Error getting analytics for org {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<org_id>/ai-access', methods=['POST'])
+@require_org_admin
+def toggle_organization_ai_access(current_user_id, current_org_id, is_superadmin, org_id):
+    """
+    Enable or disable AI features for the entire organization.
+    Org admins can toggle this for their own organization.
+    Superadmins can toggle for any organization.
+
+    Required fields:
+        - enabled: bool
+
+    Returns:
+        200: AI access updated successfully
+        400: Validation error
+        403: Access denied
+    """
+    try:
+        # Verify access
+        if not is_superadmin and current_org_id != org_id:
+            return jsonify({'error': 'Access denied'}), 403
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body is required'}), 400
+
+        enabled = data.get('enabled')
+        if enabled is None:
+            return jsonify({'error': 'enabled field is required'}), 400
+
+        if not isinstance(enabled, bool):
+            return jsonify({'error': 'enabled must be a boolean'}), 400
+
+        client = get_supabase_admin_client()
+
+        # Update organization AI settings
+        result = client.table('organizations').update({
+            'ai_features_enabled': enabled
+        }).eq('id', org_id).execute()
+
+        if not result.data:
+            return jsonify({'error': 'Failed to update AI access setting'}), 500
+
+        action = "enabled" if enabled else "disabled"
+        logger.info(f"User {current_user_id} {action} AI features for organization {org_id}")
+
+        return jsonify({
+            'success': True,
+            'message': f'AI features {action} for organization',
+            'organization_id': org_id,
+            'ai_features_enabled': enabled
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error toggling AI access for org {org_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 

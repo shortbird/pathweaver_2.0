@@ -120,17 +120,31 @@ class AnnouncementRepository(BaseRepository):
                 .eq('organization_id', organization_id)
                 .order('pinned', desc=True)
                 .order('created_at', desc=True)
-                .range(offset, offset + limit - 1)
             )
-
-            if target_audience and target_audience != 'all':
-                query = query.contains('target_audience', [target_audience])
 
             if pinned_only:
                 query = query.eq('pinned', True)
 
             response = query.execute()
             announcements = response.data or []
+
+            import sys
+            print(f"[DEBUG] list_announcements: org={organization_id}, target_audience={target_audience}", file=sys.stderr, flush=True)
+            print(f"[DEBUG] Raw announcements count: {len(announcements)}", file=sys.stderr, flush=True)
+            for a in announcements:
+                print(f"[DEBUG] Announcement: {a.get('title')}, target={a.get('target_audience')}", file=sys.stderr, flush=True)
+
+            # Filter by target_audience if specified (must contain the audience OR 'all')
+            if target_audience and target_audience != 'all':
+                announcements = [
+                    a for a in announcements
+                    if target_audience in (a.get('target_audience') or [])
+                    or 'all' in (a.get('target_audience') or [])
+                ]
+                logger.info(f"[DEBUG] After filtering for '{target_audience}': {len(announcements)} announcements")
+
+            # Apply pagination after filtering
+            announcements = announcements[offset:offset + limit]
 
             # Add read status if user_id provided
             if user_id and announcements:
@@ -284,13 +298,14 @@ class AnnouncementRepository(BaseRepository):
             logger.error(f"Error marking announcement as read: {e}")
             raise DatabaseError("Failed to mark announcement as read") from e
 
-    def get_unread_count(self, organization_id: str, user_id: str) -> int:
+    def get_unread_count(self, organization_id: str, user_id: str, target_audience: Optional[str] = None) -> int:
         """
         Get count of unread announcements for a user.
 
         Args:
             organization_id: UUID of the organization
             user_id: UUID of the user
+            target_audience: Filter by audience (students, parents, advisors) - None means all
 
         Returns:
             Count of unread announcements
@@ -302,15 +317,26 @@ class AnnouncementRepository(BaseRepository):
             from database import get_supabase_admin_client
             admin_client = get_supabase_admin_client()
 
-            # Get all announcement IDs for the org
-            announcements = (
+            # Get announcement IDs for the org, filtered by target_audience if specified
+            query = (
                 admin_client.table(self.table_name)
-                .select('id')
+                .select('id, target_audience')
                 .eq('organization_id', organization_id)
-                .execute()
             )
 
-            announcement_ids = [a['id'] for a in announcements.data] if announcements.data else []
+            response = query.execute()
+
+            # Filter by target_audience if specified (must contain the audience OR 'all')
+            if target_audience and target_audience != 'all':
+                announcements = [
+                    a for a in (response.data or [])
+                    if target_audience in (a.get('target_audience') or [])
+                    or 'all' in (a.get('target_audience') or [])
+                ]
+            else:
+                announcements = response.data or []
+
+            announcement_ids = [a['id'] for a in announcements]
 
             if not announcement_ids:
                 return 0

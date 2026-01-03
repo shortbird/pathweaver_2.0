@@ -28,6 +28,7 @@ import {
 } from './content'
 import AddTaskWizard from './AddTaskWizard'
 import LessonHelperModal from './LessonHelperModal'
+import { useAIAccess } from '../../contexts/AIAccessContext'
 
 export const LessonSlideViewer = ({
   lesson,
@@ -47,6 +48,7 @@ export const LessonSlideViewer = ({
 }) => {
   const [showPersonalizeWizard, setShowPersonalizeWizard] = useState(false)
   const [showHelperModal, setShowHelperModal] = useState(false)
+  const { canUseLessonHelper } = useAIAccess()
 
   const totalContentSteps = steps.length
   // Finished step is at index totalContentSteps (right after content)
@@ -283,18 +285,20 @@ export const LessonSlideViewer = ({
             <h3 className="text-xl font-semibold text-gray-900">
               {currentStep.title}
             </h3>
-            <button
-              onClick={() => setShowHelperModal(true)}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-optio-purple hover:bg-optio-purple/5 transition-colors"
-              title="Need help with this?"
-            >
-              <SparklesIcon className="w-5 h-5" />
-            </button>
+            {canUseLessonHelper && (
+              <button
+                onClick={() => setShowHelperModal(true)}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-optio-purple hover:bg-optio-purple/5 transition-colors"
+                title="Need help with this?"
+              >
+                <SparklesIcon className="w-5 h-5" />
+              </button>
+            )}
           </div>
         )}
 
         {/* Helper button for steps without title */}
-        {currentStep && (totalContentSteps === 1 || !currentStep.title) && (
+        {currentStep && (totalContentSteps === 1 || !currentStep.title) && canUseLessonHelper && (
           <div className="flex justify-end mb-4">
             <button
               onClick={() => setShowHelperModal(true)}

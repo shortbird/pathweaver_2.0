@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react'
 import { SparklesIcon, LightBulbIcon, ArrowTrendingUpIcon, ExclamationCircleIcon, CheckCircleIcon, ArrowPathIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { toast } from 'react-hot-toast'
+import { useAIAccess } from '../../contexts/AIAccessContext'
 
 const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
+  const { canUseTaskGeneration } = useAIAccess()
   const [loading, setLoading] = useState(false)
   const [suggestions, setSuggestions] = useState(null)
   const [similarQuests, setSimilarQuests] = useState(null)
@@ -16,6 +18,11 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
     similar: false,
     tasks: false
   })
+
+  // Don't render if AI task generation/suggestions is disabled
+  if (!canUseTaskGeneration) {
+    return null
+  }
 
   const getSuggestions = async () => {
     if (!title?.trim() || !description?.trim()) {

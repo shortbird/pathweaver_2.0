@@ -9,6 +9,7 @@ import {
   PaperClipIcon,
   LinkIcon,
 } from '@heroicons/react/24/outline'
+import { useAIAccess } from '../../contexts/AIAccessContext'
 
 const RESOURCE_OPTIONS = [
   {
@@ -55,8 +56,14 @@ const AIEnhanceModal = ({
   lessonTitle = '',
   isLoading = false,
 }) => {
+  const { canUseLessonHelper } = useAIAccess()
   const [content, setContent] = useState(initialContent)
   const [selectedResources, setSelectedResources] = useState(['videos', 'articles'])
+
+  // Don't render if AI lesson enhancement is disabled
+  if (!canUseLessonHelper) {
+    return null
+  }
 
   const toggleResource = (resourceId) => {
     setSelectedResources(prev =>

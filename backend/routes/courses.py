@@ -936,7 +936,69 @@ def enroll_in_course(user_id, course_id: str):
                     quest_result = client.table('user_quests').insert(quest_enrollment_data).execute()
                     if quest_result.data:
                         quest_enrollments_created += 1
+                        user_quest_id = quest_result.data[0]['id']
                         logger.info(f"Auto-enrolled user {target_user_id} in quest {quest_id} (course enrollment)")
+
+                        # Copy lesson-linked tasks to user_quest_tasks
+                        try:
+                            # Get all task IDs linked to lessons for this quest
+                            linked_tasks_result = client.table('curriculum_lesson_tasks')\
+                                .select('task_id')\
+                                .eq('quest_id', quest_id)\
+                                .execute()
+
+                            logger.info(f"[COURSE ENROLL] Quest {quest_id[:8]}: Found {len(linked_tasks_result.data or [])} linked tasks in curriculum_lesson_tasks")
+
+                            if not linked_tasks_result.data:
+                                logger.info(f"[COURSE ENROLL] Quest {quest_id[:8]}: No tasks linked to lessons - skipping task copy")
+                            else:
+                                task_ids = list(set([lt['task_id'] for lt in linked_tasks_result.data]))
+                                logger.info(f"[COURSE ENROLL] Quest {quest_id[:8]}: Task IDs to check: {task_ids[:3]}...")
+
+                                # Check for existing tasks with same source_task_id (avoid duplicates)
+                                existing_tasks = client.table('user_quest_tasks')\
+                                    .select('source_task_id')\
+                                    .eq('user_id', target_user_id)\
+                                    .eq('quest_id', quest_id)\
+                                    .in_('source_task_id', task_ids)\
+                                    .execute()
+                                existing_source_ids = set(t['source_task_id'] for t in (existing_tasks.data or []) if t.get('source_task_id'))
+
+                                # Filter out tasks that already exist
+                                task_ids_to_copy = [tid for tid in task_ids if tid not in existing_source_ids]
+
+                                if task_ids_to_copy:
+                                    # Fetch the source task data
+                                    source_tasks_result = client.table('user_quest_tasks')\
+                                        .select('id, title, description, pillar, xp_value, order_index, is_required, diploma_subjects, subject_xp_distribution')\
+                                        .in_('id', task_ids_to_copy)\
+                                        .execute()
+
+                                    if source_tasks_result.data:
+                                        tasks_to_insert = []
+                                        for task in source_tasks_result.data:
+                                            tasks_to_insert.append({
+                                                'user_id': target_user_id,
+                                                'quest_id': quest_id,
+                                                'user_quest_id': user_quest_id,
+                                                'title': task['title'],
+                                                'description': task.get('description', ''),
+                                                'pillar': task['pillar'],
+                                                'xp_value': task.get('xp_value', 100),
+                                                'order_index': task.get('order_index', 0),
+                                                'is_required': task.get('is_required', True),
+                                                'is_manual': False,
+                                                'approval_status': 'approved',
+                                                'diploma_subjects': task.get('diploma_subjects', ['Electives']),
+                                                'subject_xp_distribution': task.get('subject_xp_distribution'),
+                                                'source_task_id': task['id']
+                                            })
+
+                                        if tasks_to_insert:
+                                            client.table('user_quest_tasks').insert(tasks_to_insert).execute()
+                                            logger.info(f"Copied {len(tasks_to_insert)} lesson-linked tasks for user {target_user_id} in quest {quest_id}")
+                        except Exception as task_err:
+                            logger.warning(f"Failed to copy tasks for quest {quest_id}: {task_err}")
                 except Exception as quest_err:
                     logger.warning(f"Failed to auto-enroll in quest {quest_id}: {quest_err}")
 
@@ -950,6 +1012,80 @@ def enroll_in_course(user_id, course_id: str):
 
     except Exception as e:
         logger.error(f"Error enrolling in course {course_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<course_id>/unenroll', methods=['POST'])
+@require_auth
+def unenroll_from_course(user_id, course_id: str):
+    """
+    Unenroll from a course and all related quests.
+
+    This will:
+    1. Delete the course_enrollments record
+    2. Deactivate all user_quests records for quests in this course
+    3. Optionally delete user_quest_tasks for those quests
+    """
+    try:
+        current_user_id = session_manager.get_effective_user_id()
+        client = get_supabase_admin_client()
+
+        # Get course quests first
+        course_quests = client.table('course_quests')\
+            .select('quest_id')\
+            .eq('course_id', course_id)\
+            .execute()
+
+        quest_ids = [cq['quest_id'] for cq in (course_quests.data or [])]
+
+        # Delete course enrollment
+        client.table('course_enrollments')\
+            .delete()\
+            .eq('course_id', course_id)\
+            .eq('user_id', current_user_id)\
+            .execute()
+
+        logger.info(f"Deleted course enrollment for user {current_user_id} from course {course_id}")
+
+        # Deactivate quest enrollments and delete tasks
+        quests_unenrolled = 0
+        tasks_deleted = 0
+
+        for quest_id in quest_ids:
+            # Get user_quest record
+            user_quest = client.table('user_quests')\
+                .select('id')\
+                .eq('user_id', current_user_id)\
+                .eq('quest_id', quest_id)\
+                .execute()
+
+            if user_quest.data:
+                user_quest_id = user_quest.data[0]['id']
+
+                # Delete user_quest_tasks for this enrollment
+                deleted_tasks = client.table('user_quest_tasks')\
+                    .delete()\
+                    .eq('user_quest_id', user_quest_id)\
+                    .execute()
+                tasks_deleted += len(deleted_tasks.data or [])
+
+                # Delete the user_quest record
+                client.table('user_quests')\
+                    .delete()\
+                    .eq('id', user_quest_id)\
+                    .execute()
+                quests_unenrolled += 1
+
+        logger.info(f"User {current_user_id} unenrolled from course {course_id}: {quests_unenrolled} quests, {tasks_deleted} tasks deleted")
+
+        return jsonify({
+            'success': True,
+            'quests_unenrolled': quests_unenrolled,
+            'tasks_deleted': tasks_deleted
+        })
+
+    except Exception as e:
+        logger.error(f"Error unenrolling from course {course_id}: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 

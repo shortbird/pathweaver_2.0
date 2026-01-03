@@ -357,7 +357,7 @@ const DashboardPage = () => {
       {/* Dashboard Overview - Two Column Layout */}
       <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Learning Rhythm */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 overflow-visible">
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>
               Your Learning Rhythm

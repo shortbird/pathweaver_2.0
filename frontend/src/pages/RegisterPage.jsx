@@ -188,40 +188,38 @@ const RegisterPage = () => {
                 <p id="date-of-birth-error" role="alert" className="mt-1 text-sm text-red-600">{errors.date_of_birth.message}</p>
               )}
               {isUnder13 && (
-                <p className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded">
-                  Note: Users under 13 require parental consent to use Optio (COPPA compliance)
-                </p>
+                <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-start">
+                    <svg className="h-5 w-5 text-amber-500 mt-0.5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div>
+                      <h4 className="text-sm font-medium text-amber-800">
+                        Parent Account Required
+                      </h4>
+                      <p className="mt-1 text-sm text-amber-700">
+                        Users under 13 cannot create their own account. A parent or guardian must create an account first, then add you as a child profile from their dashboard.
+                      </p>
+                      <Link
+                        to="/register"
+                        className="mt-2 inline-flex items-center text-sm font-medium text-amber-800 hover:text-amber-900"
+                        onClick={() => {
+                          // Clear date of birth to allow parent to register
+                          const dobInput = document.getElementById('date_of_birth')
+                          if (dobInput) dobInput.value = ''
+                          setIsUnder13(false)
+                        }}
+                      >
+                        I am a parent/guardian registering an account
+                        <svg className="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
-
-            {isUnder13 && (
-              <div>
-                <label htmlFor="parent_email" className="block text-sm font-medium text-gray-700">
-                  Parent/Guardian Email Address
-                </label>
-                <input
-                  id="parent_email"
-                  {...registerField('parent_email', {
-                    required: isUnder13 ? 'Parent/guardian email is required for users under 13' : false,
-                    pattern: {
-                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                      message: 'Invalid email address'
-                    }
-                  })}
-                  type="email"
-                  className="input-field mt-1"
-                  placeholder="parent@example.com"
-                  aria-invalid={!!errors.parent_email}
-                  aria-describedby={errors.parent_email ? "parent-email-error" : undefined}
-                />
-                {errors.parent_email && (
-                  <p id="parent-email-error" role="alert" className="mt-1 text-sm text-red-600">{errors.parent_email.message}</p>
-                )}
-                <p className="mt-1 text-xs text-gray-500">
-                  Your parent/guardian will receive an email to verify consent for your account
-                </p>
-              </div>
-            )}
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
@@ -382,10 +380,10 @@ const RegisterPage = () => {
           <div>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || isUnder13}
               className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creating account...' : 'Create account'}
+              {loading ? 'Creating account...' : isUnder13 ? 'Parent account required' : 'Create account'}
             </button>
           </div>
         </form>

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeftIcon, AcademicCapIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import toast from 'react-hot-toast'
-import { getCourseById, getCourseProgress, enrollInCourse } from '../../services/courseService'
+import { getCourseById, getCourseProgress, enrollInCourse, unenrollFromCourse } from '../../services/courseService'
 
 /**
  * CourseDetailPage - Student view of a course
@@ -25,6 +25,7 @@ const CourseDetailPage = () => {
   const [progress, setProgress] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEnrolling, setIsEnrolling] = useState(false)
+  const [isUnenrolling, setIsUnenrolling] = useState(false)
   const [isEnrolled, setIsEnrolled] = useState(false)
 
   // Fetch course and progress data
@@ -85,6 +86,26 @@ const CourseDetailPage = () => {
     }
   }
 
+  // Handle unenroll
+  const handleUnenroll = async () => {
+    if (!window.confirm('Are you sure you want to unenroll from this course? This will also unenroll you from all quests in this course and delete your progress.')) {
+      return
+    }
+
+    try {
+      setIsUnenrolling(true)
+      await unenrollFromCourse(courseId)
+      toast.success('Successfully unenrolled from course')
+      setIsEnrolled(false)
+      setProgress(null)
+    } catch (error) {
+      console.error('Failed to unenroll:', error)
+      toast.error(error.response?.data?.message || 'Failed to unenroll from course')
+    } finally {
+      setIsUnenrolling(false)
+    }
+  }
+
   // Handle quest click
   const handleQuestClick = (questId) => {
     navigate(`/quests/${questId}/curriculum`)
@@ -138,13 +159,21 @@ const CourseDetailPage = () => {
                 {totalQuests} quest{totalQuests !== 1 ? 's' : ''} in this course
               </p>
             </div>
-            {!isEnrolled && (
+            {!isEnrolled ? (
               <button
                 onClick={handleEnroll}
                 disabled={isEnrolling}
                 className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] w-full sm:w-auto"
               >
                 {isEnrolling ? 'Enrolling...' : 'Enroll Now'}
+              </button>
+            ) : (
+              <button
+                onClick={handleUnenroll}
+                disabled={isUnenrolling}
+                className="px-6 py-2 border border-red-500 text-red-500 rounded-lg font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] w-full sm:w-auto"
+              >
+                {isUnenrolling ? 'Unenrolling...' : 'Unenroll'}
               </button>
             )}
           </div>

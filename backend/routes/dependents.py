@@ -381,6 +381,319 @@ def promote_dependent(user_id, dependent_id):
         return jsonify({'success': False, 'error': 'Failed to promote dependent'}), 500
 
 
+@bp.route('/<dependent_id>/add-login', methods=['POST'])
+@require_auth
+@validate_uuid_param('dependent_id')
+def add_dependent_login(user_id, dependent_id):
+    """
+    Give a dependent their own login credentials.
+    Unlike promotion, the child remains a dependent with parent oversight.
+    This allows children under 13 to have their own login while staying
+    under parental management.
+
+    Required fields:
+        - email: str
+        - password: str
+
+    Returns:
+        200: Login credentials added successfully
+        400: Validation error (invalid email, weak password)
+        403: Parent doesn't own this dependent
+        404: Dependent not found
+        409: Dependent already has login credentials
+    """
+    try:
+        verify_parent_role(user_id)
+
+        data = request.get_json()
+        if not data:
+            raise ValidationError("Request body is required")
+
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '').strip()
+
+        # Validate required fields
+        if not email:
+            raise ValidationError("email is required")
+
+        if not password:
+            raise ValidationError("password is required")
+
+        # Validate email format
+        if '@' not in email or '.' not in email:
+            raise ValidationError("Invalid email format")
+
+        # Validate password strength
+        is_valid, error_messages = validate_password_strength(password)
+        if not is_valid:
+            raise ValidationError(error_messages[0] if error_messages else "Password does not meet security requirements")
+
+        supabase = get_supabase_admin_client()
+        dependent_repo = DependentRepository(client=supabase)
+
+        # Verify parent owns this dependent
+        dependent = dependent_repo.get_dependent(dependent_id, user_id)
+
+        # Check if dependent already has a real email (not placeholder)
+        existing_email = dependent.get('email')
+        if existing_email and not existing_email.endswith('@optio-internal-placeholder.local'):
+            raise ValidationError("This dependent already has login credentials")
+
+        # Check if email is already in use
+        email_check = supabase.table('users').select('id').eq('email', email).execute()
+        if email_check.data:
+            raise ValidationError("This email is already in use")
+
+        # Create Supabase Auth account for the dependent
+        auth_response = supabase.auth.admin.create_user({
+            'email': email,
+            'password': password,
+            'email_confirm': True,  # Skip email verification since parent is authorizing
+            'user_metadata': {
+                'display_name': dependent.get('display_name'),
+                'is_dependent': True,
+                'managed_by_parent_id': user_id
+            }
+        })
+
+        if not auth_response.user:
+            raise ValidationError("Failed to create login credentials")
+
+        new_auth_id = auth_response.user.id
+
+        # Update the user record with the new email and auth ID
+        # IMPORTANT: Keep is_dependent=True and managed_by_parent_id set
+        update_result = supabase.table('users').update({
+            'email': email,
+            'id': new_auth_id  # Link to new Supabase Auth account
+        }).eq('id', dependent_id).execute()
+
+        if not update_result.data:
+            # Rollback: delete the auth user if profile update failed
+            try:
+                supabase.auth.admin.delete_user(new_auth_id)
+            except Exception:
+                pass
+            raise ValidationError("Failed to link login credentials to profile")
+
+        logger.info(f"Parent {user_id} added login credentials for dependent {dependent_id}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Login credentials added successfully',
+            'dependent': {
+                'id': new_auth_id,
+                'email': email,
+                'display_name': dependent.get('display_name'),
+                'is_dependent': True
+            }
+        }), 200
+
+    except AuthorizationError as e:
+        logger.warning(f"Authorization error for user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except (ValidationError, RepoValidationError) as e:
+        logger.warning(f"Validation error adding login for dependent {dependent_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except (NotFoundError, PermissionError) as e:
+        logger.warning(f"Error adding login for dependent {dependent_id} for user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error adding login for dependent {dependent_id}: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to add login credentials'}), 500
+
+
+@bp.route('/<child_id>/ai-access', methods=['POST'])
+@require_auth
+@validate_uuid_param('child_id')
+def toggle_child_ai_access(user_id, child_id):
+    """
+    Enable or disable AI features for a child (dependent or linked student).
+    Parent must own the child via managed_by_parent_id or parent_student_links.
+
+    Required fields:
+        - enabled: bool
+
+    Returns:
+        200: AI access updated successfully
+        400: Validation error
+        403: Parent doesn't own this child
+        404: Child not found
+    """
+    try:
+        verify_parent_role(user_id)
+
+        data = request.get_json()
+        if not data:
+            raise ValidationError("Request body is required")
+
+        enabled = data.get('enabled')
+        if enabled is None:
+            raise ValidationError("enabled field is required")
+
+        if not isinstance(enabled, bool):
+            raise ValidationError("enabled must be a boolean")
+
+        supabase = get_supabase_admin_client()
+
+        # Check if parent owns this child via managed_by_parent_id OR parent_student_links
+        child_result = supabase.table('users').select(
+            'id, display_name, managed_by_parent_id, is_dependent'
+        ).eq('id', child_id).single().execute()
+
+        if not child_result.data:
+            raise NotFoundError("Child not found")
+
+        child = child_result.data
+        is_owner = False
+
+        # Check managed_by_parent_id (for dependents)
+        if child.get('managed_by_parent_id') == user_id:
+            is_owner = True
+
+        # Check parent_student_links (for linked students)
+        if not is_owner:
+            link_result = supabase.table('parent_student_links').select('id').eq(
+                'parent_user_id', user_id
+            ).eq('student_user_id', child_id).eq('status', 'approved').execute()
+            if link_result.data:
+                is_owner = True
+
+        if not is_owner:
+            raise PermissionError("You do not have permission to manage this child's settings")
+
+        # Update AI access setting
+        update_result = supabase.table('users').update({
+            'ai_features_enabled': enabled,
+            'ai_features_enabled_at': datetime.utcnow().isoformat(),
+            'ai_features_enabled_by': user_id
+        }).eq('id', child_id).execute()
+
+        if not update_result.data:
+            raise ValidationError("Failed to update AI access setting")
+
+        action = "enabled" if enabled else "disabled"
+        child_type = "dependent" if child.get('is_dependent') else "linked student"
+        logger.info(f"Parent {user_id} {action} AI features for {child_type} {child_id}")
+
+        return jsonify({
+            'success': True,
+            'message': f'AI features {action} successfully',
+            'child_id': child_id,
+            'ai_features_enabled': enabled
+        }), 200
+
+    except AuthorizationError as e:
+        logger.warning(f"Authorization error for user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except (ValidationError, RepoValidationError) as e:
+        logger.warning(f"Validation error toggling AI access for child {child_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except (NotFoundError, PermissionError) as e:
+        logger.warning(f"Error toggling AI access for child {child_id} for user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error toggling AI access for child {child_id}: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to update AI access'}), 500
+
+
+@bp.route('/<string:child_id>/ai-features', methods=['PUT'])
+@require_auth
+@validate_uuid_param('child_id')
+def update_child_ai_features(user_id: str, child_id: str):
+    """
+    Update granular AI feature settings for a child (dependent or linked student).
+
+    Body:
+        chatbot (bool, optional): AI Tutor/chatbot enabled
+        lesson_helper (bool, optional): Lesson helper enabled
+        task_generation (bool, optional): Task generation enabled
+
+    Returns:
+        200: Features updated successfully
+        400: Invalid request body
+        403: Not authorized (not parent of this child)
+        404: Child not found
+    """
+    try:
+        verify_parent_role(user_id)
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Request body required'}), 400
+
+        # Validate feature names
+        valid_features = {'chatbot', 'lesson_helper', 'task_generation'}
+        for key in data.keys():
+            if key not in valid_features:
+                return jsonify({'success': False, 'error': f'Invalid feature: {key}'}), 400
+            if not isinstance(data[key], bool):
+                return jsonify({'success': False, 'error': f'Feature {key} must be a boolean'}), 400
+
+        supabase = get_supabase_admin_client()
+        dependent_repo = DependentRepository(client=supabase)
+
+        # Check if parent owns this child (via managed_by_parent_id or parent_student_links)
+        child = None
+        try:
+            child = dependent_repo.get_dependent(child_id, user_id)
+        except NotFoundError:
+            # Try linked students
+            link_result = supabase.table('parent_student_links').select('*').eq(
+                'parent_id', user_id
+            ).eq('student_id', child_id).eq('status', 'active').execute()
+
+            if not link_result.data:
+                raise NotFoundError(f"Child {child_id} not found or not associated with parent")
+
+            # Get the linked student
+            student_result = supabase.table('users').select('*').eq('id', child_id).single().execute()
+            if not student_result.data:
+                raise NotFoundError(f"Child {child_id} not found")
+            child = student_result.data
+
+        # Build update dict for granular features
+        update_data = {}
+        if 'chatbot' in data:
+            update_data['ai_chatbot_enabled'] = data['chatbot']
+        if 'lesson_helper' in data:
+            update_data['ai_lesson_helper_enabled'] = data['lesson_helper']
+        if 'task_generation' in data:
+            update_data['ai_task_generation_enabled'] = data['task_generation']
+
+        if not update_data:
+            return jsonify({'success': False, 'error': 'No features to update'}), 400
+
+        # Update the user record
+        result = supabase.table('users').update(update_data).eq('id', child_id).execute()
+
+        if not result.data:
+            raise Exception("Failed to update AI features")
+
+        logger.info(f"Parent {user_id} updated AI features for child {child_id}: {update_data}")
+
+        return jsonify({
+            'success': True,
+            'dependent_id': child_id,
+            'features': {
+                'chatbot': result.data[0].get('ai_chatbot_enabled', True),
+                'lesson_helper': result.data[0].get('ai_lesson_helper_enabled', True),
+                'task_generation': result.data[0].get('ai_task_generation_enabled', True)
+            },
+            'message': 'AI features updated successfully'
+        }), 200
+
+    except ValidationError as e:
+        logger.warning(f"Validation error updating AI features for child {child_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except (NotFoundError, PermissionError) as e:
+        logger.warning(f"Error updating AI features for child {child_id} for user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error updating AI features for child {child_id}: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to update AI features'}), 500
+
+
 @bp.route('/<string:dependent_id>/act-as', methods=['POST'])
 @require_auth
 @validate_uuid_param('dependent_id')
