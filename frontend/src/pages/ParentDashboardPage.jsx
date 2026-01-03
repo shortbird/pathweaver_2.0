@@ -15,6 +15,7 @@ import {
 } from '@heroicons/react/24/outline';
 import AddDependentModal from '../components/parent/AddDependentModal';
 import RequestStudentConnectionModal from '../components/parent/RequestStudentConnectionModal';
+import VisibilityApprovalSection from '../components/parent/VisibilityApprovalSection';
 
 const ParentDashboardPage = () => {
   const { user } = useAuth();
@@ -470,6 +471,9 @@ const ParentDashboardPage = () => {
               </div>
             );
           })()}
+
+          {/* FERPA Compliance: Portfolio Visibility Approval Requests */}
+          <VisibilityApprovalSection />
 
           {/* Overview Content */}
           <div className="space-y-6">

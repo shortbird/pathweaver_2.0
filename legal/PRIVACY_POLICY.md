@@ -91,18 +91,22 @@ By using the Platform, you consent to the data practices described in this Priva
 
 ## 4. Information Sharing and Disclosure
 
-### 4.1 Public Information by Default
-**Important: All educational content is public by default unless you mark it as confidential.** This means:
-- Your diplomas and portfolios are publicly accessible
-- Evidence of quest completion can be viewed by anyone
-- Your username and achievements may appear in public leaderboards
+### 4.1 Private by Default
+**Important: All educational content is private by default.** Your diplomas, portfolios, and learning evidence are only visible to you and authorized users (such as your parents, teachers, or observers you have invited) unless you explicitly choose to make them public.
+
+You may opt-in to make your portfolio public, which means:
+- Your diplomas and portfolios become publicly accessible
+- Evidence of quest completion can be viewed by anyone with the link
 - Search engines may index your public content
 
-### 4.2 With Your Consent
-We share information when you explicitly consent, such as:
-- When you choose to make content public
+**For users under 18:** Parental or guardian approval is required before making educational records public. This ensures compliance with FERPA (Family Educational Rights and Privacy Act) and COPPA (Children's Online Privacy Protection Act).
+
+### 4.2 With Your Explicit Consent
+We share information only when you explicitly consent, such as:
+- When you choose to make your portfolio public (requires acknowledgment)
+- When you invite observers to view your progress
 - When you participate in collaborative quests
-- When you share your portfolio link
+- When you share your portfolio link with others
 
 ### 4.3 With Service Providers (Subprocessors)
 We share information with the following third-party service providers who process data on our behalf:

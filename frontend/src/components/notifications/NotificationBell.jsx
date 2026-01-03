@@ -100,6 +100,8 @@ const NotificationBell = () => {
         return '✅'
       case 'observer_comment':
         return '💬'
+      case 'parent_approval_required':
+        return '👨‍👩‍👧'
       default:
         return '🔔'
     }

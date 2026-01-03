@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { tokenStore } from '../services/api'
 import authService from '../services/authService'
 import { useQueryClient } from '@tanstack/react-query'
+import TosConsentModal from '../components/auth/TosConsentModal'
 
 /**
  * OAuth Authorization Callback Page
@@ -25,6 +26,12 @@ export default function AuthCallback() {
   const queryClient = useQueryClient()
   const [status, setStatus] = useState('processing')
   const [error, setError] = useState(null)
+
+  // TOS modal state
+  const [showTosModal, setShowTosModal] = useState(false)
+  const [tosAcceptanceToken, setTosAcceptanceToken] = useState(null)
+  const [tosUserName, setTosUserName] = useState('')
+  const [tosLoading, setTosLoading] = useState(false)
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -59,6 +66,15 @@ export default function AuthCallback() {
       const result = await authService.handleGoogleCallback()
 
       if (result.success) {
+        // Check if TOS acceptance is required (new users)
+        if (result.requiresTosAcceptance) {
+          setTosAcceptanceToken(result.tosAcceptanceToken)
+          setTosUserName(result.user?.first_name || '')
+          setShowTosModal(true)
+          setStatus('tos_required')
+          return
+        }
+
         setStatus('success')
 
         // Determine redirect path based on user role
@@ -84,6 +100,60 @@ export default function AuthCallback() {
         navigate('/login', { replace: true })
       }, 3000)
     }
+  }
+
+  /**
+   * Handle TOS acceptance from modal
+   */
+  const handleTosAccept = async () => {
+    setTosLoading(true)
+    try {
+      const result = await authService.acceptTos(tosAcceptanceToken)
+
+      if (result.success) {
+        setShowTosModal(false)
+        setStatus('success')
+
+        // Determine redirect path based on user role
+        const user = result.user
+        const redirectPath = user?.role === 'parent' ? '/parent/dashboard' : '/dashboard'
+
+        // Force full page reload to ensure AuthContext is updated
+        window.location.href = redirectPath
+      } else {
+        setError(result.error || 'Failed to accept Terms of Service')
+        setShowTosModal(false)
+        setStatus('error')
+
+        setTimeout(() => {
+          navigate('/login', { replace: true })
+        }, 3000)
+      }
+    } catch (err) {
+      console.error('TOS acceptance failed:', err)
+      setError('Failed to accept Terms of Service')
+      setShowTosModal(false)
+      setStatus('error')
+
+      setTimeout(() => {
+        navigate('/login', { replace: true })
+      }, 3000)
+    } finally {
+      setTosLoading(false)
+    }
+  }
+
+  /**
+   * Handle TOS modal close (cancel)
+   */
+  const handleTosClose = () => {
+    setShowTosModal(false)
+    setStatus('error')
+    setError('You must accept the Terms of Service to continue')
+
+    setTimeout(() => {
+      navigate('/login', { replace: true })
+    }, 3000)
   }
 
   /**
@@ -133,47 +203,70 @@ export default function AuthCallback() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-        {status === 'processing' && (
-          <>
-            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-optio-purple mx-auto mb-4"></div>
-            <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Poppins' }}>
-              Completing Sign In...
-            </h2>
-            <p className="text-gray-600 mt-2" style={{ fontFamily: 'Poppins' }}>
-              Please wait while we log you in
-            </p>
-          </>
-        )}
+    <>
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
+          {status === 'processing' && (
+            <>
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-optio-purple mx-auto mb-4"></div>
+              <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Poppins' }}>
+                Completing Sign In...
+              </h2>
+              <p className="text-gray-600 mt-2" style={{ fontFamily: 'Poppins' }}>
+                Please wait while we log you in
+              </p>
+            </>
+          )}
 
-        {status === 'success' && (
-          <>
-            <div className="text-green-500 text-5xl mb-4">✓</div>
-            <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Poppins' }}>
-              Success!
-            </h2>
-            <p className="text-gray-600 mt-2" style={{ fontFamily: 'Poppins' }}>
-              Redirecting to dashboard...
-            </p>
-          </>
-        )}
+          {status === 'tos_required' && (
+            <>
+              <div className="text-optio-purple text-5xl mb-4">📋</div>
+              <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Poppins' }}>
+                Almost There!
+              </h2>
+              <p className="text-gray-600 mt-2" style={{ fontFamily: 'Poppins' }}>
+                Please accept our Terms of Service to continue
+              </p>
+            </>
+          )}
 
-        {status === 'error' && (
-          <>
-            <div className="text-red-500 text-5xl mb-4">✕</div>
-            <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Poppins' }}>
-              Authentication Failed
-            </h2>
-            <p className="text-red-600 mt-2" style={{ fontFamily: 'Poppins' }}>
-              {error}
-            </p>
-            <p className="text-gray-500 mt-4 text-sm" style={{ fontFamily: 'Poppins' }}>
-              Redirecting to login page...
-            </p>
-          </>
-        )}
+          {status === 'success' && (
+            <>
+              <div className="text-green-500 text-5xl mb-4">✓</div>
+              <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Poppins' }}>
+                Success!
+              </h2>
+              <p className="text-gray-600 mt-2" style={{ fontFamily: 'Poppins' }}>
+                Redirecting to dashboard...
+              </p>
+            </>
+          )}
+
+          {status === 'error' && (
+            <>
+              <div className="text-red-500 text-5xl mb-4">✕</div>
+              <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Poppins' }}>
+                Authentication Failed
+              </h2>
+              <p className="text-red-600 mt-2" style={{ fontFamily: 'Poppins' }}>
+                {error}
+              </p>
+              <p className="text-gray-500 mt-4 text-sm" style={{ fontFamily: 'Poppins' }}>
+                Redirecting to login page...
+              </p>
+            </>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* TOS Consent Modal */}
+      <TosConsentModal
+        isOpen={showTosModal}
+        onClose={handleTosClose}
+        onAccept={handleTosAccept}
+        loading={tosLoading}
+        userName={tosUserName}
+      />
+    </>
   )
 }

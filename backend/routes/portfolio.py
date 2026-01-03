@@ -423,7 +423,27 @@ def get_public_diploma_by_user_id(user_id):
         if not user.data or len(user.data) == 0:
             logger.error(f"ERROR: User not found for ID: {user_id}")
             return jsonify({'error': 'User not found'}), 404
-        
+
+        # FERPA: Check if portfolio is public or viewer is the owner
+        from utils.session_manager import session_manager
+
+        # Get diploma to check is_public
+        diploma_check = supabase.table('diplomas').select('is_public').eq('user_id', user_id).execute()
+        is_public = diploma_check.data[0]['is_public'] if diploma_check.data else False
+        logger.info(f"[FERPA] Diploma check for {user_id}: is_public={is_public}, diploma_data={diploma_check.data}")
+
+        # Try to get authenticated user to check if they're the owner
+        # Uses session_manager which handles both cookies and Authorization header
+        viewer_user_id = session_manager.get_current_user_id()
+        logger.info(f"[FERPA] Viewer check: viewer_user_id={viewer_user_id}")
+
+        # If not public and not the owner, deny access
+        if not is_public and viewer_user_id != user_id:
+            logger.info(f"[FERPA] Access DENIED: is_public={is_public}, viewer={viewer_user_id}, owner={user_id}")
+            return jsonify({'error': 'Portfolio not found or private'}), 404
+
+        logger.info(f"[FERPA] Access GRANTED: is_public={is_public}, viewer={viewer_user_id}, owner={user_id}")
+
         # Get user's completed quests with V3 data structure - optimized query
         # Note: user_quest_tasks stores personalized tasks, not completions
         # quest_task_completions stores the actual task completions
@@ -821,37 +841,413 @@ def get_public_diploma_by_user_id(user_id):
         logger.info(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Failed to fetch diploma'}), 500
 
+
+# =============================================================================
+# FERPA COMPLIANCE: Privacy and Consent Management (Added 2026-01-02)
+# =============================================================================
+
+def check_is_minor(user_data: dict) -> bool:
+    """
+    Check if a user is considered a minor (under 18 OR is_dependent=true).
+    Used for FERPA parental consent requirements.
+
+    Args:
+        user_data: Dict containing user fields (is_dependent, date_of_birth)
+
+    Returns:
+        True if user is a minor, False otherwise
+    """
+    # If marked as dependent, always considered a minor
+    if user_data.get('is_dependent') is True:
+        return True
+
+    # Check date of birth
+    dob = user_data.get('date_of_birth')
+    if not dob:
+        # No DOB means we can't verify age - assume not a minor
+        # (they would have given consent at registration)
+        return False
+
+    try:
+        from datetime import date
+        if isinstance(dob, str):
+            dob = datetime.strptime(dob.split('T')[0], '%Y-%m-%d').date()
+        elif hasattr(dob, 'date'):
+            dob = dob.date()
+
+        age = (date.today() - dob).days / 365.25
+        return age < 18
+    except Exception as e:
+        logger.warning(f"Error parsing date_of_birth: {e}")
+        return False
+
+
+@bp.route('/user/<user_id>/visibility-status', methods=['GET'])
+@require_auth
+def get_visibility_status(authenticated_user_id, user_id):
+    """
+    Get portfolio visibility status including consent and minor status.
+    Used by frontend to determine what UI to show for privacy controls.
+
+    Returns:
+        is_public: Current visibility status
+        consent_given: Whether user has explicitly consented to public
+        consent_given_at: Timestamp of consent
+        is_minor: Whether user is under 18 or is_dependent
+        requires_parent_approval: Whether parent must approve public visibility
+        pending_parent_approval: Whether a request is pending
+        parent_approval_denied: Whether parent denied the request
+        parent_info: Basic info about linked parent (if minor)
+    """
+    try:
+        # Verify user is checking their own status
+        if authenticated_user_id != user_id:
+            return error_response(
+                code='UNAUTHORIZED',
+                message='Can only check your own visibility status',
+                status=403
+            )
+
+        supabase = get_supabase_admin_client()
+
+        # Get user info including minor status fields
+        user_result = supabase.table('users').select(
+            'id, date_of_birth, is_dependent, managed_by_parent_id, first_name'
+        ).eq('id', user_id).execute()
+
+        if not user_result.data:
+            return error_response(
+                code='USER_NOT_FOUND',
+                message='User not found',
+                status=404
+            )
+
+        user_data = user_result.data[0]
+        is_minor = check_is_minor(user_data)
+
+        # Get diploma info - try new columns first, fall back to basic
+        try:
+            diploma_result = supabase.table('diplomas').select(
+                'is_public, public_consent_given, public_consent_given_at, '
+                'pending_parent_approval, parent_approval_denied, parent_approval_denied_at'
+            ).eq('user_id', user_id).execute()
+            diploma_data = diploma_result.data[0] if diploma_result.data else {}
+        except Exception as col_err:
+            logger.warning(f"New FERPA columns may not exist yet, falling back: {col_err}")
+            # Fall back to just is_public if new columns don't exist
+            diploma_result = supabase.table('diplomas').select('is_public').eq('user_id', user_id).execute()
+            diploma_data = diploma_result.data[0] if diploma_result.data else {}
+            diploma_data['public_consent_given'] = diploma_data.get('is_public', False)
+            diploma_data['pending_parent_approval'] = False
+            diploma_data['parent_approval_denied'] = False
+
+        # Get parent info if minor
+        parent_info = None
+        if is_minor:
+            parent_id = user_data.get('managed_by_parent_id')
+            if parent_id:
+                parent_result = supabase.table('users').select(
+                    'first_name, email'
+                ).eq('id', parent_id).execute()
+                if parent_result.data:
+                    parent_info = {
+                        'first_name': parent_result.data[0].get('first_name'),
+                        'has_email': bool(parent_result.data[0].get('email'))
+                    }
+            else:
+                # Check parent_student_links table
+                link_result = supabase.table('parent_student_links').select(
+                    'parent_user_id'
+                ).eq('student_user_id', user_id).eq('status', 'approved').limit(1).execute()
+                if link_result.data:
+                    parent_link_id = link_result.data[0].get('parent_user_id')
+                    if parent_link_id:
+                        parent_result = supabase.table('users').select(
+                            'first_name, email'
+                        ).eq('id', parent_link_id).execute()
+                        if parent_result.data:
+                            parent_info = {
+                                'first_name': parent_result.data[0].get('first_name'),
+                                'has_email': bool(parent_result.data[0].get('email'))
+                            }
+
+        # Check for pending visibility request
+        pending_request = None
+        if is_minor and diploma_data.get('pending_parent_approval'):
+            req_result = supabase.table('public_visibility_requests').select(
+                'id, requested_at'
+            ).eq('student_user_id', user_id).eq('status', 'pending').limit(1).execute()
+            if req_result.data:
+                pending_request = {
+                    'id': req_result.data[0]['id'],
+                    'requested_at': req_result.data[0]['requested_at']
+                }
+
+        return success_response({
+            'is_public': diploma_data.get('is_public', False),
+            'consent_given': diploma_data.get('public_consent_given', False),
+            'consent_given_at': diploma_data.get('public_consent_given_at'),
+            'is_minor': is_minor,
+            'requires_parent_approval': is_minor,
+            'pending_parent_approval': diploma_data.get('pending_parent_approval', False),
+            'pending_request': pending_request,
+            'parent_approval_denied': diploma_data.get('parent_approval_denied', False),
+            'parent_approval_denied_at': diploma_data.get('parent_approval_denied_at'),
+            'parent_info': parent_info,
+            'can_make_public': not is_minor or parent_info is not None
+        })
+
+    except Exception as e:
+        import traceback
+        logger.error(f"Error fetching visibility status: {str(e)}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        return error_response(
+            code='VISIBILITY_STATUS_ERROR',
+            message=f'Failed to fetch visibility status: {str(e)}',
+            status=500
+        )
+
+
 @bp.route('/user/<user_id>/privacy', methods=['PUT'])
 @require_auth
 def update_portfolio_privacy(authenticated_user_id, user_id):
     """
-    Toggle portfolio privacy setting
+    Toggle portfolio privacy setting with FERPA-compliant consent flow.
+
+    For making public:
+    - Requires consent_acknowledged=true in request body
+    - Minors (under 18 or is_dependent) require parent approval
+    - Adults can consent directly
+
+    For making private:
+    - Always immediate, no restrictions
+
+    Request body:
+        is_public: boolean - desired visibility
+        consent_acknowledged: boolean - user acknowledges public means visible to anyone
+
+    Returns:
+        For adults making public: immediate success
+        For minors making public: creates parent approval request, returns pending status
+        For anyone making private: immediate success
     """
     try:
         from flask import request
+        from datetime import date
 
         # Verify user is updating their own portfolio
         if authenticated_user_id != user_id:
-            return jsonify({'error': 'Unauthorized - can only update your own privacy settings'}), 403
+            return error_response(
+                code='UNAUTHORIZED',
+                message='Can only update your own privacy settings',
+                status=403
+            )
 
-        supabase = get_supabase_client()
+        supabase = get_supabase_admin_client()
+        data = request.json or {}
+        is_public = data.get('is_public', False)
+        consent_acknowledged = data.get('consent_acknowledged', False)
 
-        data = request.json
-        is_public = data.get('is_public', True)
-        
-        # Update diploma privacy
-        result = supabase.table('diplomas').update({
-            'is_public': is_public
-        }).eq('user_id', user_id).execute()
+        # Get user info to check if minor
+        user_result = supabase.table('users').select(
+            'id, date_of_birth, is_dependent, managed_by_parent_id, first_name, email'
+        ).eq('id', user_id).execute()
+
+        if not user_result.data:
+            return error_response(
+                code='USER_NOT_FOUND',
+                message='User not found',
+                status=404
+            )
+
+        user_data = user_result.data[0]
+        is_minor_user = check_is_minor(user_data)
+
+        # MAKING PRIVATE - always allowed immediately
+        if not is_public:
+            # Try to update with new columns, fall back to just is_public
+            try:
+                result = supabase.table('diplomas').update({
+                    'is_public': False,
+                    'pending_parent_approval': False
+                }).eq('user_id', user_id).execute()
+            except Exception:
+                # Fall back if pending_parent_approval column doesn't exist
+                result = supabase.table('diplomas').update({
+                    'is_public': False
+                }).eq('user_id', user_id).execute()
+
+            # Cancel any pending visibility requests (if table exists)
+            try:
+                supabase.table('public_visibility_requests').update({
+                    'status': 'denied',
+                    'responded_at': datetime.utcnow().isoformat(),
+                    'denial_reason': 'User made portfolio private'
+                }).eq('student_user_id', user_id).eq('status', 'pending').execute()
+            except Exception as e:
+                logger.warning(f"Could not cancel visibility requests (table may not exist): {e}")
+
+            return success_response({
+                'message': 'Portfolio is now private',
+                'is_public': False
+            })
+
+        # MAKING PUBLIC - requires consent and may require parent approval
+
+        # Require consent acknowledgment
+        if not consent_acknowledged:
+            return error_response(
+                code='CONSENT_REQUIRED',
+                message='Must acknowledge consent to make portfolio public. '
+                        'Set consent_acknowledged=true to confirm you understand '
+                        'your educational records will be publicly accessible.',
+                status=400
+            )
+
+        # Check if minor
+        if is_minor_user:
+            # Find parent
+            parent_id = user_data.get('managed_by_parent_id')
+            if not parent_id:
+                # Check parent_student_links
+                link_result = supabase.table('parent_student_links').select(
+                    'parent_user_id'
+                ).eq('student_user_id', user_id).eq('status', 'approved').limit(1).execute()
+                if link_result.data:
+                    parent_id = link_result.data[0]['parent_user_id']
+
+            if not parent_id:
+                return error_response(
+                    code='PARENT_REQUIRED',
+                    message='Users under 18 must have a linked parent or guardian '
+                            'to make their portfolio public. Please link a parent first.',
+                    status=400
+                )
+
+            # Try the full minor approval flow (requires migration)
+            try:
+                # Check if already has a pending request
+                existing_request = supabase.table('public_visibility_requests').select(
+                    'id'
+                ).eq('student_user_id', user_id).eq('status', 'pending').execute()
+
+                if existing_request.data:
+                    return error_response(
+                        code='REQUEST_PENDING',
+                        message='A request for parent approval is already pending.',
+                        status=400
+                    )
+
+                # Check if recently denied (within 30 days)
+                diploma_result = supabase.table('diplomas').select(
+                    'parent_approval_denied, parent_approval_denied_at'
+                ).eq('user_id', user_id).execute()
+
+                if diploma_result.data:
+                    diploma = diploma_result.data[0]
+                    if diploma.get('parent_approval_denied') and diploma.get('parent_approval_denied_at'):
+                        denied_at = datetime.fromisoformat(
+                            diploma['parent_approval_denied_at'].replace('Z', '+00:00')
+                        )
+                        days_since = (datetime.now(denied_at.tzinfo) - denied_at).days
+                        if days_since < 30:
+                            return error_response(
+                                code='REQUEST_DENIED_RECENTLY',
+                                message=f'Your parent denied this request {days_since} days ago. '
+                                        f'You can request again in {30 - days_since} days.',
+                                status=400
+                            )
+
+                # Create parent approval request
+                supabase.table('public_visibility_requests').insert({
+                    'student_user_id': user_id,
+                    'parent_user_id': parent_id,
+                    'status': 'pending',
+                    'requested_at': datetime.utcnow().isoformat()
+                }).execute()
+
+                # Update diploma to show pending
+                supabase.table('diplomas').update({
+                    'pending_parent_approval': True,
+                    'parent_approval_denied': False,
+                    'parent_approval_denied_at': None
+                }).eq('user_id', user_id).execute()
+
+                # Get student and parent info for notification and response
+                student_result = supabase.table('users').select(
+                    'first_name, organization_id'
+                ).eq('id', user_id).execute()
+                student_name = student_result.data[0]['first_name'] if student_result.data else 'Your child'
+                org_id = student_result.data[0].get('organization_id') if student_result.data else None
+
+                parent_result = supabase.table('users').select(
+                    'first_name'
+                ).eq('id', parent_id).execute()
+                parent_name = parent_result.data[0]['first_name'] if parent_result.data else 'your parent'
+
+                # Send notification to parent
+                try:
+                    from services.notification_service import NotificationService
+                    notification_service = NotificationService()
+                    notification_service.notify_parent_approval_required(
+                        parent_user_id=parent_id,
+                        student_name=student_name,
+                        student_id=user_id,
+                        organization_id=org_id
+                    )
+                    logger.info(f"[FERPA] Sent parent approval notification to {parent_id} for student {user_id}")
+                except Exception as notif_err:
+                    logger.warning(f"Failed to send parent notification: {notif_err}")
+
+                return success_response({
+                    'message': f'Request sent to {parent_name} for approval',
+                    'is_public': False,
+                    'pending_parent_approval': True,
+                    'parent_name': parent_name
+                })
+            except Exception as minor_err:
+                logger.error(f"Minor approval flow failed (migration may not be applied): {minor_err}")
+                return error_response(
+                    code='MIGRATION_REQUIRED',
+                    message='The FERPA compliance migration needs to be applied. '
+                            'Please run backend/migrations/20260102_ferpa_private_by_default.sql',
+                    status=500
+                )
+
+        # NOT A MINOR - can consent directly
+        try:
+            result = supabase.table('diplomas').update({
+                'is_public': True,
+                'public_consent_given': True,
+                'public_consent_given_at': datetime.utcnow().isoformat(),
+                'public_consent_given_by': user_id,
+                'pending_parent_approval': False,
+                'parent_approval_denied': False
+            }).eq('user_id', user_id).execute()
+        except Exception:
+            # Fall back if new columns don't exist
+            result = supabase.table('diplomas').update({
+                'is_public': True
+            }).eq('user_id', user_id).execute()
 
         if result.data:
-            return jsonify({
-                'message': 'Privacy setting updated',
-                'is_public': is_public
-            }), 200
+            logger.info(f"[FERPA] User {user_id} consented to public portfolio")
+            return success_response({
+                'message': 'Portfolio is now public',
+                'is_public': True,
+                'consent_given': True
+            })
         else:
-            return jsonify({'error': 'Failed to update privacy setting'}), 400
-            
+            return error_response(
+                code='UPDATE_FAILED',
+                message='Failed to update privacy setting',
+                status=400
+            )
+
     except Exception as e:
         logger.error(f"Error updating privacy: {str(e)}")
-        return jsonify({'error': 'Failed to update privacy setting'}), 500
+        return error_response(
+            code='PRIVACY_UPDATE_ERROR',
+            message='Failed to update privacy setting',
+            status=500
+        )

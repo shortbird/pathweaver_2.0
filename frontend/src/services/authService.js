@@ -281,6 +281,18 @@ class AuthService {
         refresh_token: session.refresh_token
       })
 
+      // Check if TOS acceptance is required (new users)
+      if (response.data.requires_tos_acceptance) {
+        logger.debug('[AuthService] TOS acceptance required for new Google user')
+        return {
+          success: true,
+          requiresTosAcceptance: true,
+          tosAcceptanceToken: response.data.tos_acceptance_token,
+          user: response.data.user,
+          isNewUser: true
+        }
+      }
+
       this.user = response.data.user
       this.isAuthenticated = true
 
@@ -314,6 +326,61 @@ class AuthService {
     } catch (error) {
       logger.error('[AuthService] Google callback error:', error)
       const errorMessage = error.response?.data?.message || 'Failed to complete Google sign-in'
+      return { success: false, error: errorMessage }
+    }
+  }
+
+  /**
+   * Accept Terms of Service for Google OAuth users
+   *
+   * Called after user explicitly accepts TOS in the modal.
+   * Completes the registration process and establishes session.
+   *
+   * @param {string} tosAcceptanceToken - Token from OAuth callback
+   * @returns {Object} - { success, user, error }
+   */
+  async acceptTos(tosAcceptanceToken) {
+    try {
+      logger.debug('[AuthService] Accepting TOS for Google OAuth user')
+
+      const response = await api.post('/api/auth/google/accept-tos', {
+        tos_acceptance_token: tosAcceptanceToken,
+        accepted_tos: true,
+        accepted_privacy: true
+      })
+
+      this.user = response.data.user
+      this.isAuthenticated = true
+
+      // Store tokens for Safari/iOS/Firefox if needed
+      if (shouldUseAuthHeaders()) {
+        const appAccessToken = response.data.app_access_token
+        const appRefreshToken = response.data.app_refresh_token
+
+        if (appAccessToken && appRefreshToken) {
+          await this.setTokens(appAccessToken, appRefreshToken)
+          logger.debug('[AuthService] TOS acceptance tokens stored')
+        }
+      }
+
+      // Store user data for quick access
+      if (this.user) {
+        localStorage.setItem('user', JSON.stringify(this.user))
+      }
+
+      // Start token health monitoring
+      this.startTokenHealthMonitoring()
+
+      this.notifyListeners()
+
+      return {
+        success: true,
+        user: this.user
+      }
+
+    } catch (error) {
+      logger.error('[AuthService] TOS acceptance error:', error)
+      const errorMessage = error.response?.data?.message || 'Failed to accept Terms of Service'
       return { success: false, error: errorMessage }
     }
   }

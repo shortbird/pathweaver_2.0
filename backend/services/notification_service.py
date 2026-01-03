@@ -319,3 +319,21 @@ class NotificationService(BaseService):
             metadata={'badge_id': badge_id},
             organization_id=organization_id
         )
+
+    def notify_parent_approval_required(
+        self,
+        parent_user_id: str,
+        student_name: str,
+        student_id: str,
+        organization_id: Optional[str] = None
+    ):
+        """Send notification when child requests public portfolio visibility (FERPA compliance)."""
+        return self.create_notification(
+            user_id=parent_user_id,
+            notification_type='parent_approval_required',
+            title='Portfolio Approval Requested',
+            message=f'{student_name} wants to make their portfolio public and needs your approval.',
+            link='/parent-dashboard',
+            metadata={'student_id': student_id},
+            organization_id=organization_id
+        )

@@ -25,6 +25,8 @@ import {
 } from '../utils/creditRequirements';
 import { getPillarGradient, getPillarDisplayName } from '../config/pillars';
 import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
+import PublicConsentModal from '../components/diploma/PublicConsentModal';
+import PublicNoticeBanner from '../components/diploma/PublicNoticeBanner';
 
 const DiplomaPage = () => {
   const { user, loginTimestamp } = useAuth();
@@ -55,6 +57,11 @@ const DiplomaPage = () => {
   const [showFullCreditsModal, setShowFullCreditsModal] = useState(false);
   // showAllBadgesModal state removed (January 2026 - Microschool client feedback)
   const [selectedEvidenceItem, setSelectedEvidenceItem] = useState(null);
+
+  // FERPA compliance: visibility and consent state
+  const [visibilityStatus, setVisibilityStatus] = useState(null);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [privacyLoading, setPrivacyLoading] = useState(false);
 
   // All features are now free for all users (Phase 2 refactoring - January 2025)
   const hasAccess = true;
@@ -382,6 +389,67 @@ const DiplomaPage = () => {
     setPreviewMode(!previewMode);
   };
 
+  // FERPA compliance: Fetch visibility status for owner view
+  const fetchVisibilityStatus = useCallback(async () => {
+    if (!effectiveUser?.id) return;
+    try {
+      const response = await api.get(`/api/portfolio/user/${effectiveUser.id}/visibility-status`);
+      if (response.data?.data) {
+        setVisibilityStatus(response.data.data);
+      }
+    } catch (error) {
+      logger.error('Failed to fetch visibility status:', error);
+    }
+  }, [effectiveUser?.id]);
+
+  // Fetch visibility status when component mounts for owner view
+  useEffect(() => {
+    if (effectiveUser && !slug && !userId) {
+      fetchVisibilityStatus();
+    }
+  }, [effectiveUser, slug, userId, fetchVisibilityStatus]);
+
+  // Handle privacy toggle - shows consent modal for making public
+  const handlePrivacyToggle = () => {
+    if (!visibilityStatus?.is_public) {
+      // Making public - show consent modal first
+      setShowConsentModal(true);
+    } else {
+      // Making private - immediate, no confirmation needed
+      updatePrivacy(false);
+    }
+  };
+
+  // Update privacy setting with consent acknowledgment
+  const updatePrivacy = async (makePublic, consentAcknowledged = false) => {
+    if (!effectiveUser?.id) return;
+
+    setPrivacyLoading(true);
+    try {
+      const response = await api.put(`/api/portfolio/user/${effectiveUser.id}/privacy`, {
+        is_public: makePublic,
+        consent_acknowledged: consentAcknowledged
+      });
+
+      if (response.data?.data) {
+        // Refresh visibility status to get updated state
+        await fetchVisibilityStatus();
+        setShowConsentModal(false);
+      }
+    } catch (error) {
+      logger.error('Failed to update privacy:', error);
+      const errorMsg = error.response?.data?.message || 'Failed to update privacy settings';
+      alert(errorMsg);
+    } finally {
+      setPrivacyLoading(false);
+    }
+  };
+
+  // Handle consent confirmation from modal
+  const handleConsentConfirm = () => {
+    updatePrivacy(true, true);
+  };
+
   // Determine if current user is the owner
   // Owner when: viewing /diploma (no params) OR viewing their own userId
   // Public routes (/public/*) are NEVER owner view, even if logged in as that user
@@ -562,6 +630,15 @@ const DiplomaPage = () => {
         </div>
       </div>
 
+      {/* FERPA compliance: Show public notice banner on public portfolios */}
+      {isPublicRoute && diploma?.public_consent_info?.opted_in && (
+        <PublicNoticeBanner
+          studentName={getStudentName()}
+          withParentApproval={diploma?.public_consent_info?.with_parent_approval}
+          consentDate={diploma?.public_consent_info?.consent_given_at}
+        />
+      )}
+
       <div className="max-w-7xl mx-auto px-4 py-10">
         {/* Back Button and Share Controls */}
         <div className="flex items-center justify-between mb-6">
@@ -581,25 +658,63 @@ const DiplomaPage = () => {
           {/* Share Controls and Privacy Settings */}
           {isOwner && (
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              <button
-                onClick={() => navigate('/settings')}
-                className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900 transition-colors flex items-center justify-center gap-2 text-sm min-h-[44px]"
-                title="Manage your privacy settings"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                Privacy Settings
-              </button>
-              <button
-                onClick={copyShareLink}
-                className="px-4 py-2 rounded-lg bg-gradient-primary text-white hover:shadow-lg transition-shadow flex items-center justify-center gap-2 text-sm min-h-[44px]"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92zM18 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM6 13c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm12 7.02c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/>
-                </svg>
-                Share Portfolio
-              </button>
+              {/* Privacy Toggle */}
+              <div className="flex items-center gap-3">
+                {visibilityStatus?.pending_parent_approval ? (
+                  <div className="px-4 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 flex items-center gap-2 text-sm min-h-[44px]">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Awaiting Parent Approval
+                  </div>
+                ) : visibilityStatus?.parent_approval_denied ? (
+                  <div className="px-4 py-2 rounded-lg bg-red-50 border border-red-200 text-red-800 flex items-center gap-2 text-sm min-h-[44px]">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Request Denied
+                  </div>
+                ) : (
+                  <button
+                    onClick={handlePrivacyToggle}
+                    disabled={privacyLoading}
+                    className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm min-h-[44px] transition-colors ${
+                      visibilityStatus?.is_public
+                        ? 'bg-green-100 hover:bg-green-200 text-green-800'
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    } ${privacyLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={visibilityStatus?.is_public ? 'Your portfolio is public' : 'Your portfolio is private'}
+                  >
+                    {privacyLoading ? (
+                      <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                    ) : visibilityStatus?.is_public ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    )}
+                    {visibilityStatus?.is_public ? 'Public' : 'Private'}
+                  </button>
+                )}
+              </div>
+              {/* Share button - only show if public */}
+              {visibilityStatus?.is_public && (
+                <button
+                  onClick={copyShareLink}
+                  className="px-4 py-2 rounded-lg bg-gradient-primary text-white hover:shadow-lg transition-shadow flex items-center justify-center gap-2 text-sm min-h-[44px]"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92zM18 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM6 13c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm12 7.02c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/>
+                  </svg>
+                  Share Portfolio
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -700,6 +815,16 @@ const DiplomaPage = () => {
         <AccreditedDiplomaModal
           isOpen={showAccreditedDiplomaModal}
           onClose={() => setShowAccreditedDiplomaModal(false)}
+        />
+
+        {/* FERPA Compliance: Public Consent Modal */}
+        <PublicConsentModal
+          isOpen={showConsentModal}
+          onClose={() => setShowConsentModal(false)}
+          onConfirm={handleConsentConfirm}
+          isMinor={visibilityStatus?.is_minor}
+          parentName={visibilityStatus?.parent_info?.first_name || 'your parent or guardian'}
+          loading={privacyLoading}
         />
       </div>
     </div>
