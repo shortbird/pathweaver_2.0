@@ -699,19 +699,35 @@ def token_health():
     """
     Check if current tokens are compatible with server secret.
     Used by frontend to detect token incompatibility after deployments.
+
+    Supports both authentication methods:
+    - Authorization header (Safari/iOS/Firefox)
+    - httpOnly cookies (Chrome and other browsers)
     """
     try:
-        # Check for Authorization header
+        token = None
+        auth_method = None
+
+        # Try Authorization header first (Safari/iOS/Firefox use this)
         auth_header = request.headers.get('Authorization', '')
-        if not auth_header.startswith('Bearer '):
+        if auth_header.startswith('Bearer '):
+            token = auth_header.replace('Bearer ', '')
+            auth_method = 'header'
+
+        # Fall back to httpOnly cookie (Chrome and other browsers use this)
+        if not token:
+            cookie_token = request.cookies.get('access_token')
+            if cookie_token:
+                token = cookie_token
+                auth_method = 'cookie'
+
+        # No token found via either method
+        if not token:
             return jsonify({
                 'compatible': False,
                 'reason': 'No token provided',
                 'authenticated': False
             }), 200
-
-        # Extract token
-        token = auth_header.replace('Bearer ', '')
 
         # Verify token with current and previous keys
         payload = session_manager.verify_access_token(token)
@@ -724,6 +740,7 @@ def token_health():
                 'authenticated': True,
                 'token_version': token_version,
                 'server_version': session_manager.token_version,
+                'auth_method': auth_method,
                 'using_old_key': False
             }), 200
         else:
@@ -732,6 +749,7 @@ def token_health():
                 'compatible': False,
                 'reason': 'Token invalid or expired',
                 'authenticated': False,
+                'auth_method': auth_method,
                 'server_version': session_manager.token_version
             }), 200
 
