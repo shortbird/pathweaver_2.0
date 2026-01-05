@@ -101,13 +101,13 @@ def create_quest_v3_clean(user_id):
 
         # Determine is_active and is_public values based on role
         # Admins can set is_active=True and is_public=True (publish immediately)
-        # Advisors always create drafts (is_active=False, is_public=False)
+        # Advisors create active but private quests (can invite students, but not in public library)
         if user_role == 'superadmin':
             is_active = data.get('is_active', False)
             is_public = data.get('is_public', False)
         else:
-            is_active = False  # Advisors always create unpublished drafts
-            is_public = False  # Advisors create private quests by default
+            is_active = True   # Advisors create active quests (can be enrolled via invitation)
+            is_public = False  # But not public (won't appear in public quest library)
 
         # Create quest record
         quest_data = {

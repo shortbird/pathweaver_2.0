@@ -89,22 +89,7 @@ const NotificationBell = () => {
   }
 
   const getNotificationIcon = (type) => {
-    switch (type) {
-      case 'quest_invitation':
-        return '🎯'
-      case 'announcement':
-        return '📢'
-      case 'badge_earned':
-        return '🏆'
-      case 'task_approved':
-        return '✅'
-      case 'observer_comment':
-        return '💬'
-      case 'parent_approval_required':
-        return '👨‍👩‍👧'
-      default:
-        return '🔔'
-    }
+    return null
   }
 
   return (

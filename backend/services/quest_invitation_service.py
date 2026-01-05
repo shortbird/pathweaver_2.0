@@ -7,6 +7,7 @@ Business logic for quest invitations - advisor/admin inviting students to join s
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from services.base_service import BaseService
+from services.notification_service import NotificationService
 from repositories.quest_invitation_repository import QuestInvitationRepository
 from repositories.user_repository import UserRepository
 from repositories.quest_repository import QuestRepository
@@ -24,9 +25,11 @@ class QuestInvitationService(BaseService):
     def __init__(self):
         super().__init__()
         self.admin_client = get_supabase_admin_client()
-        self.invitation_repo = QuestInvitationRepository(client=self.admin_client)
-        self.user_repo = UserRepository(client=self.admin_client)
-        self.quest_repo = QuestRepository(client=self.admin_client)
+        # Repositories use admin client when user_id is None
+        self.invitation_repo = QuestInvitationRepository()
+        self.user_repo = UserRepository()
+        self.quest_repo = QuestRepository()
+        self.notification_service = NotificationService()
 
     def invite_students_to_quest(
         self,
@@ -70,6 +73,10 @@ class QuestInvitationService(BaseService):
             if not quest:
                 raise NotFoundError(f"Quest {quest_id} not found")
 
+            # Get advisor name for notifications
+            advisor_name = advisor.get('display_name') or advisor.get('email', 'Your advisor')
+            quest_title = quest.get('title', 'Quest')
+
             # Verify all students belong to same org
             invitations = []
             for user_id in user_ids:
@@ -93,6 +100,20 @@ class QuestInvitationService(BaseService):
                 )
 
                 invitations.append(invitation)
+
+                # Send notification to student
+                try:
+                    self.notification_service.notify_quest_invitation(
+                        user_id=user_id,
+                        quest_title=quest_title,
+                        advisor_name=advisor_name,
+                        quest_id=quest_id,
+                        organization_id=organization_id
+                    )
+                    logger.info(f"Sent quest invitation notification to student {user_id[:8]}")
+                except Exception as notif_error:
+                    logger.error(f"Failed to send notification to {user_id}: {notif_error}")
+                    # Don't fail the whole operation if notification fails
 
             logger.info(f"Advisor {advisor_id} created {len(invitations)} quest invitations")
 
@@ -163,8 +184,9 @@ class QuestInvitationService(BaseService):
             enrollment_data = {
                 'user_id': user_id,
                 'quest_id': quest_id,
-                'status': 'in_progress',
-                'started_at': datetime.utcnow().isoformat()
+                'status': 'picked_up',
+                'started_at': datetime.utcnow().isoformat(),
+                'last_picked_up_at': datetime.utcnow().isoformat()
             }
 
             enrollment = self.admin_client.table('user_quests')\

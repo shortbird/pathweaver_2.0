@@ -138,7 +138,7 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <button
           onClick={() => navigate('/advisor/verification')}
           className="bg-white rounded-lg shadow p-6 text-left hover:shadow-lg transition-shadow"
@@ -146,11 +146,27 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Verify Student Work</h3>
-              <p className="text-sm text-gray-500 mt-1">Review and approve subject credits for accreditation</p>
+              <p className="text-sm text-gray-500 mt-1">Review and approve subject credits</p>
             </div>
             <div className="bg-gradient-to-r from-optio-purple to-optio-pink rounded-full p-3">
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/advisor/invitations')}
+          className="bg-white rounded-lg shadow p-6 text-left hover:shadow-lg transition-shadow"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Invite to Quests</h3>
+              <p className="text-sm text-gray-500 mt-1">Assign quests to students</p>
+            </div>
+            <div className="bg-gradient-to-r from-optio-purple to-optio-pink rounded-full p-3">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
             </div>
           </div>
@@ -162,7 +178,7 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Manage Collaborations</h3>
-              <p className="text-sm text-gray-500 mt-1">Assign students to work together on quests</p>
+              <p className="text-sm text-gray-500 mt-1">Assign students to work together</p>
             </div>
             <div className="bg-gradient-to-r from-optio-purple to-optio-pink rounded-full p-3">
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

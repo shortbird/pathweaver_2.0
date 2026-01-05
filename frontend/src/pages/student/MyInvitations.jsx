@@ -19,7 +19,7 @@ const MyInvitations = () => {
   const fetchInvitations = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/quests/invitations');
+      const response = await api.get('/api/students/quest-invitations');
       setInvitations(response.data.invitations || []);
     } catch (error) {
       console.error('Error fetching invitations:', error);
@@ -32,9 +32,7 @@ const MyInvitations = () => {
   const handleAccept = async (invitationId) => {
     try {
       setActionLoading(invitationId);
-      await api.post(`/api/quests/invitations/${invitationId}/respond`, {
-        status: 'accepted'
-      });
+      await api.post(`/api/students/quest-invitations/${invitationId}/accept`, {});
       toast.success('Quest accepted! Visit your quest library to get started.');
       // Remove from list
       setInvitations(prev => prev.filter(inv => inv.id !== invitationId));
@@ -49,9 +47,7 @@ const MyInvitations = () => {
   const handleDecline = async (invitationId) => {
     try {
       setActionLoading(invitationId);
-      await api.post(`/api/quests/invitations/${invitationId}/respond`, {
-        status: 'declined'
-      });
+      await api.post(`/api/students/quest-invitations/${invitationId}/decline`, {});
       toast.success('Invitation declined');
       // Remove from list
       setInvitations(prev => prev.filter(inv => inv.id !== invitationId));

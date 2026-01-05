@@ -44,17 +44,18 @@ class QuestInvitationRepository(BaseRepository):
         """
         try:
             # Check if invitation already exists
+            # DB uses student_id column, not user_id
             existing = self.client.table(self.table_name)\
                 .select('id, status')\
                 .eq('organization_id', organization_id)\
                 .eq('quest_id', quest_id)\
-                .eq('user_id', user_id)\
+                .eq('student_id', user_id)\
                 .execute()
 
             if existing.data and len(existing.data) > 0:
                 # If pending invitation exists, return it
                 if existing.data[0]['status'] == 'pending':
-                    logger.info(f"Pending invitation already exists for user {user_id} to quest {quest_id}")
+                    logger.info(f"Pending invitation already exists for student {user_id} to quest {quest_id}")
                     return self.find_by_id(existing.data[0]['id'])
 
                 # If declined/expired, allow creating new one
@@ -64,11 +65,12 @@ class QuestInvitationRepository(BaseRepository):
                     .eq('id', existing.data[0]['id'])\
                     .execute()
 
+            # DB columns: student_id, advisor_id (not user_id, invited_by)
             data = {
                 'organization_id': organization_id,
                 'quest_id': quest_id,
-                'user_id': user_id,
-                'invited_by': invited_by,
+                'student_id': user_id,
+                'advisor_id': invited_by,
                 'status': 'pending'
             }
 
@@ -92,9 +94,10 @@ class QuestInvitationRepository(BaseRepository):
             List of pending invitations with quest details
         """
         try:
+            # DB uses student_id column
             result = self.client.table(self.table_name)\
-                .select('*, quests(id, title, quest_type, pillar, difficulty, description)')\
-                .eq('user_id', user_id)\
+                .select('*, quests(id, title, big_idea, header_image_url, quest_type)')\
+                .eq('student_id', user_id)\
                 .eq('status', 'pending')\
                 .order('created_at', desc=True)\
                 .execute()
@@ -102,7 +105,7 @@ class QuestInvitationRepository(BaseRepository):
             return result.data or []
 
         except Exception as e:
-            logger.error(f"Error fetching pending invitations for user {user_id}: {e}")
+            logger.error(f"Error fetching pending invitations for student {user_id}: {e}")
             return []
 
     def get_invitations_by_organization(
@@ -123,8 +126,9 @@ class QuestInvitationRepository(BaseRepository):
             List of invitations
         """
         try:
+            # DB uses student_id FK to users
             query = self.client.table(self.table_name)\
-                .select('*, quests(title), users!quest_invitations_user_id_fkey(email, display_name)')\
+                .select('*, quests(title), users!quest_invitations_student_id_fkey(email, display_name)')\
                 .eq('organization_id', organization_id)
 
             if status:
@@ -147,7 +151,7 @@ class QuestInvitationRepository(BaseRepository):
 
         Args:
             invitation_id: Invitation ID
-            user_id: User ID (must match invitation user_id)
+            user_id: User ID (must match invitation student_id)
 
         Returns:
             Updated invitation
@@ -163,16 +167,16 @@ class QuestInvitationRepository(BaseRepository):
             if not invitation:
                 raise NotFoundError(f"Invitation {invitation_id} not found")
 
-            if invitation['user_id'] != user_id:
+            # DB uses student_id column
+            if invitation['student_id'] != user_id:
                 raise ValidationError("Invitation does not belong to this user")
 
             if invitation['status'] != 'pending':
                 raise ValidationError(f"Invitation already {invitation['status']}")
 
-            # Update status
+            # Update status (responded_at is set by trigger)
             data = {
-                'status': 'accepted',
-                'accepted_at': datetime.utcnow().isoformat()
+                'status': 'accepted'
             }
 
             return self.update(invitation_id, data)
@@ -187,7 +191,7 @@ class QuestInvitationRepository(BaseRepository):
 
         Args:
             invitation_id: Invitation ID
-            user_id: User ID (must match invitation user_id)
+            user_id: User ID (must match invitation student_id)
 
         Returns:
             Updated invitation
@@ -203,13 +207,14 @@ class QuestInvitationRepository(BaseRepository):
             if not invitation:
                 raise NotFoundError(f"Invitation {invitation_id} not found")
 
-            if invitation['user_id'] != user_id:
+            # DB uses student_id column
+            if invitation['student_id'] != user_id:
                 raise ValidationError("Invitation does not belong to this user")
 
             if invitation['status'] != 'pending':
                 raise ValidationError(f"Invitation already {invitation['status']}")
 
-            # Update status
+            # Update status (responded_at is set by trigger)
             data = {'status': 'declined'}
 
             return self.update(invitation_id, data)

@@ -402,6 +402,85 @@ def get_student_quests_with_tasks(user_id, student_id):
 
 # ==================== Quest Invitations ====================
 
+@advisor_bp.route('/invitable-quests', methods=['GET'])
+@require_role('advisor', 'org_admin', 'superadmin')
+def get_invitable_quests(user_id):
+    """
+    Get quests that this advisor can invite students to.
+    Returns:
+    - Advisor's own created quests (even if inactive/private)
+    - Public active quests visible to their organization
+    """
+    try:
+        from database import get_supabase_admin_client
+        admin = get_supabase_admin_client()
+
+        # Get advisor's organization
+        user_response = admin.table('users')\
+            .select('organization_id')\
+            .eq('id', user_id)\
+            .single()\
+            .execute()
+
+        if not user_response.data:
+            return jsonify({
+                'success': False,
+                'error': 'User not found'
+            }), 404
+
+        org_id = user_response.data.get('organization_id')
+
+        # Get advisor's own created quests (any status)
+        my_quests_query = admin.table('quests')\
+            .select('id, title, description, big_idea, header_image_url, is_active, is_public, created_by, organization_id, created_at')\
+            .eq('created_by', user_id)\
+            .order('created_at', desc=True)
+
+        my_quests_response = my_quests_query.execute()
+        my_quests = my_quests_response.data or []
+
+        # Mark these as "my_quest" for frontend grouping
+        for quest in my_quests:
+            quest['is_my_quest'] = True
+
+        # Get public active quests visible to the organization
+        library_query = admin.table('quests')\
+            .select('id, title, description, big_idea, header_image_url, is_active, is_public, created_by, organization_id, created_at')\
+            .eq('is_active', True)\
+            .eq('is_public', True)\
+            .neq('created_by', user_id)  # Exclude advisor's own quests (already in my_quests)
+
+        # Filter by organization visibility
+        if org_id:
+            # Global quests (no org) + organization's quests
+            library_query = library_query.or_(f'organization_id.is.null,organization_id.eq.{org_id}')
+        else:
+            # No organization - only global quests
+            library_query = library_query.is_('organization_id', 'null')
+
+        library_query = library_query.order('created_at', desc=True).limit(100)
+        library_response = library_query.execute()
+        library_quests = library_response.data or []
+
+        # Mark these as library quests
+        for quest in library_quests:
+            quest['is_my_quest'] = False
+
+        return jsonify({
+            'success': True,
+            'my_quests': my_quests,
+            'library_quests': library_quests,
+            'total': len(my_quests) + len(library_quests)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching invitable quests: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch quests'
+        }), 500
+
+
 @advisor_bp.route('/invite-to-quest', methods=['POST'])
 @require_role('advisor', 'org_admin', 'superadmin')
 def invite_students_to_quest(user_id):

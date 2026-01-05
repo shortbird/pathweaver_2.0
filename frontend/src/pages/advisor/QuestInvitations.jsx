@@ -6,7 +6,8 @@ import toast from 'react-hot-toast';
 
 const QuestInvitations = () => {
   const { user } = useAuth();
-  const [quests, setQuests] = useState([]);
+  const [myQuests, setMyQuests] = useState([]);
+  const [libraryQuests, setLibraryQuests] = useState([]);
   const [students, setStudents] = useState([]);
   const [selectedQuest, setSelectedQuest] = useState(null);
   const [selectedStudents, setSelectedStudents] = useState([]);
@@ -14,6 +15,7 @@ const QuestInvitations = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [sentInvitations, setSentInvitations] = useState([]);
+  const [activeTab, setActiveTab] = useState('my'); // 'my' or 'library'
 
   useEffect(() => {
     fetchData();
@@ -23,10 +25,11 @@ const QuestInvitations = () => {
     try {
       setLoading(true);
       const [questsRes, studentsRes] = await Promise.all([
-        api.get('/api/quests'),
+        api.get('/api/advisor/invitable-quests'),
         api.get('/api/advisor/students')
       ]);
-      setQuests(questsRes.data.quests || []);
+      setMyQuests(questsRes.data.my_quests || []);
+      setLibraryQuests(questsRes.data.library_quests || []);
       setStudents(studentsRes.data.students || []);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -52,6 +55,9 @@ const QuestInvitations = () => {
     }
   };
 
+  // Get current quests based on active tab
+  const currentQuests = activeTab === 'my' ? myQuests : libraryQuests;
+
   const handleSendInvitations = async () => {
     if (!selectedQuest) {
       toast.error('Please select a quest');
@@ -64,12 +70,13 @@ const QuestInvitations = () => {
 
     try {
       setSubmitting(true);
-      await api.post(`/api/quests/${selectedQuest}/invite`, {
-        student_ids: selectedStudents,
-        invitation_message: invitationMessage.trim() || null
+      await api.post('/api/advisor/invite-to-quest', {
+        quest_id: selectedQuest,
+        user_ids: selectedStudents
       });
 
-      const questTitle = quests.find(q => q.id === selectedQuest)?.title;
+      const allQuests = [...myQuests, ...libraryQuests];
+      const questTitle = allQuests.find(q => q.id === selectedQuest)?.title;
       toast.success(
         `Invited ${selectedStudents.length} student${selectedStudents.length > 1 ? 's' : ''} to "${questTitle}"`
       );
@@ -128,13 +135,39 @@ const QuestInvitations = () => {
               <CardTitle className="text-white">1. Select Quest</CardTitle>
             </CardHeader>
             <CardBody>
+              {/* Tabs for My Quests vs Library */}
+              <div className="flex border-b border-gray-200 mb-4">
+                <button
+                  onClick={() => { setActiveTab('my'); setSelectedQuest(null); }}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'my'
+                      ? 'border-optio-purple text-optio-purple'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  My Quests ({myQuests.length})
+                </button>
+                <button
+                  onClick={() => { setActiveTab('library'); setSelectedQuest(null); }}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'library'
+                      ? 'border-optio-purple text-optio-purple'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Quest Library ({libraryQuests.length})
+                </button>
+              </div>
+
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {quests.length === 0 ? (
+                {currentQuests.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">
-                    No quests available to invite students to
+                    {activeTab === 'my'
+                      ? 'You haven\'t created any quests yet. Create a quest first to invite students.'
+                      : 'No public quests available in the library.'}
                   </p>
                 ) : (
-                  quests.map((quest) => (
+                  currentQuests.map((quest) => (
                     <div
                       key={quest.id}
                       onClick={() => setSelectedQuest(quest.id)}
@@ -149,10 +182,15 @@ const QuestInvitations = () => {
                           <h3 className="font-semibold text-gray-900 mb-1">
                             {quest.title}
                           </h3>
-                          {quest.description && (
+                          {(quest.description || quest.big_idea) && (
                             <p className="text-sm text-gray-600 line-clamp-2">
-                              {quest.description}
+                              {quest.description || quest.big_idea}
                             </p>
+                          )}
+                          {activeTab === 'my' && !quest.is_active && (
+                            <span className="inline-block mt-1 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded">
+                              Draft
+                            </span>
                           )}
                         </div>
                         {selectedQuest === quest.id && (
