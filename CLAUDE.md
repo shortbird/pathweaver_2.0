@@ -179,7 +179,7 @@ organizations            - id, name, slug, quest_visibility_policy, is_active
 ```
 
 ### Deleted Tables (Don't Query)
-`quest_collaborations`, `task_collaborations`, `subscription_tiers`
+`task_collaborations`, `subscription_tiers`
 
 ### Schema Check Pattern
 ```sql

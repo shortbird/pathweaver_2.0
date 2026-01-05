@@ -114,6 +114,10 @@ class QuestOptimizationService(BaseService):
             for task in tasks.data or []:
                 task_to_enrollment[task['id']] = task['user_quest_id']
 
+            # Early return if no tasks found - avoids invalid UUID query
+            if not task_to_enrollment:
+                return {}
+
             # Step 2: Get all completions for this user
             completions = self.supabase.table('quest_task_completions')\
                 .select('user_quest_task_id')\
