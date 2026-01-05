@@ -262,7 +262,24 @@ class AuthService {
     try {
       logger.debug('[AuthService] Processing Google OAuth callback')
 
-      // Get session from Supabase (set via URL hash after redirect)
+      // First, try to get tokens from URL hash (Supabase puts them there after OAuth redirect)
+      const hashParams = new URLSearchParams(window.location.hash.substring(1))
+      let accessToken = hashParams.get('access_token')
+      let refreshToken = hashParams.get('refresh_token')
+
+      // If tokens are in hash, set the session first
+      if (accessToken) {
+        logger.debug('[AuthService] Found tokens in URL hash, setting session')
+        const { error: setSessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        })
+        if (setSessionError) {
+          logger.error('[AuthService] Failed to set session from hash:', setSessionError)
+        }
+      }
+
+      // Now get the session (should be set now)
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
       if (sessionError) {
@@ -270,15 +287,19 @@ class AuthService {
         return { success: false, error: 'Failed to complete Google sign-in' }
       }
 
-      if (!session) {
+      // Use tokens from session, or fallback to hash params
+      if (!session && !accessToken) {
         logger.error('[AuthService] No session found after OAuth callback')
         return { success: false, error: 'No authentication session found' }
       }
 
+      const finalAccessToken = session?.access_token || accessToken
+      const finalRefreshToken = session?.refresh_token || refreshToken
+
       // Exchange Supabase token for our app session
       const response = await api.post('/api/auth/google/callback', {
-        access_token: session.access_token,
-        refresh_token: session.refresh_token
+        access_token: finalAccessToken,
+        refresh_token: finalRefreshToken
       })
 
       // Check if TOS acceptance is required (new users)
