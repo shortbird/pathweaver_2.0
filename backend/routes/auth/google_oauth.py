@@ -272,27 +272,46 @@ def google_oauth_callback():
                 'last_active': datetime.utcnow().isoformat()
             }
 
-            try:
-                result = admin_client.table('users').insert(user_data).execute()
-                user_data = result.data[0] if result.data else user_data
+            # Retry logic for FK constraint errors (auth user may not be immediately visible)
+            import time
+            max_retries = 3
+            retry_delay = 0.5  # seconds
+            profile_created = False
 
-                # Initialize diploma and skills for new user
-                ensure_user_diploma_and_skills(admin_client, user_id, first_name, last_name)
+            for attempt in range(max_retries):
+                try:
+                    result = admin_client.table('users').insert(user_data).execute()
+                    user_data = result.data[0] if result.data else user_data
+                    profile_created = True
 
-                logger.info(f"[GOOGLE_OAUTH] New user created (pending TOS): {mask_user_id(user_id)}")
+                    # Initialize diploma and skills for new user
+                    ensure_user_diploma_and_skills(admin_client, user_id, first_name, last_name)
 
-            except Exception as insert_error:
-                error_str = str(insert_error).lower()
-                if 'duplicate' in error_str or '23505' in error_str:
-                    # Race condition - user was created by another request
-                    existing = admin_client.table('users').select('*').eq('id', user_id).single().execute()
-                    user_data = existing.data if existing.data else user_data
-                    # Check if TOS already accepted (e.g., from race condition)
-                    if user_data.get('tos_accepted_at'):
-                        requires_tos_acceptance = False
-                else:
-                    logger.error(f"[GOOGLE_OAUTH] Failed to create user profile: {insert_error}")
-                    raise
+                    logger.info(f"[GOOGLE_OAUTH] New user created (pending TOS): {mask_user_id(user_id)}")
+                    break
+
+                except Exception as insert_error:
+                    error_str = str(insert_error).lower()
+                    if 'duplicate' in error_str or '23505' in error_str:
+                        # Race condition - user was created by another request
+                        existing = admin_client.table('users').select('*').eq('id', user_id).single().execute()
+                        user_data = existing.data if existing.data else user_data
+                        profile_created = True
+                        # Check if TOS already accepted (e.g., from race condition)
+                        if user_data.get('tos_accepted_at'):
+                            requires_tos_acceptance = False
+                        break
+                    elif ('foreign key' in error_str or '23503' in error_str) and attempt < max_retries - 1:
+                        # FK constraint error - auth user may not be visible yet, retry
+                        logger.warning(f"[GOOGLE_OAUTH] Profile creation FK error, retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        logger.error(f"[GOOGLE_OAUTH] Failed to create user profile: {insert_error}")
+                        raise
+
+            if not profile_created:
+                raise Exception("Failed to create user profile after retries")
 
         # For new users requiring TOS, return early with TOS acceptance token
         if requires_tos_acceptance:

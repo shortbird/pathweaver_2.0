@@ -275,17 +275,34 @@ def register():
                 logger.info(f"[REGISTRATION] Assigning user to default Optio organization")
 
             # Use upsert to handle cases where auth user exists but profile doesn't
-            try:
-                supabase.table('users').upsert(user_data, on_conflict='id').execute()
-            except Exception as profile_error:
-                # If we can't create the profile, check if it's a constraint issue
-                error_str = str(profile_error).lower()
-                if 'foreign key' in error_str or 'constraint' in error_str:
-                    logger.error(f"Profile creation failed with constraint error: {profile_error}")
-                    # Don't fail the registration - the auth user was created
-                else:
-                    # Re-raise other errors
-                    raise
+            # Retry logic for FK constraint errors (auth user may not be immediately visible)
+            import time
+            max_retries = 3
+            retry_delay = 0.5  # seconds
+            profile_created = False
+
+            for attempt in range(max_retries):
+                try:
+                    supabase.table('users').upsert(user_data, on_conflict='id').execute()
+                    profile_created = True
+                    break
+                except Exception as profile_error:
+                    error_str = str(profile_error).lower()
+                    if ('foreign key' in error_str or '23503' in error_str) and attempt < max_retries - 1:
+                        # FK constraint error - auth user may not be visible yet, retry
+                        logger.warning(f"[REGISTRATION] Profile creation FK error, retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    elif 'foreign key' in error_str or '23503' in error_str:
+                        # Final attempt failed - auth user doesn't exist
+                        logger.error(f"Profile creation failed after {max_retries} attempts: {profile_error}")
+                        raise ValidationError("Registration failed. Please try again in a few moments.")
+                    else:
+                        # Re-raise other errors
+                        raise
+
+            if not profile_created:
+                raise ValidationError("Failed to create user profile. Please try again.")
 
             # Ensure diploma and skills are initialized (backup to database trigger)
             ensure_user_diploma_and_skills(supabase, auth_response.user.id, sanitized_first_name, sanitized_last_name)
@@ -406,8 +423,8 @@ def resend_verification():
 
         supabase = get_supabase_client()
 
-        # Check if user exists and is not already verified
-        user_check = supabase.table('users').select('id, email_verified').eq('email', email).execute()
+        # Check if user exists in our users table
+        user_check = supabase.table('users').select('id').eq('email', email).execute()
 
         if not user_check.data:
             # Don't reveal if user doesn't exist for security
@@ -415,14 +432,8 @@ def resend_verification():
             # TODO: Migrate to standardized format after updating frontend
             return jsonify({'message': 'If this email is registered, a verification email has been sent'}), 200
 
-        user = user_check.data[0]
-
-        if user.get('email_verified'):
-            return error_response(
-                code='EMAIL_ALREADY_VERIFIED',
-                message='Email is already verified',
-                status=400
-            )
+        # Note: email_verified is tracked in auth.users, not public.users
+        # Supabase handles verification status internally
 
         # Resend verification email using Supabase Auth
         try:
