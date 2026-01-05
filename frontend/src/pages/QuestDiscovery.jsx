@@ -440,8 +440,9 @@ const QuestDiscovery = () => {
       {/* Create Quest Modal */}
       {showCreateModal && (
         <CreateQuestModal
+          isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
-          onQuestCreated={handleQuestCreated}
+          onSuccess={handleQuestCreated}
         />
       )}
     </div>
