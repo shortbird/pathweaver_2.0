@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { tokenStore } from '../services/api'
 import authService from '../services/authService'
+import { supabase } from '../services/supabaseClient'
 import { useQueryClient } from '@tanstack/react-query'
 import TosConsentModal from '../components/auth/TosConsentModal'
 
@@ -27,6 +28,21 @@ export default function AuthCallback() {
   const [status, setStatus] = useState('processing')
   const [error, setError] = useState(null)
 
+  // CRITICAL: Capture tokens IMMEDIATELY on first render (before Supabase can process/clear them)
+  // This fixes clock skew issues where Supabase rejects tokens "issued in the future"
+  const [capturedTokens] = useState(() => {
+    const hash = window.location.hash.substring(1)
+    if (hash && hash.includes('access_token')) {
+      const params = new URLSearchParams(hash)
+      console.log('[AuthCallback] Captured tokens from hash before Supabase processing')
+      return {
+        accessToken: params.get('access_token'),
+        refreshToken: params.get('refresh_token')
+      }
+    }
+    return null
+  })
+
   // TOS modal state
   const [showTosModal, setShowTosModal] = useState(false)
   const [tosAcceptanceToken, setTosAcceptanceToken] = useState(null)
@@ -39,9 +55,24 @@ export default function AuthCallback() {
 
       // Check if this is a Supabase OAuth callback (Google, etc.)
       // Supabase uses URL hash fragments, not query params
+      // Also check capturedTokens (for clock skew workaround)
       const hashParams = new URLSearchParams(window.location.hash.substring(1))
       const accessToken = hashParams.get('access_token')
-      const isSupabaseOAuth = accessToken || window.location.hash.includes('access_token')
+      const hasHashTokens = accessToken || window.location.hash.includes('access_token') || capturedTokens?.accessToken
+
+      // Also check if Supabase already processed the OAuth callback and has a session
+      // This handles cases where the URL hash was cleared before our code runs
+      let hasSupabaseSession = false
+      if (!hasHashTokens && !code) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          hasSupabaseSession = !!session
+        } catch (e) {
+          // Ignore errors, will fall through to error handling
+        }
+      }
+
+      const isSupabaseOAuth = hasHashTokens || hasSupabaseSession
 
       if (isSupabaseOAuth) {
         // Handle Google OAuth via Supabase
@@ -63,7 +94,8 @@ export default function AuthCallback() {
    */
   const handleGoogleOAuth = async () => {
     try {
-      const result = await authService.handleGoogleCallback()
+      // Pass pre-captured tokens to handle clock skew issues
+      const result = await authService.handleGoogleCallback(capturedTokens)
 
       if (result.success) {
         // Check if TOS acceptance is required (new users)

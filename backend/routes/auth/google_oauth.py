@@ -11,6 +11,7 @@ from flask import Blueprint, request, jsonify, make_response
 from database import get_supabase_admin_client
 from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit
+from middleware.csrf_protection import csrf
 from utils.log_scrubber import mask_email, mask_user_id
 from utils.api_response_v1 import success_response, error_response
 from legal_versions import CURRENT_TOS_VERSION, CURRENT_PRIVACY_POLICY_VERSION
@@ -109,6 +110,7 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
 
 
 @bp.route('/google/callback', methods=['POST'])
+@csrf.exempt  # Uses Supabase token verification instead of CSRF
 @rate_limit(max_requests=10, window_seconds=60)
 def google_oauth_callback():
     """
@@ -124,8 +126,12 @@ def google_oauth_callback():
     Returns:
         - User data with app tokens for session
     """
+    import sys
+    print("[GOOGLE_OAUTH] === CALLBACK STARTED ===", flush=True)
+    sys.stdout.flush()
     try:
         data = request.json
+        print(f"[GOOGLE_OAUTH] Request data keys: {list(data.keys()) if data else 'None'}", flush=True)
 
         if not data:
             return error_response(
@@ -265,7 +271,6 @@ def google_oauth_callback():
                 'email': email,
                 'role': 'student',
                 'organization_id': DEFAULT_OPTIO_ORG_ID,
-                'auth_provider': 'google',
                 'avatar_url': avatar_url,
                 # TOS fields intentionally NOT set - requires explicit acceptance
                 'created_at': datetime.utcnow().isoformat(),
@@ -347,7 +352,11 @@ def google_oauth_callback():
         return response
 
     except Exception as e:
+        import traceback
         logger.error(f"[GOOGLE_OAUTH] Unexpected error: {str(e)}")
+        logger.error(f"[GOOGLE_OAUTH] Traceback: {traceback.format_exc()}")
+        print(f"[GOOGLE_OAUTH] EXCEPTION: {str(e)}")
+        print(f"[GOOGLE_OAUTH] TRACEBACK:\n{traceback.format_exc()}")
         return error_response(
             code='OAUTH_ERROR',
             message='Failed to complete Google sign-in',
@@ -356,6 +365,7 @@ def google_oauth_callback():
 
 
 @bp.route('/google/accept-tos', methods=['POST'])
+@csrf.exempt  # Uses TOS acceptance token verification instead of CSRF
 @rate_limit(max_requests=5, window_seconds=60)
 def accept_tos():
     """

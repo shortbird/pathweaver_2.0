@@ -257,19 +257,33 @@ class AuthService {
    *
    * Called from the /auth/callback page after Google redirects back.
    * Exchanges Supabase token for our app session.
+   *
+   * @param {Object|null} capturedTokens - Pre-captured tokens (workaround for clock skew)
+   * @param {string} capturedTokens.accessToken - Pre-captured access token
+   * @param {string} capturedTokens.refreshToken - Pre-captured refresh token
    */
-  async handleGoogleCallback() {
+  async handleGoogleCallback(capturedTokens = null) {
     try {
       logger.debug('[AuthService] Processing Google OAuth callback')
 
-      // First, try to get tokens from URL hash (Supabase puts them there after OAuth redirect)
-      const hashParams = new URLSearchParams(window.location.hash.substring(1))
-      let accessToken = hashParams.get('access_token')
-      let refreshToken = hashParams.get('refresh_token')
+      // First, try to use pre-captured tokens (fixes clock skew issues where Supabase rejects tokens)
+      let accessToken = capturedTokens?.accessToken
+      let refreshToken = capturedTokens?.refreshToken
 
-      // If tokens are in hash, set the session first
+      // If not captured, try to get tokens from URL hash (Supabase puts them there after OAuth redirect)
+      if (!accessToken) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        accessToken = hashParams.get('access_token')
+        refreshToken = hashParams.get('refresh_token')
+      }
+
+      // Log token source for debugging
+      const tokenSource = capturedTokens?.accessToken ? 'pre-captured' : 'URL hash'
+      logger.debug(`[AuthService] Using tokens from: ${tokenSource}`)
+
+      // If tokens are available, set the session first
       if (accessToken) {
-        logger.debug('[AuthService] Found tokens in URL hash, setting session')
+        logger.debug('[AuthService] Found tokens, setting session')
         const { error: setSessionError } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken
@@ -295,6 +309,9 @@ class AuthService {
 
       const finalAccessToken = session?.access_token || accessToken
       const finalRefreshToken = session?.refresh_token || refreshToken
+
+      console.log('[AuthService] Token sources - hash:', !!accessToken, 'session:', !!session?.access_token)
+      console.log('[AuthService] Final token present:', !!finalAccessToken)
 
       // Exchange Supabase token for our app session
       const response = await api.post('/api/auth/google/callback', {
@@ -346,6 +363,7 @@ class AuthService {
 
     } catch (error) {
       logger.error('[AuthService] Google callback error:', error)
+      console.error('[AuthService] Full error response:', error.response?.data)
       const errorMessage = error.response?.data?.message || 'Failed to complete Google sign-in'
       return { success: false, error: errorMessage }
     }
