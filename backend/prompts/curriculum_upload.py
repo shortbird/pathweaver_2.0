@@ -24,17 +24,49 @@ You are analyzing educational curriculum content to identify its structure.
 
 TASK: Extract the curriculum's organizational structure without modifying content.
 
+CRITICAL: LEARNING OBJECTIVES EXTRACTION
+=========================================
+Learning objectives are HIGH-LEVEL COURSE GOALS, NOT individual units or assignments.
+They describe what students will be able to do by the END of the entire course.
+
+IMPORTANT DISTINCTIONS:
+- Learning objectives = 3-10 high-level course goals (found in syllabus/overview)
+- Modules/Units = Content organization (these are NOT learning objectives)
+- Assignments = Work students complete (these are NOT learning objectives)
+
+WHERE TO FIND LEARNING OBJECTIVES:
+- Course syllabus page (most common location)
+- Course overview or introduction page
+- "About This Course" section
+- A dedicated "Learning Objectives" or "Course Outcomes" section
+
+Learning objectives are typically:
+- A numbered or bulleted list of 3-10 items
+- Broad statements covering the WHOLE course
+- Found in ONE location (not scattered across modules)
+- Phrased as: "Students will be able to..." or "By the end of this course..."
+
+WHAT IS NOT A LEARNING OBJECTIVE:
+- Individual module or unit titles
+- Assignment names or descriptions
+- Lesson topics
+- Weekly schedules
+
+If no explicit learning objectives are found, return an empty array - do NOT
+invent them from module/assignment titles.
+
 IDENTIFY AND EXTRACT:
 
 1. COURSE (top level):
    - title: The course/unit name
    - description: Course overview or summary
-   - objectives: Learning objectives if stated
+   - objectives: ALL learning objectives/outcomes (REQUIRED - extract every single one)
    - duration: Time span if mentioned (weeks, hours, etc.)
 
 2. MODULES (major sections):
    - title: Module/unit name
    - description: Module overview
+   - objectives: Module-specific learning objectives (if any)
    - order: Sequence number
    - parent: null (modules are top-level containers)
 
@@ -66,7 +98,7 @@ RETURN FORMAT:
   "course": {
     "title": "...",
     "description": "...",
-    "objectives": ["..."],
+    "objectives": ["Objective 1: Full text of objective", "Objective 2: Full text", ...],
     "duration": "..."
   },
   "modules": [
@@ -319,73 +351,151 @@ PHILOSOPHY_ALIGNMENT_PROMPT = build_philosophy_alignment_prompt('moderate', True
 # =============================================================================
 
 STEP_GENERATION_PROMPT = """
-You are generating final course content in Optio's step-based lesson format.
+You are generating a complete Optio Course with Projects and Lessons.
 
-IMPORTANT: Only generate course metadata and lessons. Do NOT generate tasks.
-Tasks are created separately by educators in the CourseBuilder.
+OPTIO COURSE STRUCTURE:
+- Course: Container with title, description
+- Projects: ONE PROJECT PER LEARNING OBJECTIVE from the source curriculum
+- Lessons: Just-in-time teaching content for each Project (3-6 lessons per project)
 
-STEP FORMAT (Version 2):
-Each lesson contains steps - focused content blocks delivered just-in-time.
+CRITICAL: LEARNING OBJECTIVES → PROJECTS MAPPING
+=================================================
+Learning objectives are HIGH-LEVEL COURSE GOALS (typically 3-10 items) found in the
+syllabus or course overview. They are NOT modules, units, or assignments.
+
+IF LEARNING OBJECTIVES ARE PROVIDED in course.objectives:
+- Create exactly ONE Project per learning objective
+- 5 objectives → 5 Projects
+- 8 objectives → 8 Projects
+- Each project's source_objective field should contain the original objective text
+
+IF NO LEARNING OBJECTIVES (empty array or missing):
+- Create 4-8 projects based on the content themes/topics
+- Group related modules into logical project themes
+- Leave source_objective as null
+
+REMEMBER: Modules and assignments are NOT learning objectives. Learning objectives
+are broad course-level outcomes, not individual content pieces.
+
+IMPORTANT RULES:
+1. Generate ONE Project per learning objective - each maps directly to an objective
+2. Each Project should be meaningful on its own (will be in public quest library)
+3. Do NOT generate Tasks - educators add those in CourseBuilder
+4. Focus on JUST-IN-TIME TEACHING: brief lessons with just enough info to start applying knowledge
+5. Learning happens through Tasks, not by consuming lesson content
+
+PROJECT DESIGN:
+- Each project maps to ONE learning objective from the source curriculum
+- Project title should reflect the action/skill from the learning objective
+- Project description expands on what students will do to achieve the objective
+- Include: title, description, big_idea (one sentence hook for relevance), source_objective
+- Projects will have Tasks added later by educators
+
+JUST-IN-TIME LESSON DESIGN:
+- Brief, focused content (students learn by DOING, not reading)
+- Provide MINIMUM info needed to start a competent attempt at applying knowledge
+- Each lesson prepares students for Tasks (which they'll create or educators will add)
+- 3-6 lessons per project
+- Each lesson: 3-8 steps maximum
+
+STEP FORMAT (CRITICAL - must match exactly):
+Each step MUST have these fields:
+- "type": "text" | "video" | "file"
+- "title": Short descriptive title (3-6 words)
+- "content": HTML content (use <p>, <ul>, <li>, <strong>, <em> tags)
+
+For "video" type, also include:
+- "video_url": "" (empty string - educator adds later)
+
+For "file" type, also include:
+- "files": [] (empty array - educator adds later)
 
 STEP TYPES:
-1. "text" - Written content (2-5 paragraphs)
-   - Use <p>, <ul>, <li>, <strong>, <em> HTML tags
-   - Clear, conversational tone
-   - One main concept per step
+1. "text" - Brief written content (1-3 paragraphs)
+   - Use <p> tags for paragraphs, <ul><li> for lists
+   - Use <strong> for bold, <em> for italics
+   - ONE main idea per step
+   - Keep it brief - just enough to start doing
 
 2. "video" - Video placeholder
-   - Include suggested search terms for finding relevant videos
-   - Leave video_url empty for educator to fill
-   - Keep description focused on what to look for in the video
+   - Set video_url to "" (empty string)
+   - In content, suggest what type of video would help
+   - Include search terms the educator could use
 
-3. "file" - Resource/attachment placeholder
-   - Describe what resources would be helpful
-   - Leave files array empty for educator to add
-   - Suggest types of resources (templates, examples, tools)
-
-STEP DESIGN GUIDELINES:
-- Maximum 8-12 steps per lesson
-- Each step: ONE main idea (don't overload)
-- Text steps: 100-300 words each
-- Place video/file suggestions at strategic moments
-- End lessons with a "What's Next" or transition step
+3. "file" - Resource placeholder
+   - Set files to [] (empty array)
+   - In content, describe helpful resources (templates, worksheets, tools)
 
 RETURN FORMAT:
 {
-  "quest": {
+  "course": {
     "title": "...",
-    "description": "...",
-    "big_idea": "...",
-    "pillar_primary": "stem|wellness|communication|civics|art"
+    "description": "..."
   },
-  "lessons": [
+  "projects": [
     {
-      "title": "...",
-      "description": "...",
+      "title": "Descriptive Quest Title",
+      "description": "What students will explore/create in this project...",
+      "big_idea": "One sentence hook for why this matters NOW",
+      "source_objective": "The original learning objective this project addresses",
       "order": 0,
-      "steps": [
+      "lessons": [
         {
-          "id": "step_abc123",
-          "type": "text",
-          "title": "Why This Matters",
-          "content": "<p>HTML content here...</p>",
-          "order": 0
-        },
-        {
-          "id": "step_def456",
-          "type": "video",
-          "title": "Watch: Key Concept",
-          "content": "<p>Look for how the presenter explains...</p>",
-          "video_url": "",
-          "order": 1
+          "title": "Lesson Title",
+          "description": "What this lesson covers",
+          "order": 0,
+          "steps": [
+            {
+              "id": "step_abc123",
+              "type": "text",
+              "title": "Getting Started",
+              "content": "<p>Brief intro content...</p>",
+              "order": 0
+            }
+          ]
         }
       ]
+    },
+    {
+      "title": "Another Descriptive Quest Title",
+      "description": "...",
+      "big_idea": "...",
+      "source_objective": "Another learning objective from the source",
+      "order": 1,
+      "lessons": [...]
     }
   ]
 }
 
-Generate IDs using format: step_[random 6 chars]
-Ensure all content aligns with Optio philosophy - celebrate process, not outcomes.
+PROJECT NAMING:
+- Start with ACTION VERBS: Create, Build, Design, Explore, Program, Draw, Animate, Record, Write, Compose, etc.
+- Format like: "Create a Digital Portfolio", "Build a Simple Robot", "Design a Logo", "Program a Game"
+- NOT "Topic: Subtopic" format (e.g., NOT "3D Modeling: Basic Shapes")
+- NOT "Introduction to X" or "Learning About X"
+- These are quests - they should sound like achievable goals/projects
+- Examples: "Draw a Self-Portrait", "Run a 5K", "Build a Birdhouse", "Record a Podcast Episode"
+
+DESCRIPTION STYLE:
+- Do NOT use "students will learn...", "you will learn...", "learners will...", etc.
+- Do NOT use "In this project...", "This quest teaches...", etc.
+- Do NOT describe what will be learned or how users interact with material
+- DO describe the content, principles, and concepts as simple overviews
+- Write in neutral, present-tense descriptive language
+- BAD: "Students will learn to create and manipulate basic geometric shapes."
+- BAD: "In this project, you will explore the fundamentals of 3D modeling."
+- GOOD: "Basic geometric shapes and how they form the foundation for complex 3D designs."
+- BAD: "Learners will discover how plants convert sunlight into energy."
+- GOOD: "How plants convert sunlight into energy through photosynthesis."
+
+REMEMBER:
+- Generate ONE project per learning objective (match count exactly)
+- Include source_objective field to trace back to original curriculum
+- 3-6 lessons per project
+- 3-8 steps per lesson
+- Keep content BRIEF - just enough to start doing
+- Generate step IDs using format: step_[random 6 chars]
+- Align with Optio philosophy: "The Process Is The Goal"
+- If no learning objectives provided, fall back to 4-8 projects based on modules/topics
 """
 
 

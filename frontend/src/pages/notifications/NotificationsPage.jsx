@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { BellIcon, CheckIcon } from '@heroicons/react/24/outline'
+import { BellIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'react-hot-toast'
@@ -64,6 +64,22 @@ const NotificationsPage = () => {
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error)
       toast.error('Failed to mark all as read')
+    }
+  }
+
+  const dismissNotification = async (notificationId) => {
+    const notification = notifications.find(n => n.id === notificationId)
+    // Optimistic update - remove immediately
+    setNotifications(prev => prev.filter(n => n.id !== notificationId))
+    try {
+      await api.delete(`/api/notifications/${notificationId}`)
+    } catch (error) {
+      // Restore on failure
+      console.error('Failed to dismiss notification:', error)
+      toast.error('Failed to dismiss notification')
+      setNotifications(prev => [...prev, notification].sort((a, b) =>
+        new Date(b.created_at) - new Date(a.created_at)
+      ))
     }
   }
 
@@ -199,6 +215,13 @@ const NotificationsPage = () => {
                           <CheckIcon className="h-4 w-4" />
                         </button>
                       )}
+                      <button
+                        onClick={() => dismissNotification(notification.id)}
+                        className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                        title="Dismiss notification"
+                      >
+                        <XMarkIcon className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
                 </div>

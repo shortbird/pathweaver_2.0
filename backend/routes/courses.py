@@ -365,7 +365,17 @@ def upload_course_cover_image(user_id, course_id: str):
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
 
-        result = upload_service.upload_course_cover(file=file, course_id=course_id)
+        # Read file data and extract metadata
+        file_data = file.read()
+        filename = file.filename
+        content_type = file.content_type or 'application/octet-stream'
+
+        result = upload_service.upload_course_cover(
+            file_data=file_data,
+            filename=filename,
+            content_type=content_type,
+            course_id=course_id
+        )
 
         if not result.success:
             return jsonify({'error': result.error_message}), 400

@@ -5,6 +5,7 @@ export { default as SortableLessonItem } from './SortableLessonItem'
 export { default as AddQuestModal } from './AddQuestModal'
 export { default as LessonEditorModal } from './LessonEditorModal'
 export { default as CourseDetailsModal } from './CourseDetailsModal'
+export { default as BulkTaskGenerationModal } from './BulkTaskGenerationModal'
 
 // Course Display Components
 export { default as CourseCard } from './CourseCard'

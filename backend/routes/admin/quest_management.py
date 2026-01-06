@@ -148,6 +148,79 @@ def create_quest_v3_clean(user_id):
             'error': f'Failed to create quest: {str(e)}'
         }), 500
 
+
+@bp.route('/quests/bulk-delete', methods=['POST'])
+@require_admin
+def bulk_delete_quests(user_id):
+    """
+    Delete multiple quests at once (superadmin only).
+
+    Request body:
+    {
+        "quest_ids": ["id1", "id2", ...]
+    }
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        data = request.json
+        quest_ids = data.get('quest_ids', [])
+
+        if not quest_ids:
+            return jsonify({'success': False, 'error': 'No quest IDs provided'}), 400
+
+        if len(quest_ids) > 100:
+            return jsonify({'success': False, 'error': 'Cannot delete more than 100 quests at once'}), 400
+
+        # Verify user is superadmin
+        user = supabase.table('users').select('role').eq('id', user_id).execute()
+        user_role = user.data[0].get('role') if user.data else None
+
+        if user_role != 'superadmin':
+            return jsonify({'success': False, 'error': 'Only superadmin can bulk delete quests'}), 403
+
+        # Verify all quests exist
+        quests = supabase.table('quests').select('id, title').in_('id', quest_ids).execute()
+        found_ids = {q['id'] for q in quests.data}
+        missing_ids = set(quest_ids) - found_ids
+
+        if missing_ids:
+            return jsonify({
+                'success': False,
+                'error': f'Some quests not found: {list(missing_ids)[:5]}'
+            }), 404
+
+        deleted_count = 0
+        failed = []
+
+        for quest_id in quest_ids:
+            try:
+                # Delete related data in order (same as single delete)
+                supabase.table('quest_task_completions').delete().eq('quest_id', quest_id).execute()
+                supabase.table('user_task_evidence_documents').delete().eq('quest_id', quest_id).execute()
+                supabase.table('user_quest_tasks').delete().eq('quest_id', quest_id).execute()
+                supabase.table('user_quests').delete().eq('quest_id', quest_id).execute()
+                supabase.table('quests').delete().eq('id', quest_id).execute()
+                deleted_count += 1
+            except Exception as e:
+                logger.error(f"Error deleting quest {quest_id}: {str(e)}")
+                failed.append({'id': quest_id, 'error': str(e)})
+
+        return jsonify({
+            'success': True,
+            'message': f'Deleted {deleted_count} quests',
+            'deleted_count': deleted_count,
+            'failed': failed
+        })
+
+    except Exception as e:
+        logger.error(f"Error in bulk delete: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to delete quests: {str(e)}'
+        }), 500
+
+
 @bp.route('/quests/<quest_id>', methods=['PUT'])
 @require_advisor
 def update_quest(user_id, quest_id):

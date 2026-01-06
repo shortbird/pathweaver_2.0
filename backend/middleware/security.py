@@ -57,8 +57,8 @@ class SecurityMiddleware:
         # Generate CSP nonce for this request
         g.csp_nonce = secrets.token_urlsafe(16)
 
-        # Validate request size (11MB to account for image + form data overhead)
-        if request.content_length and request.content_length > 11 * 1024 * 1024:  # 11MB max
+        # Validate request size (100MB to match frontend upload limit)
+        if request.content_length and request.content_length > 100 * 1024 * 1024:  # 100MB max
             abort(413, description="Request payload too large")
         
         # Validate content type for POST/PUT/PATCH requests

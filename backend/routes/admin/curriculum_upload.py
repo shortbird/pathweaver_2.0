@@ -97,28 +97,23 @@ def _process_curriculum_in_context(
 ):
     """
     Actual processing logic, runs within Flask app context.
+    Uses the new process_upload_with_tracking for checkpoint/progress support.
     """
     try:
-        supabase = get_supabase_admin_client()
-
         logger.info(f"Background processing started for upload {upload_id}")
 
-        # Run the AI pipeline
-        result = get_curriculum_service().process_upload(
+        # Run the AI pipeline with tracking
+        result = get_curriculum_service().process_upload_with_tracking(
+            upload_id=upload_id,
             source_type=source_type,
             content=content,
             filename=filename,
-            options=options
+            options=options,
+            resume_from=1
         )
 
         if not result.get('success'):
-            # Update record with error
-            supabase.table('curriculum_uploads').update({
-                'status': 'error',
-                'error_message': result.get('error', 'Processing failed')
-            }).eq('id', upload_id).execute()
-
-            # Notify user of failure
+            # Notify user of failure (error already marked in service)
             get_notification_service().create_notification(
                 user_id=user_id,
                 notification_type='system_alert',
@@ -131,109 +126,10 @@ def _process_curriculum_in_context(
             logger.error(f"Background processing failed for upload {upload_id}: {result.get('error')}")
             return
 
-        # Extract course and lesson data
-        preview = result.get('preview', {})
-        course_data = preview.get('course', {})
-        lessons_data = preview.get('lessons', [])
+        # Finalize: create course and send notification
+        _finalize_curriculum_upload(upload_id, user_id, organization_id, result)
 
-        # Step 1: Create the course record in 'courses' table
-        course_insert = {
-            'title': course_data.get('title', 'Untitled Course'),
-            'description': course_data.get('description', ''),
-            'status': 'draft',  # Draft - not visible to others
-            'visibility': 'organization',
-            'navigation_mode': 'sequential',
-            'created_by': user_id,
-            'organization_id': organization_id
-        }
-
-        course_result = supabase.table('courses').insert(course_insert).execute()
-
-        if not course_result.data:
-            raise Exception("Failed to create course")
-
-        course_id = course_result.data[0]['id']
-        logger.info(f"Created draft course {course_id}: {course_data.get('title')}")
-
-        # Step 2: Create a quest to hold the lessons
-        quest_insert = {
-            'title': course_data.get('title', 'Untitled Course'),
-            'description': course_data.get('description', ''),
-            'big_idea': course_data.get('big_idea', ''),
-            'quest_type': 'course',
-            'is_active': False,  # Draft
-            'is_public': False,
-            'created_by': user_id,
-            'organization_id': organization_id
-        }
-
-        quest_result = supabase.table('quests').insert(quest_insert).execute()
-
-        if not quest_result.data:
-            raise Exception("Failed to create quest")
-
-        quest_id = quest_result.data[0]['id']
-        logger.info(f"Created quest {quest_id} for course {course_id}")
-
-        # Step 3: Link the quest to the course via course_quests
-        course_quest_insert = {
-            'course_id': course_id,
-            'quest_id': quest_id,
-            'sequence_order': 0,
-            'is_required': True,
-            'is_published': False
-        }
-
-        supabase.table('course_quests').insert(course_quest_insert).execute()
-        logger.info(f"Linked quest {quest_id} to course {course_id}")
-
-        # Step 4: Create curriculum lessons linked to the quest
-        if lessons_data:
-            for i, lesson in enumerate(lessons_data):
-                lesson_insert = {
-                    'quest_id': quest_id,
-                    'title': lesson.get('title', f'Lesson {i+1}'),
-                    'description': lesson.get('description', ''),
-                    'content': lesson.get('curriculum_content', {'version': 2, 'steps': []}),
-                    'sequence_order': lesson.get('order_index', i),
-                    'is_published': False,
-                    'is_required': True,
-                    'organization_id': organization_id,
-                    'created_by': user_id
-                }
-                supabase.table('curriculum_lessons').insert(lesson_insert).execute()
-
-            logger.info(f"Created {len(lessons_data)} lessons for quest {quest_id}")
-
-        # Update upload record with success
-        supabase.table('curriculum_uploads').update({
-            'status': 'approved',
-            'created_quest_id': quest_id,  # Keep for backward compatibility
-            'generated_content': preview,
-            'raw_content': result.get('stages', {}).get('parse', {}),
-            'structured_content': result.get('stages', {}).get('structure', {}),
-            'aligned_content': result.get('stages', {}).get('alignment', {}),
-            'reviewed_by': user_id,
-            'reviewed_at': 'now()'
-        }).eq('id', upload_id).execute()
-
-        # Send success notification with link to CourseBuilder
-        get_notification_service().create_notification(
-            user_id=user_id,
-            notification_type='system_alert',
-            title='Curriculum Ready',
-            message=f'"{course_data.get("title", "Your course")}" is ready to edit. {len(lessons_data)} lessons created.',
-            link=f'/courses/{course_id}/edit',  # Link to the course, not the quest
-            organization_id=organization_id,
-            metadata={
-                'upload_id': upload_id,
-                'course_id': course_id,
-                'quest_id': quest_id,
-                'lessons_count': len(lessons_data)
-            }
-        )
-
-        logger.info(f"Background processing complete for upload {upload_id}, course {course_id}")
+        logger.info(f"Background processing complete for upload {upload_id}")
 
     except Exception as e:
         logger.error(f"Background processing error for upload {upload_id}: {str(e)}")
@@ -242,7 +138,8 @@ def _process_curriculum_in_context(
             supabase = get_supabase_admin_client()
             supabase.table('curriculum_uploads').update({
                 'status': 'error',
-                'error_message': str(e)
+                'error_message': str(e),
+                'can_resume': True
             }).eq('id', upload_id).execute()
 
             get_notification_service().create_notification(
@@ -255,6 +152,76 @@ def _process_curriculum_in_context(
             )
         except Exception as notify_error:
             logger.error(f"Failed to send error notification: {str(notify_error)}")
+
+
+def _process_to_review_background(
+    app,
+    upload_id: str,
+    user_id: str,
+    organization_id: str,
+    source_type: str,
+    content: bytes,
+    filename: str,
+    options: dict
+):
+    """
+    Background task to process curriculum to Stage 2 only, then pause for review.
+    """
+    with app.app_context():
+        try:
+            logger.info(f"Processing upload {upload_id} to review stage")
+
+            result = get_curriculum_service().process_upload_to_review(
+                upload_id=upload_id,
+                source_type=source_type,
+                content=content,
+                filename=filename,
+                options=options
+            )
+
+            if result.get('success') and result.get('status') == 'ready_for_review':
+                # Send notification that structure is ready for review
+                get_notification_service().create_notification(
+                    user_id=user_id,
+                    notification_type='system_alert',
+                    title='Structure Ready for Review',
+                    message=f'The structure of "{filename}" has been detected. Please review and approve before content generation.',
+                    link=f'/admin/curriculum/upload/{upload_id}/review',
+                    organization_id=organization_id,
+                    metadata={'upload_id': upload_id, 'status': 'ready_for_review'}
+                )
+                logger.info(f"Upload {upload_id} ready for structure review")
+            elif not result.get('success'):
+                get_notification_service().create_notification(
+                    user_id=user_id,
+                    notification_type='system_alert',
+                    title='Curriculum Upload Failed',
+                    message=f'Failed to process "{filename}": {result.get("error", "Unknown error")}',
+                    organization_id=organization_id,
+                    metadata={'upload_id': upload_id}
+                )
+                logger.error(f"Process to review failed for upload {upload_id}: {result.get('error')}")
+
+        except Exception as e:
+            logger.error(f"Process to review background error: {str(e)}")
+            try:
+                supabase = get_supabase_admin_client()
+                supabase.table('curriculum_uploads').update({
+                    'status': 'error',
+                    'error_message': str(e),
+                    'can_resume': True
+                }).eq('id', upload_id).execute()
+
+                get_notification_service().create_notification(
+                    user_id=user_id,
+                    notification_type='system_alert',
+                    title='Curriculum Upload Failed',
+                    message=f'An error occurred: {str(e)[:100]}',
+                    organization_id=organization_id,
+                    metadata={'upload_id': upload_id, 'error': str(e)}
+                )
+            except Exception as notify_error:
+                logger.error(f"Failed to send error notification: {str(notify_error)}")
 
 
 @bp.route('/upload', methods=['POST'])
@@ -356,9 +323,28 @@ def _handle_file_upload(user_id: str, organization_id: str, supabase):
     # Get transformation options
     transformation_level = request.form.get('transformation_level', 'moderate')
     preserve_structure = request.form.get('preserve_structure', 'true').lower() == 'true'
+    pause_for_review = request.form.get('pause_for_review', 'false').lower() == 'true'
 
     if transformation_level not in ['light', 'moderate', 'full']:
         transformation_level = 'moderate'
+
+    # Get content type selections (for IMSCC files)
+    content_types_str = request.form.get('content_types')
+    content_types = None
+    if content_types_str:
+        try:
+            import json
+            content_types = json.loads(content_types_str)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Get user-provided learning objectives (one per line)
+    learning_objectives_str = request.form.get('learning_objectives', '').strip()
+    learning_objectives = None
+    if learning_objectives_str:
+        # Split by newlines and filter empty lines
+        learning_objectives = [obj.strip() for obj in learning_objectives_str.split('\n') if obj.strip()]
+        logger.info(f"User provided {len(learning_objectives)} learning objectives")
 
     # Create upload record
     upload_id = str(uuid.uuid4())
@@ -370,36 +356,58 @@ def _handle_file_upload(user_id: str, organization_id: str, supabase):
         'file_size_bytes': len(file_content),
         'status': 'processing',
         'uploaded_by': user_id,
-        'organization_id': organization_id
+        'organization_id': organization_id,
+        'progress_percent': 0,
+        'current_stage_name': 'Starting',
+        'current_stage': 0
     }
 
     supabase.table('curriculum_uploads').insert(upload_record).execute()
 
-    logger.info(f"Admin {user_id} uploading curriculum: {file.filename} ({source_type})")
+    logger.info(f"Admin {user_id} uploading curriculum: {file.filename} ({source_type}), pause_for_review={pause_for_review}")
 
-    # Start background processing
+    # Build options
     options = {
         'transformation_level': transformation_level,
-        'preserve_structure': preserve_structure
+        'preserve_structure': preserve_structure,
+        'content_types': content_types,
+        'learning_objectives': learning_objectives
     }
 
     # Get app reference for background thread
     app = current_app._get_current_object()
 
-    thread = threading.Thread(
-        target=_process_curriculum_background,
-        args=(app, upload_id, user_id, organization_id, source_type, file_content, file.filename, options),
-        daemon=True
-    )
-    thread.start()
+    if pause_for_review:
+        # Process to Stage 2 only, then pause for review
+        thread = threading.Thread(
+            target=_process_to_review_background,
+            args=(app, upload_id, user_id, organization_id, source_type, file_content, file.filename, options),
+            daemon=True
+        )
+        thread.start()
 
-    # Return immediately
-    return jsonify({
-        'success': True,
-        'upload_id': upload_id,
-        'status': 'processing',
-        'message': 'Processing started. You will receive a notification when your course is ready.'
-    }), 202  # 202 Accepted
+        return jsonify({
+            'success': True,
+            'upload_id': upload_id,
+            'status': 'processing',
+            'pauseForReview': True,
+            'message': 'Processing started. You will be able to review the detected structure before content generation.'
+        }), 202
+    else:
+        # Full background processing
+        thread = threading.Thread(
+            target=_process_curriculum_background,
+            args=(app, upload_id, user_id, organization_id, source_type, file_content, file.filename, options),
+            daemon=True
+        )
+        thread.start()
+
+        return jsonify({
+            'success': True,
+            'upload_id': upload_id,
+            'status': 'processing',
+            'message': 'Processing started. You will receive a notification when your course is ready.'
+        }), 202
 
 
 def _handle_text_upload(user_id: str, organization_id: str, supabase):
@@ -424,6 +432,7 @@ def _handle_text_upload(user_id: str, organization_id: str, supabase):
     # Get transformation options
     transformation_level = data.get('transformation_level', 'moderate')
     preserve_structure = data.get('preserve_structure', True)
+    pause_for_review = data.get('pause_for_review', False)
 
     if transformation_level not in ['light', 'moderate', 'full']:
         transformation_level = 'moderate'
@@ -438,14 +447,17 @@ def _handle_text_upload(user_id: str, organization_id: str, supabase):
         'file_size_bytes': len(text.encode('utf-8')),
         'status': 'processing',
         'uploaded_by': user_id,
-        'organization_id': organization_id
+        'organization_id': organization_id,
+        'progress_percent': 0,
+        'current_stage_name': 'Starting',
+        'current_stage': 0
     }
 
     supabase.table('curriculum_uploads').insert(upload_record).execute()
 
-    logger.info(f"Admin {user_id} uploading curriculum text ({len(text)} chars)")
+    logger.info(f"Admin {user_id} uploading curriculum text ({len(text)} chars), pause_for_review={pause_for_review}")
 
-    # Start background processing
+    # Build options
     options = {
         'transformation_level': transformation_level,
         'preserve_structure': preserve_structure
@@ -454,36 +466,56 @@ def _handle_text_upload(user_id: str, organization_id: str, supabase):
     # Get app reference for background thread
     app = current_app._get_current_object()
 
-    thread = threading.Thread(
-        target=_process_curriculum_background,
-        args=(app, upload_id, user_id, organization_id, 'text', text.encode('utf-8'), title, options),
-        daemon=True
-    )
-    thread.start()
+    if pause_for_review:
+        # Process to Stage 2 only, then pause for review
+        thread = threading.Thread(
+            target=_process_to_review_background,
+            args=(app, upload_id, user_id, organization_id, 'text', text.encode('utf-8'), title, options),
+            daemon=True
+        )
+        thread.start()
 
-    # Return immediately
-    return jsonify({
-        'success': True,
-        'upload_id': upload_id,
-        'status': 'processing',
-        'message': 'Processing started. You will receive a notification when your course is ready.'
-    }), 202  # 202 Accepted
+        return jsonify({
+            'success': True,
+            'upload_id': upload_id,
+            'status': 'processing',
+            'pauseForReview': True,
+            'message': 'Processing started. You will be able to review the detected structure before content generation.'
+        }), 202
+    else:
+        # Full background processing
+        thread = threading.Thread(
+            target=_process_curriculum_background,
+            args=(app, upload_id, user_id, organization_id, 'text', text.encode('utf-8'), title, options),
+            daemon=True
+        )
+        thread.start()
+
+        return jsonify({
+            'success': True,
+            'upload_id': upload_id,
+            'status': 'processing',
+            'message': 'Processing started. You will receive a notification when your course is ready.'
+        }), 202
 
 
 @bp.route('/upload/<upload_id>/status', methods=['GET'])
 @require_admin
 def get_upload_status(user_id, upload_id):
     """
-    Get the current status of a curriculum upload.
+    Get the current status of a curriculum upload with progress information.
 
     Returns:
-        JSON with status, quest_id (if complete), and metadata
+        JSON with status, progress, stages, quest_id (if complete), and metadata
     """
     try:
         supabase = get_supabase_admin_client()
 
         result = supabase.table('curriculum_uploads').select(
-            'id, status, source_type, original_filename, error_message, uploaded_at, created_quest_id'
+            'id, status, source_type, original_filename, error_message, uploaded_at, '
+            'created_quest_id, progress_percent, current_stage_name, current_item, '
+            'stage_1_completed_at, stage_2_completed_at, stage_3_completed_at, stage_4_completed_at, '
+            'can_resume, resume_from_stage, current_stage'
         ).eq('id', upload_id).execute()
 
         if not result.data:
@@ -502,7 +534,20 @@ def get_upload_status(user_id, upload_id):
             'filename': upload['original_filename'],
             'error': upload.get('error_message'),
             'uploaded_at': upload['uploaded_at'],
-            'quest_id': upload.get('created_quest_id')  # Available when complete
+            'quest_id': upload.get('created_quest_id'),
+            # Progress tracking
+            'progress': upload.get('progress_percent', 0),
+            'currentStage': upload.get('current_stage_name'),
+            'currentItem': upload.get('current_item'),
+            'stages': {
+                'parse': bool(upload.get('stage_1_completed_at')),
+                'structure': bool(upload.get('stage_2_completed_at')),
+                'align': bool(upload.get('stage_3_completed_at')),
+                'generate': bool(upload.get('stage_4_completed_at'))
+            },
+            # Resume capability
+            'canResume': upload.get('can_resume', False),
+            'resumeFromStage': upload.get('resume_from_stage')
         }), 200
 
     except Exception as e:
@@ -511,6 +556,335 @@ def get_upload_status(user_id, upload_id):
             'success': False,
             'error': f'Failed to get status: {str(e)}'
         }), 500
+
+
+@bp.route('/upload/<upload_id>/resume', methods=['POST'])
+@require_admin
+def resume_curriculum_upload(user_id, upload_id):
+    """
+    Resume a failed curriculum upload from the last checkpoint.
+
+    Returns:
+        JSON with status 'processing' if resumed successfully
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Verify upload exists and can be resumed
+        result = supabase.table('curriculum_uploads').select(
+            'id, status, can_resume, resume_from_stage, uploaded_by, organization_id'
+        ).eq('id', upload_id).execute()
+
+        if not result.data:
+            return jsonify({
+                'success': False,
+                'error': 'Upload not found'
+            }), 404
+
+        upload = result.data[0]
+
+        if not upload.get('can_resume'):
+            return jsonify({
+                'success': False,
+                'error': 'This upload cannot be resumed'
+            }), 400
+
+        # Get optional new options from request
+        data = request.get_json() or {}
+        options = {
+            'transformation_level': data.get('transformation_level', 'moderate'),
+            'preserve_structure': data.get('preserve_structure', True)
+        }
+
+        # Start background processing from checkpoint
+        app = current_app._get_current_object()
+
+        thread = threading.Thread(
+            target=_resume_curriculum_background,
+            args=(app, upload_id, upload['uploaded_by'], upload.get('organization_id'), options),
+            daemon=True
+        )
+        thread.start()
+
+        logger.info(f"Resuming upload {upload_id} from stage {upload.get('resume_from_stage')}")
+
+        return jsonify({
+            'success': True,
+            'upload_id': upload_id,
+            'status': 'processing',
+            'resumeFromStage': upload.get('resume_from_stage'),
+            'message': 'Processing resumed. You will receive a notification when your course is ready.'
+        }), 202
+
+    except Exception as e:
+        logger.error(f"Error resuming upload: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to resume: {str(e)}'
+        }), 500
+
+
+@bp.route('/upload/<upload_id>/approve-structure', methods=['POST'])
+@require_admin
+def approve_structure(user_id, upload_id):
+    """
+    Approve detected structure and continue processing from Stage 3.
+
+    Used when pause_for_review is enabled. Allows user to verify/edit
+    detected structure before AI philosophy alignment.
+
+    Request body (optional):
+    {
+        "edits": {
+            "module_1": {"title": "New Title"},
+            "lesson_2": {"title": "New Title", "parent_module": "module_1"}
+        },
+        "transformation_level": "moderate",
+        "preserve_structure": true
+    }
+
+    Returns:
+        JSON with status 'processing' if approved successfully
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Verify upload exists and is ready for review
+        result = supabase.table('curriculum_uploads').select(
+            'id, status, uploaded_by, organization_id'
+        ).eq('id', upload_id).execute()
+
+        if not result.data:
+            return jsonify({
+                'success': False,
+                'error': 'Upload not found'
+            }), 404
+
+        upload = result.data[0]
+
+        if upload.get('status') != 'ready_for_review':
+            return jsonify({
+                'success': False,
+                'error': f'Upload is not ready for review (status: {upload.get("status")})'
+            }), 400
+
+        # Get edits and options from request
+        data = request.get_json() or {}
+        edits = data.get('edits')
+        options = {
+            'transformation_level': data.get('transformation_level', 'moderate'),
+            'preserve_structure': data.get('preserve_structure', True)
+        }
+
+        # Start background processing from Stage 3
+        app = current_app._get_current_object()
+
+        thread = threading.Thread(
+            target=_approve_structure_background,
+            args=(app, upload_id, upload['uploaded_by'], upload.get('organization_id'), edits, options),
+            daemon=True
+        )
+        thread.start()
+
+        logger.info(f"Structure approved for upload {upload_id}, continuing from Stage 3")
+
+        return jsonify({
+            'success': True,
+            'upload_id': upload_id,
+            'status': 'processing',
+            'message': 'Structure approved. Processing will continue. You will receive a notification when your course is ready.'
+        }), 202
+
+    except Exception as e:
+        logger.error(f"Error approving structure: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to approve structure: {str(e)}'
+        }), 500
+
+
+@bp.route('/upload/<upload_id>/structure', methods=['GET'])
+@require_admin
+def get_upload_structure(user_id, upload_id):
+    """
+    Get the detected structure for review (when status is ready_for_review).
+
+    Returns:
+        JSON with structured_content for review
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        result = supabase.table('curriculum_uploads').select(
+            'id, status, structured_content, original_filename'
+        ).eq('id', upload_id).execute()
+
+        if not result.data:
+            return jsonify({
+                'success': False,
+                'error': 'Upload not found'
+            }), 404
+
+        upload = result.data[0]
+
+        if upload.get('status') != 'ready_for_review':
+            return jsonify({
+                'success': False,
+                'error': f'Upload is not ready for review (status: {upload.get("status")})'
+            }), 400
+
+        return jsonify({
+            'success': True,
+            'upload_id': upload_id,
+            'filename': upload['original_filename'],
+            'structure': upload.get('structured_content', {})
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting structure: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to get structure: {str(e)}'
+        }), 500
+
+
+def _resume_curriculum_background(app, upload_id: str, user_id: str, organization_id: str, options: dict):
+    """Background task to resume curriculum processing."""
+    with app.app_context():
+        try:
+            service = get_curriculum_service()
+            result = service.resume_upload(upload_id, options)
+
+            if result.get('success'):
+                _finalize_curriculum_upload(upload_id, user_id, organization_id, result)
+            # Error handling is done in service._mark_error
+        except Exception as e:
+            logger.error(f"Resume background error: {str(e)}")
+
+
+def _approve_structure_background(app, upload_id: str, user_id: str, organization_id: str, edits: dict, options: dict):
+    """Background task to continue processing after structure approval."""
+    with app.app_context():
+        try:
+            service = get_curriculum_service()
+            result = service.approve_structure(upload_id, edits, options)
+
+            if result.get('success'):
+                _finalize_curriculum_upload(upload_id, user_id, organization_id, result)
+            # Error handling is done in service._mark_error
+        except Exception as e:
+            logger.error(f"Approve structure background error: {str(e)}")
+
+
+def _finalize_curriculum_upload(upload_id: str, user_id: str, organization_id: str, result: dict):
+    """
+    Finalize a successful curriculum upload by creating course and sending notification.
+    Shared by both normal processing and resume/approve paths.
+    """
+    supabase = get_supabase_admin_client()
+
+    # Extract course and projects data
+    preview = result.get('preview', {})
+    course_data = preview.get('course', {})
+    projects_data = preview.get('projects', [])
+
+    # Create the course record
+    course_insert = {
+        'title': course_data.get('title', 'Untitled Course'),
+        'description': course_data.get('description', ''),
+        'status': 'draft',
+        'visibility': 'organization',
+        'navigation_mode': 'sequential',
+        'created_by': user_id,
+        'organization_id': organization_id
+    }
+
+    course_result = supabase.table('courses').insert(course_insert).execute()
+
+    if not course_result.data:
+        raise Exception("Failed to create course")
+
+    course_id = course_result.data[0]['id']
+    logger.info(f"Created draft course {course_id}: {course_data.get('title')}")
+
+    # Create Projects and Lessons
+    total_lessons = 0
+    quest_ids = []
+
+    for i, project in enumerate(projects_data):
+        quest_insert = {
+            'title': project.get('title', f'Project {i+1}'),
+            'description': project.get('description', ''),
+            'big_idea': project.get('big_idea', ''),
+            'quest_type': 'course',
+            'is_active': False,
+            'is_public': False,
+            'created_by': user_id,
+            'organization_id': organization_id
+        }
+
+        quest_result = supabase.table('quests').insert(quest_insert).execute()
+
+        if not quest_result.data:
+            logger.error(f"Failed to create quest for project {i+1}")
+            continue
+
+        quest_id = quest_result.data[0]['id']
+        quest_ids.append(quest_id)
+
+        # Link to course
+        supabase.table('course_quests').insert({
+            'course_id': course_id,
+            'quest_id': quest_id,
+            'sequence_order': project.get('order', i),
+            'is_required': True,
+            'is_published': False
+        }).execute()
+
+        # Create lessons
+        for j, lesson in enumerate(project.get('lessons', [])):
+            supabase.table('curriculum_lessons').insert({
+                'quest_id': quest_id,
+                'title': lesson.get('title', f'Lesson {j+1}'),
+                'description': lesson.get('description', ''),
+                'content': lesson.get('curriculum_content', {'version': 2, 'steps': []}),
+                'sequence_order': lesson.get('order_index', j),
+                'is_published': False,
+                'is_required': True,
+                'organization_id': organization_id,
+                'created_by': user_id
+            }).execute()
+            total_lessons += 1
+
+    # Update upload record
+    supabase.table('curriculum_uploads').update({
+        'status': 'approved',
+        'created_quest_id': quest_ids[0] if quest_ids else None,
+        'generated_content': preview,
+        'reviewed_by': user_id,
+        'reviewed_at': 'now()',
+        'progress_percent': 100,
+        'current_stage_name': 'Complete',
+        'current_item': None
+    }).eq('id', upload_id).execute()
+
+    # Send notification
+    get_notification_service().create_notification(
+        user_id=user_id,
+        notification_type='system_alert',
+        title='Curriculum Ready',
+        message=f'"{course_data.get("title", "Your course")}" is ready to edit. {len(quest_ids)} projects, {total_lessons} lessons created.',
+        link=f'/courses/{course_id}/edit',
+        organization_id=organization_id,
+        metadata={
+            'upload_id': upload_id,
+            'course_id': course_id,
+            'project_count': len(quest_ids),
+            'lessons_count': total_lessons
+        }
+    )
+
+    logger.info(f"Finalized upload {upload_id}, course {course_id}")
 
 
 @bp.route('/upload/<upload_id>', methods=['DELETE'])
@@ -596,4 +970,88 @@ def list_uploads(user_id):
         return jsonify({
             'success': False,
             'error': f'Failed to list uploads: {str(e)}'
+        }), 500
+
+
+@bp.route('/diagnose', methods=['POST'])
+@require_admin
+def diagnose_curriculum(user_id):
+    """
+    Analyze an IMSCC file and report what content will be extracted.
+
+    Use this to verify extraction coverage before processing.
+    Does NOT process the file - just analyzes its contents.
+
+    Accepts: multipart/form-data with 'file' field (IMSCC only)
+
+    Returns:
+        JSON with diagnostic information:
+        {
+            'success': bool,
+            'total_files': int,
+            'resources': {type: {found, extracted}},
+            'coverage_estimate': '85%',
+            'file_sample': [...]
+        }
+    """
+    try:
+        if 'file' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No file uploaded. Include an IMSCC file in the "file" field.'
+            }), 400
+
+        file = request.files['file']
+
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': 'No file selected'
+            }), 400
+
+        # Only IMSCC files supported for diagnosis
+        filename = file.filename.lower()
+        if not (filename.endswith('.imscc') or filename.endswith('.zip')):
+            return jsonify({
+                'success': False,
+                'error': 'Only IMSCC files (.imscc or .zip) can be diagnosed'
+            }), 400
+
+        # Check file size
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(0)
+
+        if file_size > MAX_FILE_SIZE:
+            return jsonify({
+                'success': False,
+                'error': f'File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB'
+            }), 400
+
+        # Read file content
+        content = file.read()
+
+        # Get IMSCC parser and run diagnosis
+        from services.imscc_parser_service import IMSCCParserService
+        parser = IMSCCParserService()
+        diagnosis = parser.diagnose_imscc_file(content)
+
+        if not diagnosis.get('success'):
+            return jsonify({
+                'success': False,
+                'error': diagnosis.get('error', 'Diagnosis failed')
+            }), 400
+
+        return jsonify({
+            'success': True,
+            'filename': file.filename,
+            'file_size': file_size,
+            **diagnosis
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error diagnosing curriculum: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Diagnosis failed: {str(e)}'
         }), 500

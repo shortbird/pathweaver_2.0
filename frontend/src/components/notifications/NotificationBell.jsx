@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { BellIcon } from '@heroicons/react/24/outline'
+import { BellIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { BellIcon as BellIconSolid } from '@heroicons/react/24/solid'
 import api from '../../services/api'
 import { formatDistanceToNow } from 'date-fns'
@@ -81,6 +81,29 @@ const NotificationBell = () => {
     }
   }
 
+  const dismissNotification = async (e, notificationId) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const notification = notifications.find(n => n.id === notificationId)
+    // Optimistic update - remove immediately
+    setNotifications(prev => prev.filter(n => n.id !== notificationId))
+    if (notification && !notification.is_read) {
+      setUnreadCount(prev => Math.max(0, prev - 1))
+    }
+    try {
+      await api.delete(`/api/notifications/${notificationId}`)
+    } catch (error) {
+      // Restore on failure
+      console.error('Failed to dismiss notification:', error)
+      setNotifications(prev => [...prev, notification].sort((a, b) =>
+        new Date(b.created_at) - new Date(a.created_at)
+      ))
+      if (notification && !notification.is_read) {
+        setUnreadCount(prev => prev + 1)
+      }
+    }
+  }
+
   const handleNotificationClick = (notification) => {
     if (!notification.is_read) {
       markAsRead(notification.id)
@@ -140,7 +163,7 @@ const NotificationBell = () => {
             ) : (
               <ul className="divide-y divide-gray-100">
                 {notifications.map((notification) => (
-                  <li key={notification.id}>
+                  <li key={notification.id} className="relative group">
                     <Link
                       to={notification.link || '/notifications'}
                       onClick={() => handleNotificationClick(notification)}
@@ -152,7 +175,7 @@ const NotificationBell = () => {
                         <span className="text-lg flex-shrink-0">
                           {getNotificationIcon(notification.type)}
                         </span>
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 pr-6">
                           <p className={`text-sm ${!notification.is_read ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
                             {notification.title}
                           </p>
@@ -170,6 +193,13 @@ const NotificationBell = () => {
                         )}
                       </div>
                     </Link>
+                    <button
+                      onClick={(e) => dismissNotification(e, notification.id)}
+                      className="absolute top-2 right-2 p-1 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Dismiss notification"
+                    >
+                      <XMarkIcon className="h-4 w-4" />
+                    </button>
                   </li>
                 ))}
               </ul>

@@ -51,7 +51,7 @@ if not os.getenv('FLASK_ENV'):
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
-app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max request size (matches upload limit)
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max request size (matches frontend upload limit)
 
 # Validate configuration on startup
 try:

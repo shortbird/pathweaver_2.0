@@ -456,7 +456,7 @@ Return ONLY valid JSON (no markdown code blocks):
                 'order_index': 2
             }
         ]
-    
+
     def validate_quest_quality(self, quest_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Analyze quest data and provide quality feedback and suggestions.

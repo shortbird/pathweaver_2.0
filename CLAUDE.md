@@ -138,6 +138,49 @@ EOF
 
 ---
 
+## Course Architecture
+
+### Hierarchy
+```
+Course → Projects (Quests) → Lessons → Tasks
+```
+
+- **Course**: Container that combines multiple Projects into structured curriculum
+- **Project**: A Quest when it's part of a Course (same DB record, different context)
+- **Lesson**: Brief instructional content with "Lesson Steps" (text, video, links, images, files)
+- **Task**: Actions students complete to earn XP (can be suggested or student-created)
+
+### Database Tables
+```
+courses              - id, title, description, status, visibility, created_by, organization_id
+course_quests        - course_id, quest_id, sequence_order (links Projects to Courses)
+quests               - id, title, quest_type, is_active (becomes "Project" when in a Course)
+curriculum_lessons   - id, quest_id, title, content, sequence_order
+curriculum_lesson_tasks - lesson_id, task_id (links Tasks to Lessons)
+user_quest_tasks     - id, user_id, quest_id, title, pillar, xp_value
+```
+
+### Just-in-Time Teaching Philosophy
+1. Lessons provide **minimal info** to start a competent attempt at applying knowledge
+2. Learning happens during **task execution**, not content consumption
+3. Students encounter knowledge gaps while doing → **intrinsic motivation** to learn more
+4. **Personalized tasks** = doing things they're interested in = natural engagement
+
+### Student Flow
+1. Enroll in Course via Course Catalog
+2. Begin first Project
+3. Interact with Lessons (just enough info to start)
+4. Complete Lesson Tasks to earn XP toward Project requirement
+5. Meet XP requirement for each Project to complete Course
+
+### Course Builder Notes
+- Adding a "Project" = creating/connecting a Quest
+- Each Lesson should have suggested Task ideas (students can also create their own)
+- Pillars are on Tasks, NOT on Quests/Projects
+- Tasks are where XP is earned, not Lessons
+
+---
+
 ## Local Development
 
 **Check if servers running:**

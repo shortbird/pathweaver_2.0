@@ -34,7 +34,7 @@ export function useLessonManagement({ questId } = {}) {
 
     try {
       setLoading(true);
-      const response = await api.get(`/api/quests/${id}/curriculum/lessons`);
+      const response = await api.get(`/api/quests/${id}/curriculum/lessons?include_unpublished=true`);
       const fetchedLessons = response.data.lessons || [];
       setLessons(fetchedLessons);
       return fetchedLessons;

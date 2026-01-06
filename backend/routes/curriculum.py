@@ -745,7 +745,7 @@ def search_lessons(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/curriculum/lessons/<lesson_id>/generate-tasks', methods=['POST'])
 @require_auth
-@rate_limit(limit=10, per=3600)  # 10 AI generations per hour
+@rate_limit(limit=100, per=3600)  # 100 AI generations per hour (increased for bulk operations)
 def generate_ai_tasks(user_id: str, quest_id: str, lesson_id: str):
     """
     Generate task suggestions from lesson content using AI with curriculum context.
@@ -938,7 +938,7 @@ def unlink_task_from_lesson(user_id: str, quest_id: str, lesson_id: str, task_id
 
 @bp.route('/<quest_id>/curriculum/lessons/<lesson_id>/create-tasks', methods=['POST'])
 @require_auth
-@rate_limit(limit=20, per=3600)
+@rate_limit(limit=200, per=3600)  # Increased for bulk operations
 def create_curriculum_tasks(user_id: str, quest_id: str, lesson_id: str):
     """
     Create tasks from AI-generated suggestions and optionally link them to the lesson.

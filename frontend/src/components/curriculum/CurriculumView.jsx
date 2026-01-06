@@ -108,7 +108,7 @@ const CurriculumView = ({
 
         const [lessonsResult, tasksResult, progressResult] = await Promise.all([
           !propLessons
-            ? api.get(`/api/quests/${questId}/curriculum/lessons`).catch(() => ({ data: { lessons: [] } }))
+            ? api.get(`/api/quests/${questId}/curriculum/lessons${isAdmin ? '?include_unpublished=true' : ''}`).catch(() => ({ data: { lessons: [] } }))
             : Promise.resolve(null),
           api.get(`/api/quests/${questId}/tasks`).catch(() => ({ data: { tasks: [] } })),
           api.get(`/api/quests/${questId}/curriculum/progress`).catch(() => ({ data: { progress: [] } }))

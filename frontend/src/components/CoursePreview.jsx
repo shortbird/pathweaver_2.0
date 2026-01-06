@@ -1,28 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
-import { sanitizeHtml } from '../utils/sanitize'
-
-// Helper to extract HTML content from lesson content structure
-const getLessonHtmlContent = (content) => {
-  if (!content) return ''
-
-  // If content is already a string (legacy or raw HTML), return it
-  if (typeof content === 'string') return content
-
-  // If content is an object with blocks array, extract text block content
-  if (content.blocks && Array.isArray(content.blocks)) {
-    return content.blocks
-      .filter(block => block.type === 'text')
-      .map(block => block.content || '')
-      .join('')
-  }
-
-  return ''
-}
 
 const CoursePreview = ({ course, quests, onClose }) => {
-  const [simulatedXp, setSimulatedXp] = useState(0)
   const [selectedProjectId, setSelectedProjectId] = useState(null)
   const [projectLessons, setProjectLessons] = useState({}) // Cache lessons by project ID
   const [loadingLessons, setLoadingLessons] = useState(false)
@@ -37,7 +17,7 @@ const CoursePreview = ({ course, quests, onClose }) => {
 
       try {
         setLoadingLessons(true)
-        const response = await api.get(`/api/quests/${selectedProjectId}/curriculum/lessons`)
+        const response = await api.get(`/api/quests/${selectedProjectId}/curriculum/lessons?include_unpublished=true`)
         setProjectLessons(prev => ({
           ...prev,
           [selectedProjectId]: response.data.lessons || []
@@ -57,26 +37,6 @@ const CoursePreview = ({ course, quests, onClose }) => {
   }, [selectedProjectId])
 
   if (!course) return null
-
-  // Calculate max XP needed based on all thresholds (project + lesson)
-  const maxXpNeeded = Math.max(
-    ...quests.map(q => q.xp_threshold || 0),
-    ...quests.flatMap(q =>
-      (q.curriculum_content?.lessons || []).map(l => l.xp_threshold || 0)
-    ),
-    100
-  )
-
-  const isProjectComplete = (project) => {
-    // Project XP threshold is stored directly on the project object (from course_quests table)
-    const projectXpThreshold = project.xp_threshold || 0
-    return projectXpThreshold === 0 || simulatedXp >= projectXpThreshold
-  }
-
-  const isLessonComplete = (lesson) => {
-    const lessonXpThreshold = lesson.xp_threshold || 0
-    return lessonXpThreshold === 0 || simulatedXp >= lessonXpThreshold
-  }
 
   const selectedProject = quests.find(q => q.id === selectedProjectId)
 
@@ -98,24 +58,6 @@ const CoursePreview = ({ course, quests, onClose }) => {
           >
             <XMarkIcon className="w-6 h-6" />
           </button>
-        </div>
-
-        {/* XP Simulator - Compact */}
-        <div className="px-6 py-2 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border-b border-gray-200">
-          <div className="flex items-center gap-4">
-            <label className="text-xs font-medium text-gray-600 whitespace-nowrap">
-              Student XP: <span className="font-bold text-optio-purple">{simulatedXp}</span>
-            </label>
-            <input
-              type="range"
-              min="0"
-              max={maxXpNeeded}
-              value={simulatedXp}
-              onChange={(e) => setSimulatedXp(parseInt(e.target.value))}
-              className="flex-1 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-optio-purple"
-            />
-            <span className="text-xs text-gray-400">{maxXpNeeded} XP</span>
-          </div>
         </div>
 
         {/* Content */}
@@ -148,8 +90,6 @@ const CoursePreview = ({ course, quests, onClose }) => {
               </h4>
               <div className="space-y-2">
                 {quests.map((project, index) => {
-                  const isComplete = isProjectComplete(project)
-                  const xpThreshold = project.xp_threshold || 0
                   const isSelected = selectedProjectId === project.id
 
                   return (
@@ -163,27 +103,13 @@ const CoursePreview = ({ course, quests, onClose }) => {
                       }`}
                     >
                       <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 mt-0.5">
-                          {isComplete ? (
-                            <CheckCircleIcon className="w-5 h-5 text-green-600" />
-                          ) : (
-                            <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
-                          )}
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center text-white text-sm font-bold">
+                          {index + 1}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-gray-500">
-                              {index + 1}
-                            </span>
-                            <h5 className="font-medium truncate text-gray-900">
-                              {project.title}
-                            </h5>
-                          </div>
-                          {xpThreshold > 0 && (
-                            <p className={`text-xs mt-1 ${isComplete ? 'text-green-600' : 'text-gray-500'}`}>
-                              {isComplete ? `${xpThreshold} XP requirement met` : `Requires ${xpThreshold} XP to complete`}
-                            </p>
-                          )}
+                          <h5 className="font-medium truncate text-gray-900">
+                            {project.title}
+                          </h5>
                           {project.description && (
                             <p className="text-xs text-gray-600 mt-1 line-clamp-2">
                               {project.description}
@@ -225,59 +151,44 @@ const CoursePreview = ({ course, quests, onClose }) => {
                     <div className="space-y-3">
                       {(projectLessons[selectedProjectId] || [])
                         .sort((a, b) => (a.sequence_order || a.order || 0) - (b.sequence_order || b.order || 0))
-                        .map((lesson, index) => {
-                          const isComplete = isLessonComplete(lesson)
-                          const xpThreshold = lesson.xp_threshold || 0
-
-                          return (
-                            <div
-                              key={lesson.id || index}
-                              className="p-4 rounded-lg border border-gray-200 bg-white"
-                            >
-                              <div className="flex items-start gap-3">
-                                <div className="flex-shrink-0 mt-0.5">
-                                  {isComplete ? (
-                                    <CheckCircleIcon className="w-5 h-5 text-green-600" />
-                                  ) : (
-                                    <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
-                                  )}
-                                </div>
-                                <div className="flex-1">
-                                  <h5 className="font-medium text-gray-900">
-                                    {lesson.title}
-                                  </h5>
-                                  {xpThreshold > 0 && (
-                                    <p className={`text-xs mt-1 ${isComplete ? 'text-green-600' : 'text-gray-500'}`}>
-                                      {isComplete ? `${xpThreshold} XP requirement met` : `Requires ${xpThreshold} XP to complete`}
-                                    </p>
-                                  )}
-                                  {lesson.content && getLessonHtmlContent(lesson.content) && (
-                                    <div
-                                      className="prose prose-sm max-w-none mt-2 text-gray-600"
-                                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(getLessonHtmlContent(lesson.content)) }}
-                                    />
-                                  )}
-                                  {lesson.video_url && (
-                                    <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
-                                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
-                                      </svg>
-                                      Includes video
-                                    </div>
-                                  )}
-                                  {lesson.files && lesson.files.length > 0 && (
-                                    <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
-                                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clipRule="evenodd" />
-                                      </svg>
-                                      {lesson.files.length} attachment{lesson.files.length !== 1 ? 's' : ''}
-                                    </div>
-                                  )}
-                                </div>
+                        .map((lesson, index) => (
+                          <div
+                            key={lesson.id || index}
+                            className="p-4 rounded-lg border border-gray-200 bg-white"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600">
+                                {index + 1}
+                              </div>
+                              <div className="flex-1">
+                                <h5 className="font-medium text-gray-900">
+                                  {lesson.title}
+                                </h5>
+                                {lesson.description && (
+                                  <p className="text-sm text-gray-600 mt-1">
+                                    {lesson.description}
+                                  </p>
+                                )}
+                                {lesson.video_url && (
+                                  <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
+                                    </svg>
+                                    Includes video
+                                  </div>
+                                )}
+                                {lesson.files && lesson.files.length > 0 && (
+                                  <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clipRule="evenodd" />
+                                    </svg>
+                                    {lesson.files.length} attachment{lesson.files.length !== 1 ? 's' : ''}
+                                  </div>
+                                )}
                               </div>
                             </div>
-                          )
-                        })}
+                          </div>
+                        ))}
                     </div>
                   </div>
                 ) : (

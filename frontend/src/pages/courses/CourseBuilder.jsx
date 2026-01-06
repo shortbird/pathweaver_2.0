@@ -24,6 +24,7 @@ import {
   Bars4Icon,
   EyeIcon,
   Cog6ToothIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import courseService from '../../services/courseService'
@@ -36,6 +37,7 @@ import {
   AddQuestModal,
   LessonEditorModal,
   CourseDetailsModal,
+  BulkTaskGenerationModal,
 } from '../../components/course'
 
 const CourseBuilder = () => {
@@ -63,6 +65,7 @@ const CourseBuilder = () => {
   const [showLessonEditor, setShowLessonEditor] = useState(false)
   const [previewingLesson, setPreviewingLesson] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showBulkTaskModal, setShowBulkTaskModal] = useState(false)
 
   // DnD sensors
   const sensors = useSensors(
@@ -110,7 +113,7 @@ const CourseBuilder = () => {
       try {
         setLoadingLessons(true)
         setSelectedLesson(null)
-        const response = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons`)
+        const response = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons?include_unpublished=true`)
         const fetchedLessons = response.data.lessons || []
         setLessons(fetchedLessons)
         if (fetchedLessons.length > 0) {
@@ -360,7 +363,7 @@ const CourseBuilder = () => {
   // Refresh lessons after task updates
   const handleTasksUpdated = async () => {
     try {
-      const response = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons`)
+      const response = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons?include_unpublished=true`)
       const fetchedLessons = response.data.lessons || []
       setLessons(fetchedLessons)
       const updatedSelectedLesson = fetchedLessons.find(l => l.id === selectedLesson?.id)
@@ -515,6 +518,17 @@ const CourseBuilder = () => {
               >
                 <Cog6ToothIcon className="w-4 h-4" />
                 <span className="hidden sm:inline">Details</span>
+              </button>
+
+              <button
+                onClick={() => setShowBulkTaskModal(true)}
+                disabled={quests.length === 0}
+                className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Generate tasks for lessons"
+                title="Generate AI tasks for all lessons without tasks"
+              >
+                <SparklesIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">Generate Tasks</span>
               </button>
 
               <button
@@ -818,6 +832,13 @@ const CourseBuilder = () => {
           setShowLessonEditor(false)
           setEditingLesson(null)
         }}
+      />
+
+      <BulkTaskGenerationModal
+        isOpen={showBulkTaskModal}
+        onClose={() => setShowBulkTaskModal(false)}
+        quests={quests}
+        onTasksUpdated={handleTasksUpdated}
       />
     </div>
   )

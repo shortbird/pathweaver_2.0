@@ -78,10 +78,14 @@ class IMSCCParserService(BaseService):
                 # Parse assignments
                 assignments = self._parse_assignments(zip_file, manifest_data.get('assignment_refs', []))
 
+                # Parse pages (web content)
+                pages = self._parse_pages(zip_file, manifest_data.get('page_refs', []))
+
                 # Generate preview objects
                 badge_preview = self._generate_badge_preview(course_data, assignments)
                 quest_preview = self._generate_quest_preview(course_data, assignments)
                 tasks_preview = self._generate_tasks_preview(assignments)
+                pages_preview = self._generate_pages_preview(pages)
 
                 return {
                     'success': True,
@@ -89,8 +93,10 @@ class IMSCCParserService(BaseService):
                     'badge_preview': badge_preview,
                     'quest_preview': quest_preview,
                     'tasks_preview': tasks_preview,
+                    'pages_preview': pages_preview,
                     'stats': {
                         'total_assignments': len(assignments),
+                        'total_pages': len(pages),
                         'total_modules': len(manifest_data.get('modules', [])),
                         'has_course_settings': bool(course_settings)
                     }
@@ -131,6 +137,7 @@ class IMSCCParserService(BaseService):
             # Extract organizations (modules/structure)
             modules = []
             assignment_refs = []
+            page_refs = []
 
             organizations = root.find('.//imscc:organizations', self.NAMESPACES)
             if organizations is not None:
@@ -138,11 +145,13 @@ class IMSCCParserService(BaseService):
                     module_data = self._parse_organization(org, resources)
                     modules.extend(module_data['modules'])
                     assignment_refs.extend(module_data['assignment_refs'])
+                    page_refs.extend(module_data.get('page_refs', []))
 
             return {
                 'title': title,
                 'modules': modules,
                 'assignment_refs': assignment_refs,
+                'page_refs': page_refs,
                 'resources': resources
             }
 
@@ -152,6 +161,7 @@ class IMSCCParserService(BaseService):
                 'title': 'Untitled Course',
                 'modules': [],
                 'assignment_refs': [],
+                'page_refs': [],
                 'resources': {}
             }
 
@@ -191,10 +201,11 @@ class IMSCCParserService(BaseService):
             resources: Dict of resources from _parse_resources
 
         Returns:
-            Dict with modules list and assignment_refs list
+            Dict with modules, assignment_refs, and page_refs lists
         """
         modules = []
         assignment_refs = []
+        page_refs = []
 
         for item in org_element.findall('.//imscc:item', self.NAMESPACES):
             item_data = self._parse_item(item, resources)
@@ -203,10 +214,13 @@ class IMSCCParserService(BaseService):
                 modules.append(item_data)
             elif item_data['type'] == 'assignment':
                 assignment_refs.append(item_data)
+            elif item_data['type'] == 'page':
+                page_refs.append(item_data)
 
         return {
             'modules': modules,
-            'assignment_refs': assignment_refs
+            'assignment_refs': assignment_refs,
+            'page_refs': page_refs
         }
 
     def _parse_item(self, item_element: ET.Element, resources: Dict) -> Dict:
@@ -399,6 +413,48 @@ class IMSCCParserService(BaseService):
 
         return assignments
 
+    def _parse_pages(self, zip_file: zipfile.ZipFile, page_refs: List[Dict]) -> List[Dict]:
+        """
+        Parse page/webcontent HTML files
+
+        Args:
+            zip_file: Open zip file
+            page_refs: List of page references from manifest
+
+        Returns:
+            List of page dicts with content extracted
+        """
+        pages = []
+
+        for page_ref in page_refs:
+            href = page_ref.get('href', '')
+            if not href:
+                continue
+
+            # Check if the HTML file exists in the ZIP
+            if href not in zip_file.namelist():
+                logger.warning(f"Page file not found: {href}")
+                continue
+
+            try:
+                html_content = zip_file.read(href).decode('utf-8', errors='ignore')
+
+                page = {
+                    'title': page_ref.get('title', 'Untitled Page'),
+                    'content': self._clean_html(html_content),
+                    'html': html_content,  # Keep original for reference
+                    'source_file': href,
+                    'identifier': page_ref.get('identifier', '')
+                }
+
+                pages.append(page)
+
+            except Exception as e:
+                logger.error(f"Error parsing page {href}: {str(e)}")
+                continue
+
+        return pages
+
     def _clean_html(self, html_content: str) -> str:
         """
         Clean HTML content - basic implementation
@@ -511,6 +567,31 @@ class IMSCCParserService(BaseService):
 
         return tasks
 
+    def _generate_pages_preview(self, pages: List[Dict]) -> List[Dict]:
+        """
+        Generate preview of Pages (web content)
+
+        Returns:
+            List of page dicts for AI processing
+        """
+        preview_pages = []
+
+        for idx, page in enumerate(pages):
+            preview_page = {
+                'title': page.get('title', f'Page {idx + 1}'),
+                'content': page.get('content', ''),
+                'order_index': idx + 1,
+                'metadata': {
+                    'source_file': page.get('source_file'),
+                    'identifier': page.get('identifier', ''),
+                    'content_length': len(page.get('content', ''))
+                }
+            }
+
+            preview_pages.append(preview_page)
+
+        return preview_pages
+
     def validate_imscc_file(self, file_content: bytes) -> Tuple[bool, Optional[str]]:
         """
         Validate that file is a proper IMSCC format
@@ -536,3 +617,118 @@ class IMSCCParserService(BaseService):
             return False, 'Invalid XML in manifest file'
         except Exception as e:
             return False, f'Validation error: {str(e)}'
+
+    def diagnose_imscc_file(self, file_content: bytes) -> Dict:
+        """
+        Analyze IMSCC contents and report extraction coverage.
+
+        Use this to verify what content types exist in the file
+        and which ones will be extracted during processing.
+
+        Returns:
+            Dict with diagnostic information:
+            {
+                'success': bool,
+                'total_files': int,
+                'resources': {
+                    'assignments': {'found': int, 'extracted': bool},
+                    'pages': {'found': int, 'extracted': bool},
+                    ...
+                },
+                'coverage_estimate': str,
+                'file_sample': [list of file paths]
+            }
+        """
+        try:
+            with zipfile.ZipFile(BytesIO(file_content)) as zip_file:
+                # Get all files in ZIP
+                all_files = zip_file.namelist()
+
+                # Parse manifest for resources
+                manifest = self._parse_manifest(zip_file)
+                resources = manifest.get('resources', {})
+
+                # Categorize resources by type
+                stats = {
+                    'assignments': {'found': 0, 'extracted': True, 'files': []},
+                    'pages': {'found': 0, 'extracted': True, 'files': []},
+                    'discussions': {'found': 0, 'extracted': False, 'files': []},
+                    'quizzes': {'found': 0, 'extracted': False, 'files': []},
+                    'files': {'found': 0, 'extracted': False, 'files': []},
+                    'external_tools': {'found': 0, 'extracted': False, 'files': []},
+                    'unknown': {'found': 0, 'extracted': False, 'files': []}
+                }
+
+                for identifier, res in resources.items():
+                    res_type = res.get('type', '').lower()
+                    href = res.get('href', '')
+
+                    if 'learning-application-resource' in res_type or 'assignment' in res_type:
+                        stats['assignments']['found'] += 1
+                        stats['assignments']['files'].append(href)
+                    elif 'webcontent' in res_type:
+                        stats['pages']['found'] += 1
+                        stats['pages']['files'].append(href)
+                    elif 'imsdt' in res_type or 'discussion' in res_type:
+                        stats['discussions']['found'] += 1
+                        stats['discussions']['files'].append(href)
+                    elif 'imsqti' in res_type or 'assessment' in res_type or 'quiz' in res_type:
+                        stats['quizzes']['found'] += 1
+                        stats['quizzes']['files'].append(href)
+                    elif 'imswl' in res_type or 'weblink' in res_type:
+                        stats['external_tools']['found'] += 1
+                        stats['external_tools']['files'].append(href)
+                    elif 'imsbasiclti' in res_type:
+                        stats['external_tools']['found'] += 1
+                        stats['external_tools']['files'].append(href)
+                    else:
+                        stats['unknown']['found'] += 1
+                        stats['unknown']['files'].append(f"{identifier}: {res_type}")
+
+                # Count media/attachment files (not in resources but in ZIP)
+                media_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.mp3', '.pdf', '.doc', '.docx']
+                for f in all_files:
+                    if any(f.lower().endswith(ext) for ext in media_extensions):
+                        stats['files']['found'] += 1
+                        if len(stats['files']['files']) < 10:  # Limit sample
+                            stats['files']['files'].append(f)
+
+                # Calculate coverage estimate
+                total_resources = sum(s['found'] for s in stats.values())
+                extracted_resources = sum(
+                    s['found'] for s in stats.values() if s['extracted']
+                )
+                coverage_pct = (extracted_resources / total_resources * 100) if total_resources > 0 else 0
+
+                return {
+                    'success': True,
+                    'total_files': len(all_files),
+                    'total_resources': total_resources,
+                    'resources': {
+                        k: {'found': v['found'], 'extracted': v['extracted']}
+                        for k, v in stats.items()
+                    },
+                    'resource_details': {
+                        k: v['files'][:5]  # First 5 files per type
+                        for k, v in stats.items()
+                        if v['found'] > 0
+                    },
+                    'coverage_estimate': f"{coverage_pct:.0f}%",
+                    'file_sample': all_files[:30],
+                    'course_title': manifest.get('title', 'Unknown'),
+                    'modules_found': len(manifest.get('modules', [])),
+                    'assignment_refs_found': len(manifest.get('assignment_refs', [])),
+                    'page_refs_found': len(manifest.get('page_refs', []))
+                }
+
+        except zipfile.BadZipFile:
+            return {
+                'success': False,
+                'error': 'File is not a valid zip archive'
+            }
+        except Exception as e:
+            logger.error(f"Error diagnosing IMSCC file: {str(e)}")
+            return {
+                'success': False,
+                'error': f'Diagnostic failed: {str(e)}'
+            }

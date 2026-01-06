@@ -553,8 +553,8 @@ class CourseService(BaseService):
                 .order('sequence_order')\
                 .execute()
 
-            # Filter out unpublished lessons
-            lessons = [l for l in (lessons_result.data or []) if l.get('is_published') is not False]
+            # All lessons in a published project are visible (visibility inherits from project)
+            lessons = lessons_result.data or []
 
             # Fetch linked task IDs for lessons
             if lessons:

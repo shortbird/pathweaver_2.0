@@ -254,9 +254,12 @@ class BaseAIService(BaseService):
 
         text = text.strip()
 
+        # Clean common issues before parsing
+        cleaned_text = self._clean_json_text(text)
+
         # Try 1: Direct parse (response is pure JSON)
         try:
-            return json.loads(text)
+            return json.loads(cleaned_text)
         except json.JSONDecodeError:
             pass
 
@@ -268,15 +271,17 @@ class BaseAIService(BaseService):
         ]
 
         for pattern in code_block_patterns:
-            match = re.search(pattern, text)
+            match = re.search(pattern, cleaned_text)
             if match:
                 try:
-                    return json.loads(match.group(1).strip())
-                except json.JSONDecodeError:
+                    extracted = self._clean_json_text(match.group(1).strip())
+                    return json.loads(extracted)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Code block JSON parse failed: {e}")
                     continue
 
         # Try 3: Find JSON object { ... }
-        json_obj_match = re.search(r'\{[\s\S]*\}', text)
+        json_obj_match = re.search(r'\{[\s\S]*\}', cleaned_text)
         if json_obj_match:
             try:
                 return json.loads(json_obj_match.group())
@@ -284,7 +289,7 @@ class BaseAIService(BaseService):
                 pass
 
         # Try 4: Find JSON array [ ... ]
-        json_arr_match = re.search(r'\[[\s\S]*\]', text)
+        json_arr_match = re.search(r'\[[\s\S]*\]', cleaned_text)
         if json_arr_match:
             try:
                 return json.loads(json_arr_match.group())
@@ -292,24 +297,121 @@ class BaseAIService(BaseService):
                 pass
 
         # Try 5: Find first { and last } (greedy)
-        first_brace = text.find('{')
-        last_brace = text.rfind('}')
+        first_brace = cleaned_text.find('{')
+        last_brace = cleaned_text.rfind('}')
         if first_brace >= 0 and last_brace > first_brace:
             try:
-                return json.loads(text[first_brace:last_brace + 1])
+                return json.loads(cleaned_text[first_brace:last_brace + 1])
             except json.JSONDecodeError:
                 pass
 
         # Try 6: Find first [ and last ] (greedy)
-        first_bracket = text.find('[')
-        last_bracket = text.rfind(']')
+        first_bracket = cleaned_text.find('[')
+        last_bracket = cleaned_text.rfind(']')
         if first_bracket >= 0 and last_bracket > first_bracket:
             try:
-                return json.loads(text[first_bracket:last_bracket + 1])
+                return json.loads(cleaned_text[first_bracket:last_bracket + 1])
             except json.JSONDecodeError:
                 pass
 
-        logger.warning(f"Could not extract JSON from text: {text[:100]}...")
+        # Try 7: Repair truncated JSON (common with long responses)
+        repaired = self._repair_truncated_json(cleaned_text)
+        if repaired:
+            try:
+                return json.loads(repaired)
+            except json.JSONDecodeError:
+                pass
+
+        logger.warning(f"Could not extract JSON from text: {cleaned_text[:200]}...")
+        return None
+
+    def _clean_json_text(self, text: str) -> str:
+        """
+        Clean common issues in JSON text from AI responses.
+        """
+        if not text:
+            return text
+
+        # Remove BOM and other invisible characters
+        text = text.strip('\ufeff\u200b\u200c\u200d\u2060')
+
+        # Remove control characters except newlines and tabs
+        text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
+
+        # Fix common escape issues
+        # Replace literal backslash-n with actual newlines in strings (if not already)
+        # This is tricky - only do it if it looks like a literal string "\\n"
+        text = re.sub(r'(?<!\\)\\n(?![\s\S]*")', '\n', text)
+
+        return text
+
+    def _repair_truncated_json(self, text: str) -> Optional[str]:
+        """
+        Attempt to repair truncated JSON by closing unclosed brackets/braces.
+        Common issue when AI response hits token limit.
+        """
+        # Find JSON start
+        start_brace = text.find('{')
+        start_bracket = text.find('[')
+
+        if start_brace < 0 and start_bracket < 0:
+            return None
+
+        # Determine which comes first
+        if start_brace >= 0 and (start_bracket < 0 or start_brace < start_bracket):
+            start = start_brace
+            json_text = text[start:]
+        else:
+            start = start_bracket
+            json_text = text[start:]
+
+        # Count unclosed braces/brackets
+        open_braces = 0
+        open_brackets = 0
+        in_string = False
+        escape_next = False
+
+        for char in json_text:
+            if escape_next:
+                escape_next = False
+                continue
+
+            if char == '\\':
+                escape_next = True
+                continue
+
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+
+            if in_string:
+                continue
+
+            if char == '{':
+                open_braces += 1
+            elif char == '}':
+                open_braces -= 1
+            elif char == '[':
+                open_brackets += 1
+            elif char == ']':
+                open_brackets -= 1
+
+        # If we have unclosed structures, try to close them
+        if open_braces > 0 or open_brackets > 0:
+            # Close any open string first
+            if in_string:
+                json_text += '"'
+
+            # Add closing brackets and braces
+            repair = ''
+            for _ in range(open_brackets):
+                repair += ']'
+            for _ in range(open_braces):
+                repair += '}'
+
+            logger.info(f"Attempting JSON repair: adding {repair}")
+            return json_text + repair
+
         return None
 
     def validate_content(

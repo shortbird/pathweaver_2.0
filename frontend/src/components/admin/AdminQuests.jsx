@@ -23,13 +23,17 @@ const AdminQuests = () => {
   const [publicFilter, setPublicFilter] = useState('all') // all, public, private
   const [showBulkGenerator, setShowBulkGenerator] = useState(false)
   const [showAIReviewModal, setShowAIReviewModal] = useState(false)
+  const [selectedQuests, setSelectedQuests] = useState(new Set())
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Determine user role
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
+  const isSuperAdmin = user?.role === 'superadmin'
   const isAdvisor = user?.role === 'advisor'
 
   useEffect(() => {
     fetchQuests()
+    setSelectedQuests(new Set()) // Clear selection when filters change
   }, [activeFilter, questTypeFilter, publicFilter])
 
   const fetchQuests = async () => {
@@ -179,6 +183,63 @@ const AdminQuests = () => {
       })
   }
 
+  // Multi-select handlers
+  const handleToggleSelect = (questId) => {
+    setSelectedQuests(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(questId)) {
+        newSet.delete(questId)
+      } else {
+        newSet.add(questId)
+      }
+      return newSet
+    })
+  }
+
+  const handleSelectAll = () => {
+    if (selectedQuests.size === quests.length) {
+      setSelectedQuests(new Set())
+    } else {
+      setSelectedQuests(new Set(quests.map(q => q.id)))
+    }
+  }
+
+  const handleClearSelection = () => {
+    setSelectedQuests(new Set())
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedQuests.size === 0) return
+
+    const confirmMessage = `Are you sure you want to delete ${selectedQuests.size} quest${selectedQuests.size > 1 ? 's' : ''}? This action cannot be undone.`
+    if (!window.confirm(confirmMessage)) return
+
+    setIsDeleting(true)
+    try {
+      const response = await api.post('/api/admin/quests/bulk-delete', {
+        quest_ids: Array.from(selectedQuests)
+      })
+
+      if (response.data.success) {
+        toast.success(`Deleted ${response.data.deleted_count} quest${response.data.deleted_count > 1 ? 's' : ''}`)
+        if (response.data.failed?.length > 0) {
+          toast.error(`Failed to delete ${response.data.failed.length} quest(s)`)
+        }
+        setSelectedQuests(new Set())
+        fetchQuests()
+      }
+    } catch (error) {
+      // Extract error message - handle both string and object formats
+      const errorData = error.response?.data?.error
+      const errorMessage = typeof errorData === 'string'
+        ? errorData
+        : errorData?.message || 'Failed to delete quests'
+      toast.error(errorMessage)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
@@ -219,6 +280,61 @@ const AdminQuests = () => {
 
       {/* Filter Row */}
       <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+        {/* Select All Checkbox - Superadmin only */}
+        {isSuperAdmin && quests.length > 0 && (
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="selectAll"
+              checked={selectedQuests.size === quests.length && quests.length > 0}
+              onChange={handleSelectAll}
+              className="w-5 h-5 rounded border-gray-300 text-optio-purple focus:ring-optio-purple cursor-pointer"
+            />
+            <label htmlFor="selectAll" className="text-sm font-medium text-gray-600 cursor-pointer">
+              Select All
+            </label>
+          </div>
+        )}
+
+        {/* Bulk Delete Button - Shows when items selected */}
+        {isSuperAdmin && selectedQuests.size > 0 && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleBulkDelete}
+              disabled={isDeleting}
+              className="px-4 py-1.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isDeleting ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete ({selectedQuests.size})
+                </>
+              )}
+            </button>
+            <button
+              onClick={handleClearSelection}
+              className="px-3 py-1.5 text-gray-600 text-sm font-medium hover:text-gray-800"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        {/* Divider when selection controls are visible */}
+        {isSuperAdmin && quests.length > 0 && (
+          <div className="h-6 w-px bg-gray-300" />
+        )}
+
         {/* Active Status Filter */}
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-gray-600">Status:</span>
@@ -263,6 +379,9 @@ const AdminQuests = () => {
 
         {/* Results Summary */}
         <div className="ml-auto text-sm text-gray-600">
+          {selectedQuests.size > 0 && (
+            <span className="font-semibold text-optio-purple mr-2">{selectedQuests.size} selected</span>
+          )}
           <span className="font-semibold">{quests.length}</span> quest{quests.length !== 1 ? 's' : ''}
         </div>
       </div>
@@ -327,7 +446,10 @@ const AdminQuests = () => {
               {quests.map(quest => (
                 <div
                   key={quest.id}
-                  className="group bg-white rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100"
+                  onClick={() => isSuperAdmin && selectedQuests.size > 0 && handleToggleSelect(quest.id)}
+                  className={`group bg-white rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-2 ${
+                    selectedQuests.has(quest.id) ? 'border-optio-purple ring-2 ring-optio-purple/20' : 'border-gray-100'
+                  } ${isSuperAdmin && selectedQuests.size > 0 ? 'cursor-pointer' : ''}`}
                 >
                   {/* Image Section with Title Overlay - Same as QuestCardSimple */}
                   <div className="relative h-48 overflow-hidden">
@@ -344,6 +466,19 @@ const AdminQuests = () => {
 
                     {/* Gradient Overlay for Text Readability */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent" />
+
+                    {/* Selection Checkbox - Superadmin only */}
+                    {isSuperAdmin && (
+                      <div className="absolute top-4 left-4 z-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedQuests.has(quest.id)}
+                          onChange={() => handleToggleSelect(quest.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-5 h-5 rounded border-2 border-white bg-white/90 text-optio-purple focus:ring-optio-purple focus:ring-offset-0 cursor-pointer shadow-lg"
+                        />
+                      </div>
+                    )}
 
                     {/* Active/Inactive Badge */}
                     <div className="absolute top-4 right-4">
@@ -371,7 +506,7 @@ const AdminQuests = () => {
                     </p>
 
                     {/* Active Toggle - Disabled for advisors */}
-                    <div className="flex items-center justify-between min-h-[44px] mb-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between min-h-[44px] mb-3 p-3 bg-gray-50 rounded-lg" onClick={(e) => e.stopPropagation()}>
                       <span className="text-sm font-medium text-gray-700">
                         Active
                         {isAdvisor && <span className="text-xs text-gray-500 ml-1">(Admin only)</span>}
@@ -394,7 +529,7 @@ const AdminQuests = () => {
                     </div>
 
                     {/* Public Toggle - Admin only */}
-                    <div className="flex items-center justify-between min-h-[44px] mb-4 p-3 bg-blue-50 rounded-lg">
+                    <div className="flex items-center justify-between min-h-[44px] mb-4 p-3 bg-blue-50 rounded-lg" onClick={(e) => e.stopPropagation()}>
                       <span className="text-sm font-medium text-gray-700">
                         Public
                         {isAdvisor && <span className="text-xs text-gray-500 ml-1">(Admin only)</span>}
@@ -425,7 +560,7 @@ const AdminQuests = () => {
                     )}
 
                     {/* Admin Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-2" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => handleEdit(quest)}
                         className="min-h-[44px] px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-medium flex items-center justify-center gap-2"

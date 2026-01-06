@@ -549,35 +549,38 @@ class CurriculumLessonService(BaseService):
             if custom_prompt:
                 custom_section = f"\nADDITIONAL REQUIREMENTS:\n{custom_prompt[:500]}\n"
 
-            prompt = f"""You are creating educational tasks for a curriculum lesson. These tasks should help students demonstrate understanding of the lesson content while building real-world skills.
+            prompt = f"""You are helping create task IDEAS for a curriculum lesson. These are suggestions students can choose from - not assignments or requirements.
 
 {context_section}
 
 Lesson Content:
 {lesson_content[:2000]}
 
-Generate {num_tasks} educational tasks with these requirements:
+Generate {num_tasks} task ideas with these requirements:
 {pillar_instruction}
 {custom_section}
-TASK DESIGN PRINCIPLES:
-- Tasks should directly connect to the lesson content
-- Focus on real-world application and skill demonstration
-- Allow flexibility in how students show their work
-- Progress from foundational to advanced understanding
-- Be achievable independently by students
+CRITICAL TASK WRITING GUIDELINES:
+- Title: Use action-oriented verbs (Create, Build, Design, Research, Explore, Write, etc.)
+  Title should be ONE simple idea (5-8 words max)
+- Description: Short and focused (2-3 sentences) on different IDEAS and APPROACHES for how the student might complete this task
+  Frame as suggestions, not directions. Example: "You could create a visual diagram, write a short explanation, or build a simple model. Consider connecting this to real-world examples you find interesting."
+- Each task must be assigned to ONE of these pillars (use exact lowercase names):
+  stem, wellness, communication, civics, art
+
+IMPORTANT: Students should CHOOSE these tasks, not just agree to AI suggestions. Make tasks feel like genuine options with flexible approaches, not prescriptive requirements or assignments.
 
 For each task, provide these fields:
-- title: Action-oriented title using verbs like Create, Research, Design, Analyze, Build, Write, Explore (5-8 words max)
-- description: Clear explanation (2-3 sentences) of what the student should do
-- pillar: One of: stem, wellness, communication, civics, art - choose the best fit for the task
-- xp_value: XP points (50-200) based on complexity and time required
-- evidence_prompt: How students can demonstrate completion - offer multiple formats (written work, video, presentation, project, etc.)
+- title: Action-oriented task name (5-8 words max)
+- description: 2-3 sentences describing IDEAS for how to approach this task - not directions
+- pillar: One of: stem, wellness, communication, civics, art
+- xp_value: XP points (50-200) based on complexity
+- evidence_prompt: Flexible ways to show completion: "Show your work through a written summary, video, diagram, project, or format of your choice"
 
 STYLE GUIDELINES:
-- Use simple, direct, actionable language
+- Use simple, direct language
 - No motivational hype or flowery language
-- Be specific about what students should create or demonstrate
-- Evidence prompts should be flexible: "Show your work through a written summary, video, diagram, project, or format of your choice"
+- Frame descriptions as possibilities and ideas, not requirements
+- Keep language inviting and open-ended
 
 Return ONLY a valid JSON array with these exact field names. No markdown, no code blocks, no extra text."""
 
@@ -606,6 +609,13 @@ Return ONLY a valid JSON array with these exact field names. No markdown, no cod
                     'xp_value': xp,
                     'evidence_prompt': task.get('evidence_prompt', 'Show your work through writing, video, or another format of your choice.')
                 })
+
+            # Enforce unique pillars - reassign to ensure variety
+            import random
+            shuffled_pillars = valid_pillars.copy()
+            random.shuffle(shuffled_pillars)
+            for i, task in enumerate(validated_tasks):
+                task['pillar'] = shuffled_pillars[i % len(shuffled_pillars)]
 
             logger.info(f"Generated {len(validated_tasks)} AI tasks for lesson {lesson_id}")
             return validated_tasks
