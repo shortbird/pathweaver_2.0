@@ -11,17 +11,12 @@ const AdvisorCheckinPage = () => {
   const [error, setError] = useState(null)
 
   // Pre-populated data
-  const [studentName, setStudentName] = useState('')
   const [activeQuests, setActiveQuests] = useState([])
   const [lastCheckin, setLastCheckin] = useState(null)
 
   // Form fields
   const [checkinDate, setCheckinDate] = useState(new Date().toISOString().split('T')[0])
-  const [growthMoments, setGrowthMoments] = useState('')
-  const [studentVoice, setStudentVoice] = useState('')
-  const [obstacles, setObstacles] = useState('')
-  const [solutions, setSolutions] = useState('')
-  const [advisorNotes, setAdvisorNotes] = useState('')
+  const [additionalNotes, setAdditionalNotes] = useState('')
   const [questNotes, setQuestNotes] = useState({}) // { quest_id: 'notes text' }
 
   useEffect(() => {
@@ -35,16 +30,7 @@ const AdvisorCheckinPage = () => {
 
       if (response.data.success) {
         const { active_quests, last_checkin } = response.data
-
-        // Set active quests
         setActiveQuests(active_quests || [])
-
-        // Set student name from first quest or default
-        if (active_quests && active_quests.length > 0) {
-          setStudentName('Student') // Will be replaced with actual name from backend
-        }
-
-        // Set last check-in info
         setLastCheckin(last_checkin)
       }
     } catch (err) {
@@ -58,8 +44,10 @@ const AdvisorCheckinPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    if (!growthMoments.trim() && !studentVoice.trim() && !obstacles.trim() && !solutions.trim()) {
-      setError('Please fill in at least one field')
+    // Check if at least one note exists (quest note or additional notes)
+    const hasQuestNotes = Object.values(questNotes).some(note => note.trim())
+    if (!hasQuestNotes && !additionalNotes.trim()) {
+      setError('Please add at least one note')
       return
     }
 
@@ -75,11 +63,7 @@ const AdvisorCheckinPage = () => {
       const checkinData = {
         student_id: studentId,
         checkin_date: new Date(checkinDate).toISOString(),
-        growth_moments: growthMoments,
-        student_voice: studentVoice,
-        obstacles: obstacles,
-        solutions: solutions,
-        advisor_notes: advisorNotes,
+        advisor_notes: additionalNotes,
         active_quests_snapshot: activeQuests,
         quest_notes: questNotesArray
       }
@@ -87,7 +71,6 @@ const AdvisorCheckinPage = () => {
       const response = await checkinAPI.createCheckin(checkinData)
 
       if (response.data.success) {
-        // Navigate back to advisor dashboard
         navigate('/advisor/dashboard')
       }
     } catch (err) {
@@ -188,7 +171,7 @@ const AdvisorCheckinPage = () => {
                     {/* Quest-specific notes */}
                     <div className="mt-3 pt-3 border-t border-purple-200">
                       <label className="block text-gray-700 font-semibold text-sm mb-2">
-                        Quest-Specific Notes (optional)
+                        Notes (optional)
                       </label>
                       <textarea
                         value={questNotes[quest.quest_id] || ''}
@@ -198,7 +181,7 @@ const AdvisorCheckinPage = () => {
                         }))}
                         rows={2}
                         className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors resize-none text-sm"
-                        placeholder="Add specific notes about this quest's progress, challenges, or observations..."
+                        placeholder="Add notes about this quest..."
                       />
                     </div>
                   </div>
@@ -207,88 +190,17 @@ const AdvisorCheckinPage = () => {
             )}
           </div>
 
-          {/* Growth Moments */}
+          {/* Additional Notes */}
           <div>
             <label className="block text-gray-700 font-semibold mb-2">
-              Growth Moments
-              <span className="block text-sm text-gray-500 font-normal mt-1">
-                What did this student discover or learn? What growth did you observe?
-              </span>
+              Additional Notes (optional)
             </label>
             <textarea
-              value={growthMoments}
-              onChange={(e) => setGrowthMoments(e.target.value)}
+              value={additionalNotes}
+              onChange={(e) => setAdditionalNotes(e.target.value)}
               rows={4}
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors resize-none font-medium"
-              placeholder="Describe moments of discovery, learning breakthroughs, or skill development..."
-            />
-          </div>
-
-          {/* Student Voice */}
-          <div>
-            <label className="block text-gray-700 font-semibold mb-2">
-              Student Voice
-              <span className="block text-sm text-gray-500 font-normal mt-1">
-                Capture direct quotes from the student (optional)
-              </span>
-            </label>
-            <textarea
-              value={studentVoice}
-              onChange={(e) => setStudentVoice(e.target.value)}
-              rows={3}
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors resize-none font-medium"
-              placeholder={`"I finally understood how..." or "I'm proud that I..."`}
-            />
-          </div>
-
-          {/* Obstacles */}
-          <div>
-            <label className="block text-gray-700 font-semibold mb-2">
-              Obstacles & Challenges
-              <span className="block text-sm text-gray-500 font-normal mt-1">
-                What challenges is the student facing?
-              </span>
-            </label>
-            <textarea
-              value={obstacles}
-              onChange={(e) => setObstacles(e.target.value)}
-              rows={4}
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors resize-none font-medium"
-              placeholder="Time management, specific content difficulties, motivation, external factors..."
-            />
-          </div>
-
-          {/* Solutions & Strategies */}
-          <div>
-            <label className="block text-gray-700 font-semibold mb-2">
-              Solutions & Strategies
-              <span className="block text-sm text-gray-500 font-normal mt-1">
-                What approaches did you discuss to address challenges?
-              </span>
-            </label>
-            <textarea
-              value={solutions}
-              onChange={(e) => setSolutions(e.target.value)}
-              rows={4}
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors resize-none font-medium"
-              placeholder="Action steps, resources to explore, schedule adjustments, support strategies..."
-            />
-          </div>
-
-          {/* Private Advisor Notes */}
-          <div>
-            <label className="block text-gray-700 font-semibold mb-2">
-              Private Advisor Notes
-              <span className="block text-sm text-red-600 font-normal mt-1">
-                Confidential - Never visible to student
-              </span>
-            </label>
-            <textarea
-              value={advisorNotes}
-              onChange={(e) => setAdvisorNotes(e.target.value)}
-              rows={3}
-              className="w-full px-4 py-3 border-2 border-red-200 rounded-lg focus:border-red-500 focus:outline-none transition-colors resize-none bg-red-50 font-medium"
-              placeholder="Personal observations, follow-up reminders, confidential notes..."
+              placeholder="Any other notes from this check-in..."
             />
           </div>
 

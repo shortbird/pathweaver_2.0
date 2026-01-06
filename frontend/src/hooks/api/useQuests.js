@@ -243,3 +243,21 @@ export const useGlobalEngagement = (options = {}) => {
     ...options,
   })
 }
+
+/**
+ * Hook for fetching student engagement/rhythm metrics (for parent dashboard)
+ * Allows parents to view their child's engagement data
+ */
+export const useStudentEngagement = (studentId, options = {}) => {
+  return useQuery({
+    queryKey: ['student-engagement', studentId],
+    queryFn: async () => {
+      const response = await api.get(`/api/parent/${studentId}/engagement`)
+      return response.data.engagement
+    },
+    enabled: !!studentId,
+    staleTime: 60 * 1000, // 1 minute
+    cacheTime: 5 * 60 * 1000, // 5 minutes
+    ...options,
+  })
+}

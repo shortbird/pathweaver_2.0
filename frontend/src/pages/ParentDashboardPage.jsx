@@ -6,6 +6,7 @@ import { parentAPI } from '../services/api';
 import api from '../services/api';
 import { toast } from 'react-hot-toast';
 import { getMyDependents } from '../services/dependentAPI';
+import { useStudentEngagement } from '../hooks/api/useQuests';
 import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
@@ -18,6 +19,9 @@ import AddDependentModal from '../components/parent/AddDependentModal';
 import RequestStudentConnectionModal from '../components/parent/RequestStudentConnectionModal';
 import VisibilityApprovalSection from '../components/parent/VisibilityApprovalSection';
 import DependentSettingsModal from '../components/parent/DependentSettingsModal';
+import RhythmIndicator from '../components/quest/RhythmIndicator';
+import EngagementCalendar from '../components/quest/EngagementCalendar';
+import RhythmExplainerModal from '../components/quest/RhythmExplainerModal';
 
 const ParentDashboardPage = () => {
   const { user } = useAuth();
@@ -39,6 +43,10 @@ const ParentDashboardPage = () => {
   const [showDependentSettingsModal, setShowDependentSettingsModal] = useState(false);
   const [selectedDependentForSettings, setSelectedDependentForSettings] = useState(null);
   const [selectedChildIsDependent, setSelectedChildIsDependent] = useState(true);
+  const [showRhythmModal, setShowRhythmModal] = useState(false);
+
+  // Fetch engagement data for selected student
+  const { data: engagement } = useStudentEngagement(selectedStudentId);
 
   // Pillar display names mapping
   const pillarDisplayNames = {
@@ -531,6 +539,48 @@ const ParentDashboardPage = () => {
           {/* FERPA Compliance: Portfolio Visibility Approval Requests */}
           <VisibilityApprovalSection />
 
+          {/* Learning Rhythm Section */}
+          {(() => {
+            const selectedDependent = dependents.find(d => d.id === selectedStudentId);
+            const firstName = selectedDependent?.display_name?.split(' ')[0] || selectedStudent?.student_first_name || 'Student';
+            return (
+              <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    {firstName}'s Learning Rhythm
+                  </h3>
+                  {engagement?.rhythm && (
+                    <RhythmIndicator
+                      state={engagement.rhythm.state}
+                      stateDisplay={engagement.rhythm.state_display}
+                      message={engagement.rhythm.message}
+                      patternDescription={engagement.rhythm.pattern_description}
+                      onClick={() => setShowRhythmModal(true)}
+                      compact
+                    />
+                  )}
+                </div>
+                {engagement?.rhythm && (
+                  <p className="text-sm text-gray-500 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    {engagement.rhythm.message}
+                  </p>
+                )}
+                {engagement?.calendar && (
+                  <EngagementCalendar
+                    days={engagement.calendar.days}
+                    weeksActive={engagement.calendar.weeks_active}
+                    firstActivityDate={engagement.calendar.first_activity_date}
+                  />
+                )}
+                {!engagement && (
+                  <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Loading engagement data...
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Overview Content */}
           <div className="space-y-6">
               {/* Active Quests */}
@@ -553,21 +603,7 @@ const ParentDashboardPage = () => {
                           <h4 className="font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
                             {quest.title}
                           </h4>
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                              {quest.progress.completed_tasks} / {quest.progress.total_tasks} tasks
-                            </span>
-                            <span className="text-optio-purple font-semibold" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                              {quest.progress.percentage}%
-                            </span>
-                          </div>
-                          <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className="bg-gradient-primary h-2 rounded-full transition-all"
-                              style={{ width: `${quest.progress.percentage}%` }}
-                            />
-                          </div>
-                          <div className="mt-3 text-xs text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                          <div className="text-xs text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
                             Click to view tasks and add evidence
                           </div>
                         </div>
@@ -711,16 +747,8 @@ const ParentDashboardPage = () => {
                             </h4>
                             <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" />
                           </div>
-                          <div className="flex items-center justify-between text-sm mb-2">
-                            <span className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                              {quest.progress.completed_tasks} / {quest.progress.total_tasks} tasks
-                            </span>
-                            <span className="text-green-600 font-semibold" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                              Completed
-                            </span>
-                          </div>
                           <p className="text-xs text-gray-500 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {new Date(quest.completed_at).toLocaleDateString('en-US', {
+                            Completed {new Date(quest.completed_at).toLocaleDateString('en-US', {
                               year: 'numeric',
                               month: 'short',
                               day: 'numeric'
@@ -812,6 +840,13 @@ const ParentDashboardPage = () => {
             console.error('Error reloading children:', error);
           }
         }}
+      />
+
+      {/* Rhythm Explainer Modal */}
+      <RhythmExplainerModal
+        isOpen={showRhythmModal}
+        onClose={() => setShowRhythmModal(false)}
+        currentState={engagement?.rhythm?.state}
       />
     </div>
   );

@@ -24,19 +24,49 @@ class AdvisorService(BaseService):
 
     # ==================== Organization Isolation ====================
 
-    def _verify_same_organization(self, user_id_1: str, user_id_2: str) -> bool:
+    def _is_superadmin(self, user_id: str) -> bool:
+        """
+        Check if user is a superadmin.
+        Superadmins have cross-organization access for advisor functionality.
+
+        Args:
+            user_id: UUID of the user
+
+        Returns:
+            True if user is superadmin, False otherwise
+        """
+        try:
+            result = self.supabase.table('users')\
+                .select('role')\
+                .eq('id', user_id)\
+                .single()\
+                .execute()
+            return result.data and result.data.get('role') == 'superadmin'
+        except Exception as e:
+            logger.error(f"Error checking superadmin status: {e}")
+            return False
+
+    def _verify_same_organization(self, user_id_1: str, user_id_2: str, advisor_id: str = None) -> bool:
         """
         Verify that two users belong to the same organization.
         This is critical for organization isolation.
 
+        Superadmins bypass this check - they have cross-organization access.
+
         Args:
-            user_id_1: First user's UUID
-            user_id_2: Second user's UUID
+            user_id_1: First user's UUID (typically the advisor)
+            user_id_2: Second user's UUID (typically the student)
+            advisor_id: Optional advisor ID to check for superadmin bypass (defaults to user_id_1)
 
         Returns:
-            True if users are in the same organization, False otherwise
+            True if users are in the same organization or advisor is superadmin, False otherwise
         """
         try:
+            # Superadmins have cross-organization access
+            check_id = advisor_id if advisor_id else user_id_1
+            if self._is_superadmin(check_id):
+                return True
+
             result = self.supabase.table('users')\
                 .select('id, organization_id')\
                 .in_('id', [user_id_1, user_id_2])\
@@ -71,9 +101,9 @@ class AdvisorService(BaseService):
 
     def get_advisor_students(self, advisor_id: str) -> List[Dict[str, Any]]:
         """
-        Get all students assigned to this advisor within the same organization.
-        Organization isolation is enforced - advisors/org admins can only see
-        students from their own organization.
+        Get all students assigned to this advisor.
+        Organization isolation is enforced for regular advisors/org admins.
+        Superadmins can see students from any organization.
 
         Args:
             advisor_id: UUID of the advisor or admin
@@ -84,14 +114,18 @@ class AdvisorService(BaseService):
         try:
             students = []
 
-            # First, get the advisor's organization_id for isolation
-            advisor_result = self.supabase.table('users')\
-                .select('organization_id')\
-                .eq('id', advisor_id)\
-                .single()\
-                .execute()
+            # Check if advisor is superadmin (cross-org access)
+            is_superadmin = self._is_superadmin(advisor_id)
 
-            advisor_org_id = advisor_result.data.get('organization_id') if advisor_result.data else None
+            # Get the advisor's organization_id for isolation (skip for superadmin)
+            advisor_org_id = None
+            if not is_superadmin:
+                advisor_result = self.supabase.table('users')\
+                    .select('organization_id')\
+                    .eq('id', advisor_id)\
+                    .single()\
+                    .execute()
+                advisor_org_id = advisor_result.data.get('organization_id') if advisor_result.data else None
 
             # Get assigned students with organization info
             response = self.supabase.table('advisor_student_assignments')\
@@ -101,16 +135,17 @@ class AdvisorService(BaseService):
                 .execute()
 
             # Flatten the nested user data and collect student IDs for bulk queries
-            # ORGANIZATION ISOLATION: Only include students from the same organization
+            # ORGANIZATION ISOLATION: Only include students from the same organization (unless superadmin)
             student_ids = []
             if response.data:
                 for assignment in response.data:
                     if assignment.get('users'):
                         student = assignment['users']
-                        # CRITICAL: Enforce organization isolation
-                        # Skip students not in the advisor's organization
                         student_org_id = student.get('organization_id')
-                        if advisor_org_id is not None and student_org_id != advisor_org_id:
+
+                        # Superadmins can see students from any organization
+                        # Regular advisors can only see students from their org
+                        if not is_superadmin and advisor_org_id is not None and student_org_id != advisor_org_id:
                             logger.warning(
                                 f"Organization isolation: Filtered out student {student.get('id')} "
                                 f"(org: {student_org_id}) from advisor {advisor_id} (org: {advisor_org_id})"
@@ -119,8 +154,9 @@ class AdvisorService(BaseService):
                         # Provide fallback for display_name
                         if not student.get('display_name'):
                             student['display_name'] = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip()
-                        # Remove organization_id from response (not needed by frontend)
-                        student.pop('organization_id', None)
+                        # Keep organization_id for superadmin to see which org student belongs to
+                        if not is_superadmin:
+                            student.pop('organization_id', None)
                         student_ids.append(student['id'])
                         students.append(student)
 
@@ -147,7 +183,8 @@ class AdvisorService(BaseService):
     def assign_student_to_advisor(self, student_id: str, advisor_id: str) -> bool:
         """
         Assign a student to an advisor.
-        Organization isolation is enforced - only students in the same org can be assigned.
+        Organization isolation is enforced for regular advisors.
+        Superadmins can assign students from any organization.
 
         Args:
             student_id: UUID of the student
@@ -516,7 +553,8 @@ class AdvisorService(BaseService):
     def get_student_progress_report(self, student_id: str, advisor_id: str) -> Dict[str, Any]:
         """
         Get comprehensive progress report for a student.
-        Organization isolation is enforced.
+        Organization isolation is enforced for regular advisors.
+        Superadmins can view progress for students in any organization.
 
         Args:
             student_id: UUID of the student
@@ -604,7 +642,8 @@ class AdvisorService(BaseService):
     def get_student_active_quests_with_tasks(self, student_id: str, advisor_id: str) -> List[Dict[str, Any]]:
         """
         Get all active quests for a student with their tasks.
-        Organization isolation is enforced.
+        Organization isolation is enforced for regular advisors.
+        Superadmins can view quests for students in any organization.
 
         Used for task management interface in advisor dashboard
 
@@ -616,20 +655,24 @@ class AdvisorService(BaseService):
             List of active quests with tasks
         """
         try:
-            # ORGANIZATION ISOLATION: Verify advisor and student are in the same org
-            if not self._verify_same_organization(advisor_id, student_id):
+            # Check if advisor is superadmin (cross-org access)
+            is_superadmin = self._is_superadmin(advisor_id)
+
+            # ORGANIZATION ISOLATION: Verify advisor and student are in the same org (skip for superadmin)
+            if not is_superadmin and not self._verify_same_organization(advisor_id, student_id):
                 raise ValueError("You do not have permission to view this student's quests - organization mismatch")
 
-            # Verify advisor has permission for this student
-            assignment = self.supabase.table('advisor_student_assignments')\
-                .select('id')\
-                .eq('advisor_id', advisor_id)\
-                .eq('student_id', student_id)\
-                .eq('is_active', True)\
-                .execute()
+            # Verify advisor has permission for this student (superadmin always has access)
+            if not is_superadmin:
+                assignment = self.supabase.table('advisor_student_assignments')\
+                    .select('id')\
+                    .eq('advisor_id', advisor_id)\
+                    .eq('student_id', student_id)\
+                    .eq('is_active', True)\
+                    .execute()
 
-            if not assignment.data:
-                raise ValueError("You do not have permission to view this student's quests")
+                if not assignment.data:
+                    raise ValueError("You do not have permission to view this student's quests")
 
             # Get active quests for this student
             user_quests = self.supabase.table('user_quests')\
@@ -712,16 +755,21 @@ class AdvisorService(BaseService):
     def verify_advisor_student_relationship(self, advisor_id: str, student_id: str) -> bool:
         """
         Verify that an advisor has permission to manage a student's tasks.
-        Organization isolation is enforced.
+        Organization isolation is enforced for regular advisors.
+        Superadmins can manage any student in any organization.
 
         Args:
             advisor_id: UUID of the advisor
             student_id: UUID of the student
 
         Returns:
-            True if relationship exists, is active, and users are in same org. False otherwise.
+            True if relationship exists and is active (or advisor is superadmin). False otherwise.
         """
         try:
+            # Superadmins have access to all students
+            if self._is_superadmin(advisor_id):
+                return True
+
             # ORGANIZATION ISOLATION: Verify they are in the same org first
             if not self._verify_same_organization(advisor_id, student_id):
                 return False

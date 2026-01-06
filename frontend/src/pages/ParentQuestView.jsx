@@ -5,15 +5,18 @@ import toast from 'react-hot-toast';
 import {
   ArrowLeftIcon,
   CheckCircleIcon,
-  ClockIcon,
-  BookOpenIcon
+  PlusIcon,
+  PhotoIcon,
+  DocumentTextIcon,
+  LinkIcon,
+  VideoCameraIcon
 } from '@heroicons/react/24/outline';
 import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
 import EvidenceUploadForm from '../components/parent/EvidenceUploadForm';
 
 /**
- * ParentQuestView - Read-only quest view for parents
- * Shows student's personalized tasks and completion status
+ * ParentQuestView - Streamlined quest view for parents to upload evidence
+ * Focused on helping parents contribute to their child's learning
  */
 const ParentQuestView = () => {
   const { studentId, questId } = useParams();
@@ -21,16 +24,7 @@ const ParentQuestView = () => {
   const [questData, setQuestData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showEvidenceForm, setShowEvidenceForm] = useState({});
-
-  // Pillar colors for visual distinction
-  const pillarColors = {
-    'STEM': 'bg-blue-100 text-blue-800',
-    'Wellness': 'bg-green-100 text-green-800',
-    'Communication': 'bg-yellow-100 text-yellow-800',
-    'Civics': 'bg-red-100 text-red-800',
-    'Art': 'bg-purple-100 text-purple-800'
-  };
+  const [expandedTaskId, setExpandedTaskId] = useState(null);
 
   const loadQuestData = async () => {
     try {
@@ -53,236 +47,213 @@ const ParentQuestView = () => {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
-        </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
       </div>
     );
   }
 
   if (error || !questData) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-12 text-center">
-        <p className="text-red-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+        <p className="text-red-600 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
           {error || 'Quest not found'}
         </p>
         <button
           onClick={() => navigate(`/parent/dashboard/${studentId}`)}
-          className="mt-4 text-optio-purple hover:text-purple-800 font-semibold"
+          className="flex items-center gap-2 text-optio-purple hover:text-purple-800 font-semibold"
           style={{ fontFamily: 'Poppins, sans-serif' }}
         >
-          ← Back to Dashboard
+          <ArrowLeftIcon className="w-5 h-5" />
+          Back to Dashboard
         </button>
       </div>
     );
   }
 
-  const { quest, tasks, progress } = questData;
+  const { quest, tasks } = questData;
+
+  // Count incomplete tasks for the CTA
+  const incompleteTasks = tasks.filter(t => !t.is_completed).length;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Back Button */}
-      <button
-        onClick={() => navigate(`/parent/dashboard/${studentId}`)}
-        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium mb-6 transition-colors"
-        style={{ fontFamily: 'Poppins, sans-serif' }}
-      >
-        <ArrowLeftIcon className="w-5 h-5" />
-        Back to Dashboard
-      </button>
+    <div className="min-h-screen bg-gray-50">
+      {/* Compact Hero Header with Overlay */}
+      <div className="relative h-48 sm:h-56">
+        {/* Background Image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage: quest.image_url
+              ? `url(${quest.image_url})`
+              : 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)'
+          }}
+        />
+        {/* Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
 
-      {/* Quest Header - Mobile optimized */}
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-6 sm:mb-8">
-        {quest.image_url && (
-          <img
-            src={quest.image_url}
-            alt={quest.title}
-            className="w-full h-48 sm:h-64 object-cover"
-          />
-        )}
-        <div className="p-4 sm:p-8">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
-            <div className="flex-1">
-              <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                {quest.title}
-              </h1>
-              <p className="text-sm sm:text-base text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        {/* Back Button */}
+        <button
+          onClick={() => navigate(`/parent/dashboard/${studentId}`)}
+          className="absolute top-4 left-4 flex items-center gap-2 text-white/90 hover:text-white font-medium transition-colors z-10"
+          style={{ fontFamily: 'Poppins, sans-serif' }}
+        >
+          <ArrowLeftIcon className="w-5 h-5" />
+          <span className="hidden sm:inline">Back</span>
+        </button>
+
+        {/* Title and Description Overlay */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
+          <div className="max-w-4xl mx-auto">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              {quest.title}
+            </h1>
+            {quest.description && (
+              <p className="text-white/80 text-sm sm:text-base line-clamp-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 {quest.description}
               </p>
-            </div>
-            {/* Status badges - stack on mobile */}
-            <div className="flex flex-row sm:flex-col items-start gap-2">
-              <span className={`px-3 py-1 rounded-full text-xs sm:text-sm font-semibold ${
-                quest.status === 'completed' ? 'bg-green-100 text-green-800' :
-                quest.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                'bg-gray-100 text-gray-800'
-              }`} style={{ fontFamily: 'Poppins, sans-serif' }}>
-                {quest.status === 'completed' ? 'Completed' :
-                 quest.status === 'in_progress' ? 'In Progress' :
-                 'Not Started'}
-              </span>
-              {quest.started_at && (
-                <span className="text-xs sm:text-sm text-gray-500 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  Started {new Date(quest.started_at).toLocaleDateString()}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Progress Bar */}
-          <div className="mt-4 sm:mt-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs sm:text-sm font-semibold text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Progress: {progress.completed_tasks} / {progress.total_tasks} tasks
-              </span>
-              <span className="text-xs sm:text-sm font-bold text-optio-purple" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                {progress.percentage}%
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2 sm:h-3">
-              <div
-                className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 sm:h-3 rounded-full transition-all"
-                style={{ width: `${progress.percentage}%` }}
-              />
-            </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Parent Capabilities Banner */}
-      <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-3 sm:p-4 mb-6">
-        <div className="flex items-start gap-2 sm:gap-3">
-          <BookOpenIcon className="w-5 h-5 sm:w-6 sm:h-6 text-optio-purple flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm sm:text-base text-gray-700 font-semibold mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              You Can Help!
-            </p>
-            <p className="text-xs sm:text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Upload evidence (photos, documents, links) to help {quest?.title || 'your student'}. They'll review your evidence and mark tasks as complete when ready.
-            </p>
+      {/* Main Content */}
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        {/* Help Banner */}
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
+              <PlusIcon className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Help Upload Evidence
+              </p>
+              <p className="text-sm text-gray-600 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Add photos, documents, or links for any task below. Your child will review and can mark tasks complete.
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Tasks List */}
-      <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-          Tasks ({progress.completed_tasks} / {progress.total_tasks} completed)
-        </h2>
+        {/* Tasks List */}
+        <div className="space-y-3">
+          {tasks.length === 0 ? (
+            <div className="bg-white rounded-xl p-8 text-center border border-gray-200">
+              <p className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                No tasks have been added to this quest yet.
+              </p>
+            </div>
+          ) : (
+            tasks.map((task) => {
+              const isExpanded = expandedTaskId === task.id;
+              const hasEvidence = task.evidence_blocks?.length > 0 || task.evidence_text || task.evidence_url;
 
-        {tasks.length === 0 ? (
-          <div className="bg-gray-50 rounded-lg p-8 text-center">
-            <p className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              No tasks have been added to this quest yet.
-            </p>
-          </div>
-        ) : (
-          tasks.map((task, index) => (
-            <div
-              key={task.id}
-              className={`bg-white rounded-lg border-2 p-4 sm:p-6 ${
-                task.is_completed ? 'border-green-300 bg-green-50' : 'border-gray-200'
-              }`}
-            >
-              <div className="flex items-start gap-3 sm:gap-4">
-                {/* Completion Icon */}
-                <div className="flex-shrink-0 mt-1">
-                  {task.is_completed ? (
-                    <CheckCircleIcon className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
-                  ) : (
-                    <ClockIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
-                  )}
-                </div>
+              return (
+                <div
+                  key={task.id}
+                  className={`bg-white rounded-xl border-2 overflow-hidden transition-all ${
+                    task.is_completed
+                      ? 'border-green-200 bg-green-50/30'
+                      : 'border-gray-200 hover:border-purple-200'
+                  }`}
+                >
+                  {/* Task Header - Always Visible */}
+                  <div className="p-4">
+                    <div className="flex items-start gap-3">
+                      {/* Status Icon */}
+                      <div className="flex-shrink-0 mt-0.5">
+                        {task.is_completed ? (
+                          <CheckCircleIcon className="w-6 h-6 text-green-500" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full border-2 border-gray-300" />
+                        )}
+                      </div>
 
-                {/* Task Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
-                    <h3 className="text-base sm:text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      {index + 1}. {task.title}
-                    </h3>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className={`px-2 py-1 rounded text-xs font-semibold ${pillarColors[task.pillar] || 'bg-gray-100 text-gray-800'}`} style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        {task.pillar}
-                      </span>
-                      <span className="text-sm font-semibold text-optio-purple" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        {task.xp_value} XP
-                      </span>
+                      {/* Task Info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className={`font-semibold ${task.is_completed ? 'text-gray-600' : 'text-gray-900'}`} style={{ fontFamily: 'Poppins, sans-serif' }}>
+                          {task.title}
+                        </h3>
+                        {task.description && (
+                          <p className="text-sm text-gray-500 mt-1 line-clamp-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {task.description}
+                          </p>
+                        )}
+
+                        {/* Evidence indicators */}
+                        {hasEvidence && !isExpanded && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="inline-flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
+                              <PhotoIcon className="w-3 h-3" />
+                              Evidence attached
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Add Evidence Button */}
+                      <button
+                        onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                        className={`flex-shrink-0 px-3 py-2 rounded-lg text-sm font-semibold transition-all min-h-[44px] ${
+                          isExpanded
+                            ? 'bg-gray-100 text-gray-700'
+                            : 'bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:shadow-md'
+                        }`}
+                        style={{ fontFamily: 'Poppins, sans-serif' }}
+                      >
+                        {isExpanded ? 'Close' : '+ Add Evidence'}
+                      </button>
                     </div>
                   </div>
 
-                  {task.description && (
-                    <p className="text-sm sm:text-base text-gray-600 font-medium mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      {task.description}
-                    </p>
-                  )}
+                  {/* Expanded Evidence Section */}
+                  {isExpanded && (
+                    <div className="border-t border-gray-200 bg-gray-50 p-4">
+                      {/* Existing Evidence */}
+                      {hasEvidence && (
+                        <div className="mb-4">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            Current Evidence
+                          </p>
+                          <UnifiedEvidenceDisplay
+                            evidence={{
+                              evidence_type: task.evidence_type || 'legacy_text',
+                              evidence_blocks: task.evidence_blocks || [],
+                              evidence_text: task.evidence_text,
+                              evidence_url: task.evidence_url
+                            }}
+                            displayMode="full"
+                          />
+                        </div>
+                      )}
 
-                  {/* Evidence Display and Upload (available for all tasks) */}
-                  <div className={`mt-3 pt-3 ${task.is_completed ? 'border-t border-green-200' : 'border-t border-gray-200'}`}>
-                    {task.is_completed && (
-                      <p className="text-xs sm:text-sm text-green-700 font-semibold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        ✓ Completed {new Date(task.completed_at).toLocaleDateString()}
-                      </p>
-                    )}
-
-                    {/* Enhanced Evidence Display */}
-                    {(task.evidence_blocks?.length > 0 || task.evidence_text || task.evidence_url) && (
-                      <div className="mt-2 mb-3">
-                        <UnifiedEvidenceDisplay
-                          evidence={{
-                            evidence_type: task.evidence_type || 'legacy_text',
-                            evidence_blocks: task.evidence_blocks || [],
-                            evidence_text: task.evidence_text,
-                            evidence_url: task.evidence_url
-                          }}
-                          displayMode="full"
-                        />
-                      </div>
-                    )}
-
-                    {/* Evidence Upload Form (available for both completed and incomplete tasks) */}
-                    {!showEvidenceForm[task.id] ? (
-                      <button
-                        onClick={() => setShowEvidenceForm({ ...showEvidenceForm, [task.id]: true })}
-                        className="w-full sm:w-auto px-4 py-2 text-xs sm:text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity"
-                        style={{ fontFamily: 'Poppins, sans-serif' }}
-                      >
-                        + Add Evidence
-                      </button>
-                    ) : (
+                      {/* Upload Form */}
                       <EvidenceUploadForm
                         taskId={task.id}
                         studentId={studentId}
-                        onCancel={() => {
-                          const newShowForm = { ...showEvidenceForm };
-                          delete newShowForm[task.id];
-                          setShowEvidenceForm(newShowForm);
-                        }}
+                        onCancel={() => setExpandedTaskId(null)}
                         onSuccess={() => {
-                          const newShowForm = { ...showEvidenceForm };
-                          delete newShowForm[task.id];
-                          setShowEvidenceForm(newShowForm);
+                          setExpandedTaskId(null);
                           loadQuestData();
                         }}
                       />
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+              );
+            })
+          )}
+        </div>
 
-      {/* Back Button (Bottom) */}
-      <div className="mt-8 text-center">
-        <button
-          onClick={() => navigate(`/parent/dashboard/${studentId}`)}
-          className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold transition-colors"
-          style={{ fontFamily: 'Poppins, sans-serif' }}
-        >
-          ← Back to Dashboard
-        </button>
+        {/* Quick Actions Footer */}
+        {incompleteTasks > 0 && (
+          <div className="mt-8 text-center">
+            <p className="text-sm text-gray-500 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              {incompleteTasks} task{incompleteTasks !== 1 ? 's' : ''} remaining
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

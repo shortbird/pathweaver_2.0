@@ -410,14 +410,15 @@ def get_invitable_quests(user_id):
     Returns:
     - Advisor's own created quests (even if inactive/private)
     - Public active quests visible to their organization
+    - Superadmins can see quests from all organizations
     """
     try:
         from database import get_supabase_admin_client
         admin = get_supabase_admin_client()
 
-        # Get advisor's organization
+        # Get advisor's role and organization
         user_response = admin.table('users')\
-            .select('organization_id')\
+            .select('organization_id, role')\
             .eq('id', user_id)\
             .single()\
             .execute()
@@ -429,6 +430,7 @@ def get_invitable_quests(user_id):
             }), 404
 
         org_id = user_response.data.get('organization_id')
+        is_superadmin = user_response.data.get('role') == 'superadmin'
 
         # Get advisor's own created quests (any status)
         my_quests_query = admin.table('quests')\
@@ -450,13 +452,15 @@ def get_invitable_quests(user_id):
             .eq('is_public', True)\
             .neq('created_by', user_id)  # Exclude advisor's own quests (already in my_quests)
 
-        # Filter by organization visibility
-        if org_id:
-            # Global quests (no org) + organization's quests
-            library_query = library_query.or_(f'organization_id.is.null,organization_id.eq.{org_id}')
-        else:
-            # No organization - only global quests
-            library_query = library_query.is_('organization_id', 'null')
+        # Superadmins can see all quests from all organizations
+        if not is_superadmin:
+            # Filter by organization visibility for regular advisors
+            if org_id:
+                # Global quests (no org) + organization's quests
+                library_query = library_query.or_(f'organization_id.is.null,organization_id.eq.{org_id}')
+            else:
+                # No organization - only global quests
+                library_query = library_query.is_('organization_id', 'null')
 
         library_query = library_query.order('created_at', desc=True).limit(100)
         library_response = library_query.execute()

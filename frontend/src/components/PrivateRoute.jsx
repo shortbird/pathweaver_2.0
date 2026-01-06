@@ -21,8 +21,12 @@ const PrivateRoute = ({ requiredRole }) => {
 
   if (requiredRole) {
     const allowedRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole]
-    // Superadmin has universal access, org admins only get access to explicitly allowed routes
-    const hasAccess = allowedRoles.includes(user?.role) || user?.role === 'superadmin'
+    // Superadmin has universal access
+    // Users with is_org_admin flag get access to org_admin routes
+    const hasAccess =
+      allowedRoles.includes(user?.role) ||
+      user?.role === 'superadmin' ||
+      (user?.is_org_admin && allowedRoles.includes('org_admin'))
 
     if (!hasAccess) {
       // Redirect parents to their parent dashboard instead of the regular dashboard

@@ -34,6 +34,10 @@ beautifulsoup4==4.12.3  # HTML parsing for Khan Academy scraper
 lxml==5.1.0  # Fast XML/HTML parser for BeautifulSoup
 Pillow>=10.0.0  # Image processing for curriculum images
 
+# Document Parsing (AI Curriculum Upload)
+pdfplumber>=0.10.0  # PDF parsing with layout awareness
+python-docx>=1.1.0  # Word document parsing
+
 # Testing
 pytest==8.3.4
 pytest-cov==6.0.0

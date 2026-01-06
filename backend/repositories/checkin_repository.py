@@ -221,13 +221,19 @@ class CheckinRepository:
         # Students needing check-in (no check-in in 30+ days)
         # Get all students assigned to advisor with organization filtering
         if advisor_id:
-            # First get advisor's organization_id
-            advisor_result = self.supabase.table('users')\
-                .select('organization_id')\
-                .eq('id', advisor_id)\
-                .single()\
-                .execute()
-            advisor_org_id = advisor_result.data.get('organization_id') if advisor_result.data else None
+            # Check if advisor is superadmin (cross-org access)
+            user_role = self.get_user_role(advisor_id)
+            is_superadmin = user_role == 'superadmin'
+
+            # Get advisor's organization_id (only needed for non-superadmin)
+            advisor_org_id = None
+            if not is_superadmin:
+                advisor_result = self.supabase.table('users')\
+                    .select('organization_id')\
+                    .eq('id', advisor_id)\
+                    .single()\
+                    .execute()
+                advisor_org_id = advisor_result.data.get('organization_id') if advisor_result.data else None
 
             assignments_response = self.supabase.table('advisor_student_assignments')\
                 .select('student_id, users!student_id(display_name, first_name, last_name, organization_id)')\
@@ -235,12 +241,13 @@ class CheckinRepository:
                 .eq('is_active', True)\
                 .execute()
 
-            # ORGANIZATION ISOLATION: Filter to only students in same org
+            # ORGANIZATION ISOLATION: Filter to only students in same org (unless superadmin)
             all_students = []
             if assignments_response.data:
                 for assignment in assignments_response.data:
                     student_data = assignment.get('users', {})
-                    if advisor_org_id is not None and student_data.get('organization_id') != advisor_org_id:
+                    # Superadmins can see students from all organizations
+                    if not is_superadmin and advisor_org_id is not None and student_data.get('organization_id') != advisor_org_id:
                         continue
                     all_students.append(assignment)
 
@@ -429,15 +436,21 @@ class CheckinRepository:
         """
         Verify that two users belong to the same organization.
         This is critical for organization isolation.
+        Superadmins bypass this check - they have cross-organization access.
 
         Args:
-            user_id_1: First user's UUID
-            user_id_2: Second user's UUID
+            user_id_1: First user's UUID (typically the advisor)
+            user_id_2: Second user's UUID (typically the student)
 
         Returns:
-            True if users are in the same organization, False otherwise
+            True if users are in the same organization or first user is superadmin, False otherwise
         """
         try:
+            # Check if first user (advisor) is superadmin - they have cross-org access
+            user_role = self.get_user_role(user_id_1)
+            if user_role == 'superadmin':
+                return True
+
             result = self.supabase.table('users')\
                 .select('id, organization_id')\
                 .in_('id', [user_id_1, user_id_2])\

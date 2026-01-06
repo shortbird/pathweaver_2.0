@@ -13,7 +13,12 @@ const CourseCard = ({ course, enrollment = null }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const isDesigner = user?.role === 'teacher' || user?.role === 'org_admin' || user?.role === 'admin';
+  // Designer access: superadmin, org_admin role, advisor, or users with is_org_admin flag
+  const isDesigner =
+    user?.role === 'superadmin' ||
+    user?.role === 'org_admin' ||
+    user?.role === 'advisor' ||
+    user?.is_org_admin === true;
   const isEnrolled = enrollment !== null;
 
   const handleCardClick = () => {

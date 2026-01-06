@@ -19,6 +19,7 @@ const OrganizationManagement = lazy(() => import('./admin/OrganizationManagement
 const ObserverAuditLog = lazy(() => import('../components/admin/ObserverAuditLog'))
 const ParentalConsentReviewPage = lazy(() => import('./admin/ParentalConsentReviewPage'))
 const AIManagement = lazy(() => import('./admin/AIManagement'))
+const CurriculumUploadPage = lazy(() => import('./admin/CurriculumUploadPage'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -124,12 +125,20 @@ const AdminPage = () => {
 
         {/* Superadmin-only tabs */}
         {isSuperadmin && (
-          <Link
-            to="/admin/ai"
-            className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'ai' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-          >
-            AI Management
-          </Link>
+          <>
+            <Link
+              to="/admin/ai"
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'ai' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              AI Management
+            </Link>
+            <Link
+              to="/admin/curriculum-upload"
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'curriculum-upload' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              AI Upload
+            </Link>
+          </>
         )}
 
         {/* Quests tab - visible to advisors */}
@@ -162,6 +171,7 @@ const AdminPage = () => {
           <Route path="observer-audit" element={<ObserverAuditLog />} />
           <Route path="parental-consent" element={<ParentalConsentReviewPage />} />
           <Route path="ai/*" element={<AIManagement />} />
+          <Route path="curriculum-upload" element={<CurriculumUploadPage />} />
         </Routes>
       </Suspense>
     </div>

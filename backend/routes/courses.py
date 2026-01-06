@@ -156,12 +156,15 @@ def create_course(user_id):
         client = get_supabase_admin_client()  # Use admin client to bypass RLS
 
         # Check user role (admin, org_admin, or teacher)
-        user_result = client.table('users').select('organization_id, role').eq('id', user_id).execute()
+        user_result = client.table('users').select('organization_id, role, is_org_admin').eq('id', user_id).execute()
         if not user_result.data:
             return jsonify({'error': 'User not found'}), 404
 
         user_data = user_result.data[0]
-        if user_data['role'] not in ['superadmin', 'org_admin', 'advisor']:
+        is_org_admin_flag = user_data.get('is_org_admin', False)
+        logger.info(f"[CREATE_COURSE] User {user_id}: role={user_data.get('role')}, is_org_admin={is_org_admin_flag}")
+        if user_data['role'] not in ['superadmin', 'org_admin', 'advisor'] and not is_org_admin_flag:
+            logger.warning(f"[CREATE_COURSE] Permission denied for user {user_id}: role={user_data.get('role')}, is_org_admin={is_org_admin_flag}")
             return jsonify({'error': 'Insufficient permissions. Must be org_admin or advisor.'}), 403
 
         data = request.json
@@ -255,15 +258,17 @@ def update_course(user_id, course_id: str):
             return jsonify({'error': 'Course not found'}), 404
 
         course = course_result.data[0]
-        user_result = client.table('users').select('organization_id, role').eq('id', user_id).execute()
+        user_result = client.table('users').select('organization_id, role, is_org_admin').eq('id', user_id).execute()
         if not user_result.data:
             return jsonify({'error': 'User not found'}), 404
 
         user_data = user_result.data[0]
+        is_org_admin_flag = user_data.get('is_org_admin', False)
 
         # Must be creator or admin
         is_creator = course['created_by'] == user_id
-        is_admin = user_data['role'] in ['superadmin', 'org_admin'] and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
+        has_admin_role = user_data['role'] in ['superadmin', 'org_admin'] or is_org_admin_flag
+        is_admin = has_admin_role and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
 
         if not (is_creator or is_admin):
             return jsonify({'error': 'Insufficient permissions'}), 403
@@ -340,13 +345,15 @@ def upload_course_cover_image(user_id, course_id: str):
             return jsonify({'error': 'Course not found'}), 404
 
         course = course_result.data[0]
-        user_result = client.table('users').select('organization_id, role').eq('id', user_id).execute()
+        user_result = client.table('users').select('organization_id, role, is_org_admin').eq('id', user_id).execute()
         if not user_result.data:
             return jsonify({'error': 'User not found'}), 404
 
         user_data = user_result.data[0]
+        is_org_admin_flag = user_data.get('is_org_admin', False)
         is_creator = course['created_by'] == user_id
-        is_admin = user_data['role'] in ['superadmin', 'org_admin', 'advisor'] and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
+        has_admin_role = user_data['role'] in ['superadmin', 'org_admin', 'advisor'] or is_org_admin_flag
+        is_admin = has_admin_role and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
 
         if not (is_creator or is_admin):
             return jsonify({'error': 'Insufficient permissions'}), 403
@@ -399,15 +406,17 @@ def delete_course(user_id, course_id: str):
             return jsonify({'error': 'Course not found'}), 404
 
         course = course_result.data[0]
-        user_result = client.table('users').select('organization_id, role').eq('id', user_id).execute()
+        user_result = client.table('users').select('organization_id, role, is_org_admin').eq('id', user_id).execute()
         if not user_result.data:
             return jsonify({'error': 'User not found'}), 404
 
         user_data = user_result.data[0]
+        is_org_admin_flag = user_data.get('is_org_admin', False)
 
         # Must be creator or admin
         is_creator = course['created_by'] == user_id
-        is_admin = user_data['role'] in ['superadmin', 'org_admin'] and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
+        has_admin_role = user_data['role'] in ['superadmin', 'org_admin'] or is_org_admin_flag
+        is_admin = has_admin_role and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
 
         if not (is_creator or is_admin):
             return jsonify({'error': 'Insufficient permissions'}), 403
@@ -453,15 +462,17 @@ def publish_course(user_id, course_id: str):
             return jsonify({'error': 'Course not found'}), 404
 
         course = course_result.data[0]
-        user_result = admin_client.table('users').select('organization_id, role').eq('id', user_id).execute()
+        user_result = admin_client.table('users').select('organization_id, role, is_org_admin').eq('id', user_id).execute()
         if not user_result.data:
             return jsonify({'error': 'User not found'}), 404
 
         user_data = user_result.data[0]
+        is_org_admin_flag = user_data.get('is_org_admin', False)
 
         # Must be creator or admin
         is_creator = course['created_by'] == user_id
-        is_admin = user_data['role'] in ['superadmin', 'org_admin'] and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
+        has_admin_role = user_data['role'] in ['superadmin', 'org_admin'] or is_org_admin_flag
+        is_admin = has_admin_role and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
 
         if not (is_creator or is_admin):
             return jsonify({'error': 'Insufficient permissions'}), 403
@@ -590,14 +601,16 @@ def add_quest_to_course(user_id, course_id: str):
             return jsonify({'error': 'Course not found'}), 404
 
         course = course_result.data[0]
-        user_result = client.table('users').select('organization_id, role').eq('id', user_id).execute()
+        user_result = client.table('users').select('organization_id, role, is_org_admin').eq('id', user_id).execute()
         if not user_result.data:
             return jsonify({'error': 'User not found'}), 404
 
         user_data = user_result.data[0]
+        is_org_admin_flag = user_data.get('is_org_admin', False)
 
         is_creator = course['created_by'] == user_id
-        is_admin = user_data['role'] in ['superadmin', 'org_admin', 'advisor'] and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
+        has_admin_role = user_data['role'] in ['superadmin', 'org_admin', 'advisor'] or is_org_admin_flag
+        is_admin = has_admin_role and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
 
         if not (is_creator or is_admin):
             return jsonify({'error': 'Insufficient permissions'}), 403
@@ -659,14 +672,16 @@ def remove_quest_from_course(user_id, course_id: str, quest_id: str):
             return jsonify({'error': 'Course not found'}), 404
 
         course = course_result.data[0]
-        user_result = client.table('users').select('organization_id, role').eq('id', user_id).execute()
+        user_result = client.table('users').select('organization_id, role, is_org_admin').eq('id', user_id).execute()
         if not user_result.data:
             return jsonify({'error': 'User not found'}), 404
 
         user_data = user_result.data[0]
+        is_org_admin_flag = user_data.get('is_org_admin', False)
 
         is_creator = course['created_by'] == user_id
-        is_admin = user_data['role'] in ['superadmin', 'org_admin', 'advisor'] and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
+        has_admin_role = user_data['role'] in ['superadmin', 'org_admin', 'advisor'] or is_org_admin_flag
+        is_admin = has_admin_role and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
 
         if not (is_creator or is_admin):
             return jsonify({'error': 'Insufficient permissions'}), 403
@@ -710,14 +725,16 @@ def update_course_quest(user_id, course_id: str, quest_id: str):
             return jsonify({'error': 'Course not found'}), 404
 
         course = course_result.data[0]
-        user_result = client.table('users').select('organization_id, role').eq('id', user_id).execute()
+        user_result = client.table('users').select('organization_id, role, is_org_admin').eq('id', user_id).execute()
         if not user_result.data:
             return jsonify({'error': 'User not found'}), 404
 
         user_data = user_result.data[0]
+        is_org_admin_flag = user_data.get('is_org_admin', False)
 
         is_creator = course['created_by'] == user_id
-        is_admin = user_data['role'] in ['superadmin', 'org_admin', 'advisor'] and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
+        has_admin_role = user_data['role'] in ['superadmin', 'org_admin', 'advisor'] or is_org_admin_flag
+        is_admin = has_admin_role and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
 
         if not (is_creator or is_admin):
             return jsonify({'error': 'Insufficient permissions'}), 403
@@ -785,14 +802,16 @@ def reorder_course_quests(user_id, course_id: str):
             return jsonify({'error': 'Course not found'}), 404
 
         course = course_result.data[0]
-        user_result = client.table('users').select('organization_id, role').eq('id', user_id).execute()
+        user_result = client.table('users').select('organization_id, role, is_org_admin').eq('id', user_id).execute()
         if not user_result.data:
             return jsonify({'error': 'User not found'}), 404
 
         user_data = user_result.data[0]
+        is_org_admin_flag = user_data.get('is_org_admin', False)
 
         is_creator = course['created_by'] == user_id
-        is_admin = user_data['role'] in ['superadmin', 'org_admin', 'advisor'] and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
+        has_admin_role = user_data['role'] in ['superadmin', 'org_admin', 'advisor'] or is_org_admin_flag
+        is_admin = has_admin_role and (user_data['role'] == 'superadmin' or user_data['organization_id'] == course['organization_id'])
 
         if not (is_creator or is_admin):
             return jsonify({'error': 'Insufficient permissions'}), 403
@@ -866,12 +885,13 @@ def enroll_in_course(user_id, course_id: str):
 
         # Check permissions if enrolling someone else
         if target_user_id != current_user_id:
-            user_result = client.table('users').select('organization_id, role').eq('id', current_user_id).execute()
+            user_result = client.table('users').select('organization_id, role, is_org_admin').eq('id', current_user_id).execute()
             if not user_result.data:
                 return jsonify({'error': 'User not found'}), 404
 
             user_data = user_result.data[0]
-            if user_data['role'] not in ['superadmin', 'org_admin', 'advisor']:
+            is_org_admin_flag = user_data.get('is_org_admin', False)
+            if user_data['role'] not in ['superadmin', 'org_admin', 'advisor'] and not is_org_admin_flag:
                 return jsonify({'error': 'Insufficient permissions'}), 403
 
         # Check if already enrolled
@@ -1110,12 +1130,13 @@ def get_course_progress(user_id, course_id: str):
 
         # Check permissions if checking someone else's progress
         if target_user_id != current_user_id:
-            user_result = client.table('users').select('organization_id, role').eq('id', current_user_id).execute()
+            user_result = client.table('users').select('organization_id, role, is_org_admin').eq('id', current_user_id).execute()
             if not user_result.data:
                 return jsonify({'error': 'User not found'}), 404
 
             user_data = user_result.data[0]
-            if user_data['role'] not in ['superadmin', 'org_admin', 'advisor']:
+            is_org_admin_flag = user_data.get('is_org_admin', False)
+            if user_data['role'] not in ['superadmin', 'org_admin', 'advisor'] and not is_org_admin_flag:
                 return jsonify({'error': 'Insufficient permissions'}), 403
 
         # Get course to check creator status

@@ -29,7 +29,7 @@ from routes.courses import bp as courses_bp
 # Import routes
 from routes import tasks, admin_core, evidence_documents, analytics as analytics_routes, webhooks
 from routes.quest import register_quest_blueprints  # Refactored quest routes (P2-ARCH-1)
-from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management, observer_audit, ferpa_compliance, bulk_import, user_invitations
+from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management, observer_audit, ferpa_compliance, bulk_import, user_invitations, curriculum_upload
 # badge_management import removed (January 2026 - Microschool client feedback)
 from cors_config import configure_cors
 from middleware.security import security_middleware
@@ -172,6 +172,7 @@ app.register_blueprint(parent_connections.bp)  # /api/admin/parent-connections (
 app.register_blueprint(masquerade.masquerade_bp)  # /api/admin/masquerade (blueprint has url_prefix='/api/admin/masquerade')
 app.register_blueprint(crm.crm_bp)  # /api/admin/crm (CRM system for email campaigns and automation)
 app.register_blueprint(course_import.bp)  # /api/admin/courses (Course import from IMSCC files)
+app.register_blueprint(curriculum_upload.bp)  # /api/admin/curriculum (AI-powered curriculum upload and transformation)
 app.register_blueprint(organization_management.bp, url_prefix='/api/admin/organizations')  # /api/admin/organizations (Multi-organization management)
 app.register_blueprint(bulk_import.bp)  # /api/admin/organizations/<org_id>/users/bulk-import (CSV bulk user import for org admins)
 app.register_blueprint(user_invitations.bp)  # /api/admin/organizations/<org_id>/invitations (Email invitations for org admins)
