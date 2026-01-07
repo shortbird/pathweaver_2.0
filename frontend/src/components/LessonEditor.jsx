@@ -217,7 +217,6 @@ const LessonEditor = forwardRef(({
 
   // Lesson metadata
   const [title, setTitle] = useState(lesson?.title || '')
-  const [xpThreshold, setXpThreshold] = useState(lesson?.xp_threshold ?? 100)
 
   // Steps state - parse with legacy migration
   const [steps, setSteps] = useState(() =>
@@ -256,7 +255,6 @@ const LessonEditor = forwardRef(({
         const lessonData = {
           title: title.trim(),
           content: stepsToContent(steps),
-          xp_threshold: parseInt(xpThreshold) || 0,
           video_url: null,
           files: null,
         }
@@ -283,7 +281,7 @@ const LessonEditor = forwardRef(({
         setIsSaving(false)
       }
     }
-  }), [title, steps, xpThreshold, lesson?.id, questId, onSave])
+  }), [title, steps, lesson?.id, questId, onSave])
 
   // Handle step content change
   const handleStepChange = useCallback((updatedStep) => {
@@ -477,7 +475,6 @@ const LessonEditor = forwardRef(({
       const lessonData = {
         title: title.trim(),
         content: stepsToContent(steps),
-        xp_threshold: parseInt(xpThreshold) || 0,
         // Clear legacy fields since content is in steps now
         video_url: null,
         files: null,
@@ -524,19 +521,6 @@ const LessonEditor = forwardRef(({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Enter lesson title"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
-          />
-        </div>
-
-        <div className="w-32">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            XP to Complete
-          </label>
-          <input
-            type="number"
-            min="0"
-            value={xpThreshold}
-            onChange={(e) => setXpThreshold(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
           />
         </div>

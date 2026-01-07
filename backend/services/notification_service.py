@@ -210,6 +210,30 @@ class NotificationService(BaseService):
             logger.error(f"Error deleting notification: {str(e)}")
             raise
 
+    def delete_all_notifications(self, user_id: str) -> int:
+        """
+        Delete all notifications for a user.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Number of notifications deleted
+        """
+        try:
+            result = self.supabase.table('notifications')\
+                .delete()\
+                .eq('user_id', user_id)\
+                .execute()
+
+            count = len(result.data) if result.data else 0
+            logger.info(f"Deleted {count} notifications for user {user_id[:8]}")
+            return count
+
+        except Exception as e:
+            logger.error(f"Error deleting all notifications: {str(e)}")
+            raise
+
     # Notification trigger helpers
     def notify_quest_invitation(
         self,
@@ -272,16 +296,24 @@ class NotificationService(BaseService):
         user_id: str,
         announcement_title: str,
         announcement_id: str,
-        organization_id: Optional[str] = None
+        organization_id: Optional[str] = None,
+        full_content: Optional[str] = None,
+        author_name: Optional[str] = None
     ):
         """Send notification for new announcement."""
+        metadata = {'announcement_id': announcement_id}
+        if full_content:
+            metadata['full_content'] = full_content
+        if author_name:
+            metadata['author_name'] = author_name
+
         return self.create_notification(
             user_id=user_id,
             notification_type='announcement',
             title='New Announcement',
             message=announcement_title,
-            link=f'/announcements',
-            metadata={'announcement_id': announcement_id},
+            link='/notifications',
+            metadata=metadata,
             organization_id=organization_id
         )
 
@@ -337,3 +369,88 @@ class NotificationService(BaseService):
             metadata={'student_id': student_id},
             organization_id=organization_id
         )
+
+    def broadcast_notification(
+        self,
+        sender_id: str,
+        organization_id: str,
+        title: str,
+        message: str,
+        target_audience: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Broadcast a notification to multiple users based on audience filtering.
+
+        Args:
+            sender_id: ID of the user sending the notification
+            organization_id: Organization to broadcast to
+            title: Notification title
+            message: Full message content (supports markdown)
+            target_audience: List of audiences ['students', 'parents', 'advisors', 'all']
+
+        Returns:
+            Dict with count of notifications sent and sender info
+        """
+        try:
+            # Get sender info for metadata
+            sender_result = self.supabase.table('users')\
+                .select('display_name, email')\
+                .eq('id', sender_id)\
+                .single()\
+                .execute()
+
+            sender_name = sender_result.data.get('display_name') or sender_result.data.get('email', 'Unknown')
+
+            # Build query for target users
+            query = self.supabase.table('users')\
+                .select('id')\
+                .eq('organization_id', organization_id)\
+                .neq('id', sender_id)  # Don't notify sender
+
+            # Filter by role based on target audience
+            if 'all' not in target_audience:
+                role_mapping = {
+                    'students': 'student',
+                    'parents': 'parent',
+                    'advisors': 'advisor'
+                }
+                roles_to_include = [role_mapping[a] for a in target_audience if a in role_mapping]
+                if roles_to_include:
+                    query = query.in_('role', roles_to_include)
+
+            result = query.execute()
+            users = result.data or []
+
+            # Create notifications for each user
+            notifications_created = 0
+            for user in users:
+                try:
+                    self.create_notification(
+                        user_id=user['id'],
+                        notification_type='announcement',
+                        title=title,
+                        message=message[:200] + '...' if len(message) > 200 else message,
+                        link='/notifications',
+                        metadata={
+                            'full_content': message,
+                            'target_audience': target_audience,
+                            'author_id': sender_id,
+                            'author_name': sender_name
+                        },
+                        organization_id=organization_id
+                    )
+                    notifications_created += 1
+                except Exception as e:
+                    logger.error(f"Failed to create notification for user {user['id']}: {str(e)}")
+                    continue
+
+            logger.info(f"Broadcast notification sent to {notifications_created} users in org {organization_id[:8]}")
+            return {
+                'success': True,
+                'notifications_sent': notifications_created,
+                'target_audience': target_audience
+            }
+
+        except Exception as e:
+            logger.error(f"Error broadcasting notification: {str(e)}")
+            raise

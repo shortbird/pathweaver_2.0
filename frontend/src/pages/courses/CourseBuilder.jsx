@@ -235,6 +235,27 @@ const CourseBuilder = () => {
     }
   }
 
+  const handleXpThresholdChange = async (questId, xpThreshold) => {
+    try {
+      await api.put(`/api/courses/${courseId}/quests/${questId}`, {
+        xp_threshold: xpThreshold
+      })
+
+      setQuests(quests.map(q =>
+        q.id === questId ? { ...q, xp_threshold: xpThreshold } : q
+      ))
+
+      if (selectedQuest?.id === questId) {
+        setSelectedQuest({ ...selectedQuest, xp_threshold: xpThreshold })
+      }
+
+      toast.success('XP requirement updated')
+    } catch (error) {
+      console.error('Failed to update XP requirement:', error)
+      toast.error('Failed to update XP requirement')
+    }
+  }
+
   // Reorder quests via drag and drop
   const handleDragEnd = async (event) => {
     const { active, over } = event
@@ -639,6 +660,7 @@ const CourseBuilder = () => {
                           onSelect={setSelectedQuest}
                           onRemove={handleRemoveQuest}
                           onTogglePublish={handleToggleQuestPublish}
+                          onXpThresholdChange={handleXpThresholdChange}
                         />
                       ))}
                     </div>

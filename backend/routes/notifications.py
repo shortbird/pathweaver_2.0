@@ -164,6 +164,31 @@ def delete_notification(user_id: str, notification_id: str):
         return jsonify({'error': 'Failed to delete notification'}), 500
 
 
+@bp.route('/delete-all', methods=['DELETE'])
+@require_auth
+def delete_all_notifications(user_id: str):
+    """
+    Delete all notifications for authenticated user.
+
+    Returns:
+        200: All notifications deleted
+    """
+    try:
+        supabase = get_supabase_admin_client()
+        service = NotificationService(supabase)
+
+        count = service.delete_all_notifications(user_id)
+
+        return jsonify({
+            'success': True,
+            'message': f'Deleted {count} notifications'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error deleting all notifications: {str(e)}")
+        return jsonify({'error': 'Failed to delete all notifications'}), 500
+
+
 @bp.route('/send', methods=['POST'])
 @require_auth
 def send_notification(user_id: str):
@@ -240,3 +265,88 @@ def send_notification(user_id: str):
     except Exception as e:
         logger.error(f"Error sending notification: {str(e)}")
         return jsonify({'error': 'Failed to send notification'}), 500
+
+
+@bp.route('/broadcast', methods=['POST'])
+@require_auth
+def broadcast_notification(user_id: str):
+    """
+    Broadcast a notification to multiple users in an organization.
+    Only accessible by advisors, org admins, and superadmins.
+
+    Body:
+        title (str): Notification title
+        message (str): Full message content (supports markdown)
+        target_audience (list): Audiences to send to ['students', 'parents', 'advisors', 'all']
+
+    Returns:
+        201: Notifications sent
+        403: Permission denied
+        400: Validation error
+    """
+    try:
+        supabase = get_supabase_admin_client()
+        service = NotificationService(supabase)
+
+        # Check permissions
+        user = supabase.table('users')\
+            .select('role, organization_id')\
+            .eq('id', user_id)\
+            .single()\
+            .execute()
+
+        if not user.data:
+            return jsonify({'error': 'User not found'}), 404
+
+        user_role = user.data.get('role')
+        organization_id = user.data.get('organization_id')
+
+        if user_role not in ['advisor', 'org_admin', 'superadmin']:
+            return jsonify({'error': 'Only advisors and administrators can broadcast notifications'}), 403
+
+        if not organization_id:
+            return jsonify({'error': 'User must belong to an organization to broadcast notifications'}), 400
+
+        # Get request data
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
+
+        title = data.get('title')
+        message = data.get('message')
+        target_audience = data.get('target_audience', ['all'])
+
+        # Validate required fields
+        if not title or not message:
+            return jsonify({'error': 'title and message are required'}), 400
+
+        # Validate target_audience
+        valid_audiences = ['students', 'parents', 'advisors', 'all']
+        if not isinstance(target_audience, list):
+            target_audience = [target_audience]
+
+        for audience in target_audience:
+            if audience not in valid_audiences:
+                return jsonify({'error': f'Invalid audience: {audience}. Valid options: {valid_audiences}'}), 400
+
+        # Broadcast notification
+        result = service.broadcast_notification(
+            sender_id=user_id,
+            organization_id=organization_id,
+            title=title,
+            message=message,
+            target_audience=target_audience
+        )
+
+        return jsonify({
+            'success': True,
+            'notifications_sent': result['notifications_sent'],
+            'target_audience': result['target_audience'],
+            'message': f'Notification sent to {result["notifications_sent"]} users'
+        }), 201
+
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error broadcasting notification: {str(e)}")
+        return jsonify({'error': 'Failed to broadcast notification'}), 500

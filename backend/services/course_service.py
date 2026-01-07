@@ -585,8 +585,11 @@ class CourseService(BaseService):
 
             quest_enrollment = user_quest_result.data[0] if user_quest_result.data else None
 
-            # Calculate XP progress from curriculum lessons
-            total_xp = sum(l.get('xp_threshold', 0) or 0 for l in lessons)
+            # Calculate XP progress - use quest-level threshold from course_quests,
+            # or fall back to sum of lesson thresholds if not set
+            quest_xp_threshold = cq.get('xp_threshold', 0) or 0
+            lesson_xp_sum = sum(l.get('xp_threshold', 0) or 0 for l in lessons)
+            total_xp = quest_xp_threshold if quest_xp_threshold > 0 else lesson_xp_sum
             earned_xp = 0
             completed_tasks = 0
             total_tasks = 0

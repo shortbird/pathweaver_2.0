@@ -85,17 +85,25 @@ class OrganizationService(BaseService):
         org = self.org_repo.find_by_id(org_id)
         users = self.org_repo.get_organization_users(org_id)
         quests = self.org_repo.get_organization_quests(org_id)
+        courses = self.org_repo.get_organization_courses(org_id)
 
         # If curated policy, get curated quests
         curated_quests = []
         if org['quest_visibility_policy'] == 'curated':
             curated_quests = self.org_repo.get_curated_quests(org_id)
 
+        # If curated course policy, get curated courses
+        curated_courses = []
+        if org.get('course_visibility_policy', 'all_optio') == 'curated':
+            curated_courses = self.org_repo.get_curated_courses(org_id)
+
         return {
             'organization': org,
             'users': users,
             'organization_quests': quests,
-            'curated_quests': curated_quests
+            'curated_quests': curated_quests,
+            'organization_courses': courses,
+            'curated_courses': curated_courses
         }
 
     def grant_quest_access(
@@ -137,5 +145,74 @@ class OrganizationService(BaseService):
 
         if success:
             logger.info(f"Quest {quest_id} access revoked from org {org_id} by user {revoked_by}")
+
+        return success
+
+    # Course visibility methods
+    def update_course_visibility_policy(
+        self,
+        org_id: str,
+        new_policy: str,
+        updated_by: str
+    ) -> Dict[str, Any]:
+        """Update organization course visibility policy"""
+
+        valid_policies = ['all_optio', 'curated', 'private_only']
+        if new_policy not in valid_policies:
+            raise ValueError(f"Invalid policy. Must be one of: {', '.join(valid_policies)}")
+
+        data = {'course_visibility_policy': new_policy}
+        org = self.org_repo.update_organization(org_id, data)
+
+        logger.info(f"Organization {org_id} course policy updated to {new_policy} by user {updated_by}")
+
+        return org
+
+    def grant_course_access(
+        self,
+        org_id: str,
+        course_id: str,
+        granted_by: str
+    ) -> Dict[str, Any]:
+        """Grant organization access to a course (curated policy only)"""
+
+        # Verify organization has curated policy
+        org = self.org_repo.find_by_id(org_id)
+        if org.get('course_visibility_policy', 'all_optio') != 'curated':
+            raise ValueError("Can only grant course access for organizations with 'curated' course policy")
+
+        # Verify course is a global Optio course (organization_id IS NULL or different org)
+        from database import get_supabase_admin_client
+        client = get_supabase_admin_client()
+        course_result = client.table('courses').select('id, organization_id, status').eq('id', course_id).execute()
+
+        if not course_result.data:
+            raise ValueError("Course not found")
+
+        course = course_result.data[0]
+        if course['organization_id'] == org_id:
+            raise ValueError("Cannot grant access to your own organization's course")
+
+        if course['status'] != 'published':
+            raise ValueError("Can only grant access to published courses")
+
+        result = self.org_repo.grant_course_access(org_id, course_id, granted_by)
+
+        logger.info(f"Course {course_id} access granted to org {org_id} by user {granted_by}")
+
+        return result
+
+    def revoke_course_access(
+        self,
+        org_id: str,
+        course_id: str,
+        revoked_by: str
+    ) -> bool:
+        """Revoke organization access to a course"""
+
+        success = self.org_repo.revoke_course_access(org_id, course_id)
+
+        if success:
+            logger.info(f"Course {course_id} access revoked from org {org_id} by user {revoked_by}")
 
         return success

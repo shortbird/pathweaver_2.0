@@ -450,15 +450,6 @@ except Exception as e:
     logger.error(f"Error registering Client Activity Tracking routes: {e}", exc_info=True)
 
 # Register LMS Feature blueprints (December 2025 - Multi-tenant LMS transformation)
-# Announcements - org-wide communication for advisors/admins
-try:
-    from routes.announcements import bp as announcements_bp
-    app.register_blueprint(announcements_bp)  # /api/announcements (blueprint has url_prefix)
-except ImportError as e:
-    logger.warning(f"Warning: Announcements module not available: {e}")
-except Exception as e:
-    logger.error(f"Error registering Announcements routes: {e}", exc_info=True)
-
 # Curriculum Builder - custom quest curriculum editing
 try:
     from routes.curriculum import bp as curriculum_bp

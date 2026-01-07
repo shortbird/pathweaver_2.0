@@ -1,21 +1,30 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { BellIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { BellIcon, CheckIcon, XMarkIcon, PlusIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'react-hot-toast'
+import { useAuth } from '../../contexts/AuthContext'
+import NotificationDetailModal from '../../components/notifications/NotificationDetailModal'
+import SendNotificationModal from '../../components/notifications/SendNotificationModal'
 
 /**
  * NotificationsPage
  *
- * Full page view of all user notifications with filtering and actions.
+ * Full page view of all user notifications with filtering, actions, and modals.
  */
 const NotificationsPage = () => {
+  const { user } = useAuth()
   const [notifications, setNotifications] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState('all') // 'all' | 'unread'
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
+  const [selectedNotification, setSelectedNotification] = useState(null)
+  const [showSendModal, setShowSendModal] = useState(false)
+
+  // Check if user can send notifications
+  const canSendNotifications = ['advisor', 'org_admin', 'superadmin'].includes(user?.role)
 
   useEffect(() => {
     fetchNotifications(true)
@@ -58,7 +67,7 @@ const NotificationsPage = () => {
 
   const markAllAsRead = async () => {
     try {
-      await api.put('/api/notifications/read-all', {})
+      await api.put('/api/notifications/mark-all-read', {})
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
       toast.success('All notifications marked as read')
     } catch (error) {
@@ -67,7 +76,8 @@ const NotificationsPage = () => {
     }
   }
 
-  const dismissNotification = async (notificationId) => {
+  const dismissNotification = async (notificationId, e) => {
+    e?.stopPropagation()
     const notification = notifications.find(n => n.id === notificationId)
     // Optimistic update - remove immediately
     setNotifications(prev => prev.filter(n => n.id !== notificationId))
@@ -86,6 +96,19 @@ const NotificationsPage = () => {
   const loadMore = () => {
     setPage(prev => prev + 1)
     fetchNotifications()
+  }
+
+  const handleNotificationClick = (notification) => {
+    // Mark as read when opened
+    if (!notification.is_read) {
+      markAsRead(notification.id)
+    }
+    setSelectedNotification(notification)
+  }
+
+  const handleSendSuccess = () => {
+    setShowSendModal(false)
+    fetchNotifications(true)
   }
 
   const getNotificationIcon = (type) => {
@@ -119,6 +142,17 @@ const NotificationsPage = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Send Notification Button - Only for admins/advisors */}
+          {canSendNotifications && (
+            <button
+              onClick={() => setShowSendModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity"
+            >
+              <PlusIcon className="h-4 w-4" />
+              Send Notification
+            </button>
+          )}
+
           {/* Filter Toggle */}
           <div className="flex rounded-lg bg-gray-100 p-1">
             <button
@@ -173,7 +207,8 @@ const NotificationsPage = () => {
           {notifications.map((notification) => (
             <div
               key={notification.id}
-              className={`p-4 hover:bg-gray-50 transition-colors ${
+              onClick={() => handleNotificationClick(notification)}
+              className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
                 !notification.is_read ? 'bg-optio-purple/5' : ''
               }`}
             >
@@ -188,7 +223,7 @@ const NotificationsPage = () => {
                         {notification.title}
                       </p>
                       {notification.message && (
-                        <p className="text-sm text-gray-500 mt-1">
+                        <p className="text-sm text-gray-500 mt-1 line-clamp-2">
                           {notification.message}
                         </p>
                       )}
@@ -197,10 +232,13 @@ const NotificationsPage = () => {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {notification.link && (
+                      {notification.link && notification.link !== '/notifications' && (
                         <Link
                           to={notification.link}
-                          onClick={() => !notification.is_read && markAsRead(notification.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (!notification.is_read) markAsRead(notification.id)
+                          }}
                           className="text-sm text-optio-purple hover:text-optio-pink font-medium"
                         >
                           View
@@ -208,7 +246,10 @@ const NotificationsPage = () => {
                       )}
                       {!notification.is_read && (
                         <button
-                          onClick={() => markAsRead(notification.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            markAsRead(notification.id)
+                          }}
                           className="p-1 text-gray-400 hover:text-optio-purple transition-colors"
                           title="Mark as read"
                         >
@@ -216,7 +257,7 @@ const NotificationsPage = () => {
                         </button>
                       )}
                       <button
-                        onClick={() => dismissNotification(notification.id)}
+                        onClick={(e) => dismissNotification(notification.id, e)}
                         className="p-1 text-gray-400 hover:text-red-500 transition-colors"
                         title="Dismiss notification"
                       >
@@ -242,6 +283,21 @@ const NotificationsPage = () => {
             {isLoading ? 'Loading...' : 'Load more'}
           </button>
         </div>
+      )}
+
+      {/* Detail Modal */}
+      <NotificationDetailModal
+        notification={selectedNotification}
+        isOpen={!!selectedNotification}
+        onClose={() => setSelectedNotification(null)}
+      />
+
+      {/* Send Notification Modal */}
+      {showSendModal && (
+        <SendNotificationModal
+          onClose={() => setShowSendModal(false)}
+          onSuccess={handleSendSuccess}
+        />
       )}
     </div>
   )

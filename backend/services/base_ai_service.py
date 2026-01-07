@@ -64,10 +64,13 @@ class BaseAIService(BaseService):
     All AI services should extend this class.
     """
 
-    # Class-level singleton for Gemini model
+    # Class-level singleton for Gemini model (default)
     _model = None
     _model_name = None
     _api_key = None
+
+    # Class-level cache for alternative models
+    _alt_models = {}
 
     # Default configuration
     DEFAULT_MODEL = 'gemini-2.5-flash-lite'
@@ -75,11 +78,22 @@ class BaseAIService(BaseService):
     DEFAULT_RETRY_DELAY = 1.0  # seconds
     MAX_RETRY_DELAY = 8.0  # seconds
 
-    def __init__(self):
-        """Initialize AI service with Gemini model."""
+    def __init__(self, model_override: str = None):
+        """
+        Initialize AI service with Gemini model.
+
+        Args:
+            model_override: Optional model name to use instead of default.
+                           Use for services that need more capable models.
+        """
         super().__init__()
         self._ensure_model_initialized()
         self._safety_service = None  # Lazy-loaded
+        self._model_override = model_override
+
+        # Initialize alternative model if specified
+        if model_override and model_override != self._model_name:
+            self._ensure_alt_model_initialized(model_override)
 
     @classmethod
     def _ensure_model_initialized(cls):
@@ -111,15 +125,41 @@ class BaseAIService(BaseService):
         except Exception as e:
             raise AIServiceError(f"Failed to initialize Gemini model: {str(e)}")
 
+    @classmethod
+    def _ensure_alt_model_initialized(cls, model_name: str):
+        """
+        Initialize an alternative model (cached at class level).
+        Used when a service needs a different model than the default.
+        """
+        if model_name in cls._alt_models:
+            return
+
+        # Get API key (should already be set from default model init)
+        api_key = cls._api_key or os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+        if not api_key:
+            raise AIServiceError("API key not configured")
+
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            cls._alt_models[model_name] = genai.GenerativeModel(model_name)
+            logger.info(f"Alternative Gemini model initialized: {model_name}")
+        except Exception as e:
+            raise AIServiceError(f"Failed to initialize model {model_name}: {str(e)}")
+
     @property
     def model(self):
-        """Get the Gemini model instance."""
+        """Get the Gemini model instance (uses override if specified)."""
         self._ensure_model_initialized()
+        if self._model_override and self._model_override in self._alt_models:
+            return self._alt_models[self._model_override]
         return self._model
 
     @property
     def model_name(self) -> str:
         """Get the current model name."""
+        if self._model_override:
+            return self._model_override
         return self._model_name or self.DEFAULT_MODEL
 
     @property
@@ -228,9 +268,25 @@ class BaseAIService(BaseService):
             AIParsingError: If JSON parsing fails (when strict=True)
         """
         text = self.generate(prompt, max_retries=max_retries)
+
+        # Log the raw response length for debugging
+        logger.info(f"AI response length: {len(text)} chars")
+
+        # Save raw response BEFORE any processing for debugging
+        try:
+            import tempfile
+            import os
+            debug_file = os.path.join(tempfile.gettempdir(), 'curriculum_ai_response_raw.txt')
+            with open(debug_file, 'w', encoding='utf-8') as f:
+                f.write(text)
+        except Exception:
+            pass
+
         result = self.extract_json(text)
 
         if result is None:
+            logger.error(f"JSON parsing failed. Raw response saved to temp folder.")
+
             if strict:
                 raise AIParsingError(f"Failed to parse JSON from response: {text[:200]}...")
             logger.warning(f"Failed to parse JSON, returning empty dict. Response: {text[:100]}...")
@@ -322,6 +378,14 @@ class BaseAIService(BaseService):
             except json.JSONDecodeError:
                 pass
 
+        # Try 8: Aggressive repair (finds valid JSON boundaries)
+        aggressive = self._aggressive_json_repair(cleaned_text)
+        if aggressive:
+            try:
+                return json.loads(aggressive)
+            except json.JSONDecodeError:
+                pass
+
         logger.warning(f"Could not extract JSON from text: {cleaned_text[:200]}...")
         return None
 
@@ -335,15 +399,177 @@ class BaseAIService(BaseService):
         # Remove BOM and other invisible characters
         text = text.strip('\ufeff\u200b\u200c\u200d\u2060')
 
-        # Remove control characters except newlines and tabs
+        # Remove null characters that cause DB issues
+        text = text.replace('\x00', '').replace('\\u0000', '')
+
+        # Replace smart quotes with regular quotes
+        text = text.replace('\u2018', "'")  # Left single quote
+        text = text.replace('\u2019', "'")  # Right single quote (apostrophe)
+        text = text.replace('\u201c', '"')  # Left double quote
+        text = text.replace('\u201d', '"')  # Right double quote
+        text = text.replace('\u2013', '-')  # En dash
+        text = text.replace('\u2014', '-')  # Em dash
+        text = text.replace('\u2026', '...')  # Ellipsis
+
+        # Escape control characters inside strings (they're invalid in JSON)
+        # This handles raw newlines, tabs, etc. inside string values
+        def escape_control_in_strings(match):
+            """Escape control characters inside JSON string values."""
+            content = match.group(1)
+            # Escape control characters
+            content = content.replace('\n', '\\n')
+            content = content.replace('\r', '\\r')
+            content = content.replace('\t', '\\t')
+            # Remove other control characters
+            content = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', content)
+            return '"' + content + '"'
+
+        # Match JSON strings (content between quotes, handling escapes)
+        # Pattern matches: opening quote, content (non-quote or escaped chars), closing quote
+        text = re.sub(r'"((?:[^"\\]|\\.)*)"', escape_control_in_strings, text)
+
+        # Also handle any remaining control characters outside strings
         text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
 
-        # Fix common escape issues
-        # Replace literal backslash-n with actual newlines in strings (if not already)
-        # This is tricky - only do it if it looks like a literal string "\\n"
-        text = re.sub(r'(?<!\\)\\n(?![\s\S]*")', '\n', text)
+        # Fix invalid escape sequences
+        # Valid JSON escapes: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
+        # Replace invalid escapes (backslash followed by invalid char) with escaped backslash
+        def fix_invalid_escapes(match):
+            char = match.group(1)
+            # Valid escape characters (note: \/ is valid in JSON but rare)
+            if char in r'"\\/bfnrt':
+                return match.group(0)  # Keep valid escapes
+            if char == 'u':
+                # Check if it's a valid \uXXXX sequence
+                return match.group(0)  # Keep \u (validator will check the rest)
+            # Invalid escape - escape the backslash
+            return '\\\\' + char
+
+        text = re.sub(r'\\([^"\\\/bfnrtu])', fix_invalid_escapes, text)
+
+        # Remove trailing commas before closing brackets/braces (common AI error)
+        text = re.sub(r',(\s*[\]\}])', r'\1', text)
+
+        # Remove JavaScript-style block comments only (/* ... */)
+        # Note: We intentionally DON'T remove // line comments because they would
+        # incorrectly match URLs (https://...) and corrupt the JSON
+        text = re.sub(r'/\*[\s\S]*?\*/', '', text)
 
         return text
+
+    def _aggressive_json_repair(self, text: str) -> Optional[str]:
+        """
+        More aggressive JSON repair for stubborn syntax errors.
+        """
+        if not text:
+            return None
+
+        # Find the JSON content
+        start = text.find('{')
+        if start < 0:
+            return None
+
+        json_text = text[start:]
+
+        # Try to find a valid ending
+        # Sometimes AI adds extra text after the JSON
+        depth = 0
+        in_string = False
+        escape_next = False
+        end_pos = -1
+
+        for i, char in enumerate(json_text):
+            if escape_next:
+                escape_next = False
+                continue
+
+            if char == '\\':
+                escape_next = True
+                continue
+
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+
+            if in_string:
+                continue
+
+            if char == '{':
+                depth += 1
+            elif char == '}':
+                depth -= 1
+                if depth == 0:
+                    end_pos = i
+                    break
+
+        if end_pos > 0:
+            json_text = json_text[:end_pos + 1]
+
+        # Clean and try to parse
+        json_text = self._clean_json_text(json_text)
+
+        try:
+            json.loads(json_text)
+            return json_text
+        except json.JSONDecodeError as e:
+            # Try to fix specific issues based on error
+            fixed_text = self._fix_json_at_position(json_text, e)
+            if fixed_text:
+                try:
+                    json.loads(fixed_text)
+                    return fixed_text
+                except json.JSONDecodeError:
+                    pass
+
+        return None
+
+    def _fix_json_at_position(self, text: str, error: json.JSONDecodeError) -> Optional[str]:
+        """
+        Try to fix JSON based on the specific error position.
+        """
+        pos = error.pos
+        msg = str(error)
+
+        # Log for debugging
+        context_start = max(0, pos - 50)
+        context_end = min(len(text), pos + 50)
+        logger.debug(f"JSON error at pos {pos}: {msg}")
+        logger.debug(f"Context: ...{text[context_start:context_end]}...")
+
+        # Fix "Expecting ',' delimiter" - often means missing comma
+        if "Expecting ',' delimiter" in msg:
+            # Look backwards for the last complete value and add comma
+            # Common pattern: }"value" should be },"value"
+            if pos > 0 and pos < len(text):
+                before = text[pos-1:pos]
+                after = text[pos:pos+1] if pos < len(text) else ''
+
+                # Missing comma between } and "
+                if before == '}' and after == '"':
+                    return text[:pos] + ',' + text[pos:]
+                # Missing comma between ] and "
+                if before == ']' and after == '"':
+                    return text[:pos] + ',' + text[pos:]
+                # Missing comma between " and "
+                if before == '"' and after == '"':
+                    return text[:pos] + ',' + text[pos:]
+                # Missing comma between } and {
+                if before == '}' and after == '{':
+                    return text[:pos] + ',' + text[pos:]
+
+        # Fix "Expecting ':' delimiter" - maybe extra quote or wrong structure
+        if "Expecting ':' delimiter" in msg:
+            # Look for patterns like ""key" which should be "key"
+            if pos > 1 and text[pos-2:pos] == '""':
+                return text[:pos-1] + text[pos:]
+
+        # Fix "Expecting value" - could be trailing comma or empty value
+        if "Expecting value" in msg:
+            if pos > 0 and text[pos-1] == ',':
+                # Trailing comma before ] or }
+                return text[:pos-1] + text[pos:]
+
+        return None
 
     def _repair_truncated_json(self, text: str) -> Optional[str]:
         """

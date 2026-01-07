@@ -480,8 +480,8 @@ const AdminQuests = () => {
                       </div>
                     )}
 
-                    {/* Active/Inactive Badge */}
-                    <div className="absolute top-4 right-4">
+                    {/* Status Badges */}
+                    <div className="absolute top-4 right-4 flex flex-col items-end gap-1">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                         quest.is_active
                           ? 'bg-green-500 text-white'
@@ -489,6 +489,20 @@ const AdminQuests = () => {
                       }`}>
                         {quest.is_active ? 'Active' : 'Inactive'}
                       </span>
+                      {/* Quest Type Badge */}
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        quest.quest_type === 'course'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-purple-500 text-white'
+                      }`}>
+                        {quest.quest_type === 'course' ? 'Course Quest' : 'Optio Quest'}
+                      </span>
+                      {/* Project Badge - if connected to a course */}
+                      {quest.is_project && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500 text-white" title={quest.connected_courses?.map(c => c.course_title).join(', ')}>
+                          Project
+                        </span>
+                      )}
                     </div>
 
                     {/* Title Overlay */}

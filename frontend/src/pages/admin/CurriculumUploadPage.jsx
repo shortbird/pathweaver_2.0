@@ -1,9 +1,55 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 
 const VALID_EXTENSIONS = ['.imscc', '.zip', '.pdf', '.docx', '.doc']
 const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
+const LOCALSTORAGE_KEY = 'currentCurriculumUpload'
+
+// Helper to format relative time
+const formatRelativeTime = (dateString) => {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
+  return date.toLocaleDateString()
+}
+
+// Status badge component
+const StatusBadge = ({ status }) => {
+  const styles = {
+    processing: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    ready_for_review: 'bg-blue-100 text-blue-800 border-blue-200',
+    approved: 'bg-green-100 text-green-800 border-green-200',
+    error: 'bg-red-100 text-red-800 border-red-200',
+    rejected: 'bg-gray-100 text-gray-600 border-gray-200',
+    pending: 'bg-gray-100 text-gray-600 border-gray-200'
+  }
+  const labels = {
+    processing: 'Processing',
+    ready_for_review: 'Review',
+    approved: 'Complete',
+    error: 'Failed',
+    rejected: 'Rejected',
+    pending: 'Pending'
+  }
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full border ${styles[status] || styles.pending}`}>
+      {status === 'processing' && (
+        <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse" />
+      )}
+      {labels[status] || status}
+    </span>
+  )
+}
 
 // Stage labels for progress display
 const STAGE_LABELS = {
@@ -47,6 +93,15 @@ const CurriculumUploadPage = () => {
   // Progress tracking state
   const [progress, setProgress] = useState(null)
   const [pollingActive, setPollingActive] = useState(false)
+
+  // Upload history state
+  const [uploadHistory, setUploadHistory] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(true)
+  const [expandedErrors, setExpandedErrors] = useState({}) // Track which error rows are expanded
+  const [selectedUpload, setSelectedUpload] = useState(null) // For detail modal
+
+  // Track max progress to prevent regression in display
+  const maxProgressRef = useRef(0)
 
 
   // Diagnostic state
@@ -106,41 +161,122 @@ const CurriculumUploadPage = () => {
     }
   }
 
-  // Progress polling
+  // Progress polling - returns true if terminal state reached
   const pollProgress = useCallback(async (id) => {
     try {
       const response = await api.get(`/api/admin/curriculum/upload/${id}/status`)
       const data = response.data
 
-      setProgress(data)
+      // Ensure progress never decreases (prevents visual regression)
+      const newProgress = data.progress || 0
+      if (newProgress > maxProgressRef.current) {
+        maxProgressRef.current = newProgress
+      }
+      // Use max progress to prevent regression
+      const displayData = { ...data, progress: Math.max(newProgress, maxProgressRef.current) }
+
+      setProgress(displayData)
 
       // Check for terminal states
       if (data.status === 'approved') {
         setPollingActive(false)
+        localStorage.removeItem(LOCALSTORAGE_KEY)
+        maxProgressRef.current = 0 // Reset for next upload
         toast.success('Course created successfully!')
+        return true // Terminal state
       } else if (data.status === 'error') {
         setPollingActive(false)
+        localStorage.removeItem(LOCALSTORAGE_KEY)
+        maxProgressRef.current = 0 // Reset for next upload
         toast.error(data.error || 'Processing failed')
+        return true // Terminal state
       }
+      return false
     } catch (error) {
       console.error('Progress poll error:', error)
+      return false
     }
   }, [])
+
+  // Fetch upload history
+  const fetchHistory = useCallback(async () => {
+    setHistoryLoading(true)
+    try {
+      const response = await api.get('/api/admin/curriculum/uploads?limit=20')
+      setUploadHistory(response.data.uploads || [])
+    } catch (error) {
+      console.error('Failed to fetch upload history:', error)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
+  // Fetch history on mount and restore from localStorage
+  useEffect(() => {
+    fetchHistory()
+
+    // Restore active upload from localStorage
+    const savedUploadId = localStorage.getItem(LOCALSTORAGE_KEY)
+    if (savedUploadId) {
+      setUploadId(savedUploadId)
+      setUploadStarted(true)
+      setPollingActive(true)
+    }
+  }, [fetchHistory])
 
   // Start polling when uploadId is set
   useEffect(() => {
     if (!uploadId || !pollingActive) return
 
     // Initial poll
-    pollProgress(uploadId)
+    const doPoll = async () => {
+      const isTerminal = await pollProgress(uploadId)
+      if (isTerminal) {
+        fetchHistory() // Refresh history on terminal state
+      }
+    }
+    doPoll()
 
     // Poll every 2 seconds
-    const interval = setInterval(() => {
-      pollProgress(uploadId)
+    const interval = setInterval(async () => {
+      const isTerminal = await pollProgress(uploadId)
+      if (isTerminal) {
+        fetchHistory() // Refresh history on terminal state
+      }
     }, 2000)
 
     return () => clearInterval(interval)
-  }, [uploadId, pollingActive, pollProgress])
+  }, [uploadId, pollingActive, pollProgress, fetchHistory])
+
+  // Poll for processing uploads in history
+  useEffect(() => {
+    const processingUploads = uploadHistory.filter(u => u.status === 'processing')
+    if (processingUploads.length === 0) return
+
+    const pollHistoryUploads = async () => {
+      let hasChanges = false
+      for (const upload of processingUploads) {
+        // Skip if this is the current upload (already being polled)
+        if (upload.id === uploadId) continue
+        try {
+          const response = await api.get(`/api/admin/curriculum/upload/${upload.id}/status`)
+          const data = response.data
+          if (data.status !== upload.status || data.progress !== upload.progress_percent) {
+            hasChanges = true
+          }
+        } catch (error) {
+          console.error('History poll error:', error)
+        }
+      }
+      // Refresh history if any uploads changed status
+      if (hasChanges) {
+        fetchHistory()
+      }
+    }
+
+    const interval = setInterval(pollHistoryUploads, 5000) // Poll every 5 seconds
+    return () => clearInterval(interval)
+  }, [uploadHistory, uploadId, fetchHistory])
 
   // Resume a failed upload
   const handleResume = async () => {
@@ -207,10 +343,17 @@ const CurriculumUploadPage = () => {
       }
 
       if (response.data.success) {
-        setUploadId(response.data.upload_id)
+        const newUploadId = response.data.upload_id
+        setUploadId(newUploadId)
         setUploadStarted(true)
         setPollingActive(true) // Start polling for progress
         setProgress({ status: 'processing', progress: 0 })
+
+        // Save to localStorage for page refresh recovery
+        localStorage.setItem(LOCALSTORAGE_KEY, newUploadId)
+
+        // Refresh history to show new upload
+        fetchHistory()
 
         toast.success('Processing started! You\'ll receive a notification when your course is ready.')
       } else {
@@ -232,9 +375,6 @@ const CurriculumUploadPage = () => {
     setUploadId(null)
     setProgress(null)
     setPollingActive(false)
-    setShowReviewModal(false)
-    setStructureData(null)
-    setStructureEdits({})
     setDiagnosticResults(null)
     setSelectedContentTypes({
       assignments: true,
@@ -242,6 +382,10 @@ const CurriculumUploadPage = () => {
       discussions: false,
       quizzes: false
     })
+    // Reset progress tracking
+    maxProgressRef.current = 0
+    // Clear localStorage
+    localStorage.removeItem(LOCALSTORAGE_KEY)
   }
 
   const handleDiagnose = async () => {
@@ -312,7 +456,7 @@ const CurriculumUploadPage = () => {
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
             {isComplete ? 'Your course is ready to edit in the Course Builder.' :
              isError ? (progress?.error || 'An error occurred during processing.') :
-             'AI is analyzing your curriculum. This usually takes 1-3 minutes.'}
+             'AI is analyzing your curriculum. This can take up to 5 minutes.'}
           </p>
 
           {/* Progress Section */}
@@ -383,17 +527,17 @@ const CurriculumUploadPage = () => {
             </button>
             {isComplete ? (
               <a
-                href="/admin/courses"
+                href="/courses"
                 className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium"
               >
                 View Courses
               </a>
             ) : (
               <a
-                href="/admin"
+                href="/admin/curriculum-upload"
                 className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium"
               >
-                Go to Admin Panel
+                Back to Uploads
               </a>
             )}
           </div>
@@ -807,6 +951,334 @@ const CurriculumUploadPage = () => {
           )}
         </button>
       </div>
+
+      {/* Recent Uploads Table */}
+      <div className="mt-10 pt-8 border-t border-gray-200">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Recent Uploads</h3>
+          <button
+            onClick={fetchHistory}
+            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh
+          </button>
+        </div>
+
+        {historyLoading ? (
+          <div className="text-center py-8 text-gray-500">
+            <div className="animate-spin rounded-full h-6 w-6 border-2 border-optio-purple border-t-transparent mx-auto mb-2"></div>
+            Loading uploads...
+          </div>
+        ) : uploadHistory.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            No uploads yet. Upload your first curriculum above.
+          </div>
+        ) : (
+          <div className="overflow-hidden border border-gray-200 rounded-lg">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Started</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {uploadHistory.map((upload) => (
+                  <React.Fragment key={upload.id}>
+                    <tr
+                      className={`${upload.id === uploadId ? 'bg-purple-50' : ''} cursor-pointer hover:bg-gray-50`}
+                      onClick={() => setSelectedUpload(upload)}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <span className="text-sm text-gray-900 truncate max-w-[200px]" title={upload.original_filename}>
+                            {upload.original_filename || 'Text Upload'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={upload.status} />
+                      </td>
+                      <td className="px-4 py-3">
+                        {upload.status === 'processing' ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-24 bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${upload.progress_percent || 0}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-gray-500">{upload.progress_percent || 0}%</span>
+                          </div>
+                        ) : upload.status === 'approved' ? (
+                          <span className="text-xs text-green-600">Complete</span>
+                        ) : upload.status === 'error' ? (
+                          <button
+                            onClick={() => setExpandedErrors(prev => ({ ...prev, [upload.id]: !prev[upload.id] }))}
+                            className="text-xs text-red-600 hover:text-red-800 flex items-center gap-1"
+                          >
+                            {upload.current_stage_name || 'Failed'}
+                            <svg
+                              className={`w-3 h-3 transition-transform ${expandedErrors[upload.id] ? 'rotate-180' : ''}`}
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">
+                        {formatRelativeTime(upload.uploaded_at)}
+                      </td>
+                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex justify-end gap-2">
+                          {upload.status === 'approved' && upload.created_quest_id && (
+                            <a
+                              href={`/quests/${upload.created_quest_id}`}
+                              className="text-xs text-optio-purple hover:underline"
+                            >
+                              View
+                            </a>
+                          )}
+                          {upload.status === 'error' && upload.can_resume && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await api.post(`/api/admin/curriculum/upload/${upload.id}/resume`, {})
+                                  toast.success('Resuming upload...')
+                                  fetchHistory()
+                                } catch (err) {
+                                  toast.error('Failed to resume')
+                                }
+                              }}
+                              className="text-xs text-yellow-600 hover:underline"
+                            >
+                              Resume
+                            </button>
+                          )}
+                          {upload.status === 'processing' && (
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm('Cancel this upload? You may be able to resume later.')) return
+                                try {
+                                  await api.delete(`/api/admin/curriculum/upload/${upload.id}`)
+                                  toast.success('Upload cancelled')
+                                  if (upload.id === uploadId) {
+                                    setPollingActive(false)
+                                    setUploadId(null)
+                                    setUploadStarted(false)
+                                    localStorage.removeItem(LOCALSTORAGE_KEY)
+                                  }
+                                  fetchHistory()
+                                } catch (err) {
+                                  toast.error('Failed to cancel')
+                                }
+                              }}
+                              className="text-xs text-red-600 hover:underline"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                          {upload.id === uploadId && upload.status === 'processing' && (
+                            <span className="text-xs text-optio-purple font-medium">Active</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {/* Expandable error details row */}
+                    {upload.status === 'error' && expandedErrors[upload.id] && (
+                      <tr className="bg-red-50">
+                        <td colSpan={5} className="px-4 py-3">
+                          <div className="text-sm">
+                            <div className="font-medium text-red-800 mb-2">Error Details</div>
+                            <pre className="bg-red-100 border border-red-200 rounded p-3 text-xs text-red-900 overflow-x-auto whitespace-pre-wrap max-h-64 overflow-y-auto font-mono">
+                              {upload.error_message || upload.error || 'No error details available'}
+                            </pre>
+                            {upload.current_item && (
+                              <div className="mt-2 text-xs text-red-700">
+                                <span className="font-medium">Last item:</span> {upload.current_item}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Upload Detail Modal */}
+      {selectedUpload && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setSelectedUpload(null)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Upload Details</h3>
+              <button
+                onClick={() => setSelectedUpload(null)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="px-6 py-4 overflow-y-auto max-h-[60vh]">
+              {/* File Info */}
+              <div className="mb-4">
+                <label className="text-xs font-medium text-gray-500 uppercase">File</label>
+                <p className="text-sm text-gray-900 mt-1">{selectedUpload.original_filename || 'Text Upload'}</p>
+              </div>
+
+              {/* Status */}
+              <div className="mb-4">
+                <label className="text-xs font-medium text-gray-500 uppercase">Status</label>
+                <div className="mt-1">
+                  <StatusBadge status={selectedUpload.status} />
+                </div>
+              </div>
+
+              {/* Progress */}
+              {selectedUpload.status === 'processing' && (
+                <div className="mb-4">
+                  <label className="text-xs font-medium text-gray-500 uppercase">Progress</label>
+                  <div className="mt-2">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-600">{selectedUpload.current_stage_name || 'Processing...'}</span>
+                      <span className="font-medium text-optio-purple">{selectedUpload.progress_percent || 0}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${selectedUpload.progress_percent || 0}%` }}
+                      />
+                    </div>
+                    {selectedUpload.current_item && (
+                      <p className="text-xs text-gray-500 mt-2">{selectedUpload.current_item}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Stage Progress */}
+              <div className="mb-4">
+                <label className="text-xs font-medium text-gray-500 uppercase">Stages</label>
+                <div className="mt-2 flex justify-between gap-2">
+                  {Object.entries(STAGE_LABELS).map(([key, label], index) => {
+                    const stageNum = index + 1
+                    const isCompleted = selectedUpload.current_stage >= stageNum ||
+                      (selectedUpload[`stage_${stageNum}_completed_at`])
+                    const isCurrent = selectedUpload.current_stage_name?.toLowerCase().includes(key)
+
+                    return (
+                      <div key={key} className="flex flex-col items-center flex-1">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                          isCompleted ? 'bg-green-500 text-white' :
+                          isCurrent ? 'bg-optio-purple text-white animate-pulse' :
+                          'bg-gray-200 text-gray-500'
+                        }`}>
+                          {isCompleted ? (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : stageNum}
+                        </div>
+                        <span className="text-xs text-gray-500 mt-1 text-center">{label.split(' ')[0]}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Error Details */}
+              {selectedUpload.status === 'error' && (
+                <div className="mb-4">
+                  <label className="text-xs font-medium text-gray-500 uppercase">Error</label>
+                  <pre className="mt-2 bg-red-50 border border-red-200 rounded p-3 text-xs text-red-800 overflow-x-auto whitespace-pre-wrap max-h-40 overflow-y-auto font-mono">
+                    {selectedUpload.error_message || selectedUpload.error || 'Unknown error'}
+                  </pre>
+                </div>
+              )}
+
+              {/* Timestamps */}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Started</label>
+                  <p className="text-sm text-gray-900 mt-1">
+                    {selectedUpload.uploaded_at ? new Date(selectedUpload.uploaded_at).toLocaleString() : '-'}
+                  </p>
+                </div>
+                {selectedUpload.completed_at && (
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase">Completed</label>
+                    <p className="text-sm text-gray-900 mt-1">
+                      {new Date(selectedUpload.completed_at).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Resume Info */}
+              {selectedUpload.can_resume && selectedUpload.status === 'error' && (
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    This upload can be resumed from stage {selectedUpload.resume_from_stage || selectedUpload.current_stage}.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              {selectedUpload.status === 'error' && selectedUpload.can_resume && (
+                <button
+                  onClick={async () => {
+                    try {
+                      await api.post(`/api/admin/curriculum/upload/${selectedUpload.id}/resume`, {})
+                      toast.success('Resuming upload...')
+                      setSelectedUpload(null)
+                      fetchHistory()
+                    } catch (err) {
+                      toast.error('Failed to resume')
+                    }
+                  }}
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-lg font-medium hover:bg-yellow-700"
+                >
+                  Resume
+                </button>
+              )}
+              <button
+                onClick={() => setSelectedUpload(null)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

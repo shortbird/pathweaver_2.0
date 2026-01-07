@@ -5,7 +5,6 @@ import { useOrganization } from '../../contexts/OrganizationContext'
 import api from '../../services/api'
 import { OverviewTab, UsersTab, QuestsTab, CourseTab } from '../../components/organization'
 
-const OrgAnnouncementsTab = lazy(() => import('../../components/admin/OrgAnnouncementsTab'))
 const OrgStudentProgress = lazy(() => import('../../components/admin/OrgStudentProgress'))
 
 const TABS = [
@@ -13,7 +12,6 @@ const TABS = [
   { id: 'users', label: 'Users' },
   { id: 'quests', label: 'Quests' },
   { id: 'courses', label: 'Courses' },
-  { id: 'announcements', label: 'Announcements' },
   { id: 'progress', label: 'Progress' }
 ]
 
@@ -159,13 +157,9 @@ export default function OrganizationManagement() {
         <CourseTab
           orgId={orgId}
           orgData={orgData}
+          onUpdate={fetchOrganizationData}
+          siteSettings={siteSettings}
         />
-      )}
-
-      {activeTab === 'announcements' && (
-        <Suspense fallback={<LoadingSpinner />}>
-          <OrgAnnouncementsTab orgId={orgId} />
-        </Suspense>
       )}
 
       {activeTab === 'progress' && (

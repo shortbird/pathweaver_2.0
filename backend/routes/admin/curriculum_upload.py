@@ -816,11 +816,13 @@ def _finalize_curriculum_upload(upload_id: str, user_id: str, organization_id: s
             'title': project.get('title', f'Project {i+1}'),
             'description': project.get('description', ''),
             'big_idea': project.get('big_idea', ''),
-            'quest_type': 'course',
+            'quest_type': 'optio',
             'is_active': False,
             'is_public': False,
             'created_by': user_id,
-            'organization_id': organization_id
+            'organization_id': organization_id,
+            'topic_primary': project.get('topic_primary', 'Academic'),
+            'topics': project.get('topics', [])
         }
 
         quest_result = supabase.table('quests').insert(quest_insert).execute()
@@ -838,7 +840,8 @@ def _finalize_curriculum_upload(upload_id: str, user_id: str, organization_id: s
             'quest_id': quest_id,
             'sequence_order': project.get('order', i),
             'is_required': True,
-            'is_published': False
+            'is_published': False,
+            'xp_threshold': 500
         }).execute()
 
         # Create lessons
@@ -848,7 +851,7 @@ def _finalize_curriculum_upload(upload_id: str, user_id: str, organization_id: s
                 'title': lesson.get('title', f'Lesson {j+1}'),
                 'description': lesson.get('description', ''),
                 'content': lesson.get('curriculum_content', {'version': 2, 'steps': []}),
-                'sequence_order': lesson.get('order_index', j),
+                'sequence_order': lesson.get('order_index', j) + 1,
                 'is_published': False,
                 'is_required': True,
                 'organization_id': organization_id,
@@ -951,7 +954,8 @@ def list_uploads(user_id):
         limit = min(int(request.args.get('limit', 20)), 100)
 
         query = supabase.table('curriculum_uploads').select(
-            'id, status, source_type, original_filename, uploaded_at, created_quest_id'
+            'id, status, source_type, original_filename, uploaded_at, created_quest_id, '
+            'error_message, current_stage_name, current_item, can_resume, progress_percent'
         ).order('uploaded_at', desc=True).limit(limit)
 
         if status_filter:

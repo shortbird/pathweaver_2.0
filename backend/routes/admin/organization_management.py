@@ -103,13 +103,13 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
         data = request.get_json()
 
         # Define allowed fields based on role
-        # Org admins can update branding and AI settings but not deactivate org or change visibility policy
+        # Org admins can update branding, AI settings, and course visibility policy
         if is_superadmin:
-            allowed_fields = ['name', 'quest_visibility_policy', 'branding_config', 'is_active',
+            allowed_fields = ['name', 'quest_visibility_policy', 'course_visibility_policy', 'branding_config', 'is_active',
                             'ai_features_enabled', 'ai_chatbot_enabled', 'ai_lesson_helper_enabled', 'ai_task_generation_enabled']
         else:
-            # Org admins can update name, branding, and AI settings
-            allowed_fields = ['name', 'branding_config', 'ai_features_enabled',
+            # Org admins can update name, branding, AI settings, and course visibility policy
+            allowed_fields = ['name', 'branding_config', 'course_visibility_policy', 'ai_features_enabled',
                             'ai_chatbot_enabled', 'ai_lesson_helper_enabled', 'ai_task_generation_enabled']
 
         update_data = {k: v for k, v in data.items() if k in allowed_fields}
@@ -118,19 +118,37 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
             return jsonify({'error': 'No valid fields to update'}), 400
 
         service = OrganizationService()
+        org = None
 
-        # If updating policy, use dedicated method (superadmin only)
+        # If updating quest policy, use dedicated method (superadmin only)
         if 'quest_visibility_policy' in update_data:
             org = service.update_organization_policy(
                 org_id,
                 update_data['quest_visibility_policy'],
                 current_user_id
             )
-        else:
-            # Use repository directly for other updates
+            del update_data['quest_visibility_policy']
+
+        # If updating course policy, use dedicated method
+        if 'course_visibility_policy' in update_data:
+            org = service.update_course_visibility_policy(
+                org_id,
+                update_data['course_visibility_policy'],
+                current_user_id
+            )
+            del update_data['course_visibility_policy']
+
+        # Handle remaining updates
+        if update_data:
             from repositories.organization_repository import OrganizationRepository
             repo = OrganizationRepository()
             org = repo.update_organization(org_id, update_data)
+
+        # If no updates were made, fetch current org data
+        if org is None:
+            from repositories.organization_repository import OrganizationRepository
+            repo = OrganizationRepository()
+            org = repo.find_by_id(org_id)
 
         return jsonify(org), 200
     except ValueError as e:
@@ -190,6 +208,59 @@ def revoke_quest_access(current_user_id, current_org_id, is_superadmin, org_id):
             return jsonify({'error': 'Failed to revoke access'}), 500
     except Exception as e:
         logger.error(f"Error revoking quest access from org {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<org_id>/courses/grant', methods=['POST'])
+@require_org_admin
+def grant_course_access(current_user_id, current_org_id, is_superadmin, org_id):
+    """Grant organization access to a course (curated policy only)"""
+    try:
+        # Verify access
+        if not is_superadmin and current_org_id != org_id:
+            return jsonify({'error': 'Access denied'}), 403
+
+        data = request.get_json()
+        course_id = data.get('course_id')
+
+        if not course_id:
+            return jsonify({'error': 'course_id is required'}), 400
+
+        service = OrganizationService()
+        result = service.grant_course_access(org_id, course_id, current_user_id)
+
+        return jsonify(result), 201
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error granting course access to org {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<org_id>/courses/revoke', methods=['POST'])
+@require_org_admin
+def revoke_course_access(current_user_id, current_org_id, is_superadmin, org_id):
+    """Revoke organization access to a course"""
+    try:
+        # Verify access
+        if not is_superadmin and current_org_id != org_id:
+            return jsonify({'error': 'Access denied'}), 403
+
+        data = request.get_json()
+        course_id = data.get('course_id')
+
+        if not course_id:
+            return jsonify({'error': 'course_id is required'}), 400
+
+        service = OrganizationService()
+        success = service.revoke_course_access(org_id, course_id, current_user_id)
+
+        if success:
+            return jsonify({'message': 'Course access revoked'}), 200
+        else:
+            return jsonify({'error': 'Failed to revoke access'}), 500
+    except Exception as e:
+        logger.error(f"Error revoking course access from org {org_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 

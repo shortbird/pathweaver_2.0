@@ -577,14 +577,14 @@ class QuestValidator:
 
 def validate_course_quest_has_preset_tasks(quest_id: str) -> tuple[bool, str]:
     """
-    Validate that a course quest has at least one preset task.
+    Validate that a course quest has at least one preset task OR has curriculum lessons.
 
     Args:
         quest_id: The quest ID to validate
 
     Returns:
         tuple: (is_valid, error_message)
-            - is_valid: True if quest has preset tasks or is not a course quest
+            - is_valid: True if quest has preset tasks, curriculum lessons, or is not a course quest
             - error_message: Error message if validation fails, empty string otherwise
     """
     try:
@@ -606,17 +606,27 @@ def validate_course_quest_has_preset_tasks(quest_id: str) -> tuple[bool, str]:
             return True, ''
 
         # Check for preset tasks in course_quest_tasks table
-        # Note: Course quests ONLY use course_quest_tasks, NOT quest_sample_tasks
         preset_tasks = supabase.table('course_quest_tasks')\
             .select('id')\
             .eq('quest_id', quest_id)\
             .limit(1)\
             .execute()
 
-        if not preset_tasks.data or len(preset_tasks.data) == 0:
-            return False, 'Course quests must have at least one preset task before they can be activated or made public. Please add tasks first.'
+        if preset_tasks.data and len(preset_tasks.data) > 0:
+            return True, ''
 
-        return True, ''
+        # Also check for curriculum lessons (created via curriculum upload)
+        # Quests with lessons are valid even without preset tasks
+        curriculum_lessons = supabase.table('curriculum_lessons')\
+            .select('id')\
+            .eq('quest_id', quest_id)\
+            .limit(1)\
+            .execute()
+
+        if curriculum_lessons.data and len(curriculum_lessons.data) > 0:
+            return True, ''
+
+        return False, 'Course quests must have at least one preset task or lesson before they can be activated or made public. Please add tasks or lessons first.'
 
     except Exception as e:
         logger.error(f"Error validating course quest {quest_id}: {str(e)}")

@@ -84,8 +84,6 @@ const ObserverFeedPage = lazy(() => import('./pages/ObserverFeedPage'))
 const ParentalConsentUploadPage = lazy(() => import('./pages/ParentalConsentUploadPage'))
 
 // LMS Features (December 2025 - Multi-tenant LMS transformation)
-const AnnouncementsFeed = lazy(() => import('./pages/announcements/AnnouncementsFeed'))
-const CreateAnnouncement = lazy(() => import('./pages/announcements/CreateAnnouncement'))
 const CurriculumBuilder = lazy(() => import('./pages/curriculum/CurriculumBuilder'))
 const CurriculumPage = lazy(() => import('./pages/curriculum/CurriculumPage'))
 // Course Pages (Course System - December 2025)
@@ -382,7 +380,6 @@ function App() {
                 <Route path="communication" element={<CommunicationPage />} />
                 <Route path="calendar" element={<CalendarPage />} />
                 {/* LMS Features */}
-                <Route path="announcements" element={<AnnouncementsFeed />} />
                 <Route path="invitations" element={<MyInvitations />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 {/* <Route path="subscription" element={<SubscriptionPage />} /> REMOVED - Phase 3 refactoring (January 2025) */}
@@ -406,7 +403,6 @@ function App() {
                 {/* Advisor badge routes removed (January 2026 - Microschool client feedback) */}
                 {/* LMS Features - Advisor */}
                 <Route path="advisor/invitations" element={<QuestInvitations />} />
-                <Route path="announcements/new" element={<CreateAnnouncement />} />
                 <Route path="quests/:questId/curriculum/edit" element={<CurriculumBuilder />} />
                 {/* Course Builder */}
                 <Route path="courses/:id/edit" element={<CourseBuilder />} />

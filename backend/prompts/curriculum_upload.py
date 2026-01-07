@@ -24,49 +24,19 @@ You are analyzing educational curriculum content to identify its structure.
 
 TASK: Extract the curriculum's organizational structure without modifying content.
 
-CRITICAL: LEARNING OBJECTIVES EXTRACTION
-=========================================
-Learning objectives are HIGH-LEVEL COURSE GOALS, NOT individual units or assignments.
-They describe what students will be able to do by the END of the entire course.
-
-IMPORTANT DISTINCTIONS:
-- Learning objectives = 3-10 high-level course goals (found in syllabus/overview)
-- Modules/Units = Content organization (these are NOT learning objectives)
-- Assignments = Work students complete (these are NOT learning objectives)
-
-WHERE TO FIND LEARNING OBJECTIVES:
-- Course syllabus page (most common location)
-- Course overview or introduction page
-- "About This Course" section
-- A dedicated "Learning Objectives" or "Course Outcomes" section
-
-Learning objectives are typically:
-- A numbered or bulleted list of 3-10 items
-- Broad statements covering the WHOLE course
-- Found in ONE location (not scattered across modules)
-- Phrased as: "Students will be able to..." or "By the end of this course..."
-
-WHAT IS NOT A LEARNING OBJECTIVE:
-- Individual module or unit titles
-- Assignment names or descriptions
-- Lesson topics
-- Weekly schedules
-
-If no explicit learning objectives are found, return an empty array - do NOT
-invent them from module/assignment titles.
+NOTE: Learning objectives are provided by the user separately, not extracted from content.
+Focus on extracting the structural elements (modules, lessons, tasks) only.
 
 IDENTIFY AND EXTRACT:
 
 1. COURSE (top level):
    - title: The course/unit name
    - description: Course overview or summary
-   - objectives: ALL learning objectives/outcomes (REQUIRED - extract every single one)
    - duration: Time span if mentioned (weeks, hours, etc.)
 
 2. MODULES (major sections):
    - title: Module/unit name
    - description: Module overview
-   - objectives: Module-specific learning objectives (if any)
    - order: Sequence number
    - parent: null (modules are top-level containers)
 
@@ -98,7 +68,6 @@ RETURN FORMAT:
   "course": {
     "title": "...",
     "description": "...",
-    "objectives": ["Objective 1: Full text of objective", "Objective 2: Full text", ...],
     "duration": "..."
   },
   "modules": [
@@ -355,48 +324,134 @@ You are generating a complete Optio Course with Projects and Lessons.
 
 OPTIO COURSE STRUCTURE:
 - Course: Container with title, description
-- Projects: ONE PROJECT PER LEARNING OBJECTIVE from the source curriculum
+- Projects: Standalone quests (one per learning objective if provided)
 - Lessons: Just-in-time teaching content for each Project (3-6 lessons per project)
 
-CRITICAL: LEARNING OBJECTIVES → PROJECTS MAPPING
-=================================================
-Learning objectives are HIGH-LEVEL COURSE GOALS (typically 3-10 items) found in the
-syllabus or course overview. They are NOT modules, units, or assignments.
+=============================================================================
+CRITICAL: PROJECT GENERATION BASED ON LEARNING OBJECTIVES
+=============================================================================
 
-IF LEARNING OBJECTIVES ARE PROVIDED in course.objectives:
-- Create exactly ONE Project per learning objective
-- 5 objectives → 5 Projects
-- 8 objectives → 8 Projects
-- Each project's source_objective field should contain the original objective text
+IF LEARNING OBJECTIVES ARE PROVIDED (user-specified):
+-----------------------------------------------------
+Create exactly ONE Project per learning objective. The project must EMBODY the
+objective's intent - completing the project should demonstrate mastery of that objective.
 
-IF NO LEARNING OBJECTIVES (empty array or missing):
-- Create 4-8 projects based on the content themes/topics
-- Group related modules into logical project themes
-- Leave source_objective as null
+TRANSFORMING LEARNING OBJECTIVES TO QUEST TITLES:
+1. Identify the CORE ACTION or SKILL in the objective
+2. Transform it into a concrete, achievable project title
+3. Use Optio quest naming conventions (action verb + specific outcome)
+4. The quest title should capture the objective's INTENT, not just rephrase it
 
-REMEMBER: Modules and assignments are NOT learning objectives. Learning objectives
-are broad course-level outcomes, not individual content pieces.
+TRANSFORMATION EXAMPLES:
+
+Learning Objective: "Students will understand the principles of photosynthesis"
+-> Quest Title: "Investigate How Plants Convert Sunlight to Energy"
+-> Why: "Understand" becomes active investigation; captures the core intent
+
+Learning Objective: "Learners will be able to write persuasive essays"
+-> Quest Title: "Write a Persuasive Op-Ed on a Local Issue"
+-> Why: Concrete deliverable that requires persuasive writing skills
+
+Learning Objective: "Students will develop critical thinking skills through analysis"
+-> Quest Title: "Analyze and Present Different Perspectives on a Controversial Topic"
+-> Why: Transforms vague "critical thinking" into specific, actionable project
+
+Learning Objective: "Understand basic programming concepts"
+-> Quest Title: "Build Your First Interactive Game with Code"
+-> Why: "Understand" becomes hands-on creation that demonstrates understanding
+
+Learning Objective: "Students will apply mathematical reasoning to solve problems"
+-> Quest Title: "Design and Budget a Dream Event"
+-> Why: Real-world application requiring math reasoning
+
+Learning Objective: "Demonstrate knowledge of historical events and their impact"
+-> Quest Title: "Create a Documentary About a Turning Point in History"
+-> Why: Creation that requires deep historical knowledge
+
+ANTI-PATTERNS (DO NOT DO):
+- "Explore the Topic" - Too generic, doesn't capture specific intent
+- "Learn the Basics of X" - Uses "learn" language, not action-oriented
+- "Understanding Photosynthesis" - Just rephrases objective, not actionable
+- "Introduction to Programming" - Academic title, not a quest
+- "Module 1: Foundations" - Structure label, not a project title
+- "Critical Thinking Skills" - Skill name, not a project students can complete
+
+IF NO LEARNING OBJECTIVES PROVIDED:
+-----------------------------------
+Create 4-8 projects based on Optio instructional design philosophy:
+
+1. Analyze content for NATURAL PROJECT BOUNDARIES
+   - What distinct skills or knowledge areas exist in the content?
+   - What could students CREATE or BUILD to demonstrate learning?
+   - What real-world applications connect to this content?
+
+2. Apply Optio's "Process Is The Goal" philosophy:
+   - Focus on exploration and creation, not content consumption
+   - Each project should result in something tangible (artifact, performance, creation)
+   - Projects should work as standalone quests in the public library
+
+3. Name projects using action verbs + specific outcomes:
+   - "Create Your Own...", "Build a...", "Design a...", "Record a..."
+   - NOT "Module 1: Introduction" or "Unit: Basic Concepts"
+   - Each title should make someone WANT to start the project
+
+=============================================================================
+PROJECT DESIGN RULES
+=============================================================================
 
 IMPORTANT RULES:
-1. Generate ONE Project per learning objective - each maps directly to an objective
-2. Each Project should be meaningful on its own (will be in public quest library)
+1. ONE Project per learning objective (if provided) - count must match exactly
+2. Each Project must be meaningful on its own (will appear in public quest library)
 3. Do NOT generate Tasks - educators add those in CourseBuilder
-4. Focus on JUST-IN-TIME TEACHING: brief lessons with just enough info to start applying knowledge
+4. Focus on JUST-IN-TIME TEACHING: brief lessons with just enough info to start doing
 5. Learning happens through Tasks, not by consuming lesson content
 
-PROJECT DESIGN:
-- Each project maps to ONE learning objective from the source curriculum
-- Project title should reflect the action/skill from the learning objective
-- Project description expands on what students will do to achieve the objective
-- Include: title, description, big_idea (one sentence hook for relevance), source_objective
-- Projects will have Tasks added later by educators
+PROJECT FIELDS:
+- title: Action-oriented quest name (see naming rules above)
+- description: What the project is about (see description style below)
+- big_idea: One sentence hook for why this matters NOW
+- source_objective: The original learning objective this project addresses (or null)
+- topic_primary: Main category for filtering (REQUIRED - one of: Creative, Science, Building, Nature, Business, Personal, Academic, Food, Games)
+- topics: Array of specific topic tags for searching (2-4 tags from: Music, Art, Design, Animation, Film, Writing, Photography, Crafts, Biology, Chemistry, Physics, Technology, Research, Astronomy, Environment, 3D Printing, Engineering, Robotics, DIY, Woodworking, Electronics, Maker, Gardening, Wildlife, Outdoors, Sustainability, Plants, Animals, Hiking, Entrepreneurship, Finance, Marketing, Leadership, Startups, Economics, Wellness, Fitness, Mindfulness, Skills, Philosophy, Self-Improvement, Reading, Math, History, Languages, Literature, Geography, Social Studies, Cooking, Nutrition, Baking, Culinary, Food Science, Board Games, Video Games, Puzzles, Strategy, Sports)
 
-JUST-IN-TIME LESSON DESIGN:
+=============================================================================
+QUEST NAMING CONVENTIONS
+=============================================================================
+
+- Start with ACTION VERBS: Create, Build, Design, Explore, Investigate, Program,
+  Draw, Animate, Record, Write, Compose, Develop, Launch, Produce, etc.
+- Format: "[Action Verb] [Specific, Tangible Outcome]"
+- Examples: "Create a Digital Portfolio", "Build a Simple Robot", "Design a Logo",
+  "Record a Podcast Episode", "Write a Short Story Collection", "Launch a Mini Business"
+- These are QUESTS - they should sound like achievable, exciting projects
+- Avoid: "Topic: Subtopic", "Introduction to X", "Learning About X", "Module N"
+
+=============================================================================
+DESCRIPTION STYLE
+=============================================================================
+
+- Do NOT use: "students will learn...", "you will learn...", "learners will..."
+- Do NOT use: "In this project...", "This quest teaches...", "You will explore..."
+- Do NOT describe: what will be learned or how users interact with material
+- DO describe: the content, principles, and concepts as simple overviews
+- Write in: neutral, present-tense descriptive language
+
+BAD: "Students will learn to create and manipulate basic geometric shapes."
+BAD: "In this project, you will explore the fundamentals of 3D modeling."
+GOOD: "Basic geometric shapes and how they form the foundation for complex 3D designs."
+
+BAD: "Learners will discover how plants convert sunlight into energy."
+GOOD: "How plants convert sunlight into energy through photosynthesis."
+
+=============================================================================
+JUST-IN-TIME LESSON DESIGN
+=============================================================================
+
 - Brief, focused content (students learn by DOING, not reading)
 - Provide MINIMUM info needed to start a competent attempt at applying knowledge
 - Each lesson prepares students for Tasks (which they'll create or educators will add)
 - 3-6 lessons per project
-- Each lesson: 3-8 steps maximum
+- Each lesson: 5-10 steps (aim for comprehensive coverage)
 
 STEP FORMAT (CRITICAL - must match exactly):
 Each step MUST have these fields:
@@ -426,7 +481,10 @@ STEP TYPES:
    - Set files to [] (empty array)
    - In content, describe helpful resources (templates, worksheets, tools)
 
-RETURN FORMAT:
+=============================================================================
+RETURN FORMAT
+=============================================================================
+
 {
   "course": {
     "title": "...",
@@ -434,10 +492,12 @@ RETURN FORMAT:
   },
   "projects": [
     {
-      "title": "Descriptive Quest Title",
-      "description": "What students will explore/create in this project...",
+      "title": "Action-Oriented Quest Title",
+      "description": "Neutral description of content and concepts...",
       "big_idea": "One sentence hook for why this matters NOW",
-      "source_objective": "The original learning objective this project addresses",
+      "source_objective": "The original learning objective (or null if none provided)",
+      "topic_primary": "Academic",
+      "topics": ["Reading", "Literature", "Writing"],
       "order": 0,
       "lessons": [
         {
@@ -455,47 +515,17 @@ RETURN FORMAT:
           ]
         }
       ]
-    },
-    {
-      "title": "Another Descriptive Quest Title",
-      "description": "...",
-      "big_idea": "...",
-      "source_objective": "Another learning objective from the source",
-      "order": 1,
-      "lessons": [...]
     }
   ]
 }
 
-PROJECT NAMING:
-- Start with ACTION VERBS: Create, Build, Design, Explore, Program, Draw, Animate, Record, Write, Compose, etc.
-- Format like: "Create a Digital Portfolio", "Build a Simple Robot", "Design a Logo", "Program a Game"
-- NOT "Topic: Subtopic" format (e.g., NOT "3D Modeling: Basic Shapes")
-- NOT "Introduction to X" or "Learning About X"
-- These are quests - they should sound like achievable goals/projects
-- Examples: "Draw a Self-Portrait", "Run a 5K", "Build a Birdhouse", "Record a Podcast Episode"
-
-DESCRIPTION STYLE:
-- Do NOT use "students will learn...", "you will learn...", "learners will...", etc.
-- Do NOT use "In this project...", "This quest teaches...", etc.
-- Do NOT describe what will be learned or how users interact with material
-- DO describe the content, principles, and concepts as simple overviews
-- Write in neutral, present-tense descriptive language
-- BAD: "Students will learn to create and manipulate basic geometric shapes."
-- BAD: "In this project, you will explore the fundamentals of 3D modeling."
-- GOOD: "Basic geometric shapes and how they form the foundation for complex 3D designs."
-- BAD: "Learners will discover how plants convert sunlight into energy."
-- GOOD: "How plants convert sunlight into energy through photosynthesis."
-
 REMEMBER:
-- Generate ONE project per learning objective (match count exactly)
+- If LOs provided: ONE project per objective (count must match EXACTLY)
 - Include source_objective field to trace back to original curriculum
-- 3-6 lessons per project
-- 3-8 steps per lesson
+- 3-6 lessons per project, 5-10 steps per lesson
 - Keep content BRIEF - just enough to start doing
 - Generate step IDs using format: step_[random 6 chars]
 - Align with Optio philosophy: "The Process Is The Goal"
-- If no learning objectives provided, fall back to 4-8 projects based on modules/topics
 """
 
 

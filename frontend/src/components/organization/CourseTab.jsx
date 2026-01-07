@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
+import CourseVisibilityManager from '../admin/CourseVisibilityManager'
 
 function CourseCard({ course, onDelete }) {
   const projectCount = course.quest_count || course.project_count || 0
@@ -226,18 +227,52 @@ function CreateCourseModal({ orgId, navigate, onClose, onSuccess }) {
   )
 }
 
-export default function CourseTab({ orgId, orgData }) {
+export default function CourseTab({ orgId, orgData, onUpdate, siteSettings }) {
   const navigate = useNavigate()
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [courseSubTab, setCourseSubTab] = useState('manage')
+  const [policy, setPolicy] = useState(orgData?.organization?.course_visibility_policy || 'all_optio')
+  const [saving, setSaving] = useState(false)
+  const [showPolicyOptions, setShowPolicyOptions] = useState(false)
+
+  const policyOptions = [
+    { value: 'all_optio', label: 'All Optio + Org Courses', short: 'All courses available' },
+    { value: 'curated', label: 'Curated Library', short: 'You control availability' },
+    { value: 'private_only', label: 'Org Courses Only', short: 'Only your courses' }
+  ]
+
+  const currentPolicy = policyOptions.find(p => p.value === policy)
+
+  const handleSavePolicy = async (newPolicy) => {
+    setSaving(true)
+    try {
+      await api.put(`/api/admin/organizations/${orgId}`, {
+        course_visibility_policy: newPolicy
+      })
+      setPolicy(newPolicy)
+      setShowPolicyOptions(false)
+      if (onUpdate) onUpdate()
+    } catch (error) {
+      console.error('Failed to update policy:', error)
+      alert(error.response?.data?.error || 'Failed to update policy')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const fetchCourses = async () => {
     try {
       setLoading(true)
-      const response = await api.get(`/api/courses?organization_id=${orgId}`)
-      setCourses(response.data.courses || response.data || [])
+      // Fetch only org courses using filter=org_only
+      const response = await api.get(`/api/courses?filter=org_only`)
+      // Filter to only show courses from this org (extra safety)
+      const orgCourses = (response.data.courses || response.data || []).filter(
+        course => course.organization_id === orgId
+      )
+      setCourses(orgCourses)
     } catch (error) {
       console.error('Failed to fetch courses:', error)
     } finally {
@@ -248,6 +283,10 @@ export default function CourseTab({ orgId, orgData }) {
   useEffect(() => {
     fetchCourses()
   }, [orgId])
+
+  useEffect(() => {
+    setPolicy(orgData?.organization?.course_visibility_policy || 'all_optio')
+  }, [orgData])
 
   const filteredCourses = courses.filter(course =>
     course.title?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -262,67 +301,148 @@ export default function CourseTab({ orgId, orgData }) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap justify-between items-center gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">Course Builder</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Create and manage courses for your organization
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <input
-            type="text"
-            placeholder="Search courses..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="border border-gray-200 rounded-lg px-4 py-2 w-64 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-          />
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Create Course
-          </button>
-        </div>
+    <div className="space-y-4">
+      {/* Subtab Navigation */}
+      <div className="flex gap-2 border-b border-gray-200 pb-2">
+        <button
+          onClick={() => setCourseSubTab('manage')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            courseSubTab === 'manage'
+              ? 'bg-white border border-b-white border-gray-200 -mb-[3px] text-optio-purple'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Manage Courses
+        </button>
+        <button
+          onClick={() => setCourseSubTab('availability')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            courseSubTab === 'availability'
+              ? 'bg-white border border-b-white border-gray-200 -mb-[3px] text-optio-purple'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Course Availability
+        </button>
       </div>
 
-      {showCreateModal && (
-        <CreateCourseModal
-          orgId={orgId}
-          navigate={navigate}
-          onClose={() => setShowCreateModal(false)}
-          onSuccess={() => {
-            setShowCreateModal(false)
-            fetchCourses()
-          }}
-        />
-      )}
+      {courseSubTab === 'manage' ? (
+        <>
+          {/* Header */}
+          <div className="flex flex-wrap justify-between items-center gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Course Builder</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Create and manage courses for your organization
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                placeholder="Search courses..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="border border-gray-200 rounded-lg px-4 py-2 w-64 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+              />
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Create Course
+              </button>
+            </div>
+          </div>
 
-      {/* Courses Grid */}
-      {filteredCourses.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
-          <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-          </svg>
-          <p className="text-gray-500">
-            {searchTerm ? 'No courses match your search' : 'No courses yet. Click "Create Course" to get started.'}
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredCourses.map(course => (
-            <CourseCard
-              key={course.id}
-              course={course}
-              onDelete={(id) => setCourses(prev => prev.filter(c => c.id !== id))}
+          {showCreateModal && (
+            <CreateCourseModal
+              orgId={orgId}
+              navigate={navigate}
+              onClose={() => setShowCreateModal(false)}
+              onSuccess={() => {
+                setShowCreateModal(false)
+                fetchCourses()
+              }}
             />
-          ))}
-        </div>
+          )}
+
+          {/* Courses Grid */}
+          {filteredCourses.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
+              <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+              <p className="text-gray-500">
+                {searchTerm ? 'No courses match your search' : 'No courses yet. Click "Create Course" to get started.'}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredCourses.map(course => (
+                <CourseCard
+                  key={course.id}
+                  course={course}
+                  onDelete={(id) => setCourses(prev => prev.filter(c => c.id !== id))}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Course Visibility Policy - Compact */}
+          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-sm font-medium text-gray-500">Visibility Policy:</span>
+                <span className="ml-2 font-semibold text-gray-900">{currentPolicy?.label}</span>
+                <span className="ml-2 text-sm text-gray-500">({currentPolicy?.short})</span>
+              </div>
+              <button
+                onClick={() => setShowPolicyOptions(!showPolicyOptions)}
+                className="text-sm text-optio-purple hover:underline font-medium"
+              >
+                {showPolicyOptions ? 'Cancel' : 'Change'}
+              </button>
+            </div>
+
+            {showPolicyOptions && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="flex flex-wrap gap-2">
+                  {policyOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => handleSavePolicy(option.value)}
+                      disabled={saving || option.value === policy}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        option.value === policy
+                          ? 'bg-optio-purple text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      } disabled:opacity-50`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  {policy === 'curated' ? 'Toggle availability for each course below.' :
+                   policy === 'private_only' ? 'Only courses created by your organization will be visible to students.' :
+                   'All Optio courses are automatically available to students.'}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Course Visibility Manager */}
+          <CourseVisibilityManager
+            orgId={orgId}
+            orgData={orgData}
+            onUpdate={onUpdate}
+            siteSettings={siteSettings}
+          />
+        </>
       )}
     </div>
   )

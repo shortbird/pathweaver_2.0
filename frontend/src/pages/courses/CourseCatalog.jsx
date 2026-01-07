@@ -158,6 +158,9 @@ const CourseCatalog = () => {
               const isArchived = course.status === 'archived'
               const isCompleted = course.progress?.percentage >= 100 || course.progress?.is_completed
               const isExternal = course.is_external
+              // org_admins and advisors can only edit courses from their own organization
+              const canEditThisCourse = user?.role === 'superadmin' ||
+                ((user?.role === 'org_admin' || user?.role === 'advisor') && !isExternal)
 
               return (
                 <div
@@ -233,15 +236,17 @@ const CourseCatalog = () => {
 
                     {/* Action Buttons */}
                     {canManageCourses ? (
-                      /* Admin view - show Edit and View/Preview buttons */
+                      /* Admin view - show Edit (if allowed) and View/Preview buttons */
                       <div className="flex gap-2">
-                        <button
-                          onClick={() => navigate(`/courses/${course.id}/edit`)}
-                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium min-h-[44px]"
-                        >
-                          <PencilSquareIcon className="w-5 h-5" />
-                          Edit
-                        </button>
+                        {canEditThisCourse ? (
+                          <button
+                            onClick={() => navigate(`/courses/${course.id}/edit`)}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium min-h-[44px]"
+                          >
+                            <PencilSquareIcon className="w-5 h-5" />
+                            Edit
+                          </button>
+                        ) : null}
                         <button
                           onClick={() => handleViewCourse(course.id)}
                           className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium min-h-[44px] ${

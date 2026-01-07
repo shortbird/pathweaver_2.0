@@ -57,14 +57,21 @@ class CurriculumUploadService(BaseAIService):
     4. generate_course_content() - Create step-based lessons (no tasks)
 
     Output is auto-saved as draft course for editing in CourseBuilder.
+
+    Uses gemini-2.5-pro for better reasoning on complex curriculum tasks.
     """
 
+    # Use more capable model for curriculum processing
+    CURRICULUM_MODEL = 'gemini-2.5-pro'
+
     def __init__(self):
-        """Initialize with document parsers."""
-        super().__init__()
+        """Initialize with document parsers and advanced AI model."""
+        # Use gemini-1.5-pro for curriculum processing (better reasoning)
+        super().__init__(model_override=self.CURRICULUM_MODEL)
         self.document_parser = DocumentParserService()
         self.imscc_parser = IMSCCParserService()
         self._admin_client = None
+        logger.info(f"CurriculumUploadService using model: {self.model_name}")
 
     @property
     def admin_client(self):
@@ -76,6 +83,20 @@ class CurriculumUploadService(BaseAIService):
     # =========================================================================
     # Checkpoint & Progress Methods
     # =========================================================================
+
+    def _sanitize_for_db(self, data):
+        """
+        Remove null characters and other problematic content before DB save.
+        PostgreSQL cannot store \\u0000 in text/jsonb fields.
+        """
+        import json
+        if data is None:
+            return None
+        # Convert to JSON string, remove null chars, convert back
+        json_str = json.dumps(data, ensure_ascii=False)
+        # Remove null characters that PostgreSQL rejects
+        json_str = json_str.replace('\\u0000', '').replace('\x00', '')
+        return json.loads(json_str)
 
     def _save_checkpoint(self, upload_id: str, stage: int, output: dict) -> None:
         """
@@ -95,8 +116,11 @@ class CurriculumUploadService(BaseAIService):
         timestamp_col = f'stage_{stage}_completed_at'
 
         try:
+            # Sanitize output to remove null characters that PostgreSQL rejects
+            sanitized_output = self._sanitize_for_db(output)
+
             self.admin_client.table('curriculum_uploads').update({
-                column_map[stage]: output,
+                column_map[stage]: sanitized_output,
                 timestamp_col: datetime.utcnow().isoformat(),
                 'current_stage': stage,
                 'can_resume': True,
@@ -637,8 +661,10 @@ class CurriculumUploadService(BaseAIService):
         try:
             # Stage 1: Parse source content
             if resume_from <= 1:
-                self._update_progress(upload_id, 1, 0, "Starting document parsing")
+                self._update_progress(upload_id, 1, 10, "Reading document...")
                 logger.info(f"Stage 1: Parsing {source_type} content")
+
+                self._update_progress(upload_id, 1, 30, "Extracting content...")
                 parse_result = self.parse_source(source_type, content, filename, content_types)
 
                 if not parse_result.get('success'):
@@ -649,6 +675,7 @@ class CurriculumUploadService(BaseAIService):
                         'stages': {'parse': parse_result}
                     }
 
+                self._update_progress(upload_id, 1, 80, "Saving parsed content...")
                 self._save_checkpoint(upload_id, 1, parse_result)
                 self._update_progress(upload_id, 1, 100, "Document parsed successfully")
             else:
@@ -661,9 +688,10 @@ class CurriculumUploadService(BaseAIService):
 
             # Stage 2: Detect curriculum structure
             if resume_from <= 2:
-                self._update_progress(upload_id, 2, 0, "Detecting curriculum structure")
+                self._update_progress(upload_id, 2, 10, "Analyzing document structure...")
                 logger.info("Stage 2: Detecting curriculum structure")
 
+                self._update_progress(upload_id, 2, 30, "AI analyzing curriculum...")
                 # Use chunked processing for potentially large content
                 structure_result = self.detect_structure_chunked(parse_result, upload_id)
 
@@ -678,6 +706,7 @@ class CurriculumUploadService(BaseAIService):
                         }
                     }
 
+                self._update_progress(upload_id, 2, 85, "Saving structure...")
                 self._save_checkpoint(upload_id, 2, structure_result)
                 self._update_progress(upload_id, 2, 100, "Structure detected")
             else:
@@ -690,9 +719,10 @@ class CurriculumUploadService(BaseAIService):
 
             # Stage 3: Align to Optio philosophy
             if resume_from <= 3:
-                self._update_progress(upload_id, 3, 0, "Aligning to Optio philosophy")
+                self._update_progress(upload_id, 3, 10, "Preparing content transformation...")
                 logger.info(f"Stage 3: Aligning to Optio philosophy (level={transformation_level}, preserve={preserve_structure})")
 
+                self._update_progress(upload_id, 3, 30, "AI transforming content...")
                 alignment_result = self.align_philosophy(
                     structure_result,
                     transformation_level=transformation_level,
@@ -711,6 +741,7 @@ class CurriculumUploadService(BaseAIService):
                         }
                     }
 
+                self._update_progress(upload_id, 3, 85, "Saving aligned content...")
                 self._save_checkpoint(upload_id, 3, alignment_result)
                 self._update_progress(upload_id, 3, 100, "Philosophy aligned")
             else:
@@ -722,9 +753,10 @@ class CurriculumUploadService(BaseAIService):
                 logger.info(f"Stage 3: Loaded from checkpoint")
 
             # Stage 4: Generate course content
-            self._update_progress(upload_id, 4, 0, "Generating course content")
+            self._update_progress(upload_id, 4, 10, "Preparing to generate projects...")
             logger.info(f"Stage 4: Generating course content (learning_objectives: {len(learning_objectives) if learning_objectives else 0})")
 
+            self._update_progress(upload_id, 4, 30, "AI generating projects and lessons...")
             content_result = self.generate_course_content(alignment_result, learning_objectives)
 
             if not content_result.get('success'):
@@ -1214,16 +1246,29 @@ Create EXACTLY {len(learning_objectives)} projects - one for each objective belo
 
 {objectives_list}
 
-CRITICAL: You MUST create exactly {len(learning_objectives)} projects, one for each objective above.
-Do NOT create more or fewer projects. Each project's source_objective field should contain
-the corresponding objective text from the list above.
+CRITICAL REQUIREMENTS:
+1. You MUST create exactly {len(learning_objectives)} projects (one per objective)
+2. Each project's source_objective field should contain the corresponding objective text
+3. Transform each objective into an Optio-style quest title that EMBODIES its intent:
+   - Identify the core action/skill in the objective
+   - Convert to action verb + specific, tangible outcome
+   - The quest title should capture the objective's INTENT (not just rephrase it)
+4. Completing each project should demonstrate mastery of that learning objective
 """
         else:
             objectives_section = """
 NO LEARNING OBJECTIVES PROVIDED:
 ================================
-Create 4-8 projects based on the content themes and modules.
-Group related content into logical project themes.
+Create 4-8 projects based on Optio's instructional design philosophy.
+
+Apply "The Process Is The Goal" approach:
+- Analyze content for natural project boundaries based on skills/knowledge areas
+- Each project should result in a tangible creation (artifact, performance, deliverable)
+- Name projects with action verbs + specific outcomes that make students WANT to start
+- Projects should work as standalone quests in the public library
+- Do NOT create projects named after modules (e.g., "Module 1: Basics")
+
+Leave source_objective as null for all projects.
 """
 
         prompt = f"""
@@ -1452,7 +1497,7 @@ ALIGNED CONTENT TO FORMAT:
                 'description': project.get('description', ''),
                 'big_idea': project.get('big_idea', ''),
                 'order': project.get('order', i),
-                'quest_type': 'course',
+                'quest_type': 'optio',
                 'is_active': False,  # Start as draft
                 'is_public': False,
                 'lessons': lessons

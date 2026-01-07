@@ -45,8 +45,12 @@ def list_courses(user_id):
         org_id = user_result.data[0]['organization_id']
 
         # Build query - include org courses AND public courses from other orgs
-        # Use filter parameter to control: 'org_only' shows only org courses, default shows all accessible
+        # Use filter parameter to control:
+        #   'org_only' - shows only org courses
+        #   'admin_all' - shows all published courses + org drafts (for org admin visibility management)
+        #   'all' (default) - shows org courses + public published courses from other orgs
         filter_mode = request.args.get('filter', 'all')
+        user_role = user_result.data[0].get('role')
 
         if filter_mode == 'org_only':
             # Only show courses from user's organization
@@ -55,16 +59,29 @@ def list_courses(user_id):
             else:
                 # User has no org - show only public published courses
                 query = client.table('courses').select('*').eq('visibility', 'public').eq('status', 'published')
-        else:
-            # Show org courses + published public courses from other orgs
+        elif filter_mode == 'admin_all' and (user_role in ['superadmin', 'org_admin', 'advisor'] or user_result.data[0].get('is_org_admin')):
+            # For org admins managing course availability - show all courses they could potentially access:
+            # 1. All courses from their own org (any status)
+            # 2. All published courses from other orgs (for toggling availability)
             if org_id:
-                # Using or_ filter: (organization_id = org_id) OR (visibility = 'public' AND status = 'published')
                 query = client.table('courses').select('*').or_(
-                    f"organization_id.eq.{org_id},and(visibility.eq.public,status.eq.published)"
+                    f"organization_id.eq.{org_id},status.eq.published"
                 )
             else:
-                # User has no org - show only public published courses
-                query = client.table('courses').select('*').eq('visibility', 'public').eq('status', 'published')
+                # Superadmin with no org - show all courses
+                query = client.table('courses').select('*')
+        else:
+            # Show org courses + published public courses from other orgs + Optio global courses
+            if org_id:
+                # Include: org courses, Optio global courses (null org_id), and public published from other orgs
+                query = client.table('courses').select('*').or_(
+                    f"organization_id.eq.{org_id},organization_id.is.null,and(visibility.eq.public,status.eq.published)"
+                )
+            else:
+                # User has no org - show Optio global courses + public published courses
+                query = client.table('courses').select('*').or_(
+                    "organization_id.is.null,and(visibility.eq.public,status.eq.published)"
+                )
 
         if request.args.get('status'):
             query = query.eq('status', request.args.get('status'))

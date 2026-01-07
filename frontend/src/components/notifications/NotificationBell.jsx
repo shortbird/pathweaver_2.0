@@ -73,11 +73,21 @@ const NotificationBell = () => {
 
   const markAllAsRead = async () => {
     try {
-      await api.put('/api/notifications/read-all', {})
+      await api.put('/api/notifications/mark-all-read', {})
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
       setUnreadCount(0)
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error)
+    }
+  }
+
+  const dismissAllNotifications = async () => {
+    try {
+      await api.delete('/api/notifications/delete-all')
+      setNotifications([])
+      setUnreadCount(0)
+    } catch (error) {
+      console.error('Failed to dismiss all notifications:', error)
     }
   }
 
@@ -143,14 +153,24 @@ const NotificationBell = () => {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllAsRead}
-                className="text-xs text-optio-purple hover:text-optio-pink transition-colors"
-              >
-                Mark all as read
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllAsRead}
+                  className="text-xs text-optio-purple hover:text-optio-pink transition-colors"
+                >
+                  Mark all read
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={dismissAllNotifications}
+                  className="text-xs text-gray-500 hover:text-red-500 transition-colors"
+                >
+                  Dismiss all
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Notification List */}

@@ -1,58 +1,52 @@
-import React, { useState } from 'react';
-import api from '../../services/api';
-import toast from 'react-hot-toast';
+import React, { useState } from 'react'
+import { XMarkIcon } from '@heroicons/react/24/outline'
+import api from '../../services/api'
+import toast from 'react-hot-toast'
 
 /**
- * CreateAnnouncementModal
+ * SendNotificationModal
  *
- * Modal for creating or editing announcements.
- * Used by both the org admin tab and the announcements feed.
+ * Modal for broadcasting notifications to organization members.
+ * Only accessible by advisors, org admins, and superadmins.
  */
-export default function CreateAnnouncementModal({ announcement, onClose, onSuccess }) {
-  const isEditing = !!announcement;
+export default function SendNotificationModal({ onClose, onSuccess }) {
   const [formData, setFormData] = useState({
-    title: announcement?.title || '',
-    message: announcement?.message || '',
-    target_audience: announcement?.target_audience || ['all'],
-    pinned: announcement?.pinned || false
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+    title: '',
+    message: '',
+    target_audience: ['all']
+  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const audienceOptions = [
     { value: 'all', label: 'Everyone' },
     { value: 'students', label: 'Students Only' },
     { value: 'parents', label: 'Parents Only' },
     { value: 'advisors', label: 'Advisors Only' }
-  ];
+  ]
 
   const handleAudienceChange = (value) => {
     setFormData(prev => ({
       ...prev,
       target_audience: [value]
-    }));
-  };
+    }))
+  }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+    e.preventDefault()
+    setLoading(true)
+    setError('')
 
     try {
-      if (isEditing) {
-        await api.patch(`/api/announcements/${announcement.id}`, formData);
-        toast.success('Announcement updated');
-      } else {
-        await api.post('/api/announcements', formData);
-        toast.success('Announcement created');
-      }
-      onSuccess();
+      const response = await api.post('/api/notifications/broadcast', formData)
+      toast.success(`Notification sent to ${response.data.notifications_sent} users`)
+      onSuccess?.()
     } catch (err) {
-      setError(err.response?.data?.error || `Failed to ${isEditing ? 'update' : 'create'} announcement`);
+      setError(err.response?.data?.error || 'Failed to send notification')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
@@ -61,16 +55,12 @@ export default function CreateAnnouncementModal({ announcement, onClose, onSucce
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold">
-            {isEditing ? 'Edit Announcement' : 'Create Announcement'}
-          </h2>
+          <h2 className="text-2xl font-bold">Send Notification</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <XMarkIcon className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
@@ -85,7 +75,7 @@ export default function CreateAnnouncementModal({ announcement, onClose, onSucce
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-              placeholder="Announcement title"
+              placeholder="Notification title"
               required
             />
           </div>
@@ -99,15 +89,15 @@ export default function CreateAnnouncementModal({ announcement, onClose, onSucce
               value={formData.message}
               onChange={(e) => setFormData({ ...formData, message: e.target.value })}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-              placeholder="Write your announcement message here..."
+              placeholder="Write your message here..."
               rows={5}
               required
             />
-            <p className="text-xs text-gray-500 mt-1">Markdown formatting is supported.</p>
+            <p className="text-xs text-gray-500 mt-1">Markdown formatting is supported for announcement-style notifications.</p>
           </div>
 
           {/* Target Audience */}
-          <div className="mb-4">
+          <div className="mb-6">
             <label className="block text-sm font-medium mb-2">Target Audience</label>
             <div className="flex flex-wrap gap-2">
               {audienceOptions.map(option => (
@@ -125,24 +115,6 @@ export default function CreateAnnouncementModal({ announcement, onClose, onSucce
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Pin checkbox */}
-          <div className="mb-6">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.pinned}
-                onChange={(e) => setFormData({ ...formData, pinned: e.target.checked })}
-                className="w-4 h-4 text-optio-purple border-gray-300 rounded focus:ring-optio-purple"
-              />
-              <span className="text-sm font-medium text-gray-700">
-                Pin this announcement (appears at top)
-              </span>
-            </label>
-            <p className="text-xs text-gray-500 mt-1 ml-7">
-              Maximum 3 pinned announcements allowed per organization.
-            </p>
           </div>
 
           {error && (
@@ -164,11 +136,11 @@ export default function CreateAnnouncementModal({ announcement, onClose, onSucce
               disabled={loading || !formData.title.trim() || !formData.message.trim()}
               className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50"
             >
-              {loading ? 'Saving...' : isEditing ? 'Update' : 'Post Announcement'}
+              {loading ? 'Sending...' : 'Send Notification'}
             </button>
           </div>
         </form>
       </div>
     </div>
-  );
+  )
 }

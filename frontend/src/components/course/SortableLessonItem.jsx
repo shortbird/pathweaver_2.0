@@ -79,17 +79,11 @@ const SortableLessonItem = ({
         <h4 className="text-sm font-medium text-gray-900 truncate">
           {lesson.title}
         </h4>
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          {taskCount > 0 && (
-            <span>{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
-          )}
-          {taskCount > 0 && lesson.xp_threshold > 0 && (
-            <span className="text-gray-300">|</span>
-          )}
-          {lesson.xp_threshold > 0 && (
-            <span>{lesson.xp_threshold} XP to complete</span>
-          )}
-        </div>
+        {taskCount > 0 && (
+          <div className="text-xs text-gray-500">
+            {taskCount} task{taskCount !== 1 ? 's' : ''}
+          </div>
+        )}
       </div>
       <div className="relative flex-shrink-0" ref={menuRef}>
         <button

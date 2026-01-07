@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
@@ -17,8 +17,10 @@ const SortableQuestItem = ({
   isSelected,
   onSelect,
   onRemove,
-  onTogglePublish
+  onTogglePublish,
+  onXpThresholdChange
 }) => {
+  const [xpValue, setXpValue] = useState(quest.xp_threshold || 0)
   const {
     attributes,
     listeners,
@@ -63,9 +65,33 @@ const SortableQuestItem = ({
           <span className="text-xs font-medium text-gray-500 mt-0.5">
             {quest.order_index + 1}
           </span>
-          <h4 className={`font-medium text-sm leading-snug ${isPublished ? 'text-gray-900' : 'text-gray-500'}`}>
-            {quest.title || 'Untitled Project'}
-          </h4>
+          <div className="flex-1">
+            <h4 className={`font-medium text-sm leading-snug ${isPublished ? 'text-gray-900' : 'text-gray-500'}`}>
+              {quest.title || 'Untitled Project'}
+            </h4>
+            <div className="flex items-center gap-1.5 mt-1">
+              <input
+                type="number"
+                min="0"
+                value={xpValue}
+                onChange={(e) => setXpValue(e.target.value)}
+                onBlur={(e) => {
+                  const newValue = parseInt(e.target.value) || 0
+                  if (newValue !== (quest.xp_threshold || 0)) {
+                    onXpThresholdChange?.(quest.id, newValue)
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.target.blur()
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-14 px-1.5 py-0.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-optio-purple focus:border-optio-purple"
+              />
+              <span className="text-xs text-gray-500">XP required</span>
+            </div>
+          </div>
           {!isPublished && (
             <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">Draft</span>
           )}

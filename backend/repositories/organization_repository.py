@@ -179,3 +179,42 @@ class OrganizationRepository(BaseRepository):
             'total_completions': completions_count,
             'total_xp': total_xp
         }
+
+    # Course visibility methods
+    def get_organization_courses(self, org_id: str) -> List[Dict[str, Any]]:
+        """Get courses created by organization"""
+        response = self.client.table('courses')\
+            .select('*')\
+            .eq('organization_id', org_id)\
+            .order('created_at', desc=True)\
+            .execute()
+        return response.data if response.data else []
+
+    def get_curated_courses(self, org_id: str) -> List[Dict[str, Any]]:
+        """Get curated course access for organization"""
+        response = self.client.table('organization_course_access')\
+            .select('course_id, granted_at, granted_by, courses(*)')\
+            .eq('organization_id', org_id)\
+            .execute()
+        return response.data if response.data else []
+
+    def grant_course_access(self, org_id: str, course_id: str, granted_by: str) -> Dict[str, Any]:
+        """Grant organization access to a course (for curated policy)"""
+        data = {
+            'organization_id': org_id,
+            'course_id': course_id,
+            'granted_by': granted_by
+        }
+        response = self.client.table('organization_course_access')\
+            .insert(data)\
+            .execute()
+        return response.data[0] if response.data else None
+
+    def revoke_course_access(self, org_id: str, course_id: str) -> bool:
+        """Revoke organization access to a course"""
+        response = self.client.table('organization_course_access')\
+            .delete()\
+            .eq('organization_id', org_id)\
+            .eq('course_id', course_id)\
+            .execute()
+        return bool(response.data)

@@ -15,7 +15,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   const [actingAsBannerExpanded, setActingAsBannerExpanded] = useState(false)
   const [masqueradeBannerExpanded, setMasqueradeBannerExpanded] = useState(false)
   const [masqueradeState, setMasqueradeState] = useState(null)
-  const [unreadAnnouncementCount, setUnreadAnnouncementCount] = useState(0)
 
   // Check for masquerade state on mount and periodically
   useEffect(() => {
@@ -31,32 +30,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
 
     return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
-
-  // Fetch unread announcement count
-  useEffect(() => {
-    const fetchUnreadCount = async () => {
-      if (!isAuthenticated || !user?.organization_id) return
-      try {
-        const response = await api.get('/api/announcements/unread-count')
-        setUnreadAnnouncementCount(response.data.unread_count || 0)
-      } catch (error) {
-        console.error('Error fetching unread announcement count:', error)
-      }
-    }
-
-    fetchUnreadCount()
-    // Refresh every 60 seconds
-    const interval = setInterval(fetchUnreadCount, 60000)
-
-    // Listen for announcement-read events to update immediately
-    const handleAnnouncementRead = () => fetchUnreadCount()
-    window.addEventListener('announcement-read', handleAnnouncementRead)
-
-    return () => {
-      clearInterval(interval)
-      window.removeEventListener('announcement-read', handleAnnouncementRead)
-    }
-  }, [isAuthenticated, user?.organization_id])
 
   const handleExitMasquerade = async () => {
     try {
@@ -115,16 +88,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
         </svg>
       )
-    },
-    {
-      name: 'Announcements',
-      path: '/announcements',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-        </svg>
-      ),
-      badge: unreadAnnouncementCount > 0 ? unreadAnnouncementCount : null
     },
     {
       name: 'Connections',

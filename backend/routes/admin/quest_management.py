@@ -651,6 +651,25 @@ def get_admin_quests(user_id):
             .range(offset, offset + per_page - 1)\
             .execute()
 
+        # Get course connections for all quests
+        quest_ids = [q['id'] for q in quests.data]
+        course_connections = {}
+        if quest_ids:
+            course_links = supabase.table('course_quests')\
+                .select('quest_id, course_id, courses(id, title)')\
+                .in_('quest_id', quest_ids)\
+                .execute()
+            for link in (course_links.data or []):
+                quest_id = link.get('quest_id')
+                if quest_id not in course_connections:
+                    course_connections[quest_id] = []
+                course_data = link.get('courses')
+                if course_data:
+                    course_connections[quest_id].append({
+                        'course_id': course_data.get('id'),
+                        'course_title': course_data.get('title')
+                    })
+
         # Process quest data to flatten creator info
         processed_quests = []
         for quest in quests.data:
@@ -660,6 +679,11 @@ def get_admin_quests(user_id):
                 quest['creator_name'] = creator.get('display_name') or f"{creator.get('first_name', '')} {creator.get('last_name', '')}".strip() or creator.get('email', 'Unknown User')
             else:
                 quest['creator_name'] = None
+
+            # Add course connection info
+            quest['connected_courses'] = course_connections.get(quest['id'], [])
+            quest['is_project'] = len(quest['connected_courses']) > 0
+
             processed_quests.append(quest)
 
         return jsonify({
