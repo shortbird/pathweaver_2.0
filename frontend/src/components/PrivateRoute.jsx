@@ -29,8 +29,10 @@ const PrivateRoute = ({ requiredRole }) => {
       (user?.is_org_admin && allowedRoles.includes('org_admin'))
 
     if (!hasAccess) {
-      // Redirect parents to their parent dashboard instead of the regular dashboard
-      const redirectPath = user?.role === 'parent' ? '/parent/dashboard' : '/dashboard'
+      // Redirect to role-appropriate dashboard
+      const redirectPath = user?.role === 'parent' ? '/parent/dashboard'
+        : user?.role === 'observer' ? '/observer/feed'
+        : '/dashboard'
       return <Navigate to={redirectPath} replace />
     }
   }

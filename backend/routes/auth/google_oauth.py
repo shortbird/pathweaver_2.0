@@ -443,6 +443,27 @@ def accept_tos():
             'privacy_policy_version': CURRENT_PRIVACY_POLICY_VERSION
         }).eq('id', user_id).execute()
 
+        # Send welcome email for new Google OAuth users (only once)
+        if not user_data.get('welcome_email_sent'):
+            try:
+                from services.email_service import EmailService
+                email_service = EmailService()
+                user_name = user_data.get('first_name') or user_data.get('display_name') or 'there'
+                email_sent = email_service.send_welcome_email(
+                    user_email=user_data.get('email'),
+                    user_name=user_name
+                )
+                if email_sent:
+                    # Mark welcome email as sent
+                    admin_client.table('users').update({
+                        'welcome_email_sent': True
+                    }).eq('id', user_id).execute()
+                    logger.info(f"[GOOGLE_OAUTH] Welcome email sent to new user {mask_user_id(user_id)}")
+                else:
+                    logger.warning(f"[GOOGLE_OAUTH] Welcome email failed for user {mask_user_id(user_id)}")
+            except Exception as email_error:
+                logger.error(f"[GOOGLE_OAUTH] Warning: Failed to send welcome email: {email_error}")
+
         # Fetch updated user data
         updated_user = admin_client.table('users').select('*').eq('id', user_id).single().execute()
         user_data = updated_user.data if updated_user.data else user_data

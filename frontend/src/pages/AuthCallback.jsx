@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { tokenStore } from '../services/api'
+import { tokenStore, observerAPI } from '../services/api'
 import authService from '../services/authService'
 import { supabase } from '../services/supabaseClient'
 import { useQueryClient } from '@tanstack/react-query'
@@ -90,6 +90,24 @@ export default function AuthCallback() {
   }, [searchParams, navigate])
 
   /**
+   * Handle pending observer invitation after authentication
+   */
+  const handlePendingObserverInvitation = async () => {
+    const pendingInvitation = localStorage.getItem('pendingObserverInvitation')
+    if (pendingInvitation) {
+      try {
+        console.log('[AuthCallback] Accepting pending observer invitation:', pendingInvitation)
+        await observerAPI.acceptInvitation(pendingInvitation, {})
+        localStorage.removeItem('pendingObserverInvitation')
+        console.log('[AuthCallback] Observer invitation accepted')
+      } catch (err) {
+        console.error('[AuthCallback] Failed to accept observer invitation:', err)
+        // Don't block auth if invitation acceptance fails
+      }
+    }
+  }
+
+  /**
    * Handle Google OAuth callback via Supabase
    */
   const handleGoogleOAuth = async () => {
@@ -107,11 +125,16 @@ export default function AuthCallback() {
           return
         }
 
+        // Handle any pending observer invitation
+        await handlePendingObserverInvitation()
+
         setStatus('success')
 
         // Determine redirect path based on user role
         const user = result.user
-        const redirectPath = user?.role === 'parent' ? '/parent/dashboard' : '/dashboard'
+        const redirectPath = user?.role === 'parent' ? '/parent/dashboard'
+          : user?.role === 'observer' ? '/observer/feed'
+          : '/dashboard'
 
         // Force full page reload to ensure AuthContext is updated
         window.location.href = redirectPath
@@ -144,11 +167,17 @@ export default function AuthCallback() {
 
       if (result.success) {
         setShowTosModal(false)
+
+        // Handle any pending observer invitation
+        await handlePendingObserverInvitation()
+
         setStatus('success')
 
         // Determine redirect path based on user role
         const user = result.user
-        const redirectPath = user?.role === 'parent' ? '/parent/dashboard' : '/dashboard'
+        const redirectPath = user?.role === 'parent' ? '/parent/dashboard'
+          : user?.role === 'observer' ? '/observer/feed'
+          : '/dashboard'
 
         // Force full page reload to ensure AuthContext is updated
         window.location.href = redirectPath

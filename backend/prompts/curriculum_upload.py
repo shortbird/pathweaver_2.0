@@ -375,6 +375,9 @@ ANTI-PATTERNS (DO NOT DO):
 - "Introduction to Programming" - Academic title, not a quest
 - "Module 1: Foundations" - Structure label, not a project title
 - "Critical Thinking Skills" - Skill name, not a project students can complete
+- "This project..." - Using "project" in descriptions (use "quest" or omit entirely)
+- "In this course..." - Referencing the parent course (quests must be standalone)
+- "As part of [Course Name]..." - Course context leaking into descriptions
 
 IF NO LEARNING OBJECTIVES PROVIDED:
 -----------------------------------
@@ -408,8 +411,8 @@ IMPORTANT RULES:
 
 PROJECT FIELDS:
 - title: Action-oriented quest name (see naming rules above)
-- description: What the project is about (see description style below)
-- big_idea: One sentence hook for why this matters NOW
+- description: What the quest is about (see description style below)
+- big_idea: MUST BE IDENTICAL to description (they display in different places but must match)
 - source_objective: The original learning objective this project addresses (or null)
 - topic_primary: Main category for filtering (REQUIRED - one of: Creative, Science, Building, Nature, Business, Personal, Academic, Food, Games)
 - topics: Array of specific topic tags for searching (2-4 tags from: Music, Art, Design, Animation, Film, Writing, Photography, Crafts, Biology, Chemistry, Physics, Technology, Research, Astronomy, Environment, 3D Printing, Engineering, Robotics, DIY, Woodworking, Electronics, Maker, Gardening, Wildlife, Outdoors, Sustainability, Plants, Animals, Hiking, Entrepreneurship, Finance, Marketing, Leadership, Startups, Economics, Wellness, Fitness, Mindfulness, Skills, Philosophy, Self-Improvement, Reading, Math, History, Languages, Literature, Geography, Social Studies, Cooking, Nutrition, Baking, Culinary, Food Science, Board Games, Video Games, Puzzles, Strategy, Sports)
@@ -430,17 +433,31 @@ QUEST NAMING CONVENTIONS
 DESCRIPTION STYLE
 =============================================================================
 
-- Do NOT use: "students will learn...", "you will learn...", "learners will..."
-- Do NOT use: "In this project...", "This quest teaches...", "You will explore..."
-- Do NOT describe: what will be learned or how users interact with material
-- DO describe: the content, principles, and concepts as simple overviews
-- Write in: neutral, present-tense descriptive language
+FORBIDDEN IN DESCRIPTIONS (CRITICAL - these make quests unusable standalone):
+- Never use the word "project" - these are QUESTS, not projects
+- Never reference "this course", "the course", or any course name
+- Never imply this is part of a larger curriculum or learning path
+- Write as if this quest exists completely independently in a public library
+
+DO NOT USE:
+- "students will learn...", "you will learn...", "learners will..."
+- "In this project...", "This project...", "This quest teaches..."
+- "In this course...", "As part of this course...", "For this course..."
+- "You will explore...", "Complete this to demonstrate..."
+
+DO:
+- Describe the content, principles, and concepts as simple overviews
+- Write in neutral, present-tense descriptive language
+- Focus on WHAT the topic is about, not how users will interact with it
 
 BAD: "Students will learn to create and manipulate basic geometric shapes."
 BAD: "In this project, you will explore the fundamentals of 3D modeling."
+BAD: "This project explores the fundamentals of geometry."
+BAD: "In this course, you'll create a digital portfolio."
+BAD: "As part of the Science course, investigate photosynthesis."
+BAD: "Complete this project to demonstrate your understanding."
 GOOD: "Basic geometric shapes and how they form the foundation for complex 3D designs."
-
-BAD: "Learners will discover how plants convert sunlight into energy."
+GOOD: "Creating a digital portfolio that showcases creative work."
 GOOD: "How plants convert sunlight into energy through photosynthesis."
 
 =============================================================================
@@ -455,31 +472,18 @@ JUST-IN-TIME LESSON DESIGN
 
 STEP FORMAT (CRITICAL - must match exactly):
 Each step MUST have these fields:
-- "type": "text" | "video" | "file"
+- "type": "text" (ONLY generate text steps - educators add videos/files later)
 - "title": Short descriptive title (3-6 words)
 - "content": HTML content (use <p>, <ul>, <li>, <strong>, <em> tags)
 
-For "video" type, also include:
-- "video_url": "" (empty string - educator adds later)
+TEXT STEP GUIDELINES:
+- Brief written content (1-3 paragraphs per step)
+- Use <p> tags for paragraphs, <ul><li> for lists
+- Use <strong> for bold, <em> for italics
+- ONE main idea per step
+- Keep it brief - just enough to start doing
 
-For "file" type, also include:
-- "files": [] (empty array - educator adds later)
-
-STEP TYPES:
-1. "text" - Brief written content (1-3 paragraphs)
-   - Use <p> tags for paragraphs, <ul><li> for lists
-   - Use <strong> for bold, <em> for italics
-   - ONE main idea per step
-   - Keep it brief - just enough to start doing
-
-2. "video" - Video placeholder
-   - Set video_url to "" (empty string)
-   - In content, suggest what type of video would help
-   - Include search terms the educator could use
-
-3. "file" - Resource placeholder
-   - Set files to [] (empty array)
-   - In content, describe helpful resources (templates, worksheets, tools)
+DO NOT generate "video" or "file" type steps. Human creators will add multimedia content later as needed.
 
 =============================================================================
 RETURN FORMAT
@@ -494,7 +498,7 @@ RETURN FORMAT
     {
       "title": "Action-Oriented Quest Title",
       "description": "Neutral description of content and concepts...",
-      "big_idea": "One sentence hook for why this matters NOW",
+      "big_idea": "Neutral description of content and concepts...",
       "source_objective": "The original learning objective (or null if none provided)",
       "topic_primary": "Academic",
       "topics": ["Reading", "Literature", "Writing"],
@@ -525,6 +529,7 @@ REMEMBER:
 - 3-6 lessons per project, 5-10 steps per lesson
 - Keep content BRIEF - just enough to start doing
 - Generate step IDs using format: step_[random 6 chars]
+- ALL steps must be type "text" - do NOT generate video or file steps
 - Align with Optio philosophy: "The Process Is The Goal"
 """
 

@@ -138,7 +138,9 @@ export const AuthProvider = ({ children }) => {
       }
 
       // Redirect based on user role
-      const redirectPath = loginUser.role === 'parent' ? '/parent/dashboard' : '/dashboard'
+      const redirectPath = loginUser.role === 'parent' ? '/parent/dashboard'
+        : loginUser.role === 'observer' ? '/observer/feed'
+        : '/dashboard'
       navigate(redirectPath)
 
       return { success: true }
@@ -232,7 +234,9 @@ export const AuthProvider = ({ children }) => {
         toast.success('Account created successfully!')
 
         // Redirect based on user role
-        const redirectPath = user.role === 'parent' ? '/parent/dashboard' : '/dashboard'
+        const redirectPath = user.role === 'parent' ? '/parent/dashboard'
+          : user.role === 'observer' ? '/observer/feed'
+          : '/dashboard'
         navigate(redirectPath)
       } else {
         // Email verification required - redirect to verification page

@@ -221,6 +221,84 @@ def bulk_delete_quests(user_id):
         }), 500
 
 
+@bp.route('/quests/bulk-update', methods=['POST'])
+@require_admin
+def bulk_update_quests(user_id):
+    """
+    Update multiple quests at once (superadmin only).
+
+    Request body:
+    {
+        "quest_ids": ["id1", "id2", ...],
+        "updates": {
+            "is_active": true/false,
+            "is_public": true/false
+        }
+    }
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        data = request.json
+        quest_ids = data.get('quest_ids', [])
+        updates = data.get('updates', {})
+
+        if not quest_ids:
+            return jsonify({'success': False, 'error': 'No quest IDs provided'}), 400
+
+        if not updates:
+            return jsonify({'success': False, 'error': 'No updates provided'}), 400
+
+        if len(quest_ids) > 100:
+            return jsonify({'success': False, 'error': 'Cannot update more than 100 quests at once'}), 400
+
+        # Verify user is superadmin
+        user = supabase.table('users').select('role').eq('id', user_id).execute()
+        user_role = user.data[0].get('role') if user.data else None
+
+        if user_role != 'superadmin':
+            return jsonify({'success': False, 'error': 'Only superadmin can bulk update quests'}), 403
+
+        # Validate updates - only allow is_active and is_public
+        allowed_fields = {'is_active', 'is_public'}
+        update_data = {k: v for k, v in updates.items() if k in allowed_fields}
+
+        if not update_data:
+            return jsonify({'success': False, 'error': 'No valid update fields provided'}), 400
+
+        # Add timestamp
+        update_data['updated_at'] = datetime.utcnow().isoformat()
+
+        # Perform bulk update
+        updated_count = 0
+        failed = []
+
+        for quest_id in quest_ids:
+            try:
+                result = supabase.table('quests').update(update_data).eq('id', quest_id).execute()
+                if result.data:
+                    updated_count += 1
+                else:
+                    failed.append({'id': quest_id, 'error': 'Quest not found'})
+            except Exception as e:
+                logger.error(f"Error updating quest {quest_id}: {str(e)}")
+                failed.append({'id': quest_id, 'error': str(e)})
+
+        return jsonify({
+            'success': True,
+            'message': f'Updated {updated_count} quests',
+            'updated_count': updated_count,
+            'failed': failed
+        })
+
+    except Exception as e:
+        logger.error(f"Error in bulk update: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to update quests: {str(e)}'
+        }), 500
+
+
 @bp.route('/quests/<quest_id>', methods=['PUT'])
 @require_advisor
 def update_quest(user_id, quest_id):

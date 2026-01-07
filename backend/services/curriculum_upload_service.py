@@ -1484,6 +1484,54 @@ ALIGNED CONTENT TO FORMAT:
             'navigation_mode': 'sequential'
         }
 
+    def _clean_quest_description(self, description: str) -> str:
+        """
+        Auto-clean quest descriptions to remove project/course references.
+        Quests must work standalone in the public library without course context.
+
+        Cleans:
+        - "project" references (replaced with nothing or reworded)
+        - "course" references (removed entirely)
+        - Leftover awkward phrasing from removals
+
+        Args:
+            description: The raw description text
+
+        Returns:
+            Cleaned description suitable for standalone quest
+        """
+        import re
+
+        if not description:
+            return description
+
+        original = description
+
+        # Remove "In this project, " or "In this project " at start
+        description = re.sub(r'^In this project,?\s*', '', description, flags=re.IGNORECASE)
+
+        # Remove "This project " at start of sentences
+        description = re.sub(r'(^|\.\s*)This project\s+', r'\1', description, flags=re.IGNORECASE)
+
+        # Replace remaining "this project" with "this quest" or remove
+        description = re.sub(r'\bthis project\b', 'this quest', description, flags=re.IGNORECASE)
+
+        # Remove course references
+        description = re.sub(r'\b(in|for|as part of|throughout) this course\b', '', description, flags=re.IGNORECASE)
+        description = re.sub(r'\bthis course\b', '', description, flags=re.IGNORECASE)
+        description = re.sub(r'\bthe course\b', '', description, flags=re.IGNORECASE)
+
+        # Clean up double spaces and trim
+        description = re.sub(r'\s+', ' ', description).strip()
+
+        # Clean up sentences that start with lowercase after our removals
+        description = re.sub(r'^\s*([a-z])', lambda m: m.group(1).upper(), description)
+
+        if description != original:
+            logger.info(f"Auto-cleaned quest description: removed project/course references")
+
+        return description
+
     def _process_projects(self, projects_data: List) -> List[Dict]:
         """Process and validate projects (quests) with their lessons."""
         processed = []
@@ -1492,10 +1540,20 @@ ALIGNED CONTENT TO FORMAT:
             # Process lessons for this project
             lessons = self._process_lessons(project.get('lessons', []))
 
+            # Auto-clean descriptions to remove project/course references
+            # (quests must work standalone in the public library)
+            cleaned_description = self._clean_quest_description(project.get('description', ''))
+            cleaned_big_idea = self._clean_quest_description(project.get('big_idea', ''))
+
+            # Use the same value for both description and big_idea
+            # This ensures what users SEE (big_idea) matches what they EDIT (description)
+            # Prefer the more substantive description, fall back to big_idea
+            unified_description = cleaned_description or cleaned_big_idea
+
             processed.append({
                 'title': project.get('title', f'Project {i+1}'),
-                'description': project.get('description', ''),
-                'big_idea': project.get('big_idea', ''),
+                'description': unified_description,
+                'big_idea': unified_description,  # Same as description for consistency
                 'order': project.get('order', i),
                 'quest_type': 'optio',
                 'is_active': False,  # Start as draft

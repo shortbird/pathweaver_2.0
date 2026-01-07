@@ -19,6 +19,7 @@ import AddDependentModal from '../components/parent/AddDependentModal';
 import RequestStudentConnectionModal from '../components/parent/RequestStudentConnectionModal';
 import VisibilityApprovalSection from '../components/parent/VisibilityApprovalSection';
 import DependentSettingsModal from '../components/parent/DependentSettingsModal';
+import InviteObserverModal from '../components/parent/InviteObserverModal';
 import RhythmIndicator from '../components/quest/RhythmIndicator';
 import EngagementCalendar from '../components/quest/EngagementCalendar';
 import RhythmExplainerModal from '../components/quest/RhythmExplainerModal';
@@ -44,6 +45,7 @@ const ParentDashboardPage = () => {
   const [selectedDependentForSettings, setSelectedDependentForSettings] = useState(null);
   const [selectedChildIsDependent, setSelectedChildIsDependent] = useState(true);
   const [showRhythmModal, setShowRhythmModal] = useState(false);
+  const [showInviteObserverModal, setShowInviteObserverModal] = useState(false);
 
   // Fetch engagement data for selected student
   const { data: engagement } = useStudentEngagement(selectedStudentId);
@@ -473,7 +475,7 @@ const ParentDashboardPage = () => {
                       You're viewing as a parent. Click "Act as {firstName}" to use the full platform as your student.
                     </p>
                   </div>
-                  <div className="flex gap-2 self-start sm:self-center">
+                  <div className="flex gap-2 self-start sm:self-center flex-wrap">
                     <button
                       onClick={() => {
                         setSelectedDependentForSettings(selectedDependent);
@@ -485,6 +487,14 @@ const ParentDashboardPage = () => {
                     >
                       <Cog6ToothIcon className="w-4 h-4" />
                       Settings
+                    </button>
+                    <button
+                      onClick={() => setShowInviteObserverModal(true)}
+                      className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 shadow-sm whitespace-nowrap min-h-[44px] flex items-center gap-1"
+                      style={{ fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      <UserGroupIcon className="w-4 h-4" />
+                      Invite Observers
                     </button>
                     <button
                       onClick={() => handleActAsDependent(selectedDependent)}
@@ -517,7 +527,7 @@ const ParentDashboardPage = () => {
                       You're viewing your linked student's progress and learning activities.
                     </p>
                   </div>
-                  <div className="flex gap-2 self-start sm:self-center">
+                  <div className="flex gap-2 self-start sm:self-center flex-wrap">
                     <button
                       onClick={() => {
                         setSelectedDependentForSettings(selectedChild);
@@ -529,6 +539,14 @@ const ParentDashboardPage = () => {
                     >
                       <Cog6ToothIcon className="w-4 h-4" />
                       AI Settings
+                    </button>
+                    <button
+                      onClick={() => setShowInviteObserverModal(true)}
+                      className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 shadow-sm whitespace-nowrap min-h-[44px] flex items-center gap-1"
+                      style={{ fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      <UserGroupIcon className="w-4 h-4" />
+                      Invite Observers
                     </button>
                   </div>
                 </div>
@@ -847,6 +865,21 @@ const ParentDashboardPage = () => {
         isOpen={showRhythmModal}
         onClose={() => setShowRhythmModal(false)}
         currentState={engagement?.rhythm?.state}
+      />
+
+      {/* Invite Observer Modal */}
+      <InviteObserverModal
+        isOpen={showInviteObserverModal}
+        onClose={() => setShowInviteObserverModal(false)}
+        studentId={selectedStudentId || ''}
+        studentName={
+          dependents.find(d => d.id === selectedStudentId)?.display_name ||
+          children.find(c => c.student_id === selectedStudentId)?.student_name ||
+          'Student'
+        }
+        onSuccess={(result) => {
+          toast.success(result.message);
+        }}
       />
     </div>
   );

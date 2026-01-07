@@ -5,9 +5,6 @@ import {
   TrashIcon,
   Bars3Icon,
   ArrowUpTrayIcon,
-  PlayIcon,
-  SparklesIcon,
-  ArrowUturnLeftIcon,
   ChevronUpIcon,
   ChevronDownIcon,
   DocumentTextIcon,
@@ -31,11 +28,9 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import StepEditor from './curriculum/StepEditor'
 import LessonPreviewModal from './curriculum/LessonPreviewModal'
-import AIEnhanceModal from './curriculum/AIEnhanceModal'
 
 // Step types
 const STEP_TYPES = {
@@ -212,9 +207,6 @@ const LessonEditor = forwardRef(({
   onSave,
   onCancel,
 }, ref) => {
-  const { user } = useAuth()
-  const isSuperadmin = user?.role === 'superadmin'
-
   // Lesson metadata
   const [title, setTitle] = useState(lesson?.title || '')
 
@@ -223,15 +215,12 @@ const LessonEditor = forwardRef(({
     parseContentToSteps(lesson?.content, lesson?.video_url, lesson?.files)
   )
   const [selectedStepId, setSelectedStepId] = useState(steps[0]?.id)
-  const [preEnhanceContent, setPreEnhanceContent] = useState(null)
 
   // UI state
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
-  const [showAIEnhance, setShowAIEnhance] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [isEnhancing, setIsEnhancing] = useState(false)
   const fileInputRef = useRef(null)
 
   // DnD sensors
@@ -390,79 +379,6 @@ const LessonEditor = forwardRef(({
     })
   }
 
-  // AI Enhancement (superadmin only) - creates text, video, and file steps
-  const handleEnhanceWithAI = async (formData) => {
-    if (!isSuperadmin) return
-
-    const { content, suggestResources } = formData
-
-    if (!content.trim()) {
-      toast.error('Please enter content to enhance')
-      return
-    }
-
-    try {
-      setIsEnhancing(true)
-      setPreEnhanceContent(JSON.parse(JSON.stringify(steps)))
-
-      const response = await api.post('/api/curriculum/enhance', {
-        content,
-        lesson_title: title,
-        suggest_resources: suggestResources,
-      })
-
-      console.log('AI enhance response:', response.data)
-
-      if (response.data.success && Array.isArray(response.data.steps) && response.data.steps.length > 0) {
-        // Create steps from AI response - can include text, video, and file steps
-        const enhancedSteps = response.data.steps.map((step, idx) => {
-          const stepType = step.type || 'text'
-          return {
-            id: generateStepId(),
-            type: stepType,
-            title: step.title || `Step ${idx + 1}`,
-            content: step.content || '',
-            video_url: stepType === 'video' ? (step.video_url || '') : null,
-            files: stepType === 'file' ? (step.files || []) : null,
-            order: idx,
-          }
-        })
-
-        console.log('Enhanced steps:', enhancedSteps)
-
-        setSteps(enhancedSteps)
-        setSelectedStepId(enhancedSteps[0]?.id)
-        setShowAIEnhance(false)
-
-        const textCount = enhancedSteps.filter(s => s.type === 'text').length
-        const videoCount = enhancedSteps.filter(s => s.type === 'video').length
-        const fileCount = enhancedSteps.filter(s => s.type === 'file').length
-
-        let message = `Created ${textCount} text step${textCount !== 1 ? 's' : ''}`
-        if (videoCount > 0) message += `, ${videoCount} video suggestion${videoCount !== 1 ? 's' : ''}`
-        if (fileCount > 0) message += `, ${fileCount} resource suggestion${fileCount !== 1 ? 's' : ''}`
-        toast.success(message)
-      } else {
-        console.error('Invalid response:', response.data)
-        throw new Error(response.data.error || 'No steps returned from AI')
-      }
-    } catch (error) {
-      console.error('AI enhancement failed:', error)
-      toast.error(error.response?.data?.error || 'Failed to enhance content')
-      setPreEnhanceContent(null)
-    } finally {
-      setIsEnhancing(false)
-    }
-  }
-
-  const handleUndoEnhance = () => {
-    if (!preEnhanceContent) return
-    setSteps(preEnhanceContent)
-    setSelectedStepId(preEnhanceContent[0]?.id)
-    setPreEnhanceContent(null)
-    toast.success('Changes reverted')
-  }
-
   // Save lesson
   const handleSave = async () => {
     if (!title.trim()) {
@@ -533,30 +449,6 @@ const LessonEditor = forwardRef(({
           <EyeIcon className="w-4 h-4" />
           Preview
         </button>
-
-        {/* AI Enhance Button (Superadmin only) */}
-        {isSuperadmin && (
-          <>
-            <button
-              type="button"
-              onClick={() => setShowAIEnhance(true)}
-              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
-            >
-              <SparklesIcon className="w-4 h-4" />
-              Enhance with AI
-            </button>
-            {preEnhanceContent && (
-              <button
-                type="button"
-                onClick={handleUndoEnhance}
-                className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
-              >
-                <ArrowUturnLeftIcon className="w-4 h-4" />
-                Undo
-              </button>
-            )}
-          </>
-        )}
       </div>
 
       {/* Steps Editor - Two Column Layout */}
@@ -836,16 +728,6 @@ const LessonEditor = forwardRef(({
           }}
         />
       )}
-
-      {/* AI Enhance Modal */}
-      <AIEnhanceModal
-        isOpen={showAIEnhance}
-        onClose={() => setShowAIEnhance(false)}
-        onSubmit={handleEnhanceWithAI}
-        initialContent={steps.filter(s => s.type === 'text').map(s => s.content).join('\n\n')}
-        lessonTitle={title}
-        isLoading={isEnhancing}
-      />
     </div>
   )
 })

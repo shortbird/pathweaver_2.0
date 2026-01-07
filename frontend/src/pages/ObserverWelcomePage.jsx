@@ -1,10 +1,82 @@
-import React from 'react'
-import { Link } from 'react-router-dom'
-import { HeartIcon, SparklesIcon, FireIcon, UsersIcon, ArrowRightIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/outline'
+import React, { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { HeartIcon, SparklesIcon, FireIcon, UsersIcon, ArrowRightIcon, ChatBubbleLeftIcon, ArrowRightOnRectangleIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
+import toast from 'react-hot-toast'
 
 export default function ObserverWelcomePage() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const [siteSettings, setSiteSettings] = useState(null);
+
+  // Fetch site settings for logo
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const response = await fetch(`${apiUrl}/api/settings`);
+        if (response.ok) {
+          const data = await response.json();
+          setSiteSettings(data);
+        }
+      } catch (error) {
+        // Silent fail - use fallback
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      toast.error('Failed to log out');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50">
+      {/* Observer Header */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
+        <div className="max-w-6xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Link to="/observer/feed" className="flex items-center">
+                {siteSettings?.logo_url ? (
+                  <img
+                    src={siteSettings.logo_url}
+                    alt={siteSettings.site_name || "Optio"}
+                    className="h-8 w-auto"
+                  />
+                ) : (
+                  <span className="text-2xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent">
+                    Optio
+                  </span>
+                )}
+              </Link>
+            </div>
+            <div className="flex items-center gap-3">
+              <Link
+                to="/observer/feed"
+                className="flex items-center gap-1 text-sm text-gray-600 hover:text-optio-purple transition-colors"
+              >
+                <ArrowLeftIcon className="w-4 h-4" />
+                Back to Feed
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-1 text-sm text-gray-600 hover:text-red-600 transition-colors px-2 py-1 rounded hover:bg-red-50"
+              >
+                <ArrowRightOnRectangleIcon className="w-5 h-5" />
+                <span className="hidden sm:inline">Log out</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-4xl mx-auto px-4 py-12">
         {/* Hero Section */}
         <div className="text-center mb-12">
@@ -149,7 +221,7 @@ export default function ObserverWelcomePage() {
             <ArrowRightIcon className="w-5 h-5" />
           </Link>
           <p className="text-gray-600 text-sm mt-4">
-            You can always access this page from your profile menu
+            You can access this page anytime by clicking "Tips" in the header
           </p>
         </div>
       </div>

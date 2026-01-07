@@ -22,7 +22,7 @@ emails:
   welcome:
     subject: "Welcome to Optio!"
     title: "Welcome to Optio!"
-    greeting: "Welcome to Optio, {user_name}!"
+    greeting: "Welcome to Optio, {{ user_name }}!"
     paragraphs:
       - "We're excited to have you join our learning community."
       - "Your account has been successfully created. Here's what you can do next:"
@@ -45,13 +45,13 @@ emails:
     subject: "Confirm your Optio account"
     title: "Confirm your Optio account"
     greeting: "Welcome to Optio!"
-    salutation: "Hi {user_name},"
+    salutation: "Hi {{ user_name }},"
     paragraphs:
       - "Thanks for signing up for Optio! We're excited to have you join our community of learners."
       - "Please confirm your email address to activate your account and start exploring quests:"
     cta:
       text: "Confirm Email Address"
-      url: "{confirmation_link}"
+      url: "{{ confirmation_link }}"
     highlight_box:
       title: "What happens next?"
       content: "Once you confirm your email, you'll be able to:"
@@ -65,12 +65,12 @@ emails:
     footer_extra: "This confirmation link will expire in 24 hours for security reasons.\nIf you didn't create an account with Optio, please ignore this email."
 
   quest_completion:
-    subject: "Congratulations! You completed '{quest_title}'"
+    subject: "Congratulations! You completed '{{ quest_title }}'"
     title: "Quest Complete!"
-    greeting: "Congratulations, {user_name}!"
+    greeting: "Congratulations, {{ user_name }}!"
     paragraphs:
-      - "You've successfully completed the quest: <strong>{quest_title}</strong>"
-      - "You earned <strong>{xp_earned} XP</strong> for this achievement!"
+      - "You've successfully completed the quest: <strong>{{ quest_title }}</strong>"
+      - "You earned <strong>{{ xp_earned }} XP</strong> for this achievement!"
     cta:
       text: "View Your Progress"
       url: "https://www.optioeducation.com/dashboard"
@@ -80,12 +80,12 @@ emails:
     signature: "team"
 
   observer_invitation:
-    subject: "{student_name} invited you to follow their learning on Optio"
+    subject: "{{ student_name }} invited you to follow their learning on Optio"
     title: "You've Been Invited to Support a Student on Optio"
-    greeting: "Hi {observer_name},"
+    greeting: "Hi {{ observer_name }},"
     paragraphs:
-      - "{student_name} has invited you to become an <strong>Observer</strong> on their Optio learning journey!"
-      - "As an observer, you'll get a special view into {student_name}'s learning process. You'll see their completed work, celebrate their progress, and leave encouraging comments to support their growth."
+      - "{{ student_name }} has invited you to become an <strong>Observer</strong> on their Optio learning journey!"
+      - "As an observer, you'll get a special view into {{ student_name }}'s learning process. You'll see their completed work, celebrate their progress, and leave encouraging comments to support their growth."
     highlight_box:
       title: "What is Optio?"
       content: "Optio is a learning platform where students explore their interests through self-directed quests, build real-world skills, and create a personalized portfolio. We believe that <strong>the process is the goal</strong> - focusing on curiosity, effort, and growth rather than grades or test scores."
@@ -96,9 +96,9 @@ emails:
       - "Celebrate their milestones and achievements"
     cta:
       text: "Accept Invitation"
-      url: "{invitation_link}"
+      url: "{{ invitation_link }}"
     link_fallback: "If the button doesn't work, copy and paste this link into your browser:"
-    closing_paragraph: "This invitation will expire in 7 days. {student_name} is excited to share their learning with you!"
+    closing_paragraph: "This invitation will expire in 7 days. {{ student_name }} is excited to share their learning with you!"
     signature: "team"
     footer_extra: "Welcome to the Optio community."
 
@@ -149,7 +149,7 @@ emails:
   consultation_confirmation:
     subject: "Let's Explore How We Can Work Together"
     title: "Let's Explore How We Can Work Together"
-    salutation: "Hi {parent_name},"
+    salutation: "Hi {{ parent_name }},"
     paragraphs:
       - "Partnering with an experienced educator can significantly enhance your family's learning experience. Our team here at Optio is excited to explore how we can work together to support your child's educational journey."
     cta:
@@ -172,13 +172,13 @@ emails:
   parental_consent:
     subject: "Parental Consent Required - Optio Account"
     title: "Parental Consent Required"
-    salutation: "Hi {parent_name},"
+    salutation: "Hi {{ parent_name }},"
     paragraphs:
-      - "Your child, {child_name}, has created an account on Optio Education. As a parent or guardian, we need your consent before they can use our platform."
+      - "Your child, {{ child_name }}, has created an account on Optio Education. As a parent or guardian, we need your consent before they can use our platform."
       - "Optio is an educational platform where students complete learning quests, build skills, and create portfolios of their work. We take student safety and privacy seriously."
     cta:
       text: "Verify Parental Consent"
-      url: "{verification_link}"
+      url: "{{ verification_link }}"
     highlight_box:
       title: "What you're consenting to:"
       bullet_points:
@@ -191,10 +191,10 @@ emails:
     footer_extra: "This verification link will expire in 7 days.\nIf you did not expect this email, please contact us immediately."
 
   parent_invitation:
-    title: "{student_name} invited you to Optio"
+    title: "{{ student_name }} invited you to Optio"
     heading: "You've been invited!"
     greeting: "Hello,"
-    body_p1: "<strong>{student_name}</strong> has invited you to join them on Optio as a parent. They want to share their learning journey with you!"
+    body_p1: "<strong>{{ student_name }}</strong> has invited you to join them on Optio as a parent. They want to share their learning journey with you!"
     body_p2: "The Parent Dashboard gives you a window into their world of learning. You'll see their progress, celebrate their wins, and know when they might need support - all while respecting their independence."
     body_p3: "This invitation link will expire in 48 hours. Click the button above to create your free parent account and get started."
     cta_button: "Create Parent Account"
@@ -207,85 +207,85 @@ emails:
     signature: "team"
 
   subscription_request_user:
-    subject: "Your {tier_display_name} Upgrade Request Has Been Received"
+    subject: "Your {{ tier_display_name }} Upgrade Request Has Been Received"
     title: "Your Upgrade Request Has Been Received"
-    salutation: "Hi {user_name},"
+    salutation: "Hi {{ user_name }},"
     paragraphs:
-      - "Thank you for your interest in upgrading to <strong>{tier_display_name}</strong>. We've received your request and our support team will reach out to you within the next 24-48 hours."
+      - "Thank you for your interest in upgrading to <strong>{{ tier_display_name }}</strong>. We've received your request and our support team will reach out to you within the next 24-48 hours."
     details_box:
       title: "Request Details"
       fields:
         - label: "Requested Tier"
-          value: "{tier_display_name}"
+          value: "{{ tier_display_name }}"
         - label: "Preferred Contact"
-          value: "{contact_preference}"
+          value: "{{ contact_preference }}"
         - label: "Phone Number"
-          value: "{phone_number}"
+          value: "{{ phone_number }}"
           conditional: "phone_number"
-    middle_paragraph: "We're excited to learn more about your goals and discuss how {tier_display_name} can support your learning journey. This is about finding the right rhythm for your growth."
+    middle_paragraph: "We're excited to learn more about your goals and discuss how {{ tier_display_name }} can support your learning journey. This is about finding the right rhythm for your growth."
     what_next:
       title: "What happens next?"
       bullet_points:
         - "Our team will review your request and current progress"
-        - "We'll reach out via {contact_preference} within 1-2 business days"
-        - "We'll discuss your goals and how {tier_display_name} fits your needs"
+        - "We'll reach out via {{ contact_preference }} within 1-2 business days"
+        - "We'll discuss your goals and how {{ tier_display_name }} fits your needs"
         - "If it's the right fit, we'll help you get set up immediately"
     closing_paragraph: "Have questions in the meantime? Just reply to this email - our team reads every message personally."
     signature: "team"
     footer_note: "<strong>Remember:</strong> The process is the goal. Every step you take matters, and we're here to support you on this journey."
 
   subscription_request_admin:
-    subject: "New Subscription Request: {user_name} → {tier_display_name}"
+    subject: "New Subscription Request: {{ user_name }} → {{ tier_display_name }}"
     title: "New Subscription Request"
     intro: "A user has requested a subscription upgrade and needs follow-up."
     user_details:
       title: "User Information"
       fields:
         - label: "Name"
-          value: "{user_name}"
+          value: "{{ user_name }}"
         - label: "Email"
-          value: "{user_email}"
+          value: "{{ user_email }}"
         - label: "User ID"
-          value: "{user_id}"
+          value: "{{ user_id }}"
     request_details:
       title: "Request Details"
       fields:
         - label: "Current Tier"
-          value: "{current_tier}"
+          value: "{{ current_tier }}"
         - label: "Requested Tier"
-          value: "{tier_display_name}"
+          value: "{{ tier_display_name }}"
         - label: "Preferred Contact"
-          value: "{contact_preference}"
+          value: "{{ contact_preference }}"
         - label: "Phone Number"
-          value: "{phone_number}"
+          value: "{{ phone_number }}"
           conditional: "phone_number"
     message_section:
       title: "User Message"
-      content: "{message}"
+      content: "{{ message }}"
       conditional: "message"
       empty_text: "No additional message provided."
     action_items:
       title: "Action Required"
       bullet_points:
         - "Review user's current progress and engagement"
-        - "Contact user via {contact_preference} within 24-48 hours"
-        - "Discuss their goals and ensure {tier_display_name} is the right fit"
+        - "Contact user via {{ contact_preference }} within 24-48 hours"
+        - "Discuss their goals and ensure {{ tier_display_name }} is the right fit"
         - "If approved, process upgrade and send confirmation"
     dashboard_link:
       text: "View User in Admin Dashboard"
-      url: "https://www.optioeducation.com/admin/users/{user_id}"
+      url: "https://www.optioeducation.com/admin/users/{{ user_id }}"
     signature: "support"
 
   password_reset:
     subject: "Reset Your Optio Password"
     title: "Reset Your Optio Password"
-    salutation: "Hi {user_name},"
+    salutation: "Hi {{ user_name }},"
     paragraphs:
       - "We received a request to reset your password for your Optio account. If you didn't make this request, you can safely ignore this email."
-      - "To reset your password, click the button below. This link will expire in {expiry_hours} hours."
+      - "To reset your password, click the button below. This link will expire in {{ expiry_hours }} hours."
     cta:
       text: "Reset My Password"
-      url: "{reset_link}"
+      url: "{{ reset_link }}"
     highlight_box:
       title: "Security Reminder"
       content: "Never share this link with anyone. Optio support will never ask for your password or reset link."
@@ -294,11 +294,11 @@ emails:
     signature: "support"
 
   service_inquiry_notification:
-    subject: "We Received Your Inquiry About {service_name}"
+    subject: "We Received Your Inquiry About {{ service_name }}"
     title: "We Received Your Inquiry"
-    salutation: "Hi {name},"
+    salutation: "Hi {{ name }},"
     paragraphs:
-      - "Thank you for your interest in <strong>{service_name}</strong>. We've received your inquiry and someone from our team will review your message and get back to you shortly."
+      - "Thank you for your interest in <strong>{{ service_name }}</strong>. We've received your inquiry and someone from our team will review your message and get back to you shortly."
       - "In the meantime, feel free to explore more of what Optio has to offer:"
     cta:
       text: "Explore All Services"
@@ -313,20 +313,20 @@ emails:
   onboarding_day_1_reminder:
     subject: "Quick reminder: Confirm your Optio account"
     title: "Don't forget to confirm your email!"
-    greeting: "Hi {user_name},"
+    greeting: "Hi {{ user_name }},"
     paragraphs:
       - "You're almost ready to start your learning journey! Just one quick step..."
       - "Click the button below to confirm your email and unlock full access to Optio."
     cta:
       text: "Confirm Email Address"
-      url: "{confirmation_link}"
+      url: "{{ confirmation_link }}"
     closing_paragraph: "Once confirmed, you'll have access to hundreds of learning quests across five skill pillars."
     signature: "support"
 
   onboarding_day_3_first_quest:
     subject: "Ready to start your first quest?"
     title: "Your First Quest Awaits!"
-    greeting: "Hi {user_name},"
+    greeting: "Hi {{ user_name }},"
     paragraphs:
       - "You've created your Optio account—awesome! Now it's time to dive in."
       - "We've curated some beginner-friendly quests just for you. Pick one that sparks your curiosity!"
@@ -342,7 +342,7 @@ emails:
   onboarding_day_5_ai_tutor:
     subject: "Have you met your AI tutor?"
     title: "Your AI Tutor Is Ready to Help"
-    greeting: "Hi {user_name},"
+    greeting: "Hi {{ user_name }},"
     paragraphs:
       - "Did you know you have a personal AI tutor available 24/7?"
       - "Whether you're stuck on a task or just curious about a topic, your tutor is here to help you learn."
@@ -358,7 +358,7 @@ emails:
   onboarding_day_7_community:
     subject: "Connect with other learners"
     title: "Learning Is Better Together"
-    greeting: "Hi {user_name},"
+    greeting: "Hi {{ user_name }},"
     paragraphs:
       - "You're not learning alone! Optio has a community of motivated learners like you."
       - "Connect with others, share your progress, and celebrate each other's wins."

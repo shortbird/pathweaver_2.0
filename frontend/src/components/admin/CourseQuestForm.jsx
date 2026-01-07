@@ -11,7 +11,7 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
 
   const [formData, setFormData] = useState({
     title: quest?.title || '',
-    description: quest?.description || '',
+    description: quest?.big_idea || quest?.description || '',  // Prefer big_idea (what's displayed) for consistency
     material_link: quest?.material_link || '',
     lms_platform: quest?.lms_platform || '',
     lms_course_id: quest?.lms_course_id || '',

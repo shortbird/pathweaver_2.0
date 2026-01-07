@@ -255,6 +255,25 @@ def register():
                     user_data['parental_consent_email'] = parent_email.strip().lower()
                     user_data['parental_consent_verified'] = False
 
+            # Check for observer invitation code
+            invitation_code = data.get('invitation_code')
+            is_observer_registration = False
+            if invitation_code:
+                # Validate the invitation
+                invitation = supabase.table('observer_invitations') \
+                    .select('id, student_id, status') \
+                    .eq('invitation_code', invitation_code) \
+                    .eq('status', 'pending') \
+                    .execute()
+
+                if invitation.data:
+                    # Valid invitation - set role to observer
+                    user_data['role'] = 'observer'
+                    is_observer_registration = True
+                    logger.info(f"[REGISTRATION] Observer registration via invitation code")
+                else:
+                    logger.warning(f"[REGISTRATION] Invalid or expired invitation code provided")
+
             # Assign user to organization
             # If org_slug is provided, look up the organization and assign user to it
             # Otherwise, assign to default Optio organization

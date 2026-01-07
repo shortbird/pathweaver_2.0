@@ -317,15 +317,73 @@ export const observerAPI = {
   // Get list of linked observers for current student
   getMyObservers: () => api.get('/api/observers/my-observers'),
 
-  // Send invitation to observer
+  // Send invitation to observer (student-initiated)
   sendInvitation: (observerEmail, observerName, relationship) =>
     api.post('/api/observers/invite', { observer_email: observerEmail, observer_name: observerName, relationship }),
+
+  // Accept an observer invitation (creates observer-student link)
+  acceptInvitation: (invitationCode, data = {}) =>
+    api.post(`/api/observers/accept/${invitationCode}`, data),
 
   // Get my sent invitations
   getMyInvitations: () => api.get('/api/observers/my-invitations'),
 
   // Cancel pending invitation
-  cancelInvitation: (invitationId) => api.delete(`/api/observers/invitations/${invitationId}/cancel`)
+  cancelInvitation: (invitationId) => api.delete(`/api/observers/invitations/${invitationId}/cancel`),
+
+  // Parent endpoints - create shareable invite link for their child
+  parentCreateInvite: (studentId, relationship) =>
+    api.post('/api/observers/parent-invite', { student_id: studentId, relationship }),
+
+  getParentInvitations: (studentId) =>
+    api.get(`/api/observers/parent-invitations/${studentId}`),
+
+  getObserversForStudent: (studentId) =>
+    api.get(`/api/observers/student/${studentId}/observers`),
+
+  // Feed endpoints
+  getFeed: (params = {}) => {
+    const queryParams = new URLSearchParams();
+    if (params.studentId) queryParams.append('student_id', params.studentId);
+    if (params.limit) queryParams.append('limit', params.limit);
+    if (params.cursor) queryParams.append('cursor', params.cursor);
+    const queryString = queryParams.toString();
+    return api.get(`/api/observers/feed${queryString ? `?${queryString}` : ''}`);
+  },
+
+  getMyStudents: () => api.get('/api/observers/my-students'),
+
+  // Likes
+  toggleLike: (completionId) =>
+    api.post(`/api/observers/completions/${completionId}/like`, {}),
+
+  // Comments on specific completions
+  getCompletionComments: (completionId) =>
+    api.get(`/api/observers/completions/${completionId}/comments`),
+
+  postComment: (studentId, completionId, commentText, questId = null) =>
+    api.post('/api/observers/comments', {
+      student_id: studentId,
+      task_completion_id: completionId,
+      quest_id: questId,
+      comment_text: commentText
+    }),
+
+  deleteComment: (commentId) =>
+    api.delete(`/api/observers/comments/${commentId}`),
+
+  // Student-facing: get all feedback on my work
+  getMyFeedback: (studentId) =>
+    api.get(`/api/observers/student/${studentId}/comments`),
+
+  // Student-facing: get my activity feed (same format as observer feed)
+  getMyActivityFeed: (studentId, params = {}) => {
+    const queryParams = new URLSearchParams();
+    if (params.limit) queryParams.append('limit', params.limit);
+    if (params.cursor) queryParams.append('cursor', params.cursor);
+    const queryString = queryParams.toString();
+    return api.get(`/api/observers/student/${studentId}/activity${queryString ? `?${queryString}` : ''}`);
+  }
 }
 
 // LMS Integration API methods

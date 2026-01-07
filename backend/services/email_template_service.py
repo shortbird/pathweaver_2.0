@@ -38,8 +38,8 @@ class EmailTemplateService(BaseService):
         Returns:
             Template dictionary with structure matching email_copy.yaml format
         """
+        # Try database first
         try:
-            # Try database first
             db_template = self.crm_repo.get_template_by_key(template_key)
             if db_template:
                 logger.info(f"Loaded template '{template_key}' from database")
@@ -51,8 +51,12 @@ class EmailTemplateService(BaseService):
                     'is_system': db_template.get('is_system', False),
                     'source': 'database'
                 }
+        except Exception as db_error:
+            logger.warning(f"Database lookup failed for template '{template_key}': {db_error}")
+            # Continue to YAML fallback
 
-            # Fallback to YAML
+        # Fallback to YAML (always try this even if DB failed)
+        try:
             yaml_copy = self.copy_loader.get_email_copy(template_key)
             if yaml_copy:
                 logger.info(f"Loaded template '{template_key}' from YAML")
@@ -64,13 +68,11 @@ class EmailTemplateService(BaseService):
                     'is_system': True,
                     'source': 'yaml'
                 }
+        except Exception as yaml_error:
+            logger.error(f"YAML fallback failed for template '{template_key}': {yaml_error}")
 
-            logger.warning(f"Template '{template_key}' not found in database or YAML")
-            return None
-
-        except Exception as e:
-            logger.error(f"Error loading template '{template_key}': {e}")
-            return None
+        logger.warning(f"Template '{template_key}' not found in database or YAML")
+        return None
 
     def list_templates(self, include_yaml: bool = True) -> List[Dict[str, Any]]:
         """

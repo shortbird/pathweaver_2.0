@@ -94,6 +94,7 @@ const MyInvitations = lazy(() => import('./pages/student/MyInvitations'))
 const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
 const DependentProgressReport = lazy(() => import('./pages/parent/DependentProgressReport'))
 const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'))
+const StudentFeedbackPage = lazy(() => import('./pages/StudentFeedbackPage'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -382,11 +383,15 @@ function App() {
                 {/* LMS Features */}
                 <Route path="invitations" element={<MyInvitations />} />
                 <Route path="notifications" element={<NotificationsPage />} />
+                {/* Observer Feedback */}
+                <Route path="feedback" element={<StudentFeedbackPage />} />
                 {/* <Route path="subscription" element={<SubscriptionPage />} /> REMOVED - Phase 3 refactoring (January 2025) */}
               </Route>
               
               <Route element={<PrivateRoute requiredRole="superadmin" />}>
                 <Route path="admin/*" element={<AdminPage />} />
+                {/* Observer feed for superadmin to view students they advise */}
+                <Route path="observer/feed" element={<ObserverFeedPage />} />
               </Route>
 
               {/* Organization Management - accessible to org admins and platform admins */}
@@ -417,12 +422,13 @@ function App() {
                 <Route path="parent/students/:studentId/report" element={<DependentProgressReport />} />
               </Route>
 
-              <Route element={<PrivateRoute requiredRole="observer" />}>
-                <Route path="observer/welcome" element={<ObserverWelcomePage />} />
-                <Route path="observer/feed" element={<ObserverFeedPage />} />
-              </Route>
-
               <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+
+            {/* Observer routes - full-screen without main navigation (for observer role only) */}
+            <Route element={<PrivateRoute requiredRole="observer" />}>
+              <Route path="observer/welcome" element={<ObserverWelcomePage />} />
+              <Route path="observer/feed" element={<ObserverFeedPage />} />
             </Route>
 
             {/* Full-screen diploma routes (no Layout wrapper) */}

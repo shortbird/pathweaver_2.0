@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
 import PasswordStrengthMeter from '../components/auth/PasswordStrengthMeter'
 import GoogleButton from '../components/auth/GoogleButton'
 import logger from '../utils/logger'
+import api from '../services/api'
+import toast from 'react-hot-toast'
 
 const RegisterPage = () => {
   const { register: registerField, handleSubmit, formState: { errors }, watch } = useForm()
   const { register, isAuthenticated, user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const invitationCode = searchParams.get('invitation')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -18,14 +22,24 @@ const RegisterPage = () => {
   const password = watch('password')
   const dateOfBirth = watch('date_of_birth')
 
+  // Check if this is an observer registration
+  const isObserverRegistration = !!invitationCode
+
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && user && !authLoading) {
-      logger.debug('[RegisterPage] User already authenticated, redirecting to dashboard')
-      const redirectPath = user.role === 'parent' ? '/parent/dashboard' : '/dashboard'
-      navigate(redirectPath, { replace: true })
+      logger.debug('[RegisterPage] User already authenticated, redirecting')
+      // If there's an invitation code, redirect to accept it
+      if (invitationCode) {
+        navigate(`/observer/accept/${invitationCode}`, { replace: true })
+      } else {
+        const redirectPath = user.role === 'parent' ? '/parent/dashboard'
+          : user.role === 'observer' ? '/observer/feed'
+          : '/dashboard'
+        navigate(redirectPath, { replace: true })
+      }
     }
-  }, [isAuthenticated, user, authLoading, navigate])
+  }, [isAuthenticated, user, authLoading, navigate, invitationCode])
 
   // Enhanced password validation matching backend requirements
   const validatePasswordStrength = (pwd) => {
@@ -58,20 +72,40 @@ const RegisterPage = () => {
 
   const onSubmit = async (data) => {
     setLoading(true)
-    await register(data)
-    setLoading(false)
+    try {
+      // Pass invitation code if this is an observer registration
+      const registrationData = invitationCode
+        ? { ...data, invitation_code: invitationCode }
+        : data
+
+      // Store invitation code so we can redirect after email verification
+      if (invitationCode) {
+        localStorage.setItem('pendingObserverInvitation', invitationCode)
+      }
+
+      // Let the normal registration flow handle email verification redirect
+      await register(registrationData)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
+          {isObserverRegistration && (
+            <div className="mb-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg p-4 text-center">
+              <p className="font-semibold">Creating Observer Account</p>
+              <p className="text-sm text-purple-100">You'll be able to follow a student's learning journey</p>
+            </div>
+          )}
           <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
-            Create your account
+            {isObserverRegistration ? 'Create your observer account' : 'Create your account'}
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{' '}
-            <Link to="/login" className="font-medium text-primary hover:text-purple-500">
+            <Link to={invitationCode ? `/login?invitation=${invitationCode}` : '/login'} className="font-medium text-primary hover:text-purple-500">
               sign in to your existing account
             </Link>
           </p>

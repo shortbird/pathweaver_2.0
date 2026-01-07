@@ -92,7 +92,7 @@ def send_observer_invitation():
         student_name = student.data.get('display_name') or f"{student.data.get('first_name', '')} {student.data.get('last_name', '')}".strip()
 
         # Send email notification to observer
-        frontend_url = request.environ.get('FRONTEND_URL', 'http://localhost:5173')
+        frontend_url = request.environ.get('FRONTEND_URL', 'http://localhost:3000')
         invitation_link = f"{frontend_url}/observer/accept/{invitation_code}"
 
         from services.email_service import EmailService
@@ -290,16 +290,19 @@ def remove_observer(link_id):
 # ============================================
 
 @bp.route('/api/observers/accept/<invitation_code>', methods=['POST'])
+@require_auth
 @rate_limit(limit=5, per=300)  # 5 attempts per 5 minutes
-def accept_observer_invitation(invitation_code):
+def accept_observer_invitation(user_id, invitation_code):
     """
-    Observer accepts invitation (creates account if needed)
+    Observer accepts invitation (must be logged in)
 
-    Body (optional if user already logged in):
-        email: Observer email
-        first_name: Observer first name
-        last_name: Observer last name
-        password: Password for new account
+    The logged-in user becomes the observer for the student.
+
+    Args:
+        user_id: UUID of authenticated user (from decorator)
+        invitation_code: Invitation code from URL
+
+    Body (optional):
         relationship: Relationship to student
 
     Returns:
@@ -335,31 +338,16 @@ def accept_observer_invitation(invitation_code):
 
         data = request.json or {}
 
-        # Check if observer already has account
-        observer = supabase.table('users') \
-            .select('id') \
-            .eq('email', inv['observer_email']) \
-            .execute()
+        # Use the logged-in user as the observer
+        observer_id = user_id
+        logger.info(f"Using logged-in user as observer: {observer_id}")
 
-        if observer.data:
-            observer_id = observer.data[0]['id']
-            logger.info(f"Existing observer account found: {observer_id}")
-        else:
-            # Create new observer account
-            name_parts = inv['observer_name'].split()
-            first_name = data.get('first_name', name_parts[0] if name_parts else '')
-            last_name = data.get('last_name', ' '.join(name_parts[1:]) if len(name_parts) > 1 else '')
-
-            new_observer = supabase.table('users').insert({
-                'email': inv['observer_email'],
-                'first_name': first_name,
-                'last_name': last_name,
-                'role': 'observer',
-                'display_name': inv['observer_name']
-            }).execute()
-
-            observer_id = new_observer.data[0]['id']
-            logger.info(f"Created new observer account: {observer_id}")
+        # Optionally update user role to observer if not already
+        user_result = supabase.table('users').select('role').eq('id', observer_id).single().execute()
+        if user_result.data and user_result.data['role'] != 'observer':
+            # Only update role if user is not already an observer
+            supabase.table('users').update({'role': 'observer'}).eq('id', observer_id).execute()
+            logger.info(f"Updated user role to observer: {observer_id}")
 
         # Check if link already exists
         existing_link = supabase.table('observer_student_links') \
@@ -403,17 +391,22 @@ def accept_observer_invitation(invitation_code):
 
 @bp.route('/api/observers/my-students', methods=['GET'])
 @require_auth
-def get_my_students():
+def get_my_students(user_id):
     """
     Observer views linked students
+
+    Also includes students from advisor_student_assignments for superadmin/advisor users.
 
     Returns:
         200: List of students observer has access to
     """
-    user_id = request.user_id
 
     try:
         supabase = get_supabase_admin_client()
+
+        # Get user role to check if they're superadmin/advisor
+        user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        user_role = user_result.data.get('role') if user_result.data else None
 
         # Get student links for this observer
         links = supabase.table('observer_student_links') \
@@ -424,23 +417,51 @@ def get_my_students():
         # Fetch student details separately to avoid PostgREST relationship issues
         student_ids = [link['student_id'] for link in links.data]
 
+        # For superadmin or advisor, also get students from advisor_student_assignments
+        advisor_student_ids = []
+        if user_role in ('superadmin', 'advisor'):
+            advisor_assignments = supabase.table('advisor_student_assignments') \
+                .select('student_id') \
+                .eq('advisor_id', user_id) \
+                .eq('is_active', True) \
+                .execute()
+            advisor_student_ids = [a['student_id'] for a in advisor_assignments.data]
+
+        # Combine and deduplicate student IDs
+        all_student_ids = list(set(student_ids + advisor_student_ids))
+
         students_data = []
-        if student_ids:
+        if all_student_ids:
             students = supabase.table('users') \
                 .select('id, first_name, last_name, display_name, portfolio_slug, avatar_url') \
-                .in_('id', student_ids) \
+                .in_('id', all_student_ids) \
                 .execute()
 
             # Create lookup map
             student_map = {student['id']: student for student in students.data}
 
-            # Merge link data with student details
+            # Merge link data with student details for observer links
             for link in links.data:
                 student_info = student_map.get(link['student_id'], {})
                 students_data.append({
                     **link,
                     'student': student_info
                 })
+
+            # Add advisor-linked students that aren't already in observer links
+            existing_student_ids = set(student_ids)
+            for advisor_student_id in advisor_student_ids:
+                if advisor_student_id not in existing_student_ids:
+                    student_info = student_map.get(advisor_student_id, {})
+                    students_data.append({
+                        'student_id': advisor_student_id,
+                        'observer_id': user_id,
+                        'relationship': 'advisor',
+                        'can_comment': True,
+                        'can_view_evidence': True,
+                        'notifications_enabled': False,
+                        'student': student_info
+                    })
 
         return jsonify({'students': students_data}), 200
 
@@ -513,9 +534,12 @@ def get_student_portfolio_for_observer(student_id):
 @bp.route('/api/observers/comments', methods=['POST'])
 @require_auth
 @rate_limit(limit=20, per=3600)  # 20 comments per hour
-def post_observer_comment():
+def post_observer_comment(user_id):
     """
     Observer leaves encouraging comment on completed work
+
+    Args:
+        user_id: UUID of authenticated user (from @require_auth)
 
     Body:
         student_id: UUID of student
@@ -528,7 +552,7 @@ def post_observer_comment():
         400: Invalid request
         403: Observer doesn't have comment permission
     """
-    observer_id = request.user_id
+    observer_id = user_id
     data = request.json
 
     # Validate required fields
@@ -540,15 +564,35 @@ def post_observer_comment():
 
     try:
         supabase = get_supabase_admin_client()
+        student_id = data['student_id']
+        can_comment = False
+
+        # Check if superadmin (superadmins have full access)
+        user_result = supabase.table('users').select('role').eq('id', observer_id).single().execute()
+        user_role = user_result.data.get('role') if user_result.data else None
+        if user_role == 'superadmin':
+            can_comment = True
 
         # Verify observer has access and comment permission
-        link = supabase.table('observer_student_links') \
-            .select('can_comment') \
-            .eq('observer_id', observer_id) \
-            .eq('student_id', data['student_id']) \
-            .execute()
+        if not can_comment:
+            link = supabase.table('observer_student_links') \
+                .select('can_comment') \
+                .eq('observer_id', observer_id) \
+                .eq('student_id', student_id) \
+                .execute()
+            can_comment = link.data and link.data[0]['can_comment']
 
-        if not link.data or not link.data[0]['can_comment']:
+        # Check advisor_student_assignments for advisors
+        if not can_comment and user_role == 'advisor':
+            advisor_link = supabase.table('advisor_student_assignments') \
+                .select('id') \
+                .eq('advisor_id', observer_id) \
+                .eq('student_id', student_id) \
+                .eq('is_active', True) \
+                .execute()
+            can_comment = bool(advisor_link.data)
+
+        if not can_comment:
             return jsonify({'error': 'Access denied or comment permission disabled'}), 403
 
         # Create comment
@@ -591,10 +635,61 @@ def post_observer_comment():
         return jsonify({'error': 'Failed to post comment'}), 500
 
 
+@bp.route('/api/observers/comments/<comment_id>', methods=['DELETE'])
+@require_auth
+@validate_uuid_param('comment_id')
+def delete_observer_comment(user_id, comment_id):
+    """
+    Delete an observer comment (only the comment author can delete)
+
+    Args:
+        user_id: UUID of authenticated user (from @require_auth)
+        comment_id: UUID of the comment to delete
+
+    Returns:
+        200: Comment deleted
+        403: Not authorized to delete this comment
+        404: Comment not found
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get the comment and verify ownership
+        comment = supabase.table('observer_comments') \
+            .select('id, observer_id') \
+            .eq('id', comment_id) \
+            .single() \
+            .execute()
+
+        if not comment.data:
+            return jsonify({'error': 'Comment not found'}), 404
+
+        # Check if user is the comment author or superadmin
+        user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        user_role = user_result.data.get('role') if user_result.data else None
+
+        if comment.data['observer_id'] != user_id and user_role != 'superadmin':
+            return jsonify({'error': 'Not authorized to delete this comment'}), 403
+
+        # Delete the comment
+        supabase.table('observer_comments') \
+            .delete() \
+            .eq('id', comment_id) \
+            .execute()
+
+        logger.info(f"Observer comment deleted: comment_id={comment_id}, deleted_by={user_id}")
+
+        return jsonify({'status': 'success'}), 200
+
+    except Exception as e:
+        logger.error(f"Failed to delete observer comment: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to delete comment'}), 500
+
+
 @bp.route('/api/observers/student/<student_id>/comments', methods=['GET'])
 @require_auth
 @validate_uuid_param('student_id')
-def get_student_comments(student_id):
+def get_student_comments(user_id, student_id):
     """
     Get all observer comments for a student
 
@@ -603,13 +698,13 @@ def get_student_comments(student_id):
     - Observers linked to the student
 
     Args:
+        user_id: UUID of authenticated user (from @require_auth)
         student_id: UUID of student
 
     Returns:
         200: List of comments
         403: Access denied
     """
-    user_id = request.user_id
 
     try:
         supabase = get_supabase_admin_client()
@@ -671,6 +766,1063 @@ def get_student_comments(student_id):
 
     except Exception as e:
         logger.error(f"Failed to fetch comments: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch comments'}), 500
+
+
+# ============================================
+# STUDENT ACTIVITY FEED - Students view their own activity
+# ============================================
+
+@bp.route('/api/observers/student/<student_id>/activity', methods=['GET'])
+@require_auth
+@validate_uuid_param('student_id')
+def get_student_activity_feed(user_id, student_id):
+    """
+    Student views their own activity feed (same format as observer feed)
+
+    Shows completed tasks with evidence, likes, and comments.
+    Only accessible by the student themselves.
+
+    Args:
+        user_id: UUID of authenticated user (from @require_auth)
+        student_id: UUID of student
+
+    Query params:
+        limit: (optional) Number of items, default 20
+        cursor: (optional) Pagination cursor
+
+    Returns:
+        200: Paginated feed of student's activities
+        403: Access denied (not viewing own feed)
+    """
+    # Only allow students to view their own activity
+    if user_id != student_id:
+        return jsonify({'error': 'Access denied'}), 403
+
+    limit = min(int(request.args.get('limit', 20)), 50)
+    cursor = request.args.get('cursor')
+
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get student's completed tasks
+        query = supabase.table('quest_task_completions') \
+            .select('id, user_id, quest_id, user_quest_task_id, completed_at, evidence_url, evidence_text, is_confidential') \
+            .eq('user_id', student_id) \
+            .order('completed_at', desc=True) \
+            .limit(limit + 1)
+
+        if cursor:
+            query = query.lt('completed_at', cursor)
+
+        completions = query.execute()
+
+        if not completions.data:
+            return jsonify({'items': [], 'has_more': False}), 200
+
+        # Get task details
+        task_ids = list(set([c['user_quest_task_id'] for c in completions.data if c['user_quest_task_id']]))
+        tasks_map = {}
+        if task_ids:
+            tasks = supabase.table('user_quest_tasks') \
+                .select('id, title, pillar, xp_value') \
+                .in_('id', task_ids) \
+                .execute()
+            tasks_map = {t['id']: t for t in tasks.data}
+
+        # Get quest details
+        quest_ids = list(set([c['quest_id'] for c in completions.data if c['quest_id']]))
+        quests_map = {}
+        if quest_ids:
+            quests = supabase.table('quests') \
+                .select('id, title') \
+                .in_('id', quest_ids) \
+                .execute()
+            quests_map = {q['id']: q for q in quests.data}
+
+        # Get evidence document blocks for multi-format evidence
+        evidence_docs = supabase.table('user_task_evidence_documents') \
+            .select('id, task_id, user_id, status') \
+            .in_('task_id', task_ids) \
+            .eq('user_id', student_id) \
+            .eq('status', 'completed') \
+            .execute()
+
+        doc_map = {}
+        doc_ids = []
+        for doc in evidence_docs.data:
+            key = f"{doc['task_id']}_{doc['user_id']}"
+            doc_map[key] = doc['id']
+            doc_ids.append(doc['id'])
+
+        evidence_blocks_map = {}
+        if doc_ids:
+            blocks = supabase.table('evidence_document_blocks') \
+                .select('id, document_id, block_type, content, order_index, created_at, is_private') \
+                .in_('document_id', doc_ids) \
+                .eq('is_private', False) \
+                .order('order_index') \
+                .execute()
+
+            for block in blocks.data:
+                doc_id = block['document_id']
+                if doc_id not in evidence_blocks_map:
+                    evidence_blocks_map[doc_id] = []
+                evidence_blocks_map[doc_id].append(block)
+
+        # Build feed items - one per evidence block
+        raw_feed_items = []
+        for completion in completions.data:
+            task_info = tasks_map.get(completion['user_quest_task_id'], {})
+            quest_info = quests_map.get(completion['quest_id'], {})
+
+            doc_key = f"{completion['user_quest_task_id']}_{completion['user_id']}"
+            doc_id = doc_map.get(doc_key)
+
+            if doc_id and doc_id in evidence_blocks_map:
+                for block in evidence_blocks_map[doc_id]:
+                    evidence_type = None
+                    evidence_preview = None
+                    content = block.get('content', {})
+
+                    if block['block_type'] == 'image':
+                        evidence_type = 'image'
+                        evidence_preview = content.get('url')
+                    elif block['block_type'] == 'video':
+                        evidence_type = 'video'
+                        evidence_preview = content.get('url')
+                    elif block['block_type'] == 'link':
+                        evidence_type = 'link'
+                        evidence_preview = content.get('url')
+                    elif block['block_type'] == 'text':
+                        evidence_type = 'text'
+                        text = content.get('text', '')
+                        evidence_preview = text[:200] + '...' if len(text) > 200 else text
+                    elif block['block_type'] == 'document':
+                        evidence_type = 'link'
+                        evidence_preview = content.get('url')
+
+                    if evidence_type:
+                        raw_feed_items.append({
+                            'id': f"{completion['id']}_{block['id']}",
+                            'completion_id': completion['id'],
+                            'block_id': block['id'],
+                            'timestamp': block.get('created_at') or completion['completed_at'],
+                            'task_id': completion['user_quest_task_id'],
+                            'task_title': task_info.get('title', 'Task'),
+                            'task_pillar': task_info.get('pillar'),
+                            'task_xp': task_info.get('xp_value', 0),
+                            'quest_id': completion['quest_id'],
+                            'quest_title': quest_info.get('title', 'Quest'),
+                            'evidence_type': evidence_type,
+                            'evidence_preview': evidence_preview
+                        })
+            else:
+                # Fallback: legacy evidence
+                evidence_text = completion.get('evidence_text', '')
+                if evidence_text and 'Multi-format evidence document' in evidence_text:
+                    continue
+
+                evidence_type = None
+                evidence_preview = None
+
+                if completion.get('evidence_url'):
+                    url = completion['evidence_url'].lower()
+                    if any(url.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+                        evidence_type = 'image'
+                        evidence_preview = completion['evidence_url']
+                    elif 'youtube.com' in url or 'youtu.be' in url or 'vimeo.com' in url:
+                        evidence_type = 'video'
+                        evidence_preview = completion['evidence_url']
+                    else:
+                        evidence_type = 'link'
+                        evidence_preview = completion['evidence_url']
+                elif evidence_text:
+                    evidence_type = 'text'
+                    evidence_preview = evidence_text[:200] + '...' if len(evidence_text) > 200 else evidence_text
+
+                if evidence_type:
+                    raw_feed_items.append({
+                        'id': completion['id'],
+                        'completion_id': completion['id'],
+                        'block_id': None,
+                        'timestamp': completion['completed_at'],
+                        'task_id': completion['user_quest_task_id'],
+                        'task_title': task_info.get('title', 'Task'),
+                        'task_pillar': task_info.get('pillar'),
+                        'task_xp': task_info.get('xp_value', 0),
+                        'quest_id': completion['quest_id'],
+                        'quest_title': quest_info.get('title', 'Quest'),
+                        'evidence_type': evidence_type,
+                        'evidence_preview': evidence_preview
+                    })
+
+        # Sort and paginate
+        raw_feed_items.sort(key=lambda x: x['timestamp'], reverse=True)
+        has_more = len(raw_feed_items) > limit
+        paginated_items = raw_feed_items[:limit]
+
+        # Get like counts
+        completion_ids = list(set([item['completion_id'] for item in paginated_items]))
+        likes_count = {}
+        try:
+            if completion_ids:
+                likes = supabase.table('observer_likes') \
+                    .select('completion_id') \
+                    .in_('completion_id', completion_ids) \
+                    .execute()
+
+                for like in likes.data:
+                    likes_count[like['completion_id']] = likes_count.get(like['completion_id'], 0) + 1
+        except Exception:
+            pass
+
+        # Get comment counts
+        comments_count = {}
+        try:
+            if completion_ids:
+                comments = supabase.table('observer_comments') \
+                    .select('task_completion_id') \
+                    .in_('task_completion_id', completion_ids) \
+                    .execute()
+
+                for comment in comments.data:
+                    if comment['task_completion_id']:
+                        comments_count[comment['task_completion_id']] = comments_count.get(comment['task_completion_id'], 0) + 1
+        except Exception:
+            pass
+
+        # Build final feed items
+        feed_items = []
+        for item in paginated_items:
+            feed_items.append({
+                'type': 'task_completed',
+                'id': item['id'],
+                'completion_id': item['completion_id'],
+                'timestamp': item['timestamp'],
+                'task': {
+                    'id': item['task_id'],
+                    'title': item['task_title'],
+                    'pillar': item['task_pillar'],
+                    'xp_value': item['task_xp']
+                },
+                'quest': {
+                    'id': item['quest_id'],
+                    'title': item['quest_title']
+                },
+                'evidence': {
+                    'type': item['evidence_type'],
+                    'url': item['evidence_preview'] if item['evidence_type'] != 'text' else None,
+                    'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None
+                },
+                'xp_awarded': item['task_xp'],
+                'likes_count': likes_count.get(item['completion_id'], 0),
+                'comments_count': comments_count.get(item['completion_id'], 0)
+            })
+
+        next_cursor = paginated_items[-1]['timestamp'] if paginated_items and has_more else None
+
+        return jsonify({
+            'items': feed_items,
+            'has_more': has_more,
+            'next_cursor': next_cursor
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Failed to fetch student activity feed: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch activity feed'}), 500
+
+
+# ============================================
+# PARENT ENDPOINTS - Invite Observers for Children
+# ============================================
+
+@bp.route('/api/observers/parent-invite', methods=['POST'])
+@require_auth
+@rate_limit(limit=10, per=3600)  # 10 invitations per hour
+def parent_send_observer_invitation(user_id):
+    """
+    Parent creates shareable invitation link for observer to follow their child
+
+    Body:
+        student_id: UUID of the child/student
+        relationship: Type of relationship (grandparent, aunt_uncle, family_friend, mentor, coach, other)
+
+    Returns:
+        200: Invitation created with shareable_link
+        400: Invalid request
+        403: Not authorized to invite for this student
+        429: Rate limit exceeded
+    """
+    parent_id = user_id
+    data = request.json
+
+    # Validate required fields
+    if not data.get('student_id'):
+        return jsonify({'error': 'student_id is required'}), 400
+
+    student_id = data['student_id']
+    relationship = data.get('relationship', 'other')
+
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Verify parent role
+        parent = supabase.table('users').select('role').eq('id', parent_id).single().execute()
+        if not parent.data or parent.data['role'] not in ('parent', 'superadmin'):
+            return jsonify({'error': 'Only parents can use this endpoint'}), 403
+
+        # Verify parent-child relationship
+        # Check if student is a dependent of this parent
+        dependent = supabase.table('users') \
+            .select('id, display_name, first_name, last_name') \
+            .eq('id', student_id) \
+            .eq('managed_by_parent_id', parent_id) \
+            .execute()
+
+        # Also check parent_student_links for linked 13+ students
+        linked = None
+        if not dependent.data:
+            linked = supabase.table('parent_student_links') \
+                .select('id') \
+                .eq('parent_user_id', parent_id) \
+                .eq('student_user_id', student_id) \
+                .eq('status', 'approved') \
+                .execute()
+
+        if not dependent.data and not (linked and linked.data):
+            return jsonify({'error': 'You are not authorized to invite observers for this student'}), 403
+
+        # Get student info
+        student = dependent.data[0] if dependent.data else None
+        if not student:
+            student_result = supabase.table('users') \
+                .select('id, display_name, first_name, last_name') \
+                .eq('id', student_id) \
+                .single() \
+                .execute()
+            student = student_result.data
+
+        student_name = student.get('display_name') or f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Your child'
+
+        # Generate unique invitation code
+        invitation_code = secrets.token_urlsafe(32)
+
+        # Set expiration (7 days)
+        expires_at = datetime.utcnow() + timedelta(days=7)
+
+        # Create invitation (no email required - link-based)
+        # Use placeholder for observer_email since column has NOT NULL constraint
+        placeholder_email = f"pending-{invitation_code[:8]}@invite.optio.local"
+        invitation = supabase.table('observer_invitations').insert({
+            'student_id': student_id,
+            'observer_email': placeholder_email,  # Placeholder for link-based invites
+            'observer_name': f'{relationship.replace("_", " ").title()} Observer',
+            'invitation_code': invitation_code,
+            'expires_at': expires_at.isoformat(),
+            'invited_by_user_id': parent_id,
+            'invited_by_role': 'parent'
+        }).execute()
+
+        logger.info(f"Parent observer invitation created: parent={parent_id}, student={student_id}")
+
+        # Build shareable link
+        frontend_url = request.environ.get('FRONTEND_URL', 'http://localhost:3000')
+        shareable_link = f"{frontend_url}/observer/accept/{invitation_code}"
+
+        return jsonify({
+            'status': 'success',
+            'invitation_id': invitation.data[0]['id'],
+            'invitation_code': invitation_code,
+            'shareable_link': shareable_link,
+            'expires_at': expires_at.isoformat(),
+            'student_name': student_name,
+            'relationship': relationship
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Failed to create parent observer invitation: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to create invitation'}), 500
+
+
+@bp.route('/api/observers/parent-invitations/<student_id>', methods=['GET'])
+@require_auth
+@validate_uuid_param('student_id')
+def get_parent_observer_invitations(user_id, student_id):
+    """
+    Parent views invitations they've sent for a specific child
+
+    Args:
+        user_id: UUID of the authenticated user (from decorator)
+        student_id: UUID of the child
+
+    Returns:
+        200: List of invitations with status
+        403: Not authorized
+    """
+    parent_id = user_id
+
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Verify parent-child relationship
+        dependent = supabase.table('users') \
+            .select('id') \
+            .eq('id', student_id) \
+            .eq('managed_by_parent_id', parent_id) \
+            .execute()
+
+        linked = None
+        if not dependent.data:
+            linked = supabase.table('parent_student_links') \
+                .select('id') \
+                .eq('parent_user_id', parent_id) \
+                .eq('student_user_id', student_id) \
+                .eq('status', 'approved') \
+                .execute()
+
+        if not dependent.data and not (linked and linked.data):
+            return jsonify({'error': 'Not authorized'}), 403
+
+        # Get invitations created by this parent for this student
+        invitations = supabase.table('observer_invitations') \
+            .select('*') \
+            .eq('student_id', student_id) \
+            .eq('invited_by_user_id', parent_id) \
+            .order('created_at', desc=True) \
+            .execute()
+
+        return jsonify({'invitations': invitations.data}), 200
+
+    except Exception as e:
+        logger.error(f"Failed to fetch parent observer invitations: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch invitations'}), 500
+
+
+@bp.route('/api/observers/student/<student_id>/observers', methods=['GET'])
+@require_auth
+@validate_uuid_param('student_id')
+def get_observers_for_student(user_id, student_id):
+    """
+    Get linked observers for a specific student (accessible by parents)
+
+    Args:
+        user_id: UUID of the authenticated user (from decorator)
+        student_id: UUID of the student
+
+    Returns:
+        200: List of linked observers
+        403: Not authorized
+    """
+
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Check if user is the student, their parent, or superadmin
+        user = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        is_superadmin = user.data and user.data['role'] == 'superadmin'
+
+        if not is_superadmin and user_id != student_id:
+            # Check if user is parent
+            dependent = supabase.table('users') \
+                .select('id') \
+                .eq('id', student_id) \
+                .eq('managed_by_parent_id', user_id) \
+                .execute()
+
+            linked = None
+            if not dependent.data:
+                linked = supabase.table('parent_student_links') \
+                    .select('id') \
+                    .eq('parent_user_id', user_id) \
+                    .eq('student_user_id', student_id) \
+                    .eq('status', 'approved') \
+                    .execute()
+
+            if not dependent.data and not (linked and linked.data):
+                return jsonify({'error': 'Not authorized'}), 403
+
+        # Get observer links for this student
+        links = supabase.table('observer_student_links') \
+            .select('*') \
+            .eq('student_id', student_id) \
+            .execute()
+
+        # Fetch observer details
+        observer_ids = [link['observer_id'] for link in links.data]
+
+        observers_data = []
+        if observer_ids:
+            observers = supabase.table('users') \
+                .select('id, email, first_name, last_name, display_name') \
+                .in_('id', observer_ids) \
+                .execute()
+
+            observer_map = {obs['id']: obs for obs in observers.data}
+
+            for link in links.data:
+                observer_info = observer_map.get(link['observer_id'], {})
+                observers_data.append({
+                    **link,
+                    'observer': observer_info
+                })
+
+        return jsonify({'observers': observers_data}), 200
+
+    except Exception as e:
+        logger.error(f"Failed to fetch observers for student: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch observers'}), 500
+
+
+# ============================================
+# OBSERVER FEED ENDPOINTS
+# ============================================
+
+@bp.route('/api/observers/feed', methods=['GET'])
+@require_auth
+def get_observer_feed(user_id):
+    """
+    Observer views activity feed for linked students
+
+    Also includes students from advisor_student_assignments for superadmin/advisor users.
+
+    Query params:
+        student_id: (optional) Filter to specific student
+        limit: (optional) Number of items, default 20
+        cursor: (optional) Pagination cursor (completion timestamp)
+
+    Returns:
+        200: Paginated feed of student activities
+    """
+    observer_id = user_id
+    student_id_filter = request.args.get('student_id')
+    limit = min(int(request.args.get('limit', 20)), 50)
+    cursor = request.args.get('cursor')
+
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get user role to check if they're superadmin/advisor
+        user_result = supabase.table('users').select('role').eq('id', observer_id).single().execute()
+        user_role = user_result.data.get('role') if user_result.data else None
+
+        # Get all linked students for this observer
+        links = supabase.table('observer_student_links') \
+            .select('student_id, can_view_evidence') \
+            .eq('observer_id', observer_id) \
+            .execute()
+
+        student_ids = [link['student_id'] for link in links.data]
+        evidence_permissions = {link['student_id']: link['can_view_evidence'] for link in links.data}
+
+        # For superadmin or advisor, also get students from advisor_student_assignments
+        if user_role in ('superadmin', 'advisor'):
+            advisor_assignments = supabase.table('advisor_student_assignments') \
+                .select('student_id') \
+                .eq('advisor_id', observer_id) \
+                .eq('is_active', True) \
+                .execute()
+            for assignment in advisor_assignments.data:
+                sid = assignment['student_id']
+                if sid not in student_ids:
+                    student_ids.append(sid)
+                    evidence_permissions[sid] = True  # Advisors can view evidence
+
+        if not student_ids:
+            return jsonify({'items': [], 'has_more': False}), 200
+
+        # Filter to specific student if requested
+        if student_id_filter:
+            if student_id_filter not in student_ids:
+                return jsonify({'error': 'Access denied to this student'}), 403
+            student_ids = [student_id_filter]
+
+        # Build query for task completions
+        # Note: xp_awarded is not on quest_task_completions - get it from user_quest_tasks
+        query = supabase.table('quest_task_completions') \
+            .select('id, user_id, quest_id, user_quest_task_id, evidence_text, evidence_url, completed_at, is_confidential') \
+            .in_('user_id', student_ids) \
+            .eq('is_confidential', False) \
+            .order('completed_at', desc=True) \
+            .limit(limit + 1)
+
+        if cursor:
+            query = query.lt('completed_at', cursor)
+
+        completions = query.execute()
+
+        if not completions.data:
+            return jsonify({'items': [], 'has_more': False}), 200
+
+        # Get task details
+        task_ids = list(set([c['user_quest_task_id'] for c in completions.data if c['user_quest_task_id']]))
+        tasks_map = {}
+        if task_ids:
+            tasks = supabase.table('user_quest_tasks') \
+                .select('id, title, pillar, xp_value') \
+                .in_('id', task_ids) \
+                .execute()
+            tasks_map = {t['id']: t for t in tasks.data}
+
+        # Get quest details
+        quest_ids = list(set([c['quest_id'] for c in completions.data if c['quest_id']]))
+        quests_map = {}
+        if quest_ids:
+            quests = supabase.table('quests') \
+                .select('id, title') \
+                .in_('id', quest_ids) \
+                .execute()
+            quests_map = {q['id']: q for q in quests.data}
+
+        # Get student details
+        students = supabase.table('users') \
+            .select('id, display_name, first_name, last_name, avatar_url') \
+            .in_('id', student_ids) \
+            .execute()
+        students_map = {s['id']: s for s in students.data}
+
+        # Get evidence document blocks for multi-format evidence
+        # First, get evidence documents for these task IDs
+        evidence_docs = supabase.table('user_task_evidence_documents') \
+            .select('id, task_id, user_id, status') \
+            .in_('task_id', task_ids) \
+            .in_('user_id', student_ids) \
+            .eq('status', 'completed') \
+            .execute()
+
+        # Map task_id+user_id to document_id
+        doc_map = {}
+        doc_ids = []
+        for doc in evidence_docs.data:
+            key = f"{doc['task_id']}_{doc['user_id']}"
+            doc_map[key] = doc['id']
+            doc_ids.append(doc['id'])
+
+        # Get all evidence blocks for these documents (excluding private ones)
+        evidence_blocks_map = {}  # document_id -> list of blocks
+        if doc_ids:
+            blocks = supabase.table('evidence_document_blocks') \
+                .select('id, document_id, block_type, content, order_index, created_at, is_private') \
+                .in_('document_id', doc_ids) \
+                .eq('is_private', False) \
+                .order('order_index') \
+                .execute()
+
+            for block in blocks.data:
+                doc_id = block['document_id']
+                if doc_id not in evidence_blocks_map:
+                    evidence_blocks_map[doc_id] = []
+                evidence_blocks_map[doc_id].append(block)
+
+        # Build feed items - one per evidence block
+        raw_feed_items = []
+        for completion in completions.data:
+            student_info = students_map.get(completion['user_id'], {})
+            task_info = tasks_map.get(completion['user_quest_task_id'], {})
+            quest_info = quests_map.get(completion['quest_id'], {})
+            can_view = evidence_permissions.get(completion['user_id'], False)
+
+            if not can_view:
+                continue
+
+            # Check if this completion has multi-format evidence
+            doc_key = f"{completion['user_quest_task_id']}_{completion['user_id']}"
+            doc_id = doc_map.get(doc_key)
+
+            if doc_id and doc_id in evidence_blocks_map:
+                # Create one feed item per evidence block
+                for block in evidence_blocks_map[doc_id]:
+                    evidence_type = None
+                    evidence_preview = None
+                    content = block.get('content', {})
+
+                    if block['block_type'] == 'image':
+                        evidence_type = 'image'
+                        evidence_preview = content.get('url')
+                    elif block['block_type'] == 'video':
+                        evidence_type = 'video'
+                        evidence_preview = content.get('url')
+                    elif block['block_type'] == 'link':
+                        evidence_type = 'link'
+                        evidence_preview = content.get('url')
+                    elif block['block_type'] == 'text':
+                        evidence_type = 'text'
+                        text = content.get('text', '')
+                        evidence_preview = text[:200] + '...' if len(text) > 200 else text
+                    elif block['block_type'] == 'document':
+                        evidence_type = 'link'
+                        evidence_preview = content.get('url')
+
+                    if evidence_type:
+                        student_name = student_info.get('display_name') or \
+                            f"{student_info.get('first_name', '')} {student_info.get('last_name', '')}".strip() or 'Student'
+
+                        raw_feed_items.append({
+                            'id': f"{completion['id']}_{block['id']}",
+                            'completion_id': completion['id'],
+                            'block_id': block['id'],
+                            'timestamp': block.get('created_at') or completion['completed_at'],
+                            'student_id': completion['user_id'],
+                            'student_name': student_name,
+                            'student_avatar': student_info.get('avatar_url'),
+                            'task_id': completion['user_quest_task_id'],
+                            'task_title': task_info.get('title', 'Task'),
+                            'task_pillar': task_info.get('pillar'),
+                            'task_xp': task_info.get('xp_value', 0),
+                            'quest_id': completion['quest_id'],
+                            'quest_title': quest_info.get('title', 'Quest'),
+                            'evidence_type': evidence_type,
+                            'evidence_preview': evidence_preview
+                        })
+            else:
+                # Fallback: legacy evidence (text/url directly on completion)
+                # Skip if evidence_text is a document reference
+                evidence_text = completion.get('evidence_text', '')
+                if evidence_text and 'Multi-format evidence document' in evidence_text:
+                    continue  # Skip - no blocks found for this document
+
+                evidence_type = None
+                evidence_preview = None
+
+                if completion.get('evidence_url'):
+                    url = completion['evidence_url'].lower()
+                    if any(url.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+                        evidence_type = 'image'
+                        evidence_preview = completion['evidence_url']
+                    elif 'youtube.com' in url or 'youtu.be' in url or 'vimeo.com' in url:
+                        evidence_type = 'video'
+                        evidence_preview = completion['evidence_url']
+                    else:
+                        evidence_type = 'link'
+                        evidence_preview = completion['evidence_url']
+                elif evidence_text:
+                    evidence_type = 'text'
+                    evidence_preview = evidence_text[:200] + '...' if len(evidence_text) > 200 else evidence_text
+
+                if evidence_type:
+                    student_name = student_info.get('display_name') or \
+                        f"{student_info.get('first_name', '')} {student_info.get('last_name', '')}".strip() or 'Student'
+
+                    raw_feed_items.append({
+                        'id': completion['id'],
+                        'completion_id': completion['id'],
+                        'block_id': None,
+                        'timestamp': completion['completed_at'],
+                        'student_id': completion['user_id'],
+                        'student_name': student_name,
+                        'student_avatar': student_info.get('avatar_url'),
+                        'task_id': completion['user_quest_task_id'],
+                        'task_title': task_info.get('title', 'Task'),
+                        'task_pillar': task_info.get('pillar'),
+                        'task_xp': task_info.get('xp_value', 0),
+                        'quest_id': completion['quest_id'],
+                        'quest_title': quest_info.get('title', 'Quest'),
+                        'evidence_type': evidence_type,
+                        'evidence_preview': evidence_preview
+                    })
+
+        # Sort by timestamp descending and paginate
+        raw_feed_items.sort(key=lambda x: x['timestamp'], reverse=True)
+
+        # Apply pagination
+        has_more = len(raw_feed_items) > limit
+        paginated_items = raw_feed_items[:limit]
+
+        # Get like counts and user's likes
+        completion_ids = list(set([item['completion_id'] for item in paginated_items]))
+        likes_count = {}
+        user_likes = set()
+        try:
+            if completion_ids:
+                likes = supabase.table('observer_likes') \
+                    .select('completion_id, observer_id') \
+                    .in_('completion_id', completion_ids) \
+                    .execute()
+
+                for like in likes.data:
+                    likes_count[like['completion_id']] = likes_count.get(like['completion_id'], 0) + 1
+                    if like['observer_id'] == observer_id:
+                        user_likes.add(like['completion_id'])
+        except Exception as likes_error:
+            logger.warning(f"Could not fetch observer_likes: {likes_error}")
+
+        # Get comment counts
+        comments_count = {}
+        try:
+            if completion_ids:
+                comments = supabase.table('observer_comments') \
+                    .select('task_completion_id') \
+                    .in_('task_completion_id', completion_ids) \
+                    .execute()
+
+                for comment in comments.data:
+                    if comment['task_completion_id']:
+                        comments_count[comment['task_completion_id']] = comments_count.get(comment['task_completion_id'], 0) + 1
+        except Exception as comments_error:
+            logger.warning(f"Could not fetch observer_comments: {comments_error}")
+
+        # Build final feed items in the expected format
+        feed_items = []
+        for item in paginated_items:
+            feed_items.append({
+                'type': 'task_completed',
+                'id': item['id'],
+                'completion_id': item['completion_id'],
+                'timestamp': item['timestamp'],
+                'student': {
+                    'id': item['student_id'],
+                    'display_name': item['student_name'],
+                    'avatar_url': item['student_avatar']
+                },
+                'task': {
+                    'id': item['task_id'],
+                    'title': item['task_title'],
+                    'pillar': item['task_pillar'],
+                    'xp_value': item['task_xp']
+                },
+                'quest': {
+                    'id': item['quest_id'],
+                    'title': item['quest_title']
+                },
+                'evidence': {
+                    'type': item['evidence_type'],
+                    'url': item['evidence_preview'] if item['evidence_type'] != 'text' else None,
+                    'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None
+                },
+                'xp_awarded': item['task_xp'],
+                'likes_count': likes_count.get(item['completion_id'], 0),
+                'comments_count': comments_count.get(item['completion_id'], 0),
+                'user_has_liked': item['completion_id'] in user_likes
+            })
+
+        # Log feed access
+        try:
+            audit_service = ObserverAuditService(user_id=observer_id)
+            audit_service.log_observer_access(
+                observer_id=observer_id,
+                student_id=student_id_filter or student_ids[0],
+                action_type='view_feed',
+                resource_type='feed',
+                metadata={
+                    'student_filter': student_id_filter,
+                    'items_returned': len(feed_items)
+                }
+            )
+        except Exception as audit_error:
+            logger.error(f"Failed to log feed access: {audit_error}")
+
+        # Build next cursor
+        next_cursor = paginated_items[-1]['timestamp'] if paginated_items and has_more else None
+
+        return jsonify({
+            'items': feed_items,
+            'has_more': has_more,
+            'next_cursor': next_cursor
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Failed to fetch observer feed: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch feed'}), 500
+
+
+# ============================================
+# LIKES ENDPOINTS
+# ============================================
+
+@bp.route('/api/observers/completions/<completion_id>/like', methods=['POST'])
+@require_auth
+@validate_uuid_param('completion_id')
+def toggle_like(user_id, completion_id):
+    """
+    Observer toggles like on a task completion
+
+    Args:
+        user_id: UUID of authenticated user (from @require_auth)
+        completion_id: UUID of task completion
+
+    Returns:
+        200: Like status toggled
+        403: No access to this completion
+    """
+    observer_id = user_id
+
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get the completion and verify access
+        completion = supabase.table('quest_task_completions') \
+            .select('user_id, is_confidential') \
+            .eq('id', completion_id) \
+            .single() \
+            .execute()
+
+        if not completion.data:
+            return jsonify({'error': 'Completion not found'}), 404
+
+        if completion.data['is_confidential']:
+            return jsonify({'error': 'Cannot like confidential content'}), 403
+
+        # Verify observer has access to this student
+        student_id = completion.data['user_id']
+        has_access = False
+
+        # Check if superadmin (superadmins have full access)
+        user_result = supabase.table('users').select('role').eq('id', observer_id).single().execute()
+        user_role = user_result.data.get('role') if user_result.data else None
+        if user_role == 'superadmin':
+            has_access = True
+
+        # Check observer_student_links
+        if not has_access:
+            link = supabase.table('observer_student_links') \
+                .select('id') \
+                .eq('observer_id', observer_id) \
+                .eq('student_id', student_id) \
+                .execute()
+            has_access = bool(link.data)
+
+        # Check advisor_student_assignments for advisors
+        if not has_access and user_role == 'advisor':
+            advisor_link = supabase.table('advisor_student_assignments') \
+                .select('id') \
+                .eq('advisor_id', observer_id) \
+                .eq('student_id', student_id) \
+                .eq('is_active', True) \
+                .execute()
+            has_access = bool(advisor_link.data)
+
+        if not has_access:
+            return jsonify({'error': 'Access denied'}), 403
+
+        # Check if already liked
+        try:
+            existing = supabase.table('observer_likes') \
+                .select('id') \
+                .eq('observer_id', observer_id) \
+                .eq('completion_id', completion_id) \
+                .execute()
+        except Exception as table_error:
+            logger.error(f"observer_likes table may not exist: {table_error}")
+            return jsonify({'error': 'Likes feature is not available. Please run the database migration.'}), 503
+
+        if existing.data:
+            # Unlike
+            supabase.table('observer_likes') \
+                .delete() \
+                .eq('id', existing.data[0]['id']) \
+                .execute()
+
+            logger.info(f"Observer unliked completion: observer={observer_id}, completion={completion_id}")
+            return jsonify({'liked': False, 'status': 'unliked'}), 200
+        else:
+            # Like
+            supabase.table('observer_likes').insert({
+                'observer_id': observer_id,
+                'completion_id': completion_id
+            }).execute()
+
+            logger.info(f"Observer liked completion: observer={observer_id}, completion={completion_id}")
+            return jsonify({'liked': True, 'status': 'liked'}), 200
+
+    except Exception as e:
+        logger.error(f"Failed to toggle like: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to toggle like'}), 500
+
+
+@bp.route('/api/observers/completions/<completion_id>/comments', methods=['GET'])
+@require_auth
+@validate_uuid_param('completion_id')
+def get_completion_comments(user_id, completion_id):
+    """
+    Get comments on a specific task completion
+
+    Args:
+        user_id: UUID of authenticated user (from @require_auth)
+        completion_id: UUID of task completion
+
+    Returns:
+        200: List of comments
+        403: Access denied
+    """
+
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get completion info
+        completion = supabase.table('quest_task_completions') \
+            .select('user_id') \
+            .eq('id', completion_id) \
+            .single() \
+            .execute()
+
+        if not completion.data:
+            return jsonify({'error': 'Completion not found'}), 404
+
+        student_id = completion.data['user_id']
+
+        # Verify access (student themselves, observer, superadmin, or advisor)
+        if user_id != student_id:
+            has_access = False
+
+            # Check if superadmin (superadmins have full access)
+            user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
+            user_role = user_result.data.get('role') if user_result.data else None
+            logger.info(f"get_completion_comments: user_id={user_id}, student_id={student_id}, user_role={user_role}")
+            if user_role == 'superadmin':
+                has_access = True
+                logger.info(f"get_completion_comments: superadmin access granted")
+
+            # Check observer_student_links
+            if not has_access:
+                link = supabase.table('observer_student_links') \
+                    .select('id') \
+                    .eq('observer_id', user_id) \
+                    .eq('student_id', student_id) \
+                    .execute()
+
+                if link.data:
+                    has_access = True
+
+            # Check advisor_student_assignments for advisors
+            if not has_access and user_role == 'advisor':
+                advisor_link = supabase.table('advisor_student_assignments') \
+                    .select('id') \
+                    .eq('advisor_id', user_id) \
+                    .eq('student_id', student_id) \
+                    .eq('is_active', True) \
+                    .execute()
+                if advisor_link.data:
+                    has_access = True
+
+            if not has_access:
+                return jsonify({'error': 'Access denied'}), 403
+
+        # Get comments
+        comments = supabase.table('observer_comments') \
+            .select('*') \
+            .eq('task_completion_id', completion_id) \
+            .order('created_at', desc=False) \
+            .execute()
+
+        # Get observer details
+        observer_ids = list(set([c['observer_id'] for c in comments.data]))
+        comments_data = comments.data
+
+        if observer_ids:
+            observers = supabase.table('users') \
+                .select('id, first_name, last_name, display_name, avatar_url') \
+                .in_('id', observer_ids) \
+                .execute()
+
+            observer_map = {obs['id']: obs for obs in observers.data}
+
+            for comment in comments_data:
+                comment['observer'] = observer_map.get(comment['observer_id'], {})
+
+        return jsonify({'comments': comments_data}), 200
+
+    except Exception as e:
+        logger.error(f"Failed to fetch completion comments: {str(e)}", exc_info=True)
         return jsonify({'error': 'Failed to fetch comments'}), 500
 
 

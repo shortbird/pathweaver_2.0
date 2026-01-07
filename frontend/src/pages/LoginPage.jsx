@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
 import logger from '../utils/logger'
 import GoogleButton from '../components/auth/GoogleButton'
+import { observerAPI } from '../services/api'
 
 const LoginPage = () => {
   const { register, handleSubmit, formState: { errors } } = useForm()
@@ -13,13 +14,39 @@ const LoginPage = () => {
   const [loginError, setLoginError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
+  // Handle pending observer invitation after login
+  const handlePendingObserverInvitation = async () => {
+    const pendingInvitation = localStorage.getItem('pendingObserverInvitation')
+    if (pendingInvitation) {
+      try {
+        logger.debug('[LoginPage] Accepting pending observer invitation:', pendingInvitation)
+        await observerAPI.acceptInvitation(pendingInvitation, {})
+        localStorage.removeItem('pendingObserverInvitation')
+        logger.debug('[LoginPage] Observer invitation accepted')
+      } catch (err) {
+        logger.error('[LoginPage] Failed to accept observer invitation:', err)
+        // Don't block login if invitation acceptance fails
+      }
+    }
+  }
+
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated && user && !authLoading) {
-      logger.debug('[LoginPage] User already authenticated, redirecting to dashboard')
-      const redirectPath = user.role === 'parent' ? '/parent/dashboard' : '/dashboard'
-      navigate(redirectPath, { replace: true })
+    const handleAuthRedirect = async () => {
+      if (isAuthenticated && user && !authLoading) {
+        logger.debug('[LoginPage] User already authenticated, handling redirect')
+
+        // Check for pending observer invitation
+        await handlePendingObserverInvitation()
+
+        const redirectPath = user.role === 'parent' ? '/parent/dashboard'
+          : user.role === 'observer' ? '/observer/feed'
+          : '/dashboard'
+        navigate(redirectPath, { replace: true })
+      }
     }
+
+    handleAuthRedirect()
   }, [isAuthenticated, user, authLoading, navigate])
 
   const onSubmit = async (data) => {
