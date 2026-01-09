@@ -1,6 +1,7 @@
 import React, { useState, memo } from 'react';
 import Button from '../../ui/Button';
 import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings';
+import SubjectBadges from '../../common/SubjectBadges';
 
 const TaskCard = memo(({ task, index, isCompleted, isEnrolled, onComplete, hasCollaboration }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -75,30 +76,13 @@ const TaskCard = memo(({ task, index, isCompleted, isEnrolled, onComplete, hasCo
               <span className="capitalize">{task.pillar.replace('_', ' ')}</span>
             </div>
 
-            {/* School Subjects Badge */}
-            {task.school_subjects && task.school_subjects.length > 0 && (
-              <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs">
-                <span>📚</span>
-                <span>
-                  {task.school_subjects.map(subject => {
-                    const subjectNames = {
-                      'language_arts': 'Language Arts',
-                      'math': 'Math',
-                      'science': 'Science',
-                      'social_studies': 'Social Studies',
-                      'financial_literacy': 'Financial Literacy',
-                      'health': 'Health',
-                      'pe': 'PE',
-                      'fine_arts': 'Fine Arts',
-                      'cte': 'CTE',
-                      'digital_literacy': 'Digital Literacy',
-                      'electives': 'Electives'
-                    };
-                    return subjectNames[subject] || subject;
-                  }).slice(0, 2).join(', ')}
-                  {task.school_subjects.length > 2 && ` +${task.school_subjects.length - 2}`}
-                </span>
-              </div>
+            {/* Subject XP Distribution */}
+            {(task.subject_xp_distribution || task.school_subjects) && (
+              <SubjectBadges
+                subjectXpDistribution={task.subject_xp_distribution || task.school_subjects}
+                compact={true}
+                maxDisplay={2}
+              />
             )}
 
             {/* XP Badge with Animation */}

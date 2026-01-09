@@ -1,4 +1,5 @@
 import React from 'react';
+import { CheckIcon } from '@heroicons/react/24/outline';
 import { getAllCreditProgress, calculateTotalCredits, TOTAL_CREDITS_REQUIRED, meetsGraduationRequirements } from '../../utils/creditRequirements';
 
 const CreditProgressModal = ({ isOpen, onClose, subjectXP, pendingSubjectXP = {}, isOwner, getStudentFirstName, onAccreditedDiplomaClick }) => {
@@ -221,9 +222,7 @@ const CreditProgressModal = ({ isOpen, onClose, subjectXP, pendingSubjectXP = {}
                       {/* Center content */}
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
                         {credit.isComplete ? (
-                          <svg className="w-8 h-8 text-green-600 mb-1" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                          </svg>
+                          <CheckIcon className="w-8 h-8 text-green-600 stroke-[3]" />
                         ) : (
                           <div className="text-center">
                             <div className="text-2xl font-bold text-gray-800">

@@ -149,6 +149,59 @@ def create_quest_v3_clean(user_id):
         }), 500
 
 
+@bp.route('/quests/similar', methods=['GET'])
+@require_advisor
+def search_similar_quests(user_id):
+    """
+    Search for similar quests for autocomplete during quest creation.
+    Respects organization visibility policies.
+
+    Query Parameters:
+    - search: Search term (quest title, minimum 3 characters)
+    - limit: Maximum results (default: 10, max: 20)
+
+    Returns:
+    {
+        "success": true,
+        "quests": [...],
+        "total": N
+    }
+    """
+    try:
+        search_term = request.args.get('search', '').strip()
+        limit = min(int(request.args.get('limit', 10)), 20)
+
+        # Require minimum 3 characters
+        if len(search_term) < 3:
+            return jsonify({
+                'success': True,
+                'quests': [],
+                'message': 'Search term must be at least 3 characters'
+            })
+
+        # Use repository to search with organization awareness
+        quest_repo = QuestRepository()
+
+        quests = quest_repo.search_similar_quests(
+            user_id=user_id,
+            search_term=search_term,
+            limit=limit
+        )
+
+        return jsonify({
+            'success': True,
+            'quests': quests,
+            'total': len(quests)
+        })
+
+    except Exception as e:
+        logger.error(f"Error searching similar quests: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to search similar quests'
+        }), 500
+
+
 @bp.route('/quests/bulk-delete', methods=['POST'])
 @require_admin
 def bulk_delete_quests(user_id):

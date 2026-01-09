@@ -186,7 +186,12 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
         </svg>
       )
     })
-    // Observer feed for superadmin to view students they advise
+  }
+
+  // Observer feed link - show for users who may have observer access
+  // (superadmin, advisor, parent, or observer role)
+  // The feed page handles showing appropriate content or empty state
+  if (['superadmin', 'advisor', 'parent', 'observer'].includes(user?.role)) {
     navItems.push({
       name: 'Observer',
       path: '/observer/feed',

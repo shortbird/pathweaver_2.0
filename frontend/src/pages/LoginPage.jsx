@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
 import logger from '../utils/logger'
@@ -10,24 +10,39 @@ const LoginPage = () => {
   const { register, handleSubmit, formState: { errors } } = useForm()
   const { login, isAuthenticated, user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const invitationCode = searchParams.get('invitation')
   const [loading, setLoading] = useState(false)
   const [loginError, setLoginError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
+  // Store invitation code in localStorage so we can accept it after login
+  useEffect(() => {
+    if (invitationCode) {
+      localStorage.setItem('pendingObserverInvitation', invitationCode)
+      logger.debug('[LoginPage] Stored pending observer invitation:', invitationCode)
+    }
+  }, [invitationCode])
+
   // Handle pending observer invitation after login
+  // Returns true if invitation was accepted, false otherwise
   const handlePendingObserverInvitation = async () => {
     const pendingInvitation = localStorage.getItem('pendingObserverInvitation')
     if (pendingInvitation) {
       try {
         logger.debug('[LoginPage] Accepting pending observer invitation:', pendingInvitation)
-        await observerAPI.acceptInvitation(pendingInvitation, {})
+        const response = await observerAPI.acceptInvitation(pendingInvitation, {})
         localStorage.removeItem('pendingObserverInvitation')
-        logger.debug('[LoginPage] Observer invitation accepted')
+        logger.debug('[LoginPage] Observer invitation accepted:', response.data)
+        return response.data // Returns { status, has_existing_role, user_role, etc. }
       } catch (err) {
         logger.error('[LoginPage] Failed to accept observer invitation:', err)
+        localStorage.removeItem('pendingObserverInvitation')
         // Don't block login if invitation acceptance fails
+        return null
       }
     }
+    return null
   }
 
   // Redirect if already authenticated
@@ -37,8 +52,16 @@ const LoginPage = () => {
         logger.debug('[LoginPage] User already authenticated, handling redirect')
 
         // Check for pending observer invitation
-        await handlePendingObserverInvitation()
+        const acceptResult = await handlePendingObserverInvitation()
 
+        if (acceptResult && acceptResult.status === 'success') {
+          // Invitation was accepted - redirect to observer feed
+          logger.debug('[LoginPage] Observer invitation accepted, redirecting to observer feed')
+          navigate('/observer/feed', { replace: true })
+          return
+        }
+
+        // No invitation or failed - redirect based on role
         const redirectPath = user.role === 'parent' ? '/parent/dashboard'
           : user.role === 'observer' ? '/observer/feed'
           : '/dashboard'

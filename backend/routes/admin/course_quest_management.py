@@ -33,159 +33,18 @@ bp = Blueprint('admin_course_quest_management', __name__, url_prefix='/api/admin
 @require_advisor
 def create_course_quest(user_id):
     """
-    Create a new course quest with preset tasks.
-    Advisors create unpublished drafts; admins can publish immediately.
+    DEPRECATED: Standalone course quest creation is no longer supported.
+    Use Course Builder to create Projects within Courses instead.
 
-    Request body:
-    {
-        "title": "Quest title",
-        "description": "Quest description",
-        "lms_platform": "canvas|google_classroom|schoology|moodle",  // optional
-        "lms_course_id": "course-123",  // optional
-        "lms_assignment_id": "assignment-456",  // optional
-        "is_active": true,
-        "tasks": [
-            {
-                "title": "Task 1",
-                "description": "Task description",
-                "pillar": "stem",
-                "xp_value": 100,
-                "order_index": 0,
-                "is_required": true,
-                "diploma_subjects": ["Math"],
-                "subject_xp_distribution": {"Math": 100}
-            },
-            ...
-        ]
-    }
+    This endpoint was deprecated as part of the course quest simplification.
+    All course quests must now be created within a Course container.
     """
-    supabase = get_supabase_admin_client()
-
-    try:
-        data = request.json
-
-        # Validate required fields
-        if not data.get('title'):
-            return jsonify({'success': False, 'error': 'Title is required'}), 400
-
-        if not data.get('tasks') or not isinstance(data['tasks'], list) or len(data['tasks']) == 0:
-            return jsonify({
-                'success': False,
-                'error': 'At least one task is required for course quests'
-            }), 400
-
-        # Get user role to determine default is_active value
-        user = supabase.table('users').select('role').eq('id', user_id).execute()
-        user_role = user.data[0].get('role') if user.data else 'advisor'
-
-        # Auto-fetch image if not provided
-        image_url = data.get('header_image_url')
-        if not image_url:
-            quest_desc = data.get('description', '').strip()
-            image_url = search_quest_image(data['title'].strip(), quest_desc)
-            logger.info(f"Auto-fetched image for course quest '{data['title']}': {image_url}")
-
-        # Determine is_active value based on role
-        # Admins can set is_active=True (publish immediately)
-        # Advisors always create drafts (is_active=False)
-        # NOTE: Course quests CANNOT be activated without preset tasks
-        # so we create as inactive and let admin activate after adding tasks
-        if user_role == 'superadmin':
-            is_active = data.get('is_active', False)
-        else:
-            is_active = False  # Advisors always create unpublished drafts
-
-        # Create quest record
-        quest_data = {
-            'title': data['title'].strip(),
-            'description': data.get('description', '').strip(),
-            'big_idea': data.get('description', '').strip(),
-            'quest_type': 'course',  # Important: mark as course quest
-            'is_active': is_active,
-            'material_link': data.get('material_link', '').strip() if data.get('material_link') else None,
-            'lms_platform': data.get('lms_platform'),
-            'lms_course_id': data.get('lms_course_id'),
-            'lms_assignment_id': data.get('lms_assignment_id'),
-            'header_image_url': image_url,
-            'image_url': image_url,
-            'created_by': user_id,  # Track who created the quest
-            'created_at': datetime.utcnow().isoformat()
-        }
-
-        # Insert quest
-        quest_result = supabase.table('quests').insert(quest_data).execute()
-
-        if not quest_result.data:
-            return jsonify({'success': False, 'error': 'Failed to create quest'}), 500
-
-        quest_id = quest_result.data[0]['id']
-        logger.info(f"Created course quest {quest_id}: {quest_data['title']}")
-
-        # Validate and insert tasks
-        valid_pillars = ['stem', 'wellness', 'communication', 'civics', 'art']
-        tasks_data = []
-
-        for i, task in enumerate(data['tasks']):
-            # Validate task
-            if not task.get('title'):
-                logger.warning(f"Task {i} missing title, skipping")
-                continue
-
-            pillar = task.get('pillar', 'stem').lower().strip()
-            if pillar not in valid_pillars:
-                logger.warning(f"Task {i} has invalid pillar '{pillar}', defaulting to 'stem'")
-                pillar = 'stem'
-
-            task_data = {
-                'quest_id': quest_id,
-                'title': task['title'].strip(),
-                'description': task.get('description', '').strip(),
-                'pillar': pillar,
-                'xp_value': int(task.get('xp_value', 100)),
-                'order_index': task.get('order_index', i),
-                'is_required': task.get('is_required', True),
-                'diploma_subjects': task.get('diploma_subjects', ['Electives']),
-                'subject_xp_distribution': task.get('subject_xp_distribution', {}),
-                'created_at': datetime.utcnow().isoformat()
-            }
-
-            tasks_data.append(task_data)
-
-        if not tasks_data:
-            # Rollback quest creation if no valid tasks
-            supabase.table('quests').delete().eq('id', quest_id).execute()
-            return jsonify({
-                'success': False,
-                'error': 'No valid tasks provided'
-            }), 400
-
-        # Insert all tasks
-        tasks_result = supabase.table('course_quest_tasks').insert(tasks_data).execute()
-
-        if not tasks_result.data:
-            # Rollback quest creation if tasks fail
-            supabase.table('quests').delete().eq('id', quest_id).execute()
-            return jsonify({
-                'success': False,
-                'error': 'Failed to create course tasks'
-            }), 500
-
-        logger.info(f"Created {len(tasks_result.data)} preset tasks for course quest {quest_id}")
-
-        return jsonify({
-            'success': True,
-            'message': f'Course quest created with {len(tasks_result.data)} preset tasks',
-            'quest_id': quest_id,
-            'quest': quest_result.data[0],
-            'tasks': tasks_result.data
-        })
-
-    except Exception as e:
-        logger.error(f"Error creating course quest: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Failed to create course quest: {str(e)}'
-        }), 500
+    logger.warning(f"Deprecated endpoint called: create-course-quest by user {user_id}")
+    return jsonify({
+        'success': False,
+        'error': 'Standalone course quest creation is deprecated. Use Course Builder to create Projects within Courses.',
+        'redirect': '/admin/courses'
+    }), 410  # HTTP 410 Gone
 
 
 @bp.route('/quests/<quest_id>/course-tasks', methods=['GET'])

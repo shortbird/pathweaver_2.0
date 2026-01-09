@@ -19,6 +19,7 @@ import { evidenceDocumentService } from '../../services/evidenceDocumentService'
 import logger from '../../utils/logger';
 import EvidenceDisplay from '../evidence/EvidenceDisplay';
 import AddEvidenceModal from '../evidence/AddEvidenceModal';
+import SubjectBadges from '../common/SubjectBadges';
 
 // Sortable Task Item for the collapsible list
 const SortableTaskItem = ({ task, isSelected, onClick, onRemove }) => {
@@ -542,24 +543,37 @@ const TaskWorkspace = ({
               </div>
             )}
             {/* Pillar and XP badges - below title/description */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <div
-                className="px-3 py-1 rounded-full text-xs font-semibold text-white"
-                style={{ backgroundColor: pillarData?.color, fontFamily: 'Poppins' }}
-              >
-                {pillarData?.name}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div
+                  className="px-3 py-1 rounded-full text-xs font-semibold text-white"
+                  style={{ backgroundColor: pillarData?.color, fontFamily: 'Poppins' }}
+                >
+                  {pillarData?.name}
+                </div>
+                <div
+                  className="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"
+                  style={{
+                    backgroundColor: `${pillarData?.color}20`,
+                    color: pillarData?.color,
+                    fontFamily: 'Poppins'
+                  }}
+                >
+                  <TrophyIcon className="w-3.5 h-3.5" />
+                  {task.xp_amount} XP
+                </div>
               </div>
-              <div
-                className="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"
-                style={{
-                  backgroundColor: `${pillarData?.color}20`,
-                  color: pillarData?.color,
-                  fontFamily: 'Poppins'
-                }}
-              >
-                <TrophyIcon className="w-3.5 h-3.5" />
-                {task.xp_amount} XP
-              </div>
+              {/* Subject XP Distribution */}
+              {(task.subject_xp_distribution || task.school_subjects) && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>Credits:</span>
+                  <SubjectBadges
+                    subjectXpDistribution={task.subject_xp_distribution || task.school_subjects}
+                    compact={false}
+                    maxDisplay={3}
+                  />
+                </div>
+              )}
             </div>
           </div>
         ) : (

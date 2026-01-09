@@ -15,7 +15,7 @@ import {
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 import { useCourseHomepage } from '../../hooks/api/useCourseData'
 import CurriculumView from '../../components/curriculum/CurriculumView'
-import { unenrollFromCourse } from '../../services/courseService'
+import { endCourse, enrollInCourse } from '../../services/courseService'
 import toast from 'react-hot-toast'
 
 /**
@@ -351,7 +351,7 @@ const CourseHomepage = () => {
   const location = useLocation()
 
   // Fetch course data
-  const { data, isLoading, error } = useCourseHomepage(courseId)
+  const { data, isLoading, error, refetch } = useCourseHomepage(courseId)
 
   // State for sidebar navigation
   const [expandedQuestIds, setExpandedQuestIds] = useState(new Set())
@@ -362,24 +362,41 @@ const CourseHomepage = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [saveProgressFn, setSaveProgressFn] = useState(null)
   const [initialStepIndex, setInitialStepIndex] = useState(null)
-  const [isUnenrolling, setIsUnenrolling] = useState(false)
+  const [isEnding, setIsEnding] = useState(false)
+  const [isEnrolling, setIsEnrolling] = useState(false)
 
-  // Handle unenroll from course
-  const handleUnenroll = async () => {
-    if (!window.confirm('Are you sure you want to unenroll from this course? This will remove your progress from all projects in this course.')) {
+  // Handle enroll in course (for creators testing their course)
+  const handleEnroll = async () => {
+    try {
+      setIsEnrolling(true)
+      await enrollInCourse(courseId)
+      toast.success('Enrolled in course!')
+      // Refetch course data to update enrollment status
+      refetch()
+    } catch (error) {
+      console.error('Failed to enroll:', error)
+      toast.error(error.response?.data?.error || 'Failed to enroll in course')
+    } finally {
+      setIsEnrolling(false)
+    }
+  }
+
+  // Handle end course (preserves progress)
+  const handleEndCourse = async () => {
+    if (!window.confirm('Are you sure you want to end this course? Your progress and XP will be preserved.')) {
       return
     }
 
     try {
-      setIsUnenrolling(true)
-      await unenrollFromCourse(courseId)
-      toast.success('Successfully unenrolled from course')
-      navigate('/courses')
+      setIsEnding(true)
+      const result = await endCourse(courseId)
+      toast.success(result.message || 'Course completed!')
+      navigate('/')
     } catch (error) {
-      console.error('Failed to unenroll:', error)
-      toast.error(error.response?.data?.message || 'Failed to unenroll from course')
+      console.error('Failed to end course:', error)
+      toast.error(error.response?.data?.error || 'Failed to end course')
     } finally {
-      setIsUnenrolling(false)
+      setIsEnding(false)
     }
   }
 
@@ -561,7 +578,9 @@ const CourseHomepage = () => {
     )
   }
 
-  const { course, quests, progress } = data
+  const { course, quests, progress, enrollment } = data
+  // User is enrolled if they have a formal enrollment with 'active' status
+  const isEnrolled = enrollment?.id != null && enrollment?.status === 'active'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -603,16 +622,28 @@ const CourseHomepage = () => {
                 )}
               </div>
 
-              {/* Unenroll Button */}
-              <button
-                onClick={handleUnenroll}
-                disabled={isUnenrolling}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
-                title="Unenroll from course"
-              >
-                <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">{isUnenrolling ? 'Unenrolling...' : 'Unenroll'}</span>
-              </button>
+              {/* Enroll or End Course Button */}
+              {isEnrolled ? (
+                <button
+                  onClick={handleEndCourse}
+                  disabled={isEnding}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
+                  title="End course (progress will be saved)"
+                >
+                  <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{isEnding ? 'Ending...' : 'End Course'}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={handleEnroll}
+                  disabled={isEnrolling}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
+                  title="Enroll in this course"
+                >
+                  <PlayCircleIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{isEnrolling ? 'Enrolling...' : 'Enroll'}</span>
+                </button>
+              )}
 
               {/* Mobile Sidebar Toggle */}
               <button

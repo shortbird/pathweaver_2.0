@@ -1,11 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { XMarkIcon, CheckIcon, FlagIcon, BookOpenIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CheckIcon, FlagIcon, BookOpenIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
 import ManualTaskCreator from './ManualTaskCreator';
 import logger from '../../utils/logger';
 import { useAIAccess } from '../../contexts/AIAccessContext';
+
+// Credit requirements per subject (XP needed for graduation)
+const CREDIT_REQUIREMENTS = {
+  language_arts: { required: 8000, label: 'Language Arts' },
+  math: { required: 6000, label: 'Math' },
+  science: { required: 6000, label: 'Science' },
+  social_studies: { required: 7000, label: 'Social Studies' },
+  financial_literacy: { required: 1000, label: 'Financial Literacy' },
+  health: { required: 1000, label: 'Health' },
+  pe: { required: 4000, label: 'PE' },
+  fine_arts: { required: 3000, label: 'Fine Arts' },
+  cte: { required: 2000, label: 'CTE' },
+  digital_literacy: { required: 1000, label: 'Digital Literacy' },
+  electives: { required: 8000, label: 'Electives' }
+};
 
 const INTEREST_OPTIONS = [
   { id: 'sports', label: 'Sports & Athletics', icon: '⚽' },
@@ -20,13 +35,19 @@ const INTEREST_OPTIONS = [
   { id: 'social', label: 'Social Impact', icon: '🤝' }
 ];
 
-// Updated pillar names
+// Diploma subjects for credit tracking (11 subjects)
 const DIPLOMA_SUBJECTS = [
-  { id: 'stem', label: 'STEM' },
-  { id: 'wellness', label: 'Wellness' },
-  { id: 'communication', label: 'Communication' },
-  { id: 'civics', label: 'Civics' },
-  { id: 'art', label: 'Art' }
+  { id: 'language_arts', label: 'Language Arts', icon: '📖' },
+  { id: 'math', label: 'Math', icon: '🔢' },
+  { id: 'science', label: 'Science', icon: '🔬' },
+  { id: 'social_studies', label: 'Social Studies', icon: '🌍' },
+  { id: 'financial_literacy', label: 'Financial Literacy', icon: '💰' },
+  { id: 'health', label: 'Health', icon: '❤️' },
+  { id: 'pe', label: 'PE', icon: '🏃' },
+  { id: 'fine_arts', label: 'Fine Arts', icon: '🎨' },
+  { id: 'cte', label: 'CTE', icon: '🔧' },
+  { id: 'digital_literacy', label: 'Digital Literacy', icon: '💻' },
+  { id: 'electives', label: 'Electives', icon: '✨' }
 ];
 
 export default function QuestPersonalizationWizard({ questId, questTitle, onComplete, onCancel }) {
@@ -49,6 +70,33 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
   const [additionalFeedback, setAdditionalFeedback] = useState('');
   const [showFlagModal, setShowFlagModal] = useState(false);
   const [flagReason, setFlagReason] = useState('');
+
+  // Credit progress state
+  const [subjectXP, setSubjectXP] = useState({});
+  const [loadingCredits, setLoadingCredits] = useState(false);
+
+  // Fetch user's subject XP on mount
+  useEffect(() => {
+    const fetchSubjectXP = async () => {
+      setLoadingCredits(true);
+      try {
+        const response = await api.get('/api/users/subject-xp');
+        if (response.data.success && response.data.subject_xp) {
+          // Convert array to object for easy lookup
+          const xpMap = {};
+          response.data.subject_xp.forEach(item => {
+            xpMap[item.school_subject] = item.xp_amount || 0;
+          });
+          setSubjectXP(xpMap);
+        }
+      } catch (err) {
+        logger.error('Failed to fetch subject XP:', err);
+      } finally {
+        setLoadingCredits(false);
+      }
+    };
+    fetchSubjectXP();
+  }, []);
 
   // Start personalization session
   const startSession = async (method) => {
@@ -78,11 +126,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
 
   // Generate tasks from AI (always generates 10)
   const generateTasks = async () => {
-    if (selectedInterests.length === 0) {
-      setError('Please select at least one interest');
-      return;
-    }
-
+    // All selections are optional - AI will generate general tasks if nothing selected
     if (!sessionId) {
       setError('No session ID found. Please restart the wizard.');
       logger.error('Missing session_id:', sessionId);
@@ -364,15 +408,18 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
       {step === 2 && (
         <div>
           <h2 className="text-3xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
-            What are you interested in?
+            Personalize Your Tasks
           </h2>
           <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins' }}>
-            Select your interests to personalize your tasks
+            Select interests or diploma subjects to generate personalized tasks
           </p>
 
           {/* Interests */}
           <div className="mb-8">
-            <h3 className="font-semibold text-lg mb-3" style={{ fontFamily: 'Poppins' }}>Your Interests</h3>
+            <h3 className="font-semibold text-lg mb-1" style={{ fontFamily: 'Poppins' }}>Your Interests (Optional)</h3>
+            <p className="text-gray-500 text-sm mb-3" style={{ fontFamily: 'Poppins' }}>
+              Choose topics you enjoy to make tasks more engaging
+            </p>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               {INTEREST_OPTIONS.map(interest => (
                 <button
@@ -391,25 +438,102 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             </div>
           </div>
 
-          {/* Diploma Subjects */}
+          {/* Diploma Subjects with Circular Progress */}
           <div className="mb-8">
-            <h3 className="font-semibold text-lg mb-3" style={{ fontFamily: 'Poppins' }}>
-              Focus Areas (Optional)
+            <h3 className="font-semibold text-lg mb-1" style={{ fontFamily: 'Poppins' }}>
+              Diploma Credits (Optional)
             </h3>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              {DIPLOMA_SUBJECTS.map(subject => (
-                <button
-                  key={subject.id}
-                  onClick={() => toggleSubject(subject.id)}
-                  className={`p-4 border-2 rounded-xl text-center transition-all hover:shadow-lg min-h-[44px] ${
-                    crossCurricularSubjects.includes(subject.id)
-                      ? 'border-optio-purple bg-purple-50 shadow-lg'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="text-sm font-medium" style={{ fontFamily: 'Poppins' }}>{subject.label}</div>
-                </button>
-              ))}
+            <p className="text-gray-500 text-sm mb-4" style={{ fontFamily: 'Poppins' }}>
+              Select subjects you want to earn credits toward. Your progress is shown below.
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {DIPLOMA_SUBJECTS.map(subject => {
+                const current = subjectXP[subject.id] || 0;
+                const required = CREDIT_REQUIREMENTS[subject.id]?.required || 0;
+                const percentage = required > 0 ? Math.min(100, (current / required) * 100) : 0;
+                const isComplete = percentage >= 100;
+                const isSelected = crossCurricularSubjects.includes(subject.id);
+
+                // Circular progress values
+                const radius = 28;
+                const circumference = 2 * Math.PI * radius;
+                const offset = circumference - (percentage / 100) * circumference;
+
+                return (
+                  <button
+                    key={subject.id}
+                    onClick={() => toggleSubject(subject.id)}
+                    className={`p-4 border-2 rounded-xl text-center transition-all hover:shadow-lg flex flex-col items-center ${
+                      isSelected
+                        ? 'border-optio-purple bg-purple-50 shadow-lg ring-2 ring-optio-purple ring-offset-2'
+                        : isComplete
+                          ? 'border-green-300 bg-green-50 hover:border-green-400'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    {/* Circular Progress */}
+                    <div className="relative w-16 h-16 mb-2">
+                      <svg className="transform -rotate-90 w-16 h-16">
+                        {/* Background circle */}
+                        <circle
+                          cx="32"
+                          cy="32"
+                          r={radius}
+                          stroke="#E5E7EB"
+                          strokeWidth="5"
+                          fill="none"
+                        />
+                        {/* Progress circle */}
+                        <circle
+                          cx="32"
+                          cy="32"
+                          r={radius}
+                          stroke={isComplete ? '#10B981' : isSelected ? '#6D469B' : '#9CA3AF'}
+                          strokeWidth="5"
+                          fill="none"
+                          strokeDasharray={circumference}
+                          strokeDashoffset={loadingCredits ? circumference : offset}
+                          strokeLinecap="round"
+                          className="transition-all duration-500 ease-out"
+                        />
+                      </svg>
+                      {/* Center content */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        {loadingCredits ? (
+                          <div className="w-4 h-4 border-2 border-gray-300 border-t-optio-purple rounded-full animate-spin" />
+                        ) : isComplete ? (
+                          <CheckIcon className="w-6 h-6 text-green-600 stroke-[3]" />
+                        ) : (
+                          <span className="text-sm font-bold text-gray-700">
+                            {Math.round(percentage)}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Subject Label */}
+                    <div className="text-xs font-semibold text-gray-800 mb-1" style={{ fontFamily: 'Poppins' }}>
+                      {subject.label}
+                    </div>
+
+                    {/* XP Progress */}
+                    {!loadingCredits && (
+                      <div className="text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>
+                        {current.toLocaleString()} / {required.toLocaleString()} XP
+                      </div>
+                    )}
+
+                    {/* Selected indicator */}
+                    {isSelected && (
+                      <div className="mt-2 text-xs font-medium text-optio-purple flex items-center gap-1" style={{ fontFamily: 'Poppins' }}>
+                        <CheckIcon className="w-3 h-3" />
+                        Selected
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -440,7 +564,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             </button>
             <button
               onClick={generateTasks}
-              disabled={loading || selectedInterests.length === 0}
+              disabled={loading}
               className="px-6 py-3 bg-gradient-primary text-white rounded-xl disabled:opacity-50 font-bold hover:shadow-xl transition-all min-h-[44px] w-full sm:w-auto"
               style={{ fontFamily: 'Poppins' }}
             >
@@ -506,13 +630,34 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
               </p>
             </div>
 
-            <div className="flex items-center gap-4 pl-10 sm:pl-12">
+            <div className="flex flex-col gap-3 pl-10 sm:pl-12">
               {/* Pillar Badge */}
-              <div className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-800 rounded-full">
-                <span className="font-semibold" style={{ fontFamily: 'Poppins' }}>
-                  {getPillarData(currentTask.pillar).name}
-                </span>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-800 rounded-full">
+                  <span className="font-semibold" style={{ fontFamily: 'Poppins' }}>
+                    {getPillarData(currentTask.pillar).name}
+                  </span>
+                </div>
               </div>
+
+              {/* Subject XP Distribution */}
+              {currentTask.diploma_subjects && Object.keys(currentTask.diploma_subjects).length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-gray-500 font-medium" style={{ fontFamily: 'Poppins' }}>
+                    Diploma Credits:
+                  </span>
+                  {Object.entries(currentTask.diploma_subjects).map(([subject, xp]) => (
+                    <div
+                      key={subject}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium"
+                      style={{ fontFamily: 'Poppins' }}
+                    >
+                      <span>{subject}</span>
+                      <span className="text-blue-500">({xp} XP)</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

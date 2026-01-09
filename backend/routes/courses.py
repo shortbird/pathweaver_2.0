@@ -448,6 +448,42 @@ def delete_course(user_id, course_id: str):
         if not (is_creator or is_admin):
             return jsonify({'error': 'Insufficient permissions'}), 403
 
+        # End user quest enrollments BEFORE deleting (to prevent orphans)
+        # We need to do this before cascade deletes course_quests and course_enrollments
+        course_quests = client.table('course_quests')\
+            .select('quest_id')\
+            .eq('course_id', course_id)\
+            .execute()
+
+        quest_ids = [cq['quest_id'] for cq in (course_quests.data or [])]
+
+        enrollments = client.table('course_enrollments')\
+            .select('user_id')\
+            .eq('course_id', course_id)\
+            .execute()
+
+        user_ids = [e['user_id'] for e in (enrollments.data or [])]
+
+        # End all user quest enrollments for this course's quests
+        now = datetime.utcnow().isoformat()
+        quests_ended = 0
+
+        if quest_ids and user_ids:
+            for quest_id in quest_ids:
+                result = client.table('user_quests')\
+                    .update({
+                        'is_active': False,
+                        'completed_at': now,
+                        'last_set_down_at': now
+                    })\
+                    .in_('user_id', user_ids)\
+                    .eq('quest_id', quest_id)\
+                    .eq('is_active', True)\
+                    .execute()
+                quests_ended += len(result.data or [])
+
+            logger.info(f"Ended {quests_ended} user quest enrollments before deleting course {course_id}")
+
         # Delete the course (cascade will handle course_quests and course_enrollments)
         client.table('courses').delete().eq('id', course_id).execute()
 
@@ -926,13 +962,6 @@ def enroll_in_course(user_id, course_id: str):
             'course_id', course_id
         ).eq('user_id', target_user_id).execute()
 
-        if existing.data:
-            return jsonify({
-                'success': True,
-                'enrollment': existing.data[0],
-                'message': 'Already enrolled'
-            }), 200
-
         # Get all quests for the course (ordered by sequence)
         course_quests = client.table('course_quests').select('quest_id').eq(
             'course_id', course_id
@@ -940,15 +969,38 @@ def enroll_in_course(user_id, course_id: str):
 
         first_quest_id = course_quests.data[0]['quest_id'] if course_quests.data else None
 
-        # Create course enrollment
-        enrollment_data = {
-            'course_id': course_id,
-            'user_id': target_user_id,
-            'status': 'active',
-            'current_quest_id': first_quest_id
-        }
+        if existing.data:
+            existing_enrollment = existing.data[0]
+            # If already active, return early
+            if existing_enrollment.get('status') == 'active':
+                return jsonify({
+                    'success': True,
+                    'enrollment': existing_enrollment,
+                    'message': 'Already enrolled'
+                }), 200
 
-        result = client.table('course_enrollments').insert(enrollment_data).execute()
+            # Reactivate completed enrollment
+            logger.info(f"Reactivating completed course enrollment for user {target_user_id} in course {course_id}")
+            client.table('course_enrollments').update({
+                'status': 'active',
+                'completed_at': None
+            }).eq('id', existing_enrollment['id']).execute()
+
+            # Re-fetch the updated enrollment
+            result = client.table('course_enrollments').select('*').eq(
+                'id', existing_enrollment['id']
+            ).execute()
+        else:
+            # Create new course enrollment
+            enrollment_data = {
+                'course_id': course_id,
+                'user_id': target_user_id,
+                'status': 'active',
+                'current_quest_id': first_quest_id
+            }
+
+            result = client.table('course_enrollments').insert(enrollment_data).execute()
+
         if not result.data:
             return jsonify({'error': 'Failed to enroll'}), 500
 
@@ -959,12 +1011,22 @@ def enroll_in_course(user_id, course_id: str):
                 quest_id = course_quest['quest_id']
 
                 # Check if already enrolled in this quest
-                existing_quest_enrollment = client.table('user_quests').select('id').eq(
+                existing_quest_enrollment = client.table('user_quests').select('id, is_active').eq(
                     'user_id', target_user_id
                 ).eq('quest_id', quest_id).execute()
 
                 if existing_quest_enrollment.data:
-                    # Already enrolled, skip
+                    existing_quest = existing_quest_enrollment.data[0]
+                    # If inactive, reactivate it for the course
+                    if not existing_quest.get('is_active'):
+                        client.table('user_quests').update({
+                            'is_active': True,
+                            'completed_at': None,
+                            'last_picked_up_at': datetime.utcnow().isoformat()
+                        }).eq('id', existing_quest['id']).execute()
+                        logger.info(f"Reactivated quest enrollment {existing_quest['id']} for course enrollment")
+                        quest_enrollments_created += 1
+                    # Already enrolled and active, skip
                     continue
 
                 # Create quest enrollment with personalization_completed=True (skip wizard)
@@ -1133,6 +1195,118 @@ def unenroll_from_course(user_id, course_id: str):
 
     except Exception as e:
         logger.error(f"Error unenrolling from course {course_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<course_id>/end', methods=['POST'])
+@require_auth
+def end_course(user_id, course_id: str):
+    """
+    End a course enrollment and all related quests.
+
+    Unlike unenroll, this preserves all progress, tasks, and XP.
+    It marks the course and quests as completed rather than deleting them.
+
+    This will:
+    1. Update course_enrollments to status='completed' with completed_at timestamp
+    2. Mark all user_quests for this course as is_active=False with completed_at timestamp
+    """
+    try:
+        current_user_id = session_manager.get_effective_user_id()
+        client = get_supabase_admin_client()
+
+        # Verify enrollment exists
+        enrollment = client.table('course_enrollments')\
+            .select('id, status')\
+            .eq('course_id', course_id)\
+            .eq('user_id', current_user_id)\
+            .execute()
+
+        if not enrollment.data:
+            return jsonify({'error': 'Not enrolled in this course'}), 404
+
+        # Check if already completed
+        if enrollment.data[0].get('status') == 'completed':
+            return jsonify({
+                'success': True,
+                'message': 'Course already completed',
+                'already_completed': True
+            })
+
+        # Get course quests
+        course_quests = client.table('course_quests')\
+            .select('quest_id')\
+            .eq('course_id', course_id)\
+            .execute()
+
+        quest_ids = [cq['quest_id'] for cq in (course_quests.data or [])]
+
+        # Mark course enrollment as completed
+        now = datetime.utcnow().isoformat()
+        client.table('course_enrollments')\
+            .update({
+                'status': 'completed',
+                'completed_at': now
+            })\
+            .eq('course_id', course_id)\
+            .eq('user_id', current_user_id)\
+            .execute()
+
+        logger.info(f"Marked course {course_id} as completed for user {current_user_id}")
+
+        # End all quest enrollments (preserve progress)
+        quests_ended = 0
+        total_xp = 0
+
+        for quest_id in quest_ids:
+            # Get user_quest record
+            user_quest = client.table('user_quests')\
+                .select('id, is_active')\
+                .eq('user_id', current_user_id)\
+                .eq('quest_id', quest_id)\
+                .execute()
+
+            if user_quest.data:
+                user_quest_id = user_quest.data[0]['id']
+
+                # Only update if still active
+                if user_quest.data[0].get('is_active'):
+                    client.table('user_quests')\
+                        .update({
+                            'is_active': False,
+                            'completed_at': now,
+                            'last_set_down_at': now
+                        })\
+                        .eq('id', user_quest_id)\
+                        .execute()
+                    quests_ended += 1
+
+                # Calculate XP earned for this quest
+                completed_tasks = client.table('quest_task_completions')\
+                    .select('user_quest_task_id, user_quest_tasks!inner(xp_value)')\
+                    .eq('user_id', current_user_id)\
+                    .eq('quest_id', quest_id)\
+                    .execute()
+
+                quest_xp = sum(
+                    task.get('user_quest_tasks', {}).get('xp_value', 0)
+                    for task in (completed_tasks.data or [])
+                )
+                total_xp += quest_xp
+
+        logger.info(f"User {current_user_id} ended course {course_id}: {quests_ended} quests ended, {total_xp} total XP")
+
+        return jsonify({
+            'success': True,
+            'message': f'Course completed! You finished {quests_ended} projects and earned {total_xp} XP.',
+            'stats': {
+                'quests_ended': quests_ended,
+                'total_xp': total_xp
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Error ending course {course_id}: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 

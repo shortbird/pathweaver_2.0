@@ -1,20 +1,19 @@
 import React, { useState, useEffect, memo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import UnifiedQuestForm from './UnifiedQuestForm'
-import CourseQuestForm from './CourseQuestForm'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 
 const AdminQuests = () => {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [quests, setQuests] = useState([])
   const [loading, setLoading] = useState(true)
   const [showManager, setShowManager] = useState(false)
   const [editingQuest, setEditingQuest] = useState(null)
   const [showCreationForm, setShowCreationForm] = useState(false)
-  const [showCourseQuestForm, setShowCourseQuestForm] = useState(false)
-  const [editingCourseQuest, setEditingCourseQuest] = useState(null)
   const [activeFilter, setActiveFilter] = useState('all')
   const [questTypeFilter, setQuestTypeFilter] = useState('all')
   const [publicFilter, setPublicFilter] = useState('all')
@@ -83,7 +82,6 @@ const AdminQuests = () => {
 
   const handleQuestSave = (updatedQuest) => {
     setShowManager(false)
-    setShowCourseQuestForm(false)
     // Update the quest in state if we have updated data
     if (updatedQuest?.id) {
       setQuests(prev => prev.map(q =>
@@ -91,17 +89,21 @@ const AdminQuests = () => {
       ))
     }
     setEditingQuest(null)
-    setEditingCourseQuest(null)
   }
 
   const handleEdit = (quest) => {
     if (quest.quest_type === 'course') {
-      setEditingCourseQuest(quest)
-      setShowCourseQuestForm(true)
-    } else {
-      setEditingQuest(quest)
-      setShowManager(true)
+      // Course quests are now managed in Course Builder
+      toast('Course quests are managed in Course Builder', { icon: 'i' })
+      if (quest.connected_courses?.length > 0) {
+        navigate(`/courses/${quest.connected_courses[0].course_id}/edit`)
+      } else {
+        navigate('/courses')
+      }
+      return
     }
+    setEditingQuest(quest)
+    setShowManager(true)
     setOpenDropdownId(null)
   }
 
@@ -425,10 +427,10 @@ const AdminQuests = () => {
         <h2 className="text-2xl font-bold">Manage Quests</h2>
         <div className="flex flex-wrap gap-2 sm:gap-3">
           <button
-            onClick={() => setShowCourseQuestForm(true)}
+            onClick={() => navigate('/courses/new')}
             className="bg-optio-purple text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
           >
-            Create Course Quest
+            Create Course
           </button>
           <button
             onClick={() => setShowCreationForm(true)}
@@ -591,30 +593,19 @@ const AdminQuests = () => {
         />
       )}
 
-      {showCourseQuestForm && (
-        <CourseQuestForm
-          mode={editingCourseQuest ? 'edit' : 'create'}
-          quest={editingCourseQuest}
-          onClose={() => {
-            setShowCourseQuestForm(false)
-            setEditingCourseQuest(null)
-          }}
-          onSuccess={(questData) => {
-            if (questData?.id) {
-              if (editingCourseQuest) {
-                // Update existing quest
-                setQuests(prev => prev.map(q =>
-                  q.id === questData.id ? { ...q, ...questData } : q
-                ))
-              } else {
-                // Add new quest
-                setQuests(prev => [questData, ...prev])
-              }
-            }
-            setShowCourseQuestForm(false)
-            setEditingCourseQuest(null)
-          }}
-        />
+      {/* Info Banner for Course Quests */}
+      {questTypeFilter === 'course' && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+          <p className="text-blue-800">
+            <strong>Note:</strong> Course quests are now managed within Courses. Use the Course Catalog to view and edit Courses.
+          </p>
+          <button
+            onClick={() => navigate('/courses')}
+            className="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm whitespace-nowrap"
+          >
+            View Courses
+          </button>
+        </div>
       )}
 
       {/* Quest Grid */}

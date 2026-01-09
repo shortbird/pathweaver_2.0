@@ -488,7 +488,6 @@ const ParentDashboardPage = () => {
                       <Cog6ToothIcon className="w-4 h-4" />
                       Settings
                     </button>
-                    {/* TODO: Re-enable when observer invites are fully working
                     <button
                       onClick={() => setShowInviteObserverModal(true)}
                       className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 shadow-sm whitespace-nowrap min-h-[44px] flex items-center gap-1"
@@ -497,7 +496,6 @@ const ParentDashboardPage = () => {
                       <UserGroupIcon className="w-4 h-4" />
                       Invite Observers
                     </button>
-                    */}
                     <button
                       onClick={() => handleActAsDependent(selectedDependent)}
                       className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg text-sm font-semibold hover:opacity-90 shadow-sm whitespace-nowrap min-h-[44px]"
@@ -542,7 +540,6 @@ const ParentDashboardPage = () => {
                       <Cog6ToothIcon className="w-4 h-4" />
                       AI Settings
                     </button>
-                    {/* TODO: Re-enable when observer invites are fully working
                     <button
                       onClick={() => setShowInviteObserverModal(true)}
                       className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 shadow-sm whitespace-nowrap min-h-[44px] flex items-center gap-1"
@@ -551,7 +548,6 @@ const ParentDashboardPage = () => {
                       <UserGroupIcon className="w-4 h-4" />
                       Invite Observers
                     </button>
-                    */}
                   </div>
                 </div>
               </div>
@@ -871,7 +867,6 @@ const ParentDashboardPage = () => {
         currentState={engagement?.rhythm?.state}
       />
 
-      {/* TODO: Re-enable when observer invites are fully working
       <InviteObserverModal
         isOpen={showInviteObserverModal}
         onClose={() => setShowInviteObserverModal(false)}
@@ -885,7 +880,6 @@ const ParentDashboardPage = () => {
           toast.success(result.message);
         }}
       />
-      */}
     </div>
   );
 };

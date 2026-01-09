@@ -651,6 +651,119 @@ class QuestRepository(BaseRepository):
             logger.error(f"Error fetching quests for user {user_id}: {e}")
             raise DatabaseError("Failed to fetch quests for user") from e
 
+    def search_similar_quests(
+        self,
+        user_id: str,
+        search_term: str,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for similar quests based on title, respecting organization visibility policies.
+        Optimized for autocomplete - returns minimal data quickly.
+
+        Args:
+            user_id: User ID (to determine organization and visibility)
+            search_term: Search term (quest title as user types)
+            limit: Maximum number of results (default 10)
+
+        Returns:
+            List of matching quest records with minimal fields
+
+        Raises:
+            DatabaseError: If query fails
+        """
+        try:
+            from database import get_supabase_admin_client
+            admin = get_supabase_admin_client()
+
+            # Get user's organization
+            try:
+                user_response = admin.rpc('get_user_organization', {'p_user_id': user_id}).execute()
+                if not user_response.data or len(user_response.data) == 0:
+                    raise DatabaseError(f"User {user_id} not found")
+                org_id = user_response.data[0].get('organization_id') if isinstance(user_response.data, list) else user_response.data.get('organization_id')
+            except Exception as e:
+                # Fallback to direct query if RPC doesn't exist
+                logger.warning(f"RPC get_user_organization not found, using direct query: {e}")
+                user_response = admin.table('users')\
+                    .select('organization_id')\
+                    .eq('id', user_id)\
+                    .single()\
+                    .execute()
+
+                if not user_response.data:
+                    raise DatabaseError(f"User {user_id} not found")
+
+                org_id = user_response.data.get('organization_id')
+
+            # Determine visibility policy
+            if not org_id:
+                policy = 'all_optio'
+            else:
+                org_response = admin.table('organizations')\
+                    .select('quest_visibility_policy')\
+                    .eq('id', org_id)\
+                    .single()\
+                    .execute()
+
+                policy = org_response.data.get('quest_visibility_policy', 'all_optio') if org_response.data else 'all_optio'
+
+            # Build optimized query - only select needed fields for autocomplete
+            query = admin.table('quests')\
+                .select('id, title, big_idea, image_url, quest_type, is_public')\
+                .eq('is_active', True)\
+                .ilike('title', f'%{search_term}%')
+
+            # Apply organization visibility policy
+            if policy == 'all_optio':
+                if org_id:
+                    query = query.or_(f'organization_id.is.null,organization_id.eq.{org_id}')
+                else:
+                    query = query.is_('organization_id', 'null')
+
+            elif policy == 'curated':
+                if not org_id:
+                    query = query.is_('organization_id', 'null')
+                else:
+                    curated = admin.table('organization_quest_access')\
+                        .select('quest_id')\
+                        .eq('organization_id', org_id)\
+                        .execute()
+
+                    quest_ids = [q['quest_id'] for q in curated.data] if curated.data else []
+
+                    if quest_ids:
+                        quest_ids_str = ','.join(quest_ids)
+                        query = query.or_(
+                            f'id.in.({quest_ids_str}),'
+                            f'organization_id.eq.{org_id},'
+                            f'created_by.eq.{user_id}'
+                        )
+                    else:
+                        query = query.or_(
+                            f'organization_id.eq.{org_id},'
+                            f'created_by.eq.{user_id}'
+                        )
+
+            elif policy == 'private_only':
+                if not org_id:
+                    query = query.eq('created_by', user_id)
+                else:
+                    query = query.or_(
+                        f'organization_id.eq.{org_id},'
+                        f'created_by.eq.{user_id}'
+                    )
+
+            # Limit results and order by title
+            query = query.limit(limit).order('title')
+
+            response = query.execute()
+            return response.data or []
+
+        except APIError as e:
+            logger.error(f"Error searching similar quests: {e}")
+            raise DatabaseError("Failed to search similar quests") from e
+
 
 class QuestTaskRepository(BaseRepository):
     """Repository for quest task database operations"""

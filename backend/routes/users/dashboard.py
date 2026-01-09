@@ -215,11 +215,20 @@ def get_dashboard(user_id):
         if not user.data:
             raise NotFoundError('User', user_id)
 
-        # Get enrolled courses first (to exclude their quests from standalone list)
-        enrolled_courses, course_quest_ids = get_enrolled_courses(supabase, user_id)
+        # Get enrolled courses first
+        enrolled_courses, _ = get_enrolled_courses(supabase, user_id)
 
-        # Get active quests (excluding quests that are part of enrolled courses)
-        active_quests = get_active_quests(supabase, user_id, exclude_quest_ids=course_quest_ids)
+        # Get ALL quest IDs that are part of ANY course (not just enrolled courses)
+        # These should never appear as standalone quests on the dashboard
+        all_course_quests = supabase.table('course_quests')\
+            .select('quest_id')\
+            .execute()
+        all_course_quest_ids = {cq['quest_id'] for cq in (all_course_quests.data or [])}
+
+        logger.info(f"Excluding {len(all_course_quest_ids)} course-linked quests from standalone list")
+
+        # Get active quests (excluding quests that are part of ANY course)
+        active_quests = get_active_quests(supabase, user_id, exclude_quest_ids=all_course_quest_ids)
 
         # Get completed quests count and recent completions
         # IMPORTANT: A quest is truly completed only if is_active=False AND completed_at is set

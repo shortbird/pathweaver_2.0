@@ -26,8 +26,30 @@ export default function ObserverAcceptInvitationPage() {
       const response = await api.post(`/api/observers/accept/${invitationCode}`, {})
 
       if (response.data.status === 'success') {
-        toast.success('Invitation accepted! Welcome to Optio.')
-        navigate('/observer/welcome')
+        // Check if user has an existing role (parent, student, advisor, etc.)
+        if (response.data.has_existing_role) {
+          // User keeps their primary role, gained observer access via observer_student_links
+          toast.success('Observer access added! You can now view this student from the Observer Feed.')
+
+          // Navigate based on their primary role
+          const role = response.data.user_role
+          if (role === 'parent') {
+            navigate('/parent')
+          } else if (role === 'student') {
+            navigate('/dashboard')
+          } else if (role === 'advisor' || role === 'org_admin') {
+            navigate('/admin')
+          } else if (role === 'superadmin') {
+            navigate('/admin')
+          } else {
+            // Default - show them the observer feed since they now have access
+            navigate('/observer/feed')
+          }
+        } else {
+          // New observer-only account - show welcome page
+          toast.success('Invitation accepted! Welcome to Optio.')
+          navigate('/observer/welcome')
+        }
       }
     } catch (error) {
       console.error('Failed to accept invitation:', error)

@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { Modal, Alert, FormField, FormFooter } from './ui';
+import SimilarQuestAutocomplete from './SimilarQuestAutocomplete';
 
 /**
  * CreateQuestModal - Modal for users to create their own quests
@@ -9,12 +11,14 @@ import { Modal, Alert, FormField, FormFooter } from './ui';
  * until an admin makes them public. Created quests are immediately available for use.
  */
 const CreateQuestModal = ({ isOpen, onClose, onSuccess }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     title: '',
     description: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -22,8 +26,20 @@ const CreateQuestModal = ({ isOpen, onClose, onSuccess }) => {
       ...prev,
       [name]: value
     }));
+    // Show suggestions when title has 3+ characters
+    if (name === 'title') {
+      setShowSuggestions(value.length >= 3);
+    }
     // Clear error when user starts typing
     if (error) setError('');
+  };
+
+  const handleSelectSimilarQuest = (selectedQuest) => {
+    if (window.confirm(`Use the existing quest "${selectedQuest.title}" instead of creating a new one?`)) {
+      onClose();
+      navigate(`/quests/${selectedQuest.id}`);
+    }
+    setShowSuggestions(false);
   };
 
   const handleSubmit = async (e) => {
@@ -93,7 +109,7 @@ const CreateQuestModal = ({ isOpen, onClose, onSuccess }) => {
         )}
 
         {/* Title input */}
-        <div>
+        <div className="relative">
           <label htmlFor="title" className="block text-sm font-semibold text-gray-700 mb-2">
             Quest Title *
           </label>
@@ -103,11 +119,22 @@ const CreateQuestModal = ({ isOpen, onClose, onSuccess }) => {
             name="title"
             value={formData.title}
             onChange={handleChange}
+            onFocus={() => formData.title.length >= 3 && setShowSuggestions(true)}
             placeholder="e.g., Learn to Play Guitar, Build a Personal Website, etc."
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px]"
             disabled={isSubmitting}
             maxLength={200}
+            autoComplete="off"
           />
+
+          {/* Similar quest suggestions */}
+          <SimilarQuestAutocomplete
+            searchTerm={formData.title}
+            onSelectQuest={handleSelectSimilarQuest}
+            onClose={() => setShowSuggestions(false)}
+            isOpen={showSuggestions}
+          />
+
           <p className="mt-1 text-xs text-gray-500">
             {formData.title.length}/200 characters
           </p>

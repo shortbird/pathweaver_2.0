@@ -342,12 +342,18 @@ def accept_observer_invitation(user_id, invitation_code):
         observer_id = user_id
         logger.info(f"Using logged-in user as observer: {observer_id}")
 
-        # Optionally update user role to observer if not already
+        # Get user's current role
         user_result = supabase.table('users').select('role').eq('id', observer_id).single().execute()
-        if user_result.data and user_result.data['role'] != 'observer':
-            # Only update role if user is not already an observer
+        current_role = user_result.data.get('role') if user_result.data else None
+
+        # Only set role to 'observer' if user has no role yet
+        # Users with existing roles (parent, student, advisor, etc.) keep their primary role
+        # and gain observer access via the observer_student_links table
+        if not current_role:
             supabase.table('users').update({'role': 'observer'}).eq('id', observer_id).execute()
-            logger.info(f"Updated user role to observer: {observer_id}")
+            logger.info(f"Set user role to observer (was empty): {observer_id}")
+        else:
+            logger.info(f"User already has role '{current_role}', keeping it. Observer access via observer_student_links.")
 
         # Check if link already exists
         existing_link = supabase.table('observer_student_links') \
@@ -381,7 +387,9 @@ def accept_observer_invitation(user_id, invitation_code):
         return jsonify({
             'status': 'success',
             'observer_id': observer_id,
-            'student_id': inv['student_id']
+            'student_id': inv['student_id'],
+            'user_role': current_role,  # Frontend uses this to decide navigation
+            'has_existing_role': bool(current_role and current_role != 'observer')
         }), 200
 
     except Exception as e:
@@ -1013,7 +1021,8 @@ def get_student_activity_feed(user_id, student_id):
                 'evidence': {
                     'type': item['evidence_type'],
                     'url': item['evidence_preview'] if item['evidence_type'] != 'text' else None,
-                    'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None
+                    'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None,
+                    'title': item.get('evidence_title')
                 },
                 'xp_awarded': item['task_xp'],
                 'likes_count': likes_count.get(item['completion_id'], 0),
@@ -1274,6 +1283,77 @@ def get_observers_for_student(user_id, student_id):
         return jsonify({'error': 'Failed to fetch observers'}), 500
 
 
+@bp.route('/api/observers/student/<student_id>/observers/<link_id>', methods=['DELETE'])
+@require_auth
+@validate_uuid_param('student_id')
+@validate_uuid_param('link_id')
+def remove_observer_for_student(user_id, student_id, link_id):
+    """
+    Parent removes an observer from their child
+
+    Args:
+        user_id: UUID of the authenticated user (from decorator)
+        student_id: UUID of the student
+        link_id: UUID of the observer_student_links record
+
+    Returns:
+        200: Observer removed
+        403: Not authorized
+        404: Link not found
+    """
+
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Check if user is the student, their parent, or superadmin
+        user = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        is_superadmin = user.data and user.data['role'] == 'superadmin'
+
+        if not is_superadmin and user_id != student_id:
+            # Check if user is parent
+            dependent = supabase.table('users') \
+                .select('id') \
+                .eq('id', student_id) \
+                .eq('managed_by_parent_id', user_id) \
+                .execute()
+
+            linked = None
+            if not dependent.data:
+                linked = supabase.table('parent_student_links') \
+                    .select('id') \
+                    .eq('parent_user_id', user_id) \
+                    .eq('student_user_id', student_id) \
+                    .eq('status', 'approved') \
+                    .execute()
+
+            if not dependent.data and not (linked and linked.data):
+                return jsonify({'error': 'Not authorized'}), 403
+
+        # Verify the link exists and belongs to this student
+        link = supabase.table('observer_student_links') \
+            .select('id, observer_id') \
+            .eq('id', link_id) \
+            .eq('student_id', student_id) \
+            .execute()
+
+        if not link.data:
+            return jsonify({'error': 'Observer link not found'}), 404
+
+        # Delete the link
+        supabase.table('observer_student_links') \
+            .delete() \
+            .eq('id', link_id) \
+            .execute()
+
+        logger.info(f"Observer removed by parent: link_id={link_id}, student_id={student_id}, removed_by={user_id}")
+
+        return jsonify({'status': 'success'}), 200
+
+    except Exception as e:
+        logger.error(f"Failed to remove observer: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to remove observer'}), 500
+
+
 # ============================================
 # OBSERVER FEED ENDPOINTS
 # ============================================
@@ -1434,6 +1514,7 @@ def get_observer_feed(user_id):
                 for block in evidence_blocks_map[doc_id]:
                     evidence_type = None
                     evidence_preview = None
+                    evidence_title = None
                     content = block.get('content', {})
 
                     if block['block_type'] == 'image':
@@ -1442,9 +1523,11 @@ def get_observer_feed(user_id):
                     elif block['block_type'] == 'video':
                         evidence_type = 'video'
                         evidence_preview = content.get('url')
+                        evidence_title = content.get('title')
                     elif block['block_type'] == 'link':
                         evidence_type = 'link'
                         evidence_preview = content.get('url')
+                        evidence_title = content.get('title')
                     elif block['block_type'] == 'text':
                         evidence_type = 'text'
                         text = content.get('text', '')
@@ -1452,6 +1535,7 @@ def get_observer_feed(user_id):
                     elif block['block_type'] == 'document':
                         evidence_type = 'link'
                         evidence_preview = content.get('url')
+                        evidence_title = content.get('title') or content.get('filename')
 
                     if evidence_type:
                         student_name = student_info.get('display_name') or \
@@ -1472,7 +1556,8 @@ def get_observer_feed(user_id):
                             'quest_id': completion['quest_id'],
                             'quest_title': quest_info.get('title', 'Quest'),
                             'evidence_type': evidence_type,
-                            'evidence_preview': evidence_preview
+                            'evidence_preview': evidence_preview,
+                            'evidence_title': evidence_title
                         })
             else:
                 # Fallback: legacy evidence (text/url directly on completion)
@@ -1518,7 +1603,8 @@ def get_observer_feed(user_id):
                         'quest_id': completion['quest_id'],
                         'quest_title': quest_info.get('title', 'Quest'),
                         'evidence_type': evidence_type,
-                        'evidence_preview': evidence_preview
+                        'evidence_preview': evidence_preview,
+                        'evidence_title': None  # Legacy evidence doesn't have titles
                     })
 
         # Sort by timestamp descending and paginate
@@ -1587,7 +1673,8 @@ def get_observer_feed(user_id):
                 'evidence': {
                     'type': item['evidence_type'],
                     'url': item['evidence_preview'] if item['evidence_type'] != 'text' else None,
-                    'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None
+                    'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None,
+                    'title': item.get('evidence_title')
                 },
                 'xp_awarded': item['task_xp'],
                 'likes_count': likes_count.get(item['completion_id'], 0),

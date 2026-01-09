@@ -6,8 +6,10 @@ import {
   ClipboardDocumentIcon,
   CheckIcon,
   LinkIcon,
-  UserGroupIcon
+  UserGroupIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
 
 const InviteObserverModal = ({ isOpen, onClose, studentId, studentName, onSuccess }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -16,6 +18,7 @@ const InviteObserverModal = ({ isOpen, onClose, studentId, studentName, onSucces
   const [copied, setCopied] = useState(false);
   const [observers, setObservers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   // Load existing observers when modal opens
   useEffect(() => {
@@ -33,6 +36,24 @@ const InviteObserverModal = ({ isOpen, onClose, studentId, studentName, onSucces
       console.error('Failed to load observers:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRemoveObserver = async (linkId, observerName) => {
+    if (!window.confirm(`Remove ${observerName} as an observer for ${studentName}? They will no longer be able to view this student's progress.`)) {
+      return;
+    }
+
+    setDeletingId(linkId);
+    try {
+      await observerAPI.removeObserverFromStudent(studentId, linkId);
+      setObservers(prev => prev.filter(obs => obs.id !== linkId));
+      toast.success(`${observerName} has been removed`);
+    } catch (err) {
+      console.error('Failed to remove observer:', err);
+      toast.error('Failed to remove observer');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -174,23 +195,44 @@ const InviteObserverModal = ({ isOpen, onClose, studentId, studentName, onSucces
               Connected Observers ({observers.length})
             </h4>
             <div className="space-y-2">
-              {observers.map(obs => (
-                <div
-                  key={obs.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      {obs.observer?.display_name ||
-                        `${obs.observer?.first_name || ''} ${obs.observer?.last_name || ''}`.trim() ||
-                        obs.observer?.email}
-                    </p>
+              {observers.map(obs => {
+                const observerName = obs.observer?.display_name ||
+                  `${obs.observer?.first_name || ''} ${obs.observer?.last_name || ''}`.trim() ||
+                  obs.observer?.email ||
+                  'Observer';
+                return (
+                  <div
+                    key={obs.id}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  >
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {observerName}
+                      </p>
+                      {obs.observer?.email && observerName !== obs.observer.email && (
+                        <p className="text-xs text-gray-500">{obs.observer.email}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
+                        Connected
+                      </span>
+                      <button
+                        onClick={() => handleRemoveObserver(obs.id, observerName)}
+                        disabled={deletingId === obs.id}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                        title={`Remove ${observerName}`}
+                      >
+                        {deletingId === obs.id ? (
+                          <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                        ) : (
+                          <TrashIcon className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
-                  <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
-                    Connected
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

@@ -282,7 +282,7 @@ Return ONLY valid JSON (no markdown code blocks):
 
             For each task, provide:
             - title: Action-oriented task name using verbs like Earn, Master, Complete, Build, Create, Write, Draw, Design, Research (5-8 words max, ONE simple idea)
-            - description: Short and focused (1-2 sentences) on HOW this task could be completed in the context of the school subjects. Focus on completion methods, not motivational language.
+            - description: Short and focused (2-3 sentences) offering different IDEAS and APPROACHES for how the student might complete this task. Frame as suggestions, not directions. Example: "You could research online sources, interview someone with experience, or explore hands-on experiments. Consider what format best fits your learning style."
             - pillar: One of [{', '.join(self.valid_pillars)}]
             - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
             - xp_value: XP points (50-300 based on complexity)
@@ -412,7 +412,7 @@ Return ONLY valid JSON (no markdown code blocks):
 
         For each task, provide:
         - title: Action-oriented task name using verbs like Learn, Practice, Research, Create, Apply, Explore (5-8 words max)
-        - description: Clear explanation (2-3 sentences) of what the student should do, directly aligned with lesson concepts
+        - description: Short and focused (2-3 sentences) offering different IDEAS and APPROACHES for how the student might complete this task. Frame as suggestions, not directions. Example: "You could create a visual diagram, write a short explanation, or build a simple model. Consider connecting this to real-world examples you find interesting."
         - pillar: One of [{', '.join(self.valid_pillars)}] that best matches the lesson content
         - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
         - xp_value: XP points (50-300 based on complexity and time required)

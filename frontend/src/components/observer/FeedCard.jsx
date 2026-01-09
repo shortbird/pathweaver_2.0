@@ -168,22 +168,22 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-gray-100">
-        <div className="flex items-center gap-3">
+      <div className="p-3 sm:p-4 border-b border-gray-100">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Student Avatar */}
           {showStudentName && (
-            <div className="w-10 h-10 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
               {item.student?.display_name?.charAt(0) || '?'}
             </div>
           )}
 
           <div className="flex-1 min-w-0">
             {showStudentName && (
-              <p className="font-semibold text-gray-900 truncate">
+              <p className="font-semibold text-gray-900 truncate text-sm sm:text-base">
                 {item.student?.display_name}
               </p>
             )}
-            <p className="text-sm text-gray-500">
+            <p className="text-xs sm:text-sm text-gray-500 truncate">
               Completed a task in <span className="font-medium text-gray-700">{item.quest?.title}</span>
             </p>
           </div>
@@ -195,10 +195,10 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
       </div>
 
       {/* Task Info */}
-      <div className="p-4">
+      <div className="p-3 sm:p-4">
         <div className="flex items-start gap-3">
           <div className="flex-1">
-            <h3 className="font-semibold text-gray-900 text-lg mb-1">
+            <h3 className="font-semibold text-gray-900 text-base sm:text-lg mb-1">
               {item.task?.title || 'Task Completed'}
             </h3>
 
@@ -209,7 +209,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
                   {item.task?.pillar}
                 </span>
               )}
-              <span className="text-sm text-gray-600">
+              <span className="text-xs sm:text-sm text-gray-600">
                 +{item.xp_awarded || item.task?.xp_value || 0} XP
               </span>
             </div>
@@ -218,13 +218,13 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
 
         {/* Evidence Preview */}
         {item.evidence && (
-          <div className="mt-4">
+          <div className="mt-3 sm:mt-4">
             {item.evidence.type === 'image' && item.evidence.url && (
               <div className="rounded-lg overflow-hidden bg-gray-100">
                 <img
                   src={item.evidence.url}
                   alt="Task evidence"
-                  className="w-full max-h-96 object-contain"
+                  className="w-full max-h-72 sm:max-h-96 object-contain"
                   loading="lazy"
                 />
               </div>
@@ -244,18 +244,18 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
                     href={item.evidence.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center h-full text-white hover:text-gray-300"
+                    className="flex items-center justify-center h-full text-white hover:text-gray-300 min-h-[120px]"
                   >
-                    <VideoCameraIcon className="w-12 h-12" />
-                    <span className="ml-2">Watch Video</span>
+                    <VideoCameraIcon className="w-10 h-10 sm:w-12 sm:h-12" />
+                    <span className="ml-2 text-sm sm:text-base">Watch Video</span>
                   </a>
                 )}
               </div>
             )}
 
             {item.evidence.type === 'text' && item.evidence.preview_text && (
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <p className="text-gray-700 whitespace-pre-wrap">
+              <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200">
+                <p className="text-sm sm:text-base text-gray-700 whitespace-pre-wrap">
                   {item.evidence.preview_text}
                 </p>
               </div>
@@ -266,44 +266,58 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
                 href={item.evidence.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200 text-blue-600 hover:text-blue-700 hover:bg-gray-100"
+                className="block p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 active:bg-gray-150 transition-colors"
               >
-                <LinkIcon className="w-5 h-5" />
-                <span className="truncate">{item.evidence.url}</span>
+                <div className="flex items-center gap-2">
+                  <LinkIcon className="w-5 h-5 shrink-0 text-blue-600" />
+                  <span className="text-sm sm:text-base font-medium text-blue-600 truncate">
+                    {item.evidence.title || (() => {
+                      try {
+                        const url = new URL(item.evidence.url);
+                        return url.hostname.replace('www.', '');
+                      } catch {
+                        return 'View Link';
+                      }
+                    })()}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 truncate mt-1 pl-7">
+                  {item.evidence.url}
+                </p>
               </a>
             )}
           </div>
         )}
       </div>
 
-      {/* Actions */}
-      <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-4">
+      {/* Actions - Larger touch targets for mobile */}
+      <div className="px-3 sm:px-4 py-2 sm:py-3 border-t border-gray-100 flex items-center gap-2 sm:gap-4">
         <button
           onClick={handleLike}
           disabled={isLiking}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${
+          className={`flex items-center gap-1.5 px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-full transition-colors min-h-[44px] ${
             liked
-              ? 'bg-red-50 text-red-600'
-              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+              ? 'bg-red-50 text-red-600 active:bg-red-100'
+              : 'text-gray-500 hover:bg-gray-100 active:bg-gray-200 hover:text-gray-700'
           }`}
         >
           {liked ? (
-            <HeartIconSolid className="w-5 h-5" />
+            <HeartIconSolid className="w-5 h-5 sm:w-5 sm:h-5" />
           ) : (
-            <HeartIcon className="w-5 h-5" />
+            <HeartIcon className="w-5 h-5 sm:w-5 sm:h-5" />
           )}
           <span className="text-sm font-medium">{likesCount || ''}</span>
         </button>
 
         <button
           onClick={() => setCommentsExpanded(!commentsExpanded)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${
+          className={`flex items-center gap-1.5 px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-full transition-colors min-h-[44px] ${
             commentsExpanded
-              ? 'bg-gray-100 text-gray-700'
-              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+              ? 'bg-gray-100 text-gray-700 active:bg-gray-200'
+              : 'text-gray-500 hover:bg-gray-100 active:bg-gray-200 hover:text-gray-700'
           }`}
         >
-          <ChatBubbleLeftIcon className="w-5 h-5" />
+          <ChatBubbleLeftIcon className="w-5 h-5 sm:w-5 sm:h-5" />
           <span className="text-sm font-medium">{commentsCount || ''}</span>
         </button>
       </div>
@@ -320,7 +334,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder="Leave an encouraging comment..."
-                  className={`flex-1 px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent ${
+                  className={`flex-1 px-3 py-3 text-base sm:text-sm border rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent ${
                     isOverLimit ? 'border-red-500' : 'border-gray-300'
                   }`}
                   disabled={submitting}
@@ -329,7 +343,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
                 <button
                   type="submit"
                   disabled={submitting || isOverLimit || !newComment.trim()}
-                  className="px-3 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-3 sm:px-3 sm:py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 active:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed min-w-[48px] flex items-center justify-center"
                 >
                   <PaperAirplaneIcon className="w-5 h-5" />
                 </button>
@@ -352,13 +366,13 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
             ) : comments.length > 0 ? (
               <div className="divide-y divide-gray-100">
                 {comments.map(c => (
-                  <div key={c.id} className="p-3 group">
+                  <div key={c.id} className="p-3">
                     <div className="flex items-start gap-2">
                       <div className="w-7 h-7 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
                         {getObserverName(c.observer).charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-gray-900 text-sm">
                             {getObserverName(c.observer)}
                           </span>
@@ -369,14 +383,14 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
                             <button
                               onClick={() => handleDeleteComment(c.id)}
                               disabled={deletingCommentId === c.id}
-                              className="ml-auto opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all disabled:opacity-50"
+                              className="ml-auto p-2 -mr-1 text-gray-400 hover:text-red-500 active:text-red-600 transition-colors disabled:opacity-50 min-w-[36px] min-h-[36px] flex items-center justify-center"
                               title="Delete comment"
                             >
                               <TrashIcon className="w-4 h-4" />
                             </button>
                           )}
                         </div>
-                        <p className="text-gray-700 text-sm mt-0.5">
+                        <p className="text-gray-700 text-sm mt-0.5 break-words">
                           {c.comment_text}
                         </p>
                       </div>

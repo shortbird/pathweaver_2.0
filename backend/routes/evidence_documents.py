@@ -35,6 +35,7 @@ from typing import Dict, Any, Optional, List
 import json
 
 from utils.logger import get_logger
+from utils.url_metadata import fetch_url_metadata
 
 logger = get_logger(__name__)
 
@@ -784,10 +785,27 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
             block_id = block.get('id')
             is_existing = block_id and not str(block_id).startswith(('legacy-', 'temp-', 'new-')) and block_id in existing_block_map
 
+            # Get content and potentially enrich it
+            content = block['content'].copy() if block['content'] else {}
+
+            # For link blocks, fetch metadata if not already present
+            if block['type'] == 'link' and content.get('url') and not content.get('title'):
+                try:
+                    metadata = fetch_url_metadata(content['url'])
+                    if metadata.get('success') and metadata.get('title'):
+                        content['title'] = metadata['title']
+                        if metadata.get('description'):
+                            content['description'] = metadata['description']
+                        if metadata.get('image'):
+                            content['preview_image'] = metadata['image']
+                        logger.info(f"Fetched metadata for link: {content.get('title', 'no title')}")
+                except Exception as meta_err:
+                    logger.warning(f"Could not fetch metadata for URL: {meta_err}")
+
             block_data = {
                 'document_id': document_id,
                 'block_type': block['type'],
-                'content': block['content'],
+                'content': content,
                 'order_index': index,
                 'is_private': block.get('is_private', False)
             }

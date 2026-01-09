@@ -616,6 +616,16 @@ class PersonalizationService(BaseService):
         if additional_feedback:
             feedback_text = f"\n\nSTUDENT'S ADDITIONAL REQUIREMENTS:\n{additional_feedback}\n\nMake sure to incorporate these specific requirements into the generated tasks."
 
+        # Build priority subjects text
+        priority_subjects_instruction = ''
+        if cross_curricular_subjects and cross_curricular_subjects != ['this subject only']:
+            priority_subjects_instruction = f"""
+PRIORITY REQUIREMENT: The student specifically wants to earn diploma credits in these subjects: {subjects_text}
+- At least 70% of generated tasks MUST allocate the majority of their XP to the student's selected subjects
+- Each task aligned with selected subjects should have 60-100% of its XP going to those subjects
+- Only 2-3 tasks should focus on other subjects for variety
+"""
+
         return f"""
 You are helping a student personalize their learning quest: "{quest_title}".
 
@@ -625,7 +635,8 @@ Student's Selected Approach: {approach_desc}
 
 Student's Interests: {interests_text}
 
-Cross-Curricular Integration: The student wants to incorporate these subjects: {subjects_text}{exclude_text}{feedback_text}
+Student's Selected Diploma Subjects: {subjects_text}
+{priority_subjects_instruction}{exclude_text}{feedback_text}
 
 Generate 6-10 tasks that:
 1. Are equivalent to high school unit projects (not final projects, not quick worksheets)
@@ -638,11 +649,10 @@ Generate 6-10 tasks that:
    - civics
    - art
 5. Each task must be mapped to one or more diploma subjects (XP split if multiple):
-   - Language Arts, Mathematics, Science, Social Studies, Financial Literacy
-   - Health, Physical Education, Fine Arts, Career & Technical Education
-   - Digital Literacy, Electives
+   - Language Arts, Math, Science, Social Studies, Financial Literacy
+   - Health, PE, Fine Arts, CTE, Digital Literacy, Electives
 6. Incorporate the student's interests ({interests_text}) authentically
-7. Integrate cross-curricular subjects ({subjects_text}) naturally where relevant
+7. PRIORITIZE the student's selected subjects ({subjects_text}) - most tasks should earn credits in these areas
 8. Follow the selected approach: {approach_desc}
 
 CRITICAL TASK WRITING GUIDELINES:
@@ -662,15 +672,16 @@ Return as valid JSON array:
     "title": "Clear, concise task name (5-8 words)",
     "description": "1-2 brief sentences describing the task",
     "pillar": "stem|wellness|communication|civics|art (use exact lowercase name)",
-    "diploma_subjects": {{"Subject 1": 50, "Subject 2": 25, "Subject 3": 25}},
+    "diploma_subjects": {{"Subject Name": 50, "Another Subject": 50}},
     "xp_value": 100
   }}
 ]
 
 IMPORTANT: diploma_subjects must be a JSON object with subject names as keys and XP amounts as values.
+Use these exact subject names: Language Arts, Math, Science, Social Studies, Financial Literacy, Health, PE, Fine Arts, CTE, Digital Literacy, Electives
 XP amounts must be in multiples of 25 and sum to the task's total xp_value.
-Example: If xp_value is 100 and task covers 2 subjects equally: {{"Science": 50, "Mathematics": 50}}
-Example: If xp_value is 100 with primary and secondary subjects: {{"Science": 75, "Mathematics": 25}}
+Example: If xp_value is 100 and task covers 2 subjects equally: {{"Science": 50, "Math": 50}}
+Example: If xp_value is 100 with primary and secondary subjects: {{"Science": 75, "Math": 25}}
 """
 
     def _validate_tasks(

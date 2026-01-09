@@ -341,6 +341,10 @@ export const observerAPI = {
   getObserversForStudent: (studentId) =>
     api.get(`/api/observers/student/${studentId}/observers`),
 
+  // Remove observer from student (parent action)
+  removeObserverFromStudent: (studentId, linkId) =>
+    api.delete(`/api/observers/student/${studentId}/observers/${linkId}`),
+
   // Feed endpoints
   getFeed: (params = {}) => {
     const queryParams = new URLSearchParams();

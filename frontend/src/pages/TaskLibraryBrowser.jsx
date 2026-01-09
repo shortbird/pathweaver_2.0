@@ -1,10 +1,26 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeftIcon, PlusIcon, CheckCircleIcon, BookOpenIcon, EyeIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, PlusIcon, CheckCircleIcon, BookOpenIcon, EyeIcon, XMarkIcon, FunnelIcon } from '@heroicons/react/24/outline';
 import api from '../services/api';
 import { getPillarData } from '../utils/pillarMappings';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
+import SubjectBadges, { getSubjectConfig } from '../components/common/SubjectBadges';
+
+// Diploma subjects for filtering
+const DIPLOMA_SUBJECTS = [
+  { id: 'language_arts', label: 'Language Arts' },
+  { id: 'math', label: 'Math' },
+  { id: 'science', label: 'Science' },
+  { id: 'social_studies', label: 'Social Studies' },
+  { id: 'financial_literacy', label: 'Financial Literacy' },
+  { id: 'health', label: 'Health' },
+  { id: 'pe', label: 'PE' },
+  { id: 'fine_arts', label: 'Fine Arts' },
+  { id: 'cte', label: 'CTE' },
+  { id: 'digital_literacy', label: 'Digital Literacy' },
+  { id: 'electives', label: 'Electives' }
+];
 
 export default function TaskLibraryBrowser() {
   const { questId } = useParams();
@@ -15,6 +31,8 @@ export default function TaskLibraryBrowser() {
   const [addedTasks, setAddedTasks] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [detailsModalTask, setDetailsModalTask] = useState(null);
+  const [subjectFilter, setSubjectFilter] = useState(null); // null = show all, or subject id
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
   useEffect(() => {
     fetchQuestAndLibrary();
@@ -195,30 +213,131 @@ export default function TaskLibraryBrowser() {
               <span className="font-semibold">{addedTasks.size}</span> task{addedTasks.size !== 1 ? 's' : ''} added to quest
             </span>
           </div>
+
+          {/* Subject Filter */}
+          <div className="mt-4">
+            <div className="flex items-center gap-2 mb-2">
+              <FunnelIcon className="w-4 h-4 text-gray-500" />
+              <span className="text-sm font-medium text-gray-600" style={{ fontFamily: 'Poppins' }}>
+                Filter by Diploma Subject:
+              </span>
+              {subjectFilter && (
+                <button
+                  onClick={() => setSubjectFilter(null)}
+                  className="text-sm text-optio-purple hover:underline"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  Clear filter
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {DIPLOMA_SUBJECTS.map((subject) => {
+                const config = getSubjectConfig(subject.id);
+                const isActive = subjectFilter === subject.id;
+                return (
+                  <button
+                    key={subject.id}
+                    onClick={() => setSubjectFilter(isActive ? null : subject.id)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                      isActive
+                        ? 'ring-2 ring-offset-1 ring-optio-purple shadow-sm'
+                        : 'hover:shadow-sm'
+                    }`}
+                    style={{
+                      backgroundColor: isActive ? `${config.color}30` : `${config.color}15`,
+                      color: config.color,
+                      fontFamily: 'Poppins'
+                    }}
+                  >
+                    {subject.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Library Grid */}
-        {libraryTasks.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl shadow-sm">
-            <BookOpenIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
-              No library tasks available yet
-            </h3>
-            <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins' }}>
-              The library is built from AI-generated tasks. Generate custom tasks to contribute to the library!
-            </p>
-            <button
-              onClick={handleDone}
-              className="px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 transition-opacity"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              Done
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-              {libraryTasks.map((task) => {
+        {(() => {
+          // Filter tasks by selected subject
+          const filteredTasks = subjectFilter
+            ? libraryTasks.filter((task) => {
+                // Check diploma_subjects object (new format)
+                if (task.diploma_subjects && typeof task.diploma_subjects === 'object') {
+                  const subjectConfig = getSubjectConfig(subjectFilter);
+                  // Check if any key matches the filter (case-insensitive)
+                  return Object.keys(task.diploma_subjects).some(k => {
+                    const keyLower = k.toLowerCase().replace(/\s+/g, '_');
+                    const filterLower = subjectFilter.toLowerCase();
+                    const labelLower = subjectConfig.label.toLowerCase();
+                    return keyLower === filterLower ||
+                           k.toLowerCase() === labelLower ||
+                           keyLower === labelLower.replace(/\s+/g, '_');
+                  });
+                }
+                // Check school_subjects array (legacy format)
+                if (task.school_subjects && Array.isArray(task.school_subjects)) {
+                  return task.school_subjects.includes(subjectFilter);
+                }
+                return false;
+              })
+            : libraryTasks;
+
+          // Empty library
+          if (libraryTasks.length === 0) {
+            return (
+              <div className="text-center py-12 bg-white rounded-xl shadow-sm">
+                <BookOpenIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
+                  No library tasks available yet
+                </h3>
+                <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins' }}>
+                  The library is built from AI-generated tasks. Generate custom tasks to contribute to the library!
+                </p>
+                <button
+                  onClick={handleDone}
+                  className="px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 transition-opacity"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  Done
+                </button>
+              </div>
+            );
+          }
+
+          // No tasks match filter
+          if (filteredTasks.length === 0 && subjectFilter) {
+            return (
+              <div className="text-center py-12 bg-white rounded-xl shadow-sm">
+                <FunnelIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
+                  No tasks match this filter
+                </h3>
+                <p className="text-gray-600 mb-6" style={{ fontFamily: 'Poppins' }}>
+                  Try selecting a different subject or clear the filter to see all tasks.
+                </p>
+                <button
+                  onClick={() => setSubjectFilter(null)}
+                  className="px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 transition-opacity"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  Clear Filter
+                </button>
+              </div>
+            );
+          }
+
+          // Show filtered tasks
+          return (
+            <>
+              {subjectFilter && (
+                <p className="text-sm text-gray-500 mb-4" style={{ fontFamily: 'Poppins' }}>
+                  Showing {filteredTasks.length} of {libraryTasks.length} tasks
+                </p>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                {filteredTasks.map((task) => {
                 const pillarData = getPillarData(task.pillar);
                 const isAdded = addedTasks.has(task.id);
                 const isSelected = selectedTasks.has(task.id);
@@ -298,6 +417,17 @@ export default function TaskLibraryBrowser() {
                         </div>
                       </div>
 
+                      {/* Subject XP Distribution */}
+                      {task.diploma_subjects && Object.keys(task.diploma_subjects).length > 0 && (
+                        <div className="mb-2">
+                          <SubjectBadges
+                            subjectXpDistribution={task.diploma_subjects}
+                            compact={true}
+                            maxDisplay={2}
+                          />
+                        </div>
+                      )}
+
                       {/* Usage Count and View Details Button */}
                       <div className="flex items-center justify-between mt-3">
                         {task.usage_count > 0 ? (
@@ -325,18 +455,19 @@ export default function TaskLibraryBrowser() {
               })}
             </div>
 
-            {/* Done Button */}
-            <div className="text-center">
-              <button
-                onClick={handleDone}
-                className="px-8 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold text-lg hover:opacity-90 transition-opacity shadow-md"
-                style={{ fontFamily: 'Poppins' }}
-              >
-                Return to Quest
-              </button>
-            </div>
-          </>
-        )}
+              {/* Done Button */}
+              <div className="text-center">
+                <button
+                  onClick={handleDone}
+                  className="px-8 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold text-lg hover:opacity-90 transition-opacity shadow-md"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  Return to Quest
+                </button>
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       {/* Task Details Modal */}
@@ -368,7 +499,7 @@ export default function TaskLibraryBrowser() {
                     </h3>
 
                     {/* Pillar and XP Badges */}
-                    <div className="flex items-center gap-2 mb-6">
+                    <div className="flex items-center gap-2 mb-4">
                       <div
                         className="inline-flex items-center justify-center px-4 py-2 rounded-full text-sm font-semibold text-white"
                         style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
@@ -385,6 +516,20 @@ export default function TaskLibraryBrowser() {
                         {detailsModalTask.xp_value} XP
                       </div>
                     </div>
+
+                    {/* Subject XP Distribution */}
+                    {detailsModalTask.diploma_subjects && Object.keys(detailsModalTask.diploma_subjects).length > 0 && (
+                      <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Poppins' }}>
+                          Diploma Credits Earned:
+                        </h4>
+                        <SubjectBadges
+                          subjectXpDistribution={detailsModalTask.diploma_subjects}
+                          compact={false}
+                          maxDisplay={10}
+                        />
+                      </div>
+                    )}
 
                     {/* Task Description */}
                     <div className="mb-6">

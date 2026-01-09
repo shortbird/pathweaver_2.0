@@ -386,12 +386,12 @@ function App() {
                 {/* Observer Feedback */}
                 <Route path="feedback" element={<StudentFeedbackPage />} />
                 {/* <Route path="subscription" element={<SubscriptionPage />} /> REMOVED - Phase 3 refactoring (January 2025) */}
+                {/* Observer feed inside Layout for users with other roles (parent, advisor, etc.) */}
+                <Route path="observer/feed" element={<ObserverFeedPage />} />
               </Route>
               
               <Route element={<PrivateRoute requiredRole="superadmin" />}>
                 <Route path="admin/*" element={<AdminPage />} />
-                {/* Observer feed for superadmin to view students they advise */}
-                <Route path="observer/feed" element={<ObserverFeedPage />} />
               </Route>
 
               {/* Organization Management - accessible to org admins and platform admins */}
@@ -425,7 +425,8 @@ function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
 
-            {/* Observer routes - full-screen without main navigation (for observer role only) */}
+            {/* Observer routes - full-screen without main navigation (for observer-role only)
+                Users with other roles access /observer/feed via the Layout-wrapped route above */}
             <Route element={<PrivateRoute requiredRole="observer" />}>
               <Route path="observer/welcome" element={<ObserverWelcomePage />} />
               <Route path="observer/feed" element={<ObserverFeedPage />} />

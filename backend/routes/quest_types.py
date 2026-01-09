@@ -201,3 +201,57 @@ def get_course_tasks_for_quest(quest_id: str):
     except Exception as e:
         logger.error(f"Error getting course tasks: {str(e)}")
         return []
+
+
+@bp.route('/similar', methods=['GET'])
+@require_auth
+def search_similar_quests(user_id):
+    """
+    Search for similar quests for autocomplete during quest creation.
+    Respects organization visibility policies. Accessible to all authenticated users.
+
+    Query Parameters:
+    - search: Search term (quest title, minimum 3 characters)
+    - limit: Maximum results (default: 10, max: 20)
+
+    Returns:
+    {
+        "success": true,
+        "quests": [...],
+        "total": N
+    }
+    """
+    try:
+        search_term = request.args.get('search', '').strip()
+        limit = min(int(request.args.get('limit', 10)), 20)
+
+        # Require minimum 3 characters
+        if len(search_term) < 3:
+            return jsonify({
+                'success': True,
+                'quests': [],
+                'message': 'Search term must be at least 3 characters'
+            })
+
+        # Use repository to search with organization awareness
+        from repositories.quest_repository import QuestRepository
+        quest_repo = QuestRepository()
+
+        quests = quest_repo.search_similar_quests(
+            user_id=user_id,
+            search_term=search_term,
+            limit=limit
+        )
+
+        return jsonify({
+            'success': True,
+            'quests': quests,
+            'total': len(quests)
+        })
+
+    except Exception as e:
+        logger.error(f"Error searching similar quests: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to search similar quests'
+        }), 500
