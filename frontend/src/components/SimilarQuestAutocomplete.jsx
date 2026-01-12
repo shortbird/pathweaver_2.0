@@ -96,7 +96,7 @@ const SimilarQuestAutocomplete = ({
   return (
     <div
       ref={dropdownRef}
-      className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-auto"
+      className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto"
     >
       {loading ? (
         <div className="px-4 py-3 text-gray-500 text-sm flex items-center">
@@ -162,9 +162,14 @@ const SimilarQuestAutocomplete = ({
               </li>
             ))}
           </ul>
-          <div className="px-4 py-2 bg-gray-50 border-t text-xs text-gray-500">
-            Use arrow keys to navigate, Enter to select, Esc to close
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-gray-50 border-t text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors text-left flex items-center justify-between"
+          >
+            <span>Continue creating new quest</span>
+            <span className="text-xs text-gray-400">Esc</span>
+          </button>
         </>
       ) : (
         <div className="px-4 py-3 text-gray-500 text-sm">

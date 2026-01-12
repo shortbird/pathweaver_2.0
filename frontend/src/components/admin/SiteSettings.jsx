@@ -231,7 +231,7 @@ const SiteSettings = () => {
               <input
                 type="text"
                 name="footer_text"
-                defaultValue={settings?.footer_text || '© 2025 Optio. All rights reserved.'}
+                defaultValue={settings?.footer_text || '© 2026 Optio. All rights reserved.'}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
               />
             </div>

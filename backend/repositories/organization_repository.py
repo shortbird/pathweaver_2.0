@@ -79,13 +79,16 @@ class OrganizationRepository(BaseRepository):
             .execute()
         return response.data[0] if response.data else None
 
-    def get_organization_users(self, org_id: str) -> List[Dict[str, Any]]:
-        """Get all users in an organization"""
-        response = self.client.table('users')\
-            .select('id, email, display_name, first_name, last_name, role, is_org_admin, total_xp')\
-            .eq('organization_id', org_id)\
-            .order('first_name')\
-            .execute()
+    def get_organization_users(self, org_id: str, role: str = None) -> List[Dict[str, Any]]:
+        """Get all users in an organization, optionally filtered by role"""
+        query = self.client.table('users')\
+            .select('id, email, display_name, first_name, last_name, role, org_role, is_org_admin, total_xp')\
+            .eq('organization_id', org_id)
+
+        if role:
+            query = query.eq('role', role)
+
+        response = query.order('first_name').execute()
         return response.data if response.data else []
 
     def get_organization_quests(self, org_id: str) -> List[Dict[str, Any]]:

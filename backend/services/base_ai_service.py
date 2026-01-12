@@ -411,6 +411,10 @@ class BaseAIService(BaseService):
         text = text.replace('\u2014', '-')  # Em dash
         text = text.replace('\u2026', '...')  # Ellipsis
 
+        # Fix common AI typos in JSON syntax
+        text = re.sub(r'":=\s*"', '": "', text)  # Fix ":=" to ": " (AI typo)
+        text = re.sub(r'":\s*=\s*"', '": "', text)  # Fix ": =" to ": "
+
         # Escape control characters inside strings (they're invalid in JSON)
         # This handles raw newlines, tabs, etc. inside string values
         def escape_control_in_strings(match):

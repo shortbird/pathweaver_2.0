@@ -33,10 +33,20 @@ const AdminPage = () => {
   const currentPath = location.pathname.split('/').pop()
   const { user } = useAuth()
 
+  // Get effective role (resolves org_managed to org_role)
+  const getEffectiveRole = (user) => {
+    if (!user) return null
+    if (user.role === 'superadmin') return 'superadmin'
+    if (user.role === 'org_managed' && user.org_role) return user.org_role
+    return user.role
+  }
+
+  const effectiveRole = getEffectiveRole(user)
+
   // Determine if user is admin or advisor
-  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
-  const isSuperadmin = user?.role === 'superadmin'
-  const isAdvisor = user?.role === 'advisor'
+  const isAdmin = effectiveRole === 'org_admin' || effectiveRole === 'superadmin'
+  const isSuperadmin = effectiveRole === 'superadmin'
+  const isAdvisor = effectiveRole === 'advisor'
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

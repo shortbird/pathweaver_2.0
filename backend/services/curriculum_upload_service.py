@@ -1615,3 +1615,155 @@ ALIGNED CONTENT TO FORMAT:
             'course': content_result.get('course', {}),
             'projects': content_result.get('projects', [])
         }
+
+    # =========================================================================
+    # From-Scratch Course Generation
+    # =========================================================================
+
+    def process_generation(
+        self,
+        upload_id: str,
+        topic: str,
+        learning_objectives: Optional[List[str]],
+        user_id: str,
+        organization_id: str
+    ) -> Dict[str, Any]:
+        """
+        Generate a complete course from scratch based on topic and optional objectives.
+
+        This bypasses the normal 4-stage pipeline since there's no source curriculum
+        to parse, structure, or align. It goes directly to content generation.
+
+        Args:
+            upload_id: The upload record ID for tracking
+            topic: The course topic/name
+            learning_objectives: Optional list of learning objectives
+            user_id: The user creating the course
+            organization_id: The organization for the course
+
+        Returns:
+            Dict with success status and course_id if successful
+        """
+        from prompts.components import (
+            PILLAR_DEFINITIONS_DETAILED,
+            SCHOOL_SUBJECTS,
+            JSON_OUTPUT_INSTRUCTIONS_STRICT
+        )
+        from prompts.curriculum_upload import COURSE_GENERATION_PROMPT
+
+        try:
+            # Update progress: Starting
+            self._update_progress(upload_id, 1, 10, "Preparing to generate course...")
+            logger.info(f"Generating course from topic: {topic} (objectives: {len(learning_objectives) if learning_objectives else 0})")
+
+            # Build the prompt
+            objectives_section = ""
+            if learning_objectives and len(learning_objectives) > 0:
+                objectives_list = "\n".join([f"  {i+1}. {obj}" for i, obj in enumerate(learning_objectives)])
+                objectives_section = f"""
+USER-PROVIDED LEARNING OBJECTIVES:
+==================================
+The user has specified exactly {len(learning_objectives)} learning objectives.
+Create EXACTLY {len(learning_objectives)} projects - one for each objective below:
+
+{objectives_list}
+
+CRITICAL: You MUST create exactly {len(learning_objectives)} projects, no more, no less.
+"""
+            else:
+                objectives_section = """
+NO LEARNING OBJECTIVES PROVIDED:
+================================
+Generate 4-6 appropriate learning objectives for this topic.
+Create ONE project per generated objective.
+Include the generated objectives in the "generated_objectives" field.
+"""
+
+            # Update progress: AI working
+            self._update_progress(upload_id, 2, 30, "AI generating course structure...")
+
+            prompt = f"""
+{COURSE_GENERATION_PROMPT}
+
+COURSE TOPIC: {topic}
+
+{objectives_section}
+
+{PILLAR_DEFINITIONS_DETAILED}
+
+SCHOOL SUBJECTS FOR DIPLOMA MAPPING: {', '.join(SCHOOL_SUBJECTS)}
+
+{JSON_OUTPUT_INSTRUCTIONS_STRICT}
+"""
+
+            # Generate the course content
+            result = self.generate_json(prompt, strict=True)
+
+            if not isinstance(result, dict):
+                self._mark_error(upload_id, 'AI returned invalid format')
+                return {
+                    'success': False,
+                    'error': 'AI returned invalid content format'
+                }
+
+            # Update progress: Processing results
+            self._update_progress(upload_id, 3, 60, "Processing generated content...")
+
+            # Process course and projects
+            course = self._process_course(result.get('course', {'title': topic, 'description': f'A course about {topic}'}))
+            projects = self._process_projects(result.get('projects', []))
+
+            logger.info(f"Generated {len(projects)} projects for topic: {topic}")
+
+            # Update progress: Creating course
+            self._update_progress(upload_id, 4, 80, "Creating course in database...")
+
+            content_result = {
+                'success': True,
+                'course': course,
+                'projects': projects
+            }
+
+            # Build preview in same format as transformation pipeline
+            preview = self._build_preview(content_result)
+
+            # Finalize by creating the course (reuse existing finalize logic)
+            from routes.admin.curriculum_upload import _finalize_curriculum_upload
+
+            finalize_result = {
+                'success': True,
+                'preview': preview,
+                'metadata': {
+                    'source_type': 'generate',
+                    'topic': topic,
+                    'generated_projects': len(projects),
+                    'learning_objectives_provided': len(learning_objectives) if learning_objectives else 0
+                }
+            }
+
+            _finalize_curriculum_upload(upload_id, user_id, organization_id, finalize_result)
+
+            # Get the created course ID from the upload record
+            upload_result = self.admin_client.table('curriculum_uploads').select('created_quest_id').eq('id', upload_id).execute()
+            created_quest_id = upload_result.data[0]['created_quest_id'] if upload_result.data else None
+
+            return {
+                'success': True,
+                'course_id': created_quest_id,
+                'projects_count': len(projects)
+            }
+
+        except AIGenerationError as e:
+            logger.error(f"Course generation failed: {str(e)}")
+            self._mark_error(upload_id, f'AI generation failed: {str(e)}')
+            return {
+                'success': False,
+                'error': f'AI generation failed: {str(e)}'
+            }
+        except Exception as e:
+            logger.error(f"Course generation error: {str(e)}")
+            self._mark_error(upload_id, f'Generation failed: {str(e)}')
+            return {
+                'success': False,
+                'error': f'Generation failed: {str(e)}'
+            }

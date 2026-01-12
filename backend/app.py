@@ -29,7 +29,7 @@ from routes.courses import bp as courses_bp
 # Import routes
 from routes import tasks, admin_core, evidence_documents, analytics as analytics_routes, webhooks
 from routes.quest import register_quest_blueprints  # Refactored quest routes (P2-ARCH-1)
-from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management, observer_audit, ferpa_compliance, bulk_import, user_invitations, curriculum_upload
+from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management, observer_audit, ferpa_compliance, bulk_import, user_invitations, curriculum_upload, org_connections
 # badge_management import removed (January 2026 - Microschool client feedback)
 from cors_config import configure_cors
 from middleware.security import security_middleware
@@ -176,6 +176,7 @@ app.register_blueprint(curriculum_upload.bp)  # /api/admin/curriculum (AI-powere
 app.register_blueprint(organization_management.bp, url_prefix='/api/admin/organizations')  # /api/admin/organizations (Multi-organization management)
 app.register_blueprint(bulk_import.bp)  # /api/admin/organizations/<org_id>/users/bulk-import (CSV bulk user import for org admins)
 app.register_blueprint(user_invitations.bp)  # /api/admin/organizations/<org_id>/invitations (Email invitations for org admins)
+app.register_blueprint(org_connections.bp)  # /api/admin/organizations/<org_id>/advisors, /connections (Org-scoped advisor-student and parent-student connections)
 app.register_blueprint(observer_audit.bp)  # /api/admin/observer-audit (Observer access audit logging - COPPA/FERPA compliance)
 app.register_blueprint(ferpa_compliance.bp)  # /api/admin/ferpa (FERPA disclosure reporting and student access logging)
 app.register_blueprint(webhooks.webhooks_bp, url_prefix='/api/webhooks')  # /api/webhooks (Webhook subscriptions for LMS integrations)

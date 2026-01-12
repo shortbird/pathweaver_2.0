@@ -19,7 +19,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     email: user.email || '',
     role: user.role || 'student',
     organization_id: user.organization_id || '',
-    org_role: user.is_org_admin ? 'admin' : 'member',
+    org_role: user.org_role || (user.is_org_admin ? 'org_admin' : 'student'),
     phone_number: user.phone_number || '',
     address_line1: user.address_line1 || '',
     address_line2: user.address_line2 || '',
@@ -39,7 +39,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const [organizations, setOrganizations] = useState([])
   const [currentOrgName, setCurrentOrgName] = useState(user.organization_name || user.organization?.name || '')
   const [originalOrgId, setOriginalOrgId] = useState(user.organization_id || '')
-  const [originalOrgRole, setOriginalOrgRole] = useState(user.is_org_admin ? 'admin' : 'member')
+  const [originalOrgRole, setOriginalOrgRole] = useState(user.org_role || (user.is_org_admin ? 'org_admin' : 'student'))
 
   useEffect(() => {
     fetchUserDetails()
@@ -53,7 +53,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
       // API returns { user: {...}, xp_by_pillar: {...}, ... }
       const userData = response.data.user || response.data
       // Update formData with fetched user details (including new fields)
-      const orgRole = userData.is_org_admin ? 'admin' : 'member'
+      const orgRole = userData.org_role || (userData.is_org_admin ? 'org_admin' : 'student')
       setFormData(prev => ({
         ...prev,
         phone_number: userData.phone_number || '',
@@ -121,7 +121,8 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const handleUpdateRole = async () => {
     const roleDisplayNames = {
       superadmin: 'Superadmin',
-      admin: 'Administrator',
+      org_admin: 'Organization Admin',
+      org_managed: 'Organization Managed',
       advisor: 'Advisor',
       parent: 'Parent',
       student: 'Student',
@@ -166,11 +167,14 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   }
 
   const handleUpdateOrgRole = async () => {
-    const roleDisplayNames = {
-      member: 'Member',
-      admin: 'Organization Admin'
+    const orgRoleDisplayNames = {
+      student: 'Student',
+      parent: 'Parent',
+      advisor: 'Advisor',
+      org_admin: 'Organization Admin',
+      observer: 'Observer'
     }
-    const displayName = roleDisplayNames[formData.org_role] || formData.org_role
+    const displayName = orgRoleDisplayNames[formData.org_role] || formData.org_role
     if (window.confirm(`Change organizational role to ${displayName}?`)) {
       setLoading(true)
       try {
@@ -318,7 +322,8 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const getRoleDisplayName = (role) => {
     const roleNames = {
       superadmin: 'Superadmin',
-      admin: 'Administrator',
+      org_admin: 'Organization Admin',
+      org_managed: 'Organization Managed',
       advisor: 'Advisor',
       parent: 'Parent',
       student: 'Student',
@@ -330,7 +335,8 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const getRoleBadge = (role) => {
     const colors = {
       superadmin: 'bg-red-700 text-white',
-      admin: 'bg-red-100 text-red-700',
+      org_admin: 'bg-orange-100 text-orange-700',
+      org_managed: 'bg-indigo-100 text-indigo-700',
       advisor: 'bg-yellow-100 text-yellow-700',
       parent: 'bg-green-100 text-green-700',
       student: 'bg-blue-100 text-blue-700',
@@ -632,7 +638,8 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     <option value="parent">Parent</option>
                     <option value="advisor">Advisor</option>
                     <option value="observer">Observer</option>
-                    <option value="admin">Administrator</option>
+                    <option value="org_admin">Organization Admin</option>
+                    <option value="org_managed">Organization Managed</option>
                     <option value="superadmin">Superadmin</option>
                   </select>
                 </div>
@@ -645,7 +652,8 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     <li><span className="font-semibold">Parent:</span> Can view linked children's progress</li>
                     <li><span className="font-semibold">Advisor:</span> Can manage student groups and provide guidance</li>
                     <li><span className="font-semibold">Observer:</span> View-only access to linked students</li>
-                    <li><span className="font-semibold">Admin:</span> Full system access and user management</li>
+                    <li><span className="font-semibold">Org Admin:</span> Organization admin with org management tools</li>
+                    <li><span className="font-semibold">Org Managed:</span> Role controlled by organization (uses org_role)</li>
                     <li><span className="font-semibold">Superadmin:</span> Platform-wide superadmin access</li>
                   </ul>
                 </div>
@@ -721,9 +729,15 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     Current Organizational Role
                   </label>
                   <span className={`px-3 py-2 rounded-full text-sm font-semibold ${
-                    originalOrgRole === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
+                    originalOrgRole === 'org_admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
                   }`}>
-                    {originalOrgRole === 'admin' ? 'Organization Admin' : 'Member'}
+                    {({
+                      student: 'Student',
+                      parent: 'Parent',
+                      advisor: 'Advisor',
+                      org_admin: 'Organization Admin',
+                      observer: 'Observer'
+                    })[originalOrgRole] || originalOrgRole}
                   </span>
                 </div>
 
@@ -737,14 +751,17 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                     onChange={handleInputChange}
                     className="w-full px-3 py-2 min-h-[44px] text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="member">Member</option>
-                    <option value="admin">Organization Admin</option>
+                    <option value="student">Student</option>
+                    <option value="parent">Parent</option>
+                    <option value="advisor">Advisor</option>
+                    <option value="observer">Observer</option>
+                    <option value="org_admin">Organization Admin</option>
                   </select>
                 </div>
 
                 <div className="p-3 bg-purple-50 rounded-lg">
                   <p className="text-sm text-purple-800">
-                    <span className="font-semibold">Note:</span> Organization Admins have full admin privileges for organization-specific operations (managing quests, users, and settings within their organization) while remaining regular advisors on the platform.
+                    <span className="font-semibold">Note:</span> This sets the user's role within their organization. Organization Admins can manage organization settings, users, and quests.
                   </p>
                 </div>
 

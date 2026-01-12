@@ -14,8 +14,19 @@ class UserRole(Enum):
     STUDENT = 'student'
     PARENT = 'parent'
     ADVISOR = 'advisor'
+    OBSERVER = 'observer'
     ORG_ADMIN = 'org_admin'
+    ORG_MANAGED = 'org_managed'  # Platform role indicating org controls this user
     SUPERADMIN = 'superadmin'
+
+
+class OrgRole(Enum):
+    """Enumeration of organization-specific roles (used when role=org_managed)"""
+    STUDENT = 'student'
+    PARENT = 'parent'
+    ADVISOR = 'advisor'
+    OBSERVER = 'observer'
+    ORG_ADMIN = 'org_admin'
 
 # Role hierarchy for privilege checking
 ROLE_HIERARCHY = {
@@ -23,18 +34,25 @@ ROLE_HIERARCHY = {
     UserRole.ORG_ADMIN: 4,
     UserRole.ADVISOR: 2,
     UserRole.PARENT: 1,
-    UserRole.STUDENT: 0
+    UserRole.OBSERVER: 1,
+    UserRole.STUDENT: 0,
+    UserRole.ORG_MANAGED: 0  # Effective hierarchy determined by org_role
 }
 
 # Valid roles as a set for quick validation
 VALID_ROLES = {role.value for role in UserRole}
+
+# Valid organization roles (used when role=org_managed)
+VALID_ORG_ROLES = {role.value for role in OrgRole}
 
 # Role display names for UI
 ROLE_DISPLAY_NAMES = {
     UserRole.STUDENT.value: 'Student',
     UserRole.PARENT.value: 'Parent',
     UserRole.ADVISOR.value: 'Advisor',
+    UserRole.OBSERVER.value: 'Observer',
     UserRole.ORG_ADMIN.value: 'Organization Admin',
+    UserRole.ORG_MANAGED.value: 'Organization Managed',
     UserRole.SUPERADMIN.value: 'Super Admin'
 }
 
@@ -43,7 +61,9 @@ ROLE_DESCRIPTIONS = {
     UserRole.STUDENT.value: 'Can complete quests, earn XP, and build their diploma',
     UserRole.PARENT.value: 'Full platform access plus ability to view linked children\'s progress',
     UserRole.ADVISOR.value: 'Can manage student groups and view progress within their organization',
+    UserRole.OBSERVER.value: 'View-only access to linked students, can comment on student work',
     UserRole.ORG_ADMIN.value: 'Organization-level admin with access to org management tools',
+    UserRole.ORG_MANAGED.value: 'Role is controlled by the user\'s organization',
     UserRole.SUPERADMIN.value: 'Full system access to all organizations and features'
 }
 
@@ -71,6 +91,13 @@ class RolePermissions:
             'collaborations': [],
             'profile': ['view_students', 'edit_own'],
             'admin_panel': ['view_analytics', 'view_students']
+        },
+        UserRole.OBSERVER.value: {
+            'quests': ['view'],
+            'diploma': ['view_linked'],
+            'collaborations': [],
+            'profile': ['view_linked', 'edit_own'],
+            'admin_panel': []
         },
         UserRole.ORG_ADMIN.value: {
             'quests': ['view', 'create', 'edit', 'delete', 'start', 'complete'],
@@ -122,6 +149,41 @@ def validate_role(role: str) -> bool:
     """Validate if a role string is valid"""
     return role in VALID_ROLES
 
+
+def validate_org_role(org_role: str) -> bool:
+    """Validate if an org_role string is valid"""
+    return org_role in VALID_ORG_ROLES
+
+
+def get_effective_role(user: Dict) -> str:
+    """
+    Get the effective role for a user, resolving org_managed to the actual org_role.
+
+    Args:
+        user: User dict with 'role' and optionally 'org_role' keys
+
+    Returns:
+        The effective role string to use for permission checks
+    """
+    role = user.get('role', UserRole.STUDENT.value)
+
+    # Superadmin always returns superadmin
+    if role == UserRole.SUPERADMIN.value:
+        return UserRole.SUPERADMIN.value
+
+    # org_managed users use their org_role
+    if role == UserRole.ORG_MANAGED.value:
+        org_role = user.get('org_role')
+        if org_role and org_role in VALID_ORG_ROLES:
+            return org_role
+        # Fallback to student if org_role is not set (shouldn't happen)
+        logger.warning(f"User has org_managed role but no valid org_role: {user.get('id')}")
+        return UserRole.STUDENT.value
+
+    # Otherwise return platform role
+    return role
+
+
 def is_role_higher(role1: str, role2: str) -> bool:
     """Check if role1 has higher privileges than role2"""
     try:
@@ -141,15 +203,25 @@ def is_role_equal_or_higher(role1: str, role2: str) -> bool:
         return False
 
 def get_accessible_roles(current_role: str) -> List[str]:
-    """Get list of roles that can be assigned by the current role"""
+    """Get list of platform roles that can be assigned by the current role"""
     if current_role == UserRole.SUPERADMIN.value:
-        # Superadmin can assign any role
+        # Superadmin can assign any platform role
         return list(VALID_ROLES)
-    elif current_role == UserRole.ORG_ADMIN.value:
-        # Org admins can assign org roles (not superadmin)
-        return [r for r in VALID_ROLES if r != UserRole.SUPERADMIN.value]
     else:
-        # Other roles cannot assign roles
+        # Only superadmin can assign platform roles
+        return []
+
+
+def get_accessible_org_roles(effective_role: str) -> List[str]:
+    """Get list of org roles that can be assigned by the current effective role"""
+    if effective_role == UserRole.SUPERADMIN.value:
+        # Superadmin can assign any org role
+        return list(VALID_ORG_ROLES)
+    elif effective_role == UserRole.ORG_ADMIN.value:
+        # Org admins can assign org roles (not org_admin to prevent self-demotion issues)
+        return list(VALID_ORG_ROLES)
+    else:
+        # Other roles cannot assign org roles
         return []
 
 def sanitize_role(role: Optional[str]) -> str:
@@ -164,7 +236,9 @@ def get_role_badge_color(role: str) -> str:
         UserRole.STUDENT.value: 'blue',
         UserRole.PARENT.value: 'green',
         UserRole.ADVISOR.value: 'purple',
+        UserRole.OBSERVER.value: 'teal',
         UserRole.ORG_ADMIN.value: 'orange',
+        UserRole.ORG_MANAGED.value: 'indigo',
         UserRole.SUPERADMIN.value: 'red'
     }
     return colors.get(role, 'gray')

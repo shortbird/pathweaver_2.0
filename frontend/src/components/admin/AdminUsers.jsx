@@ -149,7 +149,8 @@ const AdminUsers = () => {
   const getRoleBadge = (role) => {
     const badges = {
       superadmin: 'bg-red-700 text-white',
-      admin: 'bg-red-100 text-red-700',
+      org_admin: 'bg-orange-100 text-orange-700',
+      org_managed: 'bg-indigo-100 text-indigo-700',
       advisor: 'bg-purple-100 text-purple-700',
       parent: 'bg-green-100 text-green-700',
       student: 'bg-blue-100 text-blue-700',
@@ -161,7 +162,8 @@ const AdminUsers = () => {
   const getRoleDisplayName = (role) => {
     const names = {
       superadmin: 'Superadmin',
-      admin: 'Admin',
+      org_admin: 'Org Admin',
+      org_managed: 'Org Managed',
       advisor: 'Advisor',
       parent: 'Parent',
       student: 'Student',

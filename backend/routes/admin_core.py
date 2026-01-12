@@ -243,7 +243,7 @@ def update_user_role(admin_id, user_id):
         reason = data.get('reason', 'Role change by admin')
         
         # Validate role
-        valid_roles = ['student', 'parent', 'advisor', 'admin']
+        valid_roles = ['student', 'parent', 'advisor', 'org_admin', 'superadmin', 'observer', 'org_managed']
         if new_role not in valid_roles:
             return jsonify({'error': 'Invalid role'}), 400
         

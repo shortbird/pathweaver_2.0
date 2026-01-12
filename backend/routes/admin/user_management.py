@@ -27,7 +27,7 @@ from repositories import (
     LMSRepository,
     AnalyticsRepository
 )
-from utils.auth.decorators import require_admin, require_advisor, get_advisor_assigned_students
+from utils.auth.decorators import require_admin, require_advisor, require_school_admin, get_advisor_assigned_students
 from utils.api_response import success_response, error_response
 from datetime import datetime, timedelta
 import json
@@ -237,12 +237,38 @@ def get_user_details(user_id, target_user_id):
         }), 500
 
 @bp.route('/users/<target_user_id>', methods=['PUT'])
-@require_admin
+@require_school_admin
 def update_user(user_id, target_user_id):
-    """Update user information"""
+    """
+    Update user information.
+    Superadmins can update any user.
+    Org admins can update users in their own organization.
+    """
+    from utils.roles import get_effective_role
+
     supabase = get_supabase_admin_client()
 
     try:
+        # Check if caller is superadmin or org_admin
+        admin_user = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).single().execute()
+        if not admin_user.data:
+            return jsonify({'success': False, 'error': 'Admin user not found'}), 404
+
+        admin_effective_role = get_effective_role(admin_user.data)
+        is_superadmin = admin_effective_role == 'superadmin'
+
+        # If not superadmin, verify target user is in same org
+        if not is_superadmin:
+            target_user = supabase.table('users').select('organization_id').eq('id', target_user_id).single().execute()
+            if not target_user.data:
+                return jsonify({'success': False, 'error': 'User not found'}), 404
+
+            admin_org_id = admin_user.data.get('organization_id')
+            target_org_id = target_user.data.get('organization_id')
+
+            if not admin_org_id or admin_org_id != target_org_id:
+                return jsonify({'success': False, 'error': 'You can only modify users in your organization'}), 403
+
         data = request.json
 
         # Build update data
@@ -285,7 +311,11 @@ def update_user(user_id, target_user_id):
 @bp.route('/users/<target_user_id>/role', methods=['PUT'])
 @require_admin
 def update_user_role(user_id, target_user_id):
-    """Update user role"""
+    """
+    Update user's platform role (superadmin only).
+    Platform roles: superadmin, org_admin, student, parent, advisor, observer, org_managed
+    When setting org_managed, the user's actual role comes from their org_role column.
+    """
     supabase = get_supabase_admin_client()
 
     try:
@@ -295,7 +325,8 @@ def update_user_role(user_id, target_user_id):
         if not new_role:
             return jsonify({'success': False, 'error': 'Role is required'}), 400
 
-        valid_roles = ['student', 'parent', 'advisor', 'org_admin', 'superadmin', 'observer']
+        # Valid platform roles including org_managed
+        valid_roles = ['student', 'parent', 'advisor', 'org_admin', 'superadmin', 'observer', 'org_managed']
         if new_role not in valid_roles:
             return jsonify({'success': False, 'error': f'Invalid role. Must be one of: {valid_roles}'}), 400
 
@@ -303,10 +334,22 @@ def update_user_role(user_id, target_user_id):
         if target_user_id == user_id and new_role not in ['org_admin', 'superadmin']:
             return jsonify({'success': False, 'error': 'Cannot remove your own admin privileges'}), 403
 
-        # Update role (note: users table has no updated_at column)
+        # Build update data
         update_data = {
             'role': new_role
         }
+
+        # If setting to org_managed, check if user has an organization
+        if new_role == 'org_managed':
+            target_user = supabase.table('users').select('organization_id, role, org_role').eq('id', target_user_id).single().execute()
+            if not target_user.data or not target_user.data.get('organization_id'):
+                return jsonify({
+                    'success': False,
+                    'error': 'Cannot set role to org_managed for user without an organization'
+                }), 400
+            # If they don't have an org_role yet, default to student
+            if not target_user.data.get('org_role'):
+                update_data['org_role'] = 'student'
 
         logger.info(f"Attempting to update role for user {target_user_id} to {new_role}")
         result = supabase.table('users').update(update_data).eq('id', target_user_id).execute()
@@ -341,6 +384,71 @@ def update_user_role(user_id, target_user_id):
             'error': f'Failed to update role: {str(e)}'
         }), 500
 
+def cleanup_user_related_records(supabase, target_user_id):
+    """
+    Clean up all records related to a user before deletion.
+    This handles foreign key constraints that would otherwise block deletion.
+    """
+    cleanup_results = []
+
+    # Tables with user_id foreign key
+    tables_with_user_id = [
+        'user_skill_xp',
+        'user_diplomas',
+        'user_quest_tasks',
+        'quest_task_completions',
+        'user_quest_progress',
+        'notifications',
+        'badges_earned',
+        'user_course_enrollments',
+        'user_lesson_progress',
+        'observer_relationships',
+        'dependent_invitations',
+    ]
+
+    for table in tables_with_user_id:
+        try:
+            result = supabase.table(table).delete().eq('user_id', target_user_id).execute()
+            if result.data:
+                cleanup_results.append(f"{table}: {len(result.data)} deleted")
+        except Exception as e:
+            # Table might not exist or have different schema - continue
+            logger.debug(f"Cleanup {table}: {e}")
+
+    # Tables with different column names
+    try:
+        supabase.table('friendships').delete().eq('requester_id', target_user_id).execute()
+        supabase.table('friendships').delete().eq('addressee_id', target_user_id).execute()
+    except Exception as e:
+        logger.debug(f"Cleanup friendships: {e}")
+
+    try:
+        supabase.table('observer_invitations').delete().eq('student_id', target_user_id).execute()
+        supabase.table('observer_invitations').delete().eq('observer_id', target_user_id).execute()
+    except Exception as e:
+        logger.debug(f"Cleanup observer_invitations: {e}")
+
+    try:
+        supabase.table('observer_relationships').delete().eq('student_id', target_user_id).execute()
+        supabase.table('observer_relationships').delete().eq('observer_id', target_user_id).execute()
+    except Exception as e:
+        logger.debug(f"Cleanup observer_relationships: {e}")
+
+    # Clear foreign key references (set to NULL instead of delete)
+    try:
+        supabase.table('org_invitations').update({'accepted_by': None}).eq('accepted_by', target_user_id).execute()
+        supabase.table('org_invitations').update({'invited_by': None}).eq('invited_by', target_user_id).execute()
+    except Exception as e:
+        logger.debug(f"Cleanup org_invitations: {e}")
+
+    try:
+        supabase.table('quests').update({'created_by': None}).eq('created_by', target_user_id).execute()
+    except Exception as e:
+        logger.debug(f"Cleanup quests.created_by: {e}")
+
+    return cleanup_results
+
+
 @bp.route('/users/<target_user_id>', methods=['DELETE'])
 @require_admin
 def delete_user(user_id, target_user_id):
@@ -358,9 +466,20 @@ def delete_user(user_id, target_user_id):
         if not user.data:
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
-        # Delete from public.users (AFTER DELETE trigger syncs deletion to auth.users)
+        # Clean up all related records first to avoid FK constraint errors
+        cleanup_results = cleanup_user_related_records(supabase, target_user_id)
+        logger.info(f"Cleaned up related records for user {target_user_id}: {cleanup_results}")
+
+        # Delete from public.users
         supabase.table('users').delete().eq('id', target_user_id).execute()
-        logger.info(f"Deleted user {target_user_id} from public.users (trigger syncs to auth.users)")
+        logger.info(f"Deleted user {target_user_id} from public.users")
+
+        # Delete from auth.users (Supabase Auth)
+        try:
+            supabase.auth.admin.delete_user(target_user_id)
+            logger.info(f"Deleted user {target_user_id} from auth.users")
+        except Exception as auth_err:
+            logger.warning(f"Could not delete from auth.users (may already be deleted): {auth_err}")
 
         return jsonify({
             'success': True,
@@ -400,8 +519,18 @@ def bulk_delete_users(user_id):
 
         for target_user_id in user_ids:
             try:
-                # Delete from public.users (trigger syncs to auth.users)
+                # Clean up related records first
+                cleanup_user_related_records(supabase, target_user_id)
+
+                # Delete from public.users
                 supabase.table('users').delete().eq('id', target_user_id).execute()
+
+                # Delete from auth.users
+                try:
+                    supabase.auth.admin.delete_user(target_user_id)
+                except Exception:
+                    pass  # May already be deleted
+
                 deleted.append(target_user_id)
                 logger.info(f"Bulk delete: Deleted user {target_user_id}")
             except Exception as e:
@@ -870,27 +999,50 @@ def assign_user_to_organization(admin_user_id, user_id):
 def update_user_org_role(admin_user_id, user_id):
     """
     Admin endpoint to update a user's organizational role.
-    Sets is_org_admin to true/false based on the role.
-    Only platform admins can change organizational roles.
+    Sets the org_role column and is_org_admin flag.
+    Also sets role to 'org_managed' if not already.
+    Only platform admins (superadmin) can use this endpoint.
+
+    Valid org_role values: student, parent, advisor, org_admin, observer
     """
     try:
         data = request.json
         org_role = data.get('org_role')
 
-        if org_role not in ['member', 'admin']:
+        # Valid organization roles
+        valid_org_roles = ['student', 'parent', 'advisor', 'org_admin', 'observer']
+        if org_role not in valid_org_roles:
             return jsonify({
                 'success': False,
-                'error': 'Invalid org_role. Must be "member" or "admin"'
+                'error': f'Invalid org_role. Must be one of: {valid_org_roles}'
             }), 400
-
-        is_org_admin = org_role == 'admin'
 
         from database import get_supabase_admin_client
         admin_client = get_supabase_admin_client()
 
-        # Update the user's org admin status
+        # First check if user has an organization
+        target_user = admin_client.table('users').select('organization_id, role').eq('id', user_id).single().execute()
+        if not target_user.data or not target_user.data.get('organization_id'):
+            return jsonify({
+                'success': False,
+                'error': 'Cannot set org_role for user without an organization'
+            }), 400
+
+        # Set is_org_admin based on whether org_role is 'org_admin'
+        is_org_admin = org_role == 'org_admin'
+
+        # Build update - set org_role, is_org_admin, and ensure role is org_managed
+        update_data = {
+            'org_role': org_role,
+            'is_org_admin': is_org_admin
+        }
+
+        # If user is not already org_managed, set them to org_managed
+        if target_user.data.get('role') != 'org_managed' and target_user.data.get('role') != 'superadmin':
+            update_data['role'] = 'org_managed'
+
         admin_client.table('users')\
-            .update({'is_org_admin': is_org_admin})\
+            .update(update_data)\
             .eq('id', user_id)\
             .execute()
 
@@ -899,6 +1051,7 @@ def update_user_org_role(admin_user_id, user_id):
         return jsonify({
             'success': True,
             'message': f'Organizational role updated to {org_role}',
+            'org_role': org_role,
             'is_org_admin': is_org_admin
         }), 200
 
@@ -908,6 +1061,99 @@ def update_user_org_role(admin_user_id, user_id):
             'success': False,
             'error': 'Failed to update organizational role'
         }), 500
+
+
+@bp.route('/org/users/<user_id>/role', methods=['PUT', 'OPTIONS'])
+@require_school_admin
+def update_org_user_role(admin_user_id, user_id):
+    """
+    Org admin endpoint to update a user's role within their organization.
+    Org admins can only modify users in their own organization.
+
+    Valid org_role values: student, parent, advisor, org_admin, observer
+    """
+    from utils.roles import get_effective_role, VALID_ORG_ROLES
+
+    try:
+        data = request.json
+        new_org_role = data.get('org_role')
+
+        if new_org_role not in VALID_ORG_ROLES:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid org_role. Must be one of: {list(VALID_ORG_ROLES)}'
+            }), 400
+
+        from database import get_supabase_admin_client
+        admin_client = get_supabase_admin_client()
+
+        # Get admin's organization
+        admin_user = admin_client.table('users').select('organization_id, role, org_role').eq('id', admin_user_id).single().execute()
+        if not admin_user.data:
+            return jsonify({'success': False, 'error': 'Admin user not found'}), 404
+
+        admin_org_id = admin_user.data.get('organization_id')
+        admin_effective_role = get_effective_role(admin_user.data)
+
+        # Superadmins can modify any user
+        is_superadmin = admin_effective_role == 'superadmin'
+
+        # Get target user
+        target_user = admin_client.table('users').select('organization_id, role, org_role').eq('id', user_id).single().execute()
+        if not target_user.data:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+
+        target_org_id = target_user.data.get('organization_id')
+
+        # Org admins can only modify users in their organization
+        if not is_superadmin:
+            if not admin_org_id or admin_org_id != target_org_id:
+                return jsonify({
+                    'success': False,
+                    'error': 'You can only modify users in your organization'
+                }), 403
+
+        # Prevent org_admin from removing their own org_admin role (unless superadmin)
+        if user_id == admin_user_id and new_org_role != 'org_admin' and not is_superadmin:
+            return jsonify({
+                'success': False,
+                'error': 'Cannot remove your own org_admin privileges'
+            }), 403
+
+        # Set is_org_admin based on whether org_role is 'org_admin'
+        is_org_admin = new_org_role == 'org_admin'
+
+        # Build update
+        update_data = {
+            'org_role': new_org_role,
+            'is_org_admin': is_org_admin
+        }
+
+        # If user is not already org_managed, set them to org_managed (unless superadmin)
+        if target_user.data.get('role') not in ['org_managed', 'superadmin']:
+            update_data['role'] = 'org_managed'
+
+        admin_client.table('users')\
+            .update(update_data)\
+            .eq('id', user_id)\
+            .execute()
+
+        logger.info(f"[ORG_ADMIN] User {user_id} org_role set to {new_org_role} by {admin_user_id}")
+
+        return jsonify({
+            'success': True,
+            'message': f'User role updated to {new_org_role}',
+            'org_role': new_org_role,
+            'is_org_admin': is_org_admin
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error updating org user role: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to update user role'
+        }), 500
+
 
 @bp.route('/organizations', methods=['GET'])
 @require_admin

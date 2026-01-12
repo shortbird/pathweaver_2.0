@@ -263,7 +263,7 @@ OPTIO-ALIGNED LANGUAGE (suggestions, not requirements):
 When enhancing content (moderate/full levels), these words align well with Optio philosophy:
 - explore, discover, create, experiment, dive into
 - notice, observe, play with, try, wonder about
-- becoming, developing, growing, learning
+- become, develop, grow, learn
 - curious, excited, proud, satisfied
 - journey, adventure, process, path
 
@@ -418,15 +418,29 @@ PROJECT FIELDS:
 - topics: Array of specific topic tags for searching (2-4 tags from: Music, Art, Design, Animation, Film, Writing, Photography, Crafts, Biology, Chemistry, Physics, Technology, Research, Astronomy, Environment, 3D Printing, Engineering, Robotics, DIY, Woodworking, Electronics, Maker, Gardening, Wildlife, Outdoors, Sustainability, Plants, Animals, Hiking, Entrepreneurship, Finance, Marketing, Leadership, Startups, Economics, Wellness, Fitness, Mindfulness, Skills, Philosophy, Self-Improvement, Reading, Math, History, Languages, Literature, Geography, Social Studies, Cooking, Nutrition, Baking, Culinary, Food Science, Board Games, Video Games, Puzzles, Strategy, Sports)
 
 =============================================================================
-QUEST NAMING CONVENTIONS
+QUEST NAMING CONVENTIONS (CRITICAL)
 =============================================================================
+
+Quests appear STANDALONE in the public quest library. Titles MUST be self-explanatory.
 
 - Start with ACTION VERBS: Create, Build, Design, Explore, Investigate, Program,
   Draw, Animate, Record, Write, Compose, Develop, Launch, Produce, etc.
-- Format: "[Action Verb] [Specific, Tangible Outcome]"
-- Examples: "Create a Digital Portfolio", "Build a Simple Robot", "Design a Logo",
-  "Record a Podcast Episode", "Write a Short Story Collection", "Launch a Mini Business"
-- These are QUESTS - they should sound like achievable, exciting projects
+- Format: "[Action Verb] [Specific, Tangible Outcome WITH CONTEXT]"
+- Include enough context to understand what the quest is about WITHOUT knowing the course
+
+BAD (too vague, need course context):
+- "Build a Prototype" (of what?)
+- "Design Your First Project" (what kind of project?)
+- "Develop Core Skills" (what skills?)
+- "Create a Concept" (concept for what?)
+
+GOOD (self-explanatory, work standalone):
+- "Build a Paper Prototype of Your Board Game"
+- "Design a Logo for a Small Business"
+- "Write a Short Science Fiction Story"
+- "Create a Personal Budget Spreadsheet"
+
+The title should tell someone browsing the quest library EXACTLY what they'll create.
 - Avoid: "Topic: Subtopic", "Introduction to X", "Learning About X", "Module N"
 
 =============================================================================
@@ -446,6 +460,8 @@ DO NOT USE:
 - "You will explore...", "Complete this to demonstrate..."
 
 DO:
+- Use imperative verb forms: "Create...", "Build...", "Design...", "Develop..."
+- Do NOT use gerunds (-ing forms): "Creating...", "Building...", "Developing..."
 - Describe the content, principles, and concepts as simple overviews
 - Write in neutral, present-tense descriptive language
 - Focus on WHAT the topic is about, not how users will interact with it
@@ -456,8 +472,11 @@ BAD: "This project explores the fundamentals of geometry."
 BAD: "In this course, you'll create a digital portfolio."
 BAD: "As part of the Science course, investigate photosynthesis."
 BAD: "Complete this project to demonstrate your understanding."
+BAD: "Creating a digital portfolio that showcases creative work." (uses gerund)
+BAD: "Developing critical thinking skills through analysis." (uses gerund)
+GOOD: "Create a digital portfolio that showcases creative work."
+GOOD: "Develop critical thinking skills through hands-on analysis."
 GOOD: "Basic geometric shapes and how they form the foundation for complex 3D designs."
-GOOD: "Creating a digital portfolio that showcases creative work."
 GOOD: "How plants convert sunlight into energy through photosynthesis."
 
 =============================================================================
@@ -530,6 +549,159 @@ REMEMBER:
 - Keep content BRIEF - just enough to start doing
 - Generate step IDs using format: step_[random 6 chars]
 - ALL steps must be type "text" - do NOT generate video or file steps
+- Align with Optio philosophy: "The Process Is The Goal"
+"""
+
+
+# =============================================================================
+# STAGE 5: FROM-SCRATCH COURSE GENERATION
+# =============================================================================
+
+COURSE_GENERATION_PROMPT = """
+You are generating a complete Optio Course from scratch based on a topic/name.
+
+INPUT:
+- Course topic/name (required)
+- Learning objectives (optional - if not provided, generate appropriate ones)
+
+TASK:
+Generate a complete course following Optio's "Process Is The Goal" philosophy.
+
+=============================================================================
+LEARNING OBJECTIVES HANDLING
+=============================================================================
+
+IF LEARNING OBJECTIVES ARE PROVIDED:
+- Create exactly ONE Project per objective
+- Transform each objective into an action-verb quest title
+- The project must EMBODY the objective's intent
+
+IF NO LEARNING OBJECTIVES PROVIDED:
+- Generate 4-6 appropriate learning objectives for the topic
+- Create ONE Project per generated objective
+- Each objective should cover a distinct aspect of the topic
+
+=============================================================================
+PROJECT DESIGN RULES
+=============================================================================
+
+QUEST NAMING (CRITICAL - quests appear standalone in public library):
+- Start with ACTION VERBS: Create, Build, Design, Explore, Investigate, Program, etc.
+- Format: "[Action Verb] [Specific, Tangible Outcome WITH CONTEXT]"
+- Use imperative form: "Create a..." NOT "Creating a..."
+- MUST include enough context to understand standalone (without knowing the course)
+- Avoid vague titles that only make sense within a course
+
+BAD QUEST TITLES (too vague, need course context):
+- "Conceptualize Your Core Game Idea" (what kind of game?)
+- "Engineer Your Game's Core Mechanics" (what game? what mechanics?)
+- "Build a Playable Prototype" (prototype of what?)
+- "Design Your First Project" (what project?)
+- "Develop Core Skills" (what skills?)
+
+GOOD QUEST TITLES (self-explanatory, work standalone):
+- "Design a Board Game Concept from Scratch"
+- "Create Balanced Mechanics for a Tabletop Game"
+- "Build a Paper Prototype of Your Board Game"
+- "Build Your First Personal Website"
+- "Design a Logo for a Small Business"
+- "Write a Short Science Fiction Story"
+
+The quest title should tell someone browsing the quest library EXACTLY what they'll create.
+
+DESCRIPTION STYLE (CRITICAL):
+- Use imperative verbs: "Create...", "Build...", "Develop...", "Explore..."
+- Do NOT use gerunds (-ing forms): "Creating...", "Building...", "Developing..."
+- Write standalone descriptions (quests appear in public library)
+- Never reference "this course", "this project", or parent context
+
+BAD: "Creating a digital portfolio that showcases work." (gerund)
+BAD: "In this project, you will learn photography basics." (project reference)
+BAD: "Developing skills through hands-on practice." (gerund)
+GOOD: "Create a digital portfolio that showcases your creative work."
+GOOD: "Master the fundamentals of camera settings and composition."
+GOOD: "Build a personal budget using spreadsheet tools."
+
+PROJECT FIELDS:
+- title: Action-oriented quest name
+- description: Standalone description using imperative verbs
+- big_idea: MUST BE IDENTICAL to description
+- source_objective: The original learning objective (or AI-generated one)
+- topic_primary: Main category (Creative, Science, Building, Nature, Business, Personal, Academic, Food, Games)
+- topics: 2-4 specific topic tags for searching
+
+=============================================================================
+JUST-IN-TIME LESSON DESIGN
+=============================================================================
+
+For each Project, generate 3-6 lessons following just-in-time teaching principles:
+- Brief, focused content (students learn by DOING, not reading)
+- Provide MINIMUM info needed to start a competent attempt
+- Each lesson prepares students for hands-on tasks
+- 5-10 steps per lesson (text type only)
+
+STEP FORMAT:
+Each step MUST have these fields:
+- "type": "text" (ONLY generate text steps)
+- "title": Short descriptive title (3-6 words)
+- "content": HTML content (use <p>, <ul>, <li>, <strong>, <em> tags)
+
+TEXT STEP GUIDELINES:
+- Brief written content (1-3 paragraphs per step)
+- ONE main idea per step
+- Keep it brief - just enough to start doing
+
+=============================================================================
+RETURN FORMAT
+=============================================================================
+
+{
+  "course": {
+    "title": "Course Title",
+    "description": "Brief course description"
+  },
+  "generated_objectives": [
+    "Objective 1 (if AI-generated)",
+    "Objective 2",
+    ...
+  ],
+  "projects": [
+    {
+      "title": "Action-Oriented Quest Title",
+      "description": "Standalone description using imperative verbs...",
+      "big_idea": "Same as description",
+      "source_objective": "The learning objective this addresses",
+      "topic_primary": "Academic",
+      "topics": ["Reading", "Literature", "Writing"],
+      "order": 0,
+      "lessons": [
+        {
+          "title": "Lesson Title",
+          "description": "What this lesson covers",
+          "order": 0,
+          "steps": [
+            {
+              "id": "step_abc123",
+              "type": "text",
+              "title": "Getting Started",
+              "content": "<p>Brief intro content...</p>",
+              "order": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+REMEMBER:
+- If LOs provided: ONE project per objective (count must match EXACTLY)
+- If no LOs: Generate 4-6 objectives and create one project per objective
+- 3-6 lessons per project, 5-10 steps per lesson
+- Keep content BRIEF - just enough to start doing
+- Generate step IDs using format: step_[random 6 chars]
+- ALL steps must be type "text"
+- Use imperative verbs, NOT gerunds
 - Align with Optio philosophy: "The Process Is The Goal"
 """
 

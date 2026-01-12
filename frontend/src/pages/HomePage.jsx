@@ -57,7 +57,7 @@ const HomePage = () => {
     if (!loading && isAuthenticated && user) {
       if (user.role === 'parent') {
         navigate('/parent/dashboard')
-      } else if (user.role === 'student' || user.role === 'advisor' || user.role === 'admin' || user.role === 'superadmin') {
+      } else if (user.role === 'student' || user.role === 'advisor' || user.role === 'org_admin' || user.role === 'superadmin' || user.role === 'org_managed') {
         navigate('/dashboard')
       }
     }

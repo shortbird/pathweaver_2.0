@@ -345,6 +345,94 @@ def resend_invitation(current_user_id, current_org_id, is_superadmin, org_id, in
         return jsonify({'error': 'Failed to resend invitation'}), 500
 
 
+@bp.route('/<org_id>/invitations/link', methods=['POST'])
+@require_org_admin
+@rate_limit(max_requests=20, window_seconds=300)  # 20 links per 5 minutes
+def generate_invitation_link(current_user_id, current_org_id, is_superadmin, org_id):
+    """
+    Generate a shareable invitation link for the organization.
+
+    Unlike email-based invitations, this creates a link that can be shared
+    manually (via Slack, WhatsApp, in-person, etc.) and allows anyone with
+    the link to join the organization.
+
+    Body:
+        role: Role to assign (student, parent, advisor, org_admin, observer)
+
+    Returns:
+        201: Invitation link created with shareable_link
+    """
+    try:
+        data = request.json or {}
+        user_id = current_user_id
+
+        role = data.get('role', 'student').lower()
+        if role not in VALID_INVITATION_ROLES:
+            return jsonify({'error': f'Invalid role. Must be one of: {", ".join(VALID_INVITATION_ROLES)}'}), 400
+
+        supabase = get_supabase_admin_client()
+
+        # Get organization details
+        org_result = supabase.table('organizations') \
+            .select('name, slug') \
+            .eq('id', org_id) \
+            .single() \
+            .execute()
+
+        if not org_result.data:
+            return jsonify({'error': 'Organization not found'}), 404
+
+        org_name = org_result.data['name']
+
+        # Generate invitation code and expiration
+        invitation_code = generate_invitation_code()
+        expires_at = datetime.utcnow() + timedelta(days=7)
+
+        # Create invitation with placeholder email (link-based)
+        # The actual email will be provided when the user accepts
+        placeholder_email = f"link-invite-{invitation_code[:12]}@pending.optio.local"
+
+        invitation_data = {
+            'organization_id': org_id,
+            'email': placeholder_email,
+            'invited_name': '',  # Will be provided by user
+            'role': role,
+            'invitation_code': invitation_code,
+            'invited_by': user_id,
+            'status': 'pending',
+            'expires_at': expires_at.isoformat()
+        }
+
+        result = supabase.table('org_invitations').insert(invitation_data).execute()
+
+        if not result.data:
+            return jsonify({'error': 'Failed to create invitation link'}), 500
+
+        invitation = result.data[0]
+
+        # Build shareable link
+        from app_config import Config
+        frontend_url = Config.FRONTEND_URL
+        shareable_link = f"{frontend_url}/invitation/{invitation_code}"
+
+        logger.info(f"Generated invitation link for org {org_id} with role {role}")
+
+        return jsonify({
+            'success': True,
+            'invitation': invitation,
+            'shareable_link': shareable_link,
+            'invitation_code': invitation_code,
+            'expires_at': expires_at.isoformat(),
+            'role': role,
+            'organization_name': org_name,
+            'message': 'Invitation link generated successfully'
+        }), 201
+
+    except Exception as e:
+        logger.error(f"Failed to generate invitation link for org {org_id}: {e}")
+        return jsonify({'error': 'Failed to generate invitation link'}), 500
+
+
 @bp.route('/<org_id>/invitations/<invitation_id>', methods=['DELETE'])
 @require_org_admin
 def cancel_invitation(current_user_id, current_org_id, is_superadmin, org_id, invitation_id):
@@ -397,7 +485,7 @@ def validate_invitation_code(invitation_code):
 
         # Find the invitation
         result = supabase.table('org_invitations') \
-            .select('id, organization_id, email, invited_name, role, status, expires_at, organizations(name, slug)') \
+            .select('id, organization_id, email, invited_name, role, status, expires_at, organizations(name, slug, branding_config)') \
             .eq('invitation_code', invitation_code) \
             .single() \
             .execute()
@@ -427,13 +515,17 @@ def validate_invitation_code(invitation_code):
                 'error': 'This invitation has expired'
             }), 400
 
+        # Check if this is a link-based invitation (no specific email required)
+        is_link_based = inv['email'].startswith('link-invite-') and inv['email'].endswith('@pending.optio.local')
+
         return jsonify({
             'valid': True,
             'invitation': {
-                'email': inv['email'],
+                'email': '' if is_link_based else inv['email'],  # Don't show placeholder
                 'invited_name': inv['invited_name'],
                 'role': inv['role'],
-                'organization': inv['organizations']
+                'organization': inv['organizations'],
+                'is_link_based': is_link_based  # Frontend uses this to show email input
             }
         }), 200
 
@@ -491,9 +583,27 @@ def accept_invitation(invitation_code):
         last_name = sanitize_input(data.get('last_name', ''))
         date_of_birth = data.get('date_of_birth')
 
-        # Validate email matches invitation
-        if email != inv['email'].lower():
+        # Check if this is a link-based invitation
+        is_link_based = inv['email'].startswith('link-invite-') and inv['email'].endswith('@pending.optio.local')
+
+        # Validate email
+        if not email or not validate_email(email):
+            return jsonify({'error': 'Valid email is required'}), 400
+
+        # For email-based invitations, email must match
+        # For link-based invitations, any valid email is accepted
+        if not is_link_based and email != inv['email'].lower():
             return jsonify({'error': 'Email does not match invitation'}), 400
+
+        # For link-based invites, check if this email is already in the org
+        if is_link_based:
+            existing_in_org = supabase.table('users') \
+                .select('id') \
+                .eq('email', email) \
+                .eq('organization_id', inv['organization_id']) \
+                .execute()
+            if existing_in_org.data:
+                return jsonify({'error': 'This email is already a member of this organization'}), 409
 
         # Validate password
         if not password or len(password) < 8:
@@ -521,13 +631,17 @@ def accept_invitation(invitation_code):
                 .eq('id', user['id']) \
                 .execute()
 
-            # Mark invitation as accepted
+            # Mark invitation as accepted (update email for link-based invites)
+            update_data = {
+                'status': 'accepted',
+                'accepted_at': datetime.utcnow().isoformat(),
+                'accepted_by': user['id']
+            }
+            if is_link_based:
+                update_data['email'] = email  # Record actual email used
+
             supabase.table('org_invitations') \
-                .update({
-                    'status': 'accepted',
-                    'accepted_at': datetime.utcnow().isoformat(),
-                    'accepted_by': user['id']
-                }) \
+                .update(update_data) \
                 .eq('id', inv['id']) \
                 .execute()
 
@@ -541,16 +655,23 @@ def accept_invitation(invitation_code):
         try:
             from app_config import Config
 
-            # Create auth user (auto-confirmed since they have invitation)
+            # Create auth user - requires email verification
             auth_response = supabase.auth.admin.create_user({
                 'email': email,
                 'password': password,
-                'email_confirm': True,  # Auto-confirm email
+                'email_confirm': False,  # Require email verification
                 'user_metadata': {
                     'first_name': first_name,
                     'last_name': last_name
                 }
             })
+
+            # Trigger verification email via Supabase Auth
+            try:
+                supabase.auth.resend({"type": "signup", "email": email})
+                logger.info(f"Verification email sent to {email}")
+            except Exception as email_err:
+                logger.warning(f"Failed to send verification email: {email_err}")
 
             if not auth_response.user:
                 return jsonify({'error': 'Failed to create user account'}), 500
@@ -577,20 +698,26 @@ def accept_invitation(invitation_code):
             from routes.auth.registration import ensure_user_diploma_and_skills
             ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name)
 
-            # Mark invitation as accepted
+            # Mark invitation as accepted (update email for link-based invites)
+            update_data = {
+                'status': 'accepted',
+                'accepted_at': datetime.utcnow().isoformat(),
+                'accepted_by': user_id
+            }
+            if is_link_based:
+                update_data['email'] = email  # Record actual email used
+                update_data['invited_name'] = f"{first_name} {last_name}"
+
             supabase.table('org_invitations') \
-                .update({
-                    'status': 'accepted',
-                    'accepted_at': datetime.utcnow().isoformat(),
-                    'accepted_by': user_id
-                }) \
+                .update(update_data) \
                 .eq('id', inv['id']) \
                 .execute()
 
             return jsonify({
                 'success': True,
-                'message': 'Account created successfully! You can now log in.',
-                'new_user': True
+                'message': 'Account created! Please check your email to verify your account before logging in.',
+                'new_user': True,
+                'requires_verification': True
             }), 201
 
         except Exception as e:

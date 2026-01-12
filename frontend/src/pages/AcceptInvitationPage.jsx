@@ -11,6 +11,7 @@ export default function AcceptInvitationPage() {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [siteSettings, setSiteSettings] = useState(null);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -21,10 +22,22 @@ export default function AcceptInvitationPage() {
     date_of_birth: ''
   });
   const [formErrors, setFormErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     validateInvitation();
+    fetchSiteSettings();
   }, [code]);
+
+  const fetchSiteSettings = async () => {
+    try {
+      const response = await api.get('/api/settings');
+      setSiteSettings(response.data.settings || response.data);
+    } catch (err) {
+      console.error('Failed to fetch site settings:', err);
+    }
+  };
 
   const validateInvitation = async () => {
     try {
@@ -53,6 +66,15 @@ export default function AcceptInvitationPage() {
 
   const validateForm = () => {
     const errors = {};
+
+    // Email validation for link-based invitations
+    if (invitation?.is_link_based) {
+      if (!formData.email.trim()) {
+        errors.email = 'Email is required';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        errors.email = 'Please enter a valid email address';
+      }
+    }
 
     if (!formData.first_name.trim()) {
       errors.first_name = 'First name is required';
@@ -148,21 +170,24 @@ export default function AcceptInvitationPage() {
         <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Optio!</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h1>
           <p className="text-gray-600 mb-2">
-            Your account has been created successfully.
+            Your account has been created for <strong>{invitation?.organization?.name}</strong>.
           </p>
           <p className="text-gray-600 mb-6">
-            You've joined <strong>{invitation?.organization?.name}</strong> as a <strong>{invitation?.role}</strong>.
+            We've sent a verification link to <strong>{formData.email}</strong>. Please click the link to verify your email before logging in.
           </p>
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800 mb-6">
+            <p>Don't see the email? Check your spam folder or wait a few minutes.</p>
+          </div>
           <Link
             to="/login"
             className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90"
           >
-            Log In Now
+            Go to Login
           </Link>
         </div>
       </div>
@@ -175,9 +200,27 @@ export default function AcceptInvitationPage() {
       <div className="max-w-md w-full">
         {/* Header */}
         <div className="text-center mb-8">
-          <Link to="/" className="inline-block mb-6">
-            <img src="/optio-logo.svg" alt="Optio" className="h-10 mx-auto" />
-          </Link>
+          <div className="flex items-center justify-center gap-4 mb-6">
+            {invitation?.organization?.branding_config?.logo_url && (
+              <>
+                <img
+                  src={invitation.organization.branding_config.logo_url}
+                  alt={invitation.organization.name}
+                  className="h-10 object-contain"
+                />
+                <div className="h-8 w-px bg-gray-300"></div>
+              </>
+            )}
+            <Link to="/">
+              {siteSettings?.logo_url ? (
+                <img src={siteSettings.logo_url} alt={siteSettings?.site_name || "Optio"} className="h-10" />
+              ) : (
+                <span className="text-2xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent">
+                  {siteSettings?.site_name || "Optio"}
+                </span>
+              )}
+            </Link>
+          </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             Join {invitation?.organization?.name}
           </h1>
@@ -189,18 +232,38 @@ export default function AcceptInvitationPage() {
         {/* Form */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email (read-only) */}
+            {/* Email - editable for link-based, read-only for email-based */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
+                Email {invitation?.is_link_based && <span className="text-red-500">*</span>}
               </label>
-              <input
-                type="email"
-                value={formData.email}
-                disabled
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-600"
-              />
-              <p className="text-xs text-gray-500 mt-1">This email is linked to your invitation</p>
+              {invitation?.is_link_based ? (
+                <>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
+                      formErrors.email ? 'border-red-300' : 'border-gray-200'
+                    }`}
+                    placeholder="your@email.com"
+                  />
+                  {formErrors.email && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">Enter your email to create your account</p>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    disabled
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-600"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">This email is linked to your invitation</p>
+                </>
+              )}
             </div>
 
             {/* Name fields */}
@@ -246,15 +309,33 @@ export default function AcceptInvitationPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Password <span className="text-red-500">*</span>
               </label>
-              <input
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
-                  formErrors.password ? 'border-red-300' : 'border-gray-200'
-                }`}
-                placeholder="At least 8 characters"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className={`w-full border rounded-lg px-3 py-2 pr-10 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
+                    formErrors.password ? 'border-red-300' : 'border-gray-200'
+                  }`}
+                  placeholder="At least 8 characters"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
               {formErrors.password && (
                 <p className="text-xs text-red-600 mt-1">{formErrors.password}</p>
               )}
@@ -265,15 +346,33 @@ export default function AcceptInvitationPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Confirm Password <span className="text-red-500">*</span>
               </label>
-              <input
-                type="password"
-                value={formData.confirmPassword}
-                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
-                  formErrors.confirmPassword ? 'border-red-300' : 'border-gray-200'
-                }`}
-                placeholder="Confirm your password"
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  className={`w-full border rounded-lg px-3 py-2 pr-10 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
+                    formErrors.confirmPassword ? 'border-red-300' : 'border-gray-200'
+                  }`}
+                  placeholder="Confirm your password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirmPassword ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
               {formErrors.confirmPassword && (
                 <p className="text-xs text-red-600 mt-1">{formErrors.confirmPassword}</p>
               )}

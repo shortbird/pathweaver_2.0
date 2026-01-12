@@ -3,13 +3,14 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import api from '../../services/api'
-import { OverviewTab, UsersTab, QuestsTab, CourseTab } from '../../components/organization'
+import { OverviewTab, UsersTab, QuestsTab, CourseTab, ConnectionsTab } from '../../components/organization'
 
 const OrgStudentProgress = lazy(() => import('../../components/admin/OrgStudentProgress'))
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'users', label: 'Users' },
+  { id: 'connections', label: 'Connections' },
   { id: 'quests', label: 'Quests' },
   { id: 'courses', label: 'Courses' },
   { id: 'progress', label: 'Progress' }
@@ -142,6 +143,10 @@ export default function OrganizationManagement() {
           users={orgData.users}
           onUpdate={fetchOrganizationData}
         />
+      )}
+
+      {activeTab === 'connections' && (
+        <ConnectionsTab orgId={orgId} />
       )}
 
       {activeTab === 'quests' && (

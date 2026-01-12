@@ -19,7 +19,11 @@ export default function PendingInvitationsList({ organizationId, onUpdate }) {
       setLoading(true);
       const params = statusFilter !== 'all' ? `?status=${statusFilter}` : '';
       const response = await api.get(`/api/admin/organizations/${organizationId}/invitations${params}`);
-      setInvitations(response.data.invitations || []);
+      // Filter out link-based invitations - they are managed in the Overview tab
+      const emailInvitations = (response.data.invitations || []).filter(
+        inv => !(inv.email?.startsWith('link-invite-') && inv.email?.endsWith('@pending.optio.local'))
+      );
+      setInvitations(emailInvitations);
       setError(null);
     } catch (err) {
       console.error('Failed to fetch invitations:', err);

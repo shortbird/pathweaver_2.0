@@ -580,12 +580,15 @@ class AdvisorService(BaseService):
 
             # Check if advisor has permission
             advisor_check = self.supabase.table('users')\
-                .select('role')\
+                .select('role, org_role')\
                 .eq('id', advisor_id)\
                 .single()\
                 .execute()
 
-            is_admin = advisor_check.data and advisor_check.data['role'] in ['admin', 'superadmin']
+            # Check effective role for admin access
+            from utils.roles import get_effective_role
+            effective_role = get_effective_role(advisor_check.data) if advisor_check.data else None
+            is_admin = effective_role in ['org_admin', 'superadmin']
 
             # Check advisor-student assignment
             assignment_check = self.supabase.table('advisor_student_assignments')\

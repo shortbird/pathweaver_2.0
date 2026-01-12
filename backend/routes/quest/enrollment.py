@@ -241,7 +241,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 if preset_tasks and len(preset_tasks) > 0:
                     # Initialize classification service for auto-generating subject distributions
                     from services.subject_classification_service import SubjectClassificationService
-                    classification_service = SubjectClassificationService(client=get_supabase_admin_client())
+                    classification_service = SubjectClassificationService()
 
                     # Copy all preset tasks to user_quest_tasks
                     user_tasks_data = []

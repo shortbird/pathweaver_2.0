@@ -80,9 +80,8 @@ const CurriculumUploadPage = () => {
   const [textTitle, setTextTitle] = useState('')
 
   // Options state
-  const [transformationLevel, setTransformationLevel] = useState('moderate')
-  const [preserveStructure, setPreserveStructure] = useState(true)
   const [learningObjectives, setLearningObjectives] = useState('')
+  const [courseTopic, setCourseTopic] = useState('') // For generate mode
 
   // Processing state
   const [uploading, setUploading] = useState(false)
@@ -309,6 +308,11 @@ const CurriculumUploadPage = () => {
       return
     }
 
+    if (activeTab === 'generate' && !courseTopic.trim()) {
+      toast.error('Please enter a course topic')
+      return
+    }
+
     setUploading(true)
 
     try {
@@ -317,8 +321,8 @@ const CurriculumUploadPage = () => {
       if (activeTab === 'file') {
         const formData = new FormData()
         formData.append('file', file)
-        formData.append('transformation_level', transformationLevel)
-        formData.append('preserve_structure', preserveStructure.toString())
+        formData.append('transformation_level', 'full')
+        formData.append('preserve_structure', 'false')
 
         // Include learning objectives if provided (one per line)
         if (learningObjectives.trim()) {
@@ -333,12 +337,18 @@ const CurriculumUploadPage = () => {
         response = await api.post('/api/admin/curriculum/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         })
-      } else {
+      } else if (activeTab === 'text') {
         response = await api.post('/api/admin/curriculum/upload', {
           text: textContent,
           title: textTitle || 'Pasted Curriculum',
-          transformation_level: transformationLevel,
-          preserve_structure: preserveStructure
+          transformation_level: 'full',
+          preserve_structure: false
+        })
+      } else if (activeTab === 'generate') {
+        // Generate from prompt mode - no source curriculum
+        response = await api.post('/api/admin/curriculum/generate', {
+          topic: courseTopic.trim(),
+          learning_objectives: learningObjectives.trim() || null
         })
       }
 
@@ -371,6 +381,8 @@ const CurriculumUploadPage = () => {
     setFile(null)
     setTextContent('')
     setTextTitle('')
+    setCourseTopic('')
+    setLearningObjectives('')
     setUploadStarted(false)
     setUploadId(null)
     setProgress(null)
@@ -578,6 +590,16 @@ const CurriculumUploadPage = () => {
           >
             Paste Text
           </button>
+          <button
+            onClick={() => setActiveTab('generate')}
+            className={`pb-3 px-1 font-medium ${
+              activeTab === 'generate'
+                ? 'border-b-2 border-optio-purple text-optio-purple'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Generate from Prompt
+          </button>
         </div>
       </div>
 
@@ -689,6 +711,65 @@ const CurriculumUploadPage = () => {
             <p className="text-sm text-gray-500 mt-1">
               {textContent.length.toLocaleString()} characters
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Generate from Prompt Tab */}
+      {activeTab === 'generate' && (
+        <div className="space-y-6">
+          <div className="p-4 bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 border border-optio-purple/20 rounded-lg">
+            <div className="flex gap-3">
+              <svg className="w-5 h-5 text-optio-purple flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <div className="text-sm text-gray-700">
+                <p className="font-medium mb-1">Generate a complete course from scratch</p>
+                <p>Enter a course topic and optionally add learning objectives. AI will create a full Optio course with projects, lessons, and content - no existing curriculum needed.</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Course Topic / Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={courseTopic}
+              onChange={(e) => setCourseTopic(e.target.value)}
+              placeholder="e.g., Introduction to Photography, Personal Finance Basics, Creative Writing Workshop"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple text-lg"
+            />
+            <p className="text-sm text-gray-500 mt-2">
+              Be specific for better results. "Introduction to Digital Photography for Beginners" works better than just "Photography".
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Learning Objectives (Optional)
+            </label>
+            <p className="text-sm text-gray-500 mb-3">
+              Enter learning objectives, one per line. Each will become a Project/Quest.
+              If left blank, AI will generate 4-6 appropriate objectives for your topic.
+            </p>
+            <textarea
+              value={learningObjectives}
+              onChange={(e) => setLearningObjectives(e.target.value)}
+              placeholder="Example:&#10;Understand camera settings and exposure&#10;Compose visually compelling photographs&#10;Edit photos using digital software"
+              rows={5}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple resize-y"
+            />
+            {learningObjectives.trim() ? (
+              <p className="text-sm text-gray-500 mt-2">
+                {learningObjectives.trim().split('\n').filter(line => line.trim()).length} objective(s) will create {learningObjectives.trim().split('\n').filter(line => line.trim()).length} project(s)
+              </p>
+            ) : (
+              <p className="text-sm text-gray-500 mt-2">
+                AI will generate 4-6 projects based on your topic
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -836,80 +917,28 @@ const CurriculumUploadPage = () => {
         </div>
       )}
 
-      {/* Transformation Options */}
-      <div className="mt-8 p-6 bg-gray-50 rounded-lg">
-        <h3 className="font-medium text-gray-900 mb-4">Transformation Options</h3>
-
-        <div className="space-y-6">
-          {/* Transformation Level */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Transformation Level
-            </label>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { value: 'light', label: 'Light', desc: 'Keep original voice, only structure' },
-                { value: 'moderate', label: 'Moderate', desc: 'Enhance with Optio elements' },
-                { value: 'full', label: 'Full', desc: 'Rewrite in Optio voice' }
-              ].map(option => (
-                <button
-                  key={option.value}
-                  onClick={() => setTransformationLevel(option.value)}
-                  className={`p-3 rounded-lg border-2 text-left transition-colors ${
-                    transformationLevel === option.value
-                      ? 'border-optio-purple bg-purple-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="font-medium text-gray-900">{option.label}</div>
-                  <div className="text-xs text-gray-500 mt-1">{option.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Structure Option */}
-          <div>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={preserveStructure}
-                onChange={(e) => setPreserveStructure(e.target.checked)}
-                className="w-5 h-5 rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
-              />
-              <div>
-                <div className="font-medium text-gray-900">Preserve Original Structure</div>
-                <div className="text-sm text-gray-500">
-                  Keep the original module/lesson order. Uncheck to restructure for just-in-time teaching.
-                </div>
-              </div>
-            </label>
-          </div>
-
-          {/* Learning Objectives */}
-          <div className="pt-4 border-t border-gray-200">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Learning Objectives (Optional)
-            </label>
-            <p className="text-sm text-gray-500 mb-3">
-              Enter course learning objectives, one per line. Each objective will become a Project/Quest.
-              If left blank, projects will be created from the content structure.
+      {/* Learning Objectives (shown for file/text uploads) */}
+      {(activeTab === 'file' || activeTab === 'text') && (
+        <div className="mt-8 p-6 bg-gray-50 rounded-lg">
+          <h3 className="font-medium text-gray-900 mb-4">Learning Objectives (Optional)</h3>
+          <p className="text-sm text-gray-500 mb-3">
+            Enter course learning objectives, one per line. Each objective will become a Project/Quest.
+            If left blank, projects will be created from the content structure.
+          </p>
+          <textarea
+            value={learningObjectives}
+            onChange={(e) => setLearningObjectives(e.target.value)}
+            placeholder="Example:&#10;Understand the fundamentals of web development&#10;Build responsive layouts using CSS&#10;Create interactive web pages with JavaScript"
+            rows={5}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple resize-y"
+          />
+          {learningObjectives.trim() && (
+            <p className="text-sm text-gray-500 mt-2">
+              {learningObjectives.trim().split('\n').filter(line => line.trim()).length} objective(s) will create {learningObjectives.trim().split('\n').filter(line => line.trim()).length} project(s)
             </p>
-            <textarea
-              value={learningObjectives}
-              onChange={(e) => setLearningObjectives(e.target.value)}
-              placeholder="Example:&#10;Understand the fundamentals of web development&#10;Build responsive layouts using CSS&#10;Create interactive web pages with JavaScript"
-              rows={5}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple resize-y"
-            />
-            {learningObjectives.trim() && (
-              <p className="text-sm text-gray-500 mt-2">
-                {learningObjectives.trim().split('\n').filter(line => line.trim()).length} objective(s) will create {learningObjectives.trim().split('\n').filter(line => line.trim()).length} project(s)
-              </p>
-            )}
-          </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* Info Box */}
       <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -938,7 +967,7 @@ const CurriculumUploadPage = () => {
         </button>
         <button
           onClick={handleUpload}
-          disabled={uploading || (activeTab === 'file' && !file) || (activeTab === 'text' && !textContent.trim())}
+          disabled={uploading || (activeTab === 'file' && !file) || (activeTab === 'text' && !textContent.trim()) || (activeTab === 'generate' && !courseTopic.trim())}
           className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {uploading ? (
@@ -946,6 +975,8 @@ const CurriculumUploadPage = () => {
               <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
               Starting...
             </>
+          ) : activeTab === 'generate' ? (
+            'Generate Course'
           ) : (
             'Process Curriculum'
           )}

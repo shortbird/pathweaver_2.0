@@ -5,11 +5,16 @@ const BulkUserImport = lazy(() => import('../admin/BulkUserImport'))
 const PendingInvitationsList = lazy(() => import('../admin/PendingInvitationsList'))
 
 function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
+  // For org_managed users, use org_role as the effective role
+  const effectiveRole = user.role === 'org_managed' && user.org_role
+    ? user.org_role
+    : user.role
+
   const [formData, setFormData] = useState({
     first_name: user.first_name || '',
     last_name: user.last_name || '',
     email: user.email || '',
-    role: user.role || 'student'
+    org_role: effectiveRole || 'student'
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -26,23 +31,25 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
         email: formData.email
       })
 
-      if (formData.role !== user.role) {
-        await api.put(`/api/admin/users/${user.id}/role`, {
-          role: formData.role
+      // Use org-specific endpoint for setting org_role (org admins can use this)
+      if (formData.org_role !== effectiveRole) {
+        await api.put(`/api/admin/org/users/${user.id}/role`, {
+          org_role: formData.org_role
         })
       }
 
       onSuccess()
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to update user')
+      const errorData = err.response?.data?.error || err.response?.data?.message || err.response?.data;
+      setError(typeof errorData === 'string' ? errorData : errorData?.message || 'Failed to update user')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 w-full max-w-md">
+    <div className="fixed top-0 left-0 right-0 bottom-0 w-full h-full bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-xl p-6 w-full max-w-md my-auto">
         <h2 className="text-2xl font-bold mb-4">Edit User</h2>
 
         <form onSubmit={handleSubmit}>
@@ -81,16 +88,17 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
           </div>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Role</label>
+            <label className="block text-sm font-medium mb-1">Organization Role</label>
             <select
-              value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              value={formData.org_role}
+              onChange={(e) => setFormData({ ...formData, org_role: e.target.value })}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
             >
               <option value="student">Student</option>
               <option value="parent">Parent</option>
               <option value="advisor">Advisor</option>
-              <option value="admin">Admin</option>
+              <option value="observer">Observer</option>
+              <option value="org_admin">Organization Admin</option>
             </select>
           </div>
 
@@ -363,14 +371,33 @@ export default function UsersTab({ orgId, users, onUpdate }) {
                       </td>
                       <td className="px-6 py-4 text-gray-600">{user.email}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
-                          user.role === 'admin' || user.role === 'superadmin' ? 'bg-purple-100 text-purple-700' :
-                          user.role === 'advisor' ? 'bg-blue-100 text-blue-700' :
-                          user.role === 'parent' ? 'bg-green-100 text-green-700' :
-                          'bg-gray-100 text-gray-700'
-                        }`}>
-                          {user.role}
-                        </span>
+                        {(() => {
+                          // In org context, always show org_role (never show "org_managed")
+                          const displayRole = user.org_role || user.role;
+                          const roleColors = {
+                            superadmin: 'bg-purple-100 text-purple-700',
+                            org_admin: 'bg-purple-100 text-purple-700',
+                            advisor: 'bg-blue-100 text-blue-700',
+                            parent: 'bg-green-100 text-green-700',
+                            observer: 'bg-yellow-100 text-yellow-700',
+                            student: 'bg-gray-100 text-gray-700'
+                          };
+                          const roleDisplayNames = {
+                            superadmin: 'Superadmin',
+                            org_admin: 'Org Admin',
+                            advisor: 'Advisor',
+                            parent: 'Parent',
+                            observer: 'Observer',
+                            student: 'Student'
+                          };
+                          return (
+                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
+                              roleColors[displayRole] || 'bg-gray-100 text-gray-700'
+                            }`}>
+                              {roleDisplayNames[displayRole] || displayRole}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button

@@ -457,7 +457,7 @@ def resend_verification():
         # Resend verification email using Supabase Auth
         try:
             logger.info(f"[RESEND_VERIFICATION] Attempting to resend for {mask_email(email)}")
-            result = supabase.auth.resend(email=email, type='signup')
+            result = supabase.auth.resend({"type": "signup", "email": email})
 
             logger.info(f"[RESEND_VERIFICATION] Result: {result}")
 

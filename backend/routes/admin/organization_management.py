@@ -267,15 +267,17 @@ def revoke_course_access(current_user_id, current_org_id, is_superadmin, org_id)
 @bp.route('/<org_id>/users', methods=['GET'])
 @require_org_admin
 def list_organization_users(current_user_id, current_org_id, is_superadmin, org_id):
-    """List users in organization"""
+    """List users in organization, optionally filtered by role"""
     try:
         # Verify access
         if not is_superadmin and current_org_id != org_id:
             return jsonify({'error': 'Access denied'}), 403
 
+        role = request.args.get('role')
+
         from repositories.organization_repository import OrganizationRepository
         repo = OrganizationRepository()
-        users = repo.get_organization_users(org_id)
+        users = repo.get_organization_users(org_id, role=role)
 
         return jsonify({
             'users': users,
@@ -570,35 +572,40 @@ def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id)
 
         student_ids = [s['id'] for s in students]
 
-        # Get quest enrollments for all students
-        user_quests = client.table('user_quests')\
-            .select('user_id, quest_id, status')\
-            .in_('user_id', student_ids)\
-            .execute()
+        # Initialize empty results in case there are no students
+        user_quests_data = []
+        completions_period_data_raw = []
+        completions_all_data_raw = []
 
-        # Get task completions for all students (in date range)
-        completions_period = client.table('quest_task_completions')\
-            .select('user_id, id, completed_at')\
-            .in_('user_id', student_ids)\
-            .gte('completed_at', f"{start_date}T00:00:00")\
-            .lte('completed_at', f"{end_date}T23:59:59")\
-            .execute()
+        # Only query if we have students (avoid empty IN clause)
+        if student_ids:
+            # Get quest enrollments for all students
+            user_quests = client.table('user_quests')\
+                .select('user_id, quest_id, status')\
+                .in_('user_id', student_ids)\
+                .execute()
+            user_quests_data = user_quests.data or []
 
-        # Get all-time task completions
-        completions_all = client.table('quest_task_completions')\
-            .select('user_id, id')\
-            .in_('user_id', student_ids)\
-            .execute()
+            # Get task completions for all students (in date range)
+            completions_period = client.table('quest_task_completions')\
+                .select('user_id, id, completed_at')\
+                .in_('user_id', student_ids)\
+                .gte('completed_at', f"{start_date}T00:00:00")\
+                .lte('completed_at', f"{end_date}T23:59:59")\
+                .execute()
+            completions_period_data_raw = completions_period.data or []
 
-        # Get badges for all students
-        badges = client.table('user_badges')\
-            .select('user_id, id')\
-            .in_('user_id', student_ids)\
-            .execute()
+            # Get all-time task completions
+            completions_all = client.table('quest_task_completions')\
+                .select('user_id, id')\
+                .in_('user_id', student_ids)\
+                .execute()
+            completions_all_data_raw = completions_all.data or []
+
 
         # Aggregate data by student
         quest_data = {}
-        for uq in (user_quests.data or []):
+        for uq in user_quests_data:
             uid = uq['user_id']
             if uid not in quest_data:
                 quest_data[uid] = {'enrolled': 0, 'completed': 0}
@@ -607,19 +614,14 @@ def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id)
                 quest_data[uid]['completed'] += 1
 
         completion_period_data = {}
-        for c in (completions_period.data or []):
+        for c in completions_period_data_raw:
             uid = c['user_id']
             completion_period_data[uid] = completion_period_data.get(uid, 0) + 1
 
         completion_all_data = {}
-        for c in (completions_all.data or []):
+        for c in completions_all_data_raw:
             uid = c['user_id']
             completion_all_data[uid] = completion_all_data.get(uid, 0) + 1
-
-        badge_data = {}
-        for b in (badges.data or []):
-            uid = b['user_id']
-            badge_data[uid] = badge_data.get(uid, 0) + 1
 
         # Build student progress list
         student_progress = []
@@ -634,7 +636,6 @@ def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id)
             quests = quest_data.get(sid, {'enrolled': 0, 'completed': 0})
             tasks_period = completion_period_data.get(sid, 0)
             tasks_all = completion_all_data.get(sid, 0)
-            badge_count = badge_data.get(sid, 0)
 
             total_completions += tasks_period
 
@@ -651,7 +652,6 @@ def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id)
                 'quests_completed': quests['completed'],
                 'tasks_completed_period': tasks_period,
                 'tasks_completed_all': tasks_all,
-                'badge_count': badge_count,
                 'last_active': student.get('last_active'),
                 'joined': student.get('created_at')
             })
@@ -676,13 +676,13 @@ def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id)
             writer = csv.writer(output)
             writer.writerow([
                 'Name', 'Email', 'Total XP', 'Quests Enrolled', 'Quests Completed',
-                'Tasks (Period)', 'Tasks (All Time)', 'Badges', 'Last Active', 'Joined'
+                'Tasks (Period)', 'Tasks (All Time)', 'Last Active', 'Joined'
             ])
             for s in student_progress:
                 writer.writerow([
                     s['name'], s['email'], s['total_xp'], s['quests_enrolled'],
                     s['quests_completed'], s['tasks_completed_period'],
-                    s['tasks_completed_all'], s['badge_count'],
+                    s['tasks_completed_all'],
                     s['last_active'] or '', s['joined'] or ''
                 ])
 

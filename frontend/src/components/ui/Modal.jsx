@@ -73,7 +73,7 @@ export const Modal = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-2 sm:p-4"
+      className="fixed top-0 left-0 right-0 bottom-0 w-full h-full bg-black/50 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
       onClick={handleOverlayClick}
     >
       <FocusTrap

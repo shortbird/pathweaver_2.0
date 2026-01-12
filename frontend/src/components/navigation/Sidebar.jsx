@@ -205,7 +205,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   }
 
   // Add Organization link for org admins or platform admins with an organization
-  if ((user?.is_org_admin || user?.role === 'admin' || user?.role === 'superadmin') && user?.organization_id) {
+  // Check effective role for org_managed users
+  const effectiveRole = user?.role === 'org_managed' && user?.org_role ? user.org_role : user?.role
+  if ((user?.is_org_admin || effectiveRole === 'org_admin' || effectiveRole === 'superadmin') && user?.organization_id) {
     navItems.push({
       name: 'Organization',
       path: '/organization',

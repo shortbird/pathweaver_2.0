@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import UnifiedQuestForm from './UnifiedQuestForm'
+import CourseQuestForm from './CourseQuestForm'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 
 const AdminQuests = () => {
@@ -14,6 +15,7 @@ const AdminQuests = () => {
   const [showManager, setShowManager] = useState(false)
   const [editingQuest, setEditingQuest] = useState(null)
   const [showCreationForm, setShowCreationForm] = useState(false)
+  const [showCourseQuestForm, setShowCourseQuestForm] = useState(false)
   const [activeFilter, setActiveFilter] = useState('all')
   const [questTypeFilter, setQuestTypeFilter] = useState('all')
   const [publicFilter, setPublicFilter] = useState('all')
@@ -93,13 +95,10 @@ const AdminQuests = () => {
 
   const handleEdit = (quest) => {
     if (quest.quest_type === 'course') {
-      // Course quests are now managed in Course Builder
-      toast('Course quests are managed in Course Builder', { icon: 'i' })
-      if (quest.connected_courses?.length > 0) {
-        navigate(`/courses/${quest.connected_courses[0].course_id}/edit`)
-      } else {
-        navigate('/courses')
-      }
+      // Edit course quests with CourseQuestForm
+      setEditingQuest(quest)
+      setShowCourseQuestForm(true)
+      setOpenDropdownId(null)
       return
     }
     setEditingQuest(quest)
@@ -433,6 +432,12 @@ const AdminQuests = () => {
             Create Course
           </button>
           <button
+            onClick={() => setShowCourseQuestForm(true)}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
+          >
+            Create Course Quest
+          </button>
+          <button
             onClick={() => setShowCreationForm(true)}
             className="bg-gradient-primary text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
           >
@@ -593,18 +598,35 @@ const AdminQuests = () => {
         />
       )}
 
+      {showCourseQuestForm && (
+        <CourseQuestForm
+          mode={editingQuest ? 'edit' : 'create'}
+          quest={editingQuest}
+          onClose={() => {
+            setShowCourseQuestForm(false)
+            setEditingQuest(null)
+          }}
+          onSuccess={(updatedQuest) => {
+            if (updatedQuest?.id) {
+              if (editingQuest) {
+                setQuests(prev => prev.map(q => q.id === updatedQuest.id ? { ...q, ...updatedQuest } : q))
+              } else {
+                setQuests(prev => [updatedQuest, ...prev])
+              }
+            }
+            setShowCourseQuestForm(false)
+            setEditingQuest(null)
+            fetchQuests()
+          }}
+        />
+      )}
+
       {/* Info Banner for Course Quests */}
       {questTypeFilter === 'course' && (
-        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-blue-800">
-            <strong>Note:</strong> Course quests are now managed within Courses. Use the Course Catalog to view and edit Courses.
+            <strong>Course Quests</strong> have preset tasks aligned to existing curriculum (e.g., Khan Academy). Students do not personalize tasks - they receive the preset tasks automatically when enrolling.
           </p>
-          <button
-            onClick={() => navigate('/courses')}
-            className="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm whitespace-nowrap"
-          >
-            View Courses
-          </button>
         </div>
       )}
 

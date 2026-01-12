@@ -499,6 +499,164 @@ def _handle_text_upload(user_id: str, organization_id: str, supabase):
         }), 202
 
 
+def _generate_course_background(
+    app,
+    upload_id: str,
+    user_id: str,
+    organization_id: str,
+    topic: str,
+    learning_objectives: list
+):
+    """
+    Background task to generate a course from scratch.
+
+    This runs in a separate thread so the API can return immediately.
+    When complete, creates the draft course and sends a notification.
+    """
+    with app.app_context():
+        try:
+            service = get_curriculum_service()
+            result = service.process_generation(
+                upload_id=upload_id,
+                topic=topic,
+                learning_objectives=learning_objectives,
+                user_id=user_id,
+                organization_id=organization_id
+            )
+
+            if result.get('success'):
+                # Send success notification
+                get_notification_service().create_notification(
+                    user_id=user_id,
+                    notification_type='system_alert',
+                    title='Course Generated',
+                    message=f'Your course "{topic}" has been created and is ready to edit.',
+                    organization_id=organization_id,
+                    metadata={'upload_id': upload_id, 'course_id': result.get('course_id')}
+                )
+            else:
+                # Send error notification
+                get_notification_service().create_notification(
+                    user_id=user_id,
+                    notification_type='system_alert',
+                    title='Course Generation Failed',
+                    message=f'Failed to generate course: {result.get("error", "Unknown error")[:100]}',
+                    organization_id=organization_id,
+                    metadata={'upload_id': upload_id}
+                )
+
+        except Exception as e:
+            logger.error(f"Generate course background error: {str(e)}")
+            try:
+                supabase = get_supabase_admin_client()
+                supabase.table('curriculum_uploads').update({
+                    'status': 'error',
+                    'error_message': str(e),
+                    'can_resume': False
+                }).eq('id', upload_id).execute()
+
+                get_notification_service().create_notification(
+                    user_id=user_id,
+                    notification_type='system_alert',
+                    title='Course Generation Failed',
+                    message=f'An error occurred: {str(e)[:100]}',
+                    organization_id=organization_id,
+                    metadata={'upload_id': upload_id, 'error': str(e)}
+                )
+            except Exception as notify_error:
+                logger.error(f"Failed to send error notification: {str(notify_error)}")
+
+
+@bp.route('/generate', methods=['POST'])
+@require_admin
+def generate_course(user_id):
+    """
+    Generate a course from scratch based on topic and optional learning objectives.
+
+    No source curriculum needed - AI generates everything from a prompt.
+
+    JSON fields:
+    - topic: Required course topic/name
+    - learning_objectives: Optional string with objectives (one per line)
+
+    Returns:
+        JSON with upload_id and status 'processing'
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No JSON data provided'
+            }), 400
+
+        topic = data.get('topic', '').strip()
+        if not topic:
+            return jsonify({
+                'success': False,
+                'error': 'Topic is required'
+            }), 400
+
+        # Parse learning objectives if provided
+        learning_objectives_str = data.get('learning_objectives', '')
+        learning_objectives = None
+        if learning_objectives_str and learning_objectives_str.strip():
+            learning_objectives = [obj.strip() for obj in learning_objectives_str.split('\n') if obj.strip()]
+            logger.info(f"User provided {len(learning_objectives)} learning objectives for generation")
+
+        supabase = get_supabase_admin_client()
+
+        # Get user's organization
+        user_result = supabase.table('users').select('organization_id').eq('id', user_id).execute()
+        organization_id = user_result.data[0]['organization_id'] if user_result.data else None
+
+        # Create upload record
+        upload_id = str(uuid.uuid4())
+
+        upload_record = {
+            'id': upload_id,
+            'source_type': 'generate',  # New source type for generation
+            'original_filename': topic,  # Use topic as filename
+            'file_size_bytes': 0,
+            'status': 'processing',
+            'uploaded_by': user_id,
+            'organization_id': organization_id,
+            'progress_percent': 0,
+            'current_stage_name': 'Starting Generation',
+            'current_stage': 0
+        }
+
+        supabase.table('curriculum_uploads').insert(upload_record).execute()
+
+        logger.info(f"Admin {user_id} generating course from topic: {topic}")
+
+        # Get app reference for background thread
+        app = current_app._get_current_object()
+
+        # Start background processing
+        thread = threading.Thread(
+            target=_generate_course_background,
+            args=(app, upload_id, user_id, organization_id, topic, learning_objectives),
+            daemon=True
+        )
+        thread.start()
+
+        return jsonify({
+            'success': True,
+            'upload_id': upload_id,
+            'status': 'processing',
+            'message': 'Generation started. You will receive a notification when your course is ready.'
+        }), 202
+
+    except Exception as e:
+        logger.error(f"Error in course generation: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Generation failed: {str(e)}'
+        }), 500
+
+
 @bp.route('/upload/<upload_id>/status', methods=['GET'])
 @require_admin
 def get_upload_status(user_id, upload_id):

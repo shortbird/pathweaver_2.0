@@ -10,7 +10,7 @@ export const userPropType = PropTypes.shape({
   display_name: PropTypes.string,
   first_name: PropTypes.string,
   last_name: PropTypes.string,
-  role: PropTypes.oneOf(['student', 'parent', 'advisor', 'admin', 'observer']),
+  role: PropTypes.oneOf(['student', 'parent', 'advisor', 'org_admin', 'superadmin', 'observer', 'org_managed']),
   avatar_url: PropTypes.string,
   bio: PropTypes.string,
   level: PropTypes.number,

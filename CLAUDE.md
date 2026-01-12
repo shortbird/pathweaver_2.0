@@ -1,6 +1,6 @@
 # Optio Platform - AI Agent Guide
 
-**Last Updated**: January 1, 2026 | **Local Dev**: Enabled | **Multi-Agent**: Available
+**Last Updated**: January 12, 2026 | **Local Dev**: Enabled | **Multi-Agent**: Available
 
 ---
 
@@ -336,22 +336,86 @@ frontend/src/
 
 ---
 
-## MCP Tools
+## MCP Tools (Model Context Protocol)
 
-### Supabase
+MCP servers extend Claude Code with external service integrations. Configuration is stored in `~/.claude.json` (user-level) or project-level in the same file under `projects`.
+
+### MCP Setup
+
+**Configuration file:** `~/.claude.json` (NOT `~/.claude/settings.json`)
+
+**Check MCP status:**
 ```bash
-mcp__supabase__execute_sql  # Read-only (always use for schema checks)
-# Project ID: vvfgxcykxjybtvpfzwyx
+claude mcp list
 ```
 
-### Render
+**Add Supabase MCP (user scope - applies to all projects):**
 ```bash
-mcp__render__list_services | mcp__render__list_logs
-# Dev Backend: srv-d2tnvlvfte5s73ae8npg
-# Dev Frontend: srv-d2tnvrffte5s73ae8s4g
-# Prod Backend: srv-d2to00vfte5s73ae9310
-# Prod Frontend: srv-d2to04vfte5s73ae97ag
+claude mcp add -s user supabase -- npx -y @supabase/mcp-server-supabase@latest --access-token <TOKEN> --project-ref vvfgxcykxjybtvpfzwyx
 ```
+
+**Add to specific project only:**
+```bash
+claude mcp add -s local supabase -- npx -y @supabase/mcp-server-supabase@latest --access-token <TOKEN> --project-ref vvfgxcykxjybtvpfzwyx
+```
+
+**Remove an MCP server:**
+```bash
+claude mcp remove supabase
+```
+
+**To update access token:**
+1. Go to https://supabase.com/dashboard/account/tokens
+2. Generate a new Personal Access Token (PAT)
+3. Remove old server: `claude mcp remove supabase`
+4. Re-add with new token using command above
+5. Restart Claude Code
+
+### Supabase MCP
+
+**Project Details:**
+- Project ID: `vvfgxcykxjybtvpfzwyx`
+- URL: `https://vvfgxcykxjybtvpfzwyx.supabase.co`
+
+**Available tools (use directly in conversation):**
+- `list_tables` - List all database tables
+- `execute_sql` - Run read-only SQL queries
+- `get_schemas` - Get database schemas
+
+**Example queries:**
+```sql
+-- Check table schema
+SELECT column_name, data_type FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'users';
+
+-- List all tables
+SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';
+```
+
+### Render MCP
+
+**Add Render MCP:**
+```bash
+claude mcp add -s user -t http render https://mcp.render.com/mcp -H "Authorization: Bearer <RENDER_API_KEY>"
+```
+
+**Service IDs:**
+| Environment | Service | ID |
+|-------------|---------|-----|
+| Dev | Backend | `srv-d2tnvlvfte5s73ae8npg` |
+| Dev | Frontend | `srv-d2tnvrffte5s73ae8s4g` |
+| Prod | Backend | `srv-d2to00vfte5s73ae9310` |
+| Prod | Frontend | `srv-d2to04vfte5s73ae97ag` |
+
+### MCP Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| `claude mcp list` shows nothing | Config in wrong file - use `claude mcp add` command |
+| MCP not loading after restart | Check `~/.claude.json` has correct `mcpServers` section |
+| Auth errors | Regenerate token and re-add server |
+| npx not found | Ensure Node.js is in PATH |
+| Tools not available in session | Restart Claude Code after adding MCP server |
 
 ---
 
