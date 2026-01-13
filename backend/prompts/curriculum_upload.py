@@ -282,6 +282,19 @@ TRANSFORMATION NOTES:
 For each significant change, add a note explaining what was changed and why.
 This helps the human reviewer understand the AI's decisions.
 
+COURSE DESCRIPTION TRANSFORMATION (CRITICAL):
+The course description MUST be written from a neutral, 3rd-party perspective.
+- Transform any teacher-voice content ("Welcome to my class!", "I'm excited to teach you...")
+- Remove first-person language from instructors ("I will...", "I expect...", "I'm so excited...")
+- Convert to a neutral description of what the course covers and what students will learn
+- Do NOT include greetings, welcomes, or instructor personality
+
+BAD (teacher voice): "Welcome to Composition 2! I'm so excited to be teaching you this semester."
+GOOD (3rd-party): "This course builds on foundational composition skills to develop advanced writing techniques."
+
+BAD (instructor perspective): "In this class, I will guide you through the fundamentals of biology."
+GOOD (3rd-party): "An introduction to biological concepts including cell structure, genetics, and ecosystems."
+
 RETURN FORMAT:
 {{
   "course": {{
@@ -505,6 +518,21 @@ TEXT STEP GUIDELINES:
 DO NOT generate "video" or "file" type steps. Human creators will add multimedia content later as needed.
 
 =============================================================================
+COURSE DESCRIPTION STYLE (CRITICAL)
+=============================================================================
+
+Course descriptions MUST be written from a neutral, 3rd-party perspective:
+- Describe what the course covers and what topics are explored
+- Never use teacher/instructor voice ("Welcome!", "I'm excited to teach...")
+- Never use first-person ("I will guide you...", "I expect students to...")
+- Focus on the subject matter, not the instructor's personality
+
+BAD: "Welcome to my English class! I'm so excited to teach you composition this semester."
+BAD: "In this course, I will guide you through the fundamentals of writing."
+GOOD: "An exploration of advanced composition techniques, including argumentation, research methods, and rhetorical analysis."
+GOOD: "This course covers the principles of written communication, from essay structure to persuasive writing."
+
+=============================================================================
 RETURN FORMAT
 =============================================================================
 
@@ -652,13 +680,26 @@ TEXT STEP GUIDELINES:
 - Keep it brief - just enough to start doing
 
 =============================================================================
+COURSE DESCRIPTION STYLE (CRITICAL)
+=============================================================================
+
+Course descriptions MUST be written from a neutral, 3rd-party perspective:
+- Describe what the course covers and what topics are explored
+- Never use teacher/instructor voice ("Welcome!", "I'm excited to teach...")
+- Never use first-person ("I will guide you...", "I expect students to...")
+- Focus on the subject matter, not the instructor's personality
+
+BAD: "Welcome to my class! I'm so excited to teach you this semester."
+GOOD: "An exploration of key concepts and practical skills in this subject area."
+
+=============================================================================
 RETURN FORMAT
 =============================================================================
 
 {
   "course": {
     "title": "Course Title",
-    "description": "Brief course description"
+    "description": "Brief course description in 3rd-party voice"
   },
   "generated_objectives": [
     "Objective 1 (if AI-generated)",

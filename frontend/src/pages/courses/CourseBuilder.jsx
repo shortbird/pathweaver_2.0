@@ -235,6 +235,39 @@ const CourseBuilder = () => {
     }
   }
 
+  const handlePublishAllQuests = async () => {
+    const unpublishedQuests = quests.filter(q => !q.is_published)
+    if (unpublishedQuests.length === 0) {
+      toast.success('All projects are already published')
+      return
+    }
+
+    if (!confirm(`Publish all ${unpublishedQuests.length} unpublished project(s)?`)) return
+
+    try {
+      setSaving(true)
+      // Publish all unpublished quests
+      await Promise.all(
+        unpublishedQuests.map(q =>
+          api.put(`/api/courses/${courseId}/quests/${q.id}`, { is_published: true })
+        )
+      )
+
+      // Update local state
+      setQuests(quests.map(q => ({ ...q, is_published: true })))
+      if (selectedQuest && !selectedQuest.is_published) {
+        setSelectedQuest({ ...selectedQuest, is_published: true })
+      }
+
+      toast.success(`Published ${unpublishedQuests.length} project(s)`)
+    } catch (error) {
+      console.error('Failed to publish all projects:', error)
+      toast.error('Failed to publish all projects')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleXpThresholdChange = async (questId, xpThreshold) => {
     try {
       await api.put(`/api/courses/${courseId}/quests/${questId}`, {
@@ -622,13 +655,26 @@ const CourseBuilder = () => {
             <div className="bg-white rounded-xl border border-gray-200 p-4 h-full">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                 <h2 className="text-lg font-bold text-gray-900">Projects ({quests.length})</h2>
-                <button
-                  onClick={() => setShowAddQuestModal(true)}
-                  className="p-2 text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
-                  aria-label="Add project"
-                >
-                  <PlusIcon className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  {quests.length > 0 && quests.some(q => !q.is_published) && (
+                    <button
+                      onClick={handlePublishAllQuests}
+                      disabled={saving}
+                      className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors disabled:opacity-50"
+                      title="Publish all unpublished projects"
+                    >
+                      <RocketLaunchIcon className="w-3.5 h-3.5" />
+                      Publish All
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowAddQuestModal(true)}
+                    className="p-2 text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
+                    aria-label="Add project"
+                  >
+                    <PlusIcon className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               {quests.length === 0 ? (

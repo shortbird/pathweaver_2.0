@@ -1476,13 +1476,87 @@ ALIGNED CONTENT TO FORMAT:
 
     def _process_course(self, course_data: Dict) -> Dict:
         """Process and validate course data."""
+        # Clean the description to remove teacher-voice content
+        description = self._clean_course_description(course_data.get('description', ''))
+
         return {
             'title': course_data.get('title', 'Untitled Course'),
-            'description': course_data.get('description', ''),
+            'description': description,
             'status': 'draft',
             'visibility': 'organization',
             'navigation_mode': 'sequential'
         }
+
+    def _clean_course_description(self, description: str) -> str:
+        """
+        Auto-clean course descriptions to remove teacher-voice content.
+
+        Removes:
+        - Greetings and welcomes ("Welcome to...", "Hello students...")
+        - First-person teacher language ("I'm excited to...", "I will...")
+        - Instructor-focused content
+
+        Converts to neutral 3rd-party description of course content.
+
+        Args:
+            description: The raw course description
+
+        Returns:
+            Cleaned description in 3rd-party perspective
+        """
+        import re
+
+        if not description:
+            return description
+
+        original = description
+
+        # Remove common greeting patterns at the start
+        greeting_patterns = [
+            r'^Welcome\s+to\s+[^.!]*[.!]\s*',  # "Welcome to [course name]!"
+            r'^Hello\s+(students|class|everyone)[^.!]*[.!]\s*',  # "Hello students!"
+            r'^Hi\s+(there|everyone|class)[^.!]*[.!]\s*',  # "Hi there!"
+            r'^Greetings[^.!]*[.!]\s*',  # "Greetings!"
+            r'^Hey\s+(there|everyone)[^.!]*[.!]\s*',  # "Hey there!"
+        ]
+
+        for pattern in greeting_patterns:
+            description = re.sub(pattern, '', description, flags=re.IGNORECASE)
+
+        # Remove sentences with first-person instructor voice
+        # These patterns match full sentences ending in period, exclamation, or question mark
+        teacher_sentence_patterns = [
+            r"I'm\s+(so\s+)?excited\s+to\s+(be\s+)?teach(ing)?\s+[^.!?]*[.!?]\s*",  # "I'm excited to teach..."
+            r"I\s+can't\s+wait\s+to\s+[^.!?]*[.!?]\s*",  # "I can't wait to..."
+            r"I\s+look\s+forward\s+to\s+[^.!?]*[.!?]\s*",  # "I look forward to..."
+            r"I\s+hope\s+you\s+(will\s+)?[^.!?]*[.!?]\s*",  # "I hope you will..."
+            r"I\s+will\s+be\s+your\s+[^.!?]*[.!?]\s*",  # "I will be your instructor..."
+            r"I\s+am\s+your\s+[^.!?]*[.!?]\s*",  # "I am your teacher..."
+            r"I\s+have\s+been\s+teaching\s+[^.!?]*[.!?]\s*",  # "I have been teaching..."
+            r"I\s+expect\s+(you|students)\s+[^.!?]*[.!?]\s*",  # "I expect you to..."
+        ]
+
+        for pattern in teacher_sentence_patterns:
+            description = re.sub(pattern, '', description, flags=re.IGNORECASE)
+
+        # Remove remaining first-person references within sentences (less aggressive)
+        # Only remove at sentence start
+        description = re.sub(r'\.\s+I\s+will\s+', '. The course will ', description, flags=re.IGNORECASE)
+        description = re.sub(r'\.\s+I\s+am\s+', '. This course is ', description, flags=re.IGNORECASE)
+
+        # Clean up double spaces, multiple periods, and trim
+        description = re.sub(r'\s+', ' ', description)
+        description = re.sub(r'\.+', '.', description)
+        description = description.strip()
+
+        # Ensure first character is capitalized
+        if description and description[0].islower():
+            description = description[0].upper() + description[1:]
+
+        if description != original:
+            logger.info("Auto-cleaned course description: removed teacher-voice content")
+
+        return description
 
     def _clean_quest_description(self, description: str) -> str:
         """

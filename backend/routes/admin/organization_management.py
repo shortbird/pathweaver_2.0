@@ -367,7 +367,13 @@ def toggle_organization_ai_access(current_user_id, current_org_id, is_superadmin
 @bp.route('/<org_id>/users/add', methods=['POST'])
 @require_org_admin
 def add_users_to_organization(current_user_id, current_org_id, is_superadmin, org_id):
-    """Add users to organization (superadmin or org admin)"""
+    """Add users to organization (superadmin or org admin)
+
+    When adding a user to an org:
+    - Their current role becomes their org_role
+    - Their role changes to 'org_managed'
+    - organization_id is set to the org
+    """
     try:
         # Verify access
         if not is_superadmin and current_org_id != org_id:
@@ -375,18 +381,42 @@ def add_users_to_organization(current_user_id, current_org_id, is_superadmin, or
 
         data = request.get_json()
         user_ids = data.get('user_ids', [])
+        default_org_role = data.get('org_role', 'student')  # Default role in org
 
         if not user_ids:
             return jsonify({'error': 'user_ids is required'}), 400
 
         client = get_supabase_admin_client()
 
-        # Update users to set their organization_id
+        # Update users to join organization with org_managed pattern
         for user_id in user_ids:
-            client.table('users')\
-                .update({'organization_id': org_id})\
-                .eq('id', user_id)\
-                .execute()
+            # Get user's current role to preserve it as org_role
+            user_data = client.table('users').select('role').eq('id', user_id).single().execute()
+            current_role = user_data.data.get('role', 'student') if user_data.data else 'student'
+
+            # Don't change superadmin users
+            if current_role == 'superadmin':
+                logger.warning(f"Skipping superadmin user {user_id} - cannot add to organization")
+                continue
+
+            # If already org_managed, just update org_id (they keep their org_role)
+            if current_role == 'org_managed':
+                client.table('users')\
+                    .update({'organization_id': org_id})\
+                    .eq('id', user_id)\
+                    .execute()
+            else:
+                # Convert platform user to org user
+                # Use their current role as org_role, or default if provided
+                org_role = current_role if current_role in ['student', 'parent', 'advisor', 'observer'] else default_org_role
+                client.table('users')\
+                    .update({
+                        'organization_id': org_id,
+                        'role': 'org_managed',
+                        'org_role': org_role
+                    })\
+                    .eq('id', user_id)\
+                    .execute()
 
         logger.info(f"Added {len(user_ids)} users to organization {org_id}")
 

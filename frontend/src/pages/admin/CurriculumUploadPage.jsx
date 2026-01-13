@@ -431,6 +431,9 @@ const CurriculumUploadPage = () => {
     }
   }
 
+  // Debug log state
+  const [showDebugLog, setShowDebugLog] = useState(false)
+
   // Show progress/success state after upload started
   if (uploadStarted) {
     const isComplete = progress?.status === 'approved'
@@ -519,6 +522,48 @@ const CurriculumUploadPage = () => {
               >
                 Resume from Stage {progress.resumeFromStage}
               </button>
+            </div>
+          )}
+
+          {/* Debug Log Section */}
+          {isError && progress?.error && (
+            <div className="mb-8 max-w-2xl mx-auto text-left">
+              <button
+                onClick={() => setShowDebugLog(!showDebugLog)}
+                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-2"
+              >
+                <svg
+                  className={`w-4 h-4 transition-transform ${showDebugLog ? 'rotate-90' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                Show Debug Details
+              </button>
+              {showDebugLog && (
+                <div className="bg-gray-900 rounded-lg p-4 overflow-hidden">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs text-gray-400 font-mono">Error Details</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(progress.error)
+                        toast.success('Error copied to clipboard')
+                      }}
+                      className="text-xs text-gray-400 hover:text-white flex items-center gap-1"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      Copy
+                    </button>
+                  </div>
+                  <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap overflow-x-auto max-h-64 overflow-y-auto">
+                    {progress.error}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
 

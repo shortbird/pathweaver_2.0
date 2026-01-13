@@ -285,11 +285,50 @@ class BaseAIService(BaseService):
         result = self.extract_json(text)
 
         if result is None:
-            logger.error(f"JSON parsing failed. Raw response saved to temp folder.")
+            # Comprehensive debugging for JSON parse failures
+            logger.error("=" * 60)
+            logger.error("JSON PARSING FAILED - DETAILED DEBUG INFO")
+            logger.error("=" * 60)
+            logger.error(f"Response length: {len(text)} chars")
+
+            # Check for common issues
+            has_opening_brace = '{' in text
+            has_closing_brace = '}' in text
+            starts_with_code_block = text.strip().startswith('```')
+            ends_with_code_block = text.strip().endswith('```')
+            open_braces = text.count('{')
+            close_braces = text.count('}')
+
+            logger.error(f"Contains '{{': {has_opening_brace}, Contains '}}': {has_closing_brace}")
+            logger.error(f"Open braces: {open_braces}, Close braces: {close_braces}")
+            logger.error(f"Starts with ```: {starts_with_code_block}, Ends with ```: {ends_with_code_block}")
+
+            # Show start of response
+            preview_start = text[:800] if len(text) > 800 else text
+            logger.error(f"Response START (first 800 chars):\n{preview_start}")
+
+            # Show end of response
+            if len(text) > 800:
+                preview_end = text[-400:]
+                logger.error(f"Response END (last 400 chars):\n...{preview_end}")
+
+            logger.error("=" * 60)
 
             if strict:
-                raise AIParsingError(f"Failed to parse JSON from response: {text[:200]}...")
-            logger.warning(f"Failed to parse JSON, returning empty dict. Response: {text[:100]}...")
+                # Build a helpful error message
+                issues = []
+                if starts_with_code_block:
+                    issues.append("Response wrapped in markdown code blocks")
+                if open_braces != close_braces:
+                    issues.append(f"Unbalanced braces: {open_braces} open, {close_braces} close (JSON may be truncated)")
+                if not has_opening_brace:
+                    issues.append("No JSON object found in response")
+
+                issue_summary = "; ".join(issues) if issues else "Unknown parsing error"
+                error_preview = text[:200].replace('\n', '\\n') if text else '(empty)'
+                raise AIParsingError(f"Failed to parse JSON: {issue_summary}. Preview: {error_preview}...")
+
+            logger.warning(f"Failed to parse JSON, returning empty dict.")
             return {}
 
         return result
@@ -310,17 +349,34 @@ class BaseAIService(BaseService):
 
         text = text.strip()
 
+        # First, strip markdown code block markers if present
+        # This is more robust than regex for handling truncated responses
+        logger.warning(f"extract_json: about to call _strip_markdown_code_blocks")
+        text = self._strip_markdown_code_blocks(text)
+        logger.warning(f"extract_json: after stripping, text starts with: {repr(text[:50]) if text else '(empty)'}")
+
         # Clean common issues before parsing
         cleaned_text = self._clean_json_text(text)
 
+        # Log first attempt info
+        logger.debug(f"Attempting JSON parse, text length: {len(cleaned_text)}")
+        logger.debug(f"Text starts with: {cleaned_text[:50] if cleaned_text else '(empty)'}")
+        logger.debug(f"Text ends with: {cleaned_text[-50:] if len(cleaned_text) > 50 else cleaned_text}")
+
         # Try 1: Direct parse (response is pure JSON)
         try:
-            return json.loads(cleaned_text)
-        except json.JSONDecodeError:
-            pass
+            result = json.loads(cleaned_text)
+            logger.info("JSON parsed successfully on first attempt")
+            return result
+        except json.JSONDecodeError as e:
+            # Log the ACTUAL error with position info
+            logger.warning(f"Direct parse failed at position {e.pos}: {e.msg}")
+            logger.warning(f"Context around error: ...{cleaned_text[max(0,e.pos-50):e.pos+50]}...")
+            logger.warning(f"Character at error pos: {repr(cleaned_text[e.pos]) if e.pos < len(cleaned_text) else 'EOF'}")
 
-        # Try 2: Remove markdown code blocks
+        # Try 2: Remove markdown code blocks with regex (backup approach)
         # Pattern: ```json ... ``` or ``` ... ```
+        logger.debug("Try 2: Attempting regex code block extraction")
         code_block_patterns = [
             r'```json\s*([\s\S]*?)\s*```',
             r'```\s*([\s\S]*?)\s*```'
@@ -331,9 +387,11 @@ class BaseAIService(BaseService):
             if match:
                 try:
                     extracted = self._clean_json_text(match.group(1).strip())
-                    return json.loads(extracted)
+                    result = json.loads(extracted)
+                    logger.info("JSON parsed via regex code block extraction")
+                    return result
                 except json.JSONDecodeError as e:
-                    logger.warning(f"Code block JSON parse failed: {e}")
+                    logger.debug(f"Code block regex parse failed: {e}")
                     continue
 
         # Try 3: Find JSON object { ... }
@@ -371,23 +429,103 @@ class BaseAIService(BaseService):
                 pass
 
         # Try 7: Repair truncated JSON (common with long responses)
+        logger.debug("Try 7: Attempting truncated JSON repair")
         repaired = self._repair_truncated_json(cleaned_text)
         if repaired:
             try:
-                return json.loads(repaired)
-            except json.JSONDecodeError:
-                pass
+                result = json.loads(repaired)
+                logger.info("JSON parsed via truncated repair")
+                return result
+            except json.JSONDecodeError as e:
+                logger.debug(f"Truncated repair parse failed: {e}")
 
         # Try 8: Aggressive repair (finds valid JSON boundaries)
+        logger.debug("Try 8: Attempting aggressive JSON repair")
         aggressive = self._aggressive_json_repair(cleaned_text)
         if aggressive:
             try:
-                return json.loads(aggressive)
-            except json.JSONDecodeError:
-                pass
+                result = json.loads(aggressive)
+                logger.info("JSON parsed via aggressive repair")
+                return result
+            except json.JSONDecodeError as e:
+                logger.debug(f"Aggressive repair parse failed: {e}")
 
-        logger.warning(f"Could not extract JSON from text: {cleaned_text[:200]}...")
+        logger.warning(f"All JSON extraction methods failed")
         return None
+
+    def _strip_markdown_code_blocks(self, text: str) -> str:
+        """
+        Strip markdown code block markers from AI responses.
+
+        Handles cases like:
+        - ```json\n{...}\n```
+        - ```\n{...}\n```
+        - ```json\n{...} (truncated, no closing ```)
+        - Mixed content with code blocks
+
+        Args:
+            text: Raw AI response text
+
+        Returns:
+            Text with markdown code block markers removed
+        """
+        # Log entry - use WARNING to ensure visibility
+        logger.warning(f"_strip_markdown_code_blocks called with {len(text) if text else 0} chars")
+
+        if not text:
+            return text
+
+        original_len = len(text)
+
+        # Strip whitespace first
+        text = text.strip()
+
+        logger.warning(f"Text starts with: {repr(text[:20])}")
+
+        # Check if it starts with a code block marker
+        if text.startswith('```'):
+            logger.warning("Found opening ``` marker - stripping")
+            # Find the end of the opening marker line (handle both \n and \r\n)
+            first_newline = -1
+            for i, char in enumerate(text):
+                if char == '\n':
+                    first_newline = i
+                    break
+                elif char == '\r' and i + 1 < len(text) and text[i + 1] == '\n':
+                    first_newline = i
+                    break
+
+            if first_newline > 0:
+                marker_line = text[:first_newline].strip()
+                logger.warning(f"Opening marker line: '{marker_line}'")
+                # Strip the opening marker line (skip \r\n if present)
+                if text[first_newline] == '\r':
+                    text = text[first_newline + 2:]
+                else:
+                    text = text[first_newline + 1:]
+                logger.warning(f"After stripping opening, starts with: {repr(text[:30])}")
+            else:
+                logger.warning(f"No newline found after ```, first_newline={first_newline}")
+        else:
+            logger.warning(f"Text does NOT start with ```, starts with: {repr(text[:10])}")
+
+        # Strip trailing code block marker if present
+        text_stripped = text.rstrip()
+        if text_stripped.endswith('```'):
+            logger.warning("Found closing ``` marker - stripping")
+            # Find and remove the last ```
+            last_marker = text.rfind('```')
+            if last_marker >= 0:
+                text = text[:last_marker].rstrip()
+                logger.warning(f"After stripping closing, ends with: {repr(text[-30:])}")
+
+        final_len = len(text)
+        if final_len != original_len:
+            logger.warning(f"Stripped markdown: {original_len} -> {final_len} chars")
+        else:
+            logger.warning(f"No stripping performed (length: {original_len})")
+
+        return text
 
     def _clean_json_text(self, text: str) -> str:
         """
@@ -395,6 +533,9 @@ class BaseAIService(BaseService):
         """
         if not text:
             return text
+
+        original_len = len(text)
+        logger.warning(f"_clean_json_text called with {original_len} chars")
 
         # Remove BOM and other invisible characters
         text = text.strip('\ufeff\u200b\u200c\u200d\u2060')
@@ -459,6 +600,12 @@ class BaseAIService(BaseService):
         # incorrectly match URLs (https://...) and corrupt the JSON
         text = re.sub(r'/\*[\s\S]*?\*/', '', text)
 
+        final_len = len(text)
+        if final_len != original_len:
+            logger.warning(f"_clean_json_text modified: {original_len} -> {final_len} chars")
+        logger.warning(f"_clean_json_text output starts with: {repr(text[:50])}")
+        logger.warning(f"_clean_json_text output ends with: {repr(text[-50:])}")
+
         return text
 
     def _aggressive_json_repair(self, text: str) -> Optional[str]:
@@ -512,18 +659,27 @@ class BaseAIService(BaseService):
         # Clean and try to parse
         json_text = self._clean_json_text(json_text)
 
-        try:
-            json.loads(json_text)
-            return json_text
-        except json.JSONDecodeError as e:
-            # Try to fix specific issues based on error
-            fixed_text = self._fix_json_at_position(json_text, e)
-            if fixed_text:
-                try:
-                    json.loads(fixed_text)
-                    return fixed_text
-                except json.JSONDecodeError:
-                    pass
+        # Try to parse, and if it fails, keep fixing errors up to 10 times
+        # (there may be multiple unescaped quotes in the document)
+        max_fix_attempts = 10
+        for attempt in range(max_fix_attempts):
+            try:
+                result = json.loads(json_text)
+                if attempt > 0:
+                    logger.info(f"JSON parsed successfully after {attempt} fix(es)")
+                return json_text
+            except json.JSONDecodeError as e:
+                logger.warning(f"Parse attempt {attempt + 1} failed at pos {e.pos}: {e.msg}")
+                # Try to fix specific issues based on error
+                fixed_text = self._fix_json_at_position(json_text, e)
+                if fixed_text and fixed_text != json_text:
+                    logger.warning(f"Fix applied, text length changed from {len(json_text)} to {len(fixed_text)}")
+                    json_text = fixed_text
+                    # Continue loop to try parsing the fixed text
+                else:
+                    # No fix was applied, give up
+                    logger.warning(f"No fix applied on attempt {attempt + 1}, giving up")
+                    break
 
         return None
 
@@ -537,8 +693,84 @@ class BaseAIService(BaseService):
         # Log for debugging
         context_start = max(0, pos - 50)
         context_end = min(len(text), pos + 50)
-        logger.debug(f"JSON error at pos {pos}: {msg}")
-        logger.debug(f"Context: ...{text[context_start:context_end]}...")
+        logger.warning(f"_fix_json_at_position: error at pos {pos}: {msg}")
+        logger.warning(f"_fix_json_at_position: context: ...{text[context_start:context_end]}...")
+
+        # Special fix: unescaped quotes inside string values (common with citations)
+        if "Expecting ',' delimiter" in msg or "Expecting ':' delimiter" in msg:
+            # The error position is likely pointing right after an unescaped quote
+            # Look for the pattern where we have a quote that looks like it's inside a string
+            # Find the problematic area around the error
+            search_start = max(0, pos - 200)
+            search_end = min(len(text), pos + 200)
+            context = text[search_start:search_end]
+
+            # Look for unescaped quotes that appear to be citations/titles inside strings
+            def escape_inner_quotes(m):
+                return m.group(1) + '\\"' + m.group(2) + '\\"'
+
+            fixed_context = context
+
+            # Pattern 1: Citation-style quotes after punctuation: `. "Title"` or `, "Title"`
+            fixed_context = re.sub(
+                r'(\w[.,]\s*)"([^"\\]{2,150})"(?=\s*[^:])',
+                escape_inner_quotes,
+                fixed_context
+            )
+
+            # Pattern 2: Quotes after common words like "about", "called", "named", "titled"
+            # Catches: `talking about "graduation requirements."` or `called "something"`
+            fixed_context = re.sub(
+                r'(\b(?:about|called|named|titled|says|said|like|as)\s+)"([^"\\]{2,100})"',
+                escape_inner_quotes,
+                fixed_context,
+                flags=re.IGNORECASE
+            )
+
+            # Pattern 3: Any quoted phrase that ends with punctuation inside the quote
+            # Catches: `"some phrase."` or `"some phrase!"`
+            fixed_context = re.sub(
+                r'(\s)"([^"\\]{2,100}[.!?])"(?=\s)',
+                escape_inner_quotes,
+                fixed_context
+            )
+
+            if fixed_context != context:
+                logger.warning(f"Fixed unescaped quotes in context (pattern matching)")
+                fixed_text = text[:search_start] + fixed_context + text[search_end:]
+                return fixed_text
+
+            # Pattern 4: Last resort - escape ALL unescaped quotes in the window
+            # except those that look like JSON structure boundaries
+            # Look for quotes preceded by a non-backslash character
+            new_context = []
+            i = 0
+            fixed_any = False
+            while i < len(context):
+                char = context[i]
+                if char == '"':
+                    # Check if this quote is already escaped
+                    is_escaped = i > 0 and context[i-1] == '\\'
+                    if not is_escaped:
+                        # Check if this looks like JSON structure
+                        # JSON structure: after `: ` or after `, ` or at start, or before `:`
+                        before = context[max(0, i-5):i].rstrip()
+                        after = context[i+1:i+3] if i+1 < len(context) else ''
+                        is_json_key_start = before.endswith(':') or before.endswith(',') or before.endswith('{') or before.endswith('[')
+                        is_json_key_end = after.startswith(':')
+
+                        if not is_json_key_start and not is_json_key_end:
+                            # This is likely an unescaped quote inside a string value
+                            new_context.append('\\')
+                            fixed_any = True
+                new_context.append(char)
+                i += 1
+
+            if fixed_any:
+                fixed_context = ''.join(new_context)
+                logger.warning(f"Fixed unescaped quotes in context (character scan)")
+                fixed_text = text[:search_start] + fixed_context + text[search_end:]
+                return fixed_text
 
         # Fix "Expecting ',' delimiter" - often means missing comma
         if "Expecting ',' delimiter" in msg:
@@ -580,6 +812,8 @@ class BaseAIService(BaseService):
         Attempt to repair truncated JSON by closing unclosed brackets/braces.
         Common issue when AI response hits token limit.
         """
+        logger.debug(f"_repair_truncated_json called with {len(text)} chars")
+
         # Find JSON start
         start_brace = text.find('{')
         start_bracket = text.find('[')
@@ -626,11 +860,19 @@ class BaseAIService(BaseService):
             elif char == ']':
                 open_brackets -= 1
 
+        # Log what we found
+        logger.debug(f"Truncated repair analysis: open_braces={open_braces}, open_brackets={open_brackets}, in_string={in_string}")
+
         # If we have unclosed structures, try to close them
-        if open_braces > 0 or open_brackets > 0:
+        if open_braces > 0 or open_brackets > 0 or in_string:
+            repair_parts = []
+
             # Close any open string first
             if in_string:
+                # Truncated inside a string - close it and potentially truncate cleanly
+                # Find last good position (not in the middle of an escape sequence)
                 json_text += '"'
+                repair_parts.append('closed open string')
 
             # Add closing brackets and braces
             repair = ''
@@ -639,9 +881,13 @@ class BaseAIService(BaseService):
             for _ in range(open_braces):
                 repair += '}'
 
-            logger.info(f"Attempting JSON repair: adding {repair}")
+            if repair:
+                repair_parts.append(f'added {repair}')
+
+            logger.info(f"Truncated JSON repair: {', '.join(repair_parts)}")
             return json_text + repair
 
+        logger.debug("No truncation detected, returning None")
         return None
 
     def validate_content(
