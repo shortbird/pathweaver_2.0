@@ -357,6 +357,18 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  // Get effective role (resolves org_managed to org_role)
+  // Platform users: organization_id = NULL, use role directly
+  // Org users: organization_id set, role = 'org_managed', actual role in org_role
+  const getEffectiveRole = (u) => {
+    if (!u) return null
+    if (u.role === 'superadmin') return 'superadmin'
+    if (u.role === 'org_managed' && u.org_role) return u.org_role
+    return u.role
+  }
+
+  const effectiveRole = getEffectiveRole(user)
+
   const value = {
     user,
     session,
@@ -369,7 +381,9 @@ export const AuthProvider = ({ children }) => {
     refreshUser,
     loginTimestamp, // Expose timestamp to trigger data refresh
     isAuthenticated: !!user,
-    isAdmin: user?.role === 'org_admin' || user?.role === 'superadmin',
+    effectiveRole, // The user's effective role (resolves org_managed)
+    isAdmin: effectiveRole === 'org_admin' || effectiveRole === 'superadmin',
+    isSuperadmin: effectiveRole === 'superadmin',
     isCreator: user?.subscription_tier === 'creator' || user?.subscription_tier === 'enterprise',
     isAcademy: user?.subscription_tier === 'enterprise', // Academy tier uses 'enterprise' in database
     isFree: user?.subscription_tier === 'free' || user?.subscription_tier === 'explorer' || !user?.subscription_tier

@@ -26,9 +26,6 @@ logger = get_logger(__name__)
 
 bp = Blueprint('auth_google', __name__)
 
-# Default organization for new users
-DEFAULT_OPTIO_ORG_ID = 'e88b7aae-b9ad-4c71-bc3a-eef0701f5852'
-
 # TOS acceptance token settings
 TOS_TOKEN_EXPIRY_MINUTES = 15
 TOS_TOKEN_SECRET = os.getenv('JWT_SECRET_KEY', 'fallback-secret-key-change-in-production')
@@ -264,13 +261,14 @@ def google_oauth_callback():
             requires_tos_acceptance = True
 
             # Create user WITHOUT TOS acceptance (will be set after explicit consent)
+            # Platform user: organization_id = NULL (not in any org), direct role
             user_data = {
                 'id': user_id,
                 'first_name': first_name,
                 'last_name': last_name,
                 'email': email,
                 'role': 'student',
-                'organization_id': DEFAULT_OPTIO_ORG_ID,
+                # organization_id intentionally not set - platform user (NULL)
                 'avatar_url': avatar_url,
                 # TOS fields intentionally NOT set - requires explicit acceptance
                 'created_at': datetime.utcnow().isoformat(),

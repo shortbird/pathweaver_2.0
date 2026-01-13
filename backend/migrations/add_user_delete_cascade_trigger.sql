@@ -8,21 +8,23 @@ RETURNS TRIGGER AS $$
 BEGIN
     -- Delete from tables with user_id foreign key
     DELETE FROM public.user_skill_xp WHERE user_id = OLD.id;
-    DELETE FROM public.user_diplomas WHERE user_id = OLD.id;
+    DELETE FROM public.diplomas WHERE user_id = OLD.id;
     DELETE FROM public.user_quest_tasks WHERE user_id = OLD.id;
     DELETE FROM public.quest_task_completions WHERE user_id = OLD.id;
-    DELETE FROM public.user_quest_progress WHERE user_id = OLD.id;
+    DELETE FROM public.user_quests WHERE user_id = OLD.id;
     DELETE FROM public.notifications WHERE user_id = OLD.id;
-    DELETE FROM public.badges_earned WHERE user_id = OLD.id;
-    DELETE FROM public.user_course_enrollments WHERE user_id = OLD.id;
-    DELETE FROM public.user_lesson_progress WHERE user_id = OLD.id;
+    DELETE FROM public.user_achievements WHERE user_id = OLD.id;
+    DELETE FROM public.course_enrollments WHERE user_id = OLD.id;
+    DELETE FROM public.curriculum_lesson_progress WHERE user_id = OLD.id;
 
     -- Delete friendships (both directions)
     DELETE FROM public.friendships WHERE requester_id = OLD.id OR addressee_id = OLD.id;
 
-    -- Delete observer relationships and invitations
-    DELETE FROM public.observer_relationships WHERE student_id = OLD.id OR observer_id = OLD.id;
-    DELETE FROM public.observer_invitations WHERE student_id = OLD.id OR observer_id = OLD.id;
+    -- Delete observer student links (has both student_id and observer_id)
+    DELETE FROM public.observer_student_links WHERE student_id = OLD.id OR observer_id = OLD.id;
+
+    -- Delete observer invitations (only has student_id, not observer_id)
+    DELETE FROM public.observer_invitations WHERE student_id = OLD.id;
 
     -- Clear foreign key references (set to NULL)
     UPDATE public.org_invitations SET accepted_by = NULL WHERE accepted_by = OLD.id;

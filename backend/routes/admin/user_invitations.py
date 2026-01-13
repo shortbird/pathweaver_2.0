@@ -623,10 +623,12 @@ def accept_invitation(invitation_code):
             user = existing_user.data[0]
 
             # Update user's organization and role
+            # Organization users have role='org_managed' with actual role in org_role
             supabase.table('users') \
                 .update({
                     'organization_id': inv['organization_id'],
-                    'role': inv['role']
+                    'role': 'org_managed',
+                    'org_role': inv['role']
                 }) \
                 .eq('id', user['id']) \
                 .execute()
@@ -679,13 +681,15 @@ def accept_invitation(invitation_code):
             user_id = auth_response.user.id
 
             # Create user profile
+            # Organization users have role='org_managed' with actual role in org_role
             profile_data = {
                 'id': user_id,
                 'email': email,
                 'first_name': first_name,
                 'last_name': last_name,
                 'display_name': f"{first_name} {last_name}",
-                'role': inv['role'],
+                'role': 'org_managed',
+                'org_role': inv['role'],
                 'organization_id': inv['organization_id']
             }
 

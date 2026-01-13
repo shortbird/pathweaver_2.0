@@ -159,6 +159,11 @@ def get_effective_role(user: Dict) -> str:
     """
     Get the effective role for a user, resolving org_managed to the actual org_role.
 
+    Role Model:
+        - Platform users (organization_id = NULL): Use 'role' directly (student, parent, etc.)
+        - Organization users (organization_id set): Have role='org_managed', actual role in 'org_role'
+        - Superadmin: Always organization_id = NULL, role = 'superadmin'
+
     Args:
         user: User dict with 'role' and optionally 'org_role' keys
 
@@ -171,16 +176,16 @@ def get_effective_role(user: Dict) -> str:
     if role == UserRole.SUPERADMIN.value:
         return UserRole.SUPERADMIN.value
 
-    # org_managed users use their org_role
+    # Organization users have role='org_managed' and actual role in org_role
     if role == UserRole.ORG_MANAGED.value:
         org_role = user.get('org_role')
         if org_role and org_role in VALID_ORG_ROLES:
             return org_role
-        # Fallback to student if org_role is not set (shouldn't happen)
+        # Fallback to student if org_role is not set (shouldn't happen due to constraints)
         logger.warning(f"User has org_managed role but no valid org_role: {user.get('id')}")
         return UserRole.STUDENT.value
 
-    # Otherwise return platform role
+    # Platform users (no org) use their role directly
     return role
 
 

@@ -274,9 +274,10 @@ def register():
                 else:
                     logger.warning(f"[REGISTRATION] Invalid or expired invitation code provided")
 
-            # Assign user to organization
-            # If org_slug is provided, look up the organization and assign user to it
-            # Otherwise, assign to default Optio organization
+            # Assign user to organization (if org_slug provided) or make them a platform user
+            # Role model:
+            #   - Platform users: organization_id = NULL, direct role (student, parent, observer, etc.)
+            #   - Organization users: organization_id set, role = 'org_managed', org_role = actual role
             if org_slug:
                 from services.organization_service import OrganizationService
                 org_service = OrganizationService()
@@ -286,12 +287,17 @@ def register():
                     raise ValidationError(f"Organization with slug '{org_slug}' not found or inactive")
 
                 user_data['organization_id'] = org['id']
-                logger.info(f"[REGISTRATION] Assigning user to organization: {org['name']} (slug: {org_slug})")
+                # Organization users get role='org_managed' with their actual role in org_role
+                # Preserve observer role from invitation if set
+                actual_role = user_data.get('role', 'student')
+                user_data['role'] = 'org_managed'
+                user_data['org_role'] = actual_role
+                logger.info(f"[REGISTRATION] Assigning user to organization: {org['name']} (slug: {org_slug}) with org_role: {actual_role}")
             else:
-                # Default to Optio organization
-                DEFAULT_OPTIO_ORG_ID = 'e88b7aae-b9ad-4c71-bc3a-eef0701f5852'
-                user_data['organization_id'] = DEFAULT_OPTIO_ORG_ID
-                logger.info(f"[REGISTRATION] Assigning user to default Optio organization")
+                # Platform user - no organization
+                # organization_id stays NULL (not set)
+                # Role is set directly (observer from invitation, or default 'student')
+                logger.info(f"[REGISTRATION] Creating platform user (no organization)")
 
             # Use upsert to handle cases where auth user exists but profile doesn't
             # Retry logic for FK constraint errors (auth user may not be immediately visible)

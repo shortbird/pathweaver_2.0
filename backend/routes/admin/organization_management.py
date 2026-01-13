@@ -404,7 +404,7 @@ def add_users_to_organization(current_user_id, current_org_id, is_superadmin, or
 def remove_user_from_organization(current_user_id, current_org_id, is_superadmin, org_id):
     """Remove user from organization (superadmin or org admin)
 
-    Moves user to default Optio organization since organization_id is NOT NULL.
+    User becomes a platform user (organization_id = NULL) with their org_role as their direct role.
     To fully delete a user, use the delete user endpoint instead.
     """
     try:
@@ -432,19 +432,26 @@ def remove_user_from_organization(current_user_id, current_org_id, is_superadmin
                 logger.error(f"Failed to delete auth user {user_id}: {auth_error}")
                 return jsonify({'error': 'Failed to delete user from auth system'}), 500
         else:
-            # Move user to default Optio organization
-            DEFAULT_OPTIO_ORG_ID = 'e88b7aae-b9ad-4c71-bc3a-eef0701f5852'
+            # Get user's current org_role to use as their platform role
+            user_data = client.table('users').select('org_role').eq('id', user_id).single().execute()
+            platform_role = user_data.data.get('org_role', 'student') if user_data.data else 'student'
 
+            # Convert to platform user: NULL org, direct role, clear org_role
             client.table('users')\
-                .update({'organization_id': DEFAULT_OPTIO_ORG_ID})\
+                .update({
+                    'organization_id': None,
+                    'role': platform_role,
+                    'org_role': None,
+                    'is_org_admin': False
+                })\
                 .eq('id', user_id)\
                 .execute()
 
-            logger.info(f"Removed user {user_id} from organization {org_id} (moved to default org)")
+            logger.info(f"Removed user {user_id} from organization {org_id} (now platform user with role={platform_role})")
 
             return jsonify({
                 'message': 'User removed from organization',
-                'note': 'User moved to default Optio organization'
+                'note': 'User is now a platform user'
             }), 200
     except Exception as e:
         logger.error(f"Error removing user from org {org_id}: {e}")
@@ -456,7 +463,7 @@ def remove_user_from_organization(current_user_id, current_org_id, is_superadmin
 def bulk_remove_users_from_organization(current_user_id, current_org_id, is_superadmin, org_id):
     """Remove multiple users from organization (superadmin or org admin)
 
-    Moves users to default Optio organization since organization_id is NOT NULL.
+    Users become platform users (organization_id = NULL) with their org_role as direct role.
     """
     try:
         # Verify access
@@ -473,15 +480,24 @@ def bulk_remove_users_from_organization(current_user_id, current_org_id, is_supe
             return jsonify({'error': 'Maximum 50 users can be removed at once'}), 400
 
         client = get_supabase_admin_client()
-        DEFAULT_OPTIO_ORG_ID = 'e88b7aae-b9ad-4c71-bc3a-eef0701f5852'
 
         removed = []
         failed = []
 
         for user_id in user_ids:
             try:
+                # Get user's current org_role to use as their platform role
+                user_data = client.table('users').select('org_role').eq('id', user_id).single().execute()
+                platform_role = user_data.data.get('org_role', 'student') if user_data.data else 'student'
+
+                # Convert to platform user: NULL org, direct role, clear org_role
                 client.table('users')\
-                    .update({'organization_id': DEFAULT_OPTIO_ORG_ID})\
+                    .update({
+                        'organization_id': None,
+                        'role': platform_role,
+                        'org_role': None,
+                        'is_org_admin': False
+                    })\
                     .eq('id', user_id)\
                     .eq('organization_id', org_id)\
                     .execute()

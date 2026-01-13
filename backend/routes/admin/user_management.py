@@ -394,16 +394,14 @@ def cleanup_user_related_records(supabase, target_user_id):
     # Tables with user_id foreign key
     tables_with_user_id = [
         'user_skill_xp',
-        'user_diplomas',
+        'diplomas',
         'user_quest_tasks',
         'quest_task_completions',
-        'user_quest_progress',
+        'user_quests',
         'notifications',
-        'badges_earned',
-        'user_course_enrollments',
-        'user_lesson_progress',
-        'observer_relationships',
-        'dependent_invitations',
+        'user_achievements',
+        'course_enrollments',
+        'curriculum_lesson_progress',
     ]
 
     for table in tables_with_user_id:
@@ -423,16 +421,16 @@ def cleanup_user_related_records(supabase, target_user_id):
         logger.debug(f"Cleanup friendships: {e}")
 
     try:
+        # observer_invitations only has student_id, not observer_id
         supabase.table('observer_invitations').delete().eq('student_id', target_user_id).execute()
-        supabase.table('observer_invitations').delete().eq('observer_id', target_user_id).execute()
     except Exception as e:
         logger.debug(f"Cleanup observer_invitations: {e}")
 
     try:
-        supabase.table('observer_relationships').delete().eq('student_id', target_user_id).execute()
-        supabase.table('observer_relationships').delete().eq('observer_id', target_user_id).execute()
+        supabase.table('observer_student_links').delete().eq('student_id', target_user_id).execute()
+        supabase.table('observer_student_links').delete().eq('observer_id', target_user_id).execute()
     except Exception as e:
-        logger.debug(f"Cleanup observer_relationships: {e}")
+        logger.debug(f"Cleanup observer_student_links: {e}")
 
     # Clear foreign key references (set to NULL instead of delete)
     try:

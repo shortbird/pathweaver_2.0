@@ -1,6 +1,6 @@
 # Optio Platform - AI Agent Guide
 
-**Last Updated**: January 12, 2026 | **Local Dev**: Enabled | **Multi-Agent**: Available
+**Last Updated**: January 13, 2026 | **Local Dev**: Enabled | **Multi-Agent**: Available
 
 ---
 
@@ -14,14 +14,40 @@
 6. **Run tests before production** - 95%+ pass rate required before merging to `main`
 7. **Include superadmin in role checks** - When creating new routes with role-based authorization, ALWAYS include `superadmin` in the allowed roles list.
 
-### Valid Roles (ONLY these 6 exist)
+### Role System (Platform vs Organization Users)
+
+Users fall into two categories:
+
+**Platform Users** (`organization_id = NULL`)
+- Not in any organization, use the Optio platform directly
+- Have a direct role in the `role` column: `student`, `parent`, `advisor`, `observer`
+- `org_role` is NULL
+- Superadmin is always a platform user with `role = 'superadmin'`
+
+**Organization Users** (`organization_id` is set)
+- Belong to an external organization (school, program, etc.)
+- Have `role = 'org_managed'` (platform role)
+- Actual role is in `org_role` column: `student`, `parent`, `advisor`, `org_admin`, `observer`
+- Org admin controls their role via `org_role`
+
+| User Type | organization_id | role | org_role |
+|-----------|-----------------|------|----------|
+| Platform student | `NULL` | `student` | `NULL` |
+| Platform parent | `NULL` | `parent` | `NULL` |
+| Org student | `<uuid>` | `org_managed` | `student` |
+| Org admin | `<uuid>` | `org_managed` | `org_admin` |
+| Superadmin | `NULL` | `superadmin` | `NULL` |
+
+**Use `get_effective_role(user)` to get the actual role** - this handles org_managed users automatically.
+
+### Valid Roles (6 total)
 | Role | Access Level |
 |------|-------------|
 | `superadmin` | Full access to everything (only tannerbowman@gmail.com) |
 | `org_admin` | Organization admin tools only |
-| `advisor` | Org-specific advisor access |
-| `parent` | Org-specific parent access |
-| `student` | Org-specific student access |
+| `advisor` | Advisor access (org-specific or platform) |
+| `parent` | Parent access (org-specific or platform) |
+| `student` | Student access (org-specific or platform) |
 | `observer` | View-only access to linked students, can comment on student work |
 
 **INVALID roles** (do NOT use): `admin`, `teacher`, `educator`, `school_admin`
