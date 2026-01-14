@@ -73,8 +73,14 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                 </>
               )}
 
-              {/* Optio Logo */}
-              {siteSettings?.logo_url ? (
+              {/* Optio Logo - Use favicon when org logo is present, full logo otherwise */}
+              {isAuthenticated && organization && organization.branding_config?.logo_url ? (
+                <img
+                  src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg"
+                  alt="Optio"
+                  className="h-8 w-8"
+                />
+              ) : siteSettings?.logo_url ? (
                 <img
                   src={siteSettings.logo_url}
                   alt={siteSettings.site_name || "Optio"}

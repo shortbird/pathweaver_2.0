@@ -10,6 +10,12 @@
   "theme_color": "#6D469B",
   "icons": [
     {
+      "src": "https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
       "src": "/apple-touch-icon.png",
       "sizes": "180x180",
       "type": "image/png",
