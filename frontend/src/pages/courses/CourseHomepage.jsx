@@ -24,6 +24,7 @@ import toast from 'react-hot-toast'
  */
 const ExpandableQuestItem = ({
   quest,
+  index,
   isExpanded,
   isSelected,
   onToggleExpand,
@@ -64,7 +65,7 @@ const ExpandableQuestItem = ({
 
         {/* Order Number */}
         <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-optio-purple/10 text-optio-purple rounded-full text-xs font-medium">
-          {quest.sequence_order + 1}
+          {index + 1}
         </span>
 
         {/* Quest Title */}
@@ -181,7 +182,7 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
       {/* Projects Grid */}
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Projects</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {quests.map((quest) => {
+        {quests.map((quest, index) => {
           const isCompleted = quest.progress?.is_completed
 
           return (
@@ -193,7 +194,7 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
               <div className="flex items-start gap-3">
                 {/* Order Number */}
                 <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-optio-purple/10 text-optio-purple rounded-full text-sm font-semibold">
-                  {quest.sequence_order + 1}
+                  {index + 1}
                 </span>
 
                 <div className="flex-1 min-w-0">
@@ -721,10 +722,11 @@ const CourseHomepage = () => {
                 </p>
               ) : (
                 <div className="space-y-1">
-                  {quests.map((quest) => (
+                  {quests.map((quest, index) => (
                     <ExpandableQuestItem
                       key={quest.id}
                       quest={quest}
+                      index={index}
                       isExpanded={expandedQuestIds.has(quest.id)}
                       isSelected={selectedQuest?.id === quest.id}
                       onToggleExpand={toggleQuestExpand}
