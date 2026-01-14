@@ -188,7 +188,8 @@ class PersonalizationService(BaseService):
         interests: List[str],
         cross_curricular_subjects: List[str],
         exclude_tasks: List[str] = None,
-        additional_feedback: str = ''
+        additional_feedback: str = '',
+        vision_statement: str = ''
     ) -> Dict[str, Any]:
         """Generate AI task suggestions with caching"""
         try:
@@ -240,7 +241,8 @@ class PersonalizationService(BaseService):
                 interests,
                 cross_curricular_subjects,
                 exclude_tasks=exclude_tasks or [],
-                additional_feedback=additional_feedback
+                additional_feedback=additional_feedback,
+                vision_statement=vision_statement
             )
 
             # Generate tasks using AI service
@@ -584,7 +586,8 @@ class PersonalizationService(BaseService):
         interests: List[str],
         cross_curricular_subjects: List[str],
         exclude_tasks: List[str] = None,
-        additional_feedback: str = ''
+        additional_feedback: str = '',
+        vision_statement: str = ''
     ) -> str:
         """Build AI prompt for personalized task generation"""
 
@@ -616,6 +619,11 @@ class PersonalizationService(BaseService):
         if additional_feedback:
             feedback_text = f"\n\nSTUDENT'S ADDITIONAL REQUIREMENTS:\n{additional_feedback}\n\nMake sure to incorporate these specific requirements into the generated tasks."
 
+        # Build vision statement context if provided (light touch - background context only)
+        vision_text = ''
+        if vision_statement:
+            vision_text = f"\n\nBACKGROUND CONTEXT (for reference only):\nThe student has shared this about their learning goals: \"{vision_statement[:500]}\"\nNote: This is optional context. Generate diverse tasks based primarily on the quest topic and selected interests. Only 1-2 tasks may optionally connect to this background if it fits naturally."
+
         # Build priority subjects text
         priority_subjects_instruction = ''
         if cross_curricular_subjects and cross_curricular_subjects != ['this subject only']:
@@ -636,7 +644,7 @@ Student's Selected Approach: {approach_desc}
 Student's Interests: {interests_text}
 
 Student's Selected Diploma Subjects: {subjects_text}
-{priority_subjects_instruction}{exclude_text}{feedback_text}
+{priority_subjects_instruction}{vision_text}{exclude_text}{feedback_text}
 
 Generate 6-10 tasks that:
 1. Are equivalent to high school unit projects (not final projects, not quick worksheets)

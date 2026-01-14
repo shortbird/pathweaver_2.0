@@ -25,6 +25,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
   const [hoveredQuestPosition, setHoveredQuestPosition] = useState(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [focusedType, setFocusedType] = useState('pillar'); // 'pillar' or 'quest'
+  const [hasKeyboardFocus, setHasKeyboardFocus] = useState(false); // Only show focus ring after keyboard use
   const [showTimeTravel, setShowTimeTravel] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -272,11 +273,34 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
   }, []);
 
   const handleMouseDown = useCallback((e) => {
-    if (e.button === 0 && e.shiftKey) { // Shift + Left click for panning
+    if (e.button === 0) { // Left click for panning
       setIsPanning(true);
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
     }
   }, [pan]);
+
+  // Touch handlers for mobile
+  const handleTouchStart = useCallback((e) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      setIsPanning(true);
+      setPanStart({ x: touch.clientX - pan.x, y: touch.clientY - pan.y });
+    }
+  }, [pan]);
+
+  const handleTouchMove = useCallback((e) => {
+    if (isPanning && e.touches.length === 1) {
+      const touch = e.touches[0];
+      setPan({
+        x: touch.clientX - panStart.x,
+        y: touch.clientY - panStart.y
+      });
+    }
+  }, [isPanning, panStart]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsPanning(false);
+  }, []);
 
   const handleMouseMove = useCallback((e) => {
     // Update mouse position for parallax effect
@@ -338,6 +362,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
           onExit?.();
           break;
         case 'Tab':
+          setHasKeyboardFocus(true);
           e.preventDefault();
           if (e.shiftKey) {
             // Backwards navigation
@@ -381,6 +406,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
           break;
         case 'ArrowRight':
         case 'ArrowDown':
+          setHasKeyboardFocus(true);
           e.preventDefault();
           if (focusedType === 'pillar') {
             setFocusedIndex((prev) => (prev + 1) % totalPillars);
@@ -390,6 +416,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
           break;
         case 'ArrowLeft':
         case 'ArrowUp':
+          setHasKeyboardFocus(true);
           e.preventDefault();
           if (focusedType === 'pillar') {
             setFocusedIndex((prev) => (prev - 1 + totalPillars) % totalPillars);
@@ -450,7 +477,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
       className="fixed inset-0 z-[9999] overflow-hidden"
       style={{
         background: 'linear-gradient(135deg, #0f0c29 0%, #1a1042 25%, #302b63 50%, #24243e 100%)',
-        cursor: isPanning ? 'grabbing' : 'default'
+        cursor: isPanning ? 'grabbing' : 'grab'
       }}
       role="region"
       aria-label="Learning Constellation Visualization"
@@ -458,6 +485,9 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Zoomable/Pannable Container */}
       <div
@@ -467,7 +497,8 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
           transition: isPanning ? 'none' : 'transform 0.2s ease-out',
           width: '100%',
           height: '100%',
-          position: 'relative'
+          position: 'relative',
+          overflow: 'hidden'
         }}
       >
       {/* Background Starfield - Static */}
@@ -493,7 +524,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
           onLeave={handleQuestLeave}
           onClick={handleQuestClick}
           index={quest.index}
-          isFocused={focusedType === 'quest' && focusedIndex === idx}
+          isFocused={hasKeyboardFocus && focusedType === 'quest' && focusedIndex === idx}
         />
       ))}
 
@@ -509,16 +540,22 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
           onLeave={handleOrbLeave}
           onClick={handleStarClick}
           index={index}
-          isFocused={focusedType === 'pillar' && focusedIndex === index}
+          isFocused={hasKeyboardFocus && focusedType === 'pillar' && focusedIndex === index}
         />
       ))}
 
+      </div>
+
+      {/* Info Cards (outside zoomable container so they don't scale with zoom) */}
       {/* Pillar Info Card on Hover */}
       <AnimatePresence>
         {hoveredPillar && hoveredPosition && (
           <PillarInfoCard
             pillar={hoveredPillar}
-            position={hoveredPosition}
+            position={{
+              x: (hoveredPosition.x - dimensions.width / 2) * zoom + dimensions.width / 2 + pan.x,
+              y: (hoveredPosition.y - dimensions.height / 2) * zoom + dimensions.height / 2 + pan.y
+            }}
             containerDimensions={dimensions}
           />
         )}
@@ -529,12 +566,14 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
         {hoveredQuest && hoveredQuestPosition && (
           <QuestTooltip
             quest={hoveredQuest}
-            position={hoveredQuestPosition}
+            position={{
+              x: (hoveredQuestPosition.x - dimensions.width / 2) * zoom + dimensions.width / 2 + pan.x,
+              y: (hoveredQuestPosition.y - dimensions.height / 2) * zoom + dimensions.height / 2 + pan.y
+            }}
             containerDimensions={dimensions}
           />
         )}
       </AnimatePresence>
-      </div>
 
       {/* UI Controls (outside zoomable container) */}
       {/* Exit Button */}
@@ -567,7 +606,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
           Use Tab to navigate forward through all pillars and quests, or Shift+Tab to navigate backward.
           Use Arrow Left/Up and Arrow Right/Down keys to navigate within pillars or quests.
           Press Enter or Space to view details for the currently focused pillar or quest.
-          Hold Shift and drag to pan the view. Use Ctrl/Cmd + scroll to zoom in or out.
+          Click and drag to pan the view. Use Ctrl/Cmd + scroll to zoom in or out.
           Press Escape to exit the constellation view and return to the quest hub.
         </p>
       </div>

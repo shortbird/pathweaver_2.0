@@ -129,6 +129,16 @@ def generate_tasks(user_id: str, quest_id: str):
         exclude_tasks = data.get('exclude_tasks', [])
         additional_feedback = data.get('additional_feedback', '')
 
+        # Fetch user's learning vision (bio field) for AI context
+        vision_statement = ''
+        try:
+            supabase = get_supabase_admin_client()
+            user_result = supabase.table('users').select('bio').eq('id', user_id).single().execute()
+            if user_result.data and user_result.data.get('bio'):
+                vision_statement = user_result.data['bio']
+        except Exception as e:
+            logger.warning(f"Could not fetch user vision statement: {e}")
+
         # Generate tasks
         result = personalization_service.generate_task_suggestions(
             session_id=session_id,
@@ -137,7 +147,8 @@ def generate_tasks(user_id: str, quest_id: str):
             interests=interests,
             cross_curricular_subjects=cross_curricular_subjects,
             exclude_tasks=exclude_tasks,
-            additional_feedback=additional_feedback
+            additional_feedback=additional_feedback,
+            vision_statement=vision_statement
         )
 
         if not result['success']:

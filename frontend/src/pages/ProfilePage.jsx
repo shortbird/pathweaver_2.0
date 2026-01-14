@@ -23,7 +23,7 @@ const ProfilePage = () => {
   const [profileData, setProfileData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
-  const { register, handleSubmit, formState: { errors }, reset } = useForm()
+  const { register, handleSubmit, formState: { errors }, reset, watch } = useForm()
   const qrCodeRef = useRef(null)
 
   useEffect(() => {
@@ -36,7 +36,8 @@ const ProfilePage = () => {
       setProfileData(response.data)
       reset({
         first_name: response.data.user.first_name,
-        last_name: response.data.user.last_name
+        last_name: response.data.user.last_name,
+        bio: response.data.user.bio || ''
       })
     } catch (error) {
       console.error('Failed to fetch profile:', error)
@@ -279,6 +280,27 @@ const ProfilePage = () => {
                   </div>
                 </div>
 
+                {/* Learning Vision Field */}
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
+                    Learning Vision
+                  </label>
+                  <p className="text-sm text-gray-500 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    Describe your learning goals, projects you're working on, and interests. This helps personalize AI suggestions for you.
+                  </p>
+                  <textarea
+                    {...register('bio')}
+                    rows={5}
+                    maxLength={2000}
+                    placeholder="What are you excited to learn? What projects are you working on? What skills do you want to develop?"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors text-base resize-none"
+                    style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+                  />
+                  <p className="mt-1 text-xs text-gray-400 text-right" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    {(watch('bio') || '').length}/2000 characters
+                  </p>
+                </div>
+
                 <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <button
                     type="submit"
@@ -293,7 +315,8 @@ const ProfilePage = () => {
                       setEditing(false)
                       reset({
                         first_name: profileData.user.first_name,
-                        last_name: profileData.user.last_name
+                        last_name: profileData.user.last_name,
+                        bio: profileData.user.bio || ''
                       })
                     }}
                     className="min-h-[44px] w-full sm:w-auto px-6 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
@@ -328,6 +351,20 @@ const ProfilePage = () => {
                   <p className="text-lg text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
                     {new Date(profileData?.user.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                   </p>
+                </div>
+                <div className="pt-4 border-t border-gray-200">
+                  <p className="text-sm font-semibold text-gray-600 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
+                    Learning Vision
+                  </p>
+                  {profileData?.user.bio ? (
+                    <p className="text-base text-gray-900 whitespace-pre-wrap" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                      {profileData.user.bio}
+                    </p>
+                  ) : (
+                    <p className="text-base text-gray-400 italic" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                      No learning vision set yet. Click Edit to add one.
+                    </p>
+                  )}
                 </div>
               </div>
             )}

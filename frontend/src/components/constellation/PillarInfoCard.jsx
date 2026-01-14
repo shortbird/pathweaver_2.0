@@ -43,13 +43,15 @@ const PillarInfoCard = ({ pillar, position, containerDimensions }) => {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 10, scale: 0.95 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
+      className="pointer-events-none"
       style={{
         position: 'absolute',
         top: `${cardPosition.top}px`,
         left: `${cardPosition.left}px`,
         zIndex: 100,
+        width: '280px',
+        maxWidth: 'calc(100vw - 2rem)'
       }}
-      className="w-full max-w-[280px] max-w-[calc(100vw-2rem)] pointer-events-none"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="bg-gray-900/95 backdrop-blur-md border border-white/20

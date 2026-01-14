@@ -55,7 +55,7 @@ const PillarOrb = ({
   };
 
   // Pure light orb with lens flare effect - like the reference image
-  const LightOrb = ({ size, brightness, color, isHovered, isActive, isFocused }) => {
+  const LightOrb = ({ size, brightness, color, isHovered, isActive }) => {
     const glowIntensity = isHovered ? 1.4 : (isActive ? 1.15 : 1.0);
     const coreSize = size * 0.15; // Small bright core
     const innerGlowSize = size * 0.5;
@@ -80,30 +80,6 @@ const PillarOrb = ({
           ease: [0.4, 0.0, 0.6, 1]
         } : {}}
       >
-        {/* Keyboard Focus Indicator Ring */}
-        {isFocused && (
-          <motion.div
-            className="absolute top-1/2 left-1/2 rounded-full"
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{
-              scale: [1, 1.05, 1],
-              opacity: [0.8, 1, 0.8]
-            }}
-            transition={{
-              duration: 1.5,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-            style={{
-              width: size * 1.4,
-              height: size * 1.4,
-              border: `3px solid ${color}`,
-              boxShadow: `0 0 20px ${color}, 0 0 40px ${color}, inset 0 0 20px ${color}40`,
-              transform: 'translate(-50%, -50%)',
-              pointerEvents: 'none'
-            }}
-          />
-        )}
         {/* Outer glow - very soft, large spread */}
         <div
           className="absolute top-1/2 left-1/2 rounded-full blur-3xl"
@@ -234,6 +210,32 @@ const PillarOrb = ({
         }
       }}
     >
+      {/* Keyboard Focus Indicator Ring */}
+      {isFocused && (
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{
+            scale: [1, 1.05, 1],
+            opacity: [0.8, 1, 0.8]
+          }}
+          transition={{
+            duration: 1.5,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          style={{
+            position: 'absolute',
+            width: size * 1.4,
+            height: size * 1.4,
+            left: (size - size * 1.4) / 2,
+            top: (size - size * 1.4) / 2,
+            borderRadius: '50%',
+            border: `3px solid ${color}`,
+            boxShadow: `0 0 20px ${color}, 0 0 40px ${color}, inset 0 0 20px ${color}40`,
+            pointerEvents: 'none'
+          }}
+        />
+      )}
       <div
         style={{
           position: 'absolute',
@@ -241,7 +243,7 @@ const PillarOrb = ({
           top: '50%',
           transform: `translate(-50%, -50%) scale(${isHovered ? 1.15 : 1})`,
           transition: 'transform 0.3s ease-out',
-          pointerEvents: 'none', // Prevent this div from interfering with mouse events
+          pointerEvents: 'none',
         }}
       >
         <LightOrb
@@ -250,7 +252,6 @@ const PillarOrb = ({
           color={color}
           isHovered={isHovered}
           isActive={isActive}
-          isFocused={isFocused}
         />
       </div>
     </motion.div>

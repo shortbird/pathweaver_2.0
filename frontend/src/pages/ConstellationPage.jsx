@@ -131,27 +131,10 @@ const ConstellationPage = () => {
 
       setPillarsData(pillars);
 
-      // Fetch user's completed quests with task details (fetch ALL pages)
+      // Fetch user's completed quests (most recent 100 - sufficient for visualization)
       try {
-        let allQuests = [];
-        let page = 1;
-        let hasMore = true;
-
-        // Fetch all pages of completed quests (max 100 per page)
-        while (hasMore) {
-          const questsResponse = await api.get(`/api/users/completed-quests?page=${page}&per_page=100`);
-          const quests = questsResponse.data.quests || [];
-          allQuests = [...allQuests, ...quests];
-
-          // Check if there are more pages
-          hasMore = questsResponse.data.pagination?.has_next || false;
-          page++;
-
-          // Safety limit: stop after 10 pages (1000 quests max)
-          if (page > 10) break;
-        }
-
-        const userQuests = allQuests;
+        const questsResponse = await api.get('/api/users/completed-quests?page=1&per_page=100');
+        const userQuests = questsResponse.data.quests || [];
 
         // Also get in-progress quests from dashboard data
         const dashboardQuests = data.active_quests || [];

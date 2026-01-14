@@ -54,6 +54,7 @@ class TutorContext:
     learning_style: Optional[str] = None
     conversation_mode: ConversationMode = ConversationMode.TEACHER
     previous_messages: List[Dict] = None
+    vision_statement: Optional[str] = None  # User's learning vision from profile
 
 @dataclass
 class TutorResponse:
@@ -245,6 +246,10 @@ SAFETY RULES:
         # Add user context
         if context.user_age:
             base_prompt += f"USER AGE: {context.user_age} years old\n"
+
+        # Add vision statement as light background context
+        if context.vision_statement:
+            base_prompt += f"\nBACKGROUND (optional reference): The student mentioned: \"{context.vision_statement[:500]}\"\n"
 
         # Add quest context - handle both rich context (from quest_id) and simple context (legacy)
         if context.current_quest:

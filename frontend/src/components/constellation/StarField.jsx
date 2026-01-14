@@ -9,7 +9,7 @@ const StarField = ({ starCount = 200 }) => {
 
     const ctx = canvas.getContext('2d');
     const updateDimensions = () => {
-      // Make canvas larger to account for zoom (3x the viewport to support 0.5x zoom)
+      // Make canvas larger to account for zoom (3x the viewport to support zoom out)
       canvas.width = window.innerWidth * 3;
       canvas.height = window.innerHeight * 3;
     };

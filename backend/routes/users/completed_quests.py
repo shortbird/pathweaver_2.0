@@ -9,7 +9,7 @@ REPOSITORY MIGRATION: MIGRATION CANDIDATE
 """
 
 from flask import Blueprint, jsonify, request
-from database import get_user_client
+from database import get_supabase_admin_client
 from repositories import (
     UserRepository,
     QuestRepository,
@@ -47,8 +47,8 @@ def get_completed_quests(user_id):
     
     offset = (page - 1) * per_page
     
-    # Use user client with RLS enforcement
-    supabase = get_user_client()
+    # Admin client: Auth verified by decorator (ADR-002, Rule 3)
+    supabase = get_supabase_admin_client()
     
     try:
         # Get total count
@@ -70,20 +70,62 @@ def get_completed_quests(user_id):
             .range(offset, offset + per_page - 1)\
             .execute()
         
+        # Batch calculate XP for all quests (2 queries instead of 2 per quest)
+        quest_xp_map = {}
+        if completed.data:
+            quest_ids = [r.get('quests', {}).get('id') for r in completed.data if r.get('quests', {}).get('id')]
+
+            if quest_ids:
+                # Get all task completions for these quests in ONE query
+                all_completions = supabase.table('quest_task_completions')\
+                    .select('quest_id, user_quest_task_id')\
+                    .eq('user_id', user_id)\
+                    .in_('quest_id', quest_ids)\
+                    .execute()
+
+                if all_completions.data:
+                    # Get all task details in ONE query
+                    task_ids = [c['user_quest_task_id'] for c in all_completions.data if c.get('user_quest_task_id')]
+
+                    if task_ids:
+                        all_tasks = supabase.table('user_quest_tasks')\
+                            .select('id, quest_id, pillar, xp_value')\
+                            .in_('id', task_ids)\
+                            .execute()
+
+                        # Build task lookup map
+                        task_map = {t['id']: t for t in (all_tasks.data or [])}
+
+                        # Calculate XP per quest
+                        for completion in all_completions.data:
+                            quest_id = completion.get('quest_id')
+                            task_id = completion.get('user_quest_task_id')
+                            task = task_map.get(task_id, {})
+
+                            if quest_id not in quest_xp_map:
+                                quest_xp_map[quest_id] = {'total': 0, 'breakdown': {}}
+
+                            xp = task.get('xp_value', 0) or 0
+                            pillar = task.get('pillar', 'stem') or 'stem'
+
+                            quest_xp_map[quest_id]['total'] += xp
+                            quest_xp_map[quest_id]['breakdown'][pillar] = quest_xp_map[quest_id]['breakdown'].get(pillar, 0) + xp
+
         # Format quest data
         formatted_quests = []
         if completed.data:
             for quest_record in completed.data:
                 quest = quest_record.get('quests', {})
                 if quest:
+                    quest_id = quest.get('id')
                     formatted_quest = {
-                        'id': quest.get('id'),
+                        'id': quest_id,
                         'title': quest.get('title'),
                         'description': quest.get('description'),
                         'difficulty': quest.get('difficulty'),
                         'category': quest.get('category'),
                         'completed_at': quest_record.get('completed_at'),
-                        'xp_earned': calculate_quest_xp(quest, user_id),
+                        'xp_earned': quest_xp_map.get(quest_id, {'total': 0, 'breakdown': {}}),
                         'submission': {
                             'content': quest_record.get('submission_content'),
                             'submitted_at': quest_record.get('submitted_at'),
@@ -122,7 +164,7 @@ def calculate_quest_xp(quest: dict, user_id: str = None) -> dict:
         return {'total': 0, 'breakdown': {}}
 
     try:
-        supabase = get_user_client()
+        supabase = get_supabase_admin_client()
         quest_id = quest.get('id')
 
         # Get all completed tasks for this quest

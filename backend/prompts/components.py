@@ -213,7 +213,8 @@ def build_context(
     lesson: Optional[Dict] = None,
     user_age: Optional[int] = None,
     learning_style: Optional[str] = None,
-    previous_messages: Optional[List[Dict]] = None
+    previous_messages: Optional[List[Dict]] = None,
+    vision_statement: Optional[str] = None
 ) -> str:
     """
     Build a context section for AI prompts.
@@ -225,6 +226,7 @@ def build_context(
         user_age: User's age for age-appropriate responses
         learning_style: visual, auditory, kinesthetic, or mixed
         previous_messages: List of previous conversation messages
+        vision_statement: User's learning vision/goals (from profile bio)
 
     Returns:
         Formatted context string to include in prompts
@@ -233,6 +235,9 @@ def build_context(
 
     if user_age:
         sections.append(f"USER AGE: {user_age} years old")
+
+    if vision_statement:
+        sections.append(f"STUDENT'S LEARNING VISION:\n{vision_statement[:1000]}")
 
     if learning_style:
         style_descriptions = {

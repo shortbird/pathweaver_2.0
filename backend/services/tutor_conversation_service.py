@@ -178,6 +178,14 @@ class TutorConversationService:
                 except ValueError:
                     logger.warning(f"Invalid conversation mode '{conversation_mode}', using default")
 
+            # Fetch user's learning vision (bio field) for AI context
+            try:
+                user_result = self.client.table('users').select('bio').eq('id', user_id).single().execute()
+                if user_result.data and user_result.data.get('bio'):
+                    context.vision_statement = user_result.data['bio']
+            except Exception as e:
+                logger.warning(f"Could not fetch user vision statement: {e}")
+
             # Get recent messages for context
             if conversation:
                 messages = self.client.table('tutor_messages').select('role, content').eq(
