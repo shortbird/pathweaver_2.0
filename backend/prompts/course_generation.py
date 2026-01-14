@@ -1,0 +1,567 @@
+"""
+Course Generation Prompts
+=========================
+
+AI prompts for the multi-stage course generation wizard.
+Designed for creating hands-on, action-oriented courses for homeschool families.
+
+Philosophy:
+- "The Process Is The Goal" - learning happens through doing
+- Just-in-time teaching - minimal info needed to make a competent attempt
+- Hands-on outcomes - every course produces something tangible
+- Universal design - adaptable across ages 8-18
+
+Stages:
+1. Outline Generation - Topic -> Title + 4-6 project outlines (3 alternatives)
+2. Lesson Generation - Per project, generate 3-6 lessons with steps
+3. Task Generation - Per lesson, generate 2-4 hands-on task suggestions
+"""
+
+# =============================================================================
+# STAGE 1: OUTLINE GENERATION
+# =============================================================================
+
+OUTLINE_GENERATION_PROMPT = """
+You are designing hands-on tutorial courses for homeschool families. These are NOT
+traditional academic courses. Focus on what students will DO and MAKE.
+
+INPUT:
+- Topic: {topic}
+
+TASK:
+Generate 3 DIFFERENT course outline alternatives. Each alternative should take a
+distinct creative angle on the topic.
+
+=============================================================================
+TITLE RULES (CRITICAL)
+=============================================================================
+
+Each course title must make it immediately obvious what students will DO or MAKE,
+not what they'll learn about.
+
+TITLE FORMAT:
+- Keep titles SHORT (3-7 words max)
+- Start with ACTION VERBS: Build, Design, Create, Cook, Launch, Repair, Write, Program, etc.
+- Show the TANGIBLE OUTCOME in simple terms
+- Use lowercase for style (capitalize first word only)
+- NO exclamation points, NO fluff words like "your dream" or "from scratch"
+- Feel fun and slightly unexpected - things traditional school would never offer
+
+GOOD TITLE EXAMPLES:
+- "Build a playable board game"
+- "Start a micro-business"
+- "Write and illustrate a children's book"
+- "Take apart and rebuild electronics"
+- "Design your own clothing line"
+- "Create a stop-motion film"
+- "Build a backyard wildlife habitat"
+- "Launch a podcast"
+
+BAD TITLE EXAMPLES (DO NOT USE):
+- "Build a Playable Board Game from Scratch!" (too long, has exclamation)
+- "Design Your Dream Adventure Game and Build It!" (way too long, fluffy)
+- "Build a Card Game Kingdom from Your Imagination" (too flowery)
+- "The Science of Electricity" (too passive, no action)
+- "Introduction to Entrepreneurship" (too abstract, academic framing)
+- "Creative Writing Fundamentals" (sounds like a textbook)
+
+=============================================================================
+PROJECT RULES
+=============================================================================
+
+Each course needs 4-6 PROJECTS that build progressively toward the tangible outcome.
+Projects are hands-on milestones, not chapters to read.
+
+IMPORTANT: Projects must work as STANDALONE QUESTS in addition to being part of the
+course. Each project needs its own complete context.
+
+PROJECT NAMING:
+- Keep project titles SHORT (3-6 words)
+- Action verbs: Build, Design, Create, Make, Launch, etc.
+- Clear deliverable: What do they have when this project is done?
+- Progressive: Each project builds on the previous one
+- NO fluff words like "your dream", "from scratch", "amazing"
+
+PROJECT STRUCTURE:
+- Project 1: Foundation/first attempt (lower stakes, build confidence)
+- Projects 2-4: Progressive skill building with increasing complexity
+- Final Project: Capstone that combines all skills into finished product
+
+PROJECT FIELDS (REQUIRED):
+- title: Short action-oriented title (3-6 words)
+- description: 1-2 sentences about what they'll create (standalone context)
+- big_idea: The key insight or learning outcome (1 sentence, standalone context)
+- topic_primary: One of: Creative, Science, Nature, Building, Business, Food, Games, Personal, Academic
+- topics: Array of 1-3 specific topic tags relevant to this project
+
+Example for "Build a playable board game":
+1. "Design game concept and rules" - big_idea: "Every great game starts with clear rules"
+2. "Create a paper prototype" - big_idea: "Rapid prototyping reveals design flaws early"
+3. "Playtest and refine mechanics" - big_idea: "Player feedback drives better game design"
+4. "Design visual elements" - big_idea: "Visual design enhances player experience"
+5. "Build final game" - big_idea: "Quality materials elevate your creation"
+
+=============================================================================
+CATEGORIES
+=============================================================================
+
+Assign 1-3 categories from this list:
+- outdoor/nature
+- digital creation
+- food and kitchen
+- money and business
+- storytelling and media
+- repair and making
+- community and people
+- science and discovery
+- art and design
+- music and sound
+- games and play
+- building and construction
+
+=============================================================================
+RETURN FORMAT
+=============================================================================
+
+Return EXACTLY this JSON structure with 3 alternatives:
+
+{{
+  "alternatives": [
+    {{
+      "title": "Action-oriented course title",
+      "description": "2-3 sentences describing what students will create. Use active voice. Focus on the tangible outcome and the journey to get there.",
+      "projects": [
+        {{
+          "title": "Project 1: Foundation title",
+          "description": "What they'll create in this project (standalone context)",
+          "big_idea": "Key insight or learning outcome for this project",
+          "topic_primary": "Creative",
+          "topics": ["game design", "prototyping"],
+          "order": 1
+        }},
+        {{
+          "title": "Project 2: Building title",
+          "description": "What they'll create in this project (standalone context)",
+          "big_idea": "Key insight or learning outcome for this project",
+          "topic_primary": "Creative",
+          "topics": ["iteration", "testing"],
+          "order": 2
+        }},
+        {{
+          "title": "Project 3: Building title",
+          "description": "What they'll create in this project (standalone context)",
+          "big_idea": "Key insight or learning outcome for this project",
+          "topic_primary": "Creative",
+          "topics": ["visual design"],
+          "order": 3
+        }},
+        {{
+          "title": "Project 4: Advanced title",
+          "description": "What they'll create in this project (standalone context)",
+          "big_idea": "Key insight or learning outcome for this project",
+          "topic_primary": "Creative",
+          "topics": ["craftsmanship", "finishing"],
+          "order": 4
+        }}
+      ],
+      "categories": ["category1", "category2"]
+    }},
+    {{
+      "title": "Different creative angle on the topic",
+      "description": "...",
+      "projects": [...],
+      "categories": [...]
+    }},
+    {{
+      "title": "Third distinct approach",
+      "description": "...",
+      "projects": [...],
+      "categories": [...]
+    }}
+  ]
+}}
+
+=============================================================================
+CREATIVE DIFFERENTIATION
+=============================================================================
+
+The 3 alternatives should explore DIFFERENT angles:
+- Different end products (e.g., for "cooking": a cookbook vs a food blog vs a catering business)
+- Different approaches (e.g., traditional vs modern vs fusion)
+- Different scales (e.g., personal project vs community project vs business)
+- Different audiences (e.g., making for self vs making for others)
+
+Make each alternative genuinely distinct and exciting.
+"""
+
+
+# =============================================================================
+# STAGE 2: PROJECT LESSONS GENERATION
+# =============================================================================
+
+PROJECT_LESSONS_PROMPT = """
+You are creating lesson content for a hands-on project. Follow just-in-time teaching
+principles: provide JUST ENOUGH information to make a competent first attempt.
+
+INPUT:
+- Course: {course_title}
+- Project: {project_title}
+- Project Description: {project_description}
+
+TASK:
+Generate 3-6 lessons that guide students through completing this project.
+
+=============================================================================
+JUST-IN-TIME TEACHING PHILOSOPHY
+=============================================================================
+
+Learning happens when knowledge is APPLIED, not when content is consumed.
+
+Each lesson should:
+1. Provide the MINIMUM info needed to start a competent attempt
+2. Focus on what to DO, not background theory
+3. Trust that students will discover knowledge gaps while doing
+4. Those gaps create intrinsic motivation to learn more
+5. The AI tutor can provide deeper knowledge on-demand
+
+BAD LESSON APPROACH:
+- Long explanations before any action
+- Complete theory before practice
+- Covering all edge cases upfront
+- "First, let's understand the history of..."
+
+GOOD LESSON APPROACH:
+- Quick context (why this matters)
+- Essential info only (what you need RIGHT NOW)
+- Immediate action step (try this)
+- Learn-by-doing mentality
+
+=============================================================================
+LESSON STRUCTURE
+=============================================================================
+
+Each lesson needs:
+- title: Clear, action-oriented (e.g., "Setting Up Your First Template")
+- description: One sentence about what they'll accomplish
+- steps: 5-10 steps that guide them through the lesson
+- scaffolding: Age adaptation notes
+
+STEP FORMAT:
+Each step has:
+- id: Unique identifier (format: step_[random 6 alphanumeric chars])
+- type: "text" (always text for auto-generated content)
+- title: Short action phrase (3-6 words)
+- content: HTML content (use <p>, <ul>, <li>, <strong>, <em>)
+- order: Sequence number (0-indexed)
+
+CONTENT GUIDELINES:
+- Keep paragraphs short (2-4 sentences max)
+- Use bullet points for lists
+- Include specific, actionable instructions
+- Add encouraging, warm tone
+- One main idea per step
+
+=============================================================================
+SCAFFOLDING (UNIVERSAL DESIGN)
+=============================================================================
+
+For each lesson, provide scaffolding notes to adapt for different skill levels:
+- younger: How to simplify for younger or less experienced learners
+- older: How to extend/deepen for older or more advanced learners
+
+Examples:
+- Younger: "Use pre-made templates instead of creating from scratch"
+- Younger: "Work with a parent or older sibling on the measuring"
+- Younger: "Focus on the basic concept before adding complexity"
+- Older: "Add a business plan component"
+- Older: "Research professional techniques and incorporate them"
+- Older: "Take on leadership role and teach younger learners"
+
+=============================================================================
+RETURN FORMAT
+=============================================================================
+
+Return EXACTLY this JSON structure:
+
+{{
+  "lessons": [
+    {{
+      "title": "Lesson Title",
+      "description": "One sentence about what they'll accomplish",
+      "order": 0,
+      "steps": [
+        {{
+          "id": "step_abc123",
+          "type": "text",
+          "title": "Step Title Here",
+          "content": "<p>Brief instructional content with <strong>key points</strong> highlighted.</p><ul><li>Action item one</li><li>Action item two</li></ul>",
+          "order": 0
+        }},
+        {{
+          "id": "step_def456",
+          "type": "text",
+          "title": "Next Step Title",
+          "content": "<p>More content...</p>",
+          "order": 1
+        }}
+      ],
+      "scaffolding": {{
+        "younger": "Simplification suggestions for younger or less experienced learners",
+        "older": "Extension suggestions for older or more advanced learners"
+      }}
+    }}
+  ]
+}}
+
+Generate step IDs using random 6-character alphanumeric strings (e.g., step_x7k2m9).
+"""
+
+
+# =============================================================================
+# STAGE 3: TASK GENERATION
+# =============================================================================
+
+TASK_GENERATION_PROMPT = """
+You are generating hands-on task suggestions for a lesson. Tasks are where learning
+actually happens - students apply lesson knowledge to create something tangible.
+
+INPUT:
+- Course: {course_title}
+- Project: {project_title}
+- Lesson: {lesson_title}
+- Lesson Content Summary: {lesson_summary}
+
+TASK:
+Generate 2-4 task suggestions that let students apply what they learned.
+
+=============================================================================
+TASK PHILOSOPHY
+=============================================================================
+
+Tasks should:
+1. Require APPLYING the lesson content (not just reading or watching)
+2. Produce a TANGIBLE outcome (something they made/did/created)
+3. Allow PERSONALIZATION (students can make it their own)
+4. Be COMPLETABLE in a reasonable session (not multi-day projects)
+
+Students can also create their own tasks - these are starting suggestions.
+
+=============================================================================
+TASK PILLARS
+=============================================================================
+
+Assign each task a pillar based on what skill it primarily develops:
+
+- creativity: Making original things, artistic expression, design choices
+- knowledge: Research, learning concepts, understanding how things work
+- social: Collaborating, presenting, teaching others, community involvement
+- physical: Building, hands-on making, physical skills, outdoor activities
+
+Try to vary pillars across tasks in a lesson.
+
+=============================================================================
+XP VALUES
+=============================================================================
+
+Assign XP based on effort and complexity:
+- 50-100 XP: Quick tasks (15-30 minutes), simple application
+- 100-150 XP: Moderate tasks (30-60 minutes), requires thought and effort (most common)
+- 150-200 XP: Substantial tasks (1-2 hours), significant creation or challenge
+
+=============================================================================
+TASK NAMING
+=============================================================================
+
+Use action verbs that show what they'll DO:
+- Create, Build, Design, Write, Record, Draw, Make, Construct, Develop, etc.
+
+BAD task names:
+- "Learn about color theory" (passive)
+- "Understand the basics" (no outcome)
+- "Read about techniques" (consumption, not creation)
+
+GOOD task names:
+- "Create a color palette for your project"
+- "Build a simple prototype using household materials"
+- "Record a 2-minute explanation video"
+- "Design three logo options"
+
+=============================================================================
+RETURN FORMAT
+=============================================================================
+
+Return EXACTLY this JSON structure:
+
+{{
+  "tasks": [
+    {{
+      "title": "Action-verb task title",
+      "description": "Clear description of what to do and what the outcome looks like. Be specific enough that students know when they're done.",
+      "pillar": "creativity",
+      "xp_value": 125
+    }},
+    {{
+      "title": "Another task title",
+      "description": "...",
+      "pillar": "knowledge",
+      "xp_value": 75
+    }},
+    {{
+      "title": "Third task option",
+      "description": "...",
+      "pillar": "physical",
+      "xp_value": 175
+    }}
+  ]
+}}
+
+Generate 2-4 tasks per lesson. Vary the pillars and XP values.
+"""
+
+
+# =============================================================================
+# ALTERNATIVE GENERATION (For regeneration feature)
+# =============================================================================
+
+REGENERATE_LESSONS_PROMPT = """
+You are generating ALTERNATIVE lesson content for a project. The user wants to see
+different approaches to teaching this same project.
+
+INPUT:
+- Course: {course_title}
+- Project: {project_title}
+- Project Description: {project_description}
+- Previous Lessons (to differentiate from): {previous_lessons}
+
+TASK:
+Generate 2-3 ALTERNATIVE lesson sets. Each should take a different teaching approach
+while still covering the same project goals.
+
+Differentiation ideas:
+- Different ordering of concepts
+- Different examples and analogies
+- More hands-on vs more conceptual
+- Different pacing (fewer deep lessons vs more quick lessons)
+- Different entry points (where to start)
+
+Return the same JSON structure as PROJECT_LESSONS_PROMPT, but wrapped in an "alternatives" array:
+
+{{
+  "alternatives": [
+    {{
+      "approach": "Brief description of this teaching approach",
+      "lessons": [...]
+    }},
+    {{
+      "approach": "Different approach description",
+      "lessons": [...]
+    }}
+  ]
+}}
+"""
+
+
+REGENERATE_TASKS_PROMPT = """
+You are generating ALTERNATIVE task suggestions for a lesson. The user wants to see
+different task options.
+
+INPUT:
+- Course: {course_title}
+- Project: {project_title}
+- Lesson: {lesson_title}
+- Lesson Content Summary: {lesson_summary}
+- Previous Tasks (to differentiate from): {previous_tasks}
+
+TASK:
+Generate 2-3 ALTERNATIVE task sets. Each should offer different ways to apply the
+lesson content.
+
+Differentiation ideas:
+- Different output formats (written vs visual vs video vs physical)
+- Different complexity levels
+- Different pillars emphasis
+- Individual vs collaborative options
+- Different real-world applications
+
+Return the same JSON structure as TASK_GENERATION_PROMPT, but wrapped in an "alternatives" array:
+
+{{
+  "alternatives": [
+    {{
+      "approach": "Brief description of this task set approach",
+      "tasks": [...]
+    }},
+    {{
+      "approach": "Different approach description",
+      "tasks": [...]
+    }}
+  ]
+}}
+"""
+
+
+# =============================================================================
+# UTILITY FUNCTIONS
+# =============================================================================
+
+def get_outline_prompt(topic: str) -> str:
+    """Get the outline generation prompt with topic filled in."""
+    return OUTLINE_GENERATION_PROMPT.format(topic=topic)
+
+
+def get_lessons_prompt(course_title: str, project_title: str, project_description: str) -> str:
+    """Get the lesson generation prompt with context filled in."""
+    return PROJECT_LESSONS_PROMPT.format(
+        course_title=course_title,
+        project_title=project_title,
+        project_description=project_description
+    )
+
+
+def get_tasks_prompt(
+    course_title: str,
+    project_title: str,
+    lesson_title: str,
+    lesson_summary: str
+) -> str:
+    """Get the task generation prompt with context filled in."""
+    return TASK_GENERATION_PROMPT.format(
+        course_title=course_title,
+        project_title=project_title,
+        lesson_title=lesson_title,
+        lesson_summary=lesson_summary
+    )
+
+
+def get_regenerate_lessons_prompt(
+    course_title: str,
+    project_title: str,
+    project_description: str,
+    previous_lessons: list
+) -> str:
+    """Get the lesson regeneration prompt for alternatives."""
+    import json
+    return REGENERATE_LESSONS_PROMPT.format(
+        course_title=course_title,
+        project_title=project_title,
+        project_description=project_description,
+        previous_lessons=json.dumps(previous_lessons, indent=2)
+    )
+
+
+def get_regenerate_tasks_prompt(
+    course_title: str,
+    project_title: str,
+    lesson_title: str,
+    lesson_summary: str,
+    previous_tasks: list
+) -> str:
+    """Get the task regeneration prompt for alternatives."""
+    import json
+    return REGENERATE_TASKS_PROMPT.format(
+        course_title=course_title,
+        project_title=project_title,
+        lesson_title=lesson_title,
+        lesson_summary=lesson_summary,
+        previous_tasks=json.dumps(previous_tasks, indent=2)
+    )

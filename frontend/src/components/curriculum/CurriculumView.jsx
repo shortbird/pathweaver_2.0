@@ -14,12 +14,85 @@ import {
   ClockIcon,
   XMarkIcon,
   ArrowPathIcon,
+  AcademicCapIcon,
 } from '@heroicons/react/24/outline'
 import { getPillarData } from '../../utils/pillarMappings'
 import api from '../../services/api'
 import { parseContentToSteps } from './utils/contentUtils'
 import LessonItem from './LessonItem'
 import LessonSlideViewer from './LessonSlideViewer'
+
+// Age Adaptations Modal Component
+const ScaffoldingModal = ({ isOpen, onClose, scaffolding }) => {
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AcademicCapIcon className="w-8 h-8" />
+              <h2 className="text-xl font-bold" style={{ fontFamily: 'Poppins' }}>
+                Age Adaptations
+              </h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/20 rounded-full transition-colors"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
+          </div>
+          <p className="mt-2 text-white/80 text-sm">
+            Tips for adapting this lesson for different age groups
+          </p>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6 overflow-y-auto max-h-[60vh]">
+          {/* Younger learners */}
+          <div className="bg-blue-50 rounded-xl p-5 border border-blue-100">
+            <h3 className="font-semibold text-blue-900 mb-3" style={{ fontFamily: 'Poppins' }}>
+              Younger Learners
+            </h3>
+            <p className="text-blue-800 leading-relaxed">
+              {scaffolding?.younger || 'No specific adaptations provided for younger learners.'}
+            </p>
+          </div>
+
+          {/* Older learners */}
+          <div className="bg-purple-50 rounded-xl p-5 border border-purple-100">
+            <h3 className="font-semibold text-purple-900 mb-3" style={{ fontFamily: 'Poppins' }}>
+              Older Learners
+            </h3>
+            <p className="text-purple-800 leading-relaxed">
+              {scaffolding?.older || 'No specific adaptations provided for older learners.'}
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-gray-100 p-4 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:shadow-lg transition-shadow"
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const CurriculumView = ({
   lessons: propLessons,
@@ -59,6 +132,9 @@ const CurriculumView = ({
 
   // Track initialized lesson to prevent re-init on save
   const initializedLessonIdRef = useRef(null)
+
+  // Age adaptations modal state
+  const [showScaffoldingModal, setShowScaffoldingModal] = useState(false)
 
   // Derived state
   const lessons = propLessons || fetchedLessons
@@ -492,6 +568,16 @@ const CurriculumView = ({
                       <ArrowPathIcon className="w-4 h-4" /><span>Reset Progress</span>
                     </button>
                   )}
+                  {/* Age Adaptations Button */}
+                  {selectedLesson.content?.scaffolding && (selectedLesson.content.scaffolding.younger || selectedLesson.content.scaffolding.older) && (
+                    <button
+                      onClick={() => setShowScaffoldingModal(true)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 text-optio-purple rounded-full hover:from-optio-purple/20 hover:to-optio-pink/20 transition-colors font-medium"
+                    >
+                      <AcademicCapIcon className="w-4 h-4" />
+                      <span>Age Adaptations</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Step Progress Indicators */}
@@ -546,6 +632,13 @@ const CurriculumView = ({
           )}
         </div>
       </div>
+
+      {/* Age Adaptations Modal */}
+      <ScaffoldingModal
+        isOpen={showScaffoldingModal}
+        onClose={() => setShowScaffoldingModal(false)}
+        scaffolding={selectedLesson?.content?.scaffolding}
+      />
     </div>
   )
 }

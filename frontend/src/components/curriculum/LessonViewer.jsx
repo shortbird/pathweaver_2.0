@@ -1,9 +1,87 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircleIcon, ClockIcon, PlayIcon, DocumentTextIcon, LinkIcon, ArrowDownTrayIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ClockIcon, PlayIcon, DocumentTextIcon, LinkIcon, ArrowDownTrayIcon, VideoCameraIcon, AcademicCapIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
 import { getPillarData } from '../../utils/pillarMappings';
 import LessonContentRenderer from './LessonContentRenderer';
+
+// Age Adaptations Modal Component
+const ScaffoldingModal = ({ isOpen, onClose, scaffolding }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AcademicCapIcon className="w-8 h-8" />
+              <h2 className="text-xl font-bold" style={{ fontFamily: 'Poppins' }}>
+                Age Adaptations
+              </h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/20 rounded-full transition-colors"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
+          </div>
+          <p className="mt-2 text-white/80 text-sm">
+            Tips for adapting this lesson for different age groups
+          </p>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6 overflow-y-auto max-h-[60vh]">
+          {/* Younger learners */}
+          <div className="bg-blue-50 rounded-xl p-5 border border-blue-100">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-2xl">🧒</span>
+              <h3 className="font-semibold text-blue-900" style={{ fontFamily: 'Poppins' }}>
+                Younger Learners (Ages 8-10)
+              </h3>
+            </div>
+            <p className="text-blue-800 leading-relaxed">
+              {scaffolding?.younger || 'No specific adaptations provided for younger learners.'}
+            </p>
+          </div>
+
+          {/* Older learners */}
+          <div className="bg-purple-50 rounded-xl p-5 border border-purple-100">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-2xl">🧑‍🎓</span>
+              <h3 className="font-semibold text-purple-900" style={{ fontFamily: 'Poppins' }}>
+                Older Learners (Ages 14-18)
+              </h3>
+            </div>
+            <p className="text-purple-800 leading-relaxed">
+              {scaffolding?.older || 'No specific adaptations provided for older learners.'}
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-gray-100 p-4 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:shadow-lg transition-shadow"
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Helper to extract YouTube/Vimeo embed URL
 const getEmbedUrl = (url) => {
@@ -190,8 +268,12 @@ const LessonViewer = ({
   isCompleting = false
 }) => {
   const [timeSpent, setTimeSpent] = useState(progress?.time_spent_seconds || 0);
+  const [showScaffoldingModal, setShowScaffoldingModal] = useState(false);
   const timerRef = useRef(null);
   const startTimeRef = useRef(Date.now());
+
+  // Extract scaffolding from lesson content
+  const scaffolding = lesson?.content?.scaffolding;
 
   // Track time spent on lesson
   useEffect(() => {
@@ -341,7 +423,7 @@ const LessonViewer = ({
           )}
         </div>
 
-        {/* Time Indicators */}
+        {/* Time Indicators and Actions */}
         <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
           {lesson?.estimated_duration_minutes && (
             <div className="flex items-center gap-2">
@@ -353,6 +435,17 @@ const LessonViewer = ({
             <ClockIcon className="w-4 h-4 text-optio-purple" />
             <span>Time spent: {formatTime(timeSpent)}</span>
           </div>
+
+          {/* Age Adaptations Button */}
+          {scaffolding && (scaffolding.younger || scaffolding.older) && (
+            <button
+              onClick={() => setShowScaffoldingModal(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 text-optio-purple rounded-full hover:from-optio-purple/20 hover:to-optio-pink/20 transition-colors font-medium"
+            >
+              <AcademicCapIcon className="w-4 h-4" />
+              <span>Age Adaptations</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -460,6 +553,13 @@ const LessonViewer = ({
           )}
         </div>
       )}
+
+      {/* Age Adaptations Modal */}
+      <ScaffoldingModal
+        isOpen={showScaffoldingModal}
+        onClose={() => setShowScaffoldingModal(false)}
+        scaffolding={scaffolding}
+      />
     </div>
   );
 };

@@ -763,58 +763,49 @@ const CurriculumUploadPage = () => {
       {/* Generate from Prompt Tab */}
       {activeTab === 'generate' && (
         <div className="space-y-6">
-          <div className="p-4 bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 border border-optio-purple/20 rounded-lg">
-            <div className="flex gap-3">
-              <svg className="w-5 h-5 text-optio-purple flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          <div className="p-6 bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 border border-optio-purple/20 rounded-lg text-center">
+            <svg className="w-16 h-16 mx-auto text-optio-purple mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">AI Course Generator</h3>
+            <p className="text-gray-600 mb-6 max-w-lg mx-auto">
+              Create hands-on, action-oriented courses with our multi-stage wizard.
+              Enter a topic and AI will generate course outlines, lessons, and task suggestions -
+              with review and editing at every step.
+            </p>
+            <a
+              href="/admin/generate-course"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
-              <div className="text-sm text-gray-700">
-                <p className="font-medium mb-1">Generate a complete course from scratch</p>
-                <p>Enter a course topic and optionally add learning objectives. AI will create a full Optio course with projects, lessons, and content - no existing curriculum needed.</p>
+              Launch Course Generator
+            </a>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="p-4 bg-white border border-gray-200 rounded-lg">
+              <div className="w-10 h-10 mx-auto mb-2 bg-purple-100 text-optio-purple rounded-full flex items-center justify-center">
+                <span className="font-bold">1</span>
               </div>
+              <h4 className="font-medium text-gray-900 text-sm">Choose Outline</h4>
+              <p className="text-xs text-gray-500 mt-1">Pick from 3 AI-generated course directions</p>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Course Topic / Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={courseTopic}
-              onChange={(e) => setCourseTopic(e.target.value)}
-              placeholder="e.g., Introduction to Photography, Personal Finance Basics, Creative Writing Workshop"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple text-lg"
-            />
-            <p className="text-sm text-gray-500 mt-2">
-              Be specific for better results. "Introduction to Digital Photography for Beginners" works better than just "Photography".
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Learning Objectives (Optional)
-            </label>
-            <p className="text-sm text-gray-500 mb-3">
-              Enter learning objectives, one per line. Each will become a Project/Quest.
-              If left blank, AI will generate 4-6 appropriate objectives for your topic.
-            </p>
-            <textarea
-              value={learningObjectives}
-              onChange={(e) => setLearningObjectives(e.target.value)}
-              placeholder="Example:&#10;Understand camera settings and exposure&#10;Compose visually compelling photographs&#10;Edit photos using digital software"
-              rows={5}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple resize-y"
-            />
-            {learningObjectives.trim() ? (
-              <p className="text-sm text-gray-500 mt-2">
-                {learningObjectives.trim().split('\n').filter(line => line.trim()).length} objective(s) will create {learningObjectives.trim().split('\n').filter(line => line.trim()).length} project(s)
-              </p>
-            ) : (
-              <p className="text-sm text-gray-500 mt-2">
-                AI will generate 4-6 projects based on your topic
-              </p>
-            )}
+            <div className="p-4 bg-white border border-gray-200 rounded-lg">
+              <div className="w-10 h-10 mx-auto mb-2 bg-purple-100 text-optio-purple rounded-full flex items-center justify-center">
+                <span className="font-bold">2</span>
+              </div>
+              <h4 className="font-medium text-gray-900 text-sm">Generate Lessons</h4>
+              <p className="text-xs text-gray-500 mt-1">AI creates lessons with just-in-time teaching</p>
+            </div>
+            <div className="p-4 bg-white border border-gray-200 rounded-lg">
+              <div className="w-10 h-10 mx-auto mb-2 bg-purple-100 text-optio-purple rounded-full flex items-center justify-center">
+                <span className="font-bold">3</span>
+              </div>
+              <h4 className="font-medium text-gray-900 text-sm">Add Tasks</h4>
+              <p className="text-xs text-gray-500 mt-1">Hands-on task suggestions for each lesson</p>
+            </div>
           </div>
         </div>
       )}
