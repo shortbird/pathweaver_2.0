@@ -241,12 +241,24 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
 /**
  * QuestDetail - Content when a quest is selected but no lesson
  */
-const QuestDetail = ({ quest, onSelectLesson, onStartQuest }) => {
+const QuestDetail = ({ quest, onSelectLesson, onStartQuest, fallbackImageUrl }) => {
   const isCompleted = quest.progress?.is_completed
   const hasLessons = quest.lessons && quest.lessons.length > 0
+  const headerImage = quest.header_image_url || quest.image_url || fallbackImageUrl
 
   return (
     <div className="p-6">
+      {/* Header Image */}
+      {headerImage && (
+        <div className="mb-6 -mx-6 -mt-6">
+          <img
+            src={headerImage}
+            alt={quest.title}
+            className="w-full h-48 object-cover"
+          />
+        </div>
+      )}
+
       {/* Quest Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">{quest.title}</h1>
@@ -800,6 +812,7 @@ const CourseHomepage = () => {
                   quest={selectedQuest}
                   onSelectLesson={handleSelectLesson}
                   onStartQuest={handleStartQuest}
+                  fallbackImageUrl={course?.cover_image_url}
                 />
               ) : (
                 /* Course Overview (default) */
