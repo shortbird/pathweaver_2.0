@@ -449,7 +449,8 @@ def require_org_admin(f):
     Superadmins can manage all organizations.
 
     Uses httpOnly cookies exclusively for enhanced security.
-    When masquerading, this checks the ACTUAL admin identity, not the masquerade target.
+    When masquerading, this checks the ACTUAL admin identity for authorization,
+    but uses the masquerade target's organization_id for scoping.
 
     Passes user_id, organization_id, and is_superadmin to the decorated function.
     """
@@ -495,8 +496,27 @@ def require_org_admin(f):
             if not has_org_admin_access:
                 raise AuthorizationError('Organization admin access required')
 
+            # Determine organization_id to use
+            # If masquerading, use the target user's organization_id and treat as non-superadmin
+            organization_id = user_data['organization_id']
+            effective_is_superadmin = is_superadmin
+            masquerade_info = session_manager.get_masquerade_info()
+            if masquerade_info and masquerade_info.get('is_masquerading'):
+                target_user_id = masquerade_info.get('target_user_id')
+                if target_user_id:
+                    target_user = supabase.table('users')\
+                        .select('organization_id, role, org_role')\
+                        .eq('id', target_user_id)\
+                        .single()\
+                        .execute()
+                    if target_user.data:
+                        organization_id = target_user.data.get('organization_id')
+                        # When masquerading, use the target's role context
+                        target_role = get_effective_role(target_user.data)
+                        effective_is_superadmin = target_role == 'superadmin'
+
             # Pass user info to handler
-            return f(user_id, user_data['organization_id'], is_superadmin, *args, **kwargs)
+            return f(user_id, organization_id, effective_is_superadmin, *args, **kwargs)
 
         except (AuthenticationError, AuthorizationError):
             raise

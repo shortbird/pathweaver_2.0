@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import CourseVisibilityManager from '../admin/CourseVisibilityManager'
+import CourseEnrollmentManager from '../admin/CourseEnrollmentManager'
 
 function CourseCard({ course, onDelete }) {
   const projectCount = course.quest_count || course.project_count || 0
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showEnrollmentManager, setShowEnrollmentManager] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   const handleDelete = async () => {
@@ -77,6 +79,15 @@ function CourseCard({ course, onDelete }) {
             Edit
           </Link>
           <button
+            onClick={() => setShowEnrollmentManager(true)}
+            className="p-2 text-gray-400 hover:text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
+            title="Manage Enrollments"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </button>
+          <button
             onClick={() => setShowDeleteConfirm(true)}
             className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             title="Delete course"
@@ -114,6 +125,17 @@ function CourseCard({ course, onDelete }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Enrollment Manager Modal */}
+      {showEnrollmentManager && (
+        <CourseEnrollmentManager
+          courseId={course.id}
+          courseName={course.title}
+          orgId={course.organization_id}
+          isSuperadmin={false}
+          onClose={() => setShowEnrollmentManager(false)}
+        />
       )}
     </div>
   )
@@ -227,6 +249,56 @@ function CreateCourseModal({ orgId, navigate, onClose, onSuccess }) {
   )
 }
 
+function EnrollmentCourseCard({ course, onSelect }) {
+  return (
+    <div
+      onClick={onSelect}
+      className="bg-white rounded-xl border border-gray-100 hover:border-optio-purple/30 hover:shadow-md transition-all cursor-pointer overflow-hidden"
+    >
+      {/* Cover Image */}
+      <div className="relative h-32 bg-gradient-to-r from-optio-purple/20 to-optio-pink/20">
+        {course.cover_image_url ? (
+          <img src={course.cover_image_url} alt={course.title} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+          </div>
+        )}
+        {/* Status Badge */}
+        <div className="absolute top-2 right-2">
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+            course.status === 'published' ? 'bg-green-100 text-green-700' :
+            course.status === 'archived' ? 'bg-gray-100 text-gray-600' :
+            'bg-yellow-100 text-yellow-700'
+          }`}>
+            {course.status || 'draft'}
+          </span>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-4">
+        <h3 className="font-semibold text-gray-900 line-clamp-1">{course.title}</h3>
+        <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+          {course.description || 'No description'}
+        </p>
+
+        {/* Meta */}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+          <span className="text-xs text-gray-500">
+            {course.quest_count || 0} projects
+          </span>
+          <span className="text-xs font-medium text-optio-purple">
+            Manage Enrollments
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function CourseTab({ orgId, orgData, onUpdate, siteSettings }) {
   const navigate = useNavigate()
   const [courses, setCourses] = useState([])
@@ -237,6 +309,26 @@ export default function CourseTab({ orgId, orgData, onUpdate, siteSettings }) {
   const [policy, setPolicy] = useState(orgData?.organization?.course_visibility_policy || 'all_optio')
   const [saving, setSaving] = useState(false)
   const [showPolicyOptions, setShowPolicyOptions] = useState(false)
+
+  // Enrollment tab state
+  const [enrollmentMode, setEnrollmentMode] = useState('course') // 'course' | 'user'
+  const [allCourses, setAllCourses] = useState([])
+  const [accessibleCourseIds, setAccessibleCourseIds] = useState(new Set())
+  const [allCoursesLoading, setAllCoursesLoading] = useState(false)
+  const [users, setUsers] = useState([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [userSearchTerm, setUserSearchTerm] = useState('')
+  const [selectedUser, setSelectedUser] = useState(null)
+  const [selectedCourses, setSelectedCourses] = useState(new Set())
+  const [enrolling, setEnrolling] = useState(false)
+  const [selectedCourse, setSelectedCourse] = useState(null)
+  const [enrollmentSearchTerm, setEnrollmentSearchTerm] = useState('')
+  // Unenroll state
+  const [userEnrollments, setUserEnrollments] = useState([])
+  const [enrollmentsLoading, setEnrollmentsLoading] = useState(false)
+  const [selectedUnenrollCourses, setSelectedUnenrollCourses] = useState(new Set())
+  const [unenrolling, setUnenrolling] = useState(false)
+  const [userCourseView, setUserCourseView] = useState('enroll') // 'enroll' | 'unenroll'
 
   const policyOptions = [
     { value: 'all_optio', label: 'All Optio + Org Courses', short: 'All courses available' },
@@ -280,6 +372,51 @@ export default function CourseTab({ orgId, orgData, onUpdate, siteSettings }) {
     }
   }
 
+  // Fetch all available courses for enrollment (org + available Optio)
+  const fetchAllCourses = useCallback(async () => {
+    setAllCoursesLoading(true)
+    try {
+      // Fetch all courses for admin visibility
+      const { data } = await api.get('/api/courses?filter=admin_all')
+      setAllCourses(data.courses || [])
+
+      // Fetch accessible courses for curated policy
+      const orgData = await api.get(`/api/admin/organizations/${orgId}`)
+      const ids = new Set((orgData.data.curated_courses || []).map(c => c.course_id))
+      setAccessibleCourseIds(ids)
+    } catch (error) {
+      console.error('Failed to fetch courses:', error)
+    } finally {
+      setAllCoursesLoading(false)
+    }
+  }, [orgId])
+
+  // Fetch organization users
+  const fetchUsers = useCallback(async () => {
+    setUsersLoading(true)
+    try {
+      const response = await api.get(`/api/admin/organizations/${orgId}/users?per_page=200`)
+      setUsers(response.data.users || [])
+    } catch (error) {
+      console.error('Failed to fetch users:', error)
+    } finally {
+      setUsersLoading(false)
+    }
+  }, [orgId])
+
+  // Check if a course is available based on policy
+  const isCourseAvailable = useCallback((course) => {
+    const isOrgCourse = course.organization_id === orgId
+    if (isOrgCourse) return true
+
+    if (policy === 'all_optio') return true
+    if (policy === 'curated') return accessibleCourseIds.has(course.id)
+    return false // private_only
+  }, [orgId, policy, accessibleCourseIds])
+
+  // Get available courses for enrollment
+  const availableCourses = allCourses.filter(isCourseAvailable)
+
   useEffect(() => {
     fetchCourses()
   }, [orgId])
@@ -288,9 +425,155 @@ export default function CourseTab({ orgId, orgData, onUpdate, siteSettings }) {
     setPolicy(orgData?.organization?.course_visibility_policy || 'all_optio')
   }, [orgData])
 
+  // Fetch data when enrollments tab is active
+  useEffect(() => {
+    if (courseSubTab === 'enrollments') {
+      fetchAllCourses()
+      fetchUsers()
+    }
+  }, [courseSubTab, fetchAllCourses, fetchUsers])
+
   const filteredCourses = courses.filter(course =>
     course.title?.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  // Filter available courses for enrollment search
+  const filteredAvailableCourses = availableCourses.filter(course =>
+    course.title?.toLowerCase().includes(enrollmentSearchTerm.toLowerCase()) ||
+    course.description?.toLowerCase().includes(enrollmentSearchTerm.toLowerCase())
+  )
+
+  // Filter users for enrollment search
+  const filteredUsers = users.filter(user => {
+    if (!userSearchTerm) return true
+    const search = userSearchTerm.toLowerCase()
+    return (
+      user.email?.toLowerCase().includes(search) ||
+      user.display_name?.toLowerCase().includes(search) ||
+      user.first_name?.toLowerCase().includes(search) ||
+      user.last_name?.toLowerCase().includes(search)
+    )
+  })
+
+  // Group courses by type for enrollment view
+  const groupedAvailableCourses = filteredAvailableCourses.reduce((acc, course) => {
+    const key = course.organization_id === orgId ? 'org' : 'optio'
+    if (!acc[key]) acc[key] = []
+    acc[key].push(course)
+    return acc
+  }, { optio: [], org: [] })
+
+  const getDisplayName = (user) => {
+    if (user.display_name) return user.display_name
+    if (user.first_name && user.last_name) return `${user.first_name} ${user.last_name}`
+    if (user.first_name) return user.first_name
+    return user.email?.split('@')[0] || 'Unknown'
+  }
+
+  const toggleCourseSelection = (courseId) => {
+    setSelectedCourses(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(courseId)) {
+        newSet.delete(courseId)
+      } else {
+        newSet.add(courseId)
+      }
+      return newSet
+    })
+  }
+
+  const handleBulkEnrollInCourses = async () => {
+    if (!selectedUser || selectedCourses.size === 0) return
+    setEnrolling(true)
+
+    let enrolled = 0
+    let failed = 0
+
+    for (const courseId of selectedCourses) {
+      try {
+        await api.post(`/api/admin/courses/${courseId}/bulk-enroll`, {
+          user_ids: [selectedUser.id]
+        })
+        enrolled++
+      } catch (err) {
+        console.error(`Failed to enroll in course ${courseId}:`, err)
+        failed++
+      }
+    }
+
+    alert(`Enrolled ${getDisplayName(selectedUser)} in ${enrolled} course(s)${failed > 0 ? `, ${failed} failed` : ''}`)
+    setSelectedCourses(new Set())
+    setEnrolling(false)
+    // Refresh user enrollments
+    if (selectedUser) fetchUserEnrollments(selectedUser.id)
+  }
+
+  // Fetch a user's current course enrollments
+  const fetchUserEnrollments = async (userId) => {
+    setEnrollmentsLoading(true)
+    try {
+      const response = await api.get(`/api/admin/courses/user-enrollments?user_id=${userId}`)
+      setUserEnrollments(response.data.enrollments || [])
+    } catch (err) {
+      console.error('Failed to fetch user enrollments:', err)
+      setUserEnrollments([])
+    } finally {
+      setEnrollmentsLoading(false)
+    }
+  }
+
+  // Handle user selection - also fetch their enrollments
+  const handleSelectUser = (user) => {
+    setSelectedUser(user)
+    setSelectedCourses(new Set())
+    setSelectedUnenrollCourses(new Set())
+    fetchUserEnrollments(user.id)
+  }
+
+  const toggleUnenrollCourseSelection = (courseId) => {
+    setSelectedUnenrollCourses(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(courseId)) {
+        newSet.delete(courseId)
+      } else {
+        newSet.add(courseId)
+      }
+      return newSet
+    })
+  }
+
+  const handleBulkUnenrollFromCourses = async () => {
+    if (!selectedUser || selectedUnenrollCourses.size === 0) return
+    if (!confirm(`Unenroll ${getDisplayName(selectedUser)} from ${selectedUnenrollCourses.size} course(s)? This will remove their progress.`)) return
+
+    setUnenrolling(true)
+    let unenrolled = 0
+    let failed = 0
+
+    for (const courseId of selectedUnenrollCourses) {
+      try {
+        await api.post(`/api/admin/courses/${courseId}/bulk-unenroll`, {
+          user_ids: [selectedUser.id]
+        })
+        unenrolled++
+      } catch (err) {
+        console.error(`Failed to unenroll from course ${courseId}:`, err)
+        failed++
+      }
+    }
+
+    alert(`Unenrolled ${getDisplayName(selectedUser)} from ${unenrolled} course(s)${failed > 0 ? `, ${failed} failed` : ''}`)
+    setSelectedUnenrollCourses(new Set())
+    setUnenrolling(false)
+    // Refresh user enrollments
+    fetchUserEnrollments(selectedUser.id)
+  }
+
+  // Get enrolled course IDs for filtering
+  const enrolledCourseIds = new Set(userEnrollments.map(e => e.course_id))
+
+  // Filter available courses to exclude already enrolled ones
+  const unenrolledCourses = availableCourses.filter(c => !enrolledCourseIds.has(c.id))
 
   if (loading) {
     return (
@@ -315,6 +598,16 @@ export default function CourseTab({ orgId, orgData, onUpdate, siteSettings }) {
           Manage Courses
         </button>
         <button
+          onClick={() => setCourseSubTab('enrollments')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            courseSubTab === 'enrollments'
+              ? 'bg-white border border-b-white border-gray-200 -mb-[3px] text-optio-purple'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Enrollments
+        </button>
+        <button
           onClick={() => setCourseSubTab('availability')}
           className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
             courseSubTab === 'availability'
@@ -326,7 +619,7 @@ export default function CourseTab({ orgId, orgData, onUpdate, siteSettings }) {
         </button>
       </div>
 
-      {courseSubTab === 'manage' ? (
+      {courseSubTab === 'manage' && (
         <>
           {/* Header */}
           <div className="flex flex-wrap justify-between items-center gap-4">
@@ -390,7 +683,340 @@ export default function CourseTab({ orgId, orgData, onUpdate, siteSettings }) {
             </div>
           )}
         </>
-      ) : (
+      )}
+
+      {courseSubTab === 'enrollments' && (
+        <>
+          {/* Mode Toggle */}
+          <div className="bg-white rounded-xl border border-gray-200 p-1 inline-flex">
+            <button
+              onClick={() => setEnrollmentMode('course')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                enrollmentMode === 'course'
+                  ? 'bg-optio-purple text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Course First
+            </button>
+            <button
+              onClick={() => setEnrollmentMode('user')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                enrollmentMode === 'user'
+                  ? 'bg-optio-purple text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              User First
+            </button>
+          </div>
+
+          {enrollmentMode === 'course' ? (
+            <>
+              {/* Course-first mode */}
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                <div className="flex gap-3">
+                  <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium">Course First Mode</p>
+                    <p className="mt-1">Select a course to manage its enrollments.</p>
+                  </div>
+                </div>
+              </div>
+
+              <input
+                type="text"
+                placeholder="Search courses..."
+                value={enrollmentSearchTerm}
+                onChange={(e) => setEnrollmentSearchTerm(e.target.value)}
+                className="w-full max-w-md border border-gray-200 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+              />
+
+              {allCoursesLoading ? (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
+                </div>
+              ) : filteredAvailableCourses.length === 0 ? (
+                <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
+                  <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                  <p className="text-gray-500">
+                    {enrollmentSearchTerm ? 'No courses match your search' : 'No courses available'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {groupedAvailableCourses.org.length > 0 && (
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                        Organization Courses ({groupedAvailableCourses.org.length})
+                      </h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {groupedAvailableCourses.org.map(course => (
+                          <EnrollmentCourseCard
+                            key={course.id}
+                            course={course}
+                            onSelect={() => setSelectedCourse(course)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {groupedAvailableCourses.optio.length > 0 && (
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                        Optio Courses ({groupedAvailableCourses.optio.length})
+                      </h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {groupedAvailableCourses.optio.map(course => (
+                          <EnrollmentCourseCard
+                            key={course.id}
+                            course={course}
+                            onSelect={() => setSelectedCourse(course)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* User-first mode */}
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                <div className="flex gap-3">
+                  <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium">User First Mode</p>
+                    <p className="mt-1">Select a user, then enroll or unenroll them from courses.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* User Selection */}
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <h3 className="font-semibold text-gray-900 mb-4">1. Select User</h3>
+                  <input
+                    type="text"
+                    placeholder="Search users..."
+                    value={userSearchTerm}
+                    onChange={(e) => setUserSearchTerm(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 mb-4 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none text-sm"
+                  />
+
+                  {usersLoading ? (
+                    <div className="flex justify-center py-8">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-optio-purple"></div>
+                    </div>
+                  ) : (
+                    <div className="max-h-96 overflow-y-auto space-y-1">
+                      {filteredUsers.length === 0 ? (
+                        <p className="text-sm text-gray-500 text-center py-4">No users found</p>
+                      ) : (
+                        filteredUsers.map(user => (
+                          <div
+                            key={user.id}
+                            onClick={() => handleSelectUser(user)}
+                            className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                              selectedUser?.id === user.id
+                                ? 'bg-optio-purple text-white'
+                                : 'hover:bg-gray-50'
+                            }`}
+                          >
+                            <p className={`font-medium text-sm ${selectedUser?.id === user.id ? 'text-white' : 'text-gray-900'}`}>
+                              {getDisplayName(user)}
+                            </p>
+                            <p className={`text-xs ${selectedUser?.id === user.id ? 'text-white/80' : 'text-gray-500'}`}>
+                              {user.email}
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Course Selection */}
+                <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-4">
+                  {!selectedUser ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <p>Select a user first</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <p className="text-sm text-gray-600">
+                            Managing: <span className="font-medium text-gray-900">{getDisplayName(selectedUser)}</span>
+                          </p>
+                          {/* Toggle between enroll and unenroll views */}
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={() => setUserCourseView('enroll')}
+                              className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                                userCourseView === 'enroll'
+                                  ? 'bg-optio-purple text-white'
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              }`}
+                            >
+                              Enroll ({unenrolledCourses.length})
+                            </button>
+                            <button
+                              onClick={() => setUserCourseView('unenroll')}
+                              className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                                userCourseView === 'unenroll'
+                                  ? 'bg-red-600 text-white'
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              }`}
+                            >
+                              Enrolled ({userEnrollments.length})
+                            </button>
+                          </div>
+                        </div>
+                        {userCourseView === 'enroll' && selectedCourses.size > 0 && (
+                          <button
+                            onClick={handleBulkEnrollInCourses}
+                            disabled={enrolling}
+                            className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50"
+                          >
+                            {enrolling ? 'Enrolling...' : `Enroll in ${selectedCourses.size} Course(s)`}
+                          </button>
+                        )}
+                        {userCourseView === 'unenroll' && selectedUnenrollCourses.size > 0 && (
+                          <button
+                            onClick={handleBulkUnenrollFromCourses}
+                            disabled={unenrolling}
+                            className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {unenrolling ? 'Unenrolling...' : `Unenroll from ${selectedUnenrollCourses.size} Course(s)`}
+                          </button>
+                        )}
+                      </div>
+
+                      {enrollmentsLoading ? (
+                        <div className="flex justify-center py-8">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-optio-purple"></div>
+                        </div>
+                      ) : userCourseView === 'enroll' ? (
+                        <div className="max-h-96 overflow-y-auto space-y-2">
+                          {availableCourses.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-8">No courses available</p>
+                          ) : (
+                            availableCourses.map(course => {
+                              const isEnrolled = enrolledCourseIds.has(course.id)
+                              return (
+                                <div
+                                  key={course.id}
+                                  onClick={() => !isEnrolled && toggleCourseSelection(course.id)}
+                                  className={`p-3 rounded-lg border transition-colors flex items-center gap-3 ${
+                                    isEnrolled
+                                      ? 'border-gray-200 bg-gray-50 cursor-default'
+                                      : selectedCourses.has(course.id)
+                                        ? 'border-optio-purple bg-optio-purple/5 cursor-pointer'
+                                        : 'border-gray-200 hover:border-gray-300 cursor-pointer'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedCourses.has(course.id)}
+                                    onChange={() => {}}
+                                    disabled={isEnrolled}
+                                    className="w-4 h-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple disabled:opacity-50"
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`font-medium text-sm truncate ${isEnrolled ? 'text-gray-400' : 'text-gray-900'}`}>{course.title}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {course.organization_id === orgId ? 'Organization' : 'Optio'}
+                                      {' · '}
+                                      {course.quest_count || 0} projects
+                                    </p>
+                                  </div>
+                                  {isEnrolled ? (
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                      Already Enrolled
+                                    </span>
+                                  ) : (
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                      course.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                                    }`}>
+                                      {course.status || 'draft'}
+                                    </span>
+                                  )}
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+                      ) : (
+                        <div className="max-h-96 overflow-y-auto space-y-2">
+                          {userEnrollments.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-8">User is not enrolled in any courses</p>
+                          ) : (
+                            userEnrollments.map(enrollment => (
+                              <div
+                                key={enrollment.course_id}
+                                onClick={() => toggleUnenrollCourseSelection(enrollment.course_id)}
+                                className={`p-3 rounded-lg border cursor-pointer transition-colors flex items-center gap-3 ${
+                                  selectedUnenrollCourses.has(enrollment.course_id)
+                                    ? 'border-red-500 bg-red-50'
+                                    : 'border-gray-200 hover:border-gray-300'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedUnenrollCourses.has(enrollment.course_id)}
+                                  onChange={() => {}}
+                                  className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm text-gray-900 truncate">{enrollment.course?.title || 'Unknown Course'}</p>
+                                  <p className="text-xs text-gray-500">
+                                    Enrolled {enrollment.enrolled_at ? new Date(enrollment.enrolled_at).toLocaleDateString() : ''}
+                                    {enrollment.progress?.percentage !== undefined && ` · ${enrollment.progress.percentage}% complete`}
+                                  </p>
+                                </div>
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                  enrollment.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                                }`}>
+                                  {enrollment.status || 'active'}
+                                </span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Enrollment Manager Modal */}
+          {selectedCourse && (
+            <CourseEnrollmentManager
+              courseId={selectedCourse.id}
+              courseName={selectedCourse.title}
+              orgId={orgId}
+              isSuperadmin={false}
+              onClose={() => setSelectedCourse(null)}
+            />
+          )}
+        </>
+      )}
+
+      {courseSubTab === 'availability' && (
         <>
           {/* Course Visibility Policy - Compact */}
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">

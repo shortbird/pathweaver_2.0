@@ -20,6 +20,7 @@ const ObserverAuditLog = lazy(() => import('../components/admin/ObserverAuditLog
 const ParentalConsentReviewPage = lazy(() => import('./admin/ParentalConsentReviewPage'))
 const AIManagement = lazy(() => import('./admin/AIManagement'))
 const CurriculumUploadPage = lazy(() => import('./admin/CurriculumUploadPage'))
+const CourseEnrollmentsPage = lazy(() => import('./admin/CourseEnrollmentsPage'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -137,6 +138,12 @@ const AdminPage = () => {
         {isSuperadmin && (
           <>
             <Link
+              to="/admin/course-enrollments"
+              className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'course-enrollments' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Course Enrollments
+            </Link>
+            <Link
               to="/admin/ai"
               className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${currentPath === 'ai' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
@@ -182,6 +189,7 @@ const AdminPage = () => {
           <Route path="parental-consent" element={<ParentalConsentReviewPage />} />
           <Route path="ai/*" element={<AIManagement />} />
           <Route path="curriculum-upload" element={<CurriculumUploadPage />} />
+          <Route path="course-enrollments" element={<CourseEnrollmentsPage />} />
         </Routes>
       </Suspense>
     </div>
