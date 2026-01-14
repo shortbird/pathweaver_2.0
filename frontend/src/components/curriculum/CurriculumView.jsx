@@ -568,16 +568,6 @@ const CurriculumView = ({
                       <ArrowPathIcon className="w-4 h-4" /><span>Reset Progress</span>
                     </button>
                   )}
-                  {/* Age Adaptations Button */}
-                  {selectedLesson.content?.scaffolding && (selectedLesson.content.scaffolding.younger || selectedLesson.content.scaffolding.older) && (
-                    <button
-                      onClick={() => setShowScaffoldingModal(true)}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 text-optio-purple rounded-full hover:from-optio-purple/20 hover:to-optio-pink/20 transition-colors font-medium"
-                    >
-                      <AcademicCapIcon className="w-4 h-4" />
-                      <span>Age Adaptations</span>
-                    </button>
-                  )}
                 </div>
 
                 {/* Step Progress Indicators */}
@@ -600,6 +590,28 @@ const CurriculumView = ({
                     <span className="ml-2 text-sm text-gray-500">
                       {currentStepIndex < totalSteps ? `Step ${currentStepIndex + 1} of ${totalSteps}` : currentStepIndex === totalSteps ? 'Complete' : 'Practice'}
                     </span>
+                    {/* Age Adaptations Button - right aligned */}
+                    {selectedLesson.content?.scaffolding && (selectedLesson.content.scaffolding.younger || selectedLesson.content.scaffolding.older) && (
+                      <button
+                        onClick={() => setShowScaffoldingModal(true)}
+                        className="ml-auto flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 text-optio-purple rounded-full hover:from-optio-purple/20 hover:to-optio-pink/20 transition-colors font-medium text-sm"
+                      >
+                        <AcademicCapIcon className="w-4 h-4" />
+                        <span>Age Adaptations</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+                {/* Age Adaptations Button - shown when no step indicators */}
+                {totalStepsWithTasks <= 1 && selectedLesson.content?.scaffolding && (selectedLesson.content.scaffolding.younger || selectedLesson.content.scaffolding.older) && (
+                  <div className="flex justify-end mt-4">
+                    <button
+                      onClick={() => setShowScaffoldingModal(true)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 text-optio-purple rounded-full hover:from-optio-purple/20 hover:to-optio-pink/20 transition-colors font-medium text-sm"
+                    >
+                      <AcademicCapIcon className="w-4 h-4" />
+                      <span>Age Adaptations</span>
+                    </button>
                   </div>
                 )}
               </div>
