@@ -232,7 +232,9 @@ def get_quest_detail(user_id: str, quest_id: str):
 
         # Check if this quest is part of an active course enrollment
         # This is used to disable the "End Quest" button for course quests
+        # Also fetch course cover image as fallback for quest header
         active_course_enrollment = None
+        course_cover_image_url = None
         try:
             # Find courses that contain this quest
             course_quests_result = supabase.table('course_quests')\
@@ -242,6 +244,20 @@ def get_quest_detail(user_id: str, quest_id: str):
 
             if course_quests_result.data:
                 course_ids = [cq['course_id'] for cq in course_quests_result.data]
+
+                # Get the first course's cover image as fallback
+                first_course = supabase.table('courses')\
+                    .select('cover_image_url')\
+                    .eq('id', course_ids[0])\
+                    .single()\
+                    .execute()
+
+                if first_course.data and first_course.data.get('cover_image_url'):
+                    course_cover_image_url = first_course.data['cover_image_url']
+                    # Add as fallback if quest has no header image
+                    if not quest_data.get('header_image_url') and not quest_data.get('image_url'):
+                        quest_data['header_image_url'] = course_cover_image_url
+                        logger.info(f"[QUEST DETAIL] Using course cover image as header fallback for quest {quest_id[:8]}")
 
                 # Check if user has active enrollment in any of these courses
                 course_enrollments = supabase.table('course_enrollments')\
@@ -258,6 +274,7 @@ def get_quest_detail(user_id: str, quest_id: str):
             logger.warning(f"[QUEST DETAIL] Error checking course enrollment: {course_err}")
 
         quest_data['active_course_enrollment'] = active_course_enrollment
+        quest_data['course_cover_image_url'] = course_cover_image_url
 
         return jsonify({
             'success': True,
