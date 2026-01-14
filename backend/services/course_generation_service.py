@@ -51,6 +51,42 @@ class CourseGenerationService(BaseAIService):
     - Hands-on task suggestions
     """
 
+    @staticmethod
+    def _capitalize_title(title: str) -> str:
+        """
+        Convert title to proper title case.
+
+        Capitalizes major words while keeping small words (articles, prepositions,
+        conjunctions) lowercase unless they're the first word.
+
+        Examples:
+            "create a custom card game" -> "Create a Custom Card Game"
+            "the art of programming" -> "The Art of Programming"
+        """
+        if not title:
+            return title
+
+        # Words that should stay lowercase (unless first word)
+        small_words = {
+            'a', 'an', 'the',  # articles
+            'and', 'but', 'or', 'nor', 'for', 'yet', 'so',  # conjunctions
+            'at', 'by', 'for', 'in', 'of', 'on', 'to', 'up', 'with', 'as'  # prepositions
+        }
+
+        words = title.split()
+        result = []
+
+        for i, word in enumerate(words):
+            # First word is always capitalized
+            if i == 0:
+                result.append(word.capitalize())
+            elif word.lower() in small_words:
+                result.append(word.lower())
+            else:
+                result.append(word.capitalize())
+
+        return ' '.join(result)
+
     def __init__(self, user_id: str, organization_id: str = None):
         """
         Initialize with user context.
@@ -156,7 +192,7 @@ class CourseGenerationService(BaseAIService):
         """
         # Create course
         course_data = {
-            'title': outline.get('title', 'Untitled Course'),
+            'title': self._capitalize_title(outline.get('title', 'Untitled Course')),
             'description': outline.get('description', ''),
             'status': 'draft',
             'visibility': 'organization',
@@ -192,7 +228,7 @@ class CourseGenerationService(BaseAIService):
             big_idea = project.get('big_idea', project.get('description', ''))
 
             quest_data = {
-                'title': project.get('title', f'Project {i+1}'),
+                'title': self._capitalize_title(project.get('title', f'Project {i+1}')),
                 'description': project.get('description', ''),
                 'big_idea': big_idea,
                 'quest_type': 'optio',
@@ -324,7 +360,7 @@ class CourseGenerationService(BaseAIService):
 
                 self.admin_client.table('curriculum_lessons').insert({
                     'quest_id': quest_id,
-                    'title': lesson.get('title', f'Lesson {j+1}'),
+                    'title': self._capitalize_title(lesson.get('title', f'Lesson {j+1}')),
                     'description': lesson.get('description', ''),
                     'content': lesson_content,
                     'sequence_order': lesson.get('order', j),  # 0-based indexing
@@ -445,7 +481,7 @@ class CourseGenerationService(BaseAIService):
 
         result = self.admin_client.table('curriculum_lessons').insert({
             'quest_id': quest_id,
-            'title': lesson.get('title', 'Untitled Lesson'),
+            'title': self._capitalize_title(lesson.get('title', 'Untitled Lesson')),
             'description': lesson.get('description', ''),
             'content': lesson_content,
             'sequence_order': order,
@@ -735,7 +771,7 @@ class CourseGenerationService(BaseAIService):
             'user_id': self.user_id,
             'quest_id': quest_id,
             'user_quest_id': user_quest_id,  # Required field
-            'title': task.get('title', 'Untitled Task'),
+            'title': self._capitalize_title(task.get('title', 'Untitled Task')),
             'description': task.get('description', ''),
             'pillar': pillar,
             'xp_value': task.get('xp_value', 100),

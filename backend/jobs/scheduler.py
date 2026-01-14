@@ -22,6 +22,7 @@ class JobScheduler:
     JOB_TYPE_QUALITY_MONITOR = 'quality_monitor'
     JOB_TYPE_METRICS_UPDATE = 'metrics_update'
     JOB_TYPE_MONTHLY_REPORT = 'monthly_report'
+    JOB_TYPE_COURSE_GENERATION = 'course_generation'
 
     # Job status
     STATUS_PENDING = 'pending'
@@ -209,6 +210,15 @@ class JobScheduler:
                 from services.ai_quest_maintenance_service import AIQuestMaintenanceService
                 report = AIQuestMaintenanceService.generate_monthly_report()
                 result = report
+
+            elif job_type == JobScheduler.JOB_TYPE_COURSE_GENERATION:
+                from services.course_generation_job_service import CourseGenerationJobService
+                job_service = CourseGenerationJobService()
+                gen_job_id = job_data.get('job_id')
+                if not gen_job_id:
+                    raise ValueError("course_generation job requires job_id in job_data")
+                success = job_service.process_job(gen_job_id)
+                result = {'job_id': gen_job_id, 'success': success}
 
             else:
                 raise ValueError(f"Unknown job type: {job_type}")

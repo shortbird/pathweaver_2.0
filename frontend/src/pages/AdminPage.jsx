@@ -21,6 +21,7 @@ const ParentalConsentReviewPage = lazy(() => import('./admin/ParentalConsentRevi
 const AIManagement = lazy(() => import('./admin/AIManagement'))
 const CurriculumUploadPage = lazy(() => import('./admin/CurriculumUploadPage'))
 const CourseGeneratorWizard = lazy(() => import('./admin/CourseGeneratorWizard'))
+const CourseGenerationQueue = lazy(() => import('./admin/CourseGenerationQueue'))
 const CourseEnrollmentsPage = lazy(() => import('./admin/CourseEnrollmentsPage'))
 
 // Loading spinner component
@@ -192,6 +193,7 @@ const AdminPage = () => {
           <Route path="curriculum-upload" element={<CurriculumUploadPage />} />
           <Route path="generate-course" element={<CourseGeneratorWizard />} />
           <Route path="generate-course/:courseId" element={<CourseGeneratorWizard />} />
+          <Route path="course-generation-queue" element={<CourseGenerationQueue />} />
           <Route path="course-enrollments" element={<CourseEnrollmentsPage />} />
         </Routes>
       </Suspense>

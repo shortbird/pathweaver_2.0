@@ -14,6 +14,7 @@ import {
  */
 const SortableQuestItem = ({
   quest,
+  index,
   isSelected,
   onSelect,
   onRemove,
@@ -63,7 +64,7 @@ const SortableQuestItem = ({
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-2">
           <span className="text-xs font-medium text-gray-500 mt-0.5">
-            {quest.order_index + 1}
+            {index + 1}
           </span>
           <div className="flex-1">
             <h4 className={`font-medium text-sm leading-snug ${isPublished ? 'text-gray-900' : 'text-gray-500'}`}>

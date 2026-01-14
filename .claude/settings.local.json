@@ -24,7 +24,8 @@
       "Bash(frontend/src/pages/QuestDetail.jsx)",
       "Bash(npm run build:*)",
       "Bash(timeout /t 5 /nobreak)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "mcp__supabase__execute_sql"
     ]
   }
 }

@@ -73,7 +73,7 @@ const SortableLessonItem = ({
         <Bars3Icon className="w-4 h-4" />
       </button>
       <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-optio-purple/10 text-optio-purple rounded-full text-xs font-medium">
-        {lesson.sequence_order || lesson.order || 1}
+        {(lesson.sequence_order ?? lesson.order ?? 0) + 1}
       </span>
       <div className="flex-1 min-w-0">
         <h4 className="text-sm font-medium text-gray-900 truncate">

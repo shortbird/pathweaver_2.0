@@ -25,6 +25,8 @@ import {
   EyeIcon,
   Cog6ToothIcon,
   SparklesIcon,
+  PencilIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import courseService from '../../services/courseService'
@@ -66,6 +68,8 @@ const CourseBuilder = () => {
   const [previewingLesson, setPreviewingLesson] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showBulkTaskModal, setShowBulkTaskModal] = useState(false)
+  const [editingProjectInfo, setEditingProjectInfo] = useState(false)
+  const [projectEditData, setProjectEditData] = useState({ title: '', description: '' })
 
   // DnD sensors
   const sensors = useSensors(
@@ -103,6 +107,10 @@ const CourseBuilder = () => {
 
   // Fetch lessons when selectedQuest changes
   useEffect(() => {
+    // Reset edit mode when switching projects
+    setEditingProjectInfo(false)
+    setProjectEditData({ title: '', description: '' })
+
     const fetchLessons = async () => {
       if (!selectedQuest?.id) {
         setLessons([])
@@ -233,6 +241,54 @@ const CourseBuilder = () => {
       console.error('Failed to toggle project publish status:', error)
       toast.error('Failed to update project')
     }
+  }
+
+  const handleStartEditProject = () => {
+    if (!selectedQuest) return
+    setProjectEditData({
+      title: selectedQuest.title || '',
+      description: selectedQuest.description || ''
+    })
+    setEditingProjectInfo(true)
+  }
+
+  const handleSaveProjectEdit = async () => {
+    if (!selectedQuest || !projectEditData.title.trim()) {
+      toast.error('Project title is required')
+      return
+    }
+
+    try {
+      setSaving(true)
+      await api.put(`/api/admin/curriculum/generate/${courseId}/project/${selectedQuest.id}`, {
+        title: projectEditData.title.trim(),
+        description: projectEditData.description.trim()
+      })
+
+      // Update local state
+      const updatedQuest = {
+        ...selectedQuest,
+        title: projectEditData.title.trim(),
+        description: projectEditData.description.trim()
+      }
+      setSelectedQuest(updatedQuest)
+      setQuests(quests.map(q =>
+        q.id === selectedQuest.id ? updatedQuest : q
+      ))
+
+      setEditingProjectInfo(false)
+      toast.success('Project updated')
+    } catch (error) {
+      console.error('Failed to update project:', error)
+      toast.error('Failed to update project')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancelProjectEdit = () => {
+    setEditingProjectInfo(false)
+    setProjectEditData({ title: '', description: '' })
   }
 
   const handlePublishAllQuests = async () => {
@@ -698,10 +754,11 @@ const CourseBuilder = () => {
                     strategy={verticalListSortingStrategy}
                   >
                     <div className="space-y-2 max-h-[calc(100vh-250px)] overflow-y-auto">
-                      {quests.map(quest => (
+                      {quests.map((quest, index) => (
                         <SortableQuestItem
                           key={quest.id}
                           quest={quest}
+                          index={index}
                           isSelected={selectedQuest?.id === quest.id}
                           onSelect={setSelectedQuest}
                           onRemove={handleRemoveQuest}
@@ -721,12 +778,66 @@ const CourseBuilder = () => {
             {selectedQuest && (
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <div className="flex items-start justify-between gap-4 mb-4">
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-lg font-bold text-gray-900">{selectedQuest.title}</h2>
-                    {selectedQuest.description && (
-                      <p className="text-sm text-gray-600 mt-1">{selectedQuest.description}</p>
-                    )}
-                  </div>
+                  {editingProjectInfo ? (
+                    <div className="flex-1 space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Project Title
+                        </label>
+                        <input
+                          type="text"
+                          value={projectEditData.title}
+                          onChange={(e) => setProjectEditData(prev => ({ ...prev, title: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
+                          placeholder="Enter project title"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Description
+                        </label>
+                        <textarea
+                          value={projectEditData.description}
+                          onChange={(e) => setProjectEditData(prev => ({ ...prev, description: e.target.value }))}
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple resize-none"
+                          placeholder="Enter project description"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleSaveProjectEdit}
+                          disabled={saving}
+                          className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium disabled:opacity-50"
+                        >
+                          {saving ? 'Saving...' : 'Save'}
+                        </button>
+                        <button
+                          onClick={handleCancelProjectEdit}
+                          disabled={saving}
+                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex-1 min-w-0">
+                        <h2 className="text-lg font-bold text-gray-900">{selectedQuest.title}</h2>
+                        {selectedQuest.description && (
+                          <p className="text-sm text-gray-600 mt-1">{selectedQuest.description}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={handleStartEditProject}
+                        className="p-2 text-gray-400 hover:text-optio-purple transition-colors rounded-lg hover:bg-gray-100"
+                        title="Edit project title and description"
+                      >
+                        <PencilIcon className="w-5 h-5" />
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 {/* Lessons and Tasks Section */}

@@ -14,14 +14,27 @@ import { getPillarData, PILLAR_KEYS } from '../../utils/pillarMappings'
 import { useAIAccess } from '../../contexts/AIAccessContext'
 
 // Task card component for displaying linked tasks
-const TaskCard = ({ task, onClick, onUnlink }) => {
+const TaskCard = ({ task, onClick, onUnlink, isSelected, onToggleSelect, selectionMode }) => {
   const pillarData = getPillarData(task.pillar)
 
   return (
     <div
-      onClick={() => onClick(task)}
-      className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:border-optio-purple/30 hover:shadow-sm transition-all group bg-white cursor-pointer"
+      onClick={() => selectionMode ? onToggleSelect(task.id) : onClick(task)}
+      className={`flex items-start gap-3 p-3 border rounded-lg hover:border-optio-purple/30 hover:shadow-sm transition-all group bg-white cursor-pointer ${
+        isSelected ? 'border-optio-purple bg-optio-purple/5' : 'border-gray-200'
+      }`}
     >
+      {selectionMode && (
+        <div className="flex-shrink-0 pt-0.5">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelect(task.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="w-4 h-4 text-optio-purple border-gray-300 rounded focus:ring-optio-purple"
+          />
+        </div>
+      )}
       <div className="flex-1 min-w-0">
         <h4 className="font-medium text-gray-900 text-sm truncate">{task.title}</h4>
         {task.description && (
@@ -40,16 +53,18 @@ const TaskCard = ({ task, onClick, onUnlink }) => {
           </span>
         </div>
       </div>
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          onUnlink(task.id)
-        }}
-        className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-        title="Remove from lesson"
-      >
-        <TrashIcon className="w-4 h-4" />
-      </button>
+      {!selectionMode && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onUnlink(task.id)
+          }}
+          className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+          title="Remove from lesson"
+        >
+          <TrashIcon className="w-4 h-4" />
+        </button>
+      )}
     </div>
   )
 }
@@ -375,6 +390,9 @@ const LessonTaskPanel = ({
   const [savingTask, setSavingTask] = useState(false)
   const [generatingAI, setGeneratingAI] = useState(false)
   const [aiTasks, setAiTasks] = useState([])
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedTaskIds, setSelectedTaskIds] = useState(new Set())
+  const [deletingSelected, setDeletingSelected] = useState(false)
   const { canUseTaskGeneration } = useAIAccess()
 
   // Fetch linked tasks when lesson changes
@@ -384,6 +402,9 @@ const LessonTaskPanel = ({
     } else {
       setLinkedTasks([])
     }
+    // Reset selection when lesson changes
+    setSelectionMode(false)
+    setSelectedTaskIds(new Set())
   }, [lesson?.id, questId, lesson?.linked_task_ids])
 
   const fetchLinkedTasks = async () => {
@@ -590,6 +611,66 @@ const LessonTaskPanel = ({
     setAiTasks([])
   }
 
+  // Toggle selection for a task
+  const handleToggleSelect = (taskId) => {
+    setSelectedTaskIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId)
+      } else {
+        newSet.add(taskId)
+      }
+      return newSet
+    })
+  }
+
+  // Select/deselect all tasks
+  const handleSelectAll = () => {
+    if (selectedTaskIds.size === linkedTasks.length) {
+      setSelectedTaskIds(new Set())
+    } else {
+      setSelectedTaskIds(new Set(linkedTasks.map(t => t.id)))
+    }
+  }
+
+  // Delete selected tasks
+  const handleDeleteSelected = async () => {
+    if (selectedTaskIds.size === 0) return
+
+    const count = selectedTaskIds.size
+    if (!confirm(`Remove ${count} task${count > 1 ? 's' : ''} from this lesson?`)) return
+
+    try {
+      setDeletingSelected(true)
+
+      // Delete each selected task
+      const deletePromises = Array.from(selectedTaskIds).map(taskId =>
+        api.delete(`/api/quests/${questId}/curriculum/lessons/${lesson.id}/link-task/${taskId}`)
+      )
+
+      await Promise.all(deletePromises)
+
+      // Update local state
+      setLinkedTasks(prev => prev.filter(t => !selectedTaskIds.has(t.id)))
+      setSelectedTaskIds(new Set())
+      setSelectionMode(false)
+
+      toast.success(`Removed ${count} task${count > 1 ? 's' : ''}`)
+      onTasksUpdated?.()
+    } catch (error) {
+      console.error('Failed to delete tasks:', error)
+      toast.error('Failed to remove some tasks')
+    } finally {
+      setDeletingSelected(false)
+    }
+  }
+
+  // Cancel selection mode
+  const handleCancelSelection = () => {
+    setSelectionMode(false)
+    setSelectedTaskIds(new Set())
+  }
+
   if (!lesson) {
     return (
       <div className="h-full flex items-center justify-center text-gray-500 text-sm p-6">
@@ -609,32 +690,72 @@ const LessonTaskPanel = ({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {canUseTaskGeneration && (
-            <button
-              onClick={handleGenerateAI}
-              disabled={generatingAI}
-              className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors disabled:opacity-50"
-              title="Generate tasks with AI"
-            >
-              {generatingAI ? (
-                <div className="w-3.5 h-3.5 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <SparklesIcon className="w-3.5 h-3.5" />
+          {selectionMode ? (
+            <>
+              <button
+                onClick={handleSelectAll}
+                className="text-xs text-gray-600 hover:text-gray-900"
+              >
+                {selectedTaskIds.size === linkedTasks.length ? 'Deselect All' : 'Select All'}
+              </button>
+              <button
+                onClick={handleCancelSelection}
+                className="px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteSelected}
+                disabled={selectedTaskIds.size === 0 || deletingSelected}
+                className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {deletingSelected ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <TrashIcon className="w-3.5 h-3.5" />
+                )}
+                Delete ({selectedTaskIds.size})
+              </button>
+            </>
+          ) : (
+            <>
+              {linkedTasks.length > 0 && (
+                <button
+                  onClick={() => setSelectionMode(true)}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                  title="Select multiple tasks"
+                >
+                  Select
+                </button>
               )}
-              <span className="hidden sm:inline">AI</span>
-            </button>
+              {canUseTaskGeneration && (
+                <button
+                  onClick={handleGenerateAI}
+                  disabled={generatingAI}
+                  className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors disabled:opacity-50"
+                  title="Generate tasks with AI"
+                >
+                  {generatingAI ? (
+                    <div className="w-3.5 h-3.5 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <SparklesIcon className="w-3.5 h-3.5" />
+                  )}
+                  <span className="hidden sm:inline">AI</span>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setEditingTask(null)
+                  setShowManualForm(true)
+                }}
+                className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
+                title="Add task manually"
+              >
+                <PlusIcon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Add</span>
+              </button>
+            </>
           )}
-          <button
-            onClick={() => {
-              setEditingTask(null)
-              setShowManualForm(true)
-            }}
-            className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
-            title="Add task manually"
-          >
-            <PlusIcon className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Add</span>
-          </button>
         </div>
       </div>
 
@@ -695,6 +816,9 @@ const LessonTaskPanel = ({
                 task={task}
                 onClick={handleTaskClick}
                 onUnlink={handleUnlinkTask}
+                isSelected={selectedTaskIds.has(task.id)}
+                onToggleSelect={handleToggleSelect}
+                selectionMode={selectionMode}
               />
             ))}
           </div>
