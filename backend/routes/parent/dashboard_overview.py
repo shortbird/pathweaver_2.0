@@ -23,24 +23,26 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
     Helper function to verify parent has active access to student.
     IMPORTANT: Accepts supabase client to avoid connection exhaustion.
 
-    Special case: Admin users can view their own student data for demo purposes.
-    Supports both dependent relationships (managed_by_parent_id) and linked students (parent_student_links).
-    Optimized to ONE database query to prevent HTTP/2 stream exhaustion.
+    Access is granted if:
+    1. User is superadmin (universal access)
+    2. User has role='parent' or org_role='parent'
+    3. User has an approved link in parent_student_links to this student
+    4. User manages this student as a dependent (managed_by_parent_id)
+
+    This allows org_admins/advisors who are also parents to access their children.
+    Optimized to minimize database queries.
     """
     try:
         # Special case: Admin viewing their own data (self-link for demo)
         if parent_user_id == student_user_id:
-            # Single query to verify admin role
             user_response = supabase.table('users').select('role').eq('id', parent_user_id).single().execute()
-            if user_response.data and user_response.data.get('role') in ['superadmin']:
+            if user_response.data and user_response.data.get('role') == 'superadmin':
                 return True
-            # If not admin, fall through to normal parent validation
 
-        # OPTIMIZED: Single query with JOIN to get user role AND link status
-        # This reduces 3 queries to 1, preventing HTTP/2 stream exhaustion
-        # NOTE: Include status in the select to filter for approved links only
+        # Query user with role info AND parent links
         user_response = supabase.table('users').select('''
             role,
+            org_role,
             parent_student_links!parent_student_links_parent_user_id_fkey(
                 id,
                 student_user_id,
@@ -53,13 +55,13 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
 
         user = user_response.data
         user_role = user.get('role')
+        user_org_role = user.get('org_role')
 
-        # Verify parent or admin role (admins have full parent privileges)
-        if user_role not in ('parent', 'superadmin'):
-            raise AuthorizationError("Only parent accounts can access this endpoint")
+        # Superadmin has universal access
+        if user_role == 'superadmin':
+            return True
 
-        # Check for APPROVED link to this specific student only
-        # Links with pending_approval or rejected status should not grant access
+        # Check for APPROVED link to this specific student
         links = user.get('parent_student_links', [])
         has_active_link = any(
             link.get('student_user_id') == student_user_id and link.get('status') == 'approved'
@@ -69,7 +71,7 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
         if has_active_link:
             return True
 
-        # If no link found, check if student is a dependent managed by this parent
+        # Check if student is a dependent managed by this parent
         student_response = supabase.table('users').select('is_dependent, managed_by_parent_id').eq('id', student_user_id).single().execute()
         if student_response.data:
             is_dependent = student_response.data.get('is_dependent', False)
@@ -77,8 +79,14 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
             if is_dependent and managed_by == parent_user_id:
                 return True
 
-        # No access found
-        raise AuthorizationError("You do not have access to this student's data")
+        # If user has parent role but no relationship to this student, deny access
+        # (They can only access their own children, not all children)
+        has_parent_role = user_role == 'parent' or user_org_role == 'parent'
+        if has_parent_role:
+            raise AuthorizationError("You do not have access to this student's data")
+
+        # No parent relationship found
+        raise AuthorizationError("Only parent accounts or users with linked children can access this endpoint")
 
     except AuthorizationError:
         raise

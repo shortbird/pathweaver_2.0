@@ -28,6 +28,7 @@ from typing import Optional, Dict, Any, NamedTuple
 from dataclasses import dataclass
 from services.base_service import BaseService, ValidationError, NotFoundError, PermissionError
 from utils.logger import get_logger
+from utils.roles import get_effective_role
 
 logger = get_logger(__name__)
 
@@ -71,7 +72,7 @@ class CurriculumPermissionService(BaseService):
 
     def _get_user(self, user_id: str) -> Dict[str, Any]:
         """Get user data for permission checks."""
-        result = self.client.table('users').select('id, role, organization_id').eq('id', user_id).execute()
+        result = self.client.table('users').select('id, role, org_role, organization_id').eq('id', user_id).execute()
         if not result.data:
             raise NotFoundError(f"User not found: {user_id}")
         return result.data[0]
@@ -126,7 +127,7 @@ class CurriculumPermissionService(BaseService):
                 raise ValidationError("Missing user_id or quest_id")
 
             user = self._get_user(user_id)
-            user_role = user.get('role')
+            user_role = get_effective_role(user)
             user_org = user.get('organization_id')
 
             # Admins and advisors can always read
@@ -197,7 +198,7 @@ class CurriculumPermissionService(BaseService):
         """
         try:
             user = self._get_user(user_id)
-            user_role = user.get('role')
+            user_role = get_effective_role(user)
             user_org = user.get('organization_id')
 
             # Check role
@@ -256,7 +257,7 @@ class CurriculumPermissionService(BaseService):
         """
         try:
             user = self._get_user(user_id)
-            user_role = user.get('role')
+            user_role = get_effective_role(user)
             user_org = user.get('organization_id')
 
             lesson = self._get_lesson(lesson_id, quest_id)
@@ -308,7 +309,7 @@ class CurriculumPermissionService(BaseService):
         """
         try:
             user = self._get_user(user_id)
-            user_role = user.get('role')
+            user_role = get_effective_role(user)
             user_org = user.get('organization_id')
 
             course = self._get_course(course_id)

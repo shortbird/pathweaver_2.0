@@ -936,12 +936,33 @@ def assign_user_to_organization(admin_user_id, user_id):
 
         # If null, remove from organization
         if organization_id is None:
+            # Get current user data to restore their role
+            user_data = admin_client.table('users')\
+                .select('role, org_role')\
+                .eq('id', user_id)\
+                .single()\
+                .execute()
+
+            current_role = user_data.data.get('role', 'student') if user_data.data else 'student'
+            org_role = user_data.data.get('org_role') if user_data.data else None
+
+            # Restore role from org_role when removing from organization
+            # If they were org_managed, restore their org_role as their platform role
+            if current_role == 'org_managed' and org_role:
+                restore_role = org_role
+            else:
+                restore_role = current_role if current_role != 'org_managed' else 'student'
+
             admin_client.table('users')\
-                .update({'organization_id': None})\
+                .update({
+                    'organization_id': None,
+                    'role': restore_role,
+                    'org_role': None
+                })\
                 .eq('id', user_id)\
                 .execute()
 
-            logger.info(f"[ADMIN] User {user_id} removed from organization by admin {admin_user_id}")
+            logger.info(f"[ADMIN] User {user_id} removed from organization by admin {admin_user_id}, role restored to {restore_role}")
 
             return jsonify({
                 'success': True,
@@ -961,17 +982,48 @@ def assign_user_to_organization(admin_user_id, user_id):
                 'error': 'Organization not found'
             }), 404
 
-        # Assign user to organization
-        update_result = admin_client.table('users')\
-            .update({'organization_id': organization_id})\
+        # Get current user data to properly transition role
+        user_data = admin_client.table('users')\
+            .select('role, org_role')\
             .eq('id', user_id)\
+            .single()\
             .execute()
+
+        current_role = user_data.data.get('role', 'student') if user_data.data else 'student'
+
+        # Don't allow adding superadmin to organization
+        if current_role == 'superadmin':
+            return jsonify({
+                'success': False,
+                'error': 'Cannot add superadmin to organization'
+            }), 400
+
+        # If already org_managed, just update org_id (they keep their org_role)
+        if current_role == 'org_managed':
+            update_result = admin_client.table('users')\
+                .update({'organization_id': organization_id})\
+                .eq('id', user_id)\
+                .execute()
+        else:
+            # Convert platform user to org user
+            # Use their current role as org_role, default to 'student' if invalid
+            valid_org_roles = ['student', 'parent', 'advisor', 'observer']
+            org_role = current_role if current_role in valid_org_roles else 'student'
+
+            update_result = admin_client.table('users')\
+                .update({
+                    'organization_id': organization_id,
+                    'role': 'org_managed',
+                    'org_role': org_role
+                })\
+                .eq('id', user_id)\
+                .execute()
 
         print(f"[ORG UPDATE] Update result: {update_result.data}", flush=True)
 
         # Verify the update worked
-        verify = admin_client.table('users').select('organization_id').eq('id', user_id).single().execute()
-        print(f"[ORG UPDATE] After update, user org_id is: {verify.data.get('organization_id') if verify.data else 'NOT FOUND'}", flush=True)
+        verify = admin_client.table('users').select('organization_id, role, org_role').eq('id', user_id).single().execute()
+        print(f"[ORG UPDATE] After update: org_id={verify.data.get('organization_id')}, role={verify.data.get('role')}, org_role={verify.data.get('org_role')}" if verify.data else "[ORG UPDATE] User NOT FOUND", flush=True)
 
         logger.info(f"[ADMIN] User {user_id} assigned to organization {organization_id} by admin {admin_user_id}")
 

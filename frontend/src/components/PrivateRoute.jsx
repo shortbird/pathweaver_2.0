@@ -24,10 +24,17 @@ const PrivateRoute = ({ requiredRole }) => {
     // Superadmin has universal access
     // Use effectiveRole to handle org_managed users correctly
     // For org_managed users, effectiveRole = org_role; for platform users, effectiveRole = role
+
+    // Special case: users with parent relationships can access parent routes
+    // This allows org_admins/advisors who are also parents to access the parent dashboard
+    const hasParentRelationships = user?.has_dependents || user?.has_linked_students
+    const canAccessParentRoutes = allowedRoles.includes('parent') && hasParentRelationships
+
     const hasAccess =
       allowedRoles.includes(effectiveRole) ||
       effectiveRole === 'superadmin' ||
-      (user?.is_org_admin && allowedRoles.includes('org_admin'))
+      (user?.is_org_admin && allowedRoles.includes('org_admin')) ||
+      canAccessParentRoutes
 
     if (!hasAccess) {
       // Redirect to role-appropriate dashboard

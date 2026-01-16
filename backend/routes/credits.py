@@ -90,12 +90,15 @@ def get_transcript(user_id, target_user_id):
         return jsonify({'success': True, 'transcript': transcript}), 200
 
     # Get requesting user's role
-    requesting_user = supabase.table('users').select('role, organization_id').eq('id', user_id).single().execute()
+    requesting_user = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).single().execute()
 
     if not requesting_user.data:
         raise AuthorizationError('Unauthorized access')
 
     user_role = requesting_user.data.get('role')
+    user_org_role = requesting_user.data.get('org_role')
+    # Get effective role for org_managed users
+    effective_role = user_org_role if user_role == 'org_managed' and user_org_role else user_role
 
     # Admin/superadmin always has access
     if user_role == 'superadmin':
@@ -103,7 +106,7 @@ def get_transcript(user_id, target_user_id):
         return jsonify({'success': True, 'transcript': transcript}), 200
 
     # Check if advisor is assigned to this student
-    if user_role == 'advisor':
+    if effective_role == 'advisor':
         assignment = supabase.table('advisor_student_assignments')\
             .select('id')\
             .eq('advisor_id', user_id)\
@@ -116,7 +119,7 @@ def get_transcript(user_id, target_user_id):
             return jsonify({'success': True, 'transcript': transcript}), 200
 
     # Check if observer is linked to this student
-    if user_role == 'observer':
+    if effective_role == 'observer':
         link = supabase.table('observer_student_links')\
             .select('id')\
             .eq('observer_id', user_id)\
@@ -128,30 +131,30 @@ def get_transcript(user_id, target_user_id):
             transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
             return jsonify({'success': True, 'transcript': transcript}), 200
 
-    # Check if parent and target is their dependent
-    if user_role == 'parent':
-        dependent = supabase.table('users')\
-            .select('id')\
-            .eq('id', target_user_id)\
-            .eq('is_dependent', True)\
-            .eq('managed_by_parent_id', user_id)\
-            .execute()
+    # Check for parent relationships (regardless of role - supports org_admins who are also parents)
+    # First check if target is a dependent managed by this user
+    dependent = supabase.table('users')\
+        .select('id')\
+        .eq('id', target_user_id)\
+        .eq('is_dependent', True)\
+        .eq('managed_by_parent_id', user_id)\
+        .execute()
 
-        if dependent.data and len(dependent.data) > 0:
-            transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
-            return jsonify({'success': True, 'transcript': transcript}), 200
+    if dependent.data and len(dependent.data) > 0:
+        transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
+        return jsonify({'success': True, 'transcript': transcript}), 200
 
-        # Also check parent_student_links table for non-dependent children
-        link = supabase.table('parent_student_links')\
-            .select('id')\
-            .eq('parent_user_id', user_id)\
-            .eq('student_user_id', target_user_id)\
-            .eq('status', 'approved')\
-            .execute()
+    # Check parent_student_links table for linked children
+    link = supabase.table('parent_student_links')\
+        .select('id')\
+        .eq('parent_user_id', user_id)\
+        .eq('student_user_id', target_user_id)\
+        .eq('status', 'approved')\
+        .execute()
 
-        if link.data and len(link.data) > 0:
-            transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
-            return jsonify({'success': True, 'transcript': transcript}), 200
+    if link.data and len(link.data) > 0:
+        transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
+        return jsonify({'success': True, 'transcript': transcript}), 200
 
     # Check if target user's portfolio is public
     target_user = supabase.table('users').select('preferences').eq('id', target_user_id).single().execute()

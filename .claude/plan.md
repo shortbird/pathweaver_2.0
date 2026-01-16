@@ -1,323 +1,206 @@
-# Course Generation Queue System - Implementation Plan
+# Role System Fixes - Implementation Plan
 
-## Problem Statement
+## Issues Identified
 
-The current AI Course Generator wizard requires users to wait through each generation step:
-1. Generate outline → wait → select
-2. Generate lessons → wait → click continue
-3. Generate tasks → wait → click continue
-4. Review → publish
+### Issue 1: Org admins who are parents can't see parent tab
+**Root Cause:** `Sidebar.jsx:131` checks `user?.role === 'parent'` directly instead of checking parental relationships.
 
-This is inefficient when creating multiple courses - users cannot queue work and must babysit each step.
+When a parent joins an organization as org_admin:
+- `role` becomes `org_managed`
+- `org_role` becomes `org_admin`
+- The parent tab check fails because `role !== 'parent'`
 
-## Proposed Solution
+However, the user still has entries in `parent_student_links` or `managed_by_parent_id` relationships - the parental data exists, just the UI check is wrong.
 
-Create a **background queue system** that allows users to:
-1. Enter topic and approve the outline/structure
-2. Click "Generate & Queue" to queue the rest for background processing
-3. View a **queue dashboard** showing all jobs with status and logs
-4. Run **multiple generation jobs concurrently**
+### Issue 2: Moving student to org doesn't update role to org_managed
+**Root Cause:** `user_management.py:965-968` only updates `organization_id`, not `role` or `org_role`.
 
-## Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Course Generation Flow                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  [Topic Input] → [Generate Outlines] → [Select & Approve]       │
-│                          ↓                                       │
-│              [Queue for Background Processing]                   │
-│                          ↓                                       │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │           Course Generation Queue Dashboard              │   │
-│  │  ┌─────────────────────────────────────────────────────┐ │   │
-│  │  │ Course Title      │ Status      │ Progress │ Logs  │ │   │
-│  │  ├─────────────────────────────────────────────────────┤ │   │
-│  │  │ Build Board Games │ Lessons     │ 3/5 done │ View  │ │   │
-│  │  │ Cooking Mastery   │ Tasks       │ 8/12     │ View  │ │   │
-│  │  │ Woodworking 101   │ Completed   │ Done     │ View  │ │   │
-│  │  └─────────────────────────────────────────────────────┘ │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+The correct logic exists in `organization_management.py:408-419`:
+```python
+client.table('users').update({
+    'organization_id': org_id,
+    'role': 'org_managed',
+    'org_role': org_role
+})
 ```
 
-## Implementation Steps
+But `user_management.py` only does:
+```python
+admin_client.table('users').update({'organization_id': organization_id})
+```
 
-### Phase 1: Database Schema
+---
 
-**New table: `course_generation_jobs`**
+## Solution Options for Issue 1 (Parent Tab Access)
 
+### Option A: Check parent relationships, not role (Recommended)
+**Concept:** Show parent tab based on actual parent-child data, not role.
+
+**Implementation:**
+1. Add `has_dependents` and `has_linked_students` to `/api/auth/me` response
+2. Backend checks: `parent_student_links` has approved links OR users with `managed_by_parent_id` exist
+3. AuthContext computes `isParent = has_dependents || has_linked_students`
+4. Sidebar shows parent tab if `user?.isParent || effectiveRole === 'superadmin'`
+
+**Pros:**
+- Cleanly separates "parental capability" from "organization role"
+- Scales well - any user type could theoretically be a parent
+- Reflects actual data state
+- No new columns needed
+
+**Cons:**
+- Requires 2 additional queries on `/api/auth/me` (can be optimized with counts)
+
+### Option B: Add `is_parent` boolean flag to users table
+**Concept:** Explicit flag for "has parental duties" regardless of role.
+
+**Implementation:**
+1. Add `is_parent` column to users table
+2. Set `is_parent = true` when user creates dependents or accepts parent invitations
+3. Sidebar checks `user.is_parent || effectiveRole === 'superadmin'`
+
+**Pros:**
+- Simple boolean check, fast
+- No extra API queries needed
+
+**Cons:**
+- Denormalized data (must keep in sync with relationships)
+- Another flag to maintain
+- Migration needed to backfill existing parents
+
+### Option C: Use effective role + check org_role for parent
+**Concept:** Also check if `org_role === 'parent'` for org_managed users who are parents within their org.
+
+**Implementation:**
+1. Sidebar checks `effectiveRole === 'parent' || user?.org_role === 'parent'`
+
+**Pros:**
+- Minimal changes
+- Works for org parents
+
+**Cons:**
+- Doesn't solve the real problem: org_admins who are ALSO parents
+- An org_admin's org_role is `org_admin`, not `parent`
+
+---
+
+## Recommendation for Issue 1
+
+**Option A (Check parent relationships)** is recommended because:
+1. It's based on actual data, not flags that can get out of sync
+2. Works for all scenarios (org_admin who is also parent, advisor who is parent, etc.)
+3. No schema changes required
+4. Clear separation: role determines permissions, relationships determine capabilities
+
+**Specific implementation:**
+
+Backend (`/api/auth/me` in `session.py`):
+```python
+# After fetching user data, add:
+dependent_count = supabase.table('users').select('id', count='exact').eq('managed_by_parent_id', user_id).execute()
+linked_count = supabase.table('parent_student_links').select('id', count='exact').eq('parent_user_id', user_id).eq('status', 'approved').execute()
+
+user_data['has_dependents'] = dependent_count.count > 0
+user_data['has_linked_students'] = linked_count.count > 0
+```
+
+Frontend (`AuthContext.jsx`):
+```javascript
+// In user state, compute:
+const isParent = user?.has_dependents || user?.has_linked_students
+```
+
+Frontend (`Sidebar.jsx`):
+```javascript
+// Change line 131 from:
+if (user?.role === 'parent')
+// To:
+if (user?.isParent || user?.has_dependents || user?.has_linked_students)
+```
+
+---
+
+## Solution for Issue 2 (Role not updating to org_managed)
+
+**Fix:** Update `user_management.py` to use the same logic as `organization_management.py`.
+
+**Changes to `update_user_organization()` at line 964:**
+
+When adding to org:
+```python
+# Get current user data
+user_data = admin_client.table('users').select('role, org_role').eq('id', user_id).single().execute()
+current_role = user_data.data.get('role', 'student')
+
+# Don't change superadmin
+if current_role == 'superadmin':
+    return jsonify({'success': False, 'error': 'Cannot add superadmin to organization'}), 400
+
+# If already org_managed, just update org_id
+if current_role == 'org_managed':
+    admin_client.table('users').update({'organization_id': organization_id}).eq('id', user_id).execute()
+else:
+    # Convert platform user to org user
+    org_role = current_role if current_role in ['student', 'parent', 'advisor', 'observer'] else 'student'
+    admin_client.table('users').update({
+        'organization_id': organization_id,
+        'role': 'org_managed',
+        'org_role': org_role
+    }).eq('id', user_id).execute()
+```
+
+When removing from org (line 938):
+```python
+# Get current org_role to restore
+user_data = admin_client.table('users').select('org_role').eq('id', user_id).single().execute()
+restore_role = user_data.data.get('org_role', 'student')
+
+admin_client.table('users').update({
+    'organization_id': None,
+    'role': restore_role,  # Restore their role from org_role
+    'org_role': None
+}).eq('id', user_id).execute()
+```
+
+---
+
+## Files to Modify
+
+### Issue 1 (Parent tab access):
+1. `backend/routes/auth/session.py` - Add parent relationship counts to `/api/auth/me`
+2. `frontend/src/contexts/AuthContext.jsx` - Expose `isParent` computed property
+3. `frontend/src/components/navigation/Sidebar.jsx` - Use relationship check instead of role
+
+### Issue 2 (Role update on org assignment):
+1. `backend/routes/admin/user_management.py` - Fix `update_user_organization` function (lines 920-990)
+
+---
+
+## Data Migration
+
+Run SQL to fix existing users in broken state:
 ```sql
-CREATE TABLE course_generation_jobs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id) NOT NULL,
-    organization_id UUID REFERENCES organizations(id),
-
-    -- Status tracking
-    status TEXT NOT NULL DEFAULT 'pending',
-    -- Values: pending, generating_lessons, generating_tasks, finalizing, completed, failed, cancelled
-
-    -- Progress tracking
-    current_step TEXT,  -- 'lessons' or 'tasks'
-    current_item TEXT,  -- Name of current project/lesson being processed
-    items_completed INT DEFAULT 0,
-    items_total INT DEFAULT 0,
-
-    -- Logging
-    logs JSONB DEFAULT '[]',  -- Array of log entries with timestamps
-
-    -- Timing
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    started_at TIMESTAMPTZ,
-    completed_at TIMESTAMPTZ,
-
-    -- Error handling
-    error_message TEXT,
-    retry_count INT DEFAULT 0,
-
-    -- Auto-publish option
-    auto_publish BOOLEAN DEFAULT false
-);
-
--- Index for fast lookups
-CREATE INDEX idx_course_gen_jobs_user ON course_generation_jobs(user_id, created_at DESC);
-CREATE INDEX idx_course_gen_jobs_status ON course_generation_jobs(status);
+-- Find and fix users with organization_id but role != 'org_managed'
+UPDATE users
+SET
+    org_role = CASE
+        WHEN org_role IS NOT NULL THEN org_role
+        WHEN role IN ('student', 'parent', 'advisor', 'observer') THEN role
+        ELSE 'student'
+    END,
+    role = 'org_managed'
+WHERE organization_id IS NOT NULL
+  AND role != 'org_managed'
+  AND role != 'superadmin';
 ```
 
-### Phase 2: Backend - Job Processing
+---
 
-**File: `backend/services/course_generation_job_service.py`**
+## Summary
 
-New service that:
-- Creates generation jobs from approved outlines
-- Processes jobs with detailed logging
-- Updates progress in real-time
-- Handles errors gracefully with retry logic
-- Supports cancellation
+| Issue | Root Cause | Solution | Complexity |
+|-------|------------|----------|------------|
+| Parent tab not showing for org_admin parents | Sidebar checks `role === 'parent'` | Check actual parent relationships | Low |
+| Role not updating to org_managed | Missing role update in user_management.py | Add role transition logic | Low |
 
-Key methods:
-```python
-class CourseGenerationJobService:
-    def create_job(course_id, user_id, org_id, auto_publish=False) -> job_id
-    def process_job(job_id) -> success
-    def get_job_status(job_id) -> Dict with status, progress, logs
-    def get_user_jobs(user_id) -> List of jobs
-    def cancel_job(job_id) -> success
-    def add_log(job_id, message, level='info')
-```
-
-**File: `backend/routes/admin/curriculum_generate.py` (additions)**
-
-New endpoints:
-```python
-# Queue a course for background generation
-POST /api/admin/curriculum/generate/<course_id>/queue
-Body: { "auto_publish": true/false }
-Returns: { "success": true, "job_id": "uuid" }
-
-# Get all generation jobs for current user
-GET /api/admin/curriculum/generate/jobs
-Returns: { "jobs": [...] }
-
-# Get specific job status with logs
-GET /api/admin/curriculum/generate/jobs/<job_id>
-Returns: { "job": {...}, "logs": [...] }
-
-# Cancel a running job
-POST /api/admin/curriculum/generate/jobs/<job_id>/cancel
-Returns: { "success": true }
-
-# Retry a failed job
-POST /api/admin/curriculum/generate/jobs/<job_id>/retry
-Returns: { "success": true }
-```
-
-**Integration with existing JobScheduler**
-
-Add new job type `course_generation` to `backend/jobs/scheduler.py`:
-```python
-JOB_TYPE_COURSE_GENERATION = 'course_generation'
-
-# In execute_job():
-elif job_type == JobScheduler.JOB_TYPE_COURSE_GENERATION:
-    from services.course_generation_job_service import CourseGenerationJobService
-    job_service = CourseGenerationJobService()
-    result = job_service.process_job(job_data['job_id'])
-```
-
-### Phase 3: Frontend - Queue Dashboard
-
-**File: `frontend/src/pages/admin/CourseGenerationQueue.jsx`**
-
-New dashboard page with:
-- Table of all generation jobs (pending, running, completed, failed)
-- Real-time status updates via polling (every 3 seconds for active jobs)
-- Expandable log viewer for each job
-- Cancel button for running jobs
-- Retry button for failed jobs
-- "New Course" button to start wizard
-- Filter by status (All, Running, Completed, Failed)
-
-**Table columns:**
-| Course Title | Status | Progress | Started | Duration | Actions |
-|--------------|--------|----------|---------|----------|---------|
-| Build Board Games | Generating Lessons | 3/5 projects | 2 min ago | -- | Cancel |
-| Cooking Mastery | Generating Tasks | 8/12 lessons | 5 min ago | -- | Cancel |
-| Woodworking 101 | Completed | Done | 1 hr ago | 4m 32s | View Course |
-| Guitar Basics | Failed | -- | 2 hr ago | -- | Retry |
-
-**Status badges:**
-- `pending` → Gray "Queued"
-- `generating_lessons` → Blue "Generating Lessons"
-- `generating_tasks` → Blue "Generating Tasks"
-- `finalizing` → Purple "Finalizing"
-- `completed` → Green "Completed"
-- `failed` → Red "Failed"
-- `cancelled` → Gray "Cancelled"
-
-### Phase 4: Modified Wizard Flow
-
-**Update `CourseGeneratorWizard.jsx`**
-
-After Stage 1 (outline approved), add new option:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                  Course Structure Approved                   │
-│                                                             │
-│  "Build a Board Game from Scratch"                          │
-│  5 Projects | Ready for content generation                  │
-│                                                             │
-│  ┌─────────────────────────┐  ┌─────────────────────────┐  │
-│  │  Generate & Queue       │  │  Generate Manually      │  │
-│  │  (Recommended)          │  │  (Step by step)         │  │
-│  │                         │  │                         │  │
-│  │  Queue for background   │  │  Continue with current  │  │
-│  │  processing. View       │  │  wizard flow.           │  │
-│  │  progress in queue.     │  │                         │  │
-│  └─────────────────────────┘  └─────────────────────────┘  │
-│                                                             │
-│  ☑ Auto-publish when complete                               │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**"Generate & Queue" action:**
-1. Call `POST /api/admin/curriculum/generate/<course_id>/queue`
-2. Redirect to `/admin/course-generation-queue`
-3. Show toast: "Course queued for generation"
-
-### Phase 5: Navigation Updates
-
-**Add queue dashboard to admin navigation**
-
-In `AdminLayout.jsx` or equivalent:
-```jsx
-{
-  path: '/admin/course-generation-queue',
-  label: 'Generation Queue',
-  icon: QueueIcon
-}
-```
-
-**Update curriculum upload page**
-
-Add link/button to view generation queue from the curriculum upload page.
-
-## File Changes Summary
-
-### New Files
-1. `backend/services/course_generation_job_service.py` - Job processing service
-2. `frontend/src/pages/admin/CourseGenerationQueue.jsx` - Queue dashboard
-
-### Modified Files
-1. `backend/routes/admin/curriculum_generate.py` - Add queue endpoints
-2. `backend/jobs/scheduler.py` - Add course_generation job type
-3. `frontend/src/pages/admin/CourseGeneratorWizard.jsx` - Add queue option after outline
-4. `frontend/src/App.jsx` or router config - Add queue dashboard route
-5. Navigation component - Add queue link
-
-### Database Migration
-1. `supabase/migrations/xxx_create_course_generation_jobs.sql`
-
-## Detailed Log Format
-
-Each log entry stored in the `logs` JSONB array:
-
-```json
-{
-  "timestamp": "2024-01-13T10:30:45Z",
-  "level": "info",  // info, warning, error, success
-  "message": "Generating lessons for project: Build Your First Prototype",
-  "details": {
-    "project_index": 2,
-    "project_total": 5
-  }
-}
-```
-
-Example full log sequence:
-```
-10:30:00 [INFO] Starting course generation job
-10:30:01 [INFO] Course: Build a Board Game from Scratch
-10:30:01 [INFO] Projects to process: 5
-10:30:02 [INFO] Generating lessons for project 1/5: Design Your Game Concept
-10:30:15 [SUCCESS] Generated 4 lessons for: Design Your Game Concept
-10:30:16 [INFO] Generating lessons for project 2/5: Build Your First Prototype
-10:30:28 [SUCCESS] Generated 3 lessons for: Build Your First Prototype
-...
-10:32:00 [INFO] Starting task generation
-10:32:01 [INFO] Generating tasks for lesson 1/15: Understanding Game Mechanics
-10:32:08 [SUCCESS] Generated 3 tasks for: Understanding Game Mechanics
-...
-10:35:22 [SUCCESS] Course generation complete
-10:35:22 [INFO] Summary: 5 projects, 15 lessons, 42 tasks
-```
-
-## Polling Strategy
-
-**Queue Dashboard polling:**
-- Poll every 5 seconds when any jobs are `pending`, `generating_lessons`, `generating_tasks`, or `finalizing`
-- Stop polling when all visible jobs are `completed`, `failed`, or `cancelled`
-- Use `setInterval` with cleanup on unmount
-
-**Endpoint for efficient polling:**
-```python
-GET /api/admin/curriculum/generate/jobs?status=active
-# Returns only pending/running jobs for faster response
-```
-
-## Error Handling
-
-**Retry logic:**
-- Max 3 retries for AI generation failures
-- Exponential backoff between retries
-- Log each retry attempt
-- After max retries, mark job as failed with error details
-
-**User actions on failure:**
-- View error message and logs
-- Retry button to restart from failed step (not from beginning)
-- Cancel to abandon the job
-
-## Success Metrics
-
-After implementation:
-- Users can queue multiple courses and walk away
-- No waiting required after outline approval
-- Clear visibility into generation progress
-- Ability to run 3+ generation jobs concurrently
-- Easy recovery from failures via retry
-
-## Implementation Order
-
-1. **Database migration** - Create `course_generation_jobs` table
-2. **Backend job service** - `CourseGenerationJobService` with processing logic
-3. **Backend endpoints** - Queue, status, cancel, retry endpoints
-4. **Frontend queue dashboard** - Table with polling and log viewer
-5. **Wizard integration** - Add "Generate & Queue" option
-6. **Navigation** - Add links to queue dashboard
-7. **Testing** - Verify concurrent generation works
+Both fixes are straightforward and maintain the existing architecture. No major refactoring needed.

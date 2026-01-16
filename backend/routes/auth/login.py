@@ -281,6 +281,28 @@ def get_current_user():
                     except Exception as org_error:
                         logger.warning(f"Could not fetch organization for user {mask_user_id(user_id)}: {org_error}")
 
+                # Check for parent relationships (dependents and linked students)
+                # This allows users to access parent features regardless of their role
+                try:
+                    # Check for dependents (children managed by this user)
+                    dependents = admin_client.table('users')\
+                        .select('id', count='exact')\
+                        .eq('managed_by_parent_id', user_id)\
+                        .execute()
+                    response_data['has_dependents'] = dependents.count > 0 if dependents.count else False
+
+                    # Check for linked students (approved parent-student links)
+                    linked_students = admin_client.table('parent_student_links')\
+                        .select('id', count='exact')\
+                        .eq('parent_user_id', user_id)\
+                        .eq('status', 'approved')\
+                        .execute()
+                    response_data['has_linked_students'] = linked_students.count > 0 if linked_students.count else False
+                except Exception as parent_check_error:
+                    logger.warning(f"Could not check parent relationships for user {mask_user_id(user_id)}: {parent_check_error}")
+                    response_data['has_dependents'] = False
+                    response_data['has_linked_students'] = False
+
                 # Return user data (legacy format for frontend compatibility)
                 # TODO: Migrate to standardized format after updating frontend
                 return jsonify(response_data), 200

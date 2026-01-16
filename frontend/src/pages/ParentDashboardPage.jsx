@@ -101,7 +101,13 @@ const ParentDashboardPage = () => {
       }
     };
 
-    if (user?.role === 'parent' || user?.role === 'admin' || user?.role === 'superadmin') {
+    // Load if user has parent relationships OR has parent/admin role
+    // This supports org_admins/advisors who are also parents
+    const hasParentRelationships = user?.has_dependents || user?.has_linked_students
+    const hasParentRole = user?.role === 'parent' || user?.org_role === 'parent'
+    const hasAdminAccess = user?.role === 'admin' || user?.role === 'superadmin'
+
+    if (hasParentRelationships || hasParentRole || hasAdminAccess) {
       loadChildrenAndDependents();
     }
   }, [user, actingAsDependent]); // Re-run when actingAsDependent changes (e.g., switching back from masquerade)
@@ -241,8 +247,14 @@ const ParentDashboardPage = () => {
     return null;
   }
 
-  // Allow parent, admin, and superadmin roles to access the dashboard
-  if (!user || (user.role !== 'parent' && user.role !== 'admin' && user.role !== 'superadmin')) {
+  // Allow access if user has parent relationships OR is parent/admin/superadmin role
+  // This supports org_admins/advisors who are also parents
+  const hasParentRelationships = user?.has_dependents || user?.has_linked_students
+  const hasParentRole = user?.role === 'parent' || user?.org_role === 'parent'
+  const hasAdminAccess = user?.role === 'admin' || user?.role === 'superadmin'
+  const canAccessParentDashboard = hasParentRelationships || hasParentRole || hasAdminAccess
+
+  if (!user || !canAccessParentDashboard) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-12 text-center">
         <ExclamationTriangleIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />

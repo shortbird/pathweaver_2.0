@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import CourseVisibilityManager from '../admin/CourseVisibilityManager'
 import CourseEnrollmentManager from '../admin/CourseEnrollmentManager'
+import OrgCurriculumUpload from './OrgCurriculumUpload'
 
 function CourseCard({ course, onDelete }) {
   const projectCount = course.quest_count || course.project_count || 0
@@ -617,6 +618,16 @@ export default function CourseTab({ orgId, orgData, onUpdate, siteSettings }) {
         >
           Course Availability
         </button>
+        <button
+          onClick={() => setCourseSubTab('upload')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            courseSubTab === 'upload'
+              ? 'bg-white border border-b-white border-gray-200 -mb-[3px] text-optio-purple'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Upload Curriculum
+        </button>
       </div>
 
       {courseSubTab === 'manage' && (
@@ -1069,6 +1080,10 @@ export default function CourseTab({ orgId, orgData, onUpdate, siteSettings }) {
             siteSettings={siteSettings}
           />
         </>
+      )}
+
+      {courseSubTab === 'upload' && (
+        <OrgCurriculumUpload orgId={orgId} />
       )}
     </div>
   )

@@ -239,12 +239,14 @@ def upload_curriculum(user_id):
 
     Form data fields:
     - file: The uploaded file
+    - organization_id: Optional org ID (for masquerading)
     - transformation_level: 'light', 'moderate', 'full' (default: 'moderate')
     - preserve_structure: 'true' or 'false' (default: 'true')
 
     JSON fields:
     - text: Raw curriculum text
     - title: Optional title for the text
+    - organization_id: Optional org ID (for masquerading)
     - transformation_level: 'light', 'moderate', 'full' (default: 'moderate')
     - preserve_structure: boolean (default: true)
 
@@ -254,12 +256,36 @@ def upload_curriculum(user_id):
     try:
         supabase = get_supabase_admin_client()
 
-        # Get user's organization
-        user_result = supabase.table('users').select('organization_id').eq('id', user_id).execute()
-        organization_id = user_result.data[0]['organization_id'] if user_result.data else None
+        # Get user's organization (can be overridden by request for masquerading)
+        user_result = supabase.table('users').select('organization_id, role').eq('id', user_id).execute()
+        user_org_id = user_result.data[0]['organization_id'] if user_result.data else None
+        user_role = user_result.data[0]['role'] if user_result.data else None
+
+        # Check rate limit (5 uploads per hour per org/user)
+        rate_limit_result = _check_rate_limit(supabase, user_id, user_org_id)
+        if not rate_limit_result['allowed']:
+            return jsonify({
+                'success': False,
+                'error': rate_limit_result['message']
+            }), 429
 
         # Determine input type
         content_type = request.content_type or ''
+
+        # Get organization_id from request if provided (for masquerading by superadmin)
+        if 'multipart/form-data' in content_type:
+            request_org_id = request.form.get('organization_id')
+        elif 'application/json' in content_type:
+            data = request.get_json() or {}
+            request_org_id = data.get('organization_id')
+        else:
+            request_org_id = None
+
+        # Use request org_id if provided and user is superadmin, otherwise use user's org
+        if request_org_id and user_role == 'superadmin':
+            organization_id = request_org_id
+        else:
+            organization_id = user_org_id
 
         if 'multipart/form-data' in content_type:
             return _handle_file_upload(user_id, organization_id, supabase)
@@ -277,6 +303,46 @@ def upload_curriculum(user_id):
             'success': False,
             'error': f'Upload failed: {str(e)}'
         }), 500
+
+
+def _check_rate_limit(supabase, user_id: str, organization_id: str) -> dict:
+    """
+    Check if user/org has exceeded the upload rate limit.
+    Limit: 5 uploads per hour per organization (or per user if no org).
+    Superadmins are exempt from rate limiting.
+    """
+    from datetime import datetime, timedelta
+
+    # Check if superadmin (exempt from rate limiting)
+    user_result = supabase.table('users').select('role').eq('id', user_id).execute()
+    if user_result.data and user_result.data[0].get('role') == 'superadmin':
+        return {'allowed': True}
+
+    # Calculate time window (1 hour ago)
+    one_hour_ago = (datetime.utcnow() - timedelta(hours=1)).isoformat()
+
+    # Count recent uploads
+    if organization_id:
+        # Count by organization
+        result = supabase.table('curriculum_uploads').select('id', count='exact').eq(
+            'organization_id', organization_id
+        ).gte('uploaded_at', one_hour_ago).execute()
+    else:
+        # Count by user (for platform users without org)
+        result = supabase.table('curriculum_uploads').select('id', count='exact').eq(
+            'uploaded_by', user_id
+        ).gte('uploaded_at', one_hour_ago).execute()
+
+    count = result.count if hasattr(result, 'count') else len(result.data)
+    max_uploads = 5
+
+    if count >= max_uploads:
+        return {
+            'allowed': False,
+            'message': f'Rate limit exceeded. Maximum {max_uploads} uploads per hour. Please try again later.'
+        }
+
+    return {'allowed': True, 'remaining': max_uploads - count}
 
 
 def _handle_file_upload(user_id: str, organization_id: str, supabase):
@@ -671,7 +737,7 @@ def get_upload_status(user_id, upload_id):
 
         result = supabase.table('curriculum_uploads').select(
             'id, status, source_type, original_filename, error_message, uploaded_at, '
-            'created_quest_id, progress_percent, current_stage_name, current_item, '
+            'created_quest_id, created_course_id, progress_percent, current_stage_name, current_item, '
             'stage_1_completed_at, stage_2_completed_at, stage_3_completed_at, stage_4_completed_at, '
             'can_resume, resume_from_stage, current_stage'
         ).eq('id', upload_id).execute()
@@ -693,6 +759,7 @@ def get_upload_status(user_id, upload_id):
             'error': upload.get('error_message'),
             'uploaded_at': upload['uploaded_at'],
             'quest_id': upload.get('created_quest_id'),
+            'course_id': upload.get('created_course_id'),
             # Progress tracking
             'progress': upload.get('progress_percent', 0),
             'currentStage': upload.get('current_stage_name'),
@@ -1021,6 +1088,7 @@ def _finalize_curriculum_upload(upload_id: str, user_id: str, organization_id: s
     supabase.table('curriculum_uploads').update({
         'status': 'approved',
         'created_quest_id': quest_ids[0] if quest_ids else None,
+        'created_course_id': course_id,
         'generated_content': preview,
         'reviewed_by': user_id,
         'reviewed_at': 'now()',
@@ -1100,31 +1168,74 @@ def list_uploads(user_id):
 
     Query params:
     - status: Filter by status (optional)
+    - organization_id: Filter by org (optional, for superadmin)
     - limit: Max results (default 20)
 
     Returns:
         JSON with list of uploads
+        - Superadmin sees all uploads with organization info
+        - Org admins see only their organization's uploads
     """
     try:
         supabase = get_supabase_admin_client()
 
+        # Get user role and organization
+        user_result = supabase.table('users').select('role, organization_id').eq('id', user_id).execute()
+        user_role = user_result.data[0]['role'] if user_result.data else None
+        user_org_id = user_result.data[0]['organization_id'] if user_result.data else None
+
+        is_superadmin = user_role == 'superadmin'
+
         status_filter = request.args.get('status')
+        org_filter = request.args.get('organization_id')
         limit = min(int(request.args.get('limit', 20)), 100)
 
-        query = supabase.table('curriculum_uploads').select(
-            'id, status, source_type, original_filename, uploaded_at, created_quest_id, '
-            'error_message, current_stage_name, current_item, can_resume, progress_percent'
-        ).order('uploaded_at', desc=True).limit(limit)
+        # Build query with organization info for superadmin
+        if is_superadmin:
+            query = supabase.table('curriculum_uploads').select(
+                'id, status, source_type, original_filename, uploaded_at, created_quest_id, created_course_id, '
+                'error_message, current_stage_name, current_item, can_resume, progress_percent, '
+                'organization_id, organizations(id, name, slug)'
+            ).order('uploaded_at', desc=True).limit(limit)
+
+            # Superadmin can filter by specific org
+            if org_filter:
+                query = query.eq('organization_id', org_filter)
+        else:
+            # Org admins only see their organization's uploads
+            query = supabase.table('curriculum_uploads').select(
+                'id, status, source_type, original_filename, uploaded_at, created_quest_id, created_course_id, '
+                'error_message, current_stage_name, current_item, can_resume, progress_percent, organization_id'
+            ).order('uploaded_at', desc=True).limit(limit)
+
+            if user_org_id:
+                query = query.eq('organization_id', user_org_id)
+            else:
+                # Platform admin without org - only show their own uploads
+                query = query.eq('uploaded_by', user_id)
 
         if status_filter:
             query = query.eq('status', status_filter)
 
         result = query.execute()
 
+        # Format response
+        uploads = result.data
+        for upload in uploads:
+            # Flatten organization info for easier frontend consumption
+            if 'organizations' in upload and upload['organizations']:
+                upload['organization_name'] = upload['organizations'].get('name')
+                upload['organization_slug'] = upload['organizations'].get('slug')
+                del upload['organizations']
+            else:
+                upload['organization_name'] = None
+                upload['organization_slug'] = None
+
         return jsonify({
             'success': True,
-            'uploads': result.data,
-            'count': len(result.data)
+            'uploads': uploads,
+            'count': len(uploads),
+            'is_superadmin': is_superadmin
         }), 200
 
     except Exception as e:
