@@ -12,6 +12,7 @@ from utils.logger import get_logger
 from middleware.rate_limiter import rate_limit
 import secrets
 import re
+import time
 from datetime import datetime, timedelta
 
 logger = get_logger(__name__)
@@ -84,6 +85,222 @@ def get_org_invitations(current_user_id, current_org_id, is_superadmin, org_id):
     except Exception as e:
         logger.error(f"Failed to get invitations for org {org_id}: {e}")
         return jsonify({'error': 'Failed to fetch invitations'}), 500
+
+
+@bp.route('/<org_id>/invitations/parent', methods=['POST'])
+@require_org_admin
+@rate_limit(max_requests=20, window_seconds=300)  # 20 invitations per 5 minutes
+def create_parent_invitation(current_user_id, current_org_id, is_superadmin, org_id):
+    """
+    Create and send a parent invitation with student links
+
+    Body:
+        email: Email address to invite
+        name: Name of the person being invited (optional)
+        student_ids: List of student UUIDs to auto-link upon acceptance
+        send_email: Whether to send email (default: true)
+    """
+    try:
+        data = request.json
+        user_id = current_user_id
+
+        # Validate required fields
+        email = data.get('email', '').strip().lower()
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+
+        if not validate_email(email):
+            return jsonify({'error': 'Invalid email format'}), 400
+
+        student_ids = data.get('student_ids', [])
+        if not student_ids or not isinstance(student_ids, list):
+            return jsonify({'error': 'At least one student must be selected'}), 400
+
+        invited_name = sanitize_input(data.get('name', ''))
+        send_email = data.get('send_email', True)
+
+        supabase = get_supabase_admin_client()
+
+        # Validate student_ids belong to org and have student role
+        students_result = supabase.table('users') \
+            .select('id, first_name, last_name, org_role') \
+            .eq('organization_id', org_id) \
+            .in_('id', student_ids) \
+            .execute()
+
+        valid_students = [s for s in students_result.data if s.get('org_role') == 'student']
+        if len(valid_students) != len(student_ids):
+            return jsonify({'error': 'One or more students are invalid or not in this organization'}), 400
+
+        # Check if user already exists in this organization
+        existing_in_org = supabase.table('users') \
+            .select('id, email') \
+            .eq('email', email) \
+            .eq('organization_id', org_id) \
+            .execute()
+
+        if existing_in_org.data:
+            return jsonify({'error': 'User is already a member of this organization'}), 409
+
+        # Check if user has an Optio account (but not in this org)
+        # If so, add them directly without sending invitation email
+        existing_user = supabase.table('users') \
+            .select('id, email, first_name, last_name') \
+            .eq('email', email) \
+            .execute()
+
+        if existing_user.data:
+            # User already has an account - add them to org and link to students directly
+            user = existing_user.data[0]
+            user_id = user['id']
+
+            # Update user's organization and role
+            supabase.table('users') \
+                .update({
+                    'organization_id': org_id,
+                    'role': 'org_managed',
+                    'org_role': 'parent'
+                }) \
+                .eq('id', user_id) \
+                .execute()
+
+            # Create parent-student links
+            linked_students = _create_parent_student_links(
+                supabase, user_id, student_ids, org_id
+            )
+
+            logger.info(f"Added existing user {email} to org {org_id} as parent and linked to {len(linked_students)} students")
+
+            return jsonify({
+                'success': True,
+                'existing_user': True,
+                'user_added': True,
+                'linked_students': linked_students,
+                'message': f'{user["first_name"]} {user["last_name"]} has been added to your organization and connected to their student(s).'
+            }), 200
+
+        # Check for existing pending invitation
+        existing_invitation = supabase.table('org_invitations') \
+            .select('id, status, expires_at') \
+            .eq('organization_id', org_id) \
+            .eq('email', email) \
+            .eq('status', 'pending') \
+            .execute()
+
+        if existing_invitation.data:
+            # Check if still valid
+            inv = existing_invitation.data[0]
+            expires_at = datetime.fromisoformat(inv['expires_at'].replace('Z', '+00:00'))
+            if expires_at > datetime.utcnow().replace(tzinfo=expires_at.tzinfo):
+                return jsonify({'error': 'A pending invitation already exists for this email'}), 409
+            else:
+                # Mark old one as expired
+                supabase.table('org_invitations') \
+                    .update({'status': 'expired'}) \
+                    .eq('id', inv['id']) \
+                    .execute()
+
+        # Get organization details
+        org_result = supabase.table('organizations') \
+            .select('name, slug') \
+            .eq('id', org_id) \
+            .single() \
+            .execute()
+
+        if not org_result.data:
+            return jsonify({'error': 'Organization not found'}), 404
+
+        org_name = org_result.data['name']
+
+        # Get inviter name
+        inviter_result = supabase.table('users') \
+            .select('display_name, first_name, last_name') \
+            .eq('id', user_id) \
+            .single() \
+            .execute()
+
+        inviter_name = 'The team'
+        if inviter_result.data:
+            user_data = inviter_result.data
+            inviter_name = user_data.get('display_name') or \
+                          f"{user_data.get('first_name', '')} {user_data.get('last_name', '')}".strip() or \
+                          'The team'
+
+        # Generate invitation code and expiration
+        invitation_code = generate_invitation_code()
+        expires_at = datetime.utcnow() + timedelta(days=7)
+
+        # Build student names for email
+        student_names = [f"{s['first_name']} {s['last_name']}" for s in valid_students]
+        student_names_str = ', '.join(student_names[:-1]) + (' and ' if len(student_names) > 1 else '') + student_names[-1] if len(student_names) > 1 else student_names[0]
+
+        # Create invitation record with metadata
+        invitation_data = {
+            'organization_id': org_id,
+            'email': email,
+            'invited_name': invited_name,
+            'role': 'parent',
+            'invitation_code': invitation_code,
+            'invited_by': user_id,
+            'status': 'pending',
+            'expires_at': expires_at.isoformat(),
+            'metadata': {
+                'invitation_type': 'parent',
+                'student_ids': student_ids
+            }
+        }
+
+        result = supabase.table('org_invitations').insert(invitation_data).execute()
+
+        if not result.data:
+            return jsonify({'error': 'Failed to create invitation'}), 500
+
+        invitation = result.data[0]
+
+        # Send email if requested
+        email_sent = False
+        if send_email:
+            try:
+                from app_config import Config
+                frontend_url = Config.FRONTEND_URL
+                invitation_link = f"{frontend_url}/invitation/{invitation_code}"
+
+                from services.email_service import EmailService
+                email_service = EmailService()
+
+                # Use the org_parent_invitation template
+                email_sent = email_service.send_templated_email(
+                    to_email=email,
+                    subject=f"{org_name} invites you to connect with {student_names_str} on Optio",
+                    template_name='org_parent_invitation',
+                    context={
+                        'invited_name': invited_name or 'there',
+                        'inviter_name': inviter_name,
+                        'org_name': org_name,
+                        'student_names': student_names_str,
+                        'student_count': len(valid_students),
+                        'invitation_link': invitation_link,
+                        'expires_days': 7
+                    }
+                )
+
+                if not email_sent:
+                    logger.warning(f"Failed to send parent invitation email to {email}")
+
+            except Exception as e:
+                logger.error(f"Error sending parent invitation email: {e}")
+
+        return jsonify({
+            'success': True,
+            'invitation': invitation,
+            'email_sent': email_sent,
+            'students': valid_students,
+            'message': 'Parent invitation created successfully'
+        }), 201
+
+    except Exception as e:
+        logger.error(f"Failed to create parent invitation for org {org_id}: {e}")
+        return jsonify({'error': 'Failed to create parent invitation'}), 500
 
 
 @bp.route('/<org_id>/invitations', methods=['POST'])
@@ -472,6 +689,67 @@ def cancel_invitation(current_user_id, current_org_id, is_superadmin, org_id, in
         return jsonify({'error': 'Failed to cancel invitation'}), 500
 
 
+# Helper function for parent-student linking
+
+def _create_parent_student_links(supabase, parent_user_id, student_ids, organization_id):
+    """
+    Create parent-student links for a parent invitation.
+    Handles edge cases like student removed from org or already linked.
+
+    Returns list of successfully linked student names.
+    """
+    linked_students = []
+
+    for student_id in student_ids:
+        try:
+            # Verify student is still in the organization
+            student_result = supabase.table('users') \
+                .select('id, first_name, last_name, org_role') \
+                .eq('id', student_id) \
+                .eq('organization_id', organization_id) \
+                .single() \
+                .execute()
+
+            if not student_result.data:
+                logger.warning(f"Student {student_id} no longer in org {organization_id}, skipping link")
+                continue
+
+            student = student_result.data
+            if student.get('org_role') != 'student':
+                logger.warning(f"User {student_id} is not a student role, skipping link")
+                continue
+
+            # Check if link already exists
+            existing_link = supabase.table('parent_student_links') \
+                .select('id') \
+                .eq('parent_user_id', parent_user_id) \
+                .eq('student_user_id', student_id) \
+                .execute()
+
+            if existing_link.data:
+                logger.info(f"Parent-student link already exists for parent {parent_user_id} and student {student_id}")
+                linked_students.append(f"{student['first_name']} {student['last_name']}")
+                continue
+
+            # Create the link
+            supabase.table('parent_student_links').insert({
+                'parent_user_id': parent_user_id,
+                'student_user_id': student_id,
+                'status': 'approved',
+                'admin_verified': True,
+                'admin_notes': 'Auto-linked via parent invitation'
+            }).execute()
+
+            linked_students.append(f"{student['first_name']} {student['last_name']}")
+            logger.info(f"Created parent-student link: parent={parent_user_id}, student={student_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to create parent-student link for student {student_id}: {e}")
+            continue
+
+    return linked_students
+
+
 # Public endpoints for accepting invitations (no auth required)
 
 @bp.route('/invitations/validate/<invitation_code>', methods=['GET'])
@@ -485,7 +763,7 @@ def validate_invitation_code(invitation_code):
 
         # Find the invitation
         result = supabase.table('org_invitations') \
-            .select('id, organization_id, email, invited_name, role, status, expires_at, organizations(name, slug, branding_config)') \
+            .select('id, organization_id, email, invited_name, role, status, expires_at, metadata, organizations(name, slug, branding_config)') \
             .eq('invitation_code', invitation_code) \
             .single() \
             .execute()
@@ -518,7 +796,7 @@ def validate_invitation_code(invitation_code):
         # Check if this is a link-based invitation (no specific email required)
         is_link_based = inv['email'].startswith('link-invite-') and inv['email'].endswith('@pending.optio.local')
 
-        return jsonify({
+        response_data = {
             'valid': True,
             'invitation': {
                 'email': '' if is_link_based else inv['email'],  # Don't show placeholder
@@ -527,7 +805,22 @@ def validate_invitation_code(invitation_code):
                 'organization': inv['organizations'],
                 'is_link_based': is_link_based  # Frontend uses this to show email input
             }
-        }), 200
+        }
+
+        # For parent invitations with student_ids, fetch student info
+        metadata = inv.get('metadata') or {}
+        if metadata.get('invitation_type') == 'parent' and metadata.get('student_ids'):
+            student_ids = metadata['student_ids']
+            students_result = supabase.table('users') \
+                .select('id, first_name, last_name') \
+                .in_('id', student_ids) \
+                .eq('organization_id', inv['organization_id']) \
+                .execute()
+
+            response_data['invitation']['students'] = students_result.data or []
+            response_data['invitation']['is_parent_invitation'] = True
+
+        return jsonify(response_data), 200
 
     except Exception as e:
         logger.error(f"Failed to validate invitation code: {e}")
@@ -647,10 +940,19 @@ def accept_invitation(invitation_code):
                 .eq('id', inv['id']) \
                 .execute()
 
+            # Handle parent invitation - auto-create parent-student links
+            linked_students = []
+            metadata = inv.get('metadata') or {}
+            if metadata.get('invitation_type') == 'parent' and metadata.get('student_ids'):
+                linked_students = _create_parent_student_links(
+                    supabase, user['id'], metadata['student_ids'], inv['organization_id']
+                )
+
             return jsonify({
                 'success': True,
                 'message': 'You have been added to the organization',
-                'existing_user': True
+                'existing_user': True,
+                'linked_students': linked_students
             }), 200
 
         # Create new user
@@ -696,7 +998,33 @@ def accept_invitation(invitation_code):
             if date_of_birth:
                 profile_data['date_of_birth'] = date_of_birth
 
-            supabase.table('users').insert(profile_data).execute()
+            # Retry logic for FK constraint errors (auth user may not be immediately visible)
+            max_retries = 3
+            retry_delay = 0.5  # seconds
+            profile_created = False
+
+            for attempt in range(max_retries):
+                try:
+                    supabase.table('users').upsert(profile_data, on_conflict='id').execute()
+                    profile_created = True
+                    break
+                except Exception as profile_error:
+                    error_str = str(profile_error).lower()
+                    if ('foreign key' in error_str or '23503' in error_str) and attempt < max_retries - 1:
+                        # FK constraint error - auth user may not be visible yet, retry
+                        logger.warning(f"Profile creation FK error, retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    elif 'foreign key' in error_str or '23503' in error_str:
+                        # Final attempt failed - auth user doesn't exist
+                        logger.error(f"Profile creation failed after {max_retries} attempts: {profile_error}")
+                        raise Exception("Registration failed. Please try again in a few moments.")
+                    else:
+                        # Re-raise other errors
+                        raise
+
+            if not profile_created:
+                raise Exception("Failed to create user profile. Please try again.")
 
             # Initialize diploma and skills
             from routes.auth.registration import ensure_user_diploma_and_skills
@@ -717,11 +1045,20 @@ def accept_invitation(invitation_code):
                 .eq('id', inv['id']) \
                 .execute()
 
+            # Handle parent invitation - auto-create parent-student links
+            linked_students = []
+            metadata = inv.get('metadata') or {}
+            if metadata.get('invitation_type') == 'parent' and metadata.get('student_ids'):
+                linked_students = _create_parent_student_links(
+                    supabase, user_id, metadata['student_ids'], inv['organization_id']
+                )
+
             return jsonify({
                 'success': True,
                 'message': 'Account created! Please check your email to verify your account before logging in.',
                 'new_user': True,
-                'requires_verification': True
+                'requires_verification': True,
+                'linked_students': linked_students
             }), 201
 
         except Exception as e:

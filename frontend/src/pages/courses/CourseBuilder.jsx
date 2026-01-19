@@ -30,6 +30,7 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import courseService from '../../services/courseService'
+import { useAuth } from '../../contexts/AuthContext'
 import CoursePreview from '../../components/CoursePreview'
 import LessonPreviewModal from '../../components/curriculum/LessonPreviewModal'
 import LessonTaskPanel from '../../components/curriculum/LessonTaskPanel'
@@ -41,10 +42,12 @@ import {
   CourseDetailsModal,
   BulkTaskGenerationModal,
 } from '../../components/course'
+import { AIRefineModal } from '../../components/course/refine'
 
 const CourseBuilder = () => {
   const { id: courseId } = useParams()
   const navigate = useNavigate()
+  const { isSuperadmin } = useAuth()
   const isNewCourse = courseId === 'new' || !courseId
 
   // State
@@ -68,6 +71,7 @@ const CourseBuilder = () => {
   const [previewingLesson, setPreviewingLesson] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showBulkTaskModal, setShowBulkTaskModal] = useState(false)
+  const [showRefineModal, setShowRefineModal] = useState(false)
   const [editingProjectInfo, setEditingProjectInfo] = useState(false)
   const [projectEditData, setProjectEditData] = useState({ title: '', description: '' })
 
@@ -641,6 +645,20 @@ const CourseBuilder = () => {
                 <span className="hidden sm:inline">Generate Tasks</span>
               </button>
 
+              {/* AI Refine button - Superadmin only */}
+              {isSuperadmin && (
+                <button
+                  onClick={() => setShowRefineModal(true)}
+                  disabled={quests.length === 0}
+                  className="flex items-center gap-2 px-3 py-2 text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 rounded-lg transition-opacity text-sm min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="AI Refine course content"
+                  title="Make AI-powered refinements across the entire course"
+                >
+                  <SparklesIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">AI Refine</span>
+                </button>
+              )}
+
               <button
                 onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
                 className="lg:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors min-h-[44px] min-w-[44px]"
@@ -1019,6 +1037,17 @@ const CourseBuilder = () => {
         quests={quests}
         onTasksUpdated={handleTasksUpdated}
       />
+
+      {/* AI Refine Modal - Superadmin only */}
+      {isSuperadmin && (
+        <AIRefineModal
+          isOpen={showRefineModal}
+          onClose={() => setShowRefineModal(false)}
+          courseId={courseId}
+          courseName={course?.title || 'Course'}
+          onRefineComplete={handleTasksUpdated}
+        />
+      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react'
 import api from '../../services/api'
+import CreateUsernameStudentModal from './CreateUsernameStudentModal'
 
 const BulkUserImport = lazy(() => import('../admin/BulkUserImport'))
 const PendingInvitationsList = lazy(() => import('../admin/PendingInvitationsList'))
@@ -18,6 +19,37 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [generatedPassword, setGeneratedPassword] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+
+  // Check if this is a username-based account
+  const isUsernameAccount = user.username && !user.email
+
+  const handleRegeneratePassword = async () => {
+    setResetLoading(true)
+    setError('')
+    setGeneratedPassword('')
+    try {
+      const response = await api.post(`/api/admin/organizations/${orgId}/users/${user.id}/reset-password`, {
+        regenerate: true
+      })
+      // Show the new password from the response
+      if (response.data.new_password) {
+        setGeneratedPassword(response.data.new_password)
+      }
+    } catch (err) {
+      const errorData = err.response?.data?.error || err.response?.data?.message || err.response?.data
+      setError(typeof errorData === 'string' ? errorData : errorData?.message || 'Failed to reset password')
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  const copyPassword = () => {
+    navigator.clipboard.writeText(generatedPassword)
+    alert('Password copied to clipboard!')
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -76,16 +108,71 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
             </div>
           </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Email</label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-              required
-            />
-          </div>
+          {isUsernameAccount ? (
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">Username</label>
+              <div className="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-600">
+                {user.username}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Username cannot be changed</p>
+            </div>
+          ) : (
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">Email</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+                required
+              />
+            </div>
+          )}
+
+          {/* Password Reset Section for username-based accounts */}
+          {isUsernameAccount && (
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-medium">Password</label>
+                {!generatedPassword && (
+                  <button
+                    type="button"
+                    onClick={handleRegeneratePassword}
+                    disabled={resetLoading}
+                    className="text-xs text-optio-purple hover:underline disabled:opacity-50"
+                  >
+                    {resetLoading ? 'Generating...' : 'Generate New Password'}
+                  </button>
+                )}
+              </div>
+              {generatedPassword ? (
+                <div className="space-y-2">
+                  <div className="p-2 bg-green-50 border border-green-200 rounded text-sm">
+                    <p className="text-green-700 font-medium mb-1">New password generated!</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 bg-white px-2 py-1 rounded border text-gray-900 font-mono">
+                        {generatedPassword}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={copyPassword}
+                        className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Share this password with the student. It won't be shown again after closing this modal.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  Click "Generate New Password" to create a new simple password for this student.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1">Organization Role</label>
@@ -147,8 +234,9 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
   )
 }
 
-export default function UsersTab({ orgId, users, onUpdate }) {
+export default function UsersTab({ orgId, orgSlug, users, onUpdate }) {
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showCreateUsernameModal, setShowCreateUsernameModal] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
@@ -292,7 +380,16 @@ export default function UsersTab({ orgId, users, onUpdate }) {
         <>
           <div className="mb-4 flex flex-wrap gap-4 justify-between items-center">
             <h2 className="text-xl font-bold">Organization Users ({filteredUsers.length})</h2>
-            <div className="flex gap-3 items-center">
+            <div className="flex gap-3 items-center flex-wrap">
+              <button
+                onClick={() => setShowCreateUsernameModal(true)}
+                className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-medium rounded-lg hover:opacity-90 inline-flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+                Create Student (No Email)
+              </button>
               {selectedUsers.size > 0 && (
                 <button
                   onClick={handleBulkRemove}
@@ -369,7 +466,18 @@ export default function UsersTab({ orgId, users, onUpdate }) {
                           )
                         })()}
                       </td>
-                      <td className="px-6 py-4 text-gray-600">{user.email}</td>
+                      <td className="px-6 py-4 text-gray-600">
+                        {user.email ? (
+                          user.email
+                        ) : user.username ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">username</span>
+                            {user.username}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 italic">No email</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4">
                         {(() => {
                           // In org context, always show org_role (never show "org_managed")
@@ -485,6 +593,15 @@ export default function UsersTab({ orgId, users, onUpdate }) {
                 setShowEditModal(false)
                 setSelectedUser(null)
               }}
+            />
+          )}
+
+          {showCreateUsernameModal && (
+            <CreateUsernameStudentModal
+              orgId={orgId}
+              orgSlug={orgSlug}
+              onClose={() => setShowCreateUsernameModal(false)}
+              onSuccess={() => onUpdate()}
             />
           )}
         </>

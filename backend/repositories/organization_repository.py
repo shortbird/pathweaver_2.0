@@ -80,13 +80,18 @@ class OrganizationRepository(BaseRepository):
         return response.data[0] if response.data else None
 
     def get_organization_users(self, org_id: str, role: str = None) -> List[Dict[str, Any]]:
-        """Get all users in an organization, optionally filtered by role"""
+        """Get all users in an organization, optionally filtered by role.
+
+        Note: Organization users have role='org_managed' with their actual role in org_role.
+        So filtering by 'student' will filter by org_role='student'.
+        """
         query = self.client.table('users')\
             .select('id, email, display_name, first_name, last_name, role, org_role, is_org_admin, total_xp')\
             .eq('organization_id', org_id)
 
         if role:
-            query = query.eq('role', role)
+            # Organization users have role='org_managed' with actual role in org_role
+            query = query.eq('org_role', role)
 
         response = query.order('first_name').execute()
         return response.data if response.data else []

@@ -177,6 +177,21 @@ export default function AcceptInvitationPage() {
           <p className="text-gray-600 mb-2">
             Your account has been created for <strong>{invitation?.organization?.name}</strong>.
           </p>
+          {invitation?.is_parent_invitation && invitation?.students?.length > 0 && (
+            <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-800 mb-4">
+              <p>
+                You've been connected to:{' '}
+                <strong>
+                  {invitation.students.map((s, i) => (
+                    <span key={s.id}>
+                      {s.first_name} {s.last_name}
+                      {i < invitation.students.length - 1 ? (i === invitation.students.length - 2 ? ' and ' : ', ') : ''}
+                    </span>
+                  ))}
+                </strong>
+              </p>
+            </div>
+          )}
           <p className="text-gray-600 mb-6">
             We've sent a verification link to <strong>{formData.email}</strong>. Please click the link to verify your email before logging in.
           </p>
@@ -227,6 +242,22 @@ export default function AcceptInvitationPage() {
           <p className="text-gray-600">
             You've been invited to join as a <strong>{invitation?.role}</strong>
           </p>
+          {/* Show students for parent invitations */}
+          {invitation?.is_parent_invitation && invitation?.students?.length > 0 && (
+            <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+              <p className="text-sm text-purple-800">
+                You'll be connected to:{' '}
+                <strong>
+                  {invitation.students.map((s, i) => (
+                    <span key={s.id}>
+                      {s.first_name} {s.last_name}
+                      {i < invitation.students.length - 1 ? (i === invitation.students.length - 2 ? ' and ' : ', ') : ''}
+                    </span>
+                  ))}
+                </strong>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Form */}

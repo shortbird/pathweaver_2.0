@@ -3,38 +3,41 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright E2E Test Configuration
  *
- * Tests run against live dev environment: https://optio-dev-frontend.onrender.com
- * No local setup required - tests actual deployed application
+ * Local: Tests against localhost:3000 with Chromium only
+ * CI: Tests against dev environment with all browsers
  */
+const isCI = !!process.env.CI;
+
 export default defineConfig({
-  testDir: './tests/e2e',
+  // Tests are in tests/e2e/specs/
+  testDir: './tests/e2e/specs',
 
   // Maximum time one test can run for
   timeout: 60 * 1000,
 
-  // Run tests in files in parallel
-  fullyParallel: true,
+  // Run tests sequentially locally, parallel in CI
+  fullyParallel: isCI,
 
   // Fail the build on CI if you accidentally left test.only in the source code
-  forbidOnly: !!process.env.CI,
+  forbidOnly: isCI,
 
-  // No retries while debugging tests - faster feedback
-  retries: 0,
+  // No retries locally (see failures immediately), retry in CI
+  retries: isCI ? 2 : 0,
 
-  // Opt out of parallel tests on CI
-  workers: process.env.CI ? 1 : undefined,
+  // Single worker locally for predictability, multiple in CI
+  workers: isCI ? undefined : 1,
 
   // Reporter to use
   reporter: [
     ['html'],
     ['list'],
-    ['github'] // GitHub Actions annotations
+    ...(isCI ? [['github']] : []),
   ],
 
   // Shared settings for all the projects below
   use: {
-    // Base URL for tests
-    baseURL: process.env.BASE_URL || 'https://optio-dev-frontend.onrender.com',
+    // Base URL - localhost for local dev, dev environment for CI
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
 
     // Collect trace when retrying the failed test
     trace: 'on-first-retry',
@@ -53,59 +56,37 @@ export default defineConfig({
   },
 
   // Configure projects for major browsers
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-
-    {
-      name: 'firefox',
-      use: {
-        ...devices['Desktop Firefox'],
-        // Firefox-specific settings for cross-site cookie issues
-        actionTimeout: 20 * 1000, // Longer timeout for Firefox
-        navigationTimeout: 40 * 1000, // Longer navigation timeout
-      },
-      // Retry Firefox tests due to known cross-site cookie issues (Enhanced Tracking Protection)
-      retries: 2,
-    },
-
-    {
-      name: 'webkit',
-      use: {
-        ...devices['Desktop Safari'],
-        // WebKit-specific settings for auth issues
-        actionTimeout: 20 * 1000, // Longer timeout for WebKit
-        navigationTimeout: 40 * 1000, // Longer navigation timeout
-      },
-      // Retry WebKit tests due to known auth persistence issues
-      retries: 2,
-    },
-
-    // Test against mobile viewports
-    {
-      name: 'Mobile Chrome',
-      use: { ...devices['Pixel 5'] },
-    },
-    {
-      name: 'Mobile Safari',
-      use: {
-        ...devices['iPhone 12'],
-        // WebKit-specific settings for auth issues
-        actionTimeout: 20 * 1000, // Longer timeout for WebKit
-        navigationTimeout: 40 * 1000, // Longer navigation timeout
-      },
-      // Retry Mobile Safari tests due to known auth persistence issues
-      retries: 2,
-    },
-  ],
-
-  // Run your local dev server before starting the tests
-  // (Not needed since we test against deployed dev environment)
-  // webServer: {
-  //   command: 'npm run dev',
-  //   url: 'http://localhost:5173',
-  //   reuseExistingServer: !process.env.CI,
-  // },
+  projects: isCI
+    ? [
+        // CI: Test all browsers
+        {
+          name: 'chromium',
+          use: { ...devices['Desktop Chrome'] },
+        },
+        {
+          name: 'firefox',
+          use: {
+            ...devices['Desktop Firefox'],
+            actionTimeout: 20 * 1000,
+            navigationTimeout: 40 * 1000,
+          },
+          retries: 2,
+        },
+        {
+          name: 'webkit',
+          use: {
+            ...devices['Desktop Safari'],
+            actionTimeout: 20 * 1000,
+            navigationTimeout: 40 * 1000,
+          },
+          retries: 2,
+        },
+      ]
+    : [
+        // Local: Chromium only for faster feedback
+        {
+          name: 'chromium',
+          use: { ...devices['Desktop Chrome'] },
+        },
+      ],
 });

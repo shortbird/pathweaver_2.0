@@ -579,6 +579,269 @@ def login():
             )
 
 
+@bp.route('/login/org/<org_slug>', methods=['POST'])
+@rate_limit(max_requests=5, window_seconds=60)  # 5 login attempts per minute
+def org_login(org_slug):
+    """
+    Login endpoint for organization students using username instead of email.
+
+    This endpoint allows students created with username/password (no email) to log in
+    using their organization's specific login URL.
+
+    URL params:
+        org_slug: Organization slug (e.g., 'my-school')
+
+    Request body:
+        username: str - The student's username
+        password: str - The student's password
+
+    Returns:
+        200: Successful login with user data and tokens
+        400: Invalid request
+        401: Invalid credentials
+        404: Organization not found
+        429: Too many attempts / account locked
+    """
+    data = request.json
+
+    # Validate input
+    if not data or not data.get('username') or not data.get('password'):
+        logger.warning(f"Org login attempt with missing username or password for org: {org_slug}")
+        return error_response(
+            code='VALIDATION_ERROR',
+            message='Username and password are required',
+            status=400
+        )
+
+    username = data['username'].strip().lower()
+    password = data['password']
+
+    logger.info(f"Org login attempt for username '{username}' in org '{org_slug}'")
+
+    admin_client = get_supabase_admin_client()
+
+    # Look up organization by slug
+    try:
+        org_result = admin_client.table('organizations')\
+            .select('id, name, slug, is_active')\
+            .eq('slug', org_slug)\
+            .single()\
+            .execute()
+
+        if not org_result.data:
+            logger.warning(f"Org login attempt for non-existent org: {org_slug}")
+            return error_response(
+                code='ORG_NOT_FOUND',
+                message='Organization not found. Please check the login URL.',
+                status=404
+            )
+
+        if not org_result.data.get('is_active', True):
+            logger.warning(f"Org login attempt for inactive org: {org_slug}")
+            return error_response(
+                code='ORG_INACTIVE',
+                message='This organization is no longer active.',
+                status=403
+            )
+
+        org_id = org_result.data['id']
+        org_name = org_result.data['name']
+
+    except Exception as org_error:
+        logger.error(f"Error looking up org {org_slug}: {org_error}")
+        return error_response(
+            code='ORG_LOOKUP_ERROR',
+            message='Unable to verify organization. Please try again.',
+            status=500
+        )
+
+    # Find user by username and organization_id
+    try:
+        user_result = admin_client.table('users')\
+            .select('id, username, first_name, last_name, organization_id')\
+            .eq('organization_id', org_id)\
+            .ilike('username', username)\
+            .single()\
+            .execute()
+
+        if not user_result.data:
+            logger.info(f"Org login: username '{username}' not found in org {org_slug}")
+            return error_response(
+                code='INVALID_CREDENTIALS',
+                message='Invalid username or password. Please check your credentials and try again.',
+                status=401
+            )
+
+        user_id = user_result.data['id']
+
+    except Exception as user_error:
+        error_str = str(user_error)
+        if 'rows' in error_str or 'single' in error_str or 'multiple' in error_str:
+            # User not found
+            logger.info(f"Org login: username '{username}' not found in org {org_slug}")
+            return error_response(
+                code='INVALID_CREDENTIALS',
+                message='Invalid username or password. Please check your credentials and try again.',
+                status=401
+            )
+        logger.error(f"Error looking up user by username: {user_error}")
+        return error_response(
+            code='USER_LOOKUP_ERROR',
+            message='Unable to verify credentials. Please try again.',
+            status=500
+        )
+
+    # Get the placeholder email from Supabase Auth for this user
+    try:
+        auth_user = admin_client.auth.admin.get_user_by_id(user_id)
+        if not auth_user or not auth_user.user:
+            logger.error(f"Org login: auth user not found for user_id {user_id}")
+            return error_response(
+                code='AUTH_ERROR',
+                message='Authentication failed. Please contact support.',
+                status=500
+            )
+
+        placeholder_email = auth_user.user.email
+
+    except Exception as auth_error:
+        logger.error(f"Error getting auth user for {user_id}: {auth_error}")
+        return error_response(
+            code='AUTH_ERROR',
+            message='Authentication failed. Please try again.',
+            status=500
+        )
+
+    # Check if account is locked
+    is_locked, retry_after, attempt_count = check_account_lockout(placeholder_email)
+    if is_locked:
+        minutes_remaining = retry_after // 60
+        logger.warning(f"Org login blocked for locked account: {username} in {org_slug}")
+        return error_response(
+            code='ACCOUNT_LOCKED',
+            message=f'Account temporarily locked due to too many failed login attempts. Please try again in {minutes_remaining} minutes or contact your administrator.',
+            details={'retry_after': retry_after, 'locked': True},
+            status=429
+        )
+
+    # Attempt to sign in with Supabase using the placeholder email
+    try:
+        supabase = get_supabase_client()
+        auth_response = supabase.auth.sign_in_with_password({
+            'email': placeholder_email,
+            'password': password
+        })
+
+        if auth_response.user and auth_response.session:
+            # Fetch full user data
+            user_data = admin_client.table('users').select('*').eq('id', auth_response.user.id).single().execute()
+
+            if not user_data.data:
+                logger.error(f"Org login: user profile not found after auth for {user_id}")
+                return error_response(
+                    code='USER_NOT_FOUND',
+                    message='User profile not found',
+                    status=404
+                )
+
+            user_response_data = user_data.data
+
+            # Reset login attempts after successful login
+            reset_login_attempts(placeholder_email)
+
+            # Log successful login
+            logger.info(f"Successful org login for {username} in {org_slug} (user_id: {mask_user_id(auth_response.user.id)})")
+
+            # Update last_active timestamp
+            try:
+                admin_client.table('users').update({
+                    'last_active': datetime.utcnow().isoformat()
+                }).eq('id', auth_response.user.id).execute()
+            except Exception as update_error:
+                logger.error(f"Warning: Failed to update last_active timestamp: {update_error}")
+
+            # Ensure user has diploma and skills initialized
+            try:
+                ensure_user_diploma_and_skills(
+                    admin_client,
+                    auth_response.user.id,
+                    user_response_data.get('first_name', 'User'),
+                    user_response_data.get('last_name', '')
+                )
+            except Exception as diploma_error:
+                logger.error(f"Non-critical: Failed to ensure diploma/skills during org login: {diploma_error}")
+
+            # Generate app tokens for Authorization header usage
+            app_access_token = session_manager.generate_access_token(auth_response.user.id)
+            app_refresh_token = session_manager.generate_refresh_token(auth_response.user.id)
+
+            # Return user data and tokens
+            response_data = {
+                'user': user_response_data,
+                'app_access_token': app_access_token,
+                'app_refresh_token': app_refresh_token,
+                'organization': {
+                    'id': org_id,
+                    'name': org_name,
+                    'slug': org_slug
+                }
+            }
+            response = make_response(jsonify(response_data), 200)
+
+            # Set httpOnly cookies for authentication
+            session_manager.set_auth_cookies(response, auth_response.user.id)
+
+            return response
+        else:
+            logger.warning(f"Org login failed for {username} in {org_slug} - auth_response.user is None")
+            return error_response(
+                code='INVALID_CREDENTIALS',
+                message='Invalid username or password. Please check your credentials and try again.',
+                status=401
+            )
+
+    except Exception as e:
+        error_message = str(e)
+        logger.error(f"Org login error for {username} in {org_slug}: {error_message}")
+
+        error_lower = error_message.lower()
+
+        if "invalid login credentials" in error_lower or "invalid credentials" in error_lower:
+            # Record failed login attempt
+            is_now_locked, attempts_remaining, lockout_minutes = record_failed_login(placeholder_email)
+
+            if is_now_locked:
+                logger.warning(f"Account locked for {username} in {org_slug} after too many failed attempts")
+                return error_response(
+                    code='ACCOUNT_LOCKED',
+                    message=f'Too many failed login attempts. Your account has been temporarily locked for {lockout_minutes} minutes. Please contact your administrator.',
+                    details={'locked': True, 'lockout_duration': lockout_minutes},
+                    status=429
+                )
+            else:
+                if attempts_remaining <= 2:
+                    return error_response(
+                        code='INVALID_CREDENTIALS',
+                        message=f'Invalid username or password. You have {attempts_remaining} {"attempt" if attempts_remaining == 1 else "attempts"} remaining before your account is temporarily locked.',
+                        details={'attempts_remaining': attempts_remaining, 'warning': True},
+                        status=401
+                    )
+                else:
+                    return error_response(
+                        code='INVALID_CREDENTIALS',
+                        message=f'Invalid username or password. Please check your credentials and try again. ({attempts_remaining} {"attempt" if attempts_remaining == 1 else "attempts"} remaining)',
+                        details={'attempts_remaining': attempts_remaining},
+                        status=401
+                    )
+        else:
+            return error_response(
+                code='LOGIN_ERROR',
+                message='Login failed. Please check your username and password and try again.',
+                details={'generic_error': True},
+                status=400
+            )
+
+
 @bp.route('/logout', methods=['POST'])
 def logout():
     # Always clear cookies even if token is invalid or missing

@@ -140,6 +140,7 @@ export default function OrganizationManagement() {
       {activeTab === 'users' && (
         <UsersTab
           orgId={orgId}
+          orgSlug={orgData.organization?.slug}
           users={orgData.users}
           onUpdate={fetchOrganizationData}
         />

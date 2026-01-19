@@ -124,6 +124,29 @@ emails:
     signature: "team"
     footer_extra: "If you weren't expecting this invitation, you can safely ignore this email."
 
+  org_parent_invitation:
+    subject: "{{ org_name }} invites you to connect with {{ student_names }} on Optio"
+    title: "Connect with Your Student on Optio"
+    greeting: "Hi {{ invited_name }},"
+    paragraphs:
+      - "{{ inviter_name }} from {{ org_name }} has invited you to join Optio as a parent and connect with your student."
+      - "Optio is a learning platform where students explore their interests through self-directed quests, build real-world skills, and create portfolios showcasing their growth. As a parent, you'll have visibility into their learning journey."
+    highlight_box:
+      title: "You'll be connected to:"
+      content: "{{ student_names }}"
+    bullet_points:
+      - "View your student's active quests and progress"
+      - "See their completed work and achievements"
+      - "Track their skill development across 5 pillars"
+      - "Support their learning journey"
+    cta:
+      text: "Accept Invitation"
+      url: "{{ invitation_link }}"
+    link_fallback: "If the button doesn't work, copy and paste this link into your browser:"
+    closing_paragraph: "This invitation will expire in {{ expires_days }} days. Click the button above to create your parent account and connect with your student!"
+    signature: "team"
+    footer_extra: "If you weren't expecting this invitation, you can safely ignore this email."
+
   promo_welcome:
     subject: "Welcome to Optio! Let's Chat About Your Teen's Future"
     title: "Welcome to Optio! Let's Chat About Your Teen's Future"

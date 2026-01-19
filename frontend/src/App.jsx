@@ -26,6 +26,7 @@ import Layout from './components/Layout'
 import ScrollToTop from './components/ScrollToTop'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
+import OrgLoginPage from './pages/auth/OrgLoginPage'
 import RegisterPage from './pages/RegisterPage'
 import OrganizationSignup from './pages/auth/OrganizationSignup'
 import PrivateRoute from './components/PrivateRoute'
@@ -345,6 +346,7 @@ function App() {
                 <Route path="services" element={<ServicesPage />} />
                 <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />
                 <Route path="login" element={<LoginPage />} />
+                <Route path="login/:slug" element={<OrgLoginPage />} />
                 <Route path="register" element={<RegisterPage />} />
                 <Route path="join/:slug" element={<OrganizationSignup />} />
                 <Route path="forgot-password" element={<ForgotPasswordPage />} />

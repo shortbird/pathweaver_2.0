@@ -186,6 +186,78 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  /**
+   * Login with username for organization students without email.
+   * Uses org-specific login endpoint: POST /api/auth/login/org/:slug
+   */
+  const loginWithUsername = async (orgSlug, username, password) => {
+    try {
+      const response = await api.post(`/api/auth/login/org/${orgSlug}`, { username, password })
+      const { user: loginUser, app_access_token, app_refresh_token, organization } = response.data
+
+      // Store app tokens in encrypted IndexedDB for Authorization headers
+      if (app_access_token && app_refresh_token) {
+        await tokenStore.setTokens(app_access_token, app_refresh_token)
+      }
+
+      setSession({ authenticated: true })
+      setLoginTimestamp(Date.now())
+
+      // Update React Query cache with fresh user data
+      queryClient.setQueryData(queryKeys.user.profile('current'), loginUser)
+
+      // Check if user is new (created within the last 5 minutes)
+      const createdAt = new Date(loginUser.created_at)
+      const now = new Date()
+      const timeDiff = now - createdAt
+      const isNewUser = timeDiff < 5 * 60 * 1000
+
+      if (isNewUser) {
+        toast.success(`Welcome to Optio, ${loginUser.first_name}!`)
+      } else {
+        toast.success('Welcome back!')
+      }
+
+      // Redirect based on user role
+      const redirectPath = loginUser.role === 'parent' ? '/parent/dashboard'
+        : loginUser.role === 'observer' ? '/observer/feed'
+        : '/dashboard'
+      navigate(redirectPath)
+
+      return { success: true, organization }
+    } catch (error) {
+      let message = 'Login failed. Please check your username and password and try again.'
+
+      if (error.response?.data?.error) {
+        if (typeof error.response.data.error === 'string') {
+          message = error.response.data.error
+        } else if (error.response.data.error.message) {
+          message = error.response.data.error.message
+        }
+      } else if (error.response?.status === 429) {
+        message = 'Too many login attempts. Please wait a moment before trying again.'
+      } else if (error.response?.status === 401) {
+        message = 'Invalid username or password. Please check your credentials and try again.'
+      } else if (error.response?.status === 404) {
+        message = 'Organization not found. Please check the login URL.'
+      } else if (!error.response) {
+        message = 'Connection error. Please check your internet connection and try again.'
+      }
+
+      console.error('Org login error:', {
+        status: error.response?.status,
+        message: message,
+        originalError: error.response?.data
+      })
+
+      if (error.response?.status >= 500) {
+        toast.error(message)
+      }
+
+      return { success: false, error: message }
+    }
+  }
+
   const register = async (userData) => {
     try {
       
@@ -374,6 +446,7 @@ export const AuthProvider = ({ children }) => {
     session,
     loading: loading || userLoading,
     login,
+    loginWithUsername,
     register,
     logout,
     refreshToken,

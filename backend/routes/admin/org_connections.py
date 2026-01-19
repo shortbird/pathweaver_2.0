@@ -24,10 +24,11 @@ def get_org_advisors(current_user_id, current_org_id, is_superadmin, org_id):
 
     try:
         # Get all users with advisor or org_admin role in this organization
+        # Note: Org users have role='org_managed' with actual role in org_role
         advisors = supabase.table('users')\
-            .select('id, display_name, first_name, last_name, email, role, created_at')\
+            .select('id, display_name, first_name, last_name, email, role, org_role, created_at')\
             .eq('organization_id', org_id)\
-            .in_('role', ['advisor', 'org_admin'])\
+            .in_('org_role', ['advisor', 'org_admin'])\
             .order('display_name')\
             .execute()
 
@@ -35,7 +36,7 @@ def get_org_advisors(current_user_id, current_org_id, is_superadmin, org_id):
         org_students = supabase.table('users')\
             .select('id')\
             .eq('organization_id', org_id)\
-            .eq('role', 'student')\
+            .eq('org_role', 'student')\
             .execute()
 
         org_student_ids = [s['id'] for s in org_students.data]
@@ -60,6 +61,8 @@ def get_org_advisors(current_user_id, current_org_id, is_superadmin, org_id):
         for advisor in advisors.data:
             advisor_list.append({
                 **advisor,
+                # Map org_role to role for frontend compatibility
+                'role': advisor.get('org_role', advisor.get('role')),
                 'assigned_students_count': assignment_counts.get(advisor['id'], 0)
             })
 
@@ -94,11 +97,11 @@ def get_org_advisor_students(current_user_id, current_org_id, is_superadmin, org
         if advisor.data.get('organization_id') != org_id and not is_superadmin:
             return jsonify({'success': False, 'error': 'Advisor not in this organization'}), 403
 
-        # Get org students
+        # Get org students (org users have role='org_managed', actual role in org_role)
         org_students = supabase.table('users')\
             .select('id')\
             .eq('organization_id', org_id)\
-            .eq('role', 'student')\
+            .eq('org_role', 'student')\
             .execute()
 
         org_student_ids = [s['id'] for s in org_students.data]
@@ -307,11 +310,11 @@ def get_org_unassigned_students(current_user_id, current_org_id, is_superadmin, 
     supabase = get_supabase_admin_client()
 
     try:
-        # Get all students in this org
+        # Get all students in this org (org users have role='org_managed', actual role in org_role)
         all_students = supabase.table('users')\
             .select('id, display_name, first_name, last_name, email')\
             .eq('organization_id', org_id)\
-            .eq('role', 'student')\
+            .eq('org_role', 'student')\
             .order('display_name')\
             .execute()
 
@@ -357,11 +360,11 @@ def get_org_parent_links(current_user_id, current_org_id, is_superadmin, org_id)
     supabase = get_supabase_admin_client()
 
     try:
-        # Get all students in this org
+        # Get all students in this org (org users have role='org_managed', actual role in org_role)
         org_students = supabase.table('users')\
             .select('id')\
             .eq('organization_id', org_id)\
-            .eq('role', 'student')\
+            .eq('org_role', 'student')\
             .execute()
 
         student_ids = [s['id'] for s in org_students.data]
