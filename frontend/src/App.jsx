@@ -336,6 +336,13 @@ function App() {
           />
           <Suspense fallback={<PageLoader />}>
             <Routes>
+              {/* Observer routes - full-screen without main navigation (for observer-role only)
+                  MUST be before Layout routes to take precedence for observer users */}
+              <Route element={<PrivateRoute requiredRole="observer" />}>
+                <Route path="observer/welcome" element={<ObserverWelcomePage />} />
+                <Route path="observer/feed" element={<ObserverFeedPage />} />
+              </Route>
+
               <Route path="/" element={<Layout />}>
                 <Route index element={<HomePage />} />
                 <Route path="promo" element={<PromoLandingPage />} />
@@ -425,13 +432,6 @@ function App() {
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-
-            {/* Observer routes - full-screen without main navigation (for observer-role only)
-                Users with other roles access /observer/feed via the Layout-wrapped route above */}
-            <Route element={<PrivateRoute requiredRole="observer" />}>
-              <Route path="observer/welcome" element={<ObserverWelcomePage />} />
-              <Route path="observer/feed" element={<ObserverFeedPage />} />
             </Route>
 
             {/* Full-screen diploma routes (no Layout wrapper) */}

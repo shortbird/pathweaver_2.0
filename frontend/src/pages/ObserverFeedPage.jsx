@@ -22,6 +22,7 @@ export default function ObserverFeedPage() {
   const [siteSettings, setSiteSettings] = useState(null);
   const retryCountRef = useRef(0);
   const freshInvitation = location.state?.freshInvitation;
+  const wasFreshInvitationRef = useRef(freshInvitation); // Store in ref for retry logic
 
   // Fetch site settings for logo
   useEffect(() => {
@@ -49,10 +50,17 @@ export default function ObserverFeedPage() {
   const loadMoreRef = useRef(null);
 
   useEffect(() => {
-    fetchMyStudents();
-    // Clear the freshInvitation state from history to prevent re-triggering on back navigation
+    // If coming from a fresh invitation, add initial delay to allow DB commit to complete
     if (freshInvitation) {
+      console.log('[ObserverFeedPage] Fresh invitation detected, delaying initial fetch');
+      const timer = setTimeout(() => {
+        fetchMyStudents();
+      }, 800); // Give DB time to commit the observer_student_link
+      // Clear the freshInvitation state from history to prevent re-triggering on back navigation
       window.history.replaceState({}, document.title);
+      return () => clearTimeout(timer);
+    } else {
+      fetchMyStudents();
     }
   }, []);
 
@@ -64,10 +72,10 @@ export default function ObserverFeedPage() {
 
       // If coming from fresh invitation and no students found, retry a few times
       // This handles race condition where DB write hasn't completed yet
-      if (fetchedStudents.length === 0 && freshInvitation && retryCountRef.current < 3) {
+      if (fetchedStudents.length === 0 && wasFreshInvitationRef.current && retryCountRef.current < 3) {
         retryCountRef.current += 1;
         console.log(`[ObserverFeedPage] No students found after fresh invitation, retry ${retryCountRef.current}/3`);
-        setTimeout(() => fetchMyStudents(true), 500 * retryCountRef.current); // Progressive backoff
+        setTimeout(() => fetchMyStudents(true), 800 * retryCountRef.current); // Progressive backoff
         return;
       }
 
