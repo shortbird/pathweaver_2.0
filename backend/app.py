@@ -412,6 +412,24 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Error registering Learning Events routes: {e}", exc_info=True)
 
+# Register Interest Tracks blueprint (Learning Moments 2.0 - organizational tracks)
+try:
+    from routes.interest_tracks import interest_tracks_bp
+    app.register_blueprint(interest_tracks_bp)  # /api/interest-tracks
+except ImportError as e:
+    logger.warning(f"Warning: Interest Tracks module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Interest Tracks routes: {e}", exc_info=True)
+
+# Register Quest Conversion blueprint (Learning Moments 2.0 - graduation to quests)
+try:
+    from routes.quest_conversion import quest_conversion_bp
+    app.register_blueprint(quest_conversion_bp)  # /api/quest-conversions
+except ImportError as e:
+    logger.warning(f"Warning: Quest Conversion module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Quest Conversion routes: {e}", exc_info=True)
+
 # Register Parent Dashboard blueprints (refactored from parent_dashboard.py mega-file to 4 modules - P2-ARCH-1)
 try:
     from routes import parent_linking

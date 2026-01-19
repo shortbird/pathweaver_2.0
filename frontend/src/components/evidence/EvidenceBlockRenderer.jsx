@@ -69,7 +69,7 @@ const normalizeItems = (content, type) => {
     return [{ url: content.url, title: content.title || '', description: content.description || '' }];
   }
   if (type === 'document' && content.url) {
-    return [{ url: content.url, title: content.title || '', filename: content.filename || '' }];
+    return [{ url: content.url, title: content.title || '', filename: content.filename || '', description: content.description || '' }];
   }
   return [];
 };
@@ -233,37 +233,43 @@ export const EvidenceBlockRenderer = ({
 
     return (
       <div className="space-y-4">
-        {/* Image Grid */}
+        {/* Image List with Descriptions */}
         {items.length > 0 && (
-          <ResponsiveGrid cols={{ mobile: 2, tablet: 3, desktop: 3 }} gap="gap-4">
+          <div className="space-y-4">
             {items.map((item, itemIndex) => (
-              <div key={itemIndex} className="relative group">
-                <img
-                  src={item.url}
-                  alt={item.alt || `Image ${itemIndex + 1}`}
-                  className="w-full h-40 object-cover rounded-lg border border-gray-200"
-                />
-                <TouchActionGroup className="absolute top-2 right-2">
-                  <button
-                    onClick={() => removeItem(itemIndex)}
-                    className="min-h-[44px] min-w-[44px] p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg touch-manipulation"
-                    title="Remove image"
-                    aria-label={`Remove image ${itemIndex + 1}`}
-                  >
-                    <XMarkIcon className="w-5 h-5" />
-                  </button>
-                </TouchActionGroup>
-                {/* Caption input */}
-                <input
-                  type="text"
-                  value={item.caption || ''}
-                  onChange={(e) => updateItem(itemIndex, { caption: e.target.value })}
-                  className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-black/60 text-white text-xs rounded-b-lg focus:outline-none"
-                  placeholder="Add caption..."
-                />
+              <div key={itemIndex} className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+                {/* Image Preview */}
+                <div className="relative">
+                  <img
+                    src={item.url}
+                    alt={item.alt || `Image ${itemIndex + 1}`}
+                    className="w-full h-48 object-cover"
+                  />
+                  <TouchActionGroup className="absolute top-2 right-2">
+                    <button
+                      onClick={() => removeItem(itemIndex)}
+                      className="min-h-[44px] min-w-[44px] p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg touch-manipulation"
+                      title="Remove image"
+                      aria-label={`Remove image ${itemIndex + 1}`}
+                    >
+                      <XMarkIcon className="w-5 h-5" />
+                    </button>
+                  </TouchActionGroup>
+                </div>
+                {/* Description input below image */}
+                <div className="p-3 bg-blue-50 border-t-2 border-blue-300">
+                  <label className="block text-xs font-semibold text-blue-700 mb-1">Description (optional)</label>
+                  <textarea
+                    value={item.caption || ''}
+                    onChange={(e) => updateItem(itemIndex, { caption: e.target.value })}
+                    className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent text-sm resize-none bg-white"
+                    rows={2}
+                    placeholder="Add a description for this image..."
+                  />
+                </div>
               </div>
             ))}
-          </ResponsiveGrid>
+          </div>
         )}
 
         {/* Upload Area */}
@@ -424,7 +430,8 @@ export const EvidenceBlockRenderer = ({
           addItem({
             url: fileInfo.localUrl,
             filename: file.name,
-            title: file.name
+            title: file.name,
+            description: ''
           });
         } catch (err) {
           toast.error(`Failed to upload ${file.name}`);
@@ -437,29 +444,42 @@ export const EvidenceBlockRenderer = ({
       <div className="space-y-4">
         {/* Document List */}
         {items.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {items.map((item, itemIndex) => (
-              <div key={itemIndex} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <DocumentIcon className="w-6 h-6 text-gray-500 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <input
-                      type="text"
-                      value={item.title || ''}
-                      onChange={(e) => updateItem(itemIndex, { title: e.target.value })}
-                      className="w-full px-2 py-1 text-sm font-medium text-gray-900 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-optio-purple focus:outline-none"
-                      placeholder="Document title"
-                    />
-                    <p className="text-xs text-gray-500 truncate">{item.filename}</p>
+              <div key={itemIndex} className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+                {/* Document header */}
+                <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-white">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <DocumentIcon className="w-6 h-6 text-gray-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <input
+                        type="text"
+                        value={item.title || ''}
+                        onChange={(e) => updateItem(itemIndex, { title: e.target.value })}
+                        className="w-full px-2 py-1 text-sm font-medium text-gray-900 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-optio-purple focus:outline-none"
+                        placeholder="Document title"
+                      />
+                      <p className="text-xs text-gray-500 truncate px-2">{item.filename}</p>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => removeItem(itemIndex)}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors ml-2"
+                    title="Remove document"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => removeItem(itemIndex)}
-                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors ml-2"
-                  title="Remove document"
-                >
-                  <TrashIcon className="w-4 h-4" />
-                </button>
+                {/* Description input */}
+                <div className="p-3">
+                  <textarea
+                    value={item.description || ''}
+                    onChange={(e) => updateItem(itemIndex, { description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent text-sm resize-none"
+                    rows={2}
+                    placeholder="Add a description for this document (optional)..."
+                  />
+                </div>
               </div>
             ))}
           </div>

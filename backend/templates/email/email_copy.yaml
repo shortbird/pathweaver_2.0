@@ -107,20 +107,11 @@ emails:
     title: "You're Invited to Join {{ org_name }}"
     greeting: "Hi {{ invited_name }},"
     paragraphs:
-      - "{{ inviter_name }} has invited you to join <strong>{{ org_name }}</strong> on Optio as a <strong>{{ role }}</strong>."
-      - "Optio is a learning platform where students explore their interests through self-directed quests, build real-world skills, and create personalized portfolios that showcase their growth."
-    highlight_box:
-      title: "What you'll be able to do:"
-      bullet_points:
-        - "Access curated quests designed by your organization"
-        - "Track your learning progress across skill categories"
-        - "Build a portfolio showcasing your work"
-        - "Connect with other learners in your organization"
+      - "{{ inviter_name }} has invited you to join <strong>{{ org_name }}</strong> on Optio as {{ role_with_article }}. Click the button below to join."
     cta:
       text: "Accept Invitation"
       url: "{{ invitation_link }}"
     link_fallback: "If the button doesn't work, copy and paste this link into your browser:"
-    closing_paragraph: "This invitation will expire in {{ expires_days }} days. Click the button above to create your account and get started!"
     signature: "team"
     footer_extra: "If you weren't expecting this invitation, you can safely ignore this email."
 

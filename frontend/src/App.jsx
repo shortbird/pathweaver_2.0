@@ -46,6 +46,7 @@ const ServicesPage = lazy(() => import('./pages/ServicesPage'))
 const DemoPage = lazy(() => import('./pages/DemoPage'))
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const LearningJournalPage = lazy(() => import('./pages/LearningJournalPage'))
 const TermsOfService = lazy(() => import('./pages/TermsOfService'))
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
 const OptioAcademyAgreement = lazy(() => import('./pages/OptioAcademyAgreement'))
@@ -336,11 +337,17 @@ function App() {
           />
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              {/* Observer routes - full-screen without main navigation (for observer-role only)
-                  MUST be before Layout routes to take precedence for observer users */}
-              <Route element={<PrivateRoute requiredRole="observer" />}>
+              {/* Observer routes - full-screen without main navigation
+                  Accessible to observer-role users AND parents/advisors/superadmin who may have observer access
+                  The ObserverFeedPage handles conditional rendering based on user role */}
+              <Route element={<PrivateRoute requiredRole={['observer', 'parent', 'advisor', 'superadmin']} />}>
                 <Route path="observer/welcome" element={<ObserverWelcomePage />} />
                 <Route path="observer/feed" element={<ObserverFeedPage />} />
+              </Route>
+
+              {/* Learning Journal - full-screen experience for all authenticated users */}
+              <Route element={<PrivateRoute />}>
+                <Route path="learning-journal" element={<LearningJournalPage />} />
               </Route>
 
               <Route path="/" element={<Layout />}>

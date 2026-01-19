@@ -91,6 +91,7 @@ export default function AuthCallback() {
 
   /**
    * Handle pending observer invitation after authentication
+   * Returns true if invitation was accepted, false otherwise
    */
   const handlePendingObserverInvitation = async () => {
     const pendingInvitation = localStorage.getItem('pendingObserverInvitation')
@@ -100,11 +101,14 @@ export default function AuthCallback() {
         await observerAPI.acceptInvitation(pendingInvitation, {})
         localStorage.removeItem('pendingObserverInvitation')
         console.log('[AuthCallback] Observer invitation accepted')
+        return true
       } catch (err) {
         console.error('[AuthCallback] Failed to accept observer invitation:', err)
+        localStorage.removeItem('pendingObserverInvitation')
         // Don't block auth if invitation acceptance fails
       }
     }
+    return false
   }
 
   /**
@@ -126,15 +130,20 @@ export default function AuthCallback() {
         }
 
         // Handle any pending observer invitation
-        await handlePendingObserverInvitation()
+        const invitationAccepted = await handlePendingObserverInvitation()
 
         setStatus('success')
 
         // Determine redirect path based on user role
         const user = result.user
-        const redirectPath = user?.role === 'parent' ? '/parent/dashboard'
+        let redirectPath = user?.role === 'parent' ? '/parent/dashboard'
           : user?.role === 'observer' ? '/observer/feed'
           : '/dashboard'
+
+        // Add fresh param if invitation was just accepted (for observer feed retry logic)
+        if (invitationAccepted && redirectPath.includes('observer')) {
+          redirectPath += '?fresh=1'
+        }
 
         // Force full page reload to ensure AuthContext is updated
         window.location.href = redirectPath
@@ -169,15 +178,20 @@ export default function AuthCallback() {
         setShowTosModal(false)
 
         // Handle any pending observer invitation
-        await handlePendingObserverInvitation()
+        const invitationAccepted = await handlePendingObserverInvitation()
 
         setStatus('success')
 
         // Determine redirect path based on user role
         const user = result.user
-        const redirectPath = user?.role === 'parent' ? '/parent/dashboard'
+        let redirectPath = user?.role === 'parent' ? '/parent/dashboard'
           : user?.role === 'observer' ? '/observer/feed'
           : '/dashboard'
+
+        // Add fresh param if invitation was just accepted (for observer feed retry logic)
+        if (invitationAccepted && redirectPath.includes('observer')) {
+          redirectPath += '?fresh=1'
+        }
 
         // Force full page reload to ensure AuthContext is updated
         window.location.href = redirectPath

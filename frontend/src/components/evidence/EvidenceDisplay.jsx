@@ -49,7 +49,7 @@ const normalizeItems = (content, type) => {
     return [{ url: content.url, title: content.title || '', description: content.description || '' }];
   }
   if (type === 'document' && content?.url) {
-    return [{ url: content.url, title: content.title || '', filename: content.filename || '' }];
+    return [{ url: content.url, title: content.title || '', filename: content.filename || '', description: content.description || '' }];
   }
   return [];
 };
@@ -307,32 +307,39 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
     return (
       <div className="space-y-2">
         {items.map((item, index) => (
-          <div key={index} className="flex items-center gap-2 group/item">
-            <a
-              href={item.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-400 transition-colors"
-            >
-              <DocumentIcon className="w-5 h-5 text-gray-500 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <span className="block text-sm font-medium text-gray-700 truncate" style={{ fontFamily: 'Poppins' }}>
-                  {item.title || item.filename || 'Document'}
-                </span>
-                {item.filename && item.title !== item.filename && (
-                  <span className="text-xs text-gray-400 truncate">{item.filename}</span>
-                )}
-              </div>
-              <ArrowTopRightOnSquareIcon className="w-4 h-4 text-gray-400" />
-            </a>
-            {onDeleteItem && (
-              <button
-                onClick={() => handleDeleteItem(index)}
-                className="p-1.5 text-gray-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
-                title="Remove document"
+          <div key={index} className="group/item">
+            <div className="flex items-center gap-2">
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-400 transition-colors"
               >
-                <TrashIcon className="w-4 h-4" />
-              </button>
+                <DocumentIcon className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="block text-sm font-medium text-gray-700 truncate" style={{ fontFamily: 'Poppins' }}>
+                    {item.title || item.filename || 'Document'}
+                  </span>
+                  {item.filename && item.title !== item.filename && (
+                    <span className="text-xs text-gray-400 truncate">{item.filename}</span>
+                  )}
+                </div>
+                <ArrowTopRightOnSquareIcon className="w-4 h-4 text-gray-400" />
+              </a>
+              {onDeleteItem && (
+                <button
+                  onClick={() => handleDeleteItem(index)}
+                  className="p-1.5 text-gray-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  title="Remove document"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {item.description && (
+              <p className="mt-2 ml-8 text-sm text-gray-600" style={{ fontFamily: 'Poppins' }}>
+                {item.description}
+              </p>
             )}
           </div>
         ))}

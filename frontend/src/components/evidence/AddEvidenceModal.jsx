@@ -254,22 +254,36 @@ const AddEvidenceModal = ({ isOpen, onClose, onSave, onUpdate, editingBlock = nu
   // Render image upload
   const renderImageUpload = () => (
     <div className="space-y-4">
-      {/* Uploaded images grid */}
+      {/* Uploaded images with description */}
       {currentItem?.content.items?.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="space-y-4">
           {currentItem.content.items.map((item, index) => (
-            <div key={index} className="relative group">
-              <img
-                src={item.url}
-                alt={item.filename || `Image ${index + 1}`}
-                className="w-full h-24 object-cover rounded-lg border border-gray-200"
-              />
-              <button
-                onClick={() => handleRemoveCurrentItem(index)}
-                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <XMarkIcon className="w-3 h-3" />
-              </button>
+            <div key={index} className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+              {/* Image preview */}
+              <div className="relative">
+                <img
+                  src={item.url}
+                  alt={item.filename || `Image ${index + 1}`}
+                  className="w-full h-40 object-cover"
+                />
+                <button
+                  onClick={() => handleRemoveCurrentItem(index)}
+                  className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
+                >
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </div>
+              {/* Description input */}
+              <div className="p-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Description (optional)</label>
+                <textarea
+                  value={item.caption || ''}
+                  onChange={(e) => handleUpdateUrlItem(index, 'caption', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent text-sm resize-none"
+                  rows={2}
+                  placeholder="Add a description for this image..."
+                />
+              </div>
             </div>
           ))}
         </div>
@@ -385,23 +399,37 @@ const AddEvidenceModal = ({ isOpen, onClose, onSave, onUpdate, editingBlock = nu
   // Render document upload
   const renderDocumentUpload = () => (
     <div className="space-y-4">
-      {/* Uploaded documents */}
+      {/* Uploaded documents with description */}
       {currentItem?.content.items?.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {currentItem.content.items.map((item, index) => (
-            <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="flex items-center gap-3">
-                <DocumentIcon className="w-6 h-6 text-gray-500" />
-                <span className="text-sm font-medium text-gray-700 truncate max-w-xs">
-                  {item.filename}
-                </span>
+            <div key={index} className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+              {/* Document header */}
+              <div className="flex items-center justify-between p-3 bg-white border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <DocumentIcon className="w-6 h-6 text-gray-500" />
+                  <span className="text-sm font-medium text-gray-700 truncate max-w-xs">
+                    {item.filename}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleRemoveCurrentItem(index)}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                onClick={() => handleRemoveCurrentItem(index)}
-                className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-              >
-                <TrashIcon className="w-4 h-4" />
-              </button>
+              {/* Description input */}
+              <div className="p-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Description (optional)</label>
+                <textarea
+                  value={item.description || ''}
+                  onChange={(e) => handleUpdateUrlItem(index, 'description', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent text-sm resize-none"
+                  rows={2}
+                  placeholder="Add a description for this document..."
+                />
+              </div>
             </div>
           ))}
         </div>

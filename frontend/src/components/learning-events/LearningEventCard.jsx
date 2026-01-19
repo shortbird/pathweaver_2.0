@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { CalendarIcon } from '@heroicons/react/24/outline';
 import LearningEventDetailModal from './LearningEventDetailModal';
 
-const LearningEventCard = ({ event }) => {
+const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned }) => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const pillarConfig = {
     'stem_logic': { name: 'STEM & Logic', icon: '🔬', color: 'from-blue-500 to-cyan-500', bg: 'bg-blue-50', text: 'text-blue-700' },
@@ -75,6 +75,7 @@ const LearningEventCard = ({ event }) => {
         event={event}
         isOpen={showDetailModal}
         onClose={() => setShowDetailModal(false)}
+        onUpdate={onUpdate || onTrackAssigned}
       />
     </>
   );

@@ -387,7 +387,23 @@ export const observerAPI = {
     if (params.cursor) queryParams.append('cursor', params.cursor);
     const queryString = queryParams.toString();
     return api.get(`/api/observers/student/${studentId}/activity${queryString ? `?${queryString}` : ''}`);
-  }
+  },
+
+  // Family observer endpoints (parent manages observers across all children)
+  familyInvite: (studentIds, relationship = 'other') =>
+    api.post('/api/observers/family-invite', { student_ids: studentIds, relationship }),
+
+  getFamilyObservers: () =>
+    api.get('/api/observers/family-observers'),
+
+  toggleChildAccess: (observerId, studentId, enabled) =>
+    api.post(`/api/observers/family-observers/${observerId}/toggle-child`, {
+      student_id: studentId,
+      enabled
+    }),
+
+  removeFamilyObserver: (observerId) =>
+    api.delete(`/api/observers/family-observers/${observerId}`)
 }
 
 // LMS Integration API methods

@@ -23,7 +23,13 @@ class LearningEventsService(BaseService):
         user_id: str,
         description: str,
         title: Optional[str] = None,
-        pillars: Optional[List[str]] = None
+        pillars: Optional[List[str]] = None,
+        track_id: Optional[str] = None,
+        parent_moment_id: Optional[str] = None,
+        source_type: str = 'realtime',
+        estimated_duration_minutes: Optional[int] = None,
+        ai_generated_title: Optional[str] = None,
+        ai_suggested_pillars: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Create a new learning event
@@ -33,12 +39,19 @@ class LearningEventsService(BaseService):
             description: What the user learned/discovered
             title: Optional short title
             pillars: Optional list of pillar tags
+            track_id: Optional interest track ID
+            parent_moment_id: Optional parent moment for threading
+            source_type: 'realtime' or 'retroactive'
+            estimated_duration_minutes: Estimated time spent
+            ai_generated_title: AI-suggested title
+            ai_suggested_pillars: AI-suggested pillars
 
         Returns:
             Dictionary with success status and event data
         """
         try:
-            supabase = get_user_client()  # JWT extracted from request headers
+            # Admin client: Auth verified by decorator (ADR-002, Rule 3)
+            supabase = get_supabase_admin_client()
 
             event_data = {
                 'user_id': user_id,
@@ -47,12 +60,32 @@ class LearningEventsService(BaseService):
                 'pillars': pillars or []
             }
 
+            # Add optional fields if provided
+            if track_id:
+                event_data['track_id'] = track_id
+            if parent_moment_id:
+                event_data['parent_moment_id'] = parent_moment_id
+            if source_type in ['realtime', 'retroactive']:
+                event_data['source_type'] = source_type
+            if estimated_duration_minutes is not None:
+                event_data['estimated_duration_minutes'] = estimated_duration_minutes
+            if ai_generated_title:
+                event_data['ai_generated_title'] = ai_generated_title
+            if ai_suggested_pillars:
+                event_data['ai_suggested_pillars'] = ai_suggested_pillars
+
             response = supabase.table('learning_events').insert(event_data).execute()
 
             if response.data and len(response.data) > 0:
+                event = response.data[0]
+
+                # Update track moment count if track assigned
+                if track_id:
+                    LearningEventsService._increment_track_moment_count(track_id)
+
                 return {
                     'success': True,
-                    'event': response.data[0]
+                    'event': event
                 }
             else:
                 return {
@@ -66,6 +99,43 @@ class LearningEventsService(BaseService):
                 'success': False,
                 'error': str(e)
             }
+
+    @staticmethod
+    def _increment_track_moment_count(track_id: str):
+        """Increment the moment_count for a track."""
+        try:
+            supabase = get_supabase_admin_client()
+            supabase.rpc('increment_track_moment_count', {'track_id': track_id}).execute()
+        except Exception as e:
+            logger.warning(f"Failed to increment track moment count: {e}")
+
+    @staticmethod
+    def create_quick_moment(
+        user_id: str,
+        description: str,
+        track_id: Optional[str] = None,
+        parent_moment_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a quick learning moment with minimal fields.
+        Designed for frictionless capture.
+
+        Args:
+            user_id: The user creating the event
+            description: What the user learned/discovered
+            track_id: Optional interest track ID
+            parent_moment_id: Optional parent moment for threading
+
+        Returns:
+            Dictionary with success status and event data
+        """
+        return LearningEventsService.create_learning_event(
+            user_id=user_id,
+            description=description,
+            track_id=track_id,
+            parent_moment_id=parent_moment_id,
+            source_type='realtime'
+        )
 
     @staticmethod
     def get_user_learning_events(

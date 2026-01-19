@@ -249,6 +249,7 @@ class CourseRefineService(BaseAIService):
 
         for change in changes_to_apply:
             try:
+                logger.debug(f"Applying change {change.get('id')}: type={change.get('type')}, location={change.get('location')}")
                 self._apply_single_change(change)
                 applied_changes.append({
                     'id': change['id'],
@@ -261,7 +262,7 @@ class CourseRefineService(BaseAIService):
                     'change_id': change['id'],
                     'error': str(e)
                 })
-                logger.error(f"Failed to apply change {change['id']}: {e}")
+                logger.error(f"Failed to apply change {change['id']}: {e}. Change details: type={change.get('type')}, location={change.get('location')}")
 
         # Update session
         self.admin_client.table('course_refine_sessions').update({
@@ -489,14 +490,17 @@ class CourseRefineService(BaseAIService):
         if not record_id:
             raise Exception(f"Missing record ID for change type: {change_type}")
 
-        # Apply the update
+        # First verify the record exists
+        check_result = self.admin_client.table(table).select('id').eq('id', record_id).execute()
+        if not check_result.data:
+            raise Exception(f"Record not found: {table}.{record_id}")
+
+        # Apply the update and request the updated row back
         result = self.admin_client.table(table).update({
             db_field: new_value
         }).eq('id', record_id).execute()
 
-        if not result.data:
-            raise Exception(f"Failed to update {table}.{db_field} for {record_id}")
-
+        # Log success (update succeeded if no exception was raised)
         logger.debug(f"Applied {change_type} change to {table}.{record_id}")
 
     def _apply_lesson_step_change(self, location: Dict, change: Dict) -> None:
@@ -539,8 +543,15 @@ class CourseRefineService(BaseAIService):
         change_type = change.get('type', '')
         new_value = change.get('after', '')
 
-        # Determine which scaffolding field
-        scaffold_key = 'younger' if 'younger' in change_type else 'older'
+        # Determine which scaffolding field (support both old and new formats)
+        if 'ages_6_8' in change_type:
+            scaffold_key = 'ages_6_8'
+        elif 'ages_12_plus' in change_type:
+            scaffold_key = 'ages_12_plus'
+        elif 'younger' in change_type:
+            scaffold_key = 'ages_6_8'  # Map old key to new
+        else:
+            scaffold_key = 'ages_12_plus'  # Map old key to new
 
         # Fetch current lesson content
         result = self.admin_client.table('curriculum_lessons').select('content').eq('id', lesson_id).execute()

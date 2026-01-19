@@ -9,8 +9,7 @@ import CourseCardWithQuests from '../components/course/CourseCardWithQuests'
 import RhythmIndicator from '../components/quest/RhythmIndicator'
 import EngagementCalendar from '../components/quest/EngagementCalendar'
 import RhythmExplainerModal from '../components/quest/RhythmExplainerModal'
-// Deprecated: Keeping for potential future use
-// import LearningEventModal from '../components/learning-events/LearningEventModal'
+import QuickCaptureButton from '../components/learning-events/QuickCaptureButton'
 import {
   RocketLaunchIcon,
   CheckCircleIcon,
@@ -478,16 +477,12 @@ const DashboardPage = () => {
         </div>
       )}
 
-      {/* Deprecated: Learning Event Modal - keeping for potential future use
-      <LearningEventModal
-        isOpen={showLearningEventModal}
-        onClose={() => setShowLearningEventModal(false)}
+      {/* Quick Capture Button - Floating Action Button for Learning Moments */}
+      <QuickCaptureButton
         onSuccess={() => {
-          setShowLearningEventModal(false);
-          // Optionally refetch dashboard data here if needed
+          // Optionally refetch dashboard data here if learning events are displayed
         }}
       />
-      */}
 
       {/* Rhythm Explainer Modal */}
       <RhythmExplainerModal

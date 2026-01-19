@@ -7,9 +7,9 @@ Designed for creating hands-on, action-oriented courses for homeschool families.
 
 Philosophy:
 - "The Process Is The Goal" - learning happens through doing
-- Just-in-time teaching - minimal info needed to make a competent attempt
-- Hands-on outcomes - every course produces something tangible
-- Universal design - adaptable across ages 8-18
+- Just-in-time teaching - minimal info needed to make a solid first try
+- Hands-on outcomes - every course produces something you can see/use/share
+- Universal design - adaptable across ages 6-18
 
 Stages:
 1. Outline Generation - Topic -> Title + 4-6 project outlines (3 alternatives)
@@ -31,6 +31,25 @@ INPUT:
 TASK:
 Generate 3 DIFFERENT course outline alternatives. Each alternative should take a
 distinct creative angle on the topic.
+
+=============================================================================
+READABILITY GUIDELINES (APPLY TO ALL TEXT)
+=============================================================================
+
+Use common words over technical jargon. Keep sentences short and direct.
+One main idea per sentence. Avoid abstract phrasing - be concrete.
+
+WORD CHOICES - Use simpler alternatives:
+- "demonstrate" -> "show"
+- "utilize" -> "use"
+- "implement" -> "build" or "add"
+- "accomplish" -> "complete" or "finish"
+- "facilitate" -> "help"
+- "competent attempt" -> "solid first try"
+- "tangible outcome" -> "something you can see/use/share"
+- "intrinsic motivation" -> "natural curiosity"
+- "rapid prototyping" -> "quick test version"
+- "iteration" -> "trying again" or "improving"
 
 =============================================================================
 TITLE RULES (CRITICAL)
@@ -69,37 +88,51 @@ BAD TITLE EXAMPLES (DO NOT USE):
 PROJECT RULES
 =============================================================================
 
-Each course needs 4-6 PROJECTS that build progressively toward the tangible outcome.
+Each course needs 4-6 PROJECTS that build progressively toward the final outcome.
 Projects are hands-on milestones, not chapters to read.
 
 IMPORTANT: Projects must work as STANDALONE QUESTS in addition to being part of the
 course. Each project needs its own complete context.
 
+PROJECT SCOPE - BROAD EXPLORATION, NOT PRESCRIPTIVE:
+Projects should invite exploration of a topic area, NOT dictate a specific activity.
+Let students discover their own path within each project's theme.
+
+BAD (too prescriptive):
+- "Build a birdhouse" (dictates exact outcome)
+- "Write a haiku about nature" (too specific)
+- "Create a poster about recycling" (locks in format)
+
+GOOD (exploratory):
+- "Explore woodworking basics" (they choose what to build)
+- "Express ideas through poetry" (they choose the form and topic)
+- "Share an environmental message" (they choose how)
+
 PROJECT NAMING:
 - Keep project titles SHORT (3-6 words)
-- Action verbs: Build, Design, Create, Make, Launch, etc.
-- Clear deliverable: What do they have when this project is done?
+- Use broad action verbs: Explore, Discover, Experiment, Create, Design, etc.
+- Suggest a direction, not a destination
 - Progressive: Each project builds on the previous one
 - NO fluff words like "your dream", "from scratch", "amazing"
 
 PROJECT STRUCTURE:
-- Project 1: Foundation/first attempt (lower stakes, build confidence)
+- Project 1: Foundation/first exploration (lower stakes, build confidence)
 - Projects 2-4: Progressive skill building with increasing complexity
-- Final Project: Capstone that combines all skills into finished product
+- Final Project: Capstone that combines all skills into a finished product of their choosing
 
 PROJECT FIELDS (REQUIRED):
-- title: Short action-oriented title (3-6 words)
-- description: 1-2 sentences about what they'll create (standalone context)
-- big_idea: The key insight or learning outcome (1 sentence, standalone context)
+- title: Short exploratory title (3-6 words)
+- description: 1-2 sentences about the area they'll explore (standalone context)
+- big_idea: The key insight (1 sentence, simple language, standalone context)
 - topic_primary: One of: Creative, Science, Nature, Building, Business, Food, Games, Personal, Academic
 - topics: Array of 1-3 specific topic tags relevant to this project
 
 Example for "Build a playable board game":
-1. "Design game concept and rules" - big_idea: "Every great game starts with clear rules"
-2. "Create a paper prototype" - big_idea: "Rapid prototyping reveals design flaws early"
-3. "Playtest and refine mechanics" - big_idea: "Player feedback drives better game design"
-4. "Design visual elements" - big_idea: "Visual design enhances player experience"
-5. "Build final game" - big_idea: "Quality materials elevate your creation"
+1. "Explore game rules and mechanics" - big_idea: "Every great game starts with clear rules"
+2. "Test your ideas quickly" - big_idea: "A quick test version helps you find problems early"
+3. "Learn from player feedback" - big_idea: "Watching others play shows you what works"
+4. "Design the look and feel" - big_idea: "Good visuals make your game more fun to play"
+5. "Create your final game" - big_idea: "Good materials make your final project shine"
 
 =============================================================================
 CATEGORIES
@@ -201,7 +234,7 @@ Make each alternative genuinely distinct and exciting.
 
 PROJECT_LESSONS_PROMPT = """
 You are creating lesson content for a hands-on project. Follow just-in-time teaching
-principles: provide JUST ENOUGH information to make a competent first attempt.
+principles: provide JUST ENOUGH information to make a solid first try.
 
 INPUT:
 - Course: {course_title}
@@ -210,6 +243,24 @@ INPUT:
 
 TASK:
 Generate 3-6 lessons that guide students through completing this project.
+
+=============================================================================
+READABILITY GUIDELINES (APPLY TO ALL TEXT)
+=============================================================================
+
+Use common words over technical jargon. Keep sentences short and direct.
+One main idea per sentence. Avoid abstract phrasing - be concrete.
+
+WORD CHOICES - Use simpler alternatives:
+- "demonstrate" -> "show"
+- "utilize" -> "use"
+- "implement" -> "build" or "add"
+- "accomplish" -> "complete" or "finish"
+- "facilitate" -> "help"
+- "competent attempt" -> "solid first try"
+- "tangible outcome" -> "something you can see/use/share"
+- "intrinsic motivation" -> "natural curiosity"
+- "iteration" -> "trying again" or "improving"
 
 =============================================================================
 JUST-IN-TIME TEACHING PHILOSOPHY
@@ -255,27 +306,28 @@ Each step has:
 - order: Sequence number (0-indexed)
 
 CONTENT GUIDELINES:
-- Keep paragraphs short (2-4 sentences max)
-- Use bullet points for lists
-- Include specific, actionable instructions
-- Add encouraging, warm tone
+- Keep paragraphs short (1-3 sentences)
+- Use specific, actionable instructions
+- Be direct and clear
+- Avoid jargon - use everyday words
 - One main idea per step
+- Use bullet points for lists
 
 =============================================================================
 SCAFFOLDING (UNIVERSAL DESIGN)
 =============================================================================
 
-For each lesson, provide scaffolding notes to adapt for different skill levels:
-- younger: How to simplify for younger or less experienced learners
-- older: How to extend/deepen for older or more advanced learners
+For each lesson, provide scaffolding notes to adapt for different ages:
+- ages_6_8: Simpler version for younger learners (ages 6-8)
+- ages_12_plus: Extended version for older learners (ages 12+)
 
 Examples:
-- Younger: "Use pre-made templates instead of creating from scratch"
-- Younger: "Work with a parent or older sibling on the measuring"
-- Younger: "Focus on the basic concept before adding complexity"
-- Older: "Add a business plan component"
-- Older: "Research professional techniques and incorporate them"
-- Older: "Take on leadership role and teach younger learners"
+- ages_6_8: "Use pre-made templates instead of starting blank"
+- ages_6_8: "Work with a parent or older sibling on the measuring"
+- ages_6_8: "Focus on the basic idea before adding more"
+- ages_12_plus: "Add a business plan part"
+- ages_12_plus: "Look up how professionals do it and try their methods"
+- ages_12_plus: "Help teach younger learners what you've learned"
 
 =============================================================================
 RETURN FORMAT
@@ -306,8 +358,8 @@ Return EXACTLY this JSON structure:
         }}
       ],
       "scaffolding": {{
-        "younger": "Simplification suggestions for younger or less experienced learners",
-        "older": "Extension suggestions for older or more advanced learners"
+        "ages_6_8": "Simpler version for younger learners (ages 6-8)",
+        "ages_12_plus": "Extended version for older learners (ages 12+)"
       }}
     }}
   ]
@@ -323,7 +375,7 @@ Generate step IDs using random 6-character alphanumeric strings (e.g., step_x7k2
 
 TASK_GENERATION_PROMPT = """
 You are generating hands-on task suggestions for a lesson. Tasks are where learning
-actually happens - students apply lesson knowledge to create something tangible.
+actually happens - students apply what they learned to create something real.
 
 INPUT:
 - Course: {course_title}
@@ -333,6 +385,21 @@ INPUT:
 
 TASK:
 Generate 2-4 task suggestions that let students apply what they learned.
+
+=============================================================================
+READABILITY GUIDELINES (APPLY TO ALL TEXT)
+=============================================================================
+
+Use common words over technical jargon. Keep sentences short and direct.
+One main idea per sentence. Avoid abstract phrasing - be concrete.
+
+WORD CHOICES - Use simpler alternatives:
+- "demonstrate" -> "show"
+- "utilize" -> "use"
+- "implement" -> "build" or "add"
+- "accomplish" -> "complete" or "finish"
+- "facilitate" -> "help"
+- "tangible outcome" -> "something you can see/use/share"
 
 =============================================================================
 TASK PHILOSOPHY
@@ -350,12 +417,12 @@ Students can also create their own tasks - these are starting suggestions.
 TASK PILLARS
 =============================================================================
 
-Assign each task a pillar based on what skill it primarily develops:
+Assign each task a pillar based on what skill it mainly uses:
 
-- creativity: Making original things, artistic expression, design choices
-- knowledge: Research, learning concepts, understanding how things work
-- social: Collaborating, presenting, teaching others, community involvement
-- physical: Building, hands-on making, physical skills, outdoor activities
+- creativity: Making new things, art, design
+- knowledge: Research, learning, understanding how things work
+- social: Working with others, sharing, teaching, community projects
+- physical: Building, hands-on work, physical activity
 
 Try to vary pillars across tasks in a lesson.
 
@@ -437,6 +504,24 @@ TASK:
 Generate 2-3 ALTERNATIVE lesson sets. Each should take a different teaching approach
 while still covering the same project goals.
 
+=============================================================================
+READABILITY GUIDELINES (APPLY TO ALL TEXT)
+=============================================================================
+
+Use common words over technical jargon. Keep sentences short and direct.
+One main idea per sentence. Avoid abstract phrasing - be concrete.
+
+WORD CHOICES - Use simpler alternatives:
+- "demonstrate" -> "show"
+- "utilize" -> "use"
+- "implement" -> "build" or "add"
+- "accomplish" -> "complete" or "finish"
+- "facilitate" -> "help"
+
+SCAFFOLDING KEYS:
+- Use "ages_6_8" for younger learner adaptations
+- Use "ages_12_plus" for older learner extensions
+
 Differentiation ideas:
 - Different ordering of concepts
 - Different examples and analogies
@@ -475,6 +560,20 @@ INPUT:
 TASK:
 Generate 2-3 ALTERNATIVE task sets. Each should offer different ways to apply the
 lesson content.
+
+=============================================================================
+READABILITY GUIDELINES (APPLY TO ALL TEXT)
+=============================================================================
+
+Use common words over technical jargon. Keep sentences short and direct.
+One main idea per sentence. Avoid abstract phrasing - be concrete.
+
+WORD CHOICES - Use simpler alternatives:
+- "demonstrate" -> "show"
+- "utilize" -> "use"
+- "implement" -> "build" or "add"
+- "accomplish" -> "complete" or "finish"
+- "facilitate" -> "help"
 
 Differentiation ideas:
 - Different output formats (written vs visual vs video vs physical)

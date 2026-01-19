@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { observerAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -8,7 +8,6 @@ import {
   UsersIcon,
   SparklesIcon,
   ArrowRightOnRectangleIcon,
-  UserCircleIcon,
   ChevronDownIcon,
   ArrowRightIcon
 } from '@heroicons/react/24/outline';
@@ -17,11 +16,13 @@ export default function ObserverFeedPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [siteSettings, setSiteSettings] = useState(null);
   const retryCountRef = useRef(0);
-  const freshInvitation = location.state?.freshInvitation;
+  // Check both state (from navigate) and query param (from window.location.href redirect)
+  const freshInvitation = location.state?.freshInvitation || searchParams.get('fresh') === '1';
   const wasFreshInvitationRef = useRef(freshInvitation); // Store in ref for retry logic
 
   // Fetch site settings for logo
@@ -56,8 +57,13 @@ export default function ObserverFeedPage() {
       const timer = setTimeout(() => {
         fetchMyStudents();
       }, 800); // Give DB time to commit the observer_student_link
-      // Clear the freshInvitation state from history to prevent re-triggering on back navigation
+      // Clear the freshInvitation indicators to prevent re-triggering on back navigation
       window.history.replaceState({}, document.title);
+      // Also remove ?fresh=1 query param if present
+      if (searchParams.get('fresh')) {
+        searchParams.delete('fresh');
+        setSearchParams(searchParams, { replace: true });
+      }
       return () => clearTimeout(timer);
     } else {
       fetchMyStudents();
@@ -232,63 +238,69 @@ export default function ObserverFeedPage() {
 
   const selectedStudent = students.find(s => s.student_id === selectedStudentId);
 
-  const userName = user?.display_name || user?.first_name || 'Observer';
   const isObserverOnly = user?.role === 'observer';
-  // Show full-screen experience (with own header) only for observer-role users
-  // Other roles (parent, advisor, superadmin) access this via Layout with sidebar navigation
+  const isParent = user?.role === 'parent';
+  // Show full-screen experience with own header for all users accessing this page
+  // Observer-role users get observer-specific header; others get a simplified header with back link
+
+  // Determine back link based on user role
+  const getBackLink = () => {
+    if (isParent) return '/parent/dashboard';
+    if (user?.role === 'advisor') return '/dashboard';
+    if (user?.role === 'superadmin') return '/admin';
+    return '/dashboard';
+  };
 
   return (
-    <div className={`min-h-screen ${isObserverOnly ? 'bg-gray-50' : ''}`}>
-      {/* Observer Header - only show for observer-role users (others use Layout navigation) */}
-      {isObserverOnly && (
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
-          <div className="max-w-6xl mx-auto px-4 py-3">
-            <div className="flex items-center justify-between">
-              {/* Logo and Title */}
-              <div className="flex items-center gap-4">
-                <Link to="/observer/feed" className="flex items-center">
-                  {siteSettings?.logo_url ? (
-                    <img
-                      src={siteSettings.logo_url}
-                      alt={siteSettings.site_name || "Optio"}
-                      className="h-8 w-auto"
-                    />
-                  ) : (
-                    <span className="text-2xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent">
-                      Optio
-                    </span>
-                  )}
-                </Link>
-                <div className="h-6 w-px bg-gray-200 hidden sm:block" />
-                <div className="hidden sm:block">
-                  <h1 className="text-lg font-semibold text-gray-900">Observer Feed</h1>
-                </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header - show for all users */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
+        <div className="max-w-6xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            {/* Logo and Title */}
+            <div className="flex items-center gap-4">
+              <Link to={isObserverOnly ? "/observer/feed" : getBackLink()} className="flex items-center">
+                {siteSettings?.logo_url ? (
+                  <img
+                    src={siteSettings.logo_url}
+                    alt={siteSettings.site_name || "Optio"}
+                    className="h-8 w-auto"
+                  />
+                ) : (
+                  <span className="text-2xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent">
+                    Optio
+                  </span>
+                )}
+              </Link>
+              <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+              <div className="hidden sm:block">
+                <h1 className="text-lg font-semibold text-gray-900">
+                  {isParent ? 'Family Activity Feed' : 'Observer Feed'}
+                </h1>
               </div>
+            </div>
 
-              {/* User Controls */}
-              <div className="flex items-center gap-2 sm:gap-3">
+            {/* User Controls */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {isObserverOnly && (
                 <Link
                   to="/observer/welcome"
-                  className="text-optio-purple hover:text-optio-pink font-medium text-sm items-center gap-1 hidden sm:flex"
+                  className="text-optio-purple hover:text-optio-pink font-medium text-sm flex items-center gap-1"
                 >
                   <SparklesIcon className="w-4 h-4" />
                   Tips
                 </Link>
+              )}
 
-                <Link
-                  to="/dashboard"
-                  className="flex items-center gap-1 text-sm bg-gradient-to-r from-optio-purple to-optio-pink text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity font-medium"
-                >
-                  <ArrowRightIcon className="w-4 h-4" />
-                  <span className="hidden sm:inline">Access Platform</span>
-                  <span className="sm:hidden">Platform</span>
-                </Link>
+              <Link
+                to={isObserverOnly ? "/dashboard" : getBackLink()}
+                className="flex items-center gap-1 text-sm bg-gradient-to-r from-optio-purple to-optio-pink text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity font-medium"
+              >
+                <ArrowRightIcon className="w-4 h-4" />
+                {isObserverOnly ? 'Access Platform' : 'Back to Dashboard'}
+              </Link>
 
-                <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600">
-                  <UserCircleIcon className="w-5 h-5" />
-                  <span>{userName}</span>
-                </div>
-
+              {isObserverOnly && (
                 <button
                   onClick={handleLogout}
                   className="flex items-center gap-1 text-sm text-gray-600 hover:text-red-600 transition-colors px-2 py-1 rounded hover:bg-red-50"
@@ -297,11 +309,11 @@ export default function ObserverFeedPage() {
                   <ArrowRightOnRectangleIcon className="w-5 h-5" />
                   <span className="hidden sm:inline">Log out</span>
                 </button>
-              </div>
+              )}
             </div>
           </div>
         </div>
-      )}
+      </div>
 
       <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {/* Header with Student Filter Dropdown */}

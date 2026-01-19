@@ -23,6 +23,13 @@ bp = Blueprint('user_invitations', __name__, url_prefix='/api/admin/organization
 VALID_INVITATION_ROLES = ['student', 'parent', 'advisor', 'org_admin', 'observer']
 
 
+def get_role_with_article(role):
+    """Return role with correct article (a/an)."""
+    vowel_roles = ['advisor', 'observer', 'org_admin']
+    article = 'an' if role in vowel_roles else 'a'
+    return f"{article} {role}"
+
+
 def generate_invitation_code():
     """Generate a secure unique invitation code"""
     return secrets.token_urlsafe(32)
@@ -437,9 +444,8 @@ def create_invitation(current_user_id, current_org_id, is_superadmin, org_id):
                         'invited_name': invited_name or 'there',
                         'inviter_name': inviter_name,
                         'org_name': org_name,
-                        'role': role,
-                        'invitation_link': invitation_link,
-                        'expires_days': 7
+                        'role_with_article': get_role_with_article(role),
+                        'invitation_link': invitation_link
                     }
                 )
 
@@ -536,9 +542,8 @@ def resend_invitation(current_user_id, current_org_id, is_superadmin, org_id, in
                     'invited_name': inv['invited_name'] or 'there',
                     'inviter_name': inviter_name,
                     'org_name': org_name,
-                    'role': inv['role'],
-                    'invitation_link': invitation_link,
-                    'expires_days': 7
+                    'role_with_article': get_role_with_article(inv['role']),
+                    'invitation_link': invitation_link
                 }
             )
 

@@ -15,7 +15,8 @@ const DocumentBlock = ({ block, displayMode }) => {
     title: content.title,
     filename: content.filename,
     file_size: content.file_size,
-    content_type: content.content_type
+    content_type: content.content_type,
+    description: content.description
   }] : []);
 
   // Get file extension from filename or content_type
@@ -57,7 +58,7 @@ const DocumentBlock = ({ block, displayMode }) => {
 
   // Render a single document item
   const renderDocumentItem = (item, index) => {
-    const { url, title, filename, file_size } = item;
+    const { url, title, filename, file_size, description } = item;
 
     if (!url) {
       return null;
@@ -67,46 +68,57 @@ const DocumentBlock = ({ block, displayMode }) => {
     const formattedSize = formatFileSize(file_size);
 
     return (
-      <a
+      <div
         key={index}
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        download
-        className="block w-full bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md hover:border-purple-300 transition-all min-h-[56px]"
+        className="block w-full bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md hover:border-purple-300 transition-all"
       >
-        <div className="flex items-center gap-4">
-          <div className="flex-shrink-0 w-14 h-14 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
-            <span className="text-xs font-bold text-purple-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              {extension}
-            </span>
-          </div>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          download
+          className="block p-6"
+        >
+          <div className="flex items-center gap-4">
+            <div className="flex-shrink-0 w-14 h-14 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
+              <span className="text-xs font-bold text-purple-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                {extension}
+              </span>
+            </div>
 
-          <div className="flex-1 min-w-0">
-            <h4 className="font-bold text-gray-900 mb-1 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              {title || filename || 'Document'}
-            </h4>
+            <div className="flex-1 min-w-0">
+              <h4 className="font-bold text-gray-900 mb-1 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                {title || filename || 'Document'}
+              </h4>
 
-            <div className="flex items-center gap-2 text-xs text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              {formattedSize && (
-                <>
-                  <span>{formattedSize}</span>
-                  {filename && <span>-</span>}
-                </>
-              )}
-              {filename && filename !== title && (
-                <span className="truncate">{filename}</span>
-              )}
+              <div className="flex items-center gap-2 text-xs text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                {formattedSize && (
+                  <>
+                    <span>{formattedSize}</span>
+                    {filename && <span>-</span>}
+                  </>
+                )}
+                {filename && filename !== title && (
+                  <span className="truncate">{filename}</span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-shrink-0">
+              <svg className="h-6 w-6 text-optio-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
             </div>
           </div>
-
-          <div className="flex-shrink-0">
-            <svg className="h-6 w-6 text-optio-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+        </a>
+        {description && (
+          <div className="px-6 pb-4 pt-0">
+            <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              {description}
+            </p>
           </div>
-        </div>
-      </a>
+        )}
+      </div>
     );
   };
 
@@ -126,7 +138,8 @@ DocumentBlock.propTypes = {
         title: PropTypes.string,
         filename: PropTypes.string,
         file_size: PropTypes.number,
-        content_type: PropTypes.string
+        content_type: PropTypes.string,
+        description: PropTypes.string
       }),
       PropTypes.shape({
         items: PropTypes.arrayOf(PropTypes.shape({
@@ -134,7 +147,8 @@ DocumentBlock.propTypes = {
           title: PropTypes.string,
           filename: PropTypes.string,
           file_size: PropTypes.number,
-          content_type: PropTypes.string
+          content_type: PropTypes.string,
+          description: PropTypes.string
         }))
       })
     ])

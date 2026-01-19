@@ -19,7 +19,7 @@ import AddDependentModal from '../components/parent/AddDependentModal';
 import RequestStudentConnectionModal from '../components/parent/RequestStudentConnectionModal';
 import VisibilityApprovalSection from '../components/parent/VisibilityApprovalSection';
 import DependentSettingsModal from '../components/parent/DependentSettingsModal';
-import InviteObserverModal from '../components/parent/InviteObserverModal';
+import FamilyObserverModal from '../components/parent/FamilyObserverModal';
 import RhythmIndicator from '../components/quest/RhythmIndicator';
 import EngagementCalendar from '../components/quest/EngagementCalendar';
 import RhythmExplainerModal from '../components/quest/RhythmExplainerModal';
@@ -45,7 +45,7 @@ const ParentDashboardPage = () => {
   const [selectedDependentForSettings, setSelectedDependentForSettings] = useState(null);
   const [selectedChildIsDependent, setSelectedChildIsDependent] = useState(true);
   const [showRhythmModal, setShowRhythmModal] = useState(false);
-  const [showInviteObserverModal, setShowInviteObserverModal] = useState(false);
+  const [showFamilyObserverModal, setShowFamilyObserverModal] = useState(false);
 
   // Fetch engagement data for selected student
   const { data: engagement } = useStudentEngagement(selectedStudentId);
@@ -386,8 +386,16 @@ const ParentDashboardPage = () => {
           )}
         </div>
 
-        {/* Add Child Button */}
-        <div className="relative">
+        {/* Header Action Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowFamilyObserverModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-shadow min-h-[44px]"
+            style={{ fontFamily: 'Poppins, sans-serif' }}
+          >
+            <UserGroupIcon className="w-5 h-5" />
+            Family Observers
+          </button>
           <button
             onClick={() => setShowAddDependentModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-lg transition-shadow min-h-[44px]"
@@ -501,14 +509,6 @@ const ParentDashboardPage = () => {
                       Settings
                     </button>
                     <button
-                      onClick={() => setShowInviteObserverModal(true)}
-                      className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 shadow-sm whitespace-nowrap min-h-[44px] flex items-center gap-1"
-                      style={{ fontFamily: 'Poppins, sans-serif' }}
-                    >
-                      <UserGroupIcon className="w-4 h-4" />
-                      Invite Observers
-                    </button>
-                    <button
                       onClick={() => handleActAsDependent(selectedDependent)}
                       className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg text-sm font-semibold hover:opacity-90 shadow-sm whitespace-nowrap min-h-[44px]"
                       style={{ fontFamily: 'Poppins, sans-serif' }}
@@ -551,14 +551,6 @@ const ParentDashboardPage = () => {
                     >
                       <Cog6ToothIcon className="w-4 h-4" />
                       AI Settings
-                    </button>
-                    <button
-                      onClick={() => setShowInviteObserverModal(true)}
-                      className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 shadow-sm whitespace-nowrap min-h-[44px] flex items-center gap-1"
-                      style={{ fontFamily: 'Poppins, sans-serif' }}
-                    >
-                      <UserGroupIcon className="w-4 h-4" />
-                      Invite Observers
                     </button>
                   </div>
                 </div>
@@ -879,15 +871,21 @@ const ParentDashboardPage = () => {
         currentState={engagement?.rhythm?.state}
       />
 
-      <InviteObserverModal
-        isOpen={showInviteObserverModal}
-        onClose={() => setShowInviteObserverModal(false)}
-        studentId={selectedStudentId || ''}
-        studentName={
-          dependents.find(d => d.id === selectedStudentId)?.display_name ||
-          children.find(c => c.student_id === selectedStudentId)?.student_name ||
-          'Student'
-        }
+      <FamilyObserverModal
+        isOpen={showFamilyObserverModal}
+        onClose={() => setShowFamilyObserverModal(false)}
+        children={[
+          ...dependents.map(d => ({
+            id: d.id,
+            name: d.display_name,
+            avatar_url: d.avatar_url
+          })),
+          ...children.map(c => ({
+            id: c.student_id,
+            name: c.student_name || `${c.student_first_name || ''} ${c.student_last_name || ''}`.trim(),
+            avatar_url: c.avatar_url
+          }))
+        ]}
         onSuccess={(result) => {
           toast.success(result.message);
         }}

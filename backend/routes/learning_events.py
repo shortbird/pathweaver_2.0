@@ -58,11 +58,38 @@ def create_learning_event(user_id):
                     'error': f'Invalid pillars: {", ".join(invalid_pillars)}'
                 }), 400
 
+        # New optional fields for Learning Moments 2.0
+        track_id = data.get('track_id')
+        parent_moment_id = data.get('parent_moment_id')
+        source_type = data.get('source_type', 'realtime')
+        estimated_duration_minutes = data.get('estimated_duration_minutes')
+        ai_generated_title = data.get('ai_generated_title')
+        ai_suggested_pillars = data.get('ai_suggested_pillars')
+
+        # Validate source_type
+        if source_type not in ['realtime', 'retroactive']:
+            return jsonify({'error': 'source_type must be "realtime" or "retroactive"'}), 400
+
+        # Validate estimated_duration_minutes if provided
+        if estimated_duration_minutes is not None:
+            try:
+                estimated_duration_minutes = int(estimated_duration_minutes)
+                if estimated_duration_minutes < 0:
+                    return jsonify({'error': 'estimated_duration_minutes must be non-negative'}), 400
+            except (TypeError, ValueError):
+                return jsonify({'error': 'estimated_duration_minutes must be an integer'}), 400
+
         result = LearningEventsService.create_learning_event(
             user_id=user_id,
             description=description,
             title=title,
-            pillars=pillars
+            pillars=pillars,
+            track_id=track_id,
+            parent_moment_id=parent_moment_id,
+            source_type=source_type,
+            estimated_duration_minutes=estimated_duration_minutes,
+            ai_generated_title=ai_generated_title,
+            ai_suggested_pillars=ai_suggested_pillars
         )
 
         if result['success']:
@@ -79,6 +106,87 @@ def create_learning_event(user_id):
 
     except Exception as e:
         logger.error(f"Error in create_learning_event: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@learning_events_bp.route('/api/learning-events/quick', methods=['POST'])
+@require_auth
+def create_quick_learning_event(user_id):
+    """Create a quick learning moment with minimal fields"""
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'error': 'Request body is required'}), 400
+
+        description = data.get('description')
+        if not description or not description.strip():
+            return jsonify({'error': 'Description is required'}), 400
+
+        track_id = data.get('track_id')
+        parent_moment_id = data.get('parent_moment_id')
+
+        result = LearningEventsService.create_quick_moment(
+            user_id=user_id,
+            description=description.strip(),
+            track_id=track_id,
+            parent_moment_id=parent_moment_id
+        )
+
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'event': result['event'],
+                'message': 'Moment captured!'
+            }), 201
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to capture moment')
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error in create_quick_learning_event: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@learning_events_bp.route('/api/learning-events/ai-suggestions', methods=['POST'])
+@require_auth
+def get_ai_suggestions(user_id):
+    """Get AI-generated title and pillar suggestions from description"""
+    try:
+        from services.learning_ai_service import LearningAIService
+
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'error': 'Request body is required'}), 400
+
+        description = data.get('description')
+        if not description or not description.strip():
+            return jsonify({'error': 'Description is required'}), 400
+
+        ai_service = LearningAIService()
+        result = ai_service.suggest_title_and_pillars(description.strip())
+
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'suggestions': {
+                    'title': result.get('title', ''),
+                    'pillars': result.get('pillars', []),
+                    'confidence': result.get('confidence', 0.5),
+                    'reasoning': result.get('reasoning', '')
+                }
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to generate suggestions')
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error in get_ai_suggestions: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
 
@@ -465,4 +573,348 @@ def get_public_learning_events(target_user_id):
 
     except Exception as e:
         logger.error(f"Error in get_public_learning_events: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ============================================================================
+# Curiosity Threads Endpoints (Learning Moments 2.0 - Phase 3)
+# ============================================================================
+
+@learning_events_bp.route('/api/learning-events/<event_id>/thread', methods=['GET'])
+@require_auth
+def get_thread_chain(user_id, event_id):
+    """Get the full thread chain for a moment (parent and children)."""
+    try:
+        from database import get_supabase_admin_client
+        supabase = get_supabase_admin_client()
+
+        # Get the moment to find its place in the thread
+        moment_response = supabase.table('learning_events') \
+            .select('*') \
+            .eq('id', event_id) \
+            .eq('user_id', user_id) \
+            .single() \
+            .execute()
+
+        if not moment_response.data:
+            return jsonify({
+                'success': False,
+                'error': 'Moment not found'
+            }), 404
+
+        moment = moment_response.data
+
+        # Find the root of the thread
+        root_id = event_id
+        current = moment
+        ancestors = []
+
+        while current.get('parent_moment_id'):
+            parent_response = supabase.table('learning_events') \
+                .select('*') \
+                .eq('id', current['parent_moment_id']) \
+                .eq('user_id', user_id) \
+                .single() \
+                .execute()
+
+            if parent_response.data:
+                ancestors.insert(0, parent_response.data)
+                current = parent_response.data
+                root_id = current['id']
+            else:
+                break
+
+        # Get all descendants from the root
+        def get_descendants(moment_id, depth=0, max_depth=10):
+            if depth >= max_depth:
+                return []
+
+            children_response = supabase.table('learning_events') \
+                .select('*') \
+                .eq('parent_moment_id', moment_id) \
+                .eq('user_id', user_id) \
+                .order('created_at') \
+                .execute()
+
+            children = children_response.data or []
+            result = []
+
+            for child in children:
+                child['depth'] = depth + 1
+                result.append(child)
+                result.extend(get_descendants(child['id'], depth + 1, max_depth))
+
+            return result
+
+        descendants = get_descendants(event_id)
+
+        return jsonify({
+            'success': True,
+            'thread': {
+                'root_id': root_id,
+                'current_moment': moment,
+                'ancestors': ancestors,
+                'descendants': descendants,
+                'total_moments': len(ancestors) + 1 + len(descendants)
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error in get_thread_chain: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@learning_events_bp.route('/api/learning-events/threads', methods=['GET'])
+@require_auth
+def get_user_threads(user_id):
+    """List all threads (root moments that have children) for a user."""
+    try:
+        from database import get_supabase_admin_client
+        supabase = get_supabase_admin_client()
+
+        # Get all moments with children
+        all_moments_response = supabase.table('learning_events') \
+            .select('id, title, description, pillars, created_at, parent_moment_id') \
+            .eq('user_id', user_id) \
+            .order('created_at', desc=True) \
+            .execute()
+
+        all_moments = all_moments_response.data or []
+
+        # Find all parent IDs
+        parent_ids = set(m['parent_moment_id'] for m in all_moments if m['parent_moment_id'])
+
+        # Find root moments (have children but no parent)
+        threads = []
+        for moment in all_moments:
+            if moment['id'] in parent_ids and not moment['parent_moment_id']:
+                # This is a root of a thread
+                # Count descendants
+                child_count = sum(1 for m in all_moments if m['parent_moment_id'] == moment['id'])
+
+                threads.append({
+                    'root_moment': moment,
+                    'child_count': child_count,
+                    'is_root': True
+                })
+
+        return jsonify({
+            'success': True,
+            'threads': threads,
+            'total_threads': len(threads)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error in get_user_threads: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@learning_events_bp.route('/api/learning-events/<event_id>/find-related', methods=['POST'])
+@require_auth
+def find_related_moments(user_id, event_id):
+    """Use AI to find moments related to a given moment."""
+    try:
+        from database import get_supabase_admin_client
+        from services.thread_ai_service import ThreadAIService
+
+        supabase = get_supabase_admin_client()
+
+        # Get the source moment
+        moment_response = supabase.table('learning_events') \
+            .select('*') \
+            .eq('id', event_id) \
+            .eq('user_id', user_id) \
+            .single() \
+            .execute()
+
+        if not moment_response.data:
+            return jsonify({
+                'success': False,
+                'error': 'Moment not found'
+            }), 404
+
+        moment = moment_response.data
+
+        # Get other moments
+        other_response = supabase.table('learning_events') \
+            .select('id, title, description, pillars, created_at') \
+            .eq('user_id', user_id) \
+            .neq('id', event_id) \
+            .order('created_at', desc=True) \
+            .limit(50) \
+            .execute()
+
+        other_moments = other_response.data or []
+
+        if not other_moments:
+            return jsonify({
+                'success': True,
+                'related_moments': []
+            }), 200
+
+        # Use AI to find related moments
+        ai_service = ThreadAIService()
+        result = ai_service.find_related_moments(
+            moment=moment,
+            all_moments=other_moments,
+            limit=5
+        )
+
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'related_moments': result['related_moments']
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to find related moments')
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error in find_related_moments: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@learning_events_bp.route('/api/learning-events/detect-threads', methods=['GET'])
+@require_auth
+def detect_hidden_threads(user_id):
+    """Use AI to detect potential threads in unlinked moments."""
+    try:
+        from database import get_supabase_admin_client
+        from services.thread_ai_service import ThreadAIService
+
+        supabase = get_supabase_admin_client()
+
+        # Get unlinked moments (no parent and no children)
+        all_response = supabase.table('learning_events') \
+            .select('id, title, description, pillars, created_at, parent_moment_id') \
+            .eq('user_id', user_id) \
+            .is_('parent_moment_id', 'null') \
+            .order('created_at', desc=True) \
+            .limit(40) \
+            .execute()
+
+        moments = all_response.data or []
+
+        if len(moments) < 3:
+            return jsonify({
+                'success': True,
+                'hidden_threads': [],
+                'message': 'Not enough moments to detect threads'
+            }), 200
+
+        # Use AI to detect hidden threads
+        ai_service = ThreadAIService()
+        result = ai_service.detect_hidden_threads(moments=moments)
+
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'hidden_threads': result['hidden_threads']
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to detect threads')
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error in detect_hidden_threads: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@learning_events_bp.route('/api/learning-events/<event_id>/thread-narrative', methods=['GET'])
+@require_auth
+def get_thread_narrative(user_id, event_id):
+    """Generate an AI narrative for a thread."""
+    try:
+        from database import get_supabase_admin_client
+        from services.thread_ai_service import ThreadAIService
+
+        supabase = get_supabase_admin_client()
+
+        # Get the thread chain
+        # First, find the root
+        moment_response = supabase.table('learning_events') \
+            .select('*') \
+            .eq('id', event_id) \
+            .eq('user_id', user_id) \
+            .single() \
+            .execute()
+
+        if not moment_response.data:
+            return jsonify({
+                'success': False,
+                'error': 'Moment not found'
+            }), 404
+
+        # Traverse to root
+        current = moment_response.data
+        thread_moments = [current]
+
+        while current.get('parent_moment_id'):
+            parent_response = supabase.table('learning_events') \
+                .select('*') \
+                .eq('id', current['parent_moment_id']) \
+                .eq('user_id', user_id) \
+                .single() \
+                .execute()
+
+            if parent_response.data:
+                thread_moments.insert(0, parent_response.data)
+                current = parent_response.data
+            else:
+                break
+
+        # Get children of current moment
+        def get_children_flat(moment_id):
+            children_response = supabase.table('learning_events') \
+                .select('*') \
+                .eq('parent_moment_id', moment_id) \
+                .eq('user_id', user_id) \
+                .order('created_at') \
+                .execute()
+
+            children = children_response.data or []
+            result = []
+            for child in children:
+                result.append(child)
+                result.extend(get_children_flat(child['id']))
+            return result
+
+        descendants = get_children_flat(event_id)
+        thread_moments.extend(descendants)
+
+        if len(thread_moments) < 2:
+            return jsonify({
+                'success': True,
+                'narrative': None,
+                'message': 'Thread needs at least 2 moments for narrative'
+            }), 200
+
+        # Generate narrative
+        ai_service = ThreadAIService()
+        result = ai_service.generate_thread_narrative(thread_moments)
+
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'narrative': {
+                    'text': result['narrative'],
+                    'theme': result['theme'],
+                    'growth_pattern': result['growth_pattern'],
+                    'key_insight': result['key_insight'],
+                    'potential_next_step': result['potential_next_step']
+                },
+                'moment_count': len(thread_moments)
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to generate narrative')
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error in get_thread_narrative: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500

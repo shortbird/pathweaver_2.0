@@ -23,6 +23,26 @@ from typing import List, Dict, Optional
 
 REFINEMENT_CATEGORIES = [
     {
+        "id": "readability",
+        "label": "Simplify language",
+        "description": "Use simpler words and shorter sentences for easier reading",
+        "examples": [
+            "Replace complex words with everyday language",
+            "Shorten long sentences",
+            "Make descriptions more concrete and less abstract"
+        ]
+    },
+    {
+        "id": "exploratory",
+        "label": "Make projects more exploratory",
+        "description": "Let students discover their own path instead of prescribing specific activities",
+        "examples": [
+            "Change 'Build a birdhouse' to 'Explore woodworking basics'",
+            "Make project titles suggest direction, not destination",
+            "Remove overly specific activity requirements"
+        ]
+    },
+    {
         "id": "tone",
         "label": "Adjust tone and language",
         "description": "Make content more encouraging, more concise, more action-oriented, etc.",
@@ -37,8 +57,8 @@ REFINEMENT_CATEGORIES = [
         "label": "Adjust difficulty level",
         "description": "Make content easier or harder for different age groups",
         "examples": [
-            "Simplify for younger learners (8-10)",
-            "Add more challenge for advanced students",
+            "Simplify for younger learners (6-8)",
+            "Add more challenge for advanced students (12+)",
             "Make instructions clearer for beginners"
         ]
     },
@@ -89,6 +109,35 @@ REFINE_ANALYSIS_PROMPT = """
 You are an expert course designer analyzing a request to refine course content.
 Your goal is to understand exactly what the user wants to change and ask clarifying
 questions with helpful suggested answers.
+
+=============================================================================
+CORE PRINCIPLES (APPLY TO ALL REFINEMENTS)
+=============================================================================
+
+READABILITY - All course content should:
+- Use common words over technical jargon
+- Keep sentences short and direct
+- Have one main idea per sentence
+- Avoid abstract phrasing - be concrete
+
+WORD CHOICES - Prefer simpler alternatives:
+- "demonstrate" -> "show"
+- "utilize" -> "use"
+- "implement" -> "build" or "add"
+- "accomplish" -> "complete" or "finish"
+- "facilitate" -> "help"
+- "competent attempt" -> "solid first try"
+- "tangible outcome" -> "something you can see/use/share"
+- "intrinsic motivation" -> "natural curiosity"
+
+EXPLORATORY PROJECTS - Projects should:
+- Invite exploration of a topic, NOT dictate specific activities
+- Let students discover their own path within each project's theme
+- Use broad verbs: Explore, Discover, Experiment, Create, Design
+- Suggest a direction, not a destination
+
+BAD (too prescriptive): "Build a birdhouse", "Write a haiku about nature"
+GOOD (exploratory): "Explore woodworking basics", "Express ideas through poetry"
 
 =============================================================================
 INPUT
@@ -188,6 +237,33 @@ You are an expert course designer generating specific content changes based on
 user guidance. Generate precise before/after changes that can be reviewed and applied.
 
 =============================================================================
+CORE PRINCIPLES (APPLY TO ALL CHANGES)
+=============================================================================
+
+READABILITY - All content should:
+- Use common words over technical jargon
+- Keep sentences short and direct
+- Have one main idea per sentence
+- Avoid abstract phrasing - be concrete
+
+WORD CHOICES - Prefer simpler alternatives:
+- "demonstrate" -> "show"
+- "utilize" -> "use"
+- "implement" -> "build" or "add"
+- "accomplish" -> "complete" or "finish"
+- "facilitate" -> "help"
+- "competent attempt" -> "solid first try"
+- "tangible outcome" -> "something you can see/use/share"
+
+EXPLORATORY PROJECTS - Projects should:
+- Invite exploration of a topic, NOT dictate specific activities
+- Let students discover their own path
+- Use broad verbs: Explore, Discover, Experiment, Create, Design
+
+BAD (too prescriptive): "Build a birdhouse", "Write a haiku about nature"
+GOOD (exploratory): "Explore woodworking basics", "Express ideas through poetry"
+
+=============================================================================
 INPUT
 =============================================================================
 
@@ -226,7 +302,7 @@ WHAT CAN BE CHANGED:
 - Lesson titles and descriptions
 - Lesson step titles and content
 - Task titles, descriptions, and XP values
-- Scaffolding suggestions (younger/older adaptations)
+- Scaffolding suggestions (ages_6_8/ages_12_plus adaptations)
 
 WHAT SHOULD NOT BE CHANGED:
 - Course structure (unless explicitly requested)
@@ -305,7 +381,7 @@ CHANGE TYPES:
 - project_title, project_description, project_big_idea
 - lesson_title, lesson_description, lesson_step
 - task_title, task_description, task_xp_value
-- scaffolding_younger, scaffolding_older
+- scaffolding_ages_6_8, scaffolding_ages_12_plus
 
 Generate ALL changes that match the user's criteria. Don't truncate or summarize.
 """
