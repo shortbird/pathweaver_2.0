@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { HeartIcon, SparklesIcon, FireIcon, UsersIcon, ArrowRightIcon, ChatBubbleLeftIcon, ArrowRightOnRectangleIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
+import { HeartIcon, SparklesIcon, FireIcon, UsersIcon, ArrowRightIcon, ChatBubbleLeftIcon, ArrowRightOnRectangleIcon, ArrowLeftIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
 export default function ObserverWelcomePage() {
@@ -57,13 +57,22 @@ export default function ObserverWelcomePage() {
                 )}
               </Link>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <Link
                 to="/observer/feed"
                 className="flex items-center gap-1 text-sm text-gray-600 hover:text-optio-purple transition-colors"
               >
                 <ArrowLeftIcon className="w-4 h-4" />
-                Back to Feed
+                <span className="hidden sm:inline">Back to Feed</span>
+                <span className="sm:hidden">Feed</span>
+              </Link>
+              <Link
+                to="/dashboard"
+                className="flex items-center gap-1 text-sm bg-gradient-to-r from-optio-purple to-optio-pink text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity font-medium"
+              >
+                <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">Access Platform</span>
+                <span className="sm:hidden">Platform</span>
               </Link>
               <button
                 onClick={handleLogout}

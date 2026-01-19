@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { observerAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -9,15 +9,19 @@ import {
   SparklesIcon,
   ArrowRightOnRectangleIcon,
   UserCircleIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  ArrowRightIcon
 } from '@heroicons/react/24/outline';
 
 export default function ObserverFeedPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [siteSettings, setSiteSettings] = useState(null);
+  const retryCountRef = useRef(0);
+  const freshInvitation = location.state?.freshInvitation;
 
   // Fetch site settings for logo
   useEffect(() => {
@@ -46,13 +50,28 @@ export default function ObserverFeedPage() {
 
   useEffect(() => {
     fetchMyStudents();
+    // Clear the freshInvitation state from history to prevent re-triggering on back navigation
+    if (freshInvitation) {
+      window.history.replaceState({}, document.title);
+    }
   }, []);
 
-  const fetchMyStudents = async () => {
+  const fetchMyStudents = async (isRetry = false) => {
     try {
-      setLoading(true);
+      if (!isRetry) setLoading(true);
       const response = await observerAPI.getMyStudents();
-      setStudents(response.data.students || []);
+      const fetchedStudents = response.data.students || [];
+
+      // If coming from fresh invitation and no students found, retry a few times
+      // This handles race condition where DB write hasn't completed yet
+      if (fetchedStudents.length === 0 && freshInvitation && retryCountRef.current < 3) {
+        retryCountRef.current += 1;
+        console.log(`[ObserverFeedPage] No students found after fresh invitation, retry ${retryCountRef.current}/3`);
+        setTimeout(() => fetchMyStudents(true), 500 * retryCountRef.current); // Progressive backoff
+        return;
+      }
+
+      setStudents(fetchedStudents);
     } catch (error) {
       console.error('Failed to fetch students:', error);
       toast.error('Failed to load students');
@@ -239,7 +258,7 @@ export default function ObserverFeedPage() {
               </div>
 
               {/* User Controls */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <Link
                   to="/observer/welcome"
                   className="text-optio-purple hover:text-optio-pink font-medium text-sm items-center gap-1 hidden sm:flex"
@@ -248,9 +267,18 @@ export default function ObserverFeedPage() {
                   Tips
                 </Link>
 
-                <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Link
+                  to="/dashboard"
+                  className="flex items-center gap-1 text-sm bg-gradient-to-r from-optio-purple to-optio-pink text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity font-medium"
+                >
+                  <ArrowRightIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">Access Platform</span>
+                  <span className="sm:hidden">Platform</span>
+                </Link>
+
+                <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600">
                   <UserCircleIcon className="w-5 h-5" />
-                  <span className="hidden sm:inline">{userName}</span>
+                  <span>{userName}</span>
                 </div>
 
                 <button

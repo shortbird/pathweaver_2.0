@@ -55,9 +55,9 @@ const LoginPage = () => {
         const acceptResult = await handlePendingObserverInvitation()
 
         if (acceptResult && acceptResult.status === 'success') {
-          // Invitation was accepted - redirect to observer feed
+          // Invitation was accepted - redirect to observer feed with state to trigger refresh
           logger.debug('[LoginPage] Observer invitation accepted, redirecting to observer feed')
-          navigate('/observer/feed', { replace: true })
+          navigate('/observer/feed', { replace: true, state: { freshInvitation: true } })
           return
         }
 

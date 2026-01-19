@@ -34,7 +34,7 @@ export default function ObserverAcceptInvitationPage() {
           // Navigate based on their primary role
           const role = response.data.user_role
           if (role === 'parent') {
-            navigate('/parent')
+            navigate('/parent', { state: { freshInvitation: true } })
           } else if (role === 'student') {
             navigate('/dashboard')
           } else if (role === 'advisor' || role === 'org_admin') {
@@ -43,12 +43,12 @@ export default function ObserverAcceptInvitationPage() {
             navigate('/admin')
           } else {
             // Default - show them the observer feed since they now have access
-            navigate('/observer/feed')
+            navigate('/observer/feed', { state: { freshInvitation: true } })
           }
         } else {
           // New observer-only account - show welcome page
           toast.success('Invitation accepted! Welcome to Optio.')
-          navigate('/observer/welcome')
+          navigate('/observer/welcome', { state: { freshInvitation: true } })
         }
       }
     } catch (error) {
