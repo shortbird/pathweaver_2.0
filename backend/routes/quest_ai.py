@@ -354,6 +354,211 @@ def enhance_student_quest_idea(user_id: str):
             'error': 'Failed to enhance quest idea'
         }), 500
 
+@bp.route('/approach-examples/<quest_id>', methods=['GET'])
+def get_approach_examples(quest_id: str):
+    """
+    Get or generate approach examples for a quest.
+
+    These are AI-generated diverse approach examples showing different ways to tackle the quest.
+    Examples are cached in the database to avoid repeated API calls.
+
+    Public endpoint - no authentication required (quest data is public).
+    """
+    try:
+        from database import get_supabase_admin_client
+
+        # Validate quest_id format
+        if not quest_id or len(quest_id) < 32:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid quest ID'
+            }), 400
+
+        # Get quest data
+        supabase = get_supabase_admin_client()
+        quest_result = supabase.table('quests').select(
+            'id, title, big_idea, description, approach_examples'
+        ).eq('id', quest_id).single().execute()
+
+        if not quest_result.data:
+            return jsonify({
+                'success': False,
+                'error': 'Quest not found'
+            }), 404
+
+        quest = quest_result.data
+
+        # Check if we already have cached examples
+        if quest.get('approach_examples'):
+            cached = quest['approach_examples']
+            # Handle both formats: direct list or wrapped in dict
+            approaches = cached if isinstance(cached, list) else cached.get('approaches', [])
+            if approaches:
+                return jsonify({
+                    'success': True,
+                    'approaches': approaches,
+                    'from_cache': True
+                }), 200
+
+        # Generate new examples using AI service
+        ai_service = get_quest_ai_service()
+
+        quest_description = quest.get('big_idea') or quest.get('description') or ''
+        result = ai_service.generate_approach_examples(
+            quest_id=quest_id,
+            quest_title=quest.get('title', 'Untitled Quest'),
+            quest_description=quest_description
+        )
+
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'approaches': result['approaches'],
+                'from_cache': result.get('from_cache', False)
+            }), 200
+        else:
+            # Return empty array on failure (graceful degradation)
+            logger.warning(f"Failed to generate approach examples: {result.get('error')}")
+            return jsonify({
+                'success': True,
+                'approaches': [],
+                'error': 'Generation failed - section hidden'
+            }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting approach examples: {str(e)}")
+        # Return empty array on error (graceful degradation per spec)
+        return jsonify({
+            'success': True,
+            'approaches': [],
+            'error': 'Internal error - section hidden'
+        }), 200
+
+
+@bp.route('/accept-approach/<quest_id>', methods=['POST'])
+@require_auth
+def accept_approach(user_id: str, quest_id: str):
+    """
+    Accept a starter path approach and enroll in the quest with those tasks.
+
+    Creates enrollment and adds the approach's tasks to the student's quest.
+    """
+    try:
+        from database import get_supabase_admin_client
+        import uuid
+
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'Request body is required'
+            }), 400
+
+        approach_index = data.get('approach_index')
+        if approach_index is None:
+            return jsonify({
+                'success': False,
+                'error': 'approach_index is required'
+            }), 400
+
+        supabase = get_supabase_admin_client()
+
+        # Get quest with approach examples
+        quest_result = supabase.table('quests').select(
+            'id, title, approach_examples'
+        ).eq('id', quest_id).single().execute()
+
+        if not quest_result.data:
+            return jsonify({
+                'success': False,
+                'error': 'Quest not found'
+            }), 404
+
+        quest = quest_result.data
+        approaches = quest.get('approach_examples', [])
+
+        # Handle "start from scratch" (approach_index = -1)
+        start_from_scratch = approach_index == -1
+
+        if not start_from_scratch:
+            if not approaches or approach_index >= len(approaches):
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid approach index'
+                }), 400
+
+            selected_approach = approaches[approach_index]
+            tasks = selected_approach.get('tasks', [])
+
+            if not tasks:
+                return jsonify({
+                    'success': False,
+                    'error': 'Selected approach has no tasks'
+                }), 400
+        else:
+            selected_approach = {'label': 'From Scratch'}
+            tasks = []
+
+        # Check if user already has an active enrollment
+        existing = supabase.table('user_quests').select('id').eq(
+            'user_id', user_id
+        ).eq('quest_id', quest_id).eq('is_active', True).execute()
+
+        if existing.data:
+            return jsonify({
+                'success': False,
+                'error': 'Already enrolled in this quest'
+            }), 400
+
+        # Create enrollment
+        enrollment_id = str(uuid.uuid4())
+        enrollment_result = supabase.table('user_quests').insert({
+            'id': enrollment_id,
+            'user_id': user_id,
+            'quest_id': quest_id,
+            'is_active': True,
+            'personalization_completed': True
+        }).execute()
+
+        if not enrollment_result.data:
+            raise Exception('Failed to create enrollment')
+
+        # Create tasks from the approach
+        task_records = []
+        for i, task in enumerate(tasks):
+            task_records.append({
+                'id': str(uuid.uuid4()),
+                'user_id': user_id,
+                'quest_id': quest_id,
+                'user_quest_id': enrollment_id,
+                'title': task['title'],
+                'description': task.get('description', ''),
+                'pillar': task.get('pillar', 'stem'),
+                'xp_value': task.get('xp_value', 100),
+                'order_index': i,
+                'approval_status': 'approved'
+            })
+
+        if task_records:
+            supabase.table('user_quest_tasks').insert(task_records).execute()
+
+        logger.info(f"User {user_id[:8]} enrolled in quest {quest_id[:8]} with approach '{selected_approach.get('label')}'")
+
+        return jsonify({
+            'success': True,
+            'enrollment_id': enrollment_id,
+            'approach_label': selected_approach.get('label'),
+            'tasks_created': len(task_records)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error accepting approach: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to enroll with selected approach'
+        }), 500
+
+
 @bp.route('/health', methods=['GET'])
 def health_check():
     """
@@ -363,14 +568,14 @@ def health_check():
     try:
         # Try to initialize the AI service
         ai_service = QuestAIService()
-        
+
         return jsonify({
             'success': True,
             'status': 'healthy',
             'ai_service': 'available',
             'model': ai_service.model_name
         }), 200
-        
+
     except Exception as e:
         return jsonify({
             'success': False,

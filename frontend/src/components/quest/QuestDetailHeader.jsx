@@ -7,12 +7,24 @@ import { useQuestEngagement } from '../../hooks/api/useQuests';
 import RhythmIndicator from './RhythmIndicator';
 import EngagementCalendar from './EngagementCalendar';
 import RhythmExplainerModal from './RhythmExplainerModal';
-import { MapPinIcon, CalendarIcon, ArrowTopRightOnSquareIcon, BookOpenIcon, ArrowLeftIcon, AcademicCapIcon, PencilSquareIcon, ChevronDownIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowTopRightOnSquareIcon,
+  BookOpenIcon,
+  ArrowLeftIcon,
+  AcademicCapIcon,
+  PencilSquareIcon,
+  ChevronDownIcon,
+  ArrowRightStartOnRectangleIcon,
+  ClockIcon,
+  FireIcon,
+  MapPinIcon
+} from '@heroicons/react/24/outline';
 
 /**
- * QuestDetailHeader - Hero section with background image, title, rhythm indicator, and metadata
+ * QuestDetailHeader - Hero section with image, overlaid title/description
  *
- * Process-focused design: Celebrates learning rhythm over completion metrics.
+ * Features title and description on the left with image fading from left to right.
+ * Rhythm indicator shown for enrolled users.
  */
 const QuestDetailHeader = ({
   quest,
@@ -23,45 +35,14 @@ const QuestDetailHeader = ({
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [showDetails, setShowDetails] = useState(false);
+  const [showJourney, setShowJourney] = useState(false);
   const [showRhythmModal, setShowRhythmModal] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   // Fetch engagement/rhythm data for enrolled users
   const { data: engagement } = useQuestEngagement(
     quest?.user_enrollment ? quest.id : null
   );
-
-  const getLocationDisplay = () => {
-    if (!quest?.metadata) return null;
-
-    const { location_type, venue_name, location_address } = quest.metadata;
-
-    if (location_type === 'anywhere') return 'Anywhere';
-    if (location_type === 'specific_location') {
-      if (venue_name && location_address) {
-        return `${venue_name}, ${location_address}`;
-      } else if (venue_name) {
-        return venue_name;
-      } else if (location_address) {
-        return location_address;
-      }
-    }
-
-    return null;
-  };
-
-  const getSeasonalDisplay = () => {
-    if (!quest?.metadata?.seasonal_start) return null;
-
-    const startDate = new Date(quest.metadata.seasonal_start).toLocaleDateString();
-    const endDate = quest.metadata.seasonal_end ?
-      new Date(quest.metadata.seasonal_end).toLocaleDateString() : 'Ongoing';
-
-    return `${startDate} - ${endDate}`;
-  };
-
-  const locationDisplay = getLocationDisplay();
-  const seasonalDisplay = getSeasonalDisplay();
 
   // Get quest header image
   const questImage = quest?.image_url || quest?.header_image_url || getQuestHeaderImageSync(quest?.quest_type);
@@ -70,103 +51,193 @@ const QuestDetailHeader = ({
   const isSparkQuest = quest?.lms_platform === 'spark';
   const sparkLogoUrl = 'https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/onfire.png';
 
-  return (
-    <div className="relative w-full overflow-hidden pb-2 sm:pb-4">
-      {isSparkQuest ? (
-        // Spark LMS: White background with logo on right
-        <>
-          <div className="absolute inset-0 bg-white" />
-          <div
-            className="absolute right-0 top-0 bottom-0 w-1/3 bg-no-repeat bg-right bg-contain opacity-20 hidden sm:block"
-            style={{ backgroundImage: `url(${sparkLogoUrl})` }}
-          />
-        </>
-      ) : (
-        // Regular quest: Background Image
-        <>
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${questImage})` }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-white via-white/95 to-white/80 sm:from-white sm:via-white/90 sm:to-white/70" />
-        </>
-      )}
+  // Extract metadata
+  const metadata = quest?.metadata || {};
+  const timeEstimate = metadata.estimated_hours || metadata.estimated_time;
+  const intensity = metadata.intensity;
+  const locationDisplay = getLocationDisplay(metadata);
 
-      {/* Content */}
-      <div className="relative max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-1 sm:pt-4">
-        {/* Mobile: Compact single-row header */}
-        <div className="flex items-center justify-between">
+  // Get pillar-based fallback gradient colors
+  const getPillarGradient = () => {
+    const pillar = quest?.pillar_primary || 'stem';
+    const gradients = {
+      stem: 'from-blue-500 to-purple-600',
+      wellness: 'from-green-500 to-teal-600',
+      communication: 'from-amber-500 to-orange-600',
+      civics: 'from-indigo-500 to-blue-600',
+      art: 'from-pink-500 to-rose-600'
+    };
+    return gradients[pillar] || 'from-optio-purple to-optio-pink';
+  };
+
+  function getLocationDisplay(metadata) {
+    if (!metadata) return null;
+    const { location_type, venue_name, location_address } = metadata;
+
+    if (location_type === 'anywhere') return 'Anywhere';
+    if (location_type === 'specific_location') {
+      if (venue_name) return venue_name;
+      if (location_address) return location_address;
+    }
+    return null;
+  }
+
+  const handleBackClick = () => {
+    const returnInfoStr = sessionStorage.getItem('courseTaskReturnInfo');
+    if (returnInfoStr) {
+      try {
+        const returnInfo = JSON.parse(returnInfoStr);
+        sessionStorage.removeItem('courseTaskReturnInfo');
+        navigate(returnInfo.pathname + returnInfo.search);
+        return;
+      } catch (e) {
+        // Fall through to default
+      }
+    }
+    navigate('/dashboard');
+  };
+
+  const isEnrolled = quest?.user_enrollment;
+  const totalXP = quest?.metadata?.total_xp || quest?.xp_value || 0;
+
+  return (
+    <div className="bg-white">
+      {/* Hero Section with Image and Overlaid Content */}
+      <div className="relative w-full h-[150px] sm:h-[175px] md:h-[200px] overflow-hidden">
+        {/* Background Image */}
+        {isSparkQuest ? (
+          <div className="absolute inset-0 bg-gradient-to-r from-orange-50 to-amber-50">
+            <img
+              src={sparkLogoUrl}
+              alt="Spark LMS"
+              className="absolute right-4 top-1/2 -translate-y-1/2 h-3/4 opacity-20 object-contain"
+            />
+          </div>
+        ) : !imageError ? (
+          <img
+            src={questImage}
+            alt={`${quest?.title || 'Quest'}`}
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={() => setImageError(true)}
+            fetchpriority="high"
+          />
+        ) : (
+          <div className={`absolute inset-0 bg-gradient-to-br ${getPillarGradient()}`} />
+        )}
+
+        {/* Gradient overlay - fades from white on left to transparent on right */}
+        <div className="absolute inset-0 bg-gradient-to-r from-white via-white/95 to-transparent sm:via-white/90 sm:to-white/20" />
+
+        {/* Content overlay */}
+        <div className="relative h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center py-3">
+          {/* Back button - absolute positioned */}
           <button
-            onClick={() => {
-              const returnInfoStr = sessionStorage.getItem('courseTaskReturnInfo');
-              if (returnInfoStr) {
-                try {
-                  const returnInfo = JSON.parse(returnInfoStr);
-                  sessionStorage.removeItem('courseTaskReturnInfo');
-                  navigate(returnInfo.pathname + returnInfo.search);
-                  return;
-                } catch (e) {
-                  // Fall through to default
-                }
-              }
-              navigate('/dashboard');
-            }}
-            className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition-colors text-xs sm:text-sm min-h-[32px] sm:min-h-[44px] touch-manipulation"
+            onClick={handleBackClick}
+            className="absolute top-3 left-4 sm:left-6 lg:left-8 flex items-center gap-1 text-gray-700 hover:text-gray-900 transition-colors text-xs font-medium bg-white/80 backdrop-blur-sm px-2 py-1 rounded-full shadow-sm"
             style={{ fontFamily: 'Poppins' }}
           >
-            <ArrowLeftIcon className="w-4 h-4" />
-            <span className="hidden sm:inline">BACK</span>
+            <ArrowLeftIcon className="w-3 h-3" />
+            <span>Back</span>
           </button>
 
-          <div className="flex items-center gap-1 sm:gap-2">
-            {/* Diploma - icon only on mobile (show if user has any engagement) */}
-            {(quest?.user_enrollment || isQuestCompleted) && (
+          {/* Action buttons - absolute positioned top right */}
+          <div className="absolute top-3 right-4 sm:right-6 lg:right-8 flex items-center gap-2">
+            {(isEnrolled || isQuestCompleted) && (
               <button
                 onClick={() => navigate('/diploma')}
-                className="flex items-center justify-center gap-1 p-2 sm:px-3 sm:py-1.5 bg-white/90 backdrop-blur-sm text-optio-purple border border-purple-200 rounded-full hover:bg-white hover:border-purple-300 transition-all text-xs sm:text-sm font-medium min-h-[36px] min-w-[36px] sm:min-w-0 touch-manipulation"
+                className="flex items-center gap-1 px-2 py-1 bg-white/90 backdrop-blur-sm text-optio-purple border border-purple-200 rounded-full hover:bg-white transition-all text-xs font-medium shadow-sm"
                 style={{ fontFamily: 'Poppins' }}
-                title="View Diploma"
               >
-                <BookOpenIcon className="w-4 h-4" />
+                <BookOpenIcon className="w-3 h-3" />
                 <span className="hidden sm:inline">Diploma</span>
               </button>
             )}
-            {/* End Quest Button - pill style */}
-            {quest?.user_enrollment && !isQuestCompleted && !quest?.lms_platform && (
+
+            {isEnrolled && !isQuestCompleted && !quest?.lms_platform && (
               quest?.active_course_enrollment ? (
                 <button
-                  onClick={() => toast.error('This quest is part of an active course. To end this quest, unenroll from the course first.')}
-                  className="flex items-center justify-center gap-1 p-2 sm:px-3 sm:py-1.5 bg-gray-100 text-gray-400 border border-gray-200 rounded-full cursor-not-allowed text-xs sm:text-sm font-medium min-h-[36px] min-w-[36px] sm:min-w-0"
+                  onClick={() => toast.error('This quest is part of an active course. Unenroll from the course first.')}
+                  className="flex items-center gap-1 px-2 py-1 bg-gray-100/90 backdrop-blur-sm text-gray-400 border border-gray-200 rounded-full cursor-not-allowed text-xs font-medium"
                   style={{ fontFamily: 'Poppins' }}
-                  title="Cannot end quest - part of active course"
                 >
-                  <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
-                  <span className="hidden sm:inline">End Quest</span>
+                  <ArrowRightStartOnRectangleIcon className="w-3 h-3" />
+                  <span className="hidden sm:inline">End</span>
                 </button>
               ) : (
                 <button
                   onClick={onEndQuest}
-                  disabled={endQuestMutation.isPending}
-                  className="flex items-center justify-center gap-1 p-2 sm:px-3 sm:py-1.5 bg-white/90 backdrop-blur-sm text-red-500 border border-red-200 rounded-full hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-all text-xs sm:text-sm font-medium min-h-[36px] min-w-[36px] sm:min-w-0 touch-manipulation disabled:opacity-50"
+                  disabled={endQuestMutation?.isPending}
+                  className="flex items-center gap-1 px-2 py-1 bg-white/90 backdrop-blur-sm text-red-500 border border-red-200 rounded-full hover:bg-red-50 transition-all text-xs font-medium shadow-sm disabled:opacity-50"
                   style={{ fontFamily: 'Poppins' }}
-                  title="End Quest"
                 >
-                  <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{endQuestMutation.isPending ? '...' : 'End Quest'}</span>
+                  <ArrowRightStartOnRectangleIcon className="w-3 h-3" />
+                  <span className="hidden sm:inline">{endQuestMutation?.isPending ? '...' : 'End'}</span>
                 </button>
               )
             )}
           </div>
+
+          {/* Title and XP badge */}
+          <div className="max-w-xl sm:max-w-2xl">
+            {totalXP > 0 && (
+              <div className="inline-block mb-1 px-2 py-0.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full text-xs font-semibold shadow-sm">
+                {totalXP} XP
+              </div>
+            )}
+
+            <h1
+              className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 leading-tight line-clamp-2"
+              style={{ fontFamily: 'Poppins' }}
+            >
+              {quest?.title}
+            </h1>
+
+            {(quest?.big_idea || quest?.description) && (
+              <p
+                className="text-xs sm:text-sm text-gray-700 mt-1 leading-relaxed line-clamp-2"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                {quest?.big_idea || quest?.description}
+              </p>
+            )}
+          </div>
         </div>
+      </div>
 
-        {/* Title */}
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-1 sm:mb-2 break-words leading-tight" style={{ fontFamily: 'Poppins' }}>
-          {quest?.title}
-        </h1>
+      {/* Content Below Hero */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+        {/* Metadata Pills */}
+        {(timeEstimate || intensity || locationDisplay || ((isEnrolled || isQuestCompleted) && earnedXP > 0)) && (
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {timeEstimate && (
+              <div className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 rounded-full text-xs text-gray-600">
+                <ClockIcon className="w-3.5 h-3.5" />
+                <span>{timeEstimate}{typeof timeEstimate === 'number' && 'h'}</span>
+              </div>
+            )}
+            {intensity && (
+              <div className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 rounded-full text-xs text-gray-600">
+                <FireIcon className="w-3.5 h-3.5" />
+                <span className="capitalize">{intensity}</span>
+              </div>
+            )}
+            {locationDisplay && (
+              <div className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 rounded-full text-xs text-gray-600">
+                <MapPinIcon className="w-3.5 h-3.5" />
+                <span>{locationDisplay}</span>
+              </div>
+            )}
+            {(isEnrolled || isQuestCompleted) && earnedXP > 0 && (
+              <div className="flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 rounded-full text-xs font-medium text-optio-purple">
+                <span>{earnedXP} XP earned</span>
+              </div>
+            )}
+          </div>
+        )}
 
-        {/* Rhythm Indicator - replaces progress bar */}
-        {(quest?.user_enrollment || isQuestCompleted) && engagement?.rhythm && (
-          <div className="mb-2">
+        {/* Rhythm Indicator - for enrolled users */}
+        {(isEnrolled || isQuestCompleted) && engagement?.rhythm && (
+          <div className="mb-4 p-4 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-xl border border-optio-purple/10">
             <RhythmIndicator
               state={engagement.rhythm.state}
               stateDisplay={engagement.rhythm.state_display}
@@ -174,128 +245,89 @@ const QuestDetailHeader = ({
               patternDescription={engagement.rhythm.pattern_description}
               onClick={() => setShowRhythmModal(true)}
             />
+
+            {/* Engagement Calendar Toggle */}
+            {engagement?.calendar && (
+              <button
+                onClick={() => setShowJourney(!showJourney)}
+                className="flex items-center gap-1 mt-3 text-sm text-optio-purple hover:text-optio-pink transition-colors"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                <ChevronDownIcon className={`w-4 h-4 transition-transform ${showJourney ? 'rotate-180' : ''}`} />
+                <span>{showJourney ? 'Hide' : 'Show'} your journey</span>
+              </button>
+            )}
+
+            {/* Engagement Calendar (collapsible) */}
+            {showJourney && engagement?.calendar && (
+              <div className="mt-3 pt-3 border-t border-optio-purple/10 animate-fade-in">
+                <div className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2" style={{ fontFamily: 'Poppins' }}>
+                  Your Journey
+                </div>
+                <EngagementCalendar
+                  days={engagement.calendar.days}
+                  weeksActive={engagement.calendar.weeks_active}
+                  firstActivityDate={engagement.calendar.first_activity_date}
+                />
+              </div>
+            )}
           </div>
         )}
 
-        {/* Action Buttons - horizontal scroll on mobile */}
-        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Curriculum Button */}
           {quest?.quest_type === 'course' && quest?.material_link ? (
             <a
               href={quest.material_link}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg transition-all text-xs sm:text-sm font-semibold min-h-[32px] sm:min-h-[44px] whitespace-nowrap touch-manipulation"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg transition-all text-sm font-semibold min-h-[44px] touch-manipulation"
               style={{ fontFamily: 'Poppins' }}
             >
-              <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              Curriculum
+              <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+              View Curriculum
             </a>
-          ) : quest?.has_curriculum && quest?.user_enrollment ? (
+          ) : quest?.has_curriculum && isEnrolled ? (
             <button
               onClick={() => navigate(`/quests/${quest.id}/curriculum`)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg transition-all text-xs sm:text-sm font-semibold min-h-[32px] sm:min-h-[44px] whitespace-nowrap touch-manipulation"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg transition-all text-sm font-semibold min-h-[44px] touch-manipulation"
               style={{ fontFamily: 'Poppins' }}
             >
-              <AcademicCapIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              Curriculum
+              <AcademicCapIcon className="w-4 h-4" />
+              View Curriculum
             </button>
           ) : null}
 
+          {/* Edit Curriculum - for admins/advisors */}
           {quest?.has_curriculum && user && ['admin', 'superadmin', 'advisor', 'teacher'].includes(user.role) && (
             <button
               onClick={() => navigate(`/quests/${quest.id}/curriculum/edit`)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 sm:px-4 sm:py-2 bg-white border border-optio-purple text-optio-purple rounded-full hover:bg-optio-purple hover:text-white transition-all text-xs sm:text-sm font-semibold min-h-[32px] sm:min-h-[44px] whitespace-nowrap touch-manipulation"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-optio-purple text-optio-purple rounded-full hover:bg-optio-purple hover:text-white transition-all text-sm font-semibold min-h-[44px] touch-manipulation"
               style={{ fontFamily: 'Poppins' }}
             >
-              <PencilSquareIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <PencilSquareIcon className="w-4 h-4" />
               <span className="hidden sm:inline">Edit Curriculum</span>
               <span className="sm:hidden">Edit</span>
             </button>
           )}
 
           {/* Mark Completed Button - LMS quests only */}
-          {quest?.user_enrollment && !isQuestCompleted && quest?.lms_platform && (
+          {isEnrolled && !isQuestCompleted && quest?.lms_platform && (
             <button
               onClick={() => {
                 if (window.confirm('Only mark this quest as completed if you are finished with the associated LMS class.\n\nIf you submit more evidence to this quest later, it will automatically be reactivated.')) {
                   onEndQuest();
                 }
               }}
-              disabled={endQuestMutation.isPending}
-              className="px-3 py-1.5 bg-gradient-primary text-white rounded-full hover:shadow-lg transition-all text-xs font-semibold disabled:opacity-50 min-h-[32px] whitespace-nowrap touch-manipulation"
+              disabled={endQuestMutation?.isPending}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg transition-all text-sm font-semibold min-h-[44px] touch-manipulation disabled:opacity-50"
               style={{ fontFamily: 'Poppins' }}
             >
-              {endQuestMutation.isPending ? 'Marking...' : 'Complete'}
+              {endQuestMutation?.isPending ? 'Marking...' : 'Mark Complete'}
             </button>
           )}
-
-          {/* Show Details Toggle */}
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="flex items-center gap-1 px-3 py-1.5 text-gray-500 hover:text-gray-700 transition-colors text-xs sm:text-sm min-h-[32px] whitespace-nowrap touch-manipulation"
-            style={{ fontFamily: 'Poppins' }}
-          >
-            <ChevronDownIcon className={`w-4 h-4 transition-transform ${showDetails ? 'rotate-180' : ''}`} />
-            <span>{showDetails ? 'Less' : 'More'}</span>
-          </button>
         </div>
-
-        {/* Collapsible Details Section */}
-        {showDetails && (
-          <div className="border-t border-gray-200 pt-3 sm:pt-4 mt-2 animate-fade-in">
-            {/* Two-column layout: Description left, Journey right */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              {/* Left column: Description and metadata */}
-              <div>
-                {/* Description */}
-                {(quest?.big_idea || quest?.description) && (
-                  <p className="text-sm sm:text-base text-gray-700 mb-3" style={{ fontFamily: 'Poppins' }}>
-                    {quest?.big_idea || quest?.description}
-                  </p>
-                )}
-
-                {/* Metadata Row */}
-                <div className="flex flex-wrap gap-2 sm:gap-4 items-center text-xs sm:text-sm">
-                  {locationDisplay && (
-                    <div className="flex items-center gap-1.5 text-gray-600">
-                      <MapPinIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      <span>{locationDisplay}</span>
-                    </div>
-                  )}
-
-                  {seasonalDisplay && (
-                    <div className="flex items-center gap-1.5 text-gray-600">
-                      <CalendarIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      <span>{seasonalDisplay}</span>
-                    </div>
-                  )}
-
-                  {/* XP Earned - inline with metadata */}
-                  {(quest?.user_enrollment || isQuestCompleted) && earnedXP > 0 && (
-                    <div className="flex items-center gap-1.5 text-optio-purple font-medium">
-                      <span>{earnedXP} XP earned</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Right column: Engagement Calendar */}
-              {(quest?.user_enrollment || isQuestCompleted) && engagement?.calendar && (
-                <div className="md:border-l md:border-gray-200 md:pl-6">
-                  <div className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2" style={{ fontFamily: 'Poppins' }}>
-                    Your Journey
-                  </div>
-                  <EngagementCalendar
-                    days={engagement.calendar.days}
-                    weeksActive={engagement.calendar.weeks_active}
-                    firstActivityDate={engagement.calendar.first_activity_date}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Rhythm Explainer Modal */}

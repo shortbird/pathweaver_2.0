@@ -7,6 +7,8 @@ import { queryKeys } from '../utils/queryKeys';
 import api from '../services/api';
 import QuestDetailHeader from '../components/quest/QuestDetailHeader';
 import QuestEnrollment from '../components/quest/QuestEnrollment';
+import QuestApproachExamples from '../components/quest/QuestApproachExamples';
+import QuestMetadataCard from '../components/quest/QuestMetadataCard';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 import { useActivityTracking } from '../hooks/useActivityTracking';
@@ -432,6 +434,26 @@ const QuestDetail = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-4">
+        {/* Starter Paths Section - only show for non-enrolled users */}
+        <QuestApproachExamples
+          questId={quest.id}
+          questTitle={quest.title}
+          questDescription={quest.big_idea || quest.description}
+          cachedApproaches={quest.approach_examples}
+          isEnrolled={!!quest.user_enrollment || isQuestCompleted}
+          onEnrollmentComplete={() => {
+            // Refetch quest data to show tasks
+            window.location.reload();
+          }}
+          className="mb-4"
+        />
+
+        {/* Quest Metadata Card - Deliverables and details */}
+        <QuestMetadataCard
+          quest={quest}
+          className="mb-4"
+        />
+
         {/* Collaborators Section */}
         {collaborators.length > 0 && (
           <div className="bg-white rounded-xl shadow-md p-4 mb-4">

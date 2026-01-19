@@ -1018,3 +1018,195 @@ Return ONLY valid JSON (no markdown code blocks):
             credit_distribution[subject] = round(credit_distribution[subject] / 1000, 3)
 
         return credit_distribution
+
+    # ===== Approach Examples Generation =====
+
+    def generate_approach_examples(self, quest_id: str, quest_title: str, quest_description: str) -> Dict[str, Any]:
+        """
+        Generate diverse approach examples showing different ways to tackle a quest.
+
+        These are generated once per quest (not per user) and cached in the database.
+
+        Args:
+            quest_id: Quest UUID
+            quest_title: Quest title for context
+            quest_description: Quest description/big_idea for context
+
+        Returns:
+            Dict containing success status and approach examples
+        """
+        try:
+            # First check if we already have cached examples
+            cached = self._get_cached_approach_examples(quest_id)
+            if cached:
+                logger.info(f"Using cached approach examples for quest {quest_id[:8]}")
+                return {
+                    'success': True,
+                    'approaches': cached,
+                    'from_cache': True
+                }
+
+            # Generate new examples
+            prompt = self._build_approach_examples_prompt(quest_title, quest_description)
+
+            response = self.model.generate_content(prompt)
+            if not response or not response.text:
+                raise Exception("Empty response from Gemini API")
+
+            # Parse the response
+            result = self.extract_json(response.text)
+
+            if not result or 'approaches' not in result:
+                raise ValueError("Invalid response format - missing 'approaches' key")
+
+            approaches = result['approaches']
+
+            # Validate we have approaches
+            if not isinstance(approaches, list) or len(approaches) < 2:
+                raise ValueError(f"Expected 4 approaches, got {len(approaches) if isinstance(approaches, list) else 0}")
+
+            # Validate and clean each approach
+            for i, approach in enumerate(approaches):
+                if 'label' not in approach:
+                    raise ValueError(f"Approach {i} missing label")
+
+                # Ensure tasks exist and are valid
+                tasks = approach.get('tasks', [])
+                if not tasks or len(tasks) < 2:
+                    raise ValueError(f"Approach {i} needs at least 2 tasks")
+
+                # Validate and normalize each task
+                validated_tasks = []
+                for j, task in enumerate(tasks):
+                    validated_task = {
+                        'title': task.get('title', f'Task {j+1}'),
+                        'description': task.get('description', 'Complete this task.'),
+                        'pillar': self._validate_pillar(task.get('pillar', 'stem')),
+                        'xp_value': self._validate_xp(task.get('xp_value', 100))
+                    }
+                    validated_tasks.append(validated_task)
+
+                approach['tasks'] = validated_tasks
+
+            # Cache the result in the database
+            self._cache_approach_examples(quest_id, approaches)
+
+            logger.info(f"Generated and cached {len(approaches)} approach examples for quest {quest_id[:8]}")
+
+            return {
+                'success': True,
+                'approaches': approaches,
+                'from_cache': False
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to generate approach examples for quest {quest_id[:8]}: {str(e)}")
+            return {
+                'success': False,
+                'error': f"Failed to generate approach examples: {str(e)}",
+                'approaches': []
+            }
+
+    def _build_approach_examples_prompt(self, quest_title: str, quest_description: str) -> str:
+        """Build AI prompt for generating starter path approaches with actual tasks"""
+
+        pillar_list = ', '.join(self.valid_pillars)
+
+        return f"""
+Quest: {quest_title}
+About: {quest_description}
+
+Create 4 different "starter paths" for this quest. Each path is a different way a student might approach it based on their interests.
+
+RULES:
+- Use simple, everyday words (8th grade reading level)
+- Each path needs a short name (1-3 words) and 3-4 starter tasks
+- Tasks should be specific and doable
+- Each task needs: title (action verb + what), short description (1 sentence), pillar, and XP (50-150)
+- Paths should feel genuinely different - not just renamed versions of each other
+- Focus on the doing, not the outcome
+- IMPORTANT: Mix different pillars within each path (don't use the same pillar for all tasks in a path)
+
+PILLARS: {pillar_list}
+- stem: math, science, technology, logic, data
+- wellness: health, fitness, mindfulness, personal growth
+- communication: writing, reading, speaking, listening
+- civics: history, community, culture, social issues
+- art: visual art, music, creative expression, design
+
+GOOD PATH NAMES: "The Artist", "The Scientist", "The Builder", "The Writer", "The Helper", "The Explorer", "The Performer", "The Researcher"
+
+Return ONLY valid JSON:
+{{
+  "approaches": [
+    {{
+      "label": "Path Name",
+      "description": "One sentence about this approach style.",
+      "tasks": [
+        {{
+          "title": "Action verb + specific thing",
+          "description": "One sentence explaining what to do.",
+          "pillar": "pillar_key",
+          "xp_value": 100
+        }}
+      ]
+    }}
+  ]
+}}
+
+Generate 4 approaches, each with 3-4 tasks.
+"""
+
+    def _get_cached_approach_examples(self, quest_id: str) -> Optional[List[Dict]]:
+        """Check if approach examples are already cached in the database"""
+        try:
+            result = self.supabase.table('quests').select('approach_examples').eq('id', quest_id).single().execute()
+
+            if result.data and result.data.get('approach_examples'):
+                cached = result.data['approach_examples']
+                # Handle both formats: direct list or wrapped in 'approaches' key
+                if isinstance(cached, list):
+                    return cached
+                elif isinstance(cached, dict) and 'approaches' in cached:
+                    return cached['approaches']
+            return None
+        except Exception as e:
+            logger.warning(f"Error checking cached approach examples: {str(e)}")
+            return None
+
+    def _cache_approach_examples(self, quest_id: str, approaches: List[Dict]) -> bool:
+        """Cache generated approach examples in the database"""
+        try:
+            self.supabase.table('quests').update({
+                'approach_examples': approaches
+            }).eq('id', quest_id).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error caching approach examples: {str(e)}")
+            return False
+
+    def _validate_pillar(self, pillar: str) -> str:
+        """Validate and normalize a pillar value"""
+        if not pillar:
+            return 'stem'
+        pillar_lower = pillar.lower().strip()
+        if pillar_lower in self.valid_pillars:
+            return pillar_lower
+        # Try to map common variations
+        pillar_map = {
+            'science': 'stem', 'math': 'stem', 'technology': 'stem', 'engineering': 'stem',
+            'health': 'wellness', 'fitness': 'wellness', 'mindfulness': 'wellness',
+            'writing': 'communication', 'reading': 'communication', 'language': 'communication',
+            'history': 'civics', 'social': 'civics', 'community': 'civics', 'culture': 'civics',
+            'creative': 'art', 'music': 'art', 'visual': 'art', 'design': 'art'
+        }
+        return pillar_map.get(pillar_lower, 'stem')
+
+    def _validate_xp(self, xp_value) -> int:
+        """Validate and normalize XP value"""
+        try:
+            xp = int(xp_value)
+            # Clamp to reasonable range
+            return max(25, min(200, xp))
+        except (ValueError, TypeError):
+            return 100
