@@ -39,6 +39,23 @@ import logging
 logger = logging.getLogger(__name__)
 bp = Blueprint('observer', __name__)
 
+
+def get_frontend_url():
+    """
+    Determine the correct frontend URL based on the request host.
+    - localhost/127.0.0.1 -> http://localhost:3000
+    - optio-dev-backend -> https://optio-dev-frontend.onrender.com
+    - production -> https://www.optioeducation.com
+    """
+    host = request.host.lower() if request.host else ''
+
+    if 'localhost' in host or '127.0.0.1' in host:
+        return 'http://localhost:3000'
+    elif 'optio-dev' in host:
+        return 'https://optio-dev-frontend.onrender.com'
+    else:
+        return 'https://www.optioeducation.com'
+
 # ============================================
 # STUDENT ENDPOINTS - Send & Manage Invitations
 # ============================================
@@ -92,7 +109,7 @@ def send_observer_invitation():
         student_name = student.data.get('display_name') or f"{student.data.get('first_name', '')} {student.data.get('last_name', '')}".strip()
 
         # Send email notification to observer
-        frontend_url = request.environ.get('FRONTEND_URL', 'http://localhost:3000')
+        frontend_url = get_frontend_url()
         invitation_link = f"{frontend_url}/observer/accept/{invitation_code}"
 
         from services.email_service import EmailService
@@ -1136,7 +1153,7 @@ def parent_send_observer_invitation(user_id):
         logger.info(f"Parent observer invitation created: parent={parent_id}, student={student_id}")
 
         # Build shareable link
-        frontend_url = request.environ.get('FRONTEND_URL', 'http://localhost:3000')
+        frontend_url = get_frontend_url()
         shareable_link = f"{frontend_url}/observer/accept/{invitation_code}"
 
         return jsonify({
