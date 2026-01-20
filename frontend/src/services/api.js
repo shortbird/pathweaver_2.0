@@ -633,4 +633,26 @@ export const helperEvidenceAPI = {
   getStudentTasks: (studentId) => api.get(`/api/evidence/helper/student-tasks/${studentId}`),
 }
 
+/**
+ * Task Steps API
+ * AI-powered task step breakdowns for neurodivergent-supportive learning
+ */
+export const taskStepsAPI = {
+  // Generate AI-powered steps for a task
+  generateSteps: (taskId, granularity = 'quick') =>
+    api.post(`/api/tasks/${taskId}/steps/generate`, { granularity }),
+
+  // Get all steps for a task (including nested sub-steps)
+  getSteps: (taskId) => api.get(`/api/tasks/${taskId}/steps`),
+
+  // Toggle a step's completion status
+  toggleStep: (taskId, stepId) => api.put(`/api/tasks/${taskId}/steps/${stepId}/toggle`, {}),
+
+  // Drill down into a step (for "I'm stuck" feature)
+  drillDown: (taskId, stepId) => api.post(`/api/tasks/${taskId}/steps/${stepId}/drill-down`, {}),
+
+  // Delete all steps for a task
+  deleteSteps: (taskId) => api.delete(`/api/tasks/${taskId}/steps`),
+}
+
 export default api

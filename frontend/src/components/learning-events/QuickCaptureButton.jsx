@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { PlusIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { PlusIcon } from '@heroicons/react/24/outline';
 import LearningEventModal from './LearningEventModal';
+
+const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg';
 
 const QuickCaptureButton = ({ onSuccess }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isWiggling, setIsWiggling] = useState(false);
 
   // Keyboard shortcut: Ctrl+Shift+L
   const handleKeyDown = useCallback((e) => {
@@ -20,6 +23,21 @@ const QuickCaptureButton = ({ onSuccess }) => {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [handleKeyDown]);
+
+  // Random wiggle every 2-10 seconds
+  useEffect(() => {
+    const scheduleWiggle = () => {
+      const delay = 2000 + Math.random() * 8000; // 2-10 seconds
+      return setTimeout(() => {
+        setIsWiggling(true);
+        setTimeout(() => setIsWiggling(false), 500); // Wiggle duration
+        scheduleWiggle();
+      }, delay);
+    };
+
+    const timeoutId = scheduleWiggle();
+    return () => clearTimeout(timeoutId);
+  }, []);
 
   const handleSuccess = (event) => {
     setIsModalOpen(false);
@@ -39,15 +57,21 @@ const QuickCaptureButton = ({ onSuccess }) => {
       >
         <div className="relative">
           {/* Main button */}
-          <div className={`
-            flex items-center gap-2 px-4 py-3 rounded-full shadow-lg
-            bg-gradient-to-r from-optio-purple to-optio-pink
-            text-white font-semibold
-            transform transition-all duration-300 ease-out
-            hover:shadow-xl hover:scale-105
-            ${isHovered ? 'pr-6' : ''}
-          `}>
-            <SparklesIcon className="w-5 h-5" />
+          <div
+            className={`
+              flex items-center gap-2 px-4 py-3 rounded-full shadow-lg
+              bg-white border-2 border-optio-purple
+              text-optio-purple font-semibold
+              transform transition-all duration-300 ease-out
+              hover:shadow-xl hover:scale-105
+              ${isHovered ? 'pr-6' : ''}
+              ${isWiggling ? 'animate-wiggle' : ''}
+            `}
+            style={isWiggling ? {
+              animation: 'wiggle 0.5s ease-in-out'
+            } : {}}
+          >
+            <img src={OPTIO_LOGO_URL} alt="" className="w-5 h-5" />
             <span className={`
               overflow-hidden transition-all duration-300 ease-out whitespace-nowrap
               ${isHovered ? 'max-w-40 opacity-100' : 'max-w-0 opacity-0'}
@@ -70,10 +94,19 @@ const QuickCaptureButton = ({ onSuccess }) => {
             Ctrl+Shift+L
           </div>
 
-          {/* Pulse animation ring */}
-          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink opacity-30 animate-ping" />
         </div>
       </button>
+
+      {/* Wiggle animation keyframes */}
+      <style>{`
+        @keyframes wiggle {
+          0%, 100% { transform: rotate(0deg); }
+          20% { transform: rotate(-8deg); }
+          40% { transform: rotate(8deg); }
+          60% { transform: rotate(-5deg); }
+          80% { transform: rotate(5deg); }
+        }
+      `}</style>
 
       {/* Learning Event Modal */}
       <LearningEventModal

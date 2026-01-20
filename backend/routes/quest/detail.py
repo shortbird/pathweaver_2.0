@@ -30,14 +30,18 @@ def get_quest_detail(user_id: str, quest_id: str):
         # User authentication is already enforced by @require_auth decorator
         supabase = get_supabase_admin_client()
 
-        # Get quest basic info (without tasks - they're user-specific now)
+        # Get quest with course association in single query (consolidation optimization)
+        # Select only needed columns instead of '*' for better performance
         quest = supabase.table('quests')\
-            .select('*')\
+            .select('''
+                id, title, description, big_idea, header_image_url, image_url,
+                quest_type, approach_examples, is_active, organization_id,
+                lms_course_id, created_at,
+                course_quests(course_id, courses(id, cover_image_url))
+            ''')\
             .eq('id', quest_id)\
             .single()\
             .execute()
-
-        logger.info(f"[QUEST DETAIL] Quest query response: {quest.data}")
 
         if not quest.data:
             return jsonify({
@@ -47,27 +51,14 @@ def get_quest_detail(user_id: str, quest_id: str):
 
         quest_data = quest.data
 
-        # Add source header image if no custom header exists
-        if not quest_data.get('header_image_url') and quest_data.get('source'):
-            source_header = get_quest_header_image(quest_data)
-            if source_header:
-                quest_data['header_image_url'] = source_header
-
-        # Check if user is enrolled and get their personalized tasks
-        logger.info(f"[QUEST DETAIL] Checking enrollment for user {user_id[:8]} on quest {quest_id[:8]}")
-
-        # Get all enrollments for this user and quest
-        # Using admin client since user_id is already authenticated via @require_auth
+        # Get all enrollments for this user and quest (select only needed columns)
         all_enrollments = supabase.table('user_quests')\
-            .select('*')\
+            .select('id, user_id, quest_id, is_active, completed_at, personalization_completed, created_at')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
             .execute()
 
         enrollments_data = all_enrollments.data or []
-        logger.info(f"[QUEST DETAIL] All enrollments found: {len(enrollments_data)}")
-        for enrollment in enrollments_data:
-            logger.info(f"[QUEST DETAIL] Enrollment: id={enrollment.get('id')}, is_active={enrollment.get('is_active')}, completed_at={enrollment.get('completed_at')}, personalization_completed={enrollment.get('personalization_completed')}")
 
         # Find active or completed enrollment
         active_enrollment = None
@@ -91,27 +82,13 @@ def get_quest_detail(user_id: str, quest_id: str):
         if active_enrollment or completed_enrollment:
             # Prioritize active enrollment over completed (fixes restart bug)
             enrollment_to_use = active_enrollment or completed_enrollment
-            logger.info(f"[QUEST_DETAIL] Using enrollment ID: {enrollment_to_use['id'][:8]}, user_id: {user_id[:8]}, quest_id: {quest_id[:8]}")
-
-            # Debug: Check ALL tasks for this user and quest (ignoring user_quest_id)
-            all_user_tasks_debug = supabase.table('user_quest_tasks')\
-                .select('id, user_quest_id, title')\
-                .eq('user_id', user_id)\
-                .eq('quest_id', quest_id)\
-                .execute()
-            logger.info(f"[QUEST_DETAIL] DEBUG: Found {len(all_user_tasks_debug.data or [])} tasks for user+quest combo (any enrollment)")
-            for task in (all_user_tasks_debug.data or [])[:3]:  # Log first 3
-                logger.info(f"[QUEST_DETAIL] DEBUG Task: title={task['title'][:30]}, user_quest_id={task['user_quest_id'][:8]}")
-
-            # Get user's personalized tasks
+            # Get user's personalized tasks (select only needed columns)
             user_tasks = supabase.table('user_quest_tasks')\
-                .select('*')\
+                .select('id, title, description, pillar, xp_value, diploma_subjects, order_index, approval_status, user_quest_id')\
                 .eq('user_quest_id', enrollment_to_use['id'])\
                 .eq('approval_status', 'approved')\
                 .order('order_index')\
                 .execute()
-
-            logger.info(f"[QUEST_DETAIL] Found {len(user_tasks.data or [])} approved tasks for user_quest_id {enrollment_to_use['id'][:8]}")
 
             # Get task completions with evidence (only columns that exist in table)
             task_completions = supabase.table('quest_task_completions')\
@@ -122,28 +99,14 @@ def get_quest_detail(user_id: str, quest_id: str):
 
             completed_task_ids = {t['user_quest_task_id'] for t in task_completions.data} if task_completions.data else set()
 
-            # DEBUG: Log completion data
-            logger.info(f"[QUEST_DETAIL] Task completions for user {user_id[:8]} on quest {quest_id[:8]}:")
-            logger.info(f"[QUEST_DETAIL] Found {len(task_completions.data or [])} completion records")
-            for comp in (task_completions.data or [])[:5]:  # Log first 5
-                logger.info(f"[QUEST_DETAIL]   Completion: user_quest_task_id={comp['user_quest_task_id'][:8]}, completed_at={comp.get('completed_at')}")
-            logger.info(f"[QUEST_DETAIL] Completed task IDs set: {[id[:8] for id in list(completed_task_ids)[:5]]}")
-
             # Create a mapping of task_id to completion data for easy lookup
             completion_data_map = {t['user_quest_task_id']: t for t in task_completions.data} if task_completions.data else {}
-
-            # Debug: Check raw pillar values from database
-            logger.info(f"[QUEST_DETAIL] Raw tasks from DB for quest {quest_id}:")
-            for i, task in enumerate(user_tasks.data or []):
-                logger.info(f"  Task {i}: '{task.get('title')}' - pillar='{task.get('pillar')}'")
 
             # Mark tasks as completed and map field names for frontend compatibility
             quest_tasks = user_tasks.data or []
             for task in quest_tasks:
                 task_is_completed = task['id'] in completed_task_ids
                 task['is_completed'] = task_is_completed
-                # DEBUG: Log each task's completion status
-                logger.info(f"[QUEST_DETAIL] Task '{task.get('title')[:30]}': id={task['id'][:8]}, is_completed={task_is_completed}, in_completed_set={task['id'] in completed_task_ids}")
 
                 # Add evidence data if task is completed
                 if task['id'] in completion_data_map:
@@ -163,13 +126,11 @@ def get_quest_detail(user_id: str, quest_id: str):
                 # Normalize pillar to new key format for frontend
                 # Frontend expects lowercase keys like 'stem', 'art', etc.
                 if 'pillar' in task:
-                    original_pillar = task['pillar']
                     # Normalize pillar to new single-word key (handles legacy values)
                     try:
                         pillar_key = normalize_pillar_name(task['pillar'])
                     except ValueError:
                         pillar_key = 'art'  # Default fallback
-                    logger.info(f"[QUEST_DETAIL] Task '{task.get('title')}': DB pillar='{original_pillar}' -> sending key='{pillar_key}' to frontend")
                     task['pillar'] = pillar_key  # Send key, not display name
 
             quest_data['quest_tasks'] = quest_tasks
@@ -232,34 +193,25 @@ def get_quest_detail(user_id: str, quest_id: str):
 
         # Check if this quest is part of an active course enrollment
         # This is used to disable the "End Quest" button for course quests
-        # Also fetch course cover image as fallback for quest header
+        # Course data was pre-fetched in the initial query (consolidation optimization)
         active_course_enrollment = None
         course_cover_image_url = None
         try:
-            # Find courses that contain this quest
-            course_quests_result = supabase.table('course_quests')\
-                .select('course_id')\
-                .eq('quest_id', quest_id)\
-                .execute()
+            # Use pre-fetched course_quests data from initial query
+            course_quests_data = quest_data.pop('course_quests', []) or []
 
-            if course_quests_result.data:
-                course_ids = [cq['course_id'] for cq in course_quests_result.data]
+            if course_quests_data:
+                course_ids = [cq['course_id'] for cq in course_quests_data]
 
-                # Get the first course's cover image as fallback
-                first_course = supabase.table('courses')\
-                    .select('cover_image_url')\
-                    .eq('id', course_ids[0])\
-                    .single()\
-                    .execute()
-
-                if first_course.data and first_course.data.get('cover_image_url'):
-                    course_cover_image_url = first_course.data['cover_image_url']
+                # Get cover image from pre-fetched data
+                first_course_data = course_quests_data[0].get('courses')
+                if first_course_data and first_course_data.get('cover_image_url'):
+                    course_cover_image_url = first_course_data['cover_image_url']
                     # Add as fallback if quest has no header image
                     if not quest_data.get('header_image_url') and not quest_data.get('image_url'):
                         quest_data['header_image_url'] = course_cover_image_url
-                        logger.info(f"[QUEST DETAIL] Using course cover image as header fallback for quest {quest_id[:8]}")
 
-                # Check if user has active enrollment in any of these courses
+                # Only query needed: check user's course enrollment (single query)
                 course_enrollments = supabase.table('course_enrollments')\
                     .select('id, course_id, status')\
                     .eq('user_id', user_id)\
@@ -269,7 +221,6 @@ def get_quest_detail(user_id: str, quest_id: str):
 
                 if course_enrollments.data:
                     active_course_enrollment = course_enrollments.data[0]
-                    logger.info(f"[QUEST DETAIL] Quest {quest_id[:8]} is part of active course enrollment {active_course_enrollment['id'][:8]}")
         except Exception as course_err:
             logger.warning(f"[QUEST DETAIL] Error checking course enrollment: {course_err}")
 
@@ -299,9 +250,9 @@ def check_enrollment_status(user_id: str, quest_id: str):
     try:
         supabase = get_supabase_client()
 
-        # Check for any enrollment
+        # Check for any enrollment (select only needed columns)
         enrollment = supabase.table('user_quests')\
-            .select('*')\
+            .select('id, user_id, quest_id, is_active, completed_at, personalization_completed')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
             .execute()

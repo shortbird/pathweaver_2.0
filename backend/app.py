@@ -134,6 +134,11 @@ register_quest_blueprints(app)  # /api/quests (listing, detail, enrollment, comp
 
 # Register other routes
 app.register_blueprint(tasks.bp)      # /api/tasks (blueprint has url_prefix='/api/tasks')
+
+# Register task steps routes (AI-powered step breakdowns)
+from routes.task_steps import bp as task_steps_bp
+app.register_blueprint(task_steps_bp)  # /api/tasks/<id>/steps (AI step generation)
+
 app.register_blueprint(evidence_documents.bp)  # /api/evidence (blueprint has url_prefix='/api/evidence')
 
 # Register helper evidence routes (advisors/parents uploading for students)

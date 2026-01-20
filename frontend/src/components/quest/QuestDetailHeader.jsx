@@ -133,10 +133,10 @@ const QuestDetailHeader = ({
           {/* Back button - absolute positioned */}
           <button
             onClick={handleBackClick}
-            className="absolute top-3 left-4 sm:left-6 lg:left-8 flex items-center gap-1 text-gray-700 hover:text-gray-900 transition-colors text-xs font-medium bg-white/80 backdrop-blur-sm px-2 py-1 rounded-full shadow-sm"
+            className="absolute top-3 left-4 sm:left-6 lg:left-8 flex items-center gap-1.5 text-gray-700 hover:text-gray-900 transition-colors text-sm font-medium bg-white/90 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm min-h-[44px] touch-manipulation"
             style={{ fontFamily: 'Poppins' }}
           >
-            <ArrowLeftIcon className="w-3 h-3" />
+            <ArrowLeftIcon className="w-4 h-4" />
             <span>Back</span>
           </button>
 
@@ -145,10 +145,10 @@ const QuestDetailHeader = ({
             {(isEnrolled || isQuestCompleted) && (
               <button
                 onClick={() => navigate('/diploma')}
-                className="flex items-center gap-1 px-2 py-1 bg-white/90 backdrop-blur-sm text-optio-purple border border-purple-200 rounded-full hover:bg-white transition-all text-xs font-medium shadow-sm"
+                className="flex items-center gap-1.5 px-3 py-2 bg-white/90 backdrop-blur-sm text-optio-purple border border-purple-200 rounded-full hover:bg-white transition-all text-sm font-medium shadow-sm min-h-[44px] touch-manipulation"
                 style={{ fontFamily: 'Poppins' }}
               >
-                <BookOpenIcon className="w-3 h-3" />
+                <BookOpenIcon className="w-4 h-4" />
                 <span className="hidden sm:inline">Diploma</span>
               </button>
             )}
@@ -157,20 +157,20 @@ const QuestDetailHeader = ({
               quest?.active_course_enrollment ? (
                 <button
                   onClick={() => toast.error('This quest is part of an active course. Unenroll from the course first.')}
-                  className="flex items-center gap-1 px-2 py-1 bg-gray-100/90 backdrop-blur-sm text-gray-400 border border-gray-200 rounded-full cursor-not-allowed text-xs font-medium"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-gray-100/90 backdrop-blur-sm text-gray-400 border border-gray-200 rounded-full cursor-not-allowed text-sm font-medium min-h-[44px] touch-manipulation"
                   style={{ fontFamily: 'Poppins' }}
                 >
-                  <ArrowRightStartOnRectangleIcon className="w-3 h-3" />
+                  <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
                   <span className="hidden sm:inline">End</span>
                 </button>
               ) : (
                 <button
                   onClick={onEndQuest}
                   disabled={endQuestMutation?.isPending}
-                  className="flex items-center gap-1 px-2 py-1 bg-white/90 backdrop-blur-sm text-red-500 border border-red-200 rounded-full hover:bg-red-50 transition-all text-xs font-medium shadow-sm disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-white/90 backdrop-blur-sm text-red-500 border border-red-200 rounded-full hover:bg-red-50 transition-all text-sm font-medium shadow-sm disabled:opacity-50 min-h-[44px] touch-manipulation"
                   style={{ fontFamily: 'Poppins' }}
                 >
-                  <ArrowRightStartOnRectangleIcon className="w-3 h-3" />
+                  <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
                   <span className="hidden sm:inline">{endQuestMutation?.isPending ? '...' : 'End'}</span>
                 </button>
               )

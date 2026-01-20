@@ -24,6 +24,7 @@ const QuestApproachExamples = ({
   // Don't even initialize state if enrolled - component won't render
   const [approaches, setApproaches] = useState(cachedApproaches || null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [selectingIndex, setSelectingIndex] = useState(null);
   const queryClient = useQueryClient();
 
@@ -39,6 +40,7 @@ const QuestApproachExamples = ({
     if (cachedApproaches && cachedApproaches.length > 0) {
       setApproaches(cachedApproaches);
       setIsLoading(false);
+      setIsGenerating(false);
       return;
     }
 
@@ -52,12 +54,19 @@ const QuestApproachExamples = ({
 
         if (response.data.success && response.data.approaches?.length > 0) {
           setApproaches(response.data.approaches);
+          setIsGenerating(false);
+        } else if (response.data.generating) {
+          // Backend is generating - show minimal loading state and poll
+          setIsGenerating(true);
+          setApproaches([]);
         } else {
           setApproaches([]);
+          setIsGenerating(false);
         }
       } catch (err) {
         console.debug('Failed to load approaches:', err);
         setApproaches([]);
+        setIsGenerating(false);
       } finally {
         setIsLoading(false);
       }
@@ -65,6 +74,39 @@ const QuestApproachExamples = ({
 
     fetchApproaches();
   }, [questId, cachedApproaches, isEnrolled]);
+
+  // Poll for generated approaches if generating flag is set
+  useEffect(() => {
+    if (!isGenerating || isEnrolled || !questId) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await api.get(`/api/quest-ai/approach-examples/${questId}`);
+
+        if (response.data.success && response.data.approaches?.length > 0) {
+          setApproaches(response.data.approaches);
+          setIsGenerating(false);
+        } else if (!response.data.generating) {
+          // Generation finished but no approaches - stop polling
+          setIsGenerating(false);
+        }
+        // If still generating, keep polling
+      } catch (err) {
+        console.debug('Poll failed:', err);
+        setIsGenerating(false);
+      }
+    }, 3000); // Poll every 3 seconds
+
+    // Stop polling after 30 seconds max
+    const timeout = setTimeout(() => {
+      setIsGenerating(false);
+    }, 30000);
+
+    return () => {
+      clearInterval(pollInterval);
+      clearTimeout(timeout);
+    };
+  }, [isGenerating, isEnrolled, questId]);
 
   // Early return if enrolled - don't render anything
   if (isEnrolled) {
@@ -134,8 +176,8 @@ const QuestApproachExamples = ({
     }
   };
 
-  // Loading state
-  if (isLoading) {
+  // Initial loading state (first fetch)
+  if (isLoading && !isGenerating) {
     return (
       <div className={`bg-white rounded-xl shadow-md p-4 sm:p-6 ${className}`}>
         <div className="animate-pulse">
@@ -153,6 +195,28 @@ const QuestApproachExamples = ({
               </div>
             ))}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Generating state - show minimal non-blocking indicator
+  // User can still see the rest of the page while this generates
+  if (isGenerating) {
+    return (
+      <div className={`bg-white rounded-xl shadow-md p-4 sm:p-6 ${className}`}>
+        <div className="flex items-center gap-2 mb-1">
+          <SparklesIcon className="w-5 h-5 text-optio-purple animate-pulse" />
+          <h2
+            className="text-lg sm:text-xl font-bold text-gray-900"
+            style={{ fontFamily: 'Poppins' }}
+          >
+            Choose Your Path
+          </h2>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-500 py-8 justify-center">
+          <div className="w-4 h-4 border-2 border-optio-purple border-t-transparent rounded-full animate-spin"></div>
+          <span>Creating starter paths...</span>
         </div>
       </div>
     );

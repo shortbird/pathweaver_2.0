@@ -203,7 +203,6 @@ const QuestDetail = () => {
 
     endQuestMutation.mutate(id, {
       onSuccess: () => {
-        toast.success('Quest completed! Returning to dashboard...');
         navigate('/');
       },
       onError: (error) => {
@@ -434,19 +433,21 @@ const QuestDetail = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-4">
-        {/* Starter Paths Section - only show for non-enrolled users */}
-        <QuestApproachExamples
-          questId={quest.id}
-          questTitle={quest.title}
-          questDescription={quest.big_idea || quest.description}
-          cachedApproaches={quest.approach_examples}
-          isEnrolled={!!quest.user_enrollment || isQuestCompleted}
-          onEnrollmentComplete={() => {
-            // Refetch quest data to show tasks
-            window.location.reload();
-          }}
-          className="mb-4"
-        />
+        {/* Starter Paths Section - only show for optio quests (not course quests which have preset tasks) */}
+        {quest.quest_type === 'optio' && (
+          <QuestApproachExamples
+            questId={quest.id}
+            questTitle={quest.title}
+            questDescription={quest.big_idea || quest.description}
+            cachedApproaches={quest.approach_examples}
+            isEnrolled={!!quest.user_enrollment || isQuestCompleted}
+            onEnrollmentComplete={() => {
+              // Refetch quest data to show tasks
+              window.location.reload();
+            }}
+            className="mb-4"
+          />
+        )}
 
         {/* Quest Metadata Card - Deliverables and details */}
         <QuestMetadataCard

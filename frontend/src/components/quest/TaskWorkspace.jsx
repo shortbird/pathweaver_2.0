@@ -20,6 +20,9 @@ import logger from '../../utils/logger';
 import EvidenceDisplay from '../evidence/EvidenceDisplay';
 import AddEvidenceModal from '../evidence/AddEvidenceModal';
 import SubjectBadges from '../common/SubjectBadges';
+import TaskStepsModal from './TaskStepsModal';
+import { SparklesIcon } from '@heroicons/react/24/outline';
+import { useAIAccess } from '../../contexts/AIAccessContext';
 
 // Sortable Task Item for the collapsible list
 const SortableTaskItem = ({ task, isSelected, onClick, onRemove }) => {
@@ -112,11 +115,13 @@ const TaskWorkspace = ({
   onRemoveTask,
   onClose
 }) => {
+  const { canUseTaskGeneration } = useAIAccess();
   const [error, setError] = useState('');
   const [isCompleting, setIsCompleting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [evidenceBlocks, setEvidenceBlocks] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isStepsModalOpen, setIsStepsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isTaskListOpen, setIsTaskListOpen] = useState(true);
   const [editingBlock, setEditingBlock] = useState(null);
@@ -543,36 +548,49 @@ const TaskWorkspace = ({
               </div>
             )}
             {/* Pillar and XP badges - below title/description */}
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <div
-                  className="px-3 py-1 rounded-full text-xs font-semibold text-white"
-                  style={{ backgroundColor: pillarData?.color, fontFamily: 'Poppins' }}
-                >
-                  {pillarData?.name}
+            <div className="flex items-end justify-between gap-2">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div
+                    className="px-3 py-1 rounded-full text-xs font-semibold text-white"
+                    style={{ backgroundColor: pillarData?.color, fontFamily: 'Poppins' }}
+                  >
+                    {pillarData?.name}
+                  </div>
+                  <div
+                    className="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"
+                    style={{
+                      backgroundColor: `${pillarData?.color}20`,
+                      color: pillarData?.color,
+                      fontFamily: 'Poppins'
+                    }}
+                  >
+                    <TrophyIcon className="w-3.5 h-3.5" />
+                    {task.xp_amount} XP
+                  </div>
                 </div>
-                <div
-                  className="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"
-                  style={{
-                    backgroundColor: `${pillarData?.color}20`,
-                    color: pillarData?.color,
-                    fontFamily: 'Poppins'
-                  }}
-                >
-                  <TrophyIcon className="w-3.5 h-3.5" />
-                  {task.xp_amount} XP
-                </div>
+                {/* Subject XP Distribution */}
+                {(task.subject_xp_distribution || task.school_subjects) && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>Credits:</span>
+                    <SubjectBadges
+                      subjectXpDistribution={task.subject_xp_distribution || task.school_subjects}
+                      compact={false}
+                      maxDisplay={3}
+                    />
+                  </div>
+                )}
               </div>
-              {/* Subject XP Distribution */}
-              {(task.subject_xp_distribution || task.school_subjects) && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>Credits:</span>
-                  <SubjectBadges
-                    subjectXpDistribution={task.subject_xp_distribution || task.school_subjects}
-                    compact={false}
-                    maxDisplay={3}
-                  />
-                </div>
+              {/* Break into Steps button - bottom right */}
+              {canUseTaskGeneration && !task.is_completed && (
+                <button
+                  onClick={() => setIsStepsModalOpen(true)}
+                  className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-optio-purple bg-optio-purple/10 hover:bg-optio-purple/20 rounded-lg transition-colors"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  <SparklesIcon className="w-3.5 h-3.5" />
+                  Steps
+                </button>
               )}
             </div>
           </div>
@@ -789,6 +807,15 @@ const TaskWorkspace = ({
         onUpdate={handleUpdateEvidence}
         editingBlock={editingBlock}
         existingEvidence={evidenceBlocks}
+      />
+
+      {/* Task Steps Modal - AI-powered step breakdown */}
+      <TaskStepsModal
+        isOpen={isStepsModalOpen}
+        onClose={() => setIsStepsModalOpen(false)}
+        taskId={task?.id}
+        taskTitle={task?.title}
+        isTaskCompleted={task?.is_completed}
       />
     </div>
   );

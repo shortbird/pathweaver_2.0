@@ -128,22 +128,32 @@ def list_collaborations(user_id):
                 'message': 'Collaboration feature not yet configured'
             }), 200
 
-        # Get members for each collaboration
+        # Get all members in a single query (avoids N+1)
+        collab_ids = [c['id'] for c in collaborations.data or []]
+        members_by_collab = {}
+
+        if collab_ids:
+            try:
+                all_members = supabase.table('quest_collaboration_members')\
+                    .select('collaboration_id, users(id, display_name, email)')\
+                    .in_('collaboration_id', collab_ids)\
+                    .execute()
+
+                for member in all_members.data or []:
+                    cid = member.get('collaboration_id')
+                    if cid not in members_by_collab:
+                        members_by_collab[cid] = []
+                    if member.get('users'):
+                        members_by_collab[cid].append(member.get('users'))
+            except Exception:
+                pass  # members_by_collab remains empty
+
         result = []
         for collab in collaborations.data or []:
-            try:
-                members = supabase.table('quest_collaboration_members')\
-                    .select('*, users(id, display_name, email)')\
-                    .eq('collaboration_id', collab['id'])\
-                    .execute()
-                member_list = [m.get('users') for m in members.data] if members.data else []
-            except Exception:
-                member_list = []
-
             result.append({
                 **collab,
                 'quest': collab.get('quests'),
-                'members': member_list
+                'members': members_by_collab.get(collab['id'], [])
             })
 
         return jsonify({
@@ -271,21 +281,20 @@ def get_quest_collaborators(user_id, quest_id):
                 'count': 0
             }), 200
 
-        # Get all members of these collaborations
+        # Get all members of these collaborations in a single query (avoids N+1)
         all_members = []
         seen_user_ids = set()
 
-        for collab_id in relevant_collab_ids:
-            members = supabase.table('quest_collaboration_members')\
-                .select('user_id, users(id, display_name, email, avatar_url)')\
-                .eq('collaboration_id', collab_id)\
-                .execute()
+        members_result = supabase.table('quest_collaboration_members')\
+            .select('user_id, users(id, display_name, email, avatar_url)')\
+            .in_('collaboration_id', relevant_collab_ids)\
+            .execute()
 
-            for member in members.data or []:
-                member_user = member.get('users', {})
-                if member_user and member_user.get('id') not in seen_user_ids:
-                    seen_user_ids.add(member_user.get('id'))
-                    all_members.append(member_user)
+        for member in members_result.data or []:
+            member_user = member.get('users', {})
+            if member_user and member_user.get('id') not in seen_user_ids:
+                seen_user_ids.add(member_user.get('id'))
+                all_members.append(member_user)
 
         return jsonify({
             'success': True,

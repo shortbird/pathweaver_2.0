@@ -17,7 +17,8 @@ const QuestEnrollment = ({
   onPreloadWizard
 }) => {
   // Show enrollment button for completed quests or quests without enrollment
-  const showEnrollmentButton = !quest?.lms_platform && (
+  // For optio quests, enrollment happens via "Start from scratch" or path selection in QuestApproachExamples
+  const showEnrollmentButton = !quest?.lms_platform && quest?.quest_type !== 'optio' && (
     isQuestCompleted ||
     !quest?.user_enrollment ||
     (quest?.user_enrollment && totalTasks === 0)
@@ -165,13 +166,6 @@ const QuestEnrollment = ({
         </div>
       )}
 
-      {/* Empty state for quests with no sample/preset tasks and no enrollment */}
-      {!quest?.user_enrollment && !showSampleTasks && !showPresetTasks && (
-        <div className="text-center py-12 bg-white rounded-xl shadow-md text-gray-500">
-          <BookOpenIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p className="text-lg">Start this quest to see tasks</p>
-        </div>
-      )}
     </>
   );
 };

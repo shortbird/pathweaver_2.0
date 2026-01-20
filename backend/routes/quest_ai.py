@@ -354,6 +354,24 @@ def enhance_student_quest_idea(user_id: str):
             'error': 'Failed to enhance quest idea'
         }), 500
 
+# Track quests currently being generated to avoid duplicate work
+_generating_quests = set()
+
+def _generate_approaches_background(quest_id: str, quest_title: str, quest_description: str):
+    """Background task to generate approach examples without blocking the request."""
+    try:
+        ai_service = get_quest_ai_service()
+        ai_service.generate_approach_examples(
+            quest_id=quest_id,
+            quest_title=quest_title,
+            quest_description=quest_description
+        )
+    except Exception as e:
+        logger.error(f"Background approach generation failed for quest {quest_id}: {str(e)}")
+    finally:
+        _generating_quests.discard(quest_id)
+
+
 @bp.route('/approach-examples/<quest_id>', methods=['GET'])
 def get_approach_examples(quest_id: str):
     """
@@ -362,10 +380,14 @@ def get_approach_examples(quest_id: str):
     These are AI-generated diverse approach examples showing different ways to tackle the quest.
     Examples are cached in the database to avoid repeated API calls.
 
+    PERFORMANCE OPTIMIZATION: Returns immediately if not cached, triggers background generation.
+    Frontend should poll again after ~3-5 seconds if 'generating' flag is true.
+
     Public endpoint - no authentication required (quest data is public).
     """
     try:
         from database import get_supabase_admin_client
+        import threading
 
         # Validate quest_id format
         if not quest_id or len(quest_id) < 32:
@@ -400,30 +422,29 @@ def get_approach_examples(quest_id: str):
                     'from_cache': True
                 }), 200
 
-        # Generate new examples using AI service
-        ai_service = get_quest_ai_service()
+        # Not cached - return immediately and trigger background generation
+        # This avoids blocking the page load on AI API calls
+        if quest_id not in _generating_quests:
+            _generating_quests.add(quest_id)
+            quest_description = quest.get('big_idea') or quest.get('description') or ''
 
-        quest_description = quest.get('big_idea') or quest.get('description') or ''
-        result = ai_service.generate_approach_examples(
-            quest_id=quest_id,
-            quest_title=quest.get('title', 'Untitled Quest'),
-            quest_description=quest_description
-        )
+            # Start background thread for generation
+            thread = threading.Thread(
+                target=_generate_approaches_background,
+                args=(quest_id, quest.get('title', 'Untitled Quest'), quest_description),
+                daemon=True
+            )
+            thread.start()
+            logger.info(f"Started background approach generation for quest {quest_id[:8]}")
 
-        if result['success']:
-            return jsonify({
-                'success': True,
-                'approaches': result['approaches'],
-                'from_cache': result.get('from_cache', False)
-            }), 200
-        else:
-            # Return empty array on failure (graceful degradation)
-            logger.warning(f"Failed to generate approach examples: {result.get('error')}")
-            return jsonify({
-                'success': True,
-                'approaches': [],
-                'error': 'Generation failed - section hidden'
-            }), 200
+        # Return immediately with generating flag
+        # Frontend should poll again after a few seconds
+        return jsonify({
+            'success': True,
+            'approaches': [],
+            'generating': True,
+            'from_cache': False
+        }), 200
 
     except Exception as e:
         logger.error(f"Error getting approach examples: {str(e)}")

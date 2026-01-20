@@ -170,19 +170,16 @@ def get_quest_engagement(user_id: str, quest_id: str):
             .execute()
 
         # Get activity events for this quest (task views, evidence uploads, tutor chats)
+        # Filter directly on JSONB field to avoid fetching unnecessary data
         events = supabase.table('user_activity_events')\
-            .select('event_type, created_at, event_data')\
+            .select('event_type, created_at')\
             .eq('user_id', user_id)\
             .in_('event_type', ['task_viewed', 'evidence_uploaded', 'tutor_message_sent', 'quest_viewed'])\
             .gte('created_at', twelve_weeks_ago.isoformat())\
+            .filter('event_data->>quest_id', 'eq', quest_id)\
             .execute()
 
-        # Filter events to only those for this quest
-        quest_events = []
-        for event in (events.data or []):
-            event_data = event.get('event_data') or {}
-            if event_data.get('quest_id') == quest_id:
-                quest_events.append(event)
+        quest_events = events.data or []
 
         # Aggregate activities by date
         daily_activities = defaultdict(lambda: {'count': 0, 'activities': set()})

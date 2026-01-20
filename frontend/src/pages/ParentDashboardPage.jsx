@@ -374,7 +374,7 @@ const ParentDashboardPage = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="mb-8 flex items-start justify-between">
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
             Family Dashboard
@@ -387,18 +387,18 @@ const ParentDashboardPage = () => {
         </div>
 
         {/* Header Action Buttons */}
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2 sm:gap-3">
           <button
             onClick={() => setShowFamilyObserverModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-shadow min-h-[44px]"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-shadow min-h-[44px] text-sm sm:text-base"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             <UserGroupIcon className="w-5 h-5" />
-            Family Observers
+            <span className="hidden xs:inline">Family </span>Observers
           </button>
           <button
             onClick={() => setShowAddDependentModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-lg transition-shadow min-h-[44px]"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-lg transition-shadow min-h-[44px] text-sm sm:text-base"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             <PlusIcon className="w-5 h-5" />
