@@ -33,7 +33,7 @@ const VELASection = forwardRef(({ isVisible = true }, ref) => {
               className="text-lg text-gray-600 leading-relaxed"
               style={{ fontFamily: 'Poppins', fontWeight: 500 }}
             >
-              Optio is proud to be a VELA grant recipient, supporting our mission to make personalized, accredited education accessible to microschools and families nationwide.
+              Optio is proud to be a VELA grant recipient, supporting our mission to make personalized, accredited education accessible to all learners nationwide.
             </p>
           </div>
         </div>

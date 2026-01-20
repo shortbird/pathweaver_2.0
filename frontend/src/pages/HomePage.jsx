@@ -130,7 +130,7 @@ const HomePage = () => {
         <LandingPageHero
           title="Personalized Learning."
           gradientTitle="Official Credentials."
-          staticSubtitle="Where self-directed learning earns accredited diplomas."
+          staticSubtitle="Where self-directed learning meets accredited diplomas."
           ctaText="GET MORE INFO"
           onCtaClick={goToDemoRequest}
           backgroundImage="https://auth.optioeducation.com/storage/v1/object/public/site-assets/homepage/hero_real.jpg"
@@ -145,7 +145,129 @@ const HomePage = () => {
         />
       )}
 
-      {/* Section 2: For Schools & Organizations */}
+      {/* What is Optio Section */}
+      <div className="py-16 sm:py-20 bg-gray-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2
+              className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4"
+              style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+            >
+              Optio is a platform that aligns student-directed learning with official credentials.
+            </h2>
+            <p
+              className="text-lg text-gray-600"
+              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+            >
+              For individual learners, homeschool families, microschools, and school districts.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Personalized Quests */}
+            <div className="group p-6 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+              {/* Visual: Interest chips flowing into quest card */}
+              <div className="flex flex-col items-center mb-4">
+                <div className="flex flex-wrap justify-center gap-1.5 mb-2">
+                  <span className="px-2 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 rounded-full">Gaming</span>
+                  <span className="px-2 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700 rounded-full">Music</span>
+                  <span className="px-2 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded-full">Sports</span>
+                </div>
+                <svg className="w-4 h-4 text-optio-purple/40 my-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+                <div className="w-full max-w-[140px] p-2 rounded-lg bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 border border-optio-purple/20">
+                  <div className="h-1.5 w-3/4 bg-optio-purple/30 rounded mb-1"></div>
+                  <div className="h-1 w-1/2 bg-optio-purple/20 rounded"></div>
+                </div>
+              </div>
+              <h3
+                className="text-xl font-bold text-gray-900 mb-2 text-center"
+                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+              >
+                Personalized Quests
+              </h3>
+              <p
+                className="text-gray-600 text-center"
+                style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+              >
+                Turn student interests into engaging learning experiences
+              </p>
+            </div>
+
+            {/* Automatic Portfolios */}
+            <div className="group p-6 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+              {/* Visual: Stacked portfolio cards */}
+              <div className="flex justify-center mb-4">
+                <div className="relative w-32 h-20">
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-14 rounded-lg bg-gradient-to-br from-optio-purple/20 to-optio-pink/20 border border-optio-purple/30 shadow-sm"></div>
+                  <div className="absolute top-2 left-1/2 -translate-x-1/2 w-20 h-14 rounded-lg bg-gradient-to-br from-optio-purple/15 to-optio-pink/15 border border-optio-purple/20 shadow-sm"></div>
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 w-20 h-14 rounded-lg bg-white border border-gray-200 shadow-md flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-8 h-6 bg-gray-100 rounded mx-auto mb-1"></div>
+                      <div className="h-1 w-10 bg-gray-200 rounded"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <h3
+                className="text-xl font-bold text-gray-900 mb-2 text-center"
+                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+              >
+                Automatic Portfolios
+              </h3>
+              <p
+                className="text-gray-600 text-center"
+                style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+              >
+                Capture student work as they learn, no extra steps
+              </p>
+            </div>
+
+            {/* Accredited Credentials */}
+            <div className="group p-6 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+              {/* Visual: Diploma/certificate with seal */}
+              <div className="flex justify-center mb-4">
+                <div className="relative">
+                  <div className="w-28 h-20 rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 shadow-sm p-2">
+                    <div className="h-1.5 w-16 bg-amber-300/50 rounded mx-auto mb-1.5"></div>
+                    <div className="h-1 w-12 bg-amber-200/50 rounded mx-auto mb-1"></div>
+                    <div className="h-1 w-14 bg-amber-200/50 rounded mx-auto mb-2"></div>
+                    <div className="h-1 w-8 bg-amber-300/50 rounded mx-auto"></div>
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center shadow-md">
+                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <h3
+                className="text-xl font-bold text-gray-900 mb-2 text-center"
+                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+              >
+                Accredited Credentials
+              </h3>
+              <p
+                className="text-gray-600 text-center"
+                style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+              >
+                Award official credit for real-world learning
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* VELA Grant */}
+      <div
+        ref={(el) => (sectionRefs.current.vela = el)}
+        data-section="vela"
+      >
+        <VELASection isVisible={isVisible('vela')} />
+      </div>
+
+      {/* For Schools & Organizations */}
       <div
         id="main-content"
         ref={(el) => (sectionRefs.current.orgFeatures = el)}
@@ -154,15 +276,7 @@ const HomePage = () => {
         <OrganizationFeaturesSection isVisible={isVisible('orgFeatures')} />
       </div>
 
-      {/* Section 3: VELA Grant */}
-      <div
-        ref={(el) => (sectionRefs.current.vela = el)}
-        data-section="vela"
-      >
-        <VELASection isVisible={isVisible('vela')} />
-      </div>
-
-      {/* Section 4: Platform Capabilities */}
+      {/* Platform Capabilities */}
       <div
         ref={(el) => (sectionRefs.current.capabilities = el)}
         data-section="capabilities"
@@ -179,7 +293,7 @@ const HomePage = () => {
         <FamilyValueSection
           isVisible={isVisible('families')}
           testimonial={{
-            quote: "My husband and I are so grateful for Optio! We feel like it was created just for us. We homeschool our 7 kids and this is the perfect platform to track all the learning we do in our family.",
+            quote: "My husband and I feel like Optio was created just for us. We homeschool our 7 kids and this is the perfect platform to track all the unique types of learning we do in our family.",
             author: "Paige H.",
             role: "Homeschool Parent, Utah"
           }}
