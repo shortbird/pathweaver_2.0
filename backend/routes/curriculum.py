@@ -164,7 +164,9 @@ def upload_attachment(user_id: str, quest_id: str):
             return jsonify({'error': 'No file selected'}), 400
 
         result = upload_service.upload_attachment(
-            file=file,
+            file_data=file.read(),
+            filename=file.filename,
+            content_type=file.content_type or 'application/octet-stream',
             quest_id=quest_id,
             user_id=user_id,
             organization_id=organization_id
@@ -225,7 +227,9 @@ def upload_image(user_id: str, quest_id: str):
             return jsonify({'error': 'No file selected'}), 400
 
         result = upload_service.upload_image(
-            file=file,
+            file_data=file.read(),
+            filename=file.filename,
+            content_type=file.content_type or 'image/jpeg',
             quest_id=quest_id,
             max_width=2000
         )
