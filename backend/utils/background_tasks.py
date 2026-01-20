@@ -23,26 +23,32 @@ def generate_approaches_background(quest_id: str, quest_title: str, quest_descri
         quest_title: Title of the quest
         quest_description: Description/big_idea of the quest
     """
+    from flask import current_app
+
+    # Get app reference for background thread context
+    app = current_app._get_current_object()
+
     def _generate():
-        try:
-            from services.quest_ai_service import QuestAIService
+        with app.app_context():
+            try:
+                from services.quest_ai_service import QuestAIService
 
-            logger.info(f"[BG] Starting approach generation for quest {quest_id[:8]}")
+                logger.info(f"[BG] Starting approach generation for quest {quest_id[:8]}")
 
-            ai_service = QuestAIService()
-            result = ai_service.generate_approach_examples(
-                quest_id=quest_id,
-                quest_title=quest_title,
-                quest_description=quest_description
-            )
+                ai_service = QuestAIService()
+                result = ai_service.generate_approach_examples(
+                    quest_id=quest_id,
+                    quest_title=quest_title,
+                    quest_description=quest_description
+                )
 
-            if result['success']:
-                logger.info(f"[BG] Successfully generated {len(result['approaches'])} approaches for quest {quest_id[:8]}")
-            else:
-                logger.warning(f"[BG] Failed to generate approaches for quest {quest_id[:8]}: {result.get('error')}")
+                if result['success']:
+                    logger.info(f"[BG] Successfully generated {len(result['approaches'])} approaches for quest {quest_id[:8]}")
+                else:
+                    logger.warning(f"[BG] Failed to generate approaches for quest {quest_id[:8]}: {result.get('error')}")
 
-        except Exception as e:
-            logger.error(f"[BG] Error generating approaches for quest {quest_id[:8]}: {str(e)}")
+            except Exception as e:
+                logger.error(f"[BG] Error generating approaches for quest {quest_id[:8]}: {str(e)}")
 
     # Start background thread
     thread = threading.Thread(target=_generate, daemon=True)

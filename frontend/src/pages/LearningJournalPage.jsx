@@ -216,7 +216,7 @@ const LearningJournalPage = () => {
                     <div className="flex items-center gap-2 text-sm text-purple-700">
                       <SparklesIcon className="w-4 h-4" />
                       <span>
-                        You have {unassignedMoments.length} unassigned moments. Consider organizing them into tracks!
+                        You have {unassignedMoments.length} unassigned moments. Consider organizing them into topics!
                       </span>
                     </div>
                   </div>
@@ -246,7 +246,7 @@ const LearningJournalPage = () => {
                     <FolderOpenIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                     <p className="text-gray-500 mb-2">No unassigned moments</p>
                     <p className="text-sm text-gray-400">
-                      All your learning moments are organized in tracks
+                      All your learning moments are organized in topics
                     </p>
                   </div>
                 )}

@@ -171,6 +171,9 @@ export const useEndQuest = () => {
       // Invalidate quest-related queries
       queryKeys.invalidateQuests(queryClient)
 
+      // Also invalidate user dashboard to remove quest from active quests immediately
+      queryClient.invalidateQueries(queryKeys.user.dashboard())
+
       toast.success(data.message || 'Quest finished successfully!')
     },
     onError: (error) => {

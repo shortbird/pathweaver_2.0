@@ -357,19 +357,20 @@ def enhance_student_quest_idea(user_id: str):
 # Track quests currently being generated to avoid duplicate work
 _generating_quests = set()
 
-def _generate_approaches_background(quest_id: str, quest_title: str, quest_description: str):
+def _generate_approaches_background(app, quest_id: str, quest_title: str, quest_description: str):
     """Background task to generate approach examples without blocking the request."""
-    try:
-        ai_service = get_quest_ai_service()
-        ai_service.generate_approach_examples(
-            quest_id=quest_id,
-            quest_title=quest_title,
-            quest_description=quest_description
-        )
-    except Exception as e:
-        logger.error(f"Background approach generation failed for quest {quest_id}: {str(e)}")
-    finally:
-        _generating_quests.discard(quest_id)
+    with app.app_context():
+        try:
+            ai_service = get_quest_ai_service()
+            ai_service.generate_approach_examples(
+                quest_id=quest_id,
+                quest_title=quest_title,
+                quest_description=quest_description
+            )
+        except Exception as e:
+            logger.error(f"Background approach generation failed for quest {quest_id}: {str(e)}")
+        finally:
+            _generating_quests.discard(quest_id)
 
 
 @bp.route('/approach-examples/<quest_id>', methods=['GET'])
@@ -428,10 +429,14 @@ def get_approach_examples(quest_id: str):
             _generating_quests.add(quest_id)
             quest_description = quest.get('big_idea') or quest.get('description') or ''
 
+            # Get app reference for background thread context
+            from flask import current_app
+            app = current_app._get_current_object()
+
             # Start background thread for generation
             thread = threading.Thread(
                 target=_generate_approaches_background,
-                args=(quest_id, quest.get('title', 'Untitled Quest'), quest_description),
+                args=(app, quest_id, quest.get('title', 'Untitled Quest'), quest_description),
                 daemon=True
             )
             thread.start()
