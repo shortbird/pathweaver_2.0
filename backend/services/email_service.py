@@ -706,5 +706,36 @@ class EmailService(BaseService):
             cc=[support_email]  # CC Optio support for notification
         )
 
+    def send_demo_request_confirmation(
+        self,
+        user_name: str,
+        user_email: str,
+        organization: str = None
+    ) -> bool:
+        """
+        Send demo request confirmation email to user.
+
+        Sends confirmation to the user and automatically copies
+        tanner@optioeducation.com for follow-up (via the standard
+        support copy mechanism in send_email).
+
+        Args:
+            user_name: Name of the person who submitted demo request
+            user_email: Email of the person who submitted demo request
+            organization: Organization name (optional)
+
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        return self.send_templated_email(
+            to_email=user_email,
+            subject="Thanks for Your Interest in Optio!",
+            template_name='demo_request_confirmation',
+            context={
+                'name': user_name,
+                'organization': organization or ''
+            }
+        )
+
 # Create singleton instance
 email_service = EmailService()

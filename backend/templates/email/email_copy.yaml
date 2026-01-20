@@ -384,3 +384,24 @@ emails:
       content: "Learning partners can collaborate on quests, share evidence, offer feedback, and keep you motivated through your journey."
     closing_paragraph: "Build connections that support your learning and celebrate your growth together."
     signature: "support"
+
+  demo_request_confirmation:
+    subject: "Thanks for Your Interest in Optio!"
+    title: "Thanks for Your Interest in Optio!"
+    salutation: "Hi {{ name }},"
+    paragraphs:
+      - "Thank you for your interest in Optio! We're excited to share how our platform helps students build real-world skills through self-directed learning."
+      - "Someone from our team will be in touch shortly to answer your questions and discuss how Optio can work for you."
+    cta:
+      text: "Try Our Interactive Demo"
+      url: "https://www.optioeducation.com/demo"
+    highlight_box:
+      title: "What to Expect"
+      content: "When we connect, we'll explore:"
+      bullet_points:
+        - "How students earn credit for real-world learning experiences"
+        - "The quest-based learning system and skill pillars"
+        - "Portfolio building and progress tracking"
+        - "How Optio fits your specific needs"
+    closing_paragraph: "Have questions before we connect? Simply reply to this email. Someone from our team reads and responds to every message personally."
+    signature: "tanner"

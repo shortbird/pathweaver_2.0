@@ -1,13 +1,13 @@
 """
 Contact form handling for demo requests and general inquiries.
-Stores submissions in database and optionally sends email notifications.
+Stores submissions in database and sends email confirmations.
 """
 
 from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
 from datetime import datetime
-import os
 
+from services.email_service import email_service
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -79,15 +79,21 @@ def submit_contact():
 
         logger.info(f"Contact form submitted: type={contact_type}, email={email}")
 
-        # Optionally send email notification (if configured)
-        # This could be enhanced with SendGrid, Resend, or other email service
-        notification_email = os.environ.get('CONTACT_NOTIFICATION_EMAIL')
-        if notification_email:
+        # Send confirmation email for demo requests
+        if contact_type == 'demo':
             try:
-                _send_notification_email(notification_email, submission_data)
+                email_sent = email_service.send_demo_request_confirmation(
+                    user_name=name,
+                    user_email=email,
+                    organization=organization
+                )
+                if email_sent:
+                    logger.info(f"Demo confirmation email sent to {email}")
+                else:
+                    logger.warning(f"Failed to send demo confirmation email to {email}")
             except Exception as e:
                 # Don't fail the request if email fails
-                logger.warning(f"Failed to send notification email: {e}")
+                logger.warning(f"Failed to send demo confirmation email: {e}")
 
         return jsonify({
             'success': True,
@@ -97,14 +103,3 @@ def submit_contact():
     except Exception as e:
         logger.error(f"Contact form error: {e}")
         return jsonify({'error': 'An unexpected error occurred'}), 500
-
-
-def _send_notification_email(to_email: str, submission: dict):
-    """
-    Send email notification about new contact form submission.
-    Currently a placeholder - can be implemented with SendGrid, Resend, etc.
-    """
-    # TODO: Implement email sending
-    # For now, just log the submission
-    logger.info(f"Would send notification to {to_email} about submission from {submission['email']}")
-    pass
