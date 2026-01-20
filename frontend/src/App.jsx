@@ -43,6 +43,7 @@ const CreditTrackerLandingPage = lazy(() => import('./pages/CreditTrackerLanding
 const HomeschoolPortfolioPage = lazy(() => import('./pages/HomeschoolPortfolioPage'))
 const TeacherConsultationPage = lazy(() => import('./pages/TeacherConsultationPage'))
 const ServicesPage = lazy(() => import('./pages/ServicesPage'))
+const ContactPage = lazy(() => import('./pages/ContactPage'))
 const DemoPage = lazy(() => import('./pages/DemoPage'))
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -358,6 +359,7 @@ function App() {
                 <Route path="promo/teacher-consultation" element={<TeacherConsultationPage />} />
                 <Route path="consultation" element={<ConsultationPage />} />
                 <Route path="services" element={<ServicesPage />} />
+                <Route path="contact" element={<ContactPage />} />
                 <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />
                 <Route path="login" element={<LoginPage />} />
                 <Route path="login/:slug" element={<OrgLoginPage />} />

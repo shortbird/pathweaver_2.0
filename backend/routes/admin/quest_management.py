@@ -134,6 +134,23 @@ def create_quest_v3_clean(user_id):
         quest_id = quest_result.data[0]['id']
         logger.info(f"Successfully created quest {quest_id}: {quest_data['title']}")
 
+        # Generate topics if quest is created as public
+        if is_public:
+            try:
+                from services.topic_generation_service import get_topic_generation_service
+                topic_service = get_topic_generation_service()
+                topic_result = topic_service.generate_topics(
+                    quest_data['title'],
+                    quest_data.get('big_idea') or quest_data.get('description', '')
+                )
+                supabase.table('quests').update({
+                    'topic_primary': topic_result['primary'],
+                    'topics': topic_result['topics']
+                }).eq('id', quest_id).execute()
+                logger.info(f"Generated topics for new public quest {quest_id}: {topic_result['primary']} - {topic_result['topics']}")
+            except Exception as topic_err:
+                logger.warning(f"Failed to generate topics for quest {quest_id}: {topic_err}")
+
         # Generate starter path approaches in background
         try:
             from utils.background_tasks import generate_approaches_background
@@ -339,9 +356,32 @@ def bulk_update_quests(user_id):
         updated_count = 0
         failed = []
 
+        # If making quests public, we need to generate topics for each
+        generate_topics = update_data.get('is_public') == True
+
         for quest_id in quest_ids:
             try:
-                result = supabase.table('quests').update(update_data).eq('id', quest_id).execute()
+                quest_update_data = update_data.copy()
+
+                # Generate topics when making public (if not already set)
+                if generate_topics:
+                    # Fetch current quest to check if it needs topics
+                    quest = supabase.table('quests').select('title, big_idea, description, is_public, topic_primary, topics').eq('id', quest_id).single().execute()
+                    if quest.data and not quest.data.get('is_public') and (not quest.data.get('topic_primary') or not quest.data.get('topics')):
+                        try:
+                            from services.topic_generation_service import get_topic_generation_service
+                            topic_service = get_topic_generation_service()
+                            topic_result = topic_service.generate_topics(
+                                quest.data.get('title', ''),
+                                quest.data.get('big_idea') or quest.data.get('description', '')
+                            )
+                            quest_update_data['topic_primary'] = topic_result['primary']
+                            quest_update_data['topics'] = topic_result['topics']
+                            logger.info(f"Generated topics for quest {quest_id}: {topic_result['primary']} - {topic_result['topics']}")
+                        except Exception as topic_err:
+                            logger.warning(f"Failed to generate topics for quest {quest_id}: {topic_err}")
+
+                result = supabase.table('quests').update(quest_update_data).eq('id', quest_id).execute()
                 if result.data:
                     updated_count += 1
                 else:
@@ -437,6 +477,22 @@ def update_quest(user_id, quest_id):
                     if not can_make_public_result:
                         return jsonify({'success': False, 'error': error_msg}), 400
 
+                    # Generate topics when quest is first made public (if not already set)
+                    if not quest.data.get('is_public') and (not quest.data.get('topic_primary') or not quest.data.get('topics')):
+                        try:
+                            from services.topic_generation_service import get_topic_generation_service
+                            topic_service = get_topic_generation_service()
+                            topic_result = topic_service.generate_topics(
+                                quest.data.get('title', ''),
+                                quest.data.get('big_idea') or quest.data.get('description', '')
+                            )
+                            update_data['topic_primary'] = topic_result['primary']
+                            update_data['topics'] = topic_result['topics']
+                            logger.info(f"Generated topics for quest {quest_id}: {topic_result['primary']} - {topic_result['topics']}")
+                        except Exception as topic_err:
+                            logger.warning(f"Failed to generate topics for quest {quest_id}: {topic_err}")
+                            # Don't block publish, just log the error
+
                 update_data['is_public'] = data['is_public']
             # Silently ignore is_public changes from advisors
 
@@ -497,7 +553,7 @@ def ai_cleanup_quest(user_id, quest_id):
 
         # Use AI service to clean up the quest text
         from services.quest_ai_service import QuestAIService
-        ai_service = QuestAIService(user_id=user_id)
+        ai_service = QuestAIService()
         result = ai_service.cleanup_quest_format(current_title, current_big_idea)
 
         if not result.get('success'):
@@ -815,11 +871,28 @@ def get_admin_quests(user_id):
                     })
 
         # Process quest data to flatten creator info
+        # Collect creator IDs for batch lookup if embedded query didn't work
+        creator_ids = set()
+        for quest in quests.data:
+            if not quest.get('creator') and quest.get('created_by'):
+                creator_ids.add(quest['created_by'])
+
+        # Batch fetch creator info if embedded query didn't return it
+        creator_lookup = {}
+        if creator_ids:
+            logger.debug(f"Embedded creator query didn't work, fetching {len(creator_ids)} creators manually")
+            creators = supabase.table('users')\
+                .select('id, display_name, first_name, last_name, email')\
+                .in_('id', list(creator_ids))\
+                .execute()
+            for c in (creators.data or []):
+                creator_lookup[c['id']] = c
+
         processed_quests = []
         for quest in quests.data:
             # Flatten creator data for easier frontend access
-            if quest.get('creator'):
-                creator = quest['creator']
+            creator = quest.get('creator') or creator_lookup.get(quest.get('created_by'))
+            if creator:
                 quest['creator_name'] = creator.get('display_name') or f"{creator.get('first_name', '')} {creator.get('last_name', '')}".strip() or creator.get('email', 'Unknown User')
             else:
                 quest['creator_name'] = None

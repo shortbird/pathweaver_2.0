@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { ArrowRightIcon } from '@heroicons/react/24/outline'
 
+const VELA_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/homepage/VELA.gif'
+
 const LandingPageHero = ({
   title,
   gradientTitle = '',
@@ -15,6 +17,9 @@ const LandingPageHero = ({
   secondaryCta = null,
   removeOverlay = false,
   textAlign = 'center',
+  tertiaryLink = null,
+  trustBadge = null,
+  splitLayout = false,
 }) => {
   const [currentWordIndex, setCurrentWordIndex] = useState(0)
 
@@ -37,6 +42,125 @@ const LandingPageHero = ({
     return gradients[index % gradients.length]
   }
 
+  // Split Layout Render
+  if (splitLayout && backgroundImage) {
+    return (
+      <div className="relative min-h-[500px] md:min-h-[550px] -mt-12 sm:mt-0">
+        {/* Mobile background image - centered */}
+        <div className="absolute inset-0 overflow-hidden md:hidden">
+          <img
+            src={mobileBackgroundImage || backgroundImage}
+            alt=""
+            className="absolute w-full h-full object-cover"
+            style={{
+              objectPosition: 'center',
+            }}
+          />
+        </div>
+
+        {/* Desktop background image - custom position */}
+        <div className="absolute inset-0 overflow-hidden hidden md:block">
+          <img
+            src={backgroundImage}
+            alt=""
+            className="absolute w-full h-full object-cover"
+            style={{
+              objectPosition: backgroundPosition,
+            }}
+          />
+        </div>
+
+        {/* Dark overlay - mobile only */}
+        <div
+          className="absolute inset-0 md:hidden bg-black/50"
+        />
+        {/* Gradient overlay - desktop only */}
+        <div
+          className="absolute inset-0 hidden md:block"
+          style={{
+            background: 'linear-gradient(to right, #6D469B 0%, #6D469B 25%, rgba(109, 70, 155, 0.95) 35%, rgba(109, 70, 155, 0.7) 45%, rgba(109, 70, 155, 0.3) 55%, transparent 65%)'
+          }}
+        />
+
+        {/* Content positioned on left side */}
+        <div className="relative h-full min-h-[500px] md:min-h-[550px] flex items-center md:items-center items-start">
+          <div className="w-full md:w-[55%] lg:w-1/2 px-6 py-8 md:py-20 md:px-12 lg:px-16">
+            {/* Main Title */}
+            <h1
+              className="text-4xl sm:text-5xl md:text-5xl lg:text-6xl text-white mb-2 leading-tight text-center md:text-left whitespace-nowrap"
+              style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+            >
+              {title}
+            </h1>
+
+            {/* Gradient Title */}
+            {gradientTitle && (
+              <h1
+                className="text-3xl sm:text-4xl md:text-4xl lg:text-5xl mb-6 leading-tight text-center md:text-left"
+                style={{
+                  fontFamily: 'Poppins',
+                  fontWeight: 700,
+                  background: 'linear-gradient(180deg, #E7ABF3 0%, #BE84C9 100%)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                {gradientTitle}
+              </h1>
+            )}
+
+            {/* Static Subtitle */}
+            {staticSubtitle && (
+              <p
+                className="text-lg sm:text-xl md:text-xl text-white/95 mb-8 max-w-md leading-relaxed text-center md:text-left"
+                style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+              >
+                {staticSubtitle}
+              </p>
+            )}
+
+            {/* CTA Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center md:justify-start">
+              <button
+                onClick={onCtaClick}
+                className="bg-white text-optio-pink hover:bg-gray-100 text-sm md:text-base lg:text-lg px-4 py-3 md:px-6 lg:px-8 md:py-4 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center justify-center whitespace-nowrap"
+                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+              >
+                {ctaText}
+                <ArrowRightIcon className="ml-2 w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
+              </button>
+
+              {secondaryCta && (
+                <button
+                  onClick={secondaryCta.onClick}
+                  className="bg-transparent border-2 border-white text-white hover:bg-white/10 text-sm md:text-base lg:text-lg px-4 py-3 md:px-6 lg:px-8 md:py-4 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 whitespace-nowrap"
+                  style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+                >
+                  {secondaryCta.text}
+                </button>
+              )}
+            </div>
+
+            {/* Tertiary Link */}
+            {tertiaryLink && (
+              <div className="mt-6 text-center md:text-left">
+                <button
+                  onClick={tertiaryLink.onClick}
+                  className="text-white/90 hover:text-white underline hover:no-underline text-sm md:text-base transition-colors"
+                  style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+                >
+                  {tertiaryLink.text}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Default Layout Render
   return (
     <div
       className={`relative py-6 md:py-20 px-4 overflow-hidden flex items-center ${textAlign === 'center' ? 'text-center' : 'text-center md:text-left'}`}
@@ -71,7 +195,7 @@ const LandingPageHero = ({
             <div
               className="absolute inset-0"
               style={{
-                background: 'linear-gradient(135deg, rgba(109, 70, 155, 0.8) 0%, rgba(239, 89, 123, 0.8) 100%)'
+                background: 'linear-gradient(to right, rgba(109, 70, 155, 0.95) 0%, rgba(109, 70, 155, 0.85) 25%, rgba(109, 70, 155, 0.4) 50%, transparent 65%)'
               }}
             />
           )}
@@ -162,6 +286,36 @@ const LandingPageHero = ({
             </button>
           )}
         </div>
+
+        {/* Tertiary Link */}
+        {tertiaryLink && (
+          <div className={`mt-6 ${textAlign === 'center' ? 'text-center' : 'text-center md:text-left'}`}>
+            <button
+              onClick={tertiaryLink.onClick}
+              className="text-white/90 hover:text-white underline hover:no-underline text-sm md:text-base transition-colors"
+              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+            >
+              {tertiaryLink.text}
+            </button>
+          </div>
+        )}
+
+        {/* Trust Badge */}
+        {trustBadge && (
+          <div className={`mt-8 flex items-center gap-3 ${textAlign === 'center' ? 'justify-center' : 'justify-center md:justify-start'}`}>
+            <img
+              src={VELA_LOGO_URL}
+              alt="VELA Grant Recipient"
+              className="h-8 w-auto"
+            />
+            <span
+              className="text-white/80 text-sm"
+              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+            >
+              {trustBadge.text}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )

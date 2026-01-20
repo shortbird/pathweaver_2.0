@@ -19,6 +19,8 @@ from routes import users, community, portfolio
 from routes import uploads, images
 from routes.settings import settings_bp
 from routes.promo import promo_bp
+from routes.contact import bp as contact_bp
+from routes.demo import bp as demo_bp
 from routes.ai_access import bp as ai_access_bp
 from routes.services import services_bp
 from routes.admin.services import admin_services_bp
@@ -101,6 +103,8 @@ app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
 app.register_blueprint(images.bp)  # /api/images (blueprint has url_prefix)
 app.register_blueprint(settings_bp, url_prefix='/api')  # /api/settings
 app.register_blueprint(promo_bp, url_prefix='/api/promo')  # /api/promo
+app.register_blueprint(contact_bp, url_prefix='/api')  # /api/contact (demo requests, sales inquiries)
+app.register_blueprint(demo_bp)  # /api/demo (public demo task generation with AI)
 app.register_blueprint(ai_access_bp)  # /api/ai-access (AI feature access status)
 app.register_blueprint(services_bp)  # /api/services (blueprint has url_prefix in route definitions)
 app.register_blueprint(admin_services_bp)  # /api/admin/services (blueprint has url_prefix in route definitions)
