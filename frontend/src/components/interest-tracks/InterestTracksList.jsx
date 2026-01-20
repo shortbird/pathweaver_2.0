@@ -4,36 +4,25 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import CreateTrackModal from './CreateTrackModal';
 
-// Icon mapping
-const ICON_MAP = {
-  folder: FolderIcon,
-  star: ({ className }) => <span className={className}>⭐</span>,
-  book: ({ className }) => <span className={className}>📚</span>,
-  code: ({ className }) => <span className={className}>💻</span>,
-  paint: ({ className }) => <span className={className}>🎨</span>,
-  music: ({ className }) => <span className={className}>🎵</span>,
-  science: ({ className }) => <span className={className}>🔬</span>,
-  globe: ({ className }) => <span className={className}>🌍</span>,
-  lightbulb: ({ className }) => <span className={className}>💡</span>,
-  heart: ({ className }) => <span className={className}>❤️</span>,
-};
-
 const InterestTracksList = ({
   selectedTrackId,
   onSelectTrack,
   onSelectUnassigned,
   showUnassigned = false,
-  className = ''
+  refreshKey = 0,
+  className = '',
+  onMomentsAssigned = null  // Callback when moments are auto-assigned to a new topic
 }) => {
   const [tracks, setTracks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [suggestedTracks, setSuggestedTracks] = useState([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [selectedSuggestion, setSelectedSuggestion] = useState(null);
 
   useEffect(() => {
     fetchTracks();
-  }, []);
+  }, [refreshKey]);
 
   const fetchTracks = async () => {
     try {
@@ -54,6 +43,7 @@ const InterestTracksList = ({
     try {
       setIsLoadingSuggestions(true);
       const response = await api.get('/api/interest-tracks/suggestions');
+      console.log('Suggestions response:', response.data);
       if (response.data.success) {
         setSuggestedTracks(response.data.suggested_tracks || []);
       }
@@ -66,10 +56,32 @@ const InterestTracksList = ({
 
   const handleCreateTrack = async (trackData) => {
     try {
-      const response = await api.post('/api/interest-tracks', trackData);
+      // Include moment_ids if creating from a suggestion
+      const payload = { ...trackData };
+      if (selectedSuggestion?.moment_ids) {
+        payload.moment_ids = selectedSuggestion.moment_ids;
+      }
+      console.log('Creating track with payload:', payload);
+      console.log('Selected suggestion:', selectedSuggestion);
+
+      const response = await api.post('/api/interest-tracks', payload);
+      console.log('Create track response:', response.data);
       if (response.data.success) {
-        toast.success('Topic created!');
+        const assignedCount = response.data.assigned_count || 0;
+        toast.success(response.data.message || 'Topic created!');
         setShowCreateModal(false);
+
+        // Clear all suggestions when creating from an AI suggestion
+        if (selectedSuggestion) {
+          setSuggestedTracks([]);
+          setSelectedSuggestion(null);
+
+          // Notify parent to refresh unassigned moments if moments were auto-assigned
+          if (assignedCount > 0) {
+            onMomentsAssigned?.();
+          }
+        }
+
         fetchTracks();
         onSelectTrack?.(response.data.track.id);
       }
@@ -77,11 +89,6 @@ const InterestTracksList = ({
       console.error('Failed to create track:', error);
       toast.error('Failed to create topic');
     }
-  };
-
-  const getIconComponent = (iconName) => {
-    const IconComponent = ICON_MAP[iconName] || FolderIcon;
-    return IconComponent;
   };
 
   if (isLoading) {
@@ -119,7 +126,6 @@ const InterestTracksList = ({
         <button
           onClick={() => {
             onSelectUnassigned?.();
-            onSelectTrack?.(null);
           }}
           className={`
             w-full p-4 rounded-xl text-left mb-2 transition-all min-h-[60px] touch-manipulation
@@ -141,7 +147,6 @@ const InterestTracksList = ({
 
         {/* Track cards */}
         {tracks.map(track => {
-          const IconComponent = getIconComponent(track.icon);
           const isSelected = selectedTrackId === track.id;
 
           return (
@@ -149,27 +154,21 @@ const InterestTracksList = ({
               key={track.id}
               onClick={() => onSelectTrack?.(track.id)}
               className={`
-                w-full p-4 rounded-xl text-left mb-2 transition-all min-h-[60px] touch-manipulation
+                w-full p-4 rounded-xl text-left mb-2 transition-all min-h-[60px] touch-manipulation border-2
                 ${isSelected
-                  ? 'border-2 shadow-sm'
-                  : 'hover:bg-gray-50 border-2 border-transparent active:bg-gray-100'}
+                  ? 'shadow-sm'
+                  : 'hover:shadow-sm active:opacity-90'}
               `}
               style={{
-                borderColor: isSelected ? track.color : 'transparent',
-                backgroundColor: isSelected ? `${track.color}10` : undefined
+                borderColor: isSelected ? track.color : `${track.color}30`,
+                backgroundColor: isSelected ? `${track.color}15` : `${track.color}08`
               }}
             >
               <div className="flex items-center gap-3">
                 <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center text-white flex-shrink-0"
+                  className="w-2 h-8 rounded-full flex-shrink-0"
                   style={{ backgroundColor: track.color }}
-                >
-                  {typeof IconComponent === 'function' && IconComponent.prototype?.render ? (
-                    <IconComponent className="w-5 h-5" />
-                  ) : (
-                    <IconComponent className="text-base" />
-                  )}
-                </div>
+                />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 truncate">{track.name}</p>
                   <p className="text-xs text-gray-500">
@@ -195,9 +194,8 @@ const InterestTracksList = ({
         )}
       </div>
 
-      {/* AI Suggestions Section */}
-      {tracks.length > 0 && (
-        <div className="p-4 border-t border-gray-200">
+      {/* AI Suggestions Section - always show so users can get topic suggestions from unassigned moments */}
+      <div className="p-4 border-t border-gray-200">
           <button
             onClick={fetchSuggestions}
             disabled={isLoadingSuggestions}
@@ -214,25 +212,36 @@ const InterestTracksList = ({
                 <button
                   key={idx}
                   onClick={() => {
+                    console.log('Clicked suggestion:', suggestion);
+                    const suggestionData = {
+                      name: suggestion.name,
+                      description: suggestion.description || '',
+                      color: suggestion.color,
+                      moment_ids: suggestion.moment_ids || []
+                    };
+                    console.log('Setting selected suggestion:', suggestionData);
+                    setSelectedSuggestion(suggestionData);
                     setShowCreateModal(true);
-                    // Pass suggestion data to modal via state or context
                   }}
                   className="w-full p-3 text-left bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100 hover:border-purple-200 transition-all touch-manipulation active:opacity-80"
                 >
                   <p className="text-sm font-semibold text-purple-900">{suggestion.name}</p>
-                  <p className="text-xs text-purple-600">{suggestion.moment_count} potential moments</p>
+                  <p className="text-xs text-purple-600">{suggestion.moment_count} potential moment{suggestion.moment_count !== 1 ? 's' : ''}</p>
                 </button>
               ))}
             </div>
           )}
         </div>
-      )}
 
       {/* Create Track Modal */}
       <CreateTrackModal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={() => {
+          setShowCreateModal(false);
+          setSelectedSuggestion(null);
+        }}
         onCreate={handleCreateTrack}
+        initialData={selectedSuggestion}
       />
     </div>
   );

@@ -10,6 +10,13 @@ Uses BaseAIService for Gemini integration.
 
 from typing import Dict, List, Optional, Any
 from services.base_ai_service import BaseAIService
+from prompts.components import (
+    VALID_PILLARS,
+    PILLAR_DEFINITIONS,
+    CORE_PHILOSOPHY,
+    TONE_LEVELS,
+    JSON_OUTPUT_INSTRUCTIONS
+)
 
 from utils.logger import get_logger
 
@@ -18,14 +25,6 @@ logger = get_logger(__name__)
 
 class QuestGenerationAIService(BaseAIService):
     """AI service for generating Quest structures from learning moments."""
-
-    VALID_PILLARS = [
-        'arts_creativity',
-        'stem_logic',
-        'life_wellness',
-        'language_communication',
-        'society_culture'
-    ]
 
     def generate_quest_structure(
         self,
@@ -50,7 +49,8 @@ class QuestGenerationAIService(BaseAIService):
 
         # Format moments for the prompt
         moments_text = '\n---\n'.join([
-            f"Title: {m.get('title', 'Untitled')}\n"
+            f"ID: {m.get('id', 'unknown')}\n"
+            f"Title: {m.get('title') or m.get('ai_generated_title') or 'Untitled'}\n"
             f"Description: {m.get('description', '')[:500]}\n"
             f"Pillars: {', '.join(m.get('pillars', []))}\n"
             f"Date: {m.get('created_at', '')[:10]}"
@@ -63,46 +63,64 @@ class QuestGenerationAIService(BaseAIService):
 
         prompt = f"""Generate a Quest structure from these learning moments.
 
+{TONE_LEVELS['content_generation']}
+
+{CORE_PHILOSOPHY}
+
 CONTEXT:
-- Interest Track: {track_name or 'General Learning'}
+- Interest Track Theme: {track_name or 'General Learning'}
 - Number of moments: {len(moments)}
 - Date range: {date_range}
 
 LEARNING MOMENTS:
 {moments_text}
 
-Create a Quest that:
-1. Has a compelling title that captures the learning journey
-2. Has a description explaining what the learner accomplished
-3. Converts each moment into a Task with appropriate XP
-4. Maintains the learning narrative
+CRITICAL INSTRUCTIONS:
+1. Generate a NEW action-oriented quest title - MUST start with a verb (Explore, Create, Master, Build, Discover, etc.)
+   - GOOD: "Explore Nature's Cycles", "Master Digital Art Techniques", "Build a Garden Ecosystem"
+   - BAD: "Nature's Cycles", "Digital Art", "Garden Project"
+2. Write a fresh description that captures the learning journey's essence
+3. DO NOT create one task per moment - intelligently group related moments
+4. Small moments can be combined into a single meaningful task
+5. Complex moments may warrant their own task
+6. Aim for 3-6 well-crafted tasks, NOT one per moment
+7. Tasks should represent meaningful learning milestones, not granular activities
+
+TASK GENERATION RULES:
+- Group related moments by theme, skill, or project
+- Each task should represent a cohesive learning accomplishment
+- Reference which moment IDs contributed to each task
+- Use action-oriented task titles (Explore, Create, Master, Build, etc.)
+- Tasks should be things the learner can continue working on
 
 XP Guidelines:
-- Small discovery/observation: 25-50 XP
-- Medium learning activity: 50-100 XP
-- Significant project/creation: 100-200 XP
-- Major accomplishment: 200-300 XP
+- Combined small discoveries: 50-100 XP
+- Medium project/skill development: 100-150 XP
+- Significant creation/accomplishment: 150-250 XP
+- Major milestone: 250-300 XP
+
+{PILLAR_DEFINITIONS}
+
+{JSON_OUTPUT_INSTRUCTIONS}
 
 Return JSON:
 {{
-  "title": "Quest title (2-6 words)",
-  "description": "2-3 sentence description of the learning journey",
-  "quest_type": "personal|project|skill|exploration",
-  "primary_pillar": "one of the five pillars",
+  "title": "Quest title (2-6 words, action-oriented)",
+  "description": "2-3 sentence description of this learning journey",
+  "quest_type": "personal",
+  "primary_pillar": "one of: stem, wellness, communication, civics, art",
   "tasks": [
     {{
-      "title": "Task title based on moment",
-      "description": "What was learned/accomplished",
-      "xp_value": 50,
-      "pillar": "pillar for this task",
-      "source_moment_id": "original moment id if known"
+      "title": "Task title (action verb + outcome)",
+      "description": "What this task encompasses and how to continue",
+      "xp_value": 100,
+      "pillar": "one of: stem, wellness, communication, civics, art",
+      "source_moment_ids": ["id1", "id2"]
     }}
   ],
-  "total_xp": 250,
-  "learning_outcomes": ["What the learner can now do", "Skills developed"]
+  "total_xp": 400,
+  "learning_outcomes": ["What the learner has developed", "Skills gained"]
 }}
-
-Valid pillars: {', '.join(self.VALID_PILLARS)}
 """
 
         try:
@@ -114,18 +132,18 @@ Valid pillars: {', '.join(self.VALID_PILLARS)}
                     'error': 'Failed to generate quest structure'
                 }
 
-            # Validate pillars
+            # Validate pillars using the shared VALID_PILLARS
             tasks = result.get('tasks', [])
             for task in tasks:
-                if task.get('pillar') not in self.VALID_PILLARS:
-                    task['pillar'] = 'life_wellness'  # Default
+                if task.get('pillar') not in VALID_PILLARS:
+                    task['pillar'] = 'stem'  # Default
 
             primary = result.get('primary_pillar')
-            if primary not in self.VALID_PILLARS:
-                result['primary_pillar'] = 'life_wellness'
+            if primary not in VALID_PILLARS:
+                result['primary_pillar'] = 'stem'
 
             # Recalculate total XP
-            total_xp = sum(task.get('xp_value', 50) for task in tasks)
+            total_xp = sum(task.get('xp_value', 100) for task in tasks)
             result['total_xp'] = total_xp
 
             return {

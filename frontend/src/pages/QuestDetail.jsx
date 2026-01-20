@@ -440,7 +440,7 @@ const QuestDetail = () => {
             questTitle={quest.title}
             questDescription={quest.big_idea || quest.description}
             cachedApproaches={quest.approach_examples}
-            isEnrolled={!!quest.user_enrollment || isQuestCompleted}
+            isEnrolled={!!quest.user_enrollment}
             onEnrollmentComplete={() => {
               // Refetch quest data to show tasks
               window.location.reload();

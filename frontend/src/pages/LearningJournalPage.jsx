@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import InterestTracksList from '../components/interest-tracks/InterestTracksList';
 import InterestTrackDetail from '../components/interest-tracks/InterestTrackDetail';
 import LearningEventCard from '../components/learning-events/LearningEventCard';
 import QuickCaptureButton from '../components/learning-events/QuickCaptureButton';
+import EvolveTopicModal from '../components/interest-tracks/EvolveTopicModal';
 import {
   FolderOpenIcon,
   SparklesIcon,
@@ -16,13 +17,19 @@ import {
 
 const LearningJournalPage = () => {
   const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [selectedTrackId, setSelectedTrackId] = useState(null);
   const [showUnassigned, setShowUnassigned] = useState(true); // Default to unassigned view
   const [unassignedMoments, setUnassignedMoments] = useState([]);
   const [isLoadingUnassigned, setIsLoadingUnassigned] = useState(false);
+  const [tracksRefreshKey, setTracksRefreshKey] = useState(0);
 
   // Mobile view state
   const [mobileView, setMobileView] = useState('list'); // 'list' or 'detail'
+
+  // Evolve modal state
+  const [showEvolveModal, setShowEvolveModal] = useState(false);
+  const [trackToEvolve, setTrackToEvolve] = useState(null);
 
   const fetchUnassignedMoments = useCallback(async () => {
     try {
@@ -72,12 +79,18 @@ const LearningJournalPage = () => {
     setSelectedTrackId(null);
     setShowUnassigned(true);
     setMobileView('list');
+    setTracksRefreshKey(prev => prev + 1);
+    fetchUnassignedMoments(); // Moments from deleted track become unassigned
   };
 
   const handleGraduateTrack = (track) => {
-    // Navigate to graduation flow
-    toast.success(`Ready to graduate "${track.name}" to a Quest!`);
-    // TODO: Open GraduationModal
+    setTrackToEvolve(track);
+    setShowEvolveModal(true);
+  };
+
+  const handleEvolveSuccess = (questId) => {
+    // Navigate to the newly created quest
+    navigate(`/quests/${questId}`);
   };
 
   const handleCaptureSuccess = (event) => {
@@ -87,6 +100,14 @@ const LearningJournalPage = () => {
     } else if (selectedTrackId) {
       // The InterestTrackDetail will need to refresh
     }
+    // Also refresh tracks list to update moment counts
+    setTracksRefreshKey(prev => prev + 1);
+  };
+
+  // Handler for when a moment is assigned to a track
+  const handleMomentAssigned = () => {
+    fetchUnassignedMoments();
+    setTracksRefreshKey(prev => prev + 1);
   };
 
   // Auth loading
@@ -174,6 +195,8 @@ const LearningJournalPage = () => {
             onSelectTrack={handleSelectTrack}
             onSelectUnassigned={handleSelectUnassigned}
             showUnassigned={showUnassigned}
+            refreshKey={tracksRefreshKey}
+            onMomentsAssigned={fetchUnassignedMoments}
             className="h-full"
           />
         </aside>
@@ -237,7 +260,7 @@ const LearningJournalPage = () => {
                         key={moment.id}
                         event={moment}
                         showTrackAssign={true}
-                        onTrackAssigned={fetchUnassignedMoments}
+                        onTrackAssigned={handleMomentAssigned}
                       />
                     ))}
                   </div>
@@ -273,7 +296,7 @@ const LearningJournalPage = () => {
                 </h2>
                 <p className="text-gray-600 mb-6">
                   Capture spontaneous learning moments, organize them into interest tracks,
-                  and eventually graduate them to formal Quests.
+                  and eventually evolve them into quests.
                 </p>
                 <div className="space-y-3">
                   <p className="text-sm text-gray-500">
@@ -289,6 +312,14 @@ const LearningJournalPage = () => {
 
       {/* Quick Capture FAB */}
       <QuickCaptureButton onSuccess={handleCaptureSuccess} />
+
+      {/* Evolve Topic Modal */}
+      <EvolveTopicModal
+        isOpen={showEvolveModal}
+        onClose={() => setShowEvolveModal(false)}
+        track={trackToEvolve}
+        onSuccess={handleEvolveSuccess}
+      />
     </div>
   );
 };

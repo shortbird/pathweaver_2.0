@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   PencilIcon,
   TrashIcon,
   ArrowPathIcon,
-  AcademicCapIcon
+  ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -101,31 +102,14 @@ const InterestTrackDetail = ({
         style={{ backgroundColor: `${track.color}10` }}
       >
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-xl"
-              style={{ backgroundColor: track.color }}
-            >
-              {track.icon === 'folder' ? '📁' :
-               track.icon === 'star' ? '⭐' :
-               track.icon === 'book' ? '📚' :
-               track.icon === 'code' ? '💻' :
-               track.icon === 'paint' ? '🎨' :
-               track.icon === 'music' ? '🎵' :
-               track.icon === 'science' ? '🔬' :
-               track.icon === 'globe' ? '🌍' :
-               track.icon === 'lightbulb' ? '💡' :
-               track.icon === 'heart' ? '❤️' : '📁'}
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">{track.name}</h1>
-              {track.description && (
-                <p className="text-sm text-gray-600 mt-1">{track.description}</p>
-              )}
-              <p className="text-sm text-gray-500 mt-1">
-                {track.moment_count || track.moments?.length || 0} learning moments
-              </p>
-            </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">{track.name}</h1>
+            {track.description && (
+              <p className="text-sm text-gray-600 mt-1">{track.description}</p>
+            )}
+            <p className="text-sm text-gray-500 mt-1">
+              {track.moment_count || track.moments?.length || 0} learning moments
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -153,26 +137,45 @@ const InterestTrackDetail = ({
           </div>
         </div>
 
-        {/* Graduate to Quest prompt */}
-        {canGraduate && (
+        {/* Evolved quest link or evolve prompt */}
+        {track.evolved_to_quest_id ? (
+          <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-sm font-medium text-green-800">
+                  This topic has evolved into a quest
+                </span>
+                <p className="text-xs text-green-600 mt-0.5">
+                  Continue your learning journey there
+                </p>
+              </div>
+              <Link
+                to={`/quests/${track.evolved_to_quest_id}`}
+                className="px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
+              >
+                View Quest
+                <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+        ) : canGraduate && (
           <div className="mt-4 p-3 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg border border-purple-200">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AcademicCapIcon className="w-5 h-5 text-purple-600" />
+              <div>
                 <span className="text-sm font-medium text-purple-900">
-                  Ready to graduate this to a Quest?
+                  Ready to evolve this topic into a quest?
                 </span>
+                <p className="text-xs text-purple-600 mt-0.5">
+                  Turn your learning into a quest and earn XP
+                </p>
               </div>
               <button
                 onClick={() => onGraduate?.(track)}
-                className="px-3 py-1.5 text-sm bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:shadow-md transition-all"
+                className="px-3 py-1.5 text-sm font-medium bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:shadow-md transition-all"
               >
-                Graduate
+                Evolve
               </button>
             </div>
-            <p className="text-xs text-purple-600 mt-1">
-              Convert your learning into a formal Quest and earn XP
-            </p>
           </div>
         )}
       </div>

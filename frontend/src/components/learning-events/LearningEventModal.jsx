@@ -10,30 +10,30 @@ import TrackSelector from '../interest-tracks/TrackSelector';
 import SparkSelector from '../curiosity-threads/SparkSelector';
 
 const PILLAR_CONFIG = {
-  arts_creativity: {
-    label: 'Arts & Creativity',
-    light: 'bg-pink-50 border-pink-200 text-pink-700 hover:border-pink-300',
-    selected: 'bg-pink-600 border-pink-600 text-white'
+  art: {
+    label: 'Art',
+    light: 'bg-purple-50 border-purple-200 text-purple-700 hover:border-purple-300',
+    selected: 'bg-purple-600 border-purple-600 text-white'
   },
-  stem_logic: {
-    label: 'STEM & Logic',
+  stem: {
+    label: 'STEM',
     light: 'bg-blue-50 border-blue-200 text-blue-700 hover:border-blue-300',
     selected: 'bg-blue-600 border-blue-600 text-white'
   },
-  life_wellness: {
-    label: 'Life & Wellness',
-    light: 'bg-green-50 border-green-200 text-green-700 hover:border-green-300',
-    selected: 'bg-green-600 border-green-600 text-white'
-  },
-  language_communication: {
-    label: 'Language & Communication',
+  wellness: {
+    label: 'Wellness',
     light: 'bg-orange-50 border-orange-200 text-orange-700 hover:border-orange-300',
     selected: 'bg-orange-600 border-orange-600 text-white'
   },
-  society_culture: {
-    label: 'Society & Culture',
-    light: 'bg-purple-50 border-purple-200 text-purple-700 hover:border-purple-300',
-    selected: 'bg-purple-600 border-purple-600 text-white'
+  communication: {
+    label: 'Communication',
+    light: 'bg-green-50 border-green-200 text-green-700 hover:border-green-300',
+    selected: 'bg-green-600 border-green-600 text-white'
+  },
+  civics: {
+    label: 'Civics',
+    light: 'bg-red-50 border-red-200 text-red-700 hover:border-red-300',
+    selected: 'bg-red-600 border-red-600 text-white'
   }
 };
 
@@ -527,7 +527,7 @@ const LearningEventModal = ({
               </h2>
               <p className="text-white/90 text-sm">
                 {isEditMode
-                  ? 'Update your moment or add evidence.'
+                  ? 'Update your moment or attach files.'
                   : (quickMode
                     ? 'Just describe what you learned. Details are optional.'
                     : 'Record any moment of growth, discovery, or skill development.')}
@@ -752,7 +752,7 @@ const LearningEventModal = ({
               {/* Add Evidence Block Buttons */}
               <div className="mb-6">
                 <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
-                  Add Evidence
+                  Attach Files & Media
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(blockTypes).map(([type, config]) => (

@@ -22,20 +22,34 @@ logger = get_logger(__name__)
 class LearningAIService(BaseAIService):
     """AI service for learning moment features."""
 
+    # New simplified pillar names (updated January 2025)
     VALID_PILLARS = [
-        'arts_creativity',
-        'stem_logic',
-        'life_wellness',
-        'language_communication',
-        'society_culture'
+        'art',
+        'stem',
+        'wellness',
+        'communication',
+        'civics'
     ]
 
+    # Legacy pillar names for backward compatibility
+    LEGACY_PILLAR_MAP = {
+        'arts_creativity': 'art',
+        'creativity': 'art',
+        'stem_logic': 'stem',
+        'critical_thinking': 'stem',
+        'language_communication': 'communication',
+        'society_culture': 'civics',
+        'cultural_literacy': 'civics',
+        'life_wellness': 'wellness',
+        'practical_skills': 'wellness'
+    }
+
     PILLAR_DESCRIPTIONS = {
-        'arts_creativity': 'Arts and creative expression (art, music, design, crafts, creative writing)',
-        'stem_logic': 'STEM and logical thinking (science, math, programming, engineering, problem-solving)',
-        'life_wellness': 'Life skills and wellness (health, cooking, organization, self-care, practical skills)',
-        'language_communication': 'Language and communication (writing, speaking, reading, foreign languages, debate)',
-        'society_culture': 'Society and culture (history, social studies, civics, cultural exploration, current events)'
+        'art': 'Original creation, artistic expression, innovation (art, music, design, crafts, creative writing)',
+        'stem': 'Analysis, problem-solving, technical skills (science, math, programming, engineering, research)',
+        'wellness': 'Physical activity, practical skills, personal development (health, cooking, organization, self-care)',
+        'communication': 'Expression, connection, teaching, sharing ideas (writing, speaking, reading, foreign languages)',
+        'civics': 'Understanding context, community impact, global awareness (history, social studies, current events)'
     }
 
     def suggest_title_and_pillars(self, description: str) -> Dict[str, Any]:
@@ -89,9 +103,14 @@ Rules:
                     'error': 'Failed to generate suggestions'
                 }
 
-            # Validate and filter pillars to only valid ones
+            # Validate and filter pillars to only valid ones (with legacy name support)
             suggested_pillars = result.get('pillars', [])
-            valid_pillars = [p for p in suggested_pillars if p in self.VALID_PILLARS]
+            valid_pillars = []
+            for p in suggested_pillars:
+                if p in self.VALID_PILLARS:
+                    valid_pillars.append(p)
+                elif p in self.LEGACY_PILLAR_MAP:
+                    valid_pillars.append(self.LEGACY_PILLAR_MAP[p])
 
             return {
                 'success': True,
@@ -330,9 +349,9 @@ Rules:
         try:
             supabase = get_supabase_admin_client()
 
-            # Get unassigned moments
+            # Get unassigned moments (excluding pillars to avoid pillar-based grouping)
             moments_response = supabase.table('learning_events') \
-                .select('id, title, description, pillars, created_at') \
+                .select('id, title, description, created_at') \
                 .eq('user_id', user_id) \
                 .is_('track_id', 'null') \
                 .order('created_at', desc=True) \
@@ -348,9 +367,9 @@ Rules:
                     'message': 'Not enough unassigned moments to detect patterns'
                 }
 
-            # Format moments for analysis
+            # Format moments with IDs for analysis (content only, no pillars)
             moments_text = '\n---\n'.join([
-                f"Title: {m.get('title', 'Untitled')}\nDescription: {m['description'][:300]}\nPillars: {', '.join(m.get('pillars', []))}"
+                f"ID: {m['id']}\nTitle: {m.get('title', 'Untitled')}\nDescription: {m['description'][:300]}"
                 for m in moments
             ])
 
@@ -364,24 +383,28 @@ Return JSON:
   "suggested_tracks": [
     {{
       "name": "Track name",
-      "description": "What this track is about",
+      "description": "A brief description of what kind of learning goes in this topic (1-2 sentences)",
       "color": "#hexcolor",
-      "icon": "folder|star|book|code|paint|music|science|globe",
-      "moment_count": 5,
+      "moment_ids": ["id1", "id2", "id3"],
       "confidence": 0.8
     }}
   ]
 }}
 
 Rules:
+- Group moments by SUBJECT MATTER and THEMES in their content, not by skill type or learning style
+- Look for common topics, subjects, activities, or areas of interest (e.g., "Music Production", "Cooking Skills", "Web Development")
 - Only suggest tracks with 3+ related moments
-- Track names should be specific and meaningful
-- Choose colors that feel appropriate (use hex colors)
-- Choose appropriate icons from the list
+- Track names should be specific and meaningful (2-4 words)
+- Description should explain what kind of learning moments belong in this topic
+- moment_ids MUST contain the exact IDs from the moments list above that belong to this track
+- Choose colors that feel appropriate (use hex colors like #6366f1, #ec4899, #22c55e, #f97316)
 - Maximum 5 track suggestions
+- Each moment can only belong to ONE suggested track
 """
 
             result = self.generate_json(prompt, strict=False)
+            logger.info(f"AI returned suggestions: {result}")
 
             if not result:
                 return {
@@ -389,9 +412,16 @@ Rules:
                     'suggested_tracks': []
                 }
 
+            # Add moment_count based on moment_ids length
+            suggested_tracks = result.get('suggested_tracks', [])
+            for track in suggested_tracks:
+                moment_ids = track.get('moment_ids', [])
+                track['moment_count'] = len(moment_ids)
+                logger.info(f"Track '{track.get('name')}' has {len(moment_ids)} moment_ids: {moment_ids}")
+
             return {
                 'success': True,
-                'suggested_tracks': result.get('suggested_tracks', [])
+                'suggested_tracks': suggested_tracks
             }
 
         except Exception as e:

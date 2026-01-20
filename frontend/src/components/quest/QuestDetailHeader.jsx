@@ -177,8 +177,8 @@ const QuestDetailHeader = ({
             )}
           </div>
 
-          {/* Title and XP badge */}
-          <div className="max-w-xl sm:max-w-2xl">
+          {/* Title and XP badge - pt-14 clears the absolute positioned back button */}
+          <div className="max-w-xl sm:max-w-2xl pt-14">
             {totalXP > 0 && (
               <div className="inline-block mb-1 px-2 py-0.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full text-xs font-semibold shadow-sm">
                 {totalXP} XP

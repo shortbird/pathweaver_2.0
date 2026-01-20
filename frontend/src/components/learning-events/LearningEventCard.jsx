@@ -1,16 +1,10 @@
 import React, { useState } from 'react';
 import { CalendarIcon } from '@heroicons/react/24/outline';
 import LearningEventDetailModal from './LearningEventDetailModal';
+import { getPillarData } from '../../utils/pillarMappings';
 
 const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned }) => {
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const pillarConfig = {
-    'stem_logic': { name: 'STEM & Logic', icon: '🔬', color: 'from-blue-500 to-cyan-500', bg: 'bg-blue-50', text: 'text-blue-700' },
-    'life_wellness': { name: 'Life & Wellness', icon: '🌱', color: 'from-green-500 to-emerald-500', bg: 'bg-green-50', text: 'text-green-700' },
-    'language_communication': { name: 'Language & Communication', icon: '💬', color: 'from-orange-500 to-yellow-500', bg: 'bg-orange-50', text: 'text-orange-700' },
-    'society_culture': { name: 'Society & Culture', icon: '🌍', color: 'from-red-500 to-rose-500', bg: 'bg-red-50', text: 'text-red-700' },
-    'arts_creativity': { name: 'Arts & Creativity', icon: '🎨', color: 'from-purple-500 to-pink-500', bg: 'bg-purple-50', text: 'text-purple-700' }
-  };
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -45,16 +39,15 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned }
       <div className="flex flex-wrap items-center gap-2">
         {/* Pillar Tags */}
         {event.pillars && event.pillars.length > 0 && event.pillars.map((pillar) => {
-          const config = pillarConfig[pillar];
-          if (!config) return null;
+          const pillarData = getPillarData(pillar);
+          if (!pillarData) return null;
 
           return (
             <div
               key={pillar}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${config.bg} ${config.text} border border-${config.text.replace('text-', '')}/20`}
+              className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${pillarData.bg} ${pillarData.text} ${pillarData.border}`}
             >
-              <span>{config.icon}</span>
-              <span>{config.name}</span>
+              <span>{pillarData.name}</span>
             </div>
           );
         })}

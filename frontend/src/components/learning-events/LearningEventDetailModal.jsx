@@ -1,10 +1,38 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { XMarkIcon, CalendarIcon, PencilIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CalendarIcon, PencilIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import LearningEventModal from './LearningEventModal';
+import api from '../../services/api';
+import toast from 'react-hot-toast';
 
 const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate }) => {
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!window.confirm('Are you sure you want to delete this learning moment? This cannot be undone.')) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const response = await api.delete(`/api/learning-events/${event.id}`);
+      if (response.data.success) {
+        toast.success('Moment deleted');
+        onClose();
+        if (onUpdate) {
+          onUpdate(null); // Signal that this event was deleted
+        }
+      } else {
+        toast.error(response.data.error || 'Failed to delete moment');
+      }
+    } catch (error) {
+      console.error('Failed to delete moment:', error);
+      toast.error('Failed to delete moment');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   if (!isOpen || !event) return null;
 
@@ -208,6 +236,14 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate }) => {
           <div className="p-6 border-t border-gray-200 bg-gray-50 rounded-b-xl">
             <div className="flex gap-3">
               <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="px-4 py-3 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                title="Delete moment"
+              >
+                <TrashIcon className="w-4 h-4" />
+              </button>
+              <button
                 onClick={onClose}
                 className="flex-1 px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
               >
@@ -224,8 +260,8 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate }) => {
                   </>
                 ) : (
                   <>
-                    <PlusIcon className="w-4 h-4" />
-                    Add Evidence
+                    <PencilIcon className="w-4 h-4" />
+                    Update Moment
                   </>
                 )}
               </button>

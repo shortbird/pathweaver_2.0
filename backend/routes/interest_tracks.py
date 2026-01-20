@@ -13,6 +13,8 @@ Endpoints:
 - PUT    /api/interest-tracks/<id>         Update track
 - DELETE /api/interest-tracks/<id>         Delete track
 - POST   /api/interest-tracks/<id>/suggest Suggest track for moment (AI)
+- GET    /api/interest-tracks/<id>/evolve/preview  AI preview of quest structure
+- POST   /api/interest-tracks/<id>/evolve  Evolve track into a quest
 - GET    /api/interest-tracks/suggestions  AI-detect potential new tracks
 - GET    /api/learning-events/unassigned   Get unassigned moments
 - POST   /api/learning-events/<id>/assign-track  Assign moment to track
@@ -47,10 +49,13 @@ def create_track(user_id):
         description = data.get('description')
         color = data.get('color')
         icon = data.get('icon')
+        moment_ids = data.get('moment_ids', [])  # Optional list of moment IDs to assign
 
         # Validate color format if provided
         if color and not (color.startswith('#') and len(color) in [4, 7]):
             return jsonify({'error': 'Color must be a valid hex code (e.g., #fff or #ffffff)'}), 400
+
+        logger.info(f"Creating track with moment_ids: {moment_ids}")
 
         result = InterestTracksService.create_track(
             user_id=user_id,
@@ -61,10 +66,27 @@ def create_track(user_id):
         )
 
         if result['success']:
+            track = result['track']
+            assigned_count = 0
+
+            # If moment_ids provided, bulk assign them to the new track
+            logger.info(f"Checking moment_ids: {moment_ids}, length: {len(moment_ids) if moment_ids else 0}")
+            if moment_ids and len(moment_ids) > 0:
+                assign_result = InterestTracksService.bulk_assign_moments_to_track(
+                    user_id=user_id,
+                    track_id=track['id'],
+                    moment_ids=moment_ids
+                )
+                if assign_result['success']:
+                    assigned_count = assign_result.get('assigned_count', 0)
+                    # Update track with new moment count
+                    track['moment_count'] = assigned_count
+
             return jsonify({
                 'success': True,
-                'track': result['track'],
-                'message': 'Interest track created!'
+                'track': track,
+                'assigned_count': assigned_count,
+                'message': f'Topic created with {assigned_count} moments!' if assigned_count > 0 else 'Topic created!'
             }), 201
         else:
             return jsonify({
@@ -367,4 +389,78 @@ def assign_moment_to_track(user_id, moment_id):
 
     except Exception as e:
         logger.error(f"Error in assign_moment_to_track: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@interest_tracks_bp.route('/api/interest-tracks/<track_id>/evolve/preview', methods=['GET'])
+@require_auth
+def preview_evolved_quest(user_id, track_id):
+    """Generate AI-powered preview of quest structure from track moments."""
+    try:
+        result = InterestTracksService.preview_evolved_quest(
+            user_id=user_id,
+            track_id=track_id
+        )
+
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'preview': result['preview'],
+                'moment_count': result['moment_count'],
+                'track_name': result['track_name']
+            }), 200
+        else:
+            status_code = 404 if 'not found' in result.get('error', '').lower() else 400
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to generate preview')
+            }), status_code
+
+    except Exception as e:
+        logger.error(f"Error in preview_evolved_quest: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@interest_tracks_bp.route('/api/interest-tracks/<track_id>/evolve', methods=['POST'])
+@require_auth
+def evolve_track_to_quest(user_id, track_id):
+    """Convert an interest track into a private quest using AI-generated structure."""
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'error': 'Request body is required'}), 400
+
+        title = data.get('title')
+        if not title or not title.strip():
+            return jsonify({'error': 'Quest title is required'}), 400
+
+        description = data.get('description')
+        tasks = data.get('tasks')  # Optional: AI-generated or user-edited tasks
+
+        result = InterestTracksService.evolve_to_quest(
+            user_id=user_id,
+            track_id=track_id,
+            title=title.strip(),
+            description=description.strip() if description else None,
+            tasks=tasks
+        )
+
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'quest': result['quest'],
+                'quest_id': result['quest_id'],
+                'tasks_created': result['tasks_created'],
+                'message': result['message']
+            }), 201
+        else:
+            status_code = 404 if 'not found' in result.get('error', '').lower() else 400
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to evolve track')
+            }), status_code
+
+    except Exception as e:
+        logger.error(f"Error in evolve_track_to_quest: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500

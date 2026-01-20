@@ -208,7 +208,8 @@ class LearningEventsService(BaseService):
             Dictionary with success status and event data with evidence
         """
         try:
-            supabase = get_user_client()  # JWT extracted from request headers
+            # Admin client: Auth verified by decorator (ADR-002, Rule 3)
+            supabase = get_supabase_admin_client()
 
             # Fetch event
             event_response = supabase.table('learning_events') \
@@ -252,7 +253,8 @@ class LearningEventsService(BaseService):
         event_id: str,
         description: Optional[str] = None,
         title: Optional[str] = None,
-        pillars: Optional[List[str]] = None
+        pillars: Optional[List[str]] = None,
+        track_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Update a learning event
@@ -263,12 +265,14 @@ class LearningEventsService(BaseService):
             description: Updated description
             title: Updated title
             pillars: Updated pillar tags
+            track_id: Updated track assignment (use empty string to unassign)
 
         Returns:
             Dictionary with success status and updated event data
         """
         try:
-            supabase = get_user_client()  # JWT extracted from request headers
+            from database import get_supabase_admin_client
+            supabase = get_supabase_admin_client()
 
             update_data = {}
             if description is not None:
@@ -277,6 +281,29 @@ class LearningEventsService(BaseService):
                 update_data['title'] = title
             if pillars is not None:
                 update_data['pillars'] = pillars
+
+            # Handle track_id assignment
+            # track_id can be: None (no change), empty string (unassign), or a UUID (assign)
+            track_changed = False
+            old_track_id = None
+            new_track_id = None
+
+            if track_id is not None:
+                # Get current track assignment to update counts
+                current_response = supabase.table('learning_events') \
+                    .select('track_id') \
+                    .eq('id', event_id) \
+                    .eq('user_id', user_id) \
+                    .single() \
+                    .execute()
+
+                if current_response.data:
+                    old_track_id = current_response.data.get('track_id')
+                    # Empty string or explicit None means unassign
+                    new_track_id = track_id if track_id else None
+                    if old_track_id != new_track_id:
+                        track_changed = True
+                        update_data['track_id'] = new_track_id
 
             if not update_data:
                 return {
@@ -291,6 +318,19 @@ class LearningEventsService(BaseService):
                 .execute()
 
             if response.data and len(response.data) > 0:
+                # Update track moment counts if track changed
+                if track_changed:
+                    if old_track_id:
+                        try:
+                            supabase.rpc('decrement_track_moment_count', {'track_id': old_track_id}).execute()
+                        except Exception as e:
+                            logger.warning(f"Failed to decrement old track count: {e}")
+                    if new_track_id:
+                        try:
+                            supabase.rpc('increment_track_moment_count', {'track_id': new_track_id}).execute()
+                        except Exception as e:
+                            logger.warning(f"Failed to increment new track count: {e}")
+
                 return {
                     'success': True,
                     'event': response.data[0]
@@ -324,7 +364,21 @@ class LearningEventsService(BaseService):
             Dictionary with success status
         """
         try:
-            supabase = get_user_client()  # JWT extracted from request headers
+            from database import get_supabase_admin_client
+            supabase = get_supabase_admin_client()
+
+            # Verify ownership first
+            check = supabase.table('learning_events') \
+                .select('id') \
+                .eq('id', event_id) \
+                .eq('user_id', user_id) \
+                .execute()
+
+            if not check.data:
+                return {
+                    'success': False,
+                    'error': 'Event not found or access denied'
+                }
 
             # Delete event (cascade will handle evidence blocks)
             response = supabase.table('learning_events') \
@@ -363,7 +417,8 @@ class LearningEventsService(BaseService):
             Dictionary with success status and saved blocks
         """
         try:
-            supabase = get_user_client()  # JWT extracted from request headers
+            # Admin client: Auth verified by decorator (ADR-002, Rule 3)
+            supabase = get_supabase_admin_client()
 
             # Verify event ownership
             event_response = supabase.table('learning_events') \

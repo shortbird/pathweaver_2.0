@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { XMarkIcon, CheckIcon } from '@heroicons/react/24/outline';
 
 const PRESET_COLORS = [
@@ -14,19 +14,6 @@ const PRESET_COLORS = [
   '#3b82f6', // blue
 ];
 
-const PRESET_ICONS = [
-  { key: 'folder', emoji: '📁', label: 'Folder' },
-  { key: 'star', emoji: '⭐', label: 'Star' },
-  { key: 'book', emoji: '📚', label: 'Book' },
-  { key: 'code', emoji: '💻', label: 'Code' },
-  { key: 'paint', emoji: '🎨', label: 'Art' },
-  { key: 'music', emoji: '🎵', label: 'Music' },
-  { key: 'science', emoji: '🔬', label: 'Science' },
-  { key: 'globe', emoji: '🌍', label: 'Globe' },
-  { key: 'lightbulb', emoji: '💡', label: 'Ideas' },
-  { key: 'heart', emoji: '❤️', label: 'Heart' },
-];
-
 const CreateTrackModal = ({
   isOpen,
   onClose,
@@ -36,8 +23,16 @@ const CreateTrackModal = ({
   const [name, setName] = useState(initialData?.name || '');
   const [description, setDescription] = useState(initialData?.description || '');
   const [selectedColor, setSelectedColor] = useState(initialData?.color || PRESET_COLORS[0]);
-  const [selectedIcon, setSelectedIcon] = useState(initialData?.icon || 'folder');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Update form when initialData changes (e.g., from AI suggestion)
+  useEffect(() => {
+    if (initialData) {
+      setName(initialData.name || '');
+      setDescription(initialData.description || '');
+      if (initialData.color) setSelectedColor(initialData.color);
+    }
+  }, [initialData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -49,8 +44,7 @@ const CreateTrackModal = ({
       await onCreate({
         name: name.trim(),
         description: description.trim() || null,
-        color: selectedColor,
-        icon: selectedIcon
+        color: selectedColor
       });
     } finally {
       setIsSubmitting(false);
@@ -61,13 +55,10 @@ const CreateTrackModal = ({
     setName('');
     setDescription('');
     setSelectedColor(PRESET_COLORS[0]);
-    setSelectedIcon('folder');
     onClose();
   };
 
   if (!isOpen) return null;
-
-  const selectedIconEmoji = PRESET_ICONS.find(i => i.key === selectedIcon)?.emoji || '📁';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -99,11 +90,9 @@ const CreateTrackModal = ({
             >
               <div className="flex items-center gap-3">
                 <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-lg"
+                  className="w-10 h-10 rounded-lg flex-shrink-0"
                   style={{ backgroundColor: selectedColor }}
-                >
-                  {selectedIconEmoji}
-                </div>
+                />
                 <div>
                   <p className="font-medium text-gray-900">
                     {name || 'Topic Name'}
@@ -170,31 +159,6 @@ const CreateTrackModal = ({
                   {selectedColor === color && (
                     <CheckIcon className="w-4 h-4 text-white" />
                   )}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Icon Picker */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Icon
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {PRESET_ICONS.map(icon => (
-                <button
-                  key={icon.key}
-                  type="button"
-                  onClick={() => setSelectedIcon(icon.key)}
-                  title={icon.label}
-                  className={`
-                    w-10 h-10 rounded-lg text-lg transition-all flex items-center justify-center
-                    ${selectedIcon === icon.key
-                      ? 'bg-gray-200 ring-2 ring-gray-400'
-                      : 'bg-gray-100 hover:bg-gray-200'}
-                  `}
-                >
-                  {icon.emoji}
                 </button>
               ))}
             </div>

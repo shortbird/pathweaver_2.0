@@ -41,11 +41,11 @@ def create_learning_event(user_id):
 
         # Validate pillars if provided
         valid_pillars = [
-            'arts_creativity',
-            'stem_logic',
-            'life_wellness',
-            'language_communication',
-            'society_culture'
+            'art',
+            'stem',
+            'wellness',
+            'communication',
+            'civics'
         ]
 
         if pillars and not isinstance(pillars, list):
@@ -267,6 +267,7 @@ def update_learning_event(user_id, event_id):
         description = data.get('description')
         title = data.get('title')
         pillars = data.get('pillars')
+        track_id = data.get('track_id')  # Can be None to unassign, or omitted to leave unchanged
 
         # Validate pillars if provided
         if pillars is not None:
@@ -274,11 +275,11 @@ def update_learning_event(user_id, event_id):
                 return jsonify({'error': 'Pillars must be an array'}), 400
 
             valid_pillars = [
-                'arts_creativity',
-                'stem_logic',
-                'life_wellness',
-                'language_communication',
-                'society_culture'
+                'art',
+                'stem',
+                'wellness',
+                'communication',
+                'civics'
             ]
             invalid_pillars = [p for p in pillars if p not in valid_pillars]
             if invalid_pillars:
@@ -291,7 +292,8 @@ def update_learning_event(user_id, event_id):
             event_id=event_id,
             description=description,
             title=title,
-            pillars=pillars
+            pillars=pillars,
+            track_id=track_id
         )
 
         if result['success']:
@@ -394,17 +396,17 @@ def save_evidence_blocks(user_id, event_id):
 def upload_event_file(user_id, event_id):
     """Upload a file for a learning event evidence block"""
     try:
-        from database import get_supabase_admin_client, get_user_client
+        from database import get_supabase_admin_client
         from werkzeug.utils import secure_filename
         from datetime import datetime
         import os
         import mimetypes
 
-        supabase = get_user_client(user_id)
+        # Admin client: Auth verified by decorator (ADR-002, Rule 3)
         admin_supabase = get_supabase_admin_client()
 
         # Verify event belongs to user
-        event_check = supabase.table('learning_events') \
+        event_check = admin_supabase.table('learning_events') \
             .select('id') \
             .eq('id', event_id) \
             .eq('user_id', user_id) \
@@ -487,8 +489,8 @@ def upload_event_file(user_id, event_id):
 
             public_url = admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename)
 
-            # Find the evidence block to update
-            blocks_response = supabase.table('learning_event_evidence_blocks') \
+            # Find the evidence block to update (use admin client for RLS bypass)
+            blocks_response = admin_supabase.table('learning_event_evidence_blocks') \
                 .select('*') \
                 .eq('learning_event_id', event_id) \
                 .eq('order_index', int(order_index)) \
@@ -499,7 +501,7 @@ def upload_event_file(user_id, event_id):
                 block_id = block['id']
 
                 # Update block content with file information
-                current_content = block.get('content', {})
+                current_content = block.get('content', {}) or {}
                 current_content.update({
                     'url': public_url,
                     'filename': filename,
@@ -510,7 +512,7 @@ def upload_event_file(user_id, event_id):
                 if block_type == 'image' and not current_content.get('alt'):
                     current_content['alt'] = filename
 
-                supabase.table('learning_event_evidence_blocks') \
+                admin_supabase.table('learning_event_evidence_blocks') \
                     .update({'content': current_content}) \
                     .eq('id', block_id) \
                     .execute()
