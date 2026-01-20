@@ -1,25 +1,15 @@
 import React, { useEffect } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
 import DemoHero from './DemoHero';
-import QuestSelector from './QuestSelector';
-import MiniQuestExperience from './MiniQuestExperience';
-import BadgeUnlock from './BadgeUnlock';
-import ParentDashboardPreview from './ParentDashboardPreview';
-import FamilyEngagementPreview from './FamilyEngagementPreview';
-import DiplomaDemoDisplay from './DiplomaDemoDisplay';
-import JoinJourney from './JoinJourney';
+import DemoQuestGrid from './DemoQuestGrid';
+import DemoPersonalization from './DemoPersonalization';
+import DemoEvidence from './DemoEvidence';
+import DemoPortfolio from './DemoPortfolio';
 import { ArrowPathIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 const DemoFeature = () => {
   const { demoState, actions } = useDemo();
   const { currentStep } = demoState;
-
-  useEffect(() => {
-    // Track demo start
-    if (currentStep === 0) {
-      actions.trackInteraction('demo_started');
-    }
-  }, []);
 
   useEffect(() => {
     // Scroll to top when step changes
@@ -29,46 +19,40 @@ const DemoFeature = () => {
   const renderStep = () => {
     switch (currentStep) {
       case 0:
-        return <DemoHero onStart={() => actions.nextStep()} />;
+        return <DemoHero />;
       case 1:
-        return <QuestSelector />;
+        return <DemoQuestGrid />;
       case 2:
-        return <MiniQuestExperience />;
+        return <DemoPersonalization />;
       case 3:
-        return <BadgeUnlock />;
+        return <DemoEvidence />;
       case 4:
-        return <ParentDashboardPreview />;
-      case 5:
-        return <FamilyEngagementPreview />;
-      case 6:
-        return <DiplomaDemoDisplay />;
-      case 7:
-        return <JoinJourney />;
+        return <DemoPortfolio />;
       default:
-        return <DemoHero onStart={() => actions.nextStep()} />;
+        return <DemoHero />;
     }
   };
 
   const getStepInfo = () => {
     const steps = [
-      { title: 'Your Learning Story Starts Here', subtitle: 'What will you discover today?' },
-      { title: 'Choose Your Next Adventure', subtitle: 'What are you curious about today?' },
-      { title: 'Experience Learning', subtitle: 'Complete your first task' },
-      { title: "You're Growing!", subtitle: 'Watch your skills take shape' },
-      { title: 'Parents Can Cheer You On', subtitle: 'They see your rhythm, not every detail' },
-      { title: 'Your Learning Community', subtitle: 'Family can celebrate with you' },
-      { title: 'Your Living Portfolio', subtitle: 'This grows automatically as you learn' },
-      { title: 'Ready to Start Your Story?', subtitle: 'Join thousands of learners' }
+      { title: 'Experience Learning That Fits You', subtitle: 'See how interests become school credit' },
+      { title: 'Pick Something That Excites You', subtitle: 'Every quest earns real school credit' },
+      { title: 'Your Interests Shape Your Learning', subtitle: 'AI creates tasks just for you' },
+      { title: 'Submit Evidence, Earn Credit', subtitle: 'Photos, videos, reflections - all count' },
+      { title: 'Your Portfolio Is Building', subtitle: 'Ready to start your real journey?' }
     ];
     return steps[currentStep] || steps[0];
   };
 
-  const canGoBack = currentStep > 0 && currentStep < 7;
+  const canGoBack = currentStep > 0 && currentStep < 4;
+
   const canGoForward = () => {
-    if (currentStep === 0 || currentStep >= 7) return false;
-    if (currentStep === 1) return demoState.selectedQuests.length > 0;
-    if (currentStep === 2) return demoState.simulatedTaskCompleted;
-    return true; // All other steps can proceed
+    if (currentStep === 0) return false; // Hero has its own CTA
+    if (currentStep >= 4) return false;
+    if (currentStep === 1) return !!demoState.selectedQuest; // Need quest selected
+    if (currentStep === 2) return demoState.generatedTasks.length > 0; // Need tasks generated
+    if (currentStep === 3) return demoState.submittedEvidence !== null; // Need evidence submitted
+    return true;
   };
 
   const stepInfo = getStepInfo();
@@ -76,8 +60,8 @@ const DemoFeature = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#6d469b]/5 via-white to-[#ef597b]/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Progress Header */}
-        {currentStep > 0 && currentStep <= 7 && (
+        {/* Progress Header - show only on steps 1-4 */}
+        {currentStep > 0 && currentStep <= 4 && (
           <div className="mb-6 sm:mb-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <div className="flex-1 min-w-0">
@@ -87,7 +71,7 @@ const DemoFeature = () => {
                 <p className="text-gray-600 mt-1 text-sm sm:text-base">{stepInfo.subtitle}</p>
               </div>
               <div className="flex items-center justify-between sm:justify-start gap-4 flex-shrink-0">
-                <span className="text-sm text-gray-600">Step {currentStep} of 7</span>
+                <span className="text-sm text-gray-600">Step {currentStep} of 4</span>
                 <button
                   onClick={actions.resetDemo}
                   className="flex items-center gap-1 text-sm text-optio-purple hover:underline py-1 px-2 -mx-2 rounded touch-manipulation"
@@ -102,7 +86,7 @@ const DemoFeature = () => {
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-primary transition-all duration-500"
-                style={{ width: `${(currentStep / 7) * 100}%` }}
+                style={{ width: `${(currentStep / 4) * 100}%` }}
               />
             </div>
           </div>
@@ -110,12 +94,12 @@ const DemoFeature = () => {
 
         {/* Main Content */}
         <div className="relative">
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8 min-h-[400px] sm:min-h-[500px]">
+          <div className={`bg-white rounded-xl sm:rounded-2xl shadow-xl ${currentStep === 0 ? 'p-0' : 'p-4 sm:p-6 lg:p-8'} min-h-[400px] sm:min-h-[500px]`}>
             {renderStep()}
           </div>
 
-          {/* Navigation Buttons */}
-          {currentStep > 0 && (
+          {/* Navigation Buttons - show only on steps 1-3 */}
+          {currentStep > 0 && currentStep < 4 && (
             <div className="flex flex-col sm:flex-row justify-between gap-3 mt-4 sm:mt-6">
               {canGoBack && (
                 <button
@@ -127,7 +111,7 @@ const DemoFeature = () => {
                 </button>
               )}
 
-              {currentStep < 7 && (
+              {currentStep < 4 && (
                 <button
                   onClick={actions.nextStep}
                   disabled={!canGoForward()}

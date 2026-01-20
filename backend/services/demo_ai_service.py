@@ -63,39 +63,39 @@ class DemoAIService(BaseAIService):
             if not interest_context:
                 interest_context = "The student has general interests."
 
-            prompt = f"""Generate 3 personalized learning tasks for a student working on the quest: "{quest_title}"
+            prompt = f"""Generate 3 simple, fun learning tasks for a student working on: "{quest_title}"
 
 {interest_context}
 
-Requirements:
-1. Each task should connect the quest topic to the student's interests
-2. Tasks should be achievable by a high school student
-3. Tasks should be creative and engaging, not generic
-4. Each task earns XP (100-150 per task)
-5. Each task maps to 1-2 academic subjects
+IMPORTANT RULES:
+- Titles must be SHORT (3-6 words max)
+- Descriptions must be ONE simple sentence
+- Tasks must be EASY and beginner-friendly
+- Connect the quest to student's interests in a fun way
+- Each task earns XP (100-150)
 
 Valid subjects: science, math, language_arts, fine_arts, digital_literacy, pe, health, social_studies, financial_literacy, cte, electives
 
-Return ONLY valid JSON (no markdown, no explanation):
+Return ONLY valid JSON:
 {{
   "tasks": [
     {{
-      "title": "Short action-oriented title",
-      "description": "1-2 sentence description of what to do",
+      "title": "Draw your robot design",
+      "description": "Sketch what your robot will look like.",
       "xp": 100,
-      "subjects": ["subject1", "subject2"]
+      "subjects": ["fine_arts", "science"]
     }},
     {{
-      "title": "...",
-      "description": "...",
+      "title": "List 5 robot features",
+      "description": "Write down five cool things your robot can do.",
+      "xp": 100,
+      "subjects": ["language_arts"]
+    }},
+    {{
+      "title": "Find robot inspiration",
+      "description": "Watch a video about robots you like.",
       "xp": 150,
-      "subjects": ["subject1"]
-    }},
-    {{
-      "title": "...",
-      "description": "...",
-      "xp": 100,
-      "subjects": ["subject1", "subject2"]
+      "subjects": ["digital_literacy", "science"]
     }}
   ]
 }}"""
