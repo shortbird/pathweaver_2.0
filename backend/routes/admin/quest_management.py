@@ -109,6 +109,25 @@ def create_quest_v3_clean(user_id):
             is_active = True   # Advisors create active quests (can be enrolled via invitation)
             is_public = False  # But not public (won't appear in public quest library)
 
+        # Check for organization_id (org-specific quest)
+        organization_id = data.get('organization_id')
+        quest_type = data.get('quest_type', 'optio')  # Default to 'optio', can also be 'course'
+
+        # Validate quest_type
+        valid_quest_types = ['optio', 'course']
+        if quest_type not in valid_quest_types:
+            return jsonify({'success': False, 'error': f'quest_type must be one of: {", ".join(valid_quest_types)}'}), 400
+
+        # If organization_id is provided, verify user has access to that org
+        if organization_id:
+            # Check if user is superadmin or belongs to the org
+            user_data = supabase.table('users').select('role, organization_id').eq('id', user_id).single().execute()
+            if user_data.data:
+                if user_data.data.get('role') != 'superadmin' and user_data.data.get('organization_id') != organization_id:
+                    return jsonify({'success': False, 'error': 'Access denied: cannot create quests for other organizations'}), 403
+            # Org quests are not public (only visible within the org)
+            is_public = False
+
         # Create quest record
         quest_data = {
             'title': data['title'].strip(),
@@ -117,12 +136,13 @@ def create_quest_v3_clean(user_id):
             'is_v3': True,
             'is_active': is_active,
             'is_public': is_public,  # NEW: Control public visibility
-            'quest_type': 'optio',  # Optio quest (self-directed, personalized)
+            'quest_type': quest_type,  # 'optio' or 'course'
             'header_image_url': image_url,
             'image_url': image_url,  # Add to new image_url column
             'material_link': data.get('material_link', '').strip() if data.get('material_link') else None,
             'created_by': user_id,  # Track who created the quest
-            'created_at': datetime.utcnow().isoformat()
+            'created_at': datetime.utcnow().isoformat(),
+            'organization_id': organization_id  # Will be None for global quests
         }
 
         # Insert quest

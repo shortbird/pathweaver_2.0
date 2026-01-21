@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import FocusTrap from 'focus-trap-react';
 
@@ -71,7 +72,9 @@ export const Modal = ({
     };
   }, [isOpen]);
 
-  return (
+  // Use createPortal to render modal at document.body level
+  // This prevents stacking context issues from transforms/transitions on parent elements
+  return createPortal(
     <div
       className="fixed top-0 left-0 right-0 bottom-0 w-full h-full bg-black/50 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
       onClick={handleOverlayClick}
@@ -118,7 +121,8 @@ export const Modal = ({
           )}
         </div>
       </FocusTrap>
-    </div>
+    </div>,
+    document.body
   );
 };
 

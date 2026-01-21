@@ -95,6 +95,23 @@ def submit_contact():
                 # Don't fail the request if email fails
                 logger.warning(f"Failed to send demo confirmation email: {e}")
 
+        # Send confirmation email for sales inquiries
+        if contact_type == 'sales':
+            try:
+                email_sent = email_service.send_sales_inquiry_confirmation(
+                    user_name=name,
+                    user_email=email,
+                    organization=organization,
+                    message=message
+                )
+                if email_sent:
+                    logger.info(f"Sales inquiry confirmation email sent to {email}")
+                else:
+                    logger.warning(f"Failed to send sales inquiry confirmation email to {email}")
+            except Exception as e:
+                # Don't fail the request if email fails
+                logger.warning(f"Failed to send sales inquiry confirmation email: {e}")
+
         return jsonify({
             'success': True,
             'message': 'Thank you for your submission. We will be in touch soon.'

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { XMarkIcon, PlusIcon, TrashIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
 
-const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) => {
+const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess, organizationId = null, canDelete = false, onDelete = null }) => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [loadingTasks, setLoadingTasks] = useState(mode === 'edit');
@@ -103,6 +104,8 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
         lms_course_id: formData.lms_course_id || null,
         lms_assignment_id: formData.lms_assignment_id || null,
         is_active: formData.is_active,
+        // Include organization_id if creating an org-specific quest
+        ...(organizationId && { organization_id: organizationId }),
         tasks: formData.tasks.map((task, index) => ({
           title: task.title.trim(),
           description: task.description.trim(),
@@ -191,7 +194,9 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
     setFormData({ ...formData, tasks: newTasks });
   };
 
-  return (
+  // Use createPortal to render modal at document.body level
+  // This prevents stacking context issues from transforms/transitions on parent elements
+  return createPortal(
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center z-10">
@@ -487,28 +492,47 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
           </div>
 
           {/* Form Actions */}
-          <div className="flex justify-end gap-4 pt-6 border-t">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2 min-h-[44px] border border-gray-300 rounded-lg hover:bg-gray-50 touch-manipulation"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-2 min-h-[44px] bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 font-semibold touch-manipulation"
-            >
-              {loading ? (mode === 'edit' ? 'Updating...' : 'Creating...') : (mode === 'edit' ? 'Update Course Quest' : 'Create Course Quest')}
-            </button>
+          <div className="flex flex-wrap justify-between items-center gap-4 pt-6 border-t">
+            <div>
+              {canDelete && onDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to delete this quest? This action cannot be undone.')) {
+                      onDelete(quest.id);
+                    }
+                  }}
+                  className="px-4 py-2 min-h-[44px] bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 whitespace-nowrap touch-manipulation"
+                  disabled={loading}
+                >
+                  Delete Quest
+                </button>
+              )}
+            </div>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-2 min-h-[44px] border border-gray-300 rounded-lg hover:bg-gray-50 whitespace-nowrap touch-manipulation"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-6 py-2 min-h-[44px] bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 font-semibold whitespace-nowrap touch-manipulation"
+              >
+                {loading ? (mode === 'edit' ? 'Updating...' : 'Creating...') : (mode === 'edit' ? 'Update Course Quest' : 'Create Course Quest')}
+              </button>
+            </div>
           </div>
             </>
           )}
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

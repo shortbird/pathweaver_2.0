@@ -737,5 +737,39 @@ class EmailService(BaseService):
             }
         )
 
+    def send_sales_inquiry_confirmation(
+        self,
+        user_name: str,
+        user_email: str,
+        organization: str = None,
+        message: str = None
+    ) -> bool:
+        """
+        Send sales inquiry confirmation email to user.
+
+        Sends confirmation to the user and automatically copies
+        tanner@optioeducation.com for follow-up (via the standard
+        support copy mechanism in send_email).
+
+        Args:
+            user_name: Name of the person who submitted sales inquiry
+            user_email: Email of the person who submitted sales inquiry
+            organization: Organization name (optional)
+            message: User's message (optional)
+
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        return self.send_templated_email(
+            to_email=user_email,
+            subject="Thanks for Contacting Optio Sales",
+            template_name='sales_inquiry_confirmation',
+            context={
+                'name': user_name,
+                'organization': organization or '',
+                'message': message or ''
+            }
+        )
+
 # Create singleton instance
 email_service = EmailService()

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { XMarkIcon, ExclamationCircleIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 
-const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) => {
+const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess, organizationId = null, canDelete = false, onDelete = null }) => {
   const [loading, setLoading] = useState(false)
   const [cleanupLoading, setCleanupLoading] = useState(false)
   const [errors, setErrors] = useState({})
@@ -52,7 +53,9 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
       const submitData = {
         title: formData.title.trim(),
         big_idea: formData.big_idea.trim(),
-        is_active: formData.is_active
+        is_active: formData.is_active,
+        // Include organization_id if creating an org-specific quest
+        ...(organizationId && { organization_id: organizationId })
       }
 
       const endpoint = mode === 'edit'
@@ -117,7 +120,9 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
     }
   }
 
-  return (
+  // Use createPortal to render modal at document.body level
+  // This prevents stacking context issues from transforms/transitions on parent elements
+  return createPortal(
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
@@ -203,17 +208,31 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
           </div>
 
           {/* Form Actions */}
-          <div className="flex justify-between items-center gap-4 pt-8 border-t mt-8">
-            <div>
+          <div className="flex flex-wrap justify-between items-center gap-4 pt-8 border-t mt-8">
+            <div className="flex gap-2">
               {mode === 'edit' && (
                 <button
                   type="button"
                   onClick={handleAICleanup}
-                  className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
                   disabled={cleanupLoading || loading}
                 >
                   <SparklesIcon size={18} />
-                  {cleanupLoading ? 'Cleaning...' : 'AI Cleanup'}
+                  <span className="whitespace-nowrap">{cleanupLoading ? 'Cleaning...' : 'AI Cleanup'}</span>
+                </button>
+              )}
+              {canDelete && onDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to delete this quest? This action cannot be undone.')) {
+                      onDelete(quest.id);
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 whitespace-nowrap"
+                  disabled={loading}
+                >
+                  Delete Quest
                 </button>
               )}
             </div>
@@ -221,14 +240,14 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 whitespace-nowrap"
                 disabled={loading}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-6 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                className="px-6 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
                 disabled={loading}
               >
                 {loading ? (mode === 'edit' ? 'Updating...' : 'Creating...') : (mode === 'edit' ? 'Update Quest' : 'Create Quest')}
@@ -237,7 +256,8 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 

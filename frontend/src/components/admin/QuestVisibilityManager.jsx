@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import api from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import UnifiedQuestForm from './UnifiedQuestForm';
+import CourseQuestForm from './CourseQuestForm';
 
 /**
  * QuestVisibilityManager - Quest availability control for organization admins
@@ -9,14 +13,24 @@ import api from '../../services/api';
  * - curated: Manual grant/revoke of specific quests
  * - private_only: Only org-created quests available
  */
-export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteSettings }) {
+export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteSettings, refreshKey }) {
+  const { user } = useAuth();
   const [quests, setQuests] = useState([]);
   const [accessibleQuestIds, setAccessibleQuestIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all'); // 'all', 'optio', 'course'
+  const [sourceFilter, setSourceFilter] = useState('all'); // 'all', 'org', 'optio'
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
+  const [editingQuest, setEditingQuest] = useState(null);
   const questsPerPage = 25;
+
+  // Get org name for display
+  const orgName = orgData?.organization?.name || 'Organization';
+
+  // Check if user can delete quests
+  const isSuperAdmin = user?.role === 'superadmin';
 
   // Get logo URLs
   const optioLogoUrl = siteSettings?.logo_url;
@@ -29,18 +43,46 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
   useEffect(() => {
     fetchQuests();
     fetchAccessibleQuests();
-  }, [orgId]);
+  }, [orgId, refreshKey]);
 
-  // Reset to first page when search changes
+  // Reset to first page when search or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, typeFilter, sourceFilter]);
+
+  // Handle quest deletion
+  const handleDeleteQuest = async (questId) => {
+    try {
+      await api.delete(`/api/admin/quests/${questId}`);
+      setQuests(prev => prev.filter(q => q.id !== questId));
+      setEditingQuest(null);
+      toast.success('Quest deleted successfully');
+      onUpdate?.();
+    } catch (error) {
+      console.error('Failed to delete quest:', error);
+      toast.error(error.response?.data?.error || 'Failed to delete quest');
+    }
+  };
 
   const fetchQuests = async () => {
     try {
-      // Use admin endpoint to get ALL public quests without org visibility filters
-      const { data } = await api.get('/api/admin/quests?per_page=1000&is_active=true&is_public=true');
-      setQuests(data.quests || []);
+      // Fetch both public quests and org-specific quests in parallel
+      const [publicResponse, orgResponse] = await Promise.all([
+        // Public quests from admin endpoint
+        api.get('/api/admin/quests?per_page=1000&is_active=true&is_public=true'),
+        // Org-specific quests (may not be public)
+        api.get(`/api/admin/organizations/${orgId}/quests`)
+      ]);
+
+      const publicQuests = publicResponse.data.quests || [];
+      const orgQuests = orgResponse.data.quests || [];
+
+      // Merge quests, avoiding duplicates (org quests take precedence)
+      const questMap = new Map();
+      publicQuests.forEach(q => questMap.set(q.id, q));
+      orgQuests.forEach(q => questMap.set(q.id, q));
+
+      setQuests(Array.from(questMap.values()));
     } catch (error) {
       console.error('Failed to fetch quests:', error);
     }
@@ -174,6 +216,20 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
                          quest.description?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const isOrgQuest = quest.organization_id === orgId;
+    const questType = quest.quest_type || 'optio';
+
+    // Type filter
+    if (typeFilter !== 'all' && questType !== typeFilter) {
+      return false;
+    }
+
+    // Source filter
+    if (sourceFilter === 'org' && !isOrgQuest) {
+      return false;
+    }
+    if (sourceFilter === 'optio' && isOrgQuest) {
+      return false;
+    }
 
     // For private_only: only show org's own quests
     if (policy === 'private_only') {
@@ -211,20 +267,42 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
       {/* Search and Stats Bar */}
       <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
         <div className="flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3">
             <input
               type="text"
               placeholder="Search quests..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="border border-gray-200 rounded-lg px-4 py-2 w-64 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+              className="border border-gray-200 rounded-lg px-4 py-2 w-48 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
             />
-            {searchTerm && (
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+            >
+              <option value="all">All Types</option>
+              <option value="optio">Optio</option>
+              <option value="course">Course</option>
+            </select>
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+            >
+              <option value="all">All Sources</option>
+              <option value="org">{orgName}</option>
+              <option value="optio">Optio</option>
+            </select>
+            {(searchTerm || typeFilter !== 'all' || sourceFilter !== 'all') && (
               <button
-                onClick={() => setSearchTerm('')}
+                onClick={() => {
+                  setSearchTerm('');
+                  setTypeFilter('all');
+                  setSourceFilter('all');
+                }}
                 className="text-gray-500 hover:text-gray-700 text-sm"
               >
-                Clear
+                Clear filters
               </button>
             )}
           </div>
@@ -283,6 +361,7 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
                 </th>
               )}
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Quest</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Type</th>
               <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Source</th>
               <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Status</th>
             </tr>
@@ -290,7 +369,7 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
           <tbody className="divide-y divide-gray-100">
             {paginatedQuests.length === 0 ? (
               <tr>
-                <td colSpan={canToggle ? 4 : 3} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={canToggle ? 5 : 4} className="px-4 py-8 text-center text-gray-500">
                   {searchTerm ? 'No quests match your search' :
                    policy === 'private_only' ? 'No organization quests found. Create quests to see them here.' :
                    'No quests found'}
@@ -301,14 +380,16 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
                 const available = isQuestAvailable(quest.id);
                 const isOrgQuest = quest.organization_id === orgId;
                 const isSelected = selectedIds.has(quest.id);
+                const questType = quest.quest_type || 'optio';
 
                 return (
                   <tr
                     key={quest.id}
-                    className={`hover:bg-gray-50 transition-colors ${isSelected ? 'bg-optio-purple/5' : ''}`}
+                    onClick={() => isOrgQuest && setEditingQuest(quest)}
+                    className={`hover:bg-gray-50 transition-colors ${isSelected ? 'bg-optio-purple/5' : ''} ${isOrgQuest ? 'cursor-pointer' : ''}`}
                   >
                     {canToggle && (
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         {!isOrgQuest && policy === 'curated' && (
                           <input
                             type="checkbox"
@@ -327,8 +408,19 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-center">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                          questType === 'course'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-purple-100 text-purple-700'
+                        }`}>
+                          {questType === 'course' ? 'Course' : 'Optio'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-center">
                         {isOrgQuest ? (
-                          <span className="text-xs font-medium text-gray-600">Org</span>
+                          <span className="text-xs font-medium text-gray-600" title={orgName}>{orgName}</span>
                         ) : (
                           optioLogoUrl ? (
                             <img
@@ -344,7 +436,7 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-center">
                         {isOrgQuest ? (
                           // Org quests are always available
@@ -436,6 +528,39 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
             </button>
           </div>
         </div>
+      )}
+
+      {/* Edit Quest Modals */}
+      {editingQuest && editingQuest.quest_type === 'course' && (
+        <CourseQuestForm
+          mode="edit"
+          quest={editingQuest}
+          organizationId={orgId}
+          canDelete={isSuperAdmin || editingQuest.organization_id === orgId}
+          onDelete={handleDeleteQuest}
+          onClose={() => setEditingQuest(null)}
+          onSuccess={(updatedQuest) => {
+            setQuests(prev => prev.map(q => q.id === updatedQuest.id ? { ...q, ...updatedQuest } : q));
+            setEditingQuest(null);
+            onUpdate?.();
+          }}
+        />
+      )}
+
+      {editingQuest && editingQuest.quest_type !== 'course' && (
+        <UnifiedQuestForm
+          mode="edit"
+          quest={editingQuest}
+          organizationId={orgId}
+          canDelete={isSuperAdmin || editingQuest.organization_id === orgId}
+          onDelete={handleDeleteQuest}
+          onClose={() => setEditingQuest(null)}
+          onSuccess={(updatedQuest) => {
+            setQuests(prev => prev.map(q => q.id === updatedQuest.id ? { ...q, ...updatedQuest } : q));
+            setEditingQuest(null);
+            onUpdate?.();
+          }}
+        />
       )}
     </div>
   );

@@ -256,6 +256,45 @@ def revoke_quest_access(current_user_id, current_org_id, is_superadmin, org_id):
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/<org_id>/quests', methods=['GET'])
+@require_org_admin
+def list_organization_quests(current_user_id, current_org_id, is_superadmin, org_id):
+    """
+    List all quests created by this organization.
+
+    Org admins can only view quests for their own organization.
+    Superadmins can view quests for any organization.
+
+    Returns:
+        200: List of organization quests
+        403: Access denied
+    """
+    try:
+        # Verify access
+        if not is_superadmin and current_org_id != org_id:
+            return jsonify({'error': 'Access denied'}), 403
+
+        client = get_supabase_admin_client()
+
+        # Get quests created by this organization
+        result = client.table('quests')\
+            .select('*')\
+            .eq('organization_id', org_id)\
+            .order('created_at', desc=True)\
+            .execute()
+
+        quests = result.data or []
+
+        return jsonify({
+            'quests': quests,
+            'total': len(quests)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error listing quests for org {org_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/<org_id>/courses/grant', methods=['POST'])
 @require_org_admin
 def grant_course_access(current_user_id, current_org_id, is_superadmin, org_id):

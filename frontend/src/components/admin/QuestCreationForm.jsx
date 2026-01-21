@@ -67,10 +67,14 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
   }, [])
 
   const loadAIModalComponent = async () => {
+    // AI Quest Generation Modal is optional - only load if it exists
+    // Using a variable path to prevent Vite from failing on missing module
+    const modulePath = './AIQuestGenerationModal'
     try {
-      const { default: AIQuestGenerationModal } = await import('./AIQuestGenerationModal')
-      setAIModalComponent(() => AIQuestGenerationModal)
+      const module = await import(/* @vite-ignore */ modulePath)
+      setAIModalComponent(() => module.default)
     } catch (error) {
+      // Module doesn't exist - AI generation not available
     }
   }
 

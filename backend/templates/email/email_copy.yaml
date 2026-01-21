@@ -405,3 +405,24 @@ emails:
         - "How Optio fits your specific needs"
     closing_paragraph: "Have questions before we connect? Simply reply to this email. Someone from our team reads and responds to every message personally."
     signature: "tanner"
+
+  sales_inquiry_confirmation:
+    subject: "Thanks for Contacting Optio Sales"
+    title: "Thanks for Reaching Out!"
+    salutation: "Hi {{ name }},"
+    paragraphs:
+      - "Thank you for your interest in bringing Optio to your organization. We're excited to explore how we can support your learning community."
+      - "Someone from our team will review your inquiry and get back to you within 1-2 business days to discuss your needs."
+    cta:
+      text: "Learn More About Optio"
+      url: "https://www.optioeducation.com"
+    highlight_box:
+      title: "What We Offer Organizations"
+      content: "Optio provides comprehensive learning solutions for schools, microschools, and learning communities:"
+      bullet_points:
+        - "Student management and progress tracking"
+        - "Custom branding and LTI integration"
+        - "Official credit issuance through accredited partners"
+        - "Dedicated support and analytics"
+    closing_paragraph: "Have questions before we connect? Simply reply to this email. Someone from our team reads and responds to every message personally."
+    signature: "tanner"

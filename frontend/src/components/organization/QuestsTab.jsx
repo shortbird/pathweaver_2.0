@@ -1,11 +1,16 @@
 import React, { useState } from 'react'
 import api from '../../services/api'
 import QuestVisibilityManager from '../admin/QuestVisibilityManager'
+import UnifiedQuestForm from '../admin/UnifiedQuestForm'
+import CourseQuestForm from '../admin/CourseQuestForm'
 
 export default function QuestsTab({ orgId, orgData, onUpdate, siteSettings }) {
   const [policy, setPolicy] = useState(orgData?.organization?.quest_visibility_policy || 'all_optio')
   const [saving, setSaving] = useState(false)
   const [showPolicyOptions, setShowPolicyOptions] = useState(false)
+  const [showOptioQuestForm, setShowOptioQuestForm] = useState(false)
+  const [showCourseQuestForm, setShowCourseQuestForm] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const policyOptions = [
     { value: 'all_optio', label: 'All Optio + Org Quests', short: 'All quests available' },
@@ -32,8 +37,40 @@ export default function QuestsTab({ orgId, orgData, onUpdate, siteSettings }) {
     }
   }
 
+  const handleQuestCreated = (quest) => {
+    // Trigger refresh of the quest list
+    setRefreshKey(prev => prev + 1)
+    onUpdate()
+  }
+
   return (
     <div className="space-y-4">
+      {/* Header with Create Buttons */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h2 className="text-lg font-semibold text-gray-900">Quest Management</h2>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setShowCourseQuestForm(true)}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Create Course Quest
+          </button>
+          <button
+            onClick={() => setShowOptioQuestForm(true)}
+            className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity"
+          >
+            Create Optio Quest
+          </button>
+        </div>
+      </div>
+
+      {/* Info Banner */}
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-800">
+          <strong>Organization Quests:</strong> Quests you create here will only be visible to users in your organization.
+        </p>
+      </div>
+
       {/* Quest Visibility Policy - Compact */}
       <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between">
@@ -83,7 +120,28 @@ export default function QuestsTab({ orgId, orgData, onUpdate, siteSettings }) {
         orgData={orgData}
         onUpdate={onUpdate}
         siteSettings={siteSettings}
+        refreshKey={refreshKey}
       />
+
+      {/* Optio Quest Creation Form */}
+      {showOptioQuestForm && (
+        <UnifiedQuestForm
+          mode="create"
+          organizationId={orgId}
+          onClose={() => setShowOptioQuestForm(false)}
+          onSuccess={handleQuestCreated}
+        />
+      )}
+
+      {/* Course Quest Creation Form */}
+      {showCourseQuestForm && (
+        <CourseQuestForm
+          mode="create"
+          organizationId={orgId}
+          onClose={() => setShowCourseQuestForm(false)}
+          onSuccess={handleQuestCreated}
+        />
+      )}
     </div>
   )
 }

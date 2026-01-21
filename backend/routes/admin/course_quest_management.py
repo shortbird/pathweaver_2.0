@@ -79,7 +79,20 @@ def create_course_quest(user_id):
         user = supabase.table('users').select('role, organization_id').eq('id', user_id).execute()
         user_data = user.data[0] if user.data else {}
         user_role = user_data.get('role', 'advisor')
-        organization_id = user_data.get('organization_id')
+        user_org_id = user_data.get('organization_id')
+
+        # Check for organization_id in request (for org admin creating from org dashboard)
+        # Superadmin can create for any org, others can only create for their own org
+        request_org_id = data.get('organization_id')
+        if request_org_id:
+            if user_role != 'superadmin' and user_org_id != request_org_id:
+                return jsonify({
+                    'success': False,
+                    'error': 'Access denied: cannot create quests for other organizations'
+                }), 403
+            organization_id = request_org_id
+        else:
+            organization_id = user_org_id
 
         # Auto-fetch image if not provided
         image_url = data.get('header_image_url')
@@ -191,14 +204,15 @@ def create_course_quest(user_id):
 
 
 @bp.route('/quests/<quest_id>/course-tasks', methods=['GET'])
-@require_admin
+@require_advisor
 def get_course_tasks(user_id, quest_id):
     """Get all preset tasks for a course quest"""
+    from utils.roles import get_effective_role
     supabase = get_supabase_admin_client()
 
     try:
-        # Verify quest is a course quest
-        quest = supabase.table('quests').select('quest_type').eq('id', quest_id).single().execute()
+        # Verify quest exists and get org info
+        quest = supabase.table('quests').select('quest_type, organization_id').eq('id', quest_id).single().execute()
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
 
@@ -207,6 +221,16 @@ def get_course_tasks(user_id, quest_id):
                 'success': False,
                 'error': 'This endpoint is only for course quests'
             }), 400
+
+        # Check organization access (non-superadmins can only access their org's quests)
+        user_result = supabase.table('users').select('organization_id, role, org_role').eq('id', user_id).single().execute()
+        if user_result.data:
+            user_role = get_effective_role(user_result.data)
+            user_org = user_result.data.get('organization_id')
+            quest_org = quest.data.get('organization_id')
+
+            if user_role != 'superadmin' and quest_org and quest_org != user_org:
+                return jsonify({'success': False, 'error': 'Permission denied'}), 403
 
         # Get tasks
         tasks = supabase.table('course_quest_tasks')\
@@ -230,7 +254,7 @@ def get_course_tasks(user_id, quest_id):
 
 
 @bp.route('/quests/<quest_id>/course-tasks', methods=['PUT'])
-@require_admin
+@require_advisor
 def update_course_tasks(user_id, quest_id):
     """
     Update a course quest and replace all preset tasks.
@@ -256,13 +280,14 @@ def update_course_tasks(user_id, quest_id):
         ]
     }
     """
+    from utils.roles import get_effective_role
     supabase = get_supabase_admin_client()
 
     try:
         data = request.json
 
-        # Verify quest is a course quest
-        quest = supabase.table('quests').select('quest_type').eq('id', quest_id).single().execute()
+        # Verify quest exists and get org info
+        quest = supabase.table('quests').select('quest_type, organization_id').eq('id', quest_id).single().execute()
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
 
@@ -271,6 +296,16 @@ def update_course_tasks(user_id, quest_id):
                 'success': False,
                 'error': 'This endpoint is only for course quests'
             }), 400
+
+        # Check organization access (non-superadmins can only update their org's quests)
+        user_result = supabase.table('users').select('organization_id, role, org_role').eq('id', user_id).single().execute()
+        if user_result.data:
+            user_role = get_effective_role(user_result.data)
+            user_org = user_result.data.get('organization_id')
+            quest_org = quest.data.get('organization_id')
+
+            if user_role != 'superadmin' and quest_org and quest_org != user_org:
+                return jsonify({'success': False, 'error': 'Permission denied'}), 403
 
         if not data.get('tasks') or not isinstance(data['tasks'], list):
             return jsonify({
@@ -387,12 +422,28 @@ def update_course_tasks(user_id, quest_id):
 
 
 @bp.route('/quests/<quest_id>/course-tasks/<task_id>', methods=['DELETE'])
-@require_admin
+@require_advisor
 def delete_course_task(user_id, quest_id, task_id):
     """Delete a single preset task from a course quest"""
+    from utils.roles import get_effective_role
     supabase = get_supabase_admin_client()
 
     try:
+        # Verify quest exists and check organization access
+        quest = supabase.table('quests').select('organization_id').eq('id', quest_id).single().execute()
+        if not quest.data:
+            return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
+        # Check organization access (non-superadmins can only delete from their org's quests)
+        user_result = supabase.table('users').select('organization_id, role, org_role').eq('id', user_id).single().execute()
+        if user_result.data:
+            user_role = get_effective_role(user_result.data)
+            user_org = user_result.data.get('organization_id')
+            quest_org = quest.data.get('organization_id')
+
+            if user_role != 'superadmin' and quest_org and quest_org != user_org:
+                return jsonify({'success': False, 'error': 'Permission denied'}), 403
+
         result = supabase.table('course_quest_tasks')\
             .delete()\
             .eq('id', task_id)\

@@ -75,8 +75,7 @@ const TaskEditModal = ({ task, onSave, onClose, saving }) => {
     title: task.title || '',
     description: task.description || '',
     pillar: task.pillar || 'stem',
-    xp_value: task.xp_value || 100,
-    evidence_prompt: task.evidence_prompt || ''
+    xp_value: task.xp_value || 100
   })
   const pillarData = getPillarData(formData.pillar)
 
@@ -165,20 +164,6 @@ const TaskEditModal = ({ task, onSave, onClose, saving }) => {
             </div>
           </div>
 
-          {/* Evidence Prompt */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Evidence Prompt
-              <span className="text-gray-400 font-normal ml-1">(optional)</span>
-            </label>
-            <textarea
-              value={formData.evidence_prompt}
-              onChange={(e) => setFormData({ ...formData, evidence_prompt: e.target.value })}
-              rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none"
-              placeholder="How should students show their work?"
-            />
-          </div>
         </div>
 
         {/* Footer */}
