@@ -376,17 +376,26 @@ class AuthService {
    * Completes the registration process and establishes session.
    *
    * @param {string} tosAcceptanceToken - Token from OAuth callback
+   * @param {string|null} promoCode - Optional promo code to apply
    * @returns {Object} - { success, user, error }
    */
-  async acceptTos(tosAcceptanceToken) {
+  async acceptTos(tosAcceptanceToken, promoCode = null) {
     try {
       logger.debug('[AuthService] Accepting TOS for Google OAuth user')
 
-      const response = await api.post('/api/auth/google/accept-tos', {
+      const requestBody = {
         tos_acceptance_token: tosAcceptanceToken,
         accepted_tos: true,
         accepted_privacy: true
-      })
+      }
+
+      // Include promo code if provided
+      if (promoCode) {
+        requestBody.promo_code = promoCode
+        logger.debug('[AuthService] Including promo code with TOS acceptance')
+      }
+
+      const response = await api.post('/api/auth/google/accept-tos', requestBody)
 
       this.user = response.data.user
       this.isAuthenticated = true

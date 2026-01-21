@@ -9,18 +9,21 @@ import api from '../services/api'
 import toast from 'react-hot-toast'
 
 const RegisterPage = () => {
-  const { register: registerField, handleSubmit, formState: { errors }, watch } = useForm()
+  const { register: registerField, handleSubmit, formState: { errors }, watch, setValue } = useForm()
   const { register, isAuthenticated, user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const invitationCode = searchParams.get('invitation')
+  const promoCodeFromUrl = searchParams.get('promo')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isUnder13, setIsUnder13] = useState(false)
   const [googleError, setGoogleError] = useState('')
+  const [promoCodeStatus, setPromoCodeStatus] = useState({ valid: null, reason: null, loading: false })
   const password = watch('password')
   const dateOfBirth = watch('date_of_birth')
+  const promoCode = watch('promo_code')
 
   // Check if this is an observer registration
   const isObserverRegistration = !!invitationCode
@@ -70,17 +73,53 @@ const RegisterPage = () => {
     }
   }, [dateOfBirth])
 
+  // Pre-fill promo code from URL
+  React.useEffect(() => {
+    if (promoCodeFromUrl) {
+      setValue('promo_code', promoCodeFromUrl)
+    }
+  }, [promoCodeFromUrl, setValue])
+
+  // Validate promo code with debounce
+  React.useEffect(() => {
+    if (!promoCode || promoCode.length < 5) {
+      setPromoCodeStatus({ valid: null, reason: null, loading: false })
+      return
+    }
+
+    const timeoutId = setTimeout(async () => {
+      setPromoCodeStatus({ valid: null, reason: null, loading: true })
+      try {
+        const response = await api.post('/api/promo/validate-code', { code: promoCode })
+        setPromoCodeStatus({
+          valid: response.data.valid,
+          reason: response.data.reason || null,
+          loading: false
+        })
+      } catch (err) {
+        setPromoCodeStatus({ valid: false, reason: 'error', loading: false })
+      }
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [promoCode])
+
   const onSubmit = async (data) => {
     setLoading(true)
     try {
-      // Pass invitation code if this is an observer registration
-      const registrationData = invitationCode
-        ? { ...data, invitation_code: invitationCode }
-        : data
+      // Build registration data with optional codes
+      let registrationData = { ...data }
 
-      // Store invitation code so we can redirect after email verification
+      // Pass invitation code if this is an observer registration
       if (invitationCode) {
+        registrationData.invitation_code = invitationCode
+        // Store invitation code so we can redirect after email verification
         localStorage.setItem('pendingObserverInvitation', invitationCode)
+      }
+
+      // Include promo code if valid
+      if (data.promo_code && promoCodeStatus.valid) {
+        registrationData.promo_code = data.promo_code
       }
 
       // Let the normal registration flow handle email verification redirect
@@ -122,7 +161,13 @@ const RegisterPage = () => {
             mode="signup"
             onError={(error) => setGoogleError(error)}
             disabled={loading}
+            promoCode={promoCodeStatus.valid ? promoCode : null}
           />
+          {promoCodeStatus.valid && (
+            <p className="mt-2 text-sm text-center text-green-600">
+              Your promo code will be applied when you sign up with Google
+            </p>
+          )}
         </div>
 
         {/* Divider */}
@@ -252,6 +297,69 @@ const RegisterPage = () => {
                     </div>
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* Promo Code Field */}
+            <div>
+              <label htmlFor="promo_code" className="block text-sm font-medium text-gray-700">
+                Promo Code <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <div className="relative mt-1">
+                <input
+                  id="promo_code"
+                  {...registerField('promo_code')}
+                  type="text"
+                  className="input-field pr-10 uppercase"
+                  placeholder="OPTIO-XXXX-XXXX"
+                  aria-describedby="promo-code-status"
+                  style={{ textTransform: 'uppercase' }}
+                />
+                {promoCodeStatus.loading && (
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    <svg className="animate-spin h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                  </div>
+                )}
+                {!promoCodeStatus.loading && promoCodeStatus.valid === true && (
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    <svg className="h-5 w-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+                {!promoCodeStatus.loading && promoCodeStatus.valid === false && (
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+              {promoCodeStatus.valid === true && (
+                <p id="promo-code-status" className="mt-1 text-sm text-green-600 flex items-center gap-1">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                  </svg>
+                  First month free! Your account will be created as a Parent account.
+                </p>
+              )}
+              {promoCodeStatus.valid === false && promoCodeStatus.reason === 'expired' && (
+                <p id="promo-code-status" className="mt-1 text-sm text-red-600">
+                  This promo code has expired.
+                </p>
+              )}
+              {promoCodeStatus.valid === false && promoCodeStatus.reason === 'already_used' && (
+                <p id="promo-code-status" className="mt-1 text-sm text-red-600">
+                  This promo code has already been used.
+                </p>
+              )}
+              {promoCodeStatus.valid === false && promoCodeStatus.reason === 'not_found' && (
+                <p id="promo-code-status" className="mt-1 text-sm text-red-600">
+                  Invalid promo code.
+                </p>
               )}
             </div>
 

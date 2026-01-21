@@ -771,5 +771,39 @@ class EmailService(BaseService):
             }
         )
 
+    def send_promo_code_email(
+        self,
+        to_email: str,
+        name: str,
+        promo_code: str
+    ) -> bool:
+        """
+        Send first month free promo code email.
+
+        Args:
+            to_email: Recipient email address
+            name: Recipient's name (or 'there' for fallback)
+            promo_code: The promo code to include
+
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        # Get frontend URL for registration link
+        import os
+        frontend_url = os.getenv('FRONTEND_URL', 'https://www.optioeducation.com')
+        registration_url = f"{frontend_url}/register?promo={promo_code}"
+
+        return self.send_templated_email(
+            to_email=to_email,
+            subject="Your Optio First Month Free Code",
+            template_name='promo_first_month_free',
+            context={
+                'name': name,
+                'promo_code': promo_code,
+                'registration_url': registration_url
+            }
+        )
+
+
 # Create singleton instance
 email_service = EmailService()

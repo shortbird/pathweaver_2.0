@@ -9,9 +9,12 @@ REPOSITORY MIGRATION: MIGRATION CANDIDATE
 """
 
 from flask import Blueprint, request, jsonify
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
+import secrets
+import string
 from database import get_supabase_client, get_supabase_admin_client
+from middleware.rate_limiter import rate_limit
 from repositories import (
     UserRepository,
     QuestRepository,
@@ -379,6 +382,141 @@ def teacher_consultation_signup():
     except Exception as e:
         logger.error(f"Error in teacher-consultation request: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
+
+def generate_promo_code():
+    """Generate a unique promo code in format OPTIO-XXXX-XXXX"""
+    # Use only uppercase letters and digits that are easy to read (no 0, O, I, L)
+    chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+    part1 = ''.join(secrets.choice(chars) for _ in range(4))
+    part2 = ''.join(secrets.choice(chars) for _ in range(4))
+    return f"OPTIO-{part1}-{part2}"
+
+
+@promo_bp.route('/first-month-free', methods=['POST'])
+@rate_limit(max_requests=3, window_seconds=3600)  # 3 requests per hour per IP
+def generate_first_month_free_code():
+    """Generate a first month free promo code and send it via email"""
+    try:
+        data = request.get_json()
+
+        # Validate email
+        email = data.get('email', '').strip().lower()
+        if not email or '@' not in email or '.' not in email:
+            return jsonify({'error': 'Valid email is required'}), 400
+
+        name = data.get('name', '').strip()
+
+        # Admin client: Public form submission
+        supabase = get_supabase_admin_client()
+
+        # Generate unique code with retry logic
+        max_attempts = 10
+        code = None
+        for _ in range(max_attempts):
+            candidate = generate_promo_code()
+            # Check if code already exists
+            existing = supabase.table('promo_codes').select('id').eq('code', candidate).execute()
+            if not existing.data:
+                code = candidate
+                break
+
+        if not code:
+            logger.error("Failed to generate unique promo code after max attempts")
+            return jsonify({'error': 'Failed to generate promo code. Please try again.'}), 500
+
+        # Calculate expiration (30 days from now)
+        expires_at = (datetime.utcnow() + timedelta(days=30)).isoformat()
+
+        # Insert promo code
+        promo_data = {
+            'code': code,
+            'email': email,
+            'name': name if name else None,
+            'promotion_type': 'first_month_free',
+            'target_role': 'parent',
+            'status': 'pending',
+            'expires_at': expires_at,
+            'created_at': datetime.utcnow().isoformat()
+        }
+
+        result = supabase.table('promo_codes').insert(promo_data).execute()
+
+        if result.data:
+            logger.info(f"Generated promo code {code} for {email}")
+
+            # Send email with promo code
+            try:
+                email_sent = email_service.send_promo_code_email(
+                    to_email=email,
+                    name=name if name else 'there',
+                    promo_code=code
+                )
+                if email_sent:
+                    logger.info(f"Promo code email sent to {email}")
+                else:
+                    logger.warning(f"Failed to send promo code email to {email}")
+            except Exception as e:
+                logger.error(f"Error sending promo code email to {email}: {str(e)}")
+
+            return jsonify({
+                'success': True,
+                'message': 'Check your email for your promo code!'
+            }), 201
+        else:
+            logger.error(f"Failed to insert promo code for {email}")
+            return jsonify({'error': 'Failed to generate promo code'}), 500
+
+    except Exception as e:
+        logger.error(f"Error generating first month free code: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@promo_bp.route('/validate-code', methods=['POST'])
+def validate_promo_code():
+    """Validate a promo code without redeeming it"""
+    try:
+        data = request.get_json()
+
+        code = data.get('code', '').strip().upper()
+        if not code:
+            return jsonify({'valid': False, 'reason': 'not_found'}), 200
+
+        # Admin client to bypass RLS
+        supabase = get_supabase_admin_client()
+
+        # Look up the code
+        result = supabase.table('promo_codes').select('*').eq('code', code).execute()
+
+        if not result.data:
+            return jsonify({'valid': False, 'reason': 'not_found'}), 200
+
+        promo = result.data[0]
+
+        # Check status
+        if promo['status'] == 'redeemed':
+            return jsonify({'valid': False, 'reason': 'already_used'}), 200
+
+        if promo['status'] == 'expired':
+            return jsonify({'valid': False, 'reason': 'expired'}), 200
+
+        # Check expiration date
+        expires_at = datetime.fromisoformat(promo['expires_at'].replace('Z', '+00:00'))
+        if datetime.now(expires_at.tzinfo) > expires_at:
+            # Mark as expired in the database
+            supabase.table('promo_codes').update({'status': 'expired'}).eq('id', promo['id']).execute()
+            return jsonify({'valid': False, 'reason': 'expired'}), 200
+
+        # Code is valid
+        return jsonify({
+            'valid': True,
+            'promotion_type': promo['promotion_type'],
+            'target_role': promo['target_role']
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error validating promo code: {str(e)}")
+        return jsonify({'valid': False, 'reason': 'error'}), 200
+
 
 @promo_bp.route('/signups', methods=['GET'])
 @require_admin

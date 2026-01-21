@@ -376,6 +376,7 @@ def accept_tos():
         - tos_acceptance_token: Token from OAuth callback
         - accepted_tos: Boolean - user accepted TOS
         - accepted_privacy: Boolean - user accepted Privacy Policy
+        - promo_code: Optional promo code to apply (first month free, etc.)
 
     Returns:
         - User data with app tokens for session
@@ -393,6 +394,7 @@ def accept_tos():
         tos_token = data.get('tos_acceptance_token')
         accepted_tos = data.get('accepted_tos', False)
         accepted_privacy = data.get('accepted_privacy', False)
+        promo_code = data.get('promo_code')
 
         if not tos_token:
             return error_response(
@@ -433,13 +435,56 @@ def accept_tos():
 
         user_data = user_check.data[0]
 
-        # Update user with TOS acceptance
-        admin_client.table('users').update({
+        # Check for valid promo code
+        valid_promo = None
+        new_role = None
+        if promo_code:
+            promo_code = promo_code.strip().upper()
+            promo_result = admin_client.table('promo_codes') \
+                .select('*') \
+                .eq('code', promo_code) \
+                .eq('status', 'pending') \
+                .execute()
+
+            if promo_result.data:
+                promo = promo_result.data[0]
+                # Check expiration
+                expires_at = datetime.fromisoformat(promo['expires_at'].replace('Z', '+00:00'))
+                if datetime.now(expires_at.tzinfo) <= expires_at:
+                    valid_promo = promo
+                    new_role = promo['target_role']
+                    logger.info(f"[GOOGLE_OAUTH] Promo code {promo_code} validated, will set role to {new_role}")
+                else:
+                    logger.warning(f"[GOOGLE_OAUTH] Promo code {promo_code} is expired")
+            else:
+                logger.warning(f"[GOOGLE_OAUTH] Invalid or already used promo code: {promo_code}")
+
+        # Build update data
+        update_data = {
             'tos_accepted_at': datetime.utcnow().isoformat(),
             'privacy_policy_accepted_at': datetime.utcnow().isoformat(),
             'tos_version': CURRENT_TOS_VERSION,
             'privacy_policy_version': CURRENT_PRIVACY_POLICY_VERSION
-        }).eq('id', user_id).execute()
+        }
+
+        # Apply promo code role if valid
+        if new_role:
+            update_data['role'] = new_role
+
+        # Update user with TOS acceptance (and potentially new role)
+        admin_client.table('users').update(update_data).eq('id', user_id).execute()
+
+        # Mark promo code as redeemed if one was used
+        if valid_promo:
+            try:
+                admin_client.table('promo_codes').update({
+                    'status': 'redeemed',
+                    'redeemed_at': datetime.utcnow().isoformat(),
+                    'redeemed_by_user_id': user_id
+                }).eq('id', valid_promo['id']).execute()
+                logger.info(f"[GOOGLE_OAUTH] Promo code {valid_promo['code']} marked as redeemed by user {mask_user_id(user_id)}")
+            except Exception as promo_update_error:
+                logger.error(f"[GOOGLE_OAUTH] Failed to mark promo code as redeemed: {promo_update_error}")
 
         # Send welcome email for new Google OAuth users (only once)
         if not user_data.get('welcome_email_sent'):

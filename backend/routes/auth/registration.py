@@ -274,6 +274,32 @@ def register():
                 else:
                     logger.warning(f"[REGISTRATION] Invalid or expired invitation code provided")
 
+            # Check for promo code (first month free, etc.)
+            promo_code = data.get('promo_code')
+            valid_promo = None
+            if promo_code and not is_observer_registration:
+                # Don't override observer role with promo code role
+                promo_code = promo_code.strip().upper()
+                promo_result = supabase.table('promo_codes') \
+                    .select('*') \
+                    .eq('code', promo_code) \
+                    .eq('status', 'pending') \
+                    .execute()
+
+                if promo_result.data:
+                    promo = promo_result.data[0]
+                    # Check expiration
+                    expires_at = datetime.fromisoformat(promo['expires_at'].replace('Z', '+00:00'))
+                    if datetime.now(expires_at.tzinfo) <= expires_at:
+                        # Valid promo code - set role to target_role (usually 'parent')
+                        user_data['role'] = promo['target_role']
+                        valid_promo = promo
+                        logger.info(f"[REGISTRATION] Promo code {promo_code} applied, role set to {promo['target_role']}")
+                    else:
+                        logger.warning(f"[REGISTRATION] Promo code {promo_code} is expired")
+                else:
+                    logger.warning(f"[REGISTRATION] Invalid or already used promo code: {promo_code}")
+
             # Assign user to organization (if org_slug provided) or make them a platform user
             # Role model:
             #   - Platform users: organization_id = NULL, direct role (student, parent, observer, etc.)
@@ -331,6 +357,18 @@ def register():
 
             # Ensure diploma and skills are initialized (backup to database trigger)
             ensure_user_diploma_and_skills(supabase, auth_response.user.id, sanitized_first_name, sanitized_last_name)
+
+            # Mark promo code as redeemed if one was used
+            if valid_promo:
+                try:
+                    supabase.table('promo_codes').update({
+                        'status': 'redeemed',
+                        'redeemed_at': datetime.utcnow().isoformat(),
+                        'redeemed_by_user_id': auth_response.user.id
+                    }).eq('id', valid_promo['id']).execute()
+                    logger.info(f"[REGISTRATION] Promo code {valid_promo['code']} marked as redeemed by user {auth_response.user.id}")
+                except Exception as promo_update_error:
+                    logger.error(f"[REGISTRATION] Failed to mark promo code as redeemed: {promo_update_error}")
 
             # If no session, email verification is required
             if not auth_response.session:

@@ -172,7 +172,13 @@ export default function AuthCallback() {
   const handleTosAccept = async () => {
     setTosLoading(true)
     try {
-      const result = await authService.acceptTos(tosAcceptanceToken)
+      // Check for pending promo code
+      const pendingPromoCode = localStorage.getItem('pendingPromoCode')
+
+      const result = await authService.acceptTos(tosAcceptanceToken, pendingPromoCode)
+
+      // Clear promo code after use (regardless of success)
+      localStorage.removeItem('pendingPromoCode')
 
       if (result.success) {
         setShowTosModal(false)
@@ -222,6 +228,9 @@ export default function AuthCallback() {
    * Handle TOS modal close (cancel)
    */
   const handleTosClose = () => {
+    // Clear pending promo code since registration was cancelled
+    localStorage.removeItem('pendingPromoCode')
+
     setShowTosModal(false)
     setStatus('error')
     setError('You must accept the Terms of Service to continue')

@@ -8,7 +8,7 @@ import authService from '../../services/authService'
  * Reusable button for Google OAuth authentication.
  * Can be used on both login and registration pages.
  */
-const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = '' }) => {
+const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = '', promoCode = null }) => {
   const [loading, setLoading] = useState(false)
 
   const handleGoogleClick = async () => {
@@ -17,10 +17,17 @@ const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = 
     setLoading(true)
 
     try {
+      // Store promo code before OAuth redirect (will be applied after TOS acceptance)
+      if (promoCode) {
+        localStorage.setItem('pendingPromoCode', promoCode)
+      }
+
       const result = await authService.signInWithGoogle()
 
       if (!result.success && !result.redirecting) {
         // Only call onError if we're not redirecting
+        // Clear promo code if OAuth initiation failed
+        localStorage.removeItem('pendingPromoCode')
         onError?.(result.error || 'Failed to sign in with Google')
         setLoading(false)
       }
@@ -28,6 +35,7 @@ const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = 
       // Loading state will persist until redirect happens
 
     } catch (error) {
+      localStorage.removeItem('pendingPromoCode')
       onError?.(error.message || 'Failed to sign in with Google')
       setLoading(false)
     }
@@ -119,7 +127,8 @@ GoogleButton.propTypes = {
   mode: PropTypes.oneOf(['signin', 'signup']),
   onError: PropTypes.func,
   disabled: PropTypes.bool,
-  className: PropTypes.string
+  className: PropTypes.string,
+  promoCode: PropTypes.string
 }
 
 export default GoogleButton

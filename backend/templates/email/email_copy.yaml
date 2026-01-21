@@ -426,3 +426,26 @@ emails:
         - "Dedicated support and analytics"
     closing_paragraph: "Have questions before we connect? Simply reply to this email. Someone from our team reads and responds to every message personally."
     signature: "tanner"
+
+  promo_first_month_free:
+    subject: "Your Optio First Month Free Code"
+    title: "Your First Month Free Code"
+    salutation: "Hi {{ name }},"
+    paragraphs:
+      - "Thank you for your interest in Optio! Your exclusive first month free code is ready."
+      - "Use this code when you create your parent account to get your first month absolutely free:"
+      - "<div style='text-align: center; font-size: 28px; font-weight: bold; letter-spacing: 2px; padding: 16px; background: linear-gradient(to right, #6D469B, #EF597B); color: white; border-radius: 8px; margin: 16px 0;'>{{ promo_code }}</div>"
+      - "This code is valid for 30 days. Click the button below to create your account and enter this code during registration."
+    highlight_box:
+      title: "What You Get with the Parent Plan"
+      bullet_points:
+        - "Parent tracking tools to monitor your student's progress"
+        - "Support from Optio teachers when you need guidance"
+        - "Full platform access for your entire family"
+        - "Portfolio building for all your kids"
+        - "Invite observers like grandparents or mentors"
+    cta:
+      text: "Create Your Account"
+      url: "{{ registration_url }}"
+    signature: "tanner"
+    footer_extra: "This promo code expires in 30 days. If you have questions, simply reply to this email."
