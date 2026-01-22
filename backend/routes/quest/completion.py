@@ -127,7 +127,7 @@ def get_user_completed_quests(user_id: str):
 
         # Query 2: Get ALL task completions for this user with task details
         quest_task_completions = supabase.table('quest_task_completions')\
-            .select('*, user_quest_tasks!inner(title, pillar, quest_id, user_quest_id, xp_value)')\
+            .select('*, user_quest_tasks!inner(title, pillar, quest_id, user_quest_id, xp_value, diploma_subjects)')\
             .eq('user_id', user_id)\
             .execute()
 
@@ -208,7 +208,8 @@ def get_user_completed_quests(user_id: str):
                         'evidence_content': '',  # Not used for multi-format
                         'xp_awarded': task_xp,
                         'completed_at': tc.get('completed_at'),
-                        'pillar': task_info.get('pillar', 'Arts & Creativity')
+                        'pillar': task_info.get('pillar', 'Arts & Creativity'),
+                        'diploma_subjects': task_info.get('diploma_subjects')
                     }
                 else:
                     # Legacy single-format evidence
@@ -218,7 +219,8 @@ def get_user_completed_quests(user_id: str):
                         'evidence_content': evidence_content,
                         'xp_awarded': task_xp,
                         'completed_at': tc.get('completed_at'),
-                        'pillar': task_info.get('pillar', 'Arts & Creativity')
+                        'pillar': task_info.get('pillar', 'Arts & Creativity'),
+                        'diploma_subjects': task_info.get('diploma_subjects')
                     }
 
             # Only include completed quests that have at least one completed task
@@ -277,7 +279,8 @@ def get_user_completed_quests(user_id: str):
                         'evidence_content': '',  # Not used for multi-format
                         'xp_awarded': task_xp,
                         'completed_at': tc.get('completed_at'),
-                        'pillar': task_info.get('pillar', 'Arts & Creativity')
+                        'pillar': task_info.get('pillar', 'Arts & Creativity'),
+                        'diploma_subjects': task_info.get('diploma_subjects')
                     }
                 else:
                     # Legacy single-format evidence
@@ -287,7 +290,8 @@ def get_user_completed_quests(user_id: str):
                         'evidence_content': evidence_content,
                         'xp_awarded': task_xp,
                         'completed_at': tc.get('completed_at'),
-                        'pillar': task_info.get('pillar', 'Arts & Creativity')
+                        'pillar': task_info.get('pillar', 'Arts & Creativity'),
+                        'diploma_subjects': task_info.get('diploma_subjects')
                     }
 
             # Use pre-fetched task count
@@ -332,10 +336,11 @@ def end_quest(user_id: str, quest_id: str):
     """
     End an active quest enrollment.
     Keeps all progress, submitted tasks, and XP earned.
-    Simply marks the quest as inactive.
+    Marks the quest as inactive and sets completed_at timestamp.
 
-    Note: This endpoint can be called even if the quest is already completed
-    (from auto-completion when all tasks are done). We handle both cases gracefully.
+    This is called when the user explicitly chooses to finish a quest,
+    either from the quest completion celebration modal (after all tasks are done)
+    or manually from the quest detail page.
     """
     try:
         # Use admin client - @require_auth already validated user
@@ -343,7 +348,7 @@ def end_quest(user_id: str, quest_id: str):
         supabase = get_supabase_admin_client()
 
         # Check if user is enrolled in this quest (allow both active and completed)
-        # Quest might already be auto-completed when last task was submitted
+        # Handle case where user tries to end an already-ended quest
         enrollment = supabase.table('user_quests')\
             .select('*')\
             .eq('user_id', user_id)\

@@ -834,12 +834,17 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
 def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
     """
     Check if all required tasks for a quest are now completed.
+
+    NOTE: This does NOT auto-complete the quest. It only returns True/False
+    to indicate whether all tasks are done. The frontend will prompt the user
+    to decide whether to end the quest or add more tasks.
     """
     try:
         # Get all required tasks for the quest (V3 system)
         required_tasks = supabase.table('user_quest_tasks')\
             .select('id')\
             .eq('quest_id', quest_id)\
+            .eq('user_id', user_id)\
             .eq('is_required', True)\
             .execute()
 
@@ -848,25 +853,13 @@ def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
             all_tasks = supabase.table('user_quest_tasks')\
                 .select('id')\
                 .eq('quest_id', quest_id)\
+                .eq('user_id', user_id)\
                 .execute()
             required_task_ids = {task['id'] for task in all_tasks.data}
         else:
             required_task_ids = {task['id'] for task in required_tasks.data}
 
         # Get completed tasks by this user for this quest
-        # First get the user_quest record to filter by
-        user_quest = supabase.table('user_quests')\
-            .select('id')\
-            .eq('user_id', user_id)\
-            .eq('quest_id', quest_id)\
-            .eq('is_active', True)\
-            .execute()
-
-        if not user_quest.data:
-            return False  # User not enrolled in quest
-
-        user_quest_id = user_quest.data[0]['id']
-
         completed_tasks = supabase.table('quest_task_completions')\
             .select('task_id')\
             .eq('user_id', user_id)\
@@ -876,20 +869,9 @@ def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
         completed_task_ids = {task['task_id'] for task in completed_tasks.data}
 
         # Check if all required tasks are completed
-        if required_task_ids and required_task_ids.issubset(completed_task_ids):
-            # Mark quest as completed
-            supabase.table('user_quests')\
-                .update({
-                    'completed_at': datetime.utcnow().isoformat(),
-                    'is_active': False
-                })\
-                .eq('user_id', user_id)\
-                .eq('quest_id', quest_id)\
-                .execute()
-
-            return True
-
-        return False
+        # NOTE: We do NOT auto-complete the quest here. The frontend will
+        # show the completion celebration modal and let user decide.
+        return required_task_ids and required_task_ids.issubset(completed_task_ids)
 
     except Exception as e:
         logger.error(f"Error checking quest completion: {str(e)}")

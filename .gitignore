@@ -30,6 +30,7 @@ lerna-debug.log*
 
 # Environment variables
 .env
+.env.branch
 .env.local
 .env.production
 .env.development

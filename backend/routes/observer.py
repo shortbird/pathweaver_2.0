@@ -1636,16 +1636,24 @@ def get_observer_feed(user_id):
                     evidence_title = None
                     content = block.get('content', {})
 
+                    # Helper to extract URL from content - handles both new format (items array)
+                    # and legacy format (direct url property)
+                    def get_content_url(content_obj):
+                        items = content_obj.get('items', [])
+                        if items and len(items) > 0:
+                            return items[0].get('url')
+                        return content_obj.get('url')
+
                     if block['block_type'] == 'image':
                         evidence_type = 'image'
-                        evidence_preview = content.get('url')
+                        evidence_preview = get_content_url(content)
                     elif block['block_type'] == 'video':
                         evidence_type = 'video'
-                        evidence_preview = content.get('url')
+                        evidence_preview = get_content_url(content)
                         evidence_title = content.get('title')
                     elif block['block_type'] == 'link':
                         evidence_type = 'link'
-                        evidence_preview = content.get('url')
+                        evidence_preview = get_content_url(content)
                         evidence_title = content.get('title')
                     elif block['block_type'] == 'text':
                         evidence_type = 'text'
@@ -1653,7 +1661,7 @@ def get_observer_feed(user_id):
                         evidence_preview = text[:200] + '...' if len(text) > 200 else text
                     elif block['block_type'] == 'document':
                         evidence_type = 'link'
-                        evidence_preview = content.get('url')
+                        evidence_preview = get_content_url(content)
                         evidence_title = content.get('title') or content.get('filename')
 
                     if evidence_type:

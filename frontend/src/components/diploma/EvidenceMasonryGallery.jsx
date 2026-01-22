@@ -4,11 +4,40 @@ import Masonry from 'react-masonry-css';
 import UnifiedEvidenceDisplay from '../evidence/UnifiedEvidenceDisplay';
 import CollaborationBadge from '../collaboration/CollaborationBadge';
 import { getPillarGradient, getPillarDisplayName } from '../../config/pillars';
+import { CREDIT_REQUIREMENTS } from '../../utils/creditRequirements';
 import './EvidenceMasonryGallery.css';
+
+// Map display names to normalized keys for subject filtering
+const SUBJECT_DISPLAY_TO_KEY = {
+  'Language Arts': 'language_arts',
+  'Mathematics': 'math',
+  'Math': 'math',
+  'Science': 'science',
+  'Social Studies': 'social_studies',
+  'Financial Literacy': 'financial_literacy',
+  'Health': 'health',
+  'PE': 'pe',
+  'Physical Education': 'pe',
+  'Fine Arts': 'fine_arts',
+  'Arts': 'fine_arts',
+  'Music': 'fine_arts',
+  'CTE': 'cte',
+  'Career & Technical Education': 'cte',
+  'Business': 'cte',
+  'Digital Literacy': 'digital_literacy',
+  'Technology': 'digital_literacy',
+  'Electives': 'electives'
+};
+
+// Get subject display name from key
+const getSubjectDisplayName = (key) => {
+  return CREDIT_REQUIREMENTS[key]?.displayName || key;
+};
 
 const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
   const [selectedPillar, setSelectedPillar] = useState('all');
   const [selectedQuest, setSelectedQuest] = useState('all');
+  const [selectedSubject, setSelectedSubject] = useState('all');
 
   // Extract YouTube video ID and generate thumbnail URL
   const getYouTubeThumbnail = (url) => {
@@ -59,6 +88,12 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
         const hasLegacyText = taskEvidence.evidence_text && !taskEvidence.evidence_text.startsWith('Multi-format evidence document');
         const hasLegacyUrl = taskEvidence.evidence_url;
 
+        // Normalize diploma subjects to keys
+        const diplomaSubjects = taskEvidence.diploma_subjects || {};
+        const normalizedSubjects = Object.keys(diplomaSubjects).map(displayName =>
+          SUBJECT_DISPLAY_TO_KEY[displayName] || displayName.toLowerCase().replace(/ /g, '_')
+        ).filter(Boolean);
+
         // Create evidence items for each block or legacy evidence
         if (evidenceBlocks.length > 0) {
           evidenceBlocks.forEach((block, blockIndex) => {
@@ -74,7 +109,8 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
               block,
               evidence: taskEvidence,
               achievementStatus: achievement.status,
-              isCollaborative: taskEvidence.is_collaborative || false
+              isCollaborative: taskEvidence.is_collaborative || false,
+              diplomaSubjects: normalizedSubjects
             });
           });
         } else if (hasLegacyText || hasLegacyUrl) {
@@ -90,7 +126,8 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
             block: null,
             evidence: taskEvidence,
             achievementStatus: achievement.status,
-            isCollaborative: taskEvidence.is_collaborative || false
+            isCollaborative: taskEvidence.is_collaborative || false,
+            diplomaSubjects: normalizedSubjects
           });
         }
       });
@@ -122,14 +159,30 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
     return Array.from(pillarSet);
   }, [allEvidence]);
 
+  // Extract unique diploma subjects from all evidence
+  const subjects = useMemo(() => {
+    const subjectSet = new Set();
+    allEvidence.forEach(item => {
+      if (item.diplomaSubjects && item.diplomaSubjects.length > 0) {
+        item.diplomaSubjects.forEach(subject => subjectSet.add(subject));
+      }
+    });
+    // Sort by display name
+    return Array.from(subjectSet).sort((a, b) =>
+      getSubjectDisplayName(a).localeCompare(getSubjectDisplayName(b))
+    );
+  }, [allEvidence]);
+
   // Filter evidence based on selected filters
   const filteredEvidence = useMemo(() => {
     return allEvidence.filter(item => {
       const pillarMatch = selectedPillar === 'all' || item.pillar === selectedPillar;
       const questMatch = selectedQuest === 'all' || item.questId === selectedQuest;
-      return pillarMatch && questMatch;
+      const subjectMatch = selectedSubject === 'all' ||
+        (item.diplomaSubjects && item.diplomaSubjects.includes(selectedSubject));
+      return pillarMatch && questMatch && subjectMatch;
     });
-  }, [allEvidence, selectedPillar, selectedQuest]);
+  }, [allEvidence, selectedPillar, selectedQuest, selectedSubject]);
 
   // Masonry breakpoint columns - reduced to 2 columns for less cramped feel
   const breakpointColumns = {
@@ -215,12 +268,34 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
           })}
         </select>
 
+        {/* Subject Filter */}
+        {subjects.length > 0 && (
+          <select
+            value={selectedSubject}
+            onChange={(e) => setSelectedSubject(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+          >
+            <option value="all">All Subjects</option>
+            {subjects.map(subject => {
+              const count = allEvidence.filter(e =>
+                e.diplomaSubjects && e.diplomaSubjects.includes(subject)
+              ).length;
+              return (
+                <option key={subject} value={subject}>
+                  {getSubjectDisplayName(subject)} ({count})
+                </option>
+              );
+            })}
+          </select>
+        )}
+
         {/* Clear Filters */}
-        {(selectedPillar !== 'all' || selectedQuest !== 'all') && (
+        {(selectedPillar !== 'all' || selectedQuest !== 'all' || selectedSubject !== 'all') && (
           <button
             onClick={() => {
               setSelectedPillar('all');
               setSelectedQuest('all');
+              setSelectedSubject('all');
             }}
             className="text-sm text-optio-purple hover:text-purple-800 font-medium"
           >
@@ -438,6 +513,7 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
             onClick={() => {
               setSelectedPillar('all');
               setSelectedQuest('all');
+              setSelectedSubject('all');
             }}
             className="mt-2 text-sm text-optio-purple hover:text-purple-800 font-medium"
           >

@@ -493,20 +493,13 @@ def complete_task(user_id: str, task_id: str):
         if not required_task_ids:
             required_task_ids = all_task_ids
             
-        # If all required tasks completed, mark quest as complete
+        # Check if all required tasks are now completed
+        # NOTE: We do NOT auto-complete the quest here. Instead, we return
+        # all_tasks_completed=True so the frontend can prompt the user to
+        # either end the quest or add more tasks. The quest stays active
+        # until the user explicitly ends it via POST /api/quests/{id}/end.
         if required_task_ids and required_task_ids.issubset(completed_task_ids):
-            supabase.table('user_quests')\
-                .update({
-                    'completed_at': datetime.utcnow().isoformat(),
-                    'is_active': False
-                })\
-                .eq('id', user_quest_id)\
-                .execute()
-            
             quest_completed = True
-
-            # Completion bonus removed in Phase 1 refactoring (January 2025)
-            # Users now only receive XP from individual task completions
         else:
             quest_completed = False
 
