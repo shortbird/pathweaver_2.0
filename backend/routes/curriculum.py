@@ -531,6 +531,78 @@ def delete_lesson(user_id: str, quest_id: str, lesson_id: str):
         return jsonify({'error': 'Failed to delete lesson'}), 500
 
 
+@bp.route('/<quest_id>/curriculum/lessons/<lesson_id>/move', methods=['PUT'])
+@require_auth
+@rate_limit(limit=20, per=60)
+def move_lesson_to_project(user_id: str, quest_id: str, lesson_id: str):
+    """
+    Move a lesson to a different project within the same course.
+
+    Body:
+        target_quest_id (str): The quest/project ID to move the lesson to
+        course_id (str, optional): Course ID to validate both projects are in the same course
+
+    Returns:
+        200: Lesson moved successfully
+        400: Validation error
+        403: Permission denied
+        404: Lesson not found
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Check permission on source quest
+        _check_lesson_edit_permission(user_id, lesson_id, quest_id, supabase)
+
+        data = request.get_json()
+        target_quest_id = data.get('target_quest_id')
+        course_id = data.get('course_id')
+
+        if not target_quest_id:
+            return jsonify({'error': 'target_quest_id is required'}), 400
+
+        # Validate both quests are in the same course (if course_id provided)
+        if course_id:
+            source_cq = supabase.table('course_quests').select('id').eq('course_id', course_id).eq('quest_id', quest_id).execute()
+            target_cq = supabase.table('course_quests').select('id').eq('course_id', course_id).eq('quest_id', target_quest_id).execute()
+            if not source_cq.data or not target_cq.data:
+                return jsonify({'error': 'Both projects must be in the same course'}), 400
+
+        # Check permission on target quest
+        _check_edit_permission(user_id, target_quest_id, supabase)
+
+        # Get max sequence_order in target
+        max_order = supabase.table('curriculum_lessons').select('sequence_order').eq('quest_id', target_quest_id).order('sequence_order', desc=True).limit(1).execute()
+        new_order = (max_order.data[0]['sequence_order'] + 1) if max_order.data else 0
+
+        # Update lesson's quest_id
+        result = supabase.table('curriculum_lessons').update({
+            'quest_id': target_quest_id,
+            'sequence_order': new_order
+        }).eq('id', lesson_id).eq('quest_id', quest_id).execute()
+
+        if not result.data:
+            return jsonify({'error': 'Lesson not found'}), 404
+
+        # Update curriculum_lesson_tasks too
+        supabase.table('curriculum_lesson_tasks').update({
+            'quest_id': target_quest_id
+        }).eq('lesson_id', lesson_id).execute()
+
+        logger.info(f"Lesson {lesson_id} moved from quest {quest_id} to quest {target_quest_id}")
+
+        return jsonify({
+            'success': True,
+            'lesson': result.data[0]
+        }), 200
+
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
+    except Exception as e:
+        logger.error(f"Error moving lesson: {str(e)}")
+        return jsonify({'error': 'Failed to move lesson'}), 500
+
+
 @bp.route('/<quest_id>/curriculum/lessons/reorder', methods=['PUT'])
 @require_auth
 @rate_limit(limit=20, per=60)

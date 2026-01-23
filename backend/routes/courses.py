@@ -726,6 +726,9 @@ def remove_quest_from_course(user_id, course_id: str, quest_id: str):
     Path params:
         course_id: Course UUID
         quest_id: Quest UUID
+
+    Query params:
+        delete_quest: If 'true', also delete the underlying quest (if not used elsewhere)
     """
     try:
         user_id = session_manager.get_effective_user_id()
@@ -751,15 +754,36 @@ def remove_quest_from_course(user_id, course_id: str, quest_id: str):
         if not (is_creator or is_admin):
             return jsonify({'error': 'Insufficient permissions'}), 403
 
-        result = client.table('course_quests').delete().eq(
+        delete_quest = request.args.get('delete_quest', 'false').lower() == 'true'
+
+        # Remove from course_quests junction table
+        client.table('course_quests').delete().eq(
             'course_id', course_id
         ).eq('quest_id', quest_id).execute()
 
         logger.info(f"Quest {quest_id} removed from course {course_id}")
 
+        quest_deleted = False
+        if delete_quest:
+            # Check if quest is used in other courses
+            other_courses = client.table('course_quests').select('id').eq('quest_id', quest_id).execute()
+
+            # Check if quest has user enrollments
+            enrollments = client.table('user_quests').select('id').eq('quest_id', quest_id).limit(1).execute()
+
+            if not other_courses.data and not enrollments.data:
+                # Safe to delete - delete lessons first, then quest
+                client.table('curriculum_lessons').delete().eq('quest_id', quest_id).execute()
+                client.table('quests').delete().eq('id', quest_id).execute()
+                quest_deleted = True
+                logger.info(f"Quest {quest_id} deleted along with removal from course {course_id}")
+            else:
+                logger.info(f"Quest {quest_id} not deleted - still in use by other courses or has enrollments")
+
         return jsonify({
             'success': True,
-            'message': 'Quest removed from course'
+            'message': 'Quest removed from course',
+            'quest_deleted': quest_deleted
         }), 200
 
     except Exception as e:
@@ -842,6 +866,75 @@ def update_course_quest(user_id, course_id: str, quest_id: str):
 
     except Exception as e:
         logger.error(f"Error updating quest in course {course_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<course_id>/projects/<quest_id>', methods=['PUT'])
+@require_auth
+def update_project_details(user_id, course_id: str, quest_id: str):
+    """
+    Update a project's title and description.
+    Accessible to course creator, org_admin, advisor, and superadmin.
+
+    Path params:
+        course_id: Course UUID
+        quest_id: Quest UUID (project)
+
+    Body:
+        title (str, optional): New project title
+        description (str, optional): New project description
+    """
+    try:
+        user_id = session_manager.get_effective_user_id()
+        client = get_supabase_admin_client()
+
+        # Check permissions
+        course_result = client.table('courses').select('created_by, organization_id').eq('id', course_id).execute()
+        if not course_result.data:
+            return jsonify({'error': 'Course not found'}), 404
+
+        course = course_result.data[0]
+        user_result = client.table('users').select('organization_id, role, org_role').eq('id', user_id).execute()
+        if not user_result.data:
+            return jsonify({'error': 'User not found'}), 404
+
+        user_data = user_result.data[0]
+        effective_role = get_effective_role(user_data)
+
+        is_creator = course['created_by'] == user_id
+        has_admin_role = effective_role in ['superadmin', 'org_admin', 'advisor']
+        is_admin = has_admin_role and (effective_role == 'superadmin' or user_data['organization_id'] == course['organization_id'])
+
+        if not (is_creator or is_admin):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+
+        # Verify quest is in this course
+        course_quest = client.table('course_quests').select('id').eq('course_id', course_id).eq('quest_id', quest_id).execute()
+        if not course_quest.data:
+            return jsonify({'error': 'Project not found in this course'}), 404
+
+        data = request.json
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        updates = {}
+        if 'title' in data:
+            updates['title'] = data['title'].strip()
+        if 'description' in data:
+            updates['description'] = data['description'].strip()
+            updates['big_idea'] = data['description'].strip()  # Keep big_idea in sync
+
+        if not updates:
+            return jsonify({'error': 'No valid fields to update'}), 400
+
+        client.table('quests').update(updates).eq('id', quest_id).execute()
+
+        logger.info(f"Project {quest_id} updated in course {course_id}")
+
+        return jsonify({'success': True}), 200
+
+    except Exception as e:
+        logger.error(f"Error updating project in course {course_id}: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 

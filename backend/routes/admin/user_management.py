@@ -432,9 +432,11 @@ def cleanup_user_related_records(supabase, target_user_id):
     except Exception as e:
         logger.debug(f"Cleanup observer_student_links: {e}")
 
-    # Clear foreign key references (set to NULL instead of delete)
+    # Clean up org_invitations - delete accepted ones, nullify invited_by for pending
     try:
-        supabase.table('org_invitations').update({'accepted_by': None}).eq('accepted_by', target_user_id).execute()
+        # Delete invitations that were accepted by this user (already used)
+        supabase.table('org_invitations').delete().eq('accepted_by', target_user_id).execute()
+        # Nullify invited_by for pending invitations (keep the invitation valid)
         supabase.table('org_invitations').update({'invited_by': None}).eq('invited_by', target_user_id).execute()
     except Exception as e:
         logger.debug(f"Cleanup org_invitations: {e}")

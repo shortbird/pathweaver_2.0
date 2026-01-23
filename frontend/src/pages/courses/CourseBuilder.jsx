@@ -41,6 +41,7 @@ import {
   LessonEditorModal,
   CourseDetailsModal,
   BulkTaskGenerationModal,
+  MoveLessonModal,
 } from '../../components/course'
 import { AIRefineModal } from '../../components/course/refine'
 
@@ -72,6 +73,7 @@ const CourseBuilder = () => {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showBulkTaskModal, setShowBulkTaskModal] = useState(false)
   const [showRefineModal, setShowRefineModal] = useState(false)
+  const [movingLesson, setMovingLesson] = useState(null)
   const [editingProjectInfo, setEditingProjectInfo] = useState(false)
   const [projectEditData, setProjectEditData] = useState({ title: '', description: '' })
 
@@ -204,11 +206,22 @@ const CourseBuilder = () => {
 
   // Remove quest from course
   const handleRemoveQuest = async (questId) => {
-    if (!confirm('Are you sure you want to remove this project from the course?')) return
+    // Show confirm dialog with option to also delete the quest
+    const deleteQuest = window.confirm(
+      'Remove this project from the course?\n\n' +
+      'Click OK to also DELETE the project permanently (if not used elsewhere).\n' +
+      'Click Cancel to just remove from this course (keeps the project).'
+    )
+
+    // If they cancel the confirm, ask if they want to remove without deleting
+    if (!deleteQuest) {
+      const justRemove = window.confirm('Remove the project from this course without deleting it?')
+      if (!justRemove) return
+    }
 
     try {
       setSaving(true)
-      await courseService.removeQuestFromCourse(courseId, questId)
+      await api.delete(`/api/courses/${courseId}/quests/${questId}?delete_quest=${deleteQuest}`)
 
       const updatedQuests = quests.filter(q => q.id !== questId)
       setQuests(updatedQuests)
@@ -217,7 +230,7 @@ const CourseBuilder = () => {
         setSelectedQuest(updatedQuests[0] || null)
       }
 
-      toast.success('Project removed from course')
+      toast.success(deleteQuest ? 'Project removed and deleted' : 'Project removed from course')
     } catch (error) {
       console.error('Failed to remove quest:', error)
       toast.error('Failed to remove quest')
@@ -264,7 +277,8 @@ const CourseBuilder = () => {
 
     try {
       setSaving(true)
-      await api.put(`/api/admin/curriculum/generate/${courseId}/project/${selectedQuest.id}`, {
+      // Use the courses endpoint that allows org_admin/advisor/creator access
+      await api.put(`/api/courses/${courseId}/projects/${selectedQuest.id}`, {
         title: projectEditData.title.trim(),
         description: projectEditData.description.trim()
       })
@@ -487,6 +501,23 @@ const CourseBuilder = () => {
     } catch (error) {
       console.error('Failed to refresh lessons:', error)
     }
+  }
+
+  // Handle lesson moved to another project
+  const handleLessonMoved = async (lessonId, targetQuestId) => {
+    // Refresh lessons for current project
+    try {
+      const response = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons?include_unpublished=true`)
+      setLessons(response.data.lessons || [])
+
+      // Clear selection if moved lesson was selected
+      if (selectedLesson?.id === lessonId) {
+        setSelectedLesson(null)
+      }
+    } catch (error) {
+      console.error('Failed to refresh lessons after move:', error)
+    }
+    setMovingLesson(null)
   }
 
   // Save status indicator
@@ -924,6 +955,7 @@ const CourseBuilder = () => {
                                       setShowLessonEditor(true)
                                     }}
                                     onDelete={handleDeleteLesson}
+                                    onMoveToProject={quests.length > 1 ? setMovingLesson : undefined}
                                   />
                                 ))}
                             </div>
@@ -1046,6 +1078,19 @@ const CourseBuilder = () => {
           courseId={courseId}
           courseName={course?.title || 'Course'}
           onRefineComplete={handleTasksUpdated}
+        />
+      )}
+
+      {/* Move Lesson Modal */}
+      {movingLesson && (
+        <MoveLessonModal
+          isOpen={!!movingLesson}
+          onClose={() => setMovingLesson(null)}
+          lesson={movingLesson}
+          currentQuestId={selectedQuest?.id}
+          quests={quests}
+          courseId={courseId}
+          onMove={handleLessonMoved}
         />
       )}
     </div>

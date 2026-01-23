@@ -6,6 +6,7 @@ export { default as AddQuestModal } from './AddQuestModal'
 export { default as LessonEditorModal } from './LessonEditorModal'
 export { default as CourseDetailsModal } from './CourseDetailsModal'
 export { default as BulkTaskGenerationModal } from './BulkTaskGenerationModal'
+export { default as MoveLessonModal } from './MoveLessonModal'
 
 // Course Display Components
 export { default as CourseCard } from './CourseCard'

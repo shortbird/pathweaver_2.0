@@ -59,8 +59,13 @@ const AddQuestModal = ({
 
   const handleCreateSuccess = (newQuest) => {
     setShowCreateModal(false)
-    // Add the new quest directly
-    onAddQuest(newQuest)
+    // Validate the quest has an id before adding to course
+    if (newQuest && newQuest.id) {
+      onAddQuest(newQuest)
+    } else {
+      console.error('Created quest missing id:', newQuest)
+      toast.error('Quest created but failed to add to course. Please add it manually.')
+    }
   }
 
   // Filter quests by search term

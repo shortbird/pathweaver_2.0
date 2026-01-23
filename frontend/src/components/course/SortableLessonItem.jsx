@@ -16,7 +16,8 @@ const SortableLessonItem = ({
   onSelect,
   onPreview,
   onEdit,
-  onDelete
+  onDelete,
+  onMoveToProject
 }) => {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
@@ -118,6 +119,18 @@ const SortableLessonItem = ({
             >
               Edit
             </button>
+            {onMoveToProject && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setMenuOpen(false)
+                  onMoveToProject(lesson)
+                }}
+                className="w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100"
+              >
+                Move to...
+              </button>
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation()
