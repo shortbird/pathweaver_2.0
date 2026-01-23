@@ -8,6 +8,7 @@ Accessible to org_admin users for their own organization.
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_org_admin
+from utils.roles import get_effective_role
 from datetime import datetime
 from utils.logger import get_logger
 
@@ -177,7 +178,7 @@ def assign_org_student_to_advisor(current_user_id, current_org_id, is_superadmin
 
         # Verify advisor belongs to org
         advisor = supabase.table('users')\
-            .select('id, role, organization_id')\
+            .select('id, role, org_role, organization_id')\
             .eq('id', advisor_id)\
             .single()\
             .execute()
@@ -188,12 +189,13 @@ def assign_org_student_to_advisor(current_user_id, current_org_id, is_superadmin
         if advisor.data.get('organization_id') != org_id and not is_superadmin:
             return jsonify({'success': False, 'error': 'Advisor not in this organization'}), 403
 
-        if advisor.data.get('role') not in ['advisor', 'org_admin']:
+        effective_advisor_role = get_effective_role(advisor.data)
+        if effective_advisor_role not in ['advisor', 'org_admin', 'superadmin']:
             return jsonify({'success': False, 'error': 'User is not an advisor or admin'}), 400
 
         # Verify student belongs to org
         student = supabase.table('users')\
-            .select('id, role, organization_id')\
+            .select('id, role, org_role, organization_id')\
             .eq('id', student_id)\
             .single()\
             .execute()
@@ -204,7 +206,8 @@ def assign_org_student_to_advisor(current_user_id, current_org_id, is_superadmin
         if student.data.get('organization_id') != org_id:
             return jsonify({'success': False, 'error': 'Student not in this organization'}), 403
 
-        if student.data.get('role') != 'student':
+        effective_student_role = get_effective_role(student.data)
+        if effective_student_role != 'student':
             return jsonify({'success': False, 'error': 'User is not a student'}), 400
 
         # Check if assignment already exists
@@ -472,7 +475,7 @@ def create_org_manual_parent_link(current_user_id, current_org_id, is_superadmin
 
         # Verify student is in this org
         student = supabase.table('users')\
-            .select('id, organization_id, role')\
+            .select('id, organization_id, role, org_role')\
             .eq('id', student_user_id)\
             .single()\
             .execute()
@@ -483,12 +486,13 @@ def create_org_manual_parent_link(current_user_id, current_org_id, is_superadmin
         if student.data.get('organization_id') != org_id and not is_superadmin:
             return jsonify({'success': False, 'error': 'Student not in this organization'}), 403
 
-        if student.data.get('role') != 'student':
+        effective_student_role = get_effective_role(student.data)
+        if effective_student_role != 'student':
             return jsonify({'success': False, 'error': 'User is not a student'}), 400
 
         # Verify parent exists and has parent role
         parent = supabase.table('users')\
-            .select('id, role')\
+            .select('id, role, org_role')\
             .eq('id', parent_user_id)\
             .single()\
             .execute()
@@ -496,7 +500,8 @@ def create_org_manual_parent_link(current_user_id, current_org_id, is_superadmin
         if not parent.data:
             return jsonify({'success': False, 'error': 'Parent not found'}), 404
 
-        if parent.data.get('role') != 'parent':
+        effective_parent_role = get_effective_role(parent.data)
+        if effective_parent_role != 'parent':
             return jsonify({'success': False, 'error': 'User is not a parent'}), 400
 
         # Check if link already exists

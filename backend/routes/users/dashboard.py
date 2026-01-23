@@ -187,6 +187,34 @@ def get_user_subject_xp(user_id):
 
         subject_xp = response.data or []
 
+        # If no subject XP in table, calculate from approved tasks' diploma_subjects
+        # This handles org students whose subject XP isn't synced
+        if not subject_xp:
+            approved_tasks = supabase.table('user_quest_tasks')\
+                .select('xp_value, diploma_subjects')\
+                .eq('user_id', user_id)\
+                .eq('approval_status', 'approved')\
+                .execute()
+
+            if approved_tasks.data:
+                logger.info(f"Calculating subject XP from {len(approved_tasks.data)} approved tasks for user {user_id}")
+                subject_xp_map = {}
+                for task in approved_tasks.data:
+                    diploma_subjects = task.get('diploma_subjects')
+                    if diploma_subjects and isinstance(diploma_subjects, dict):
+                        task_xp = task.get('xp_value', 0) or 0
+                        for subject, percentage in diploma_subjects.items():
+                            # Normalize subject name to snake_case to match frontend CREDIT_REQUIREMENTS
+                            normalized_subject = subject.lower().replace(' ', '_').replace('&', 'and')
+                            subject_xp_amount = int(task_xp * percentage / 100)
+                            subject_xp_map[normalized_subject] = subject_xp_map.get(normalized_subject, 0) + subject_xp_amount
+
+                # Convert to expected format
+                subject_xp = [
+                    {'school_subject': subject, 'xp_amount': xp}
+                    for subject, xp in subject_xp_map.items()
+                ]
+
         return jsonify({
             'success': True,
             'subject_xp': subject_xp

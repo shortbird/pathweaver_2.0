@@ -445,6 +445,12 @@ const TaskWorkspace = ({
   const handleMarkComplete = async () => {
     if (isCompleting) return;
 
+    // Check if there is at least one evidence block
+    if (!evidenceBlocks || evidenceBlocks.length === 0) {
+      setError('At least one piece of evidence is required to complete a task. Please add text, images, links, or documents to your evidence.');
+      return;
+    }
+
     setIsCompleting(true);
     setError('');
 
@@ -492,7 +498,12 @@ const TaskWorkspace = ({
       }
     } catch (err) {
       logger.error('Error completing task:', err);
-      setError(err.message || 'Failed to complete task');
+      // Extract error message from API response
+      const errorMessage = err.response?.data?.error ||
+                          err.response?.data?.message ||
+                          err.message ||
+                          'Failed to complete task';
+      setError(errorMessage);
     } finally {
       setIsCompleting(false);
     }

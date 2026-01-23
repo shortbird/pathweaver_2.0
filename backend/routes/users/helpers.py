@@ -75,6 +75,35 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
                     except ValueError:
                         logger.warning(f"Could not normalize pillar '{pillar}' for user {user_id}")
 
+        # If no XP from user_skill_xp, calculate from approved tasks
+        # This handles org students whose XP isn't synced to user_skill_xp
+        if total_xp == 0:
+            approved_tasks = supabase.table('user_quest_tasks')\
+                .select('pillar, xp_value')\
+                .eq('user_id', user_id)\
+                .eq('approval_status', 'approved')\
+                .execute()
+
+            if approved_tasks.data:
+                logger.info(f"Calculating XP from {len(approved_tasks.data)} approved tasks for user {user_id}")
+                for task in approved_tasks.data:
+                    pillar = task.get('pillar')
+                    xp_amount = task.get('xp_value', 0) or 0
+
+                    if pillar in skill_breakdown:
+                        total_xp += xp_amount
+                        skill_breakdown[pillar] += xp_amount
+                    else:
+                        # Try to normalize pillar name
+                        from utils.pillar_mapping import normalize_pillar_name
+                        try:
+                            normalized_pillar = normalize_pillar_name(pillar)
+                            if normalized_pillar in skill_breakdown:
+                                total_xp += xp_amount
+                                skill_breakdown[normalized_pillar] += xp_amount
+                        except ValueError:
+                            pass
+
     except Exception as e:
         logger.error(f"Error calculating XP from V3 tasks: {str(e)}")
         # Fallback to old method if V3 fails

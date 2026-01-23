@@ -655,4 +655,35 @@ export const taskStepsAPI = {
   deleteSteps: (taskId) => api.delete(`/api/tasks/${taskId}/steps`),
 }
 
+/**
+ * Transfer Credits API (Admin)
+ * Import external transcript credits toward diploma
+ * Supports multiple source institutions per student
+ */
+export const transferCreditsAPI = {
+  // Get all transfer credits for a student (returns array)
+  get: (userId) => api.get(`/api/admin/transfer-credits/${userId}`),
+
+  // Save transfer credits (create or update by school name, or update by ID if provided)
+  save: (userId, data) => api.post(`/api/admin/transfer-credits/${userId}`, data),
+
+  // Upload transcript file (transferCreditId is optional - if not provided, creates a new record)
+  uploadTranscript: (userId, file, transferCreditId = null) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (transferCreditId) {
+      formData.append('transfer_credit_id', transferCreditId)
+    }
+    return api.post(`/api/admin/transfer-credits/${userId}/transcript`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
+  // Delete a specific transfer credit by ID
+  deleteOne: (userId, transferCreditId) => api.delete(`/api/admin/transfer-credits/${userId}/${transferCreditId}`),
+
+  // Delete ALL transfer credits for a student
+  deleteAll: (userId) => api.delete(`/api/admin/transfer-credits/${userId}`),
+}
+
 export default api

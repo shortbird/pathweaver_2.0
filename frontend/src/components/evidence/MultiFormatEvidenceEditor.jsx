@@ -208,11 +208,21 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
     try {
       setIsLoading(true);
 
+      // Check if there is at least one evidence block
+      if (blocks.length === 0) {
+        if (onError) {
+          onError('At least one piece of evidence is required to complete a task. Please add text, images, links, or documents to your evidence.');
+        }
+        setIsLoading(false);
+        return;
+      }
+
       // Check if any uploads are still in progress
-      if (uploadingBlocks.size > 0) {
+      if (uploadingBlocks && uploadingBlocks.size > 0) {
         if (onError) {
           onError('Please wait for file uploads to complete before submitting.');
         }
+        setIsLoading(false);
         return;
       }
 
@@ -266,7 +276,12 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
     } catch (error) {
       logger.error('Error completing task:', error);
       if (onError) {
-        onError('Failed to complete task.');
+        // Extract error message from API response
+        const errorMessage = error.response?.data?.error ||
+                            error.response?.data?.message ||
+                            error.message ||
+                            'Failed to complete task.';
+        onError(errorMessage);
       }
     } finally {
       setIsLoading(false);

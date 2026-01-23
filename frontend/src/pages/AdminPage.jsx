@@ -23,6 +23,7 @@ const CurriculumUploadPage = lazy(() => import('./admin/CurriculumUploadPage'))
 const CourseGeneratorWizard = lazy(() => import('./admin/CourseGeneratorWizard'))
 const CourseGenerationQueue = lazy(() => import('./admin/CourseGenerationQueue'))
 const CourseEnrollmentsPage = lazy(() => import('./admin/CourseEnrollmentsPage'))
+const TransferCreditForm = lazy(() => import('./admin/TransferCreditForm'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -182,6 +183,7 @@ const AdminPage = () => {
           <Route path="settings" element={<SiteSettings />} />
           <Route path="flagged-tasks" element={<FlaggedTasksPanel />} />
           <Route path="user/:userId/activity" element={<UserActivityLogPage />} />
+          <Route path="user/:userId/transfer-credits" element={<TransferCreditForm />} />
           <Route path="lms-logs" element={<SparkLogsPanel />} />
           <Route path="crm" element={<CRMPage />} />
           <Route path="subject-review" element={<SubjectReviewPage />} />

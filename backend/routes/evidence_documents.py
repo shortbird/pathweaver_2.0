@@ -137,6 +137,13 @@ def save_evidence_document(user_id: str, task_id: str):
         logger.info(f"[EVIDENCE_DOC] task_id={task_id[:8]}, user_id={user_id[:8]}, status='{status}', num_blocks={len(blocks)}")
         logger.info(f"[EVIDENCE_DOC] Full status value: '{status}' (type: {type(status).__name__})")
 
+        # Require at least one block when completing a task
+        if status == 'completed' and len(blocks) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'At least one piece of evidence is required to complete a task. Please add text, images, links, or documents to your evidence.'
+            }), 400
+
         # Validate task exists and user is enrolled (V3 personalized task system)
         task_check = admin_supabase.table('user_quest_tasks')\
             .select('quest_id, title, xp_value, pillar, user_id')\

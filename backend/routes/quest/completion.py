@@ -131,6 +131,14 @@ def get_user_completed_quests(user_id: str):
             .eq('user_id', user_id)\
             .execute()
 
+        # Query 2b: Get ALL approved tasks from user_quest_tasks as fallback
+        # This is needed for org students whose completions aren't synced to quest_task_completions
+        approved_tasks = supabase.table('user_quest_tasks')\
+            .select('id, title, pillar, quest_id, user_quest_id, xp_value, diploma_subjects, approval_status, updated_at')\
+            .eq('user_id', user_id)\
+            .eq('approval_status', 'approved')\
+            .execute()
+
         # Query 3: Get ALL evidence documents with blocks for this user
         evidence_documents_response = supabase.table('user_task_evidence_documents')\
             .select('*, evidence_document_blocks(*)')\
@@ -164,6 +172,30 @@ def get_user_completed_quests(user_id: str):
                 uq_id = task.get('user_quest_id')
                 if uq_id:
                     task_counts_by_quest[uq_id] = task_counts_by_quest.get(uq_id, 0) + 1
+
+        # If quest_task_completions is empty but we have approved tasks, create completion-like entries
+        # This handles org students whose completions aren't synced to quest_task_completions
+        if not quest_task_completions.data and approved_tasks.data:
+            logger.info(f"Using approved_tasks fallback for {len(approved_tasks.data)} tasks (user: {user_id})")
+            synthetic_completions = []
+            for task in approved_tasks.data:
+                synthetic_completions.append({
+                    'id': task.get('id'),
+                    'user_quest_task_id': task.get('id'),
+                    'completed_at': task.get('updated_at'),
+                    'evidence_text': None,
+                    'evidence_url': None,
+                    'user_quest_tasks': {
+                        'title': task.get('title'),
+                        'pillar': task.get('pillar'),
+                        'quest_id': task.get('quest_id'),
+                        'user_quest_id': task.get('user_quest_id'),
+                        'xp_value': task.get('xp_value', 0),
+                        'diploma_subjects': task.get('diploma_subjects')
+                    }
+                })
+            # Replace the empty completions with synthetic ones
+            quest_task_completions = type('obj', (object,), {'data': synthetic_completions})()
 
         # Process quests with evidence
         achievements = []

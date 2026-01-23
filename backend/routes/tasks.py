@@ -140,6 +140,16 @@ def complete_task(user_id: str, task_id: str):
                 status=400
             )
 
+        # For text and link evidence, require non-empty content
+        if evidence_type in ['text', 'link', 'video']:
+            text_content = request.form.get('text_content', '').strip()
+            if not text_content:
+                return error_response(
+                    code='VALIDATION_ERROR',
+                    message='Evidence content is required. Please provide text or a URL.',
+                    status=400
+                )
+
         # Get confidential flag
         is_confidential = request.form.get('is_confidential', 'false').lower() == 'true'
 

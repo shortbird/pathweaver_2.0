@@ -445,16 +445,31 @@ def get_public_diploma_by_user_id(user_id):
         logger.info(f"[FERPA] Access GRANTED: is_public={is_public}, viewer={viewer_user_id}, owner={user_id}")
 
         # Get user's completed quests with V3 data structure - optimized query
-        # Note: user_quest_tasks stores personalized tasks, not completions
-        # quest_task_completions stores the actual task completions
         completed_quests = supabase.table('user_quests').select(
             '''
+            id,
             completed_at,
             quests:quests!inner(id, title, description, big_idea)
             '''
         ).eq('user_id', user_id).not_.is_('completed_at', 'null').order('completed_at', desc=True).execute()
 
-        # Get task completions separately for display
+        # Get approved tasks from user_quest_tasks (primary source of truth for org students)
+        # This replaces quest_task_completions which may not be populated for all users
+        approved_tasks = supabase.table('user_quest_tasks').select(
+            '''
+            id,
+            title,
+            pillar,
+            quest_id,
+            user_quest_id,
+            xp_value,
+            approval_status,
+            updated_at,
+            diploma_subjects
+            '''
+        ).eq('user_id', user_id).eq('approval_status', 'approved').execute()
+
+        # Also try quest_task_completions for legacy evidence data
         task_completions = supabase.table('quest_task_completions').select(
             '''
             *,
@@ -462,10 +477,9 @@ def get_public_diploma_by_user_id(user_id):
             '''
         ).eq('user_id', user_id).execute()
 
-        logger.debug(f"=== TASK COMPLETIONS DEBUG ===")
-        logger.info(f"Found {len(task_completions.data) if task_completions.data else 0} task completions")
-        if task_completions.data and len(task_completions.data) > 0:
-            logger.info(f"Sample task completion structure: {task_completions.data[0]}")
+        logger.debug(f"=== TASK DATA DEBUG ===")
+        logger.info(f"Found {len(approved_tasks.data) if approved_tasks.data else 0} approved tasks in user_quest_tasks")
+        logger.info(f"Found {len(task_completions.data) if task_completions.data else 0} task completions in quest_task_completions")
         logger.info(f"================================")
 
         # Get multi-format evidence documents with their content blocks
@@ -520,38 +534,100 @@ def get_public_diploma_by_user_id(user_id):
                         logger.info(f"Mapped evidence doc for task {task_id}: {len(public_blocks)} public blocks (out of {len(all_blocks)} total)")
 
         # Get user's in-progress quests (active with at least one task submitted)
+        # Note: Must include 'id' to match with user_quest_id in tasks
         in_progress_quests = supabase.table('user_quests').select(
             '''
+            id,
             started_at,
             is_active,
             quests:quests!inner(id, title, description, big_idea)
             '''
         ).eq('user_id', user_id).eq('is_active', True).is_('completed_at', 'null').order('started_at', desc=True).execute()
 
-        # Get XP by skill category from user_skill_xp table
-        skill_xp = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()
-
+        # Calculate XP by skill category from approved tasks (primary source)
+        # This is more reliable than user_skill_xp which may not be synced for org students
         xp_by_category = {}
         total_xp = 0
 
-        if skill_xp.data:
-            for record in skill_xp.data:
-                # Handle both old and new column names
-                category = record.get('pillar', record.get('skill_category'))
-                xp = record.get('xp_amount', record.get('total_xp', 0))
-                if category:
-                    xp_by_category[category] = xp
+        if approved_tasks.data:
+            for task in approved_tasks.data:
+                pillar = task.get('pillar')
+                xp = task.get('xp_value', 0) or 0
+                if pillar:
+                    xp_by_category[pillar] = xp_by_category.get(pillar, 0) + xp
                     total_xp += xp
+
+        # If no XP from approved tasks, fall back to user_skill_xp table
+        if total_xp == 0:
+            skill_xp = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()
+            if skill_xp.data:
+                for record in skill_xp.data:
+                    category = record.get('pillar', record.get('skill_category'))
+                    xp = record.get('xp_amount', record.get('total_xp', 0))
+                    if category:
+                        xp_by_category[category] = xp
+                        total_xp += xp
+
+        logger.info(f"XP calculation: total_xp={total_xp}, by_category={xp_by_category}")
 
         # Get subject XP for diploma credits section
         subject_xp_response = supabase.table('user_subject_xp').select('school_subject, xp_amount').eq('user_id', user_id).execute()
         subject_xp_data = subject_xp_response.data or []
+
+        # If no subject XP in table, calculate from approved tasks' diploma_subjects
+        if not subject_xp_data and approved_tasks.data:
+            subject_xp_map = {}
+            for task in approved_tasks.data:
+                diploma_subjects = task.get('diploma_subjects')
+                if diploma_subjects and isinstance(diploma_subjects, dict):
+                    task_xp = task.get('xp_value', 0) or 0
+                    for subject, percentage in diploma_subjects.items():
+                        # Normalize subject name to snake_case to match frontend CREDIT_REQUIREMENTS
+                        normalized_subject = subject.lower().replace(' ', '_').replace('&', 'and')
+                        subject_xp = int(task_xp * percentage / 100)
+                        subject_xp_map[normalized_subject] = subject_xp_map.get(normalized_subject, 0) + subject_xp
+
+            # Convert to expected format
+            subject_xp_data = [
+                {'school_subject': subject, 'xp_amount': xp}
+                for subject, xp in subject_xp_map.items()
+            ]
+            logger.info(f"Calculated subject XP from approved tasks: {subject_xp_map}")
+
+        # Get transfer credits for diploma display
+        transfer_credits_response = supabase.table('transfer_credits').select('*').eq('user_id', user_id).execute()
+        transfer_credits_data = None
+        if transfer_credits_response.data:
+            tc = transfer_credits_response.data[0]
+            # Calculate credit totals from XP for display
+            XP_PER_CREDIT = 2000
+            subject_credits = {}
+            total_tc_credits = 0
+            subject_xp_tc = tc.get('subject_xp', {})
+            for subject, xp in subject_xp_tc.items():
+                credits = xp / XP_PER_CREDIT
+                subject_credits[subject] = credits
+                total_tc_credits += credits
+            transfer_credits_data = {
+                'id': tc.get('id'),
+                'school_name': tc.get('school_name'),
+                'transcript_url': tc.get('transcript_url'),
+                'notes': tc.get('notes'),
+                'subject_xp': subject_xp_tc,
+                'subject_credits': subject_credits,
+                'total_xp': tc.get('total_xp', 0),
+                'total_credits': total_tc_credits,
+                'created_at': tc.get('created_at')
+            }
+            logger.info(f"Found transfer credits for user {user_id}: {total_tc_credits} credits from {tc.get('school_name')}")
 
         # Build quest_id -> completions map once (O(m) instead of O(n*m) in loop)
         # This prevents Python-side filtering for each quest iteration
         # OPTIMIZATION: Also build user_quest_id -> completions map for in-progress quests
         completions_by_quest = {}
         completions_by_user_quest = {}
+
+        # First try quest_task_completions (legacy path with evidence data)
         for tc in (task_completions.data or []):
             task_info = tc.get('user_quest_tasks')
             quest_id = None
@@ -581,6 +657,39 @@ def get_public_diploma_by_user_id(user_id):
                 if user_quest_id not in completions_by_user_quest:
                     completions_by_user_quest[user_quest_id] = []
                 completions_by_user_quest[user_quest_id].append(tc)
+
+        # If no completions from quest_task_completions, use approved_tasks directly
+        # This handles org students whose completions aren't synced to quest_task_completions
+        if not completions_by_quest and approved_tasks.data:
+            logger.info(f"Using approved_tasks as fallback for {len(approved_tasks.data)} tasks")
+            for task in approved_tasks.data:
+                quest_id = task.get('quest_id')
+                user_quest_id = task.get('user_quest_id')
+
+                # Create a completion-like structure from approved task
+                tc = {
+                    'task_id': task.get('id'),
+                    'completed_at': task.get('updated_at'),
+                    'user_quest_tasks': {
+                        'title': task.get('title'),
+                        'pillar': task.get('pillar'),
+                        'quest_id': quest_id,
+                        'user_quest_id': user_quest_id,
+                        'xp_value': task.get('xp_value', 0)
+                    }
+                }
+
+                if quest_id:
+                    if quest_id not in completions_by_quest:
+                        completions_by_quest[quest_id] = []
+                    completions_by_quest[quest_id].append(tc)
+
+                if user_quest_id:
+                    if user_quest_id not in completions_by_user_quest:
+                        completions_by_user_quest[user_quest_id] = []
+                    completions_by_user_quest[user_quest_id].append(tc)
+
+            logger.info(f"Built completions_by_quest with {len(completions_by_quest)} quests")
 
         # OPTIMIZATION: Pre-fetch task counts for all in-progress quests (prevents N+1 queries)
         task_counts_by_user_quest = {}
@@ -831,7 +940,8 @@ def get_public_diploma_by_user_id(user_id):
             'skill_xp': xp_by_category,
             'subject_xp': subject_xp_data,
             'total_xp': total_xp,
-            'total_quests_completed': len(achievements)
+            'total_quests_completed': len(achievements),
+            'transfer_credits': transfer_credits_data
         }), 200
 
     except Exception as e:
