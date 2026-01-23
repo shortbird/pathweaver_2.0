@@ -221,7 +221,7 @@ const CourseBuilder = () => {
 
     try {
       setSaving(true)
-      await api.delete(`/api/courses/${courseId}/quests/${questId}?delete_quest=${deleteQuest}`)
+      const response = await api.delete(`/api/courses/${courseId}/quests/${questId}?delete_quest=${deleteQuest}`)
 
       const updatedQuests = quests.filter(q => q.id !== questId)
       setQuests(updatedQuests)
@@ -230,7 +230,24 @@ const CourseBuilder = () => {
         setSelectedQuest(updatedQuests[0] || null)
       }
 
-      toast.success(deleteQuest ? 'Project removed and deleted' : 'Project removed from course')
+      // Show toast based on actual result, not user's request
+      if (deleteQuest) {
+        if (response.data.quest_deleted) {
+          toast.success('Project removed and deleted')
+        } else {
+          // Explain why it wasn't deleted (use custom toast for warning style)
+          const reason = response.data.deletion_reason
+          let message = 'Project removed from course but not deleted (still in use)'
+          if (reason === 'used_in_other_courses') {
+            message = 'Project removed from course but not deleted (used in other courses)'
+          } else if (reason === 'has_enrollments') {
+            message = 'Project removed from course but not deleted (has student enrollments)'
+          }
+          toast(message, { icon: '⚠️', duration: 5000 })
+        }
+      } else {
+        toast.success('Project removed from course')
+      }
     } catch (error) {
       console.error('Failed to remove quest:', error)
       toast.error('Failed to remove quest')

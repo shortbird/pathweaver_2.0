@@ -764,12 +764,14 @@ def remove_quest_from_course(user_id, course_id: str, quest_id: str):
         logger.info(f"Quest {quest_id} removed from course {course_id}")
 
         quest_deleted = False
+        deletion_reason = None
         if delete_quest:
             # Check if quest is used in other courses
             other_courses = client.table('course_quests').select('id').eq('quest_id', quest_id).execute()
 
-            # Check if quest has user enrollments
-            enrollments = client.table('user_quests').select('id').eq('quest_id', quest_id).limit(1).execute()
+            # Check if quest has user enrollments (excluding the person deleting)
+            # This allows deletion if only the creator is enrolled
+            enrollments = client.table('user_quests').select('id').eq('quest_id', quest_id).neq('user_id', user_id).limit(1).execute()
 
             if not other_courses.data and not enrollments.data:
                 # Safe to delete - delete lessons first, then quest
@@ -778,12 +780,18 @@ def remove_quest_from_course(user_id, course_id: str, quest_id: str):
                 quest_deleted = True
                 logger.info(f"Quest {quest_id} deleted along with removal from course {course_id}")
             else:
-                logger.info(f"Quest {quest_id} not deleted - still in use by other courses or has enrollments")
+                # Set the reason why the quest wasn't deleted
+                if other_courses.data:
+                    deletion_reason = 'used_in_other_courses'
+                elif enrollments.data:
+                    deletion_reason = 'has_enrollments'
+                logger.info(f"Quest {quest_id} not deleted - reason: {deletion_reason}")
 
         return jsonify({
             'success': True,
             'message': 'Quest removed from course',
-            'quest_deleted': quest_deleted
+            'quest_deleted': quest_deleted,
+            'deletion_reason': deletion_reason
         }), 200
 
     except Exception as e:
