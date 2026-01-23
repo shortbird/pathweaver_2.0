@@ -705,8 +705,8 @@ def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id)
 
         # Initialize empty results in case there are no students
         user_quests_data = []
-        approved_tasks_period_raw = []
-        approved_tasks_all_raw = []
+        completed_tasks_period_raw = []
+        completed_tasks_all_raw = []
 
         # Only query if we have students (avoid empty IN clause)
         if student_ids:
@@ -717,24 +717,23 @@ def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id)
                 .execute()
             user_quests_data = user_quests.data or []
 
-            # Get approved tasks for all students (in date range)
-            # Note: user_quest_tasks contains the actual task data with XP values
-            approved_tasks_period = client.table('user_quest_tasks')\
-                .select('user_id, id, xp_value, updated_at')\
+            # Get COMPLETED tasks for all students (in date range)
+            # Note: quest_task_completions contains tasks actually marked as done with evidence
+            # Join with user_quest_tasks via user_quest_task_id FK to get the xp_value
+            completed_tasks_period = client.table('quest_task_completions')\
+                .select('user_id, user_quest_task_id, completed_at, user_quest_tasks(xp_value)')\
                 .in_('user_id', student_ids)\
-                .eq('approval_status', 'approved')\
-                .gte('updated_at', f"{start_date}T00:00:00")\
-                .lte('updated_at', f"{end_date}T23:59:59")\
+                .gte('completed_at', f"{start_date}T00:00:00")\
+                .lte('completed_at', f"{end_date}T23:59:59")\
                 .execute()
-            approved_tasks_period_raw = approved_tasks_period.data or []
+            completed_tasks_period_raw = completed_tasks_period.data or []
 
-            # Get all-time approved tasks
-            approved_tasks_all = client.table('user_quest_tasks')\
-                .select('user_id, id, xp_value')\
+            # Get all-time completed tasks
+            completed_tasks_all = client.table('quest_task_completions')\
+                .select('user_id, user_quest_task_id, user_quest_tasks(xp_value)')\
                 .in_('user_id', student_ids)\
-                .eq('approval_status', 'approved')\
                 .execute()
-            approved_tasks_all_raw = approved_tasks_all.data or []
+            completed_tasks_all_raw = completed_tasks_all.data or []
 
 
         # Aggregate data by student
@@ -747,21 +746,27 @@ def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id)
             if uq.get('status') in ['completed', 'set_down']:
                 quest_data[uid]['completed'] += 1
 
-        # Aggregate approved tasks (period) - count and XP
+        # Aggregate completed tasks (period) - count and XP
         completion_period_data = {}
         xp_period_data = {}
-        for t in approved_tasks_period_raw:
+        for t in completed_tasks_period_raw:
             uid = t['user_id']
             completion_period_data[uid] = completion_period_data.get(uid, 0) + 1
-            xp_period_data[uid] = xp_period_data.get(uid, 0) + (t.get('xp_value') or 0)
+            # XP comes from the joined user_quest_tasks record
+            task_data = t.get('user_quest_tasks') or {}
+            xp_value = task_data.get('xp_value') or 0
+            xp_period_data[uid] = xp_period_data.get(uid, 0) + xp_value
 
-        # Aggregate approved tasks (all-time) - count and XP
+        # Aggregate completed tasks (all-time) - count and XP
         completion_all_data = {}
         xp_all_data = {}
-        for t in approved_tasks_all_raw:
+        for t in completed_tasks_all_raw:
             uid = t['user_id']
             completion_all_data[uid] = completion_all_data.get(uid, 0) + 1
-            xp_all_data[uid] = xp_all_data.get(uid, 0) + (t.get('xp_value') or 0)
+            # XP comes from the joined user_quest_tasks record
+            task_data = t.get('user_quest_tasks') or {}
+            xp_value = task_data.get('xp_value') or 0
+            xp_all_data[uid] = xp_all_data.get(uid, 0) + xp_value
 
         # Build student progress list
         student_progress = []
@@ -770,7 +775,7 @@ def get_student_progress(current_user_id, current_org_id, is_superadmin, org_id)
 
         for student in students:
             sid = student['id']
-            # Use XP calculated from approved tasks instead of users.total_xp
+            # Use XP calculated from actually completed tasks (with evidence)
             xp = xp_all_data.get(sid, 0)
             total_xp += xp
 

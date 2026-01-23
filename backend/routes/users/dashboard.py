@@ -187,22 +187,24 @@ def get_user_subject_xp(user_id):
 
         subject_xp = response.data or []
 
-        # If no subject XP in table, calculate from approved tasks' diploma_subjects
+        # If no subject XP in table, calculate from COMPLETED tasks' diploma_subjects
         # This handles org students whose subject XP isn't synced
+        # IMPORTANT: Only count tasks that have been marked as done (in quest_task_completions)
         if not subject_xp:
-            approved_tasks = supabase.table('user_quest_tasks')\
-                .select('xp_value, diploma_subjects')\
+            # Get completed tasks (those actually marked as done with evidence)
+            completed_tasks = supabase.table('quest_task_completions')\
+                .select('user_quest_task_id, user_quest_tasks(xp_value, diploma_subjects)')\
                 .eq('user_id', user_id)\
-                .eq('approval_status', 'approved')\
                 .execute()
 
-            if approved_tasks.data:
-                logger.info(f"Calculating subject XP from {len(approved_tasks.data)} approved tasks for user {user_id}")
+            if completed_tasks.data:
+                logger.info(f"Calculating subject XP from {len(completed_tasks.data)} completed tasks for user {user_id}")
                 subject_xp_map = {}
-                for task in approved_tasks.data:
-                    diploma_subjects = task.get('diploma_subjects')
+                for completion in completed_tasks.data:
+                    task_data = completion.get('user_quest_tasks') or {}
+                    diploma_subjects = task_data.get('diploma_subjects')
                     if diploma_subjects and isinstance(diploma_subjects, dict):
-                        task_xp = task.get('xp_value', 0) or 0
+                        task_xp = task_data.get('xp_value', 0) or 0
                         for subject, percentage in diploma_subjects.items():
                             # Normalize subject name to snake_case to match frontend CREDIT_REQUIREMENTS
                             normalized_subject = subject.lower().replace(' ', '_').replace('&', 'and')

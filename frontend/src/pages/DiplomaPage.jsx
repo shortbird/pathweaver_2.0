@@ -2,7 +2,7 @@ import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../contexts/AuthContext';
 import { useActingAs } from '../contexts/ActingAsContext';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import AccreditedDiplomaModal from '../components/diploma/AccreditedDiplomaModal';
 import LearningEventCard from '../components/learning-events/LearningEventCard';
@@ -155,6 +155,11 @@ const DiplomaPage = () => {
   const { actingAsDependent } = useActingAs();
   const { slug, userId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check if navigated from org progress tab
+  const fromOrgProgress = location.state?.from === 'org-progress';
+  const sourceOrgId = location.state?.orgId;
 
   // Determine effective user: dependent if acting as one, otherwise logged-in user
   const effectiveUser = actingAsDependent || user;
@@ -773,13 +778,20 @@ const DiplomaPage = () => {
           {/* Back Button */}
           {user && (
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => {
+                if (fromOrgProgress && sourceOrgId) {
+                  // Navigate back to org management with progress tab active
+                  navigate(`/admin/organizations/${sourceOrgId}`, { state: { activeTab: 'progress' } });
+                } else {
+                  navigate('/dashboard');
+                }
+              }}
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors group min-h-[44px]"
             >
               <svg className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              <span className="font-medium">Back to Dashboard</span>
+              <span className="font-medium">{fromOrgProgress ? 'Back to Progress' : 'Back to Dashboard'}</span>
             </button>
           )}
 

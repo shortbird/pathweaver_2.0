@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -9,6 +10,7 @@ import toast from 'react-hot-toast';
  * Shows per-student metrics with filtering, sorting, and CSV export.
  */
 export default function OrgStudentProgress({ orgId }) {
+  const navigate = useNavigate();
   const [students, setStudents] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -19,6 +21,13 @@ export default function OrgStudentProgress({ orgId }) {
     end: new Date().toISOString().split('T')[0]
   });
   const [exporting, setExporting] = useState(false);
+
+  const handleStudentClick = (studentId) => {
+    // Navigate to student's portfolio with state to enable back navigation
+    navigate(`/public/diploma/${studentId}`, {
+      state: { from: 'org-progress', orgId }
+    });
+  };
 
   useEffect(() => {
     fetchProgress();
@@ -270,7 +279,12 @@ export default function OrgStudentProgress({ orgId }) {
                           </div>
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                          <button
+                            onClick={() => handleStudentClick(student.id)}
+                            className="text-sm font-medium text-gray-900 hover:text-optio-purple hover:underline text-left"
+                          >
+                            {student.name}
+                          </button>
                           <div className="text-sm text-gray-500">{student.email}</div>
                         </div>
                       </div>

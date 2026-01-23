@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import api from '../../services/api'
@@ -21,6 +21,7 @@ export default function OrganizationManagement() {
   const { user } = useAuth()
   const { refreshOrganization } = useOrganization()
   const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
 
   const orgId = urlOrgId || user?.organization_id
 
@@ -28,15 +29,22 @@ export default function OrganizationManagement() {
   const [siteSettings, setSiteSettings] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  // Check for tab from navigation state (e.g., returning from student portfolio)
+  const tabFromState = location.state?.activeTab
   const tabFromUrl = searchParams.get('tab') || 'overview'
-  const [activeTab, setActiveTab] = useState(tabFromUrl)
+  const [activeTab, setActiveTab] = useState(tabFromState || tabFromUrl)
 
   useEffect(() => {
+    // If we came from navigation state (e.g., returning from student portfolio), use that tab
+    if (tabFromState) {
+      setSearchParams({ tab: tabFromState }, { replace: true })
+      return
+    }
     const tab = searchParams.get('tab') || 'overview'
     if (tab !== activeTab) {
       setActiveTab(tab)
     }
-  }, [searchParams])
+  }, [searchParams, tabFromState])
 
   const handleTabChange = (tab) => {
     setActiveTab(tab)
