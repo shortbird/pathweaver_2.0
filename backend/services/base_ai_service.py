@@ -196,6 +196,8 @@ class BaseAIService(BaseService):
         Raises:
             AIGenerationError: If generation fails after all retries
         """
+        import gc
+
         max_retries = max_retries or self.DEFAULT_MAX_RETRIES
         retry_delay = retry_delay or self.DEFAULT_RETRY_DELAY
 
@@ -203,11 +205,16 @@ class BaseAIService(BaseService):
         last_error = None
 
         for attempt in range(max_retries):
+            response = None
             try:
                 response = self.model.generate_content(prompt)
 
                 if not response or not response.text:
                     raise AIGenerationError("Empty response from Gemini API")
+
+                # Extract text immediately to allow response object cleanup
+                result_text = response.text
+                response_length = len(result_text)
 
                 elapsed = time.time() - start_time
 
@@ -216,10 +223,10 @@ class BaseAIService(BaseService):
                         attempt=attempt + 1,
                         elapsed_ms=int(elapsed * 1000),
                         prompt_length=len(prompt),
-                        response_length=len(response.text)
+                        response_length=response_length
                     )
 
-                return response.text
+                return result_text
 
             except Exception as e:
                 last_error = e
@@ -242,6 +249,11 @@ class BaseAIService(BaseService):
                     logger.error(
                         f"AI generation failed after {max_retries} attempts: {e}"
                     )
+            finally:
+                # Explicitly clean up response object to free Gemini SDK memory
+                if response is not None:
+                    del response
+                gc.collect()
 
         raise AIGenerationError(
             f"Generation failed after {max_retries} attempts: {str(last_error)}"
@@ -267,22 +279,29 @@ class BaseAIService(BaseService):
         Raises:
             AIParsingError: If JSON parsing fails (when strict=True)
         """
+        import gc
+
         text = self.generate(prompt, max_retries=max_retries)
 
         # Log the raw response length for debugging
         logger.info(f"AI response length: {len(text)} chars")
 
-        # Save raw response BEFORE any processing for debugging
-        try:
-            import tempfile
-            import os
-            debug_file = os.path.join(tempfile.gettempdir(), 'curriculum_ai_response_raw.txt')
-            with open(debug_file, 'w', encoding='utf-8') as f:
-                f.write(text)
-        except Exception:
-            pass
+        # Save raw response BEFORE any processing for debugging (only for debugging)
+        # Disabled by default to reduce disk I/O
+        # try:
+        #     import tempfile
+        #     import os
+        #     debug_file = os.path.join(tempfile.gettempdir(), 'curriculum_ai_response_raw.txt')
+        #     with open(debug_file, 'w', encoding='utf-8') as f:
+        #         f.write(text)
+        # except Exception:
+        #     pass
 
         result = self.extract_json(text)
+
+        # Clear the raw text after JSON extraction to free memory
+        del text
+        gc.collect()
 
         if result is None:
             # Comprehensive debugging for JSON parse failures

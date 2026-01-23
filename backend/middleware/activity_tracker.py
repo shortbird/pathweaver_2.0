@@ -12,6 +12,7 @@ Features:
 
 from flask import request, g, make_response
 import uuid
+import atexit
 from datetime import datetime
 from database import get_supabase_admin_singleton
 from utils.logger import get_logger
@@ -23,6 +24,15 @@ logger = get_logger(__name__)
 
 # Thread pool for async event logging (prevents blocking requests)
 executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="activity_tracker")
+
+
+def _shutdown_activity_executor():
+    """Shutdown thread pool on application exit."""
+    logger.info("Shutting down activity tracker thread pool")
+    executor.shutdown(wait=False)
+
+
+atexit.register(_shutdown_activity_executor)
 
 
 class ActivityTracker:
@@ -308,10 +318,6 @@ class ActivityTracker:
                 insert_data['user_id'] = user_id
 
             supabase.table('user_activity_events').insert(insert_data).execute()
-
-            # Process automation triggers (only for authenticated users)
-            if user_id and event_type:
-                self._process_automation_triggers(event_type, user_id, event_data)
 
             # Process automation triggers (only for authenticated users)
             if user_id and event_type:

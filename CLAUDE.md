@@ -87,7 +87,7 @@ Say something like:
 | `/queue-status` | See what's queued/active/completed |
 | `/work-queue` | **Run in worker terminals** - processes tasks until empty |
 | `/verify-fixes` | Verify fixes after workers complete |
-| `/ship-feature [desc]` | Create feature tasks (backend/frontend/tests/docs) |
+| `/ship-feature [desc]` | Create feature tasks (backend + frontend + tests + docs) |
 | `/integrate-feature` | Merge feature work after workers finish |
 | `/cleanup` | Clear completed tasks |
 

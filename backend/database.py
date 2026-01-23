@@ -4,6 +4,7 @@ from app_config import Config
 from flask import request, g
 from typing import Optional
 import httpx
+import atexit
 
 # Lazy logger import to avoid circular dependency
 # Logger is initialized after config is loaded
@@ -20,36 +21,69 @@ def _get_logger():
 # Import log scrubbing utility for PII protection (P1-SEC-4)
 from utils.log_scrubber import mask_token, should_log_sensitive_data
 
+# Module-level singleton httpx.Client to prevent memory leaks
+# Each httpx.Client holds ~50-70MB (connection pools, SSL contexts, buffers)
+# Creating one per request causes memory exhaustion
+_shared_http_client: Optional[httpx.Client] = None
+
+
+def _get_shared_http_client() -> httpx.Client:
+    """
+    Get or create the singleton httpx.Client for all Supabase connections.
+
+    This prevents the memory leak where each request created a new httpx.Client
+    that was never properly closed. Connection pools don't release memory on GC -
+    they need explicit .close() calls.
+    """
+    global _shared_http_client
+    if _shared_http_client is None:
+        limits = httpx.Limits(
+            max_connections=Config.SUPABASE_POOL_SIZE + getattr(Config, 'SUPABASE_MAX_OVERFLOW', 5),
+            max_keepalive_connections=Config.SUPABASE_POOL_SIZE,
+            keepalive_expiry=Config.SUPABASE_CONN_LIFETIME
+        )
+        _shared_http_client = httpx.Client(
+            limits=limits,
+            timeout=Config.SUPABASE_POOL_TIMEOUT
+        )
+        _get_logger().info(
+            f"[DATABASE] Created shared httpx.Client (pool_size={Config.SUPABASE_POOL_SIZE}, "
+            f"timeout={Config.SUPABASE_POOL_TIMEOUT}s, keepalive={Config.SUPABASE_CONN_LIFETIME}s)"
+        )
+    return _shared_http_client
+
+
+def _shutdown_http_client():
+    """Close the shared httpx.Client on application shutdown."""
+    global _shared_http_client
+    if _shared_http_client is not None:
+        _get_logger().info("[DATABASE] Closing shared httpx.Client")
+        _shared_http_client.close()
+        _shared_http_client = None
+
+
+atexit.register(_shutdown_http_client)
+
+
 def _get_client_options() -> ClientOptions:
     """
-    Create Supabase client options with connection pooling configuration.
+    Create Supabase client options using the shared httpx.Client.
 
-    Uses httpx.Limits to configure connection pool:
-    - max_connections: Total connection pool size (SUPABASE_POOL_SIZE)
-    - max_keepalive_connections: Idle connections to keep alive (SUPABASE_POOL_SIZE)
-    - keepalive_expiry: Connection lifetime (SUPABASE_CONN_LIFETIME)
+    CRITICAL FIX: Previous implementation created a new httpx.Client per call
+    but never passed it to ClientOptions (httpx_client parameter was missing).
+    This caused 50-70MB memory leak per request as orphaned clients weren't closed.
+
+    Now uses a singleton httpx.Client shared across all Supabase clients.
 
     Returns:
-        ClientOptions configured with connection pooling
+        ClientOptions configured with the shared httpx.Client
     """
-    # Configure httpx connection limits from app config
-    limits = httpx.Limits(
-        max_connections=Config.SUPABASE_POOL_SIZE,  # Total pool size (default: 10)
-        max_keepalive_connections=Config.SUPABASE_POOL_SIZE,  # Keep-alive connections
-        keepalive_expiry=Config.SUPABASE_CONN_LIFETIME  # Connection lifetime in seconds (default: 3600)
-    )
-
-    # Create httpx client with pooling configuration
-    # timeout is set via SUPABASE_POOL_TIMEOUT
-    http_client = httpx.Client(
-        limits=limits,
-        timeout=Config.SUPABASE_POOL_TIMEOUT  # Request timeout (default: 30s)
-    )
-
-    # Return ClientOptions with custom httpx client
+    # Use shared httpx.Client to prevent memory leaks
+    # The httpx_client parameter MUST be passed - this was the bug!
     return ClientOptions(
         postgrest_client_timeout=Config.SUPABASE_POOL_TIMEOUT,
-        storage_client_timeout=Config.SUPABASE_POOL_TIMEOUT
+        storage_client_timeout=Config.SUPABASE_POOL_TIMEOUT,
+        httpx_client=_get_shared_http_client()  # FIX: Actually pass the client!
     )
 
 # Create singleton client for anonymous operations only

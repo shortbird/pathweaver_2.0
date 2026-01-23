@@ -16,7 +16,9 @@ Endpoints:
 """
 
 import uuid
-import threading
+import atexit
+from concurrent.futures import ThreadPoolExecutor
+from typing import Dict
 from flask import Blueprint, request, jsonify, current_app
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
@@ -26,6 +28,22 @@ from services.notification_service import NotificationService
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Bounded thread pool for curriculum processing (prevents memory exhaustion)
+# Max 3 concurrent uploads to stay within Gunicorn's 400MB worker memory limit
+CURRICULUM_THREAD_POOL = ThreadPoolExecutor(
+    max_workers=3,
+    thread_name_prefix="curriculum_upload"
+)
+
+
+def _shutdown_curriculum_pool():
+    """Shutdown thread pool on application exit."""
+    logger.info("Shutting down curriculum upload thread pool")
+    CURRICULUM_THREAD_POOL.shutdown(wait=False)
+
+
+atexit.register(_shutdown_curriculum_pool)
 
 bp = Blueprint('admin_curriculum_upload', __name__, url_prefix='/api/admin/curriculum')
 
@@ -57,8 +75,13 @@ VALID_EXTENSIONS = {
     'docx': ['.docx', '.doc'],
 }
 
-# Max file size: 100MB
+# Max file size: 100MB (general limit)
 MAX_FILE_SIZE = 100 * 1024 * 1024
+
+# File size limits by type (PDFs are more memory-intensive due to multi-stage AI processing)
+# A 10MB PDF can use 500MB+ RAM during processing (text extraction + AI prompts/responses)
+MAX_PDF_SIZE = 15 * 1024 * 1024  # 15MB for PDFs
+MAX_DOCX_SIZE = 20 * 1024 * 1024  # 20MB for Word docs
 
 
 def _process_curriculum_background(
@@ -378,12 +401,31 @@ def _handle_file_upload(user_id: str, organization_id: str, supabase):
 
     # Read file content
     file_content = file.read()
+    file_size = len(file_content)
 
-    # Validate file size
-    if len(file_content) > MAX_FILE_SIZE:
+    # Validate file size (type-specific limits due to memory requirements)
+    if file_size > MAX_FILE_SIZE:
         return jsonify({
             'success': False,
             'error': f'File too large. Maximum size is 100MB.'
+        }), 400
+
+    # PDF-specific size limit (PDFs use ~10-20x memory during AI processing)
+    if source_type == 'pdf' and file_size > MAX_PDF_SIZE:
+        size_mb = file_size / (1024 * 1024)
+        max_mb = MAX_PDF_SIZE / (1024 * 1024)
+        return jsonify({
+            'success': False,
+            'error': f'PDF file too large ({size_mb:.1f}MB). Maximum PDF size is {max_mb:.0f}MB due to memory requirements during AI processing. Please condense the content or use a shorter excerpt.'
+        }), 400
+
+    # DOCX-specific size limit
+    if source_type == 'docx' and file_size > MAX_DOCX_SIZE:
+        size_mb = file_size / (1024 * 1024)
+        max_mb = MAX_DOCX_SIZE / (1024 * 1024)
+        return jsonify({
+            'success': False,
+            'error': f'Word document too large ({size_mb:.1f}MB). Maximum size is {max_mb:.0f}MB. Please condense the content or use a shorter excerpt.'
         }), 400
 
     # Get transformation options
@@ -445,12 +487,11 @@ def _handle_file_upload(user_id: str, organization_id: str, supabase):
 
     if pause_for_review:
         # Process to Stage 2 only, then pause for review
-        thread = threading.Thread(
-            target=_process_to_review_background,
-            args=(app, upload_id, user_id, organization_id, source_type, file_content, file.filename, options),
-            daemon=True
+        # Use bounded thread pool instead of unbounded daemon threads
+        CURRICULUM_THREAD_POOL.submit(
+            _process_to_review_background,
+            app, upload_id, user_id, organization_id, source_type, file_content, file.filename, options
         )
-        thread.start()
 
         return jsonify({
             'success': True,
@@ -461,12 +502,11 @@ def _handle_file_upload(user_id: str, organization_id: str, supabase):
         }), 202
     else:
         # Full background processing
-        thread = threading.Thread(
-            target=_process_curriculum_background,
-            args=(app, upload_id, user_id, organization_id, source_type, file_content, file.filename, options),
-            daemon=True
+        # Use bounded thread pool instead of unbounded daemon threads
+        CURRICULUM_THREAD_POOL.submit(
+            _process_curriculum_background,
+            app, upload_id, user_id, organization_id, source_type, file_content, file.filename, options
         )
-        thread.start()
 
         return jsonify({
             'success': True,
@@ -534,12 +574,11 @@ def _handle_text_upload(user_id: str, organization_id: str, supabase):
 
     if pause_for_review:
         # Process to Stage 2 only, then pause for review
-        thread = threading.Thread(
-            target=_process_to_review_background,
-            args=(app, upload_id, user_id, organization_id, 'text', text.encode('utf-8'), title, options),
-            daemon=True
+        # Use bounded thread pool instead of unbounded daemon threads
+        CURRICULUM_THREAD_POOL.submit(
+            _process_to_review_background,
+            app, upload_id, user_id, organization_id, 'text', text.encode('utf-8'), title, options
         )
-        thread.start()
 
         return jsonify({
             'success': True,
@@ -550,12 +589,11 @@ def _handle_text_upload(user_id: str, organization_id: str, supabase):
         }), 202
     else:
         # Full background processing
-        thread = threading.Thread(
-            target=_process_curriculum_background,
-            args=(app, upload_id, user_id, organization_id, 'text', text.encode('utf-8'), title, options),
-            daemon=True
+        # Use bounded thread pool instead of unbounded daemon threads
+        CURRICULUM_THREAD_POOL.submit(
+            _process_curriculum_background,
+            app, upload_id, user_id, organization_id, 'text', text.encode('utf-8'), title, options
         )
-        thread.start()
 
         return jsonify({
             'success': True,
@@ -700,13 +738,11 @@ def generate_course(user_id):
         # Get app reference for background thread
         app = current_app._get_current_object()
 
-        # Start background processing
-        thread = threading.Thread(
-            target=_generate_course_background,
-            args=(app, upload_id, user_id, organization_id, topic, learning_objectives),
-            daemon=True
+        # Start background processing using bounded thread pool
+        CURRICULUM_THREAD_POOL.submit(
+            _generate_course_background,
+            app, upload_id, user_id, organization_id, topic, learning_objectives
         )
-        thread.start()
 
         return jsonify({
             'success': True,
@@ -821,15 +857,13 @@ def resume_curriculum_upload(user_id, upload_id):
             'preserve_structure': data.get('preserve_structure', True)
         }
 
-        # Start background processing from checkpoint
+        # Start background processing from checkpoint using bounded thread pool
         app = current_app._get_current_object()
 
-        thread = threading.Thread(
-            target=_resume_curriculum_background,
-            args=(app, upload_id, upload['uploaded_by'], upload.get('organization_id'), options),
-            daemon=True
+        CURRICULUM_THREAD_POOL.submit(
+            _resume_curriculum_background,
+            app, upload_id, upload['uploaded_by'], upload.get('organization_id'), options
         )
-        thread.start()
 
         logger.info(f"Resuming upload {upload_id} from stage {upload.get('resume_from_stage')}")
 
@@ -901,15 +935,13 @@ def approve_structure(user_id, upload_id):
             'preserve_structure': data.get('preserve_structure', True)
         }
 
-        # Start background processing from Stage 3
+        # Start background processing from Stage 3 using bounded thread pool
         app = current_app._get_current_object()
 
-        thread = threading.Thread(
-            target=_approve_structure_background,
-            args=(app, upload_id, upload['uploaded_by'], upload.get('organization_id'), edits, options),
-            daemon=True
+        CURRICULUM_THREAD_POOL.submit(
+            _approve_structure_background,
+            app, upload_id, upload['uploaded_by'], upload.get('organization_id'), edits, options
         )
-        thread.start()
 
         logger.info(f"Structure approved for upload {upload_id}, continuing from Stage 3")
 

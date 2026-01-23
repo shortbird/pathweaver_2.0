@@ -116,6 +116,11 @@ class DocumentParserService(BaseService):
         - Section headings (detected from formatting)
         - Tables (converted to text)
 
+        Memory-optimized for large PDFs:
+        - Processes pages incrementally
+        - Clears page data after extraction
+        - Explicitly releases BytesIO buffer
+
         Args:
             file_content: Raw bytes of the PDF file
             filename: Original filename
@@ -123,6 +128,8 @@ class DocumentParserService(BaseService):
         Returns:
             Structured content dict
         """
+        import gc
+
         try:
             import pdfplumber
         except ImportError:
@@ -135,26 +142,39 @@ class DocumentParserService(BaseService):
                 'metadata': {}
             }
 
+        # Track BytesIO explicitly for cleanup
+        pdf_buffer = None
+
         try:
-            all_text = []
             sections = []
             current_section = None
             page_count = 0
 
-            with pdfplumber.open(BytesIO(file_content)) as pdf:
+            # Use StringIO-like approach: build text incrementally to avoid
+            # holding multiple copies (list + joined string)
+            text_parts = []
+            total_chars = 0
+
+            # Create BytesIO buffer explicitly so we can close it
+            pdf_buffer = BytesIO(file_content)
+
+            with pdfplumber.open(pdf_buffer) as pdf:
                 page_count = len(pdf.pages)
+                logger.info(f"Parsing PDF with {page_count} pages: {filename}")
 
                 for page_num, page in enumerate(pdf.pages, 1):
                     # Extract text
                     page_text = page.extract_text() or ''
-                    all_text.append(page_text)
+                    text_parts.append(page_text)
+                    total_chars += len(page_text)
 
                     # Extract tables and convert to text
                     tables = page.extract_tables()
                     for table in tables:
                         if table:
                             table_text = self._table_to_text(table)
-                            all_text.append(f"\n[Table]\n{table_text}\n")
+                            text_parts.append(f"\n[Table]\n{table_text}\n")
+                            total_chars += len(table_text) + 10
 
                     # Detect sections from page text
                     page_sections = self._detect_sections(page_text, page_num)
@@ -164,22 +184,34 @@ class DocumentParserService(BaseService):
                             sections.append(current_section)
                         current_section = section
 
+                    # Clear page reference to help GC (pdfplumber caches page data)
+                    page.flush_cache()
+
+                    # Log progress for large PDFs
+                    if page_count > 20 and page_num % 20 == 0:
+                        logger.debug(f"Parsed {page_num}/{page_count} pages, {total_chars} chars")
+
             # Add final section
             if current_section:
                 sections.append(current_section)
+
+            # Join text parts into raw_text
+            raw_text = '\n\n'.join(text_parts)
+
+            # Clear text_parts list immediately after joining
+            text_parts.clear()
+            del text_parts
 
             # If no sections detected, create one from all content
             if not sections:
                 sections = [{
                     'title': 'Document Content',
-                    'content': '\n'.join(all_text),
+                    'content': raw_text,
                     'type': 'content',
                     'page': 1
                 }]
 
-            raw_text = '\n\n'.join(all_text)
-
-            return {
+            result = {
                 'success': True,
                 'raw_text': raw_text,
                 'sections': sections,
@@ -192,6 +224,9 @@ class DocumentParserService(BaseService):
                 }
             }
 
+            logger.info(f"PDF parsed: {page_count} pages, {len(raw_text)} chars, {len(sections)} sections")
+            return result
+
         except Exception as e:
             logger.error(f"Error parsing PDF: {str(e)}")
             return {
@@ -201,6 +236,15 @@ class DocumentParserService(BaseService):
                 'sections': [],
                 'metadata': {}
             }
+        finally:
+            # Explicitly close and release BytesIO buffer
+            if pdf_buffer is not None:
+                pdf_buffer.close()
+                del pdf_buffer
+
+            # Force garbage collection after large PDF processing
+            gc.collect()
+            logger.debug("PDF parser memory cleanup complete")
 
     def parse_docx(self, file_content: bytes, filename: Optional[str] = None) -> Dict[str, Any]:
         """

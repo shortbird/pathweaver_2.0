@@ -16,10 +16,66 @@ Features:
 - Progress streaming (real-time status updates)
 - Smart content chunking (parallel processing for large courses)
 - Review gate (pause after Stage 2 for human verification)
+
+REFACTORING ANALYSIS (1870 lines)
+==================================
+
+This file could be split into multiple service classes:
+
+1. **CurriculumProgressService** (lines 88-228)
+   - _save_checkpoint, _update_progress, _get_upload
+   - resume_upload, _mark_error
+   - Database tracking and progress management
+
+2. **CurriculumChunkingService** (lines 234-433)
+   - _chunk_content, _detect_structure_chunk
+   - detect_structure_chunked, _merge_structure_results
+   - Smart chunking and parallel processing for large files
+
+3. **CurriculumReviewService** (lines 439-625)
+   - process_upload_to_review, approve_structure
+   - _apply_structure_edits
+   - Human review workflow and structure editing
+
+4. **CurriculumParsingService** (lines 989-1072)
+   - parse_source, _filter_imscc_content
+   - _imscc_to_text, _imscc_to_sections
+   - Source parsing and IMSCC conversion (delegates to existing parsers)
+
+5. **CurriculumAIService** (lines 1074-1355)
+   - detect_structure, align_philosophy, generate_course_content
+   - The core AI transformation methods
+
+6. **CurriculumContentProcessor** (lines 1451-1718)
+   - _validate_philosophy_alignment
+   - _process_course, _process_projects, _process_lessons
+   - _clean_course_description, _clean_quest_description
+   - Data validation, cleaning, and processing
+
+7. **CurriculumGeneratorService** (lines 1724-1870)
+   - process_generation (from-scratch course generation)
+
+Main service (this class) would become an orchestrator that:
+- Composes these services
+- Executes pipeline stages via process_upload_with_tracking
+- Handles high-level error cases
+
+Benefits:
+- Easier testing (test each service independently)
+- Better separation of concerns
+- Reduced file size (each service ~200-300 lines)
+- Clearer dependencies (each service has specific role)
+
+Next Steps:
+1. Create new service classes with extracted methods
+2. Update main service to compose them
+3. Verify all tests pass
+4. Update imports in routes
 """
 
 import uuid
 import json
+import gc
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -658,6 +714,10 @@ class CurriculumUploadService(BaseAIService):
         content_types = options.get('content_types')
         learning_objectives = options.get('learning_objectives')
 
+        # Initialize metadata counters (updated as stages complete)
+        parse_sections_count = 0
+        detected_modules_count = 0
+
         try:
             # Stage 1: Parse source content
             if resume_from <= 1:
@@ -678,6 +738,12 @@ class CurriculumUploadService(BaseAIService):
                 self._update_progress(upload_id, 1, 80, "Saving parsed content...")
                 self._save_checkpoint(upload_id, 1, parse_result)
                 self._update_progress(upload_id, 1, 100, "Document parsed successfully")
+
+                # Memory optimization: release original file content after checkpoint
+                # The parse_result is now stored in DB, we only need extracted data
+                del content
+                gc.collect()
+                logger.debug(f"Released file content memory for upload {upload_id}")
             else:
                 # Load from checkpoint
                 upload = self._get_upload(upload_id)
@@ -709,10 +775,18 @@ class CurriculumUploadService(BaseAIService):
                 self._update_progress(upload_id, 2, 85, "Saving structure...")
                 self._save_checkpoint(upload_id, 2, structure_result)
                 self._update_progress(upload_id, 2, 100, "Structure detected")
+
+                # Memory optimization: release parse_result after structure is detected
+                # Extract only summary data needed for final metadata
+                parse_sections_count = len(parse_result.get('sections', []))
+                del parse_result
+                gc.collect()
+                logger.debug(f"Released parse_result memory for upload {upload_id}")
             else:
                 # Load from checkpoint
                 upload = self._get_upload(upload_id)
                 structure_result = upload.get('structured_content', {})
+                parse_sections_count = 0  # Not available when resuming
                 if not structure_result:
                     return {'success': False, 'error': 'No structured content found for resume'}
                 logger.info(f"Stage 2: Loaded from checkpoint")
@@ -731,23 +805,28 @@ class CurriculumUploadService(BaseAIService):
 
                 if not alignment_result.get('success'):
                     self._mark_error(upload_id, alignment_result.get('error', 'Failed to align philosophy'))
+                    # Note: Previous stage data is checkpointed in DB, not included here to prevent memory issues
                     return {
                         'success': False,
                         'error': alignment_result.get('error', 'Failed to align philosophy'),
-                        'stages': {
-                            'parse': parse_result,
-                            'structure': structure_result,
-                            'alignment': alignment_result
-                        }
+                        'stage': 3
                     }
 
                 self._update_progress(upload_id, 3, 85, "Saving aligned content...")
                 self._save_checkpoint(upload_id, 3, alignment_result)
                 self._update_progress(upload_id, 3, 100, "Philosophy aligned")
+
+                # Memory optimization: release structure_result after alignment
+                # Extract only summary data needed for final metadata
+                detected_modules_count = len(structure_result.get('modules', []))
+                del structure_result
+                gc.collect()
+                logger.debug(f"Released structure_result memory for upload {upload_id}")
             else:
                 # Load from checkpoint
                 upload = self._get_upload(upload_id)
                 alignment_result = upload.get('aligned_content', {})
+                detected_modules_count = 0  # Not available when resuming
                 if not alignment_result:
                     return {'success': False, 'error': 'No aligned content found for resume'}
                 logger.info(f"Stage 3: Loaded from checkpoint")
@@ -761,19 +840,20 @@ class CurriculumUploadService(BaseAIService):
 
             if not content_result.get('success'):
                 self._mark_error(upload_id, content_result.get('error', 'Failed to generate content'))
+                # Note: Previous stage data is checkpointed in DB, not included here to prevent memory issues
                 return {
                     'success': False,
                     'error': content_result.get('error', 'Failed to generate content'),
-                    'stages': {
-                        'parse': parse_result,
-                        'structure': structure_result,
-                        'alignment': alignment_result,
-                        'content': content_result
-                    }
+                    'stage': 4
                 }
 
             self._save_checkpoint(upload_id, 4, content_result)
             self._update_progress(upload_id, 4, 100, "Content generated")
+
+            # Memory optimization: release alignment_result after content is generated
+            del alignment_result
+            gc.collect()
+            logger.debug(f"Released alignment_result memory for upload {upload_id}")
 
             # Build final preview
             preview = self._build_preview(content_result)
@@ -783,6 +863,12 @@ class CurriculumUploadService(BaseAIService):
                 len(project.get('lessons', []))
                 for project in content_result.get('projects', [])
             )
+            generated_projects_count = len(content_result.get('projects', []))
+
+            # Memory optimization: release content_result after extracting preview and counts
+            del content_result
+            gc.collect()
+            logger.debug(f"Released content_result memory for upload {upload_id}")
 
             # Mark as complete
             self.admin_client.table('curriculum_uploads').update({
@@ -790,23 +876,19 @@ class CurriculumUploadService(BaseAIService):
                 'resume_from_stage': None
             }).eq('id', upload_id).execute()
 
+            # Return only preview and metadata - full stage data is saved in DB checkpoints
+            # This prevents returning 100+ MB of data that would be held in memory
             return {
                 'success': True,
-                'stages': {
-                    'parse': parse_result,
-                    'structure': structure_result,
-                    'alignment': alignment_result,
-                    'content': content_result
-                },
                 'preview': preview,
                 'metadata': {
                     'source_type': source_type,
                     'filename': filename,
                     'transformation_level': transformation_level,
                     'preserve_structure': preserve_structure,
-                    'source_sections': len(parse_result.get('sections', [])),
-                    'detected_modules': len(structure_result.get('modules', [])),
-                    'generated_projects': len(content_result.get('projects', [])),
+                    'source_sections': parse_sections_count,
+                    'detected_modules': detected_modules_count,
+                    'generated_projects': generated_projects_count,
                     'generated_lessons': total_lessons
                 }
             }
