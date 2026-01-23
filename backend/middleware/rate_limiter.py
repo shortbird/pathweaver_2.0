@@ -374,6 +374,10 @@ def rate_limit(config_key: str = None, max_requests: int = None, window_seconds:
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            # Skip rate limiting for OPTIONS requests (CORS preflight)
+            if request.method == 'OPTIONS':
+                return f(*args, **kwargs)
+
             # CVE-OPTIO-2025-012 FIX: Use secure IP extraction to prevent spoofing
             client_ip = get_real_ip()
 
