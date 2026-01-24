@@ -5,14 +5,14 @@ Enhances lesson content by splitting into digestible steps with better formattin
 RESTRICTED: Only available to superadmin users.
 
 Refactored (Jan 2026): Now uses shared prompt components for consistency.
+Refactored (Jan 2026): Extended BaseAIService for unified AI handling.
 """
 
 import json
 import re
-import os
 from typing import Dict, List, Optional, Any
-import google.generativeai as genai
 
+from services.base_ai_service import BaseAIService
 from utils.logger import get_logger
 
 # Import shared prompt components
@@ -24,19 +24,20 @@ from prompts.components import (
 logger = get_logger(__name__)
 
 
-class CurriculumAIService:
-    """Service for AI-powered curriculum content enhancement using Gemini API"""
+class CurriculumAIService(BaseAIService):
+    """Service for AI-powered curriculum content enhancement using Gemini API.
+
+    Extends BaseAIService to leverage:
+    - Unified retry logic with exponential backoff
+    - Robust JSON extraction from AI responses
+    - Token usage tracking and cost monitoring
+    - Response caching (optional)
+    """
 
     def __init__(self):
-        """Initialize the AI service with Gemini configuration"""
-        self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
-        self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
-
-        if not self.api_key:
-            raise ValueError("GOOGLE_API_KEY not configured")
-
-        genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel(self.model_name)
+        """Initialize the AI service with Gemini configuration."""
+        # Initialize BaseAIService (handles model initialization)
+        super().__init__()
 
     def enhance_lesson_content(
         self,
@@ -64,12 +65,18 @@ class CurriculumAIService:
 
             prompt = self._build_enhancement_prompt(content, lesson_title, suggest_resources or [])
 
-            response = self.model.generate_content(prompt)
-            if not response or not response.text:
+            # Use inherited generate method with structured_output preset
+            response_text = self.generate(
+                prompt,
+                generation_config_preset='structured_output',
+                max_output_tokens=4096  # Curriculum content can be long
+            )
+
+            if not response_text:
                 raise Exception("Empty response from Gemini API")
 
             # Parse the response
-            steps = self._parse_enhancement_response(response.text)
+            steps = self._parse_enhancement_response(response_text)
 
             if not steps:
                 raise Exception("Failed to parse enhanced content")

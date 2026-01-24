@@ -37,6 +37,7 @@ Pillow>=10.0.0  # Image processing for curriculum images
 # Document Parsing (AI Curriculum Upload)
 pdfplumber>=0.10.0  # PDF parsing with layout awareness
 python-docx>=1.1.0  # Word document parsing
+PyMuPDF>=1.23.0  # PDF image stripping for large curriculum files
 
 # Testing
 pytest==8.3.4

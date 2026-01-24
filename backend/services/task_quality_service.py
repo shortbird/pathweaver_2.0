@@ -4,25 +4,36 @@ Task Quality Analysis Service
 Analyzes student-created tasks using AI to determine quality scores and suggest
 XP values, pillars, and diploma subjects. Based on Optio's core philosophy:
 "The Process Is The Goal"
+
+Refactored (Jan 2026): Extended BaseAIService for unified AI handling.
 """
 
 import json
-import logging
 from typing import Dict, Any, Optional
-import google.generativeai as genai
-from .base_service import BaseService
+
+from services.base_ai_service import BaseAIService
 from database import get_supabase_admin_client
+from utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
-class TaskQualityService(BaseService):
-    """Service for analyzing quality of student-created tasks using AI"""
+class TaskQualityService(BaseAIService):
+    """
+    Service for analyzing quality of student-created tasks using AI.
+
+    Extends BaseAIService to leverage:
+    - Unified retry logic with exponential backoff
+    - Robust JSON extraction from AI responses
+    - Token usage tracking and cost monitoring
+    - Consistent model access
+    """
 
     def __init__(self):
+        """Initialize the service with BaseAIService."""
+        # Initialize BaseAIService (uses gemini-2.5-flash-lite by default per CLAUDE.md)
         super().__init__()
         self.supabase = get_supabase_admin_client()
-        self.model_name = "gemini-2.0-flash-exp"
 
     def analyze_task_quality(
         self,
@@ -88,39 +99,19 @@ class TaskQualityService(BaseService):
         prompt = self._build_analysis_prompt(title, description, pillar)
 
         try:
-            model = genai.GenerativeModel(self.model_name)
-            response = model.generate_content(
+            # Use inherited generate_json with quality_scoring preset
+            # (lower temperature for consistent, reproducible analysis)
+            analysis = self.generate_json(
                 prompt,
-                generation_config={
-                    "temperature": 0.3,  # Lower temperature for consistent scoring
-                    "top_p": 0.8,
-                    "top_k": 40,
-                    "max_output_tokens": 1500,
-                }
+                generation_config_preset='quality_scoring',
+                strict=True  # Raise on parse failure
             )
-
-            # Parse JSON response
-            response_text = response.text.strip()
-
-            # Remove markdown code blocks if present
-            if response_text.startswith("```json"):
-                response_text = response_text[7:]
-            if response_text.startswith("```"):
-                response_text = response_text[3:]
-            if response_text.endswith("```"):
-                response_text = response_text[:-3]
-
-            analysis = json.loads(response_text.strip())
 
             # Validate and normalize response
             analysis = self._validate_analysis_response(analysis)
 
             return analysis
 
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Gemini response as JSON: {str(e)}")
-            logger.error(f"Response text: {response_text}")
-            raise ValueError("AI returned invalid response format")
         except Exception as e:
             logger.error(f"Gemini API error: {str(e)}", exc_info=True)
             raise

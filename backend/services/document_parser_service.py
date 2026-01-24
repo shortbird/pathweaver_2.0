@@ -59,7 +59,8 @@ class DocumentParserService(BaseService):
         self,
         content: bytes,
         source_type: str,
-        filename: Optional[str] = None
+        filename: Optional[str] = None,
+        progress_callback: Optional[callable] = None
     ) -> Dict[str, Any]:
         """
         Parse document content based on source type.
@@ -68,6 +69,7 @@ class DocumentParserService(BaseService):
             content: Raw bytes of the document
             source_type: Type of document ('pdf', 'docx', 'text')
             filename: Original filename (optional, for metadata)
+            progress_callback: Optional callback(message: str) for progress updates
 
         Returns:
             Dict with structured content:
@@ -81,7 +83,7 @@ class DocumentParserService(BaseService):
         """
         try:
             if source_type == 'pdf':
-                return self.parse_pdf(content, filename)
+                return self.parse_pdf(content, filename, progress_callback)
             elif source_type == 'docx':
                 return self.parse_docx(content, filename)
             elif source_type == 'text':
@@ -106,7 +108,12 @@ class DocumentParserService(BaseService):
                 'metadata': {}
             }
 
-    def parse_pdf(self, file_content: bytes, filename: Optional[str] = None) -> Dict[str, Any]:
+    def parse_pdf(
+        self,
+        file_content: bytes,
+        filename: Optional[str] = None,
+        progress_callback: Optional[callable] = None
+    ) -> Dict[str, Any]:
         """
         Parse PDF document using pdfplumber.
 
@@ -124,11 +131,20 @@ class DocumentParserService(BaseService):
         Args:
             file_content: Raw bytes of the PDF file
             filename: Original filename
+            progress_callback: Optional callback(message: str) for progress updates
 
         Returns:
             Structured content dict
         """
         import gc
+
+        def report_progress(message: str):
+            """Helper to report progress if callback is provided."""
+            if progress_callback:
+                try:
+                    progress_callback(message)
+                except Exception:
+                    pass  # Don't let progress reporting break parsing
 
         try:
             import pdfplumber
@@ -141,6 +157,17 @@ class DocumentParserService(BaseService):
                 'sections': [],
                 'metadata': {}
             }
+
+        # Strip images from large PDFs to reduce memory usage
+        # Images are never used (only text is extracted), so this is safe
+        STRIP_THRESHOLD = 10 * 1024 * 1024  # 10MB
+        original_size = len(file_content)
+        if original_size > STRIP_THRESHOLD:
+            report_progress(f"Optimizing large PDF ({original_size / (1024*1024):.1f}MB)...")
+            file_content = self._strip_images_from_pdf(file_content, filename, progress_callback)
+            stripped_size = len(file_content)
+            if stripped_size < original_size:
+                report_progress(f"PDF optimized: {original_size / (1024*1024):.1f}MB -> {stripped_size / (1024*1024):.1f}MB")
 
         # Track BytesIO explicitly for cleanup
         pdf_buffer = None
@@ -161,6 +188,7 @@ class DocumentParserService(BaseService):
             with pdfplumber.open(pdf_buffer) as pdf:
                 page_count = len(pdf.pages)
                 logger.info(f"Parsing PDF with {page_count} pages: {filename}")
+                report_progress(f"Extracting text from {page_count} pages...")
 
                 for page_num, page in enumerate(pdf.pages, 1):
                     # Extract text
@@ -187,9 +215,10 @@ class DocumentParserService(BaseService):
                     # Clear page reference to help GC (pdfplumber caches page data)
                     page.flush_cache()
 
-                    # Log progress for large PDFs
+                    # Report progress for large PDFs
                     if page_count > 20 and page_num % 20 == 0:
                         logger.debug(f"Parsed {page_num}/{page_count} pages, {total_chars} chars")
+                        report_progress(f"Extracted page {page_num}/{page_count} ({total_chars:,} chars)")
 
             # Add final section
             if current_section:
@@ -594,6 +623,105 @@ class DocumentParserService(BaseService):
             rows.append(' | '.join(cells))
 
         return '\n'.join(rows)
+
+    def _strip_images_from_pdf(
+        self,
+        file_content: bytes,
+        filename: Optional[str] = None,
+        progress_callback: Optional[callable] = None
+    ) -> bytes:
+        """
+        Strip all images from a PDF to reduce memory usage during processing.
+
+        Uses PyMuPDF (fitz) to remove embedded images while preserving text content.
+        Images are never used in curriculum extraction (only text is needed),
+        so removing them significantly reduces memory footprint for large PDFs.
+
+        Args:
+            file_content: Raw bytes of the PDF file
+            filename: Original filename (for logging)
+            progress_callback: Optional callback(message: str) for progress updates
+
+        Returns:
+            PDF bytes with images removed, or original bytes if stripping fails
+        """
+        import gc
+
+        def report_progress(message: str):
+            """Helper to report progress if callback is provided."""
+            if progress_callback:
+                try:
+                    progress_callback(message)
+                except Exception:
+                    pass
+
+        try:
+            import fitz  # PyMuPDF
+        except ImportError:
+            logger.warning("PyMuPDF not installed, skipping image stripping. Install with: pip install PyMuPDF")
+            return file_content
+
+        original_size = len(file_content)
+        logger.info(f"Stripping images from PDF: {filename} ({original_size / (1024*1024):.1f}MB)")
+        report_progress(f"Removing images from PDF ({original_size / (1024*1024):.1f}MB)...")
+
+        try:
+            # Open PDF from bytes
+            doc = fitz.open(stream=file_content, filetype="pdf")
+            total_pages = len(doc)
+
+            images_removed = 0
+
+            # Iterate through all pages and remove images
+            for page_num in range(total_pages):
+                page = doc[page_num]
+
+                # Report progress every 10 pages for large documents
+                if total_pages > 20 and page_num % 10 == 0:
+                    report_progress(f"Optimizing page {page_num + 1}/{total_pages}...")
+
+                # Get all images on this page
+                image_list = page.get_images(full=True)
+
+                for img in image_list:
+                    xref = img[0]  # Image xref number
+                    try:
+                        # Delete the image by its xref
+                        doc.xref_set_key(xref, "Length", "0")
+                        doc.xref_set_key(xref, "Filter", "")
+                        # Replace image stream with empty data
+                        doc.update_stream(xref, b"")
+                        images_removed += 1
+                    except Exception as img_err:
+                        # Some images may be referenced but not removable
+                        logger.debug(f"Could not remove image xref {xref}: {img_err}")
+
+            report_progress(f"Removed {images_removed} images, compressing PDF...")
+
+            # Save to bytes with garbage collection to remove orphaned objects
+            stripped_bytes = doc.tobytes(garbage=4, deflate=True)
+            doc.close()
+
+            stripped_size = len(stripped_bytes)
+            reduction = (1 - stripped_size / original_size) * 100
+
+            logger.info(
+                f"PDF image stripping complete: {filename} - "
+                f"removed {images_removed} images, "
+                f"{original_size / (1024*1024):.1f}MB -> {stripped_size / (1024*1024):.1f}MB "
+                f"({reduction:.1f}% reduction)"
+            )
+
+            # Force garbage collection
+            gc.collect()
+
+            return stripped_bytes
+
+        except Exception as e:
+            logger.warning(f"Failed to strip images from PDF, using original: {e}")
+            report_progress("Image optimization failed, using original PDF...")
+            # Graceful degradation: return original content if stripping fails
+            return file_content
 
     def detect_curriculum_type(self, sections: List[Dict]) -> str:
         """

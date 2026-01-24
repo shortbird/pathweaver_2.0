@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext'
 const OverviewTab = lazy(() => import('../../components/admin/ai/AIOverviewTab'))
 const PromptEditorTab = lazy(() => import('../../components/admin/ai/PromptEditorTab'))
 const MetricsTab = lazy(() => import('../../components/admin/ai/AIMetricsTab'))
+const CostAnalyticsTab = lazy(() => import('../../components/admin/ai/AICostAnalyticsTab'))
 const ReviewQueueTab = lazy(() => import('../../components/admin/ai/ReviewQueueTab'))
 
 // Loading spinner component
@@ -71,6 +72,16 @@ const AIManagement = () => {
           Metrics
         </Link>
         <Link
+          to="/admin/ai/costs"
+          className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${
+            currentPath === 'costs'
+              ? 'border-b-2 border-optio-purple font-bold text-gray-900'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Cost Analytics
+        </Link>
+        <Link
           to="/admin/ai/review-queue"
           className={`pb-2 px-4 whitespace-nowrap min-h-[44px] flex items-center ${
             currentPath === 'review-queue'
@@ -88,6 +99,7 @@ const AIManagement = () => {
           <Route path="overview" element={<OverviewTab />} />
           <Route path="prompt-editor" element={<PromptEditorTab />} />
           <Route path="metrics" element={<MetricsTab />} />
+          <Route path="costs" element={<CostAnalyticsTab />} />
           <Route path="review-queue" element={<ReviewQueueTab />} />
         </Routes>
       </Suspense>

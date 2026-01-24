@@ -1,21 +1,39 @@
-import os
+"""
+Quest Completion Service
+========================
+
+AI-powered service for completing partially filled quest forms.
+Uses Gemini to intelligently fill in missing fields based on context.
+
+Refactored (Jan 2026): Extended BaseAIService for unified AI handling.
+"""
+
 import json
-import google.generativeai as genai
+import re
 from typing import Dict, Any, Optional
-from services.base_service import BaseService
+
+from services.base_ai_service import BaseAIService
 
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-class QuestCompletionService(BaseService):
+
+class QuestCompletionService(BaseAIService):
+    """
+    Service for completing partial quest forms using AI.
+
+    Extends BaseAIService to leverage:
+    - Unified retry logic with exponential backoff
+    - Robust JSON extraction from AI responses
+    - Token usage tracking and cost monitoring
+    - Consistent model access
+    """
+
     def __init__(self):
-        api_key = os.getenv('GEMINI_API_KEY')
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment variables")
-        
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        """Initialize the service with BaseAIService."""
+        # Initialize BaseAIService (uses gemini-2.5-flash-lite by default per CLAUDE.md)
+        super().__init__()
         
     def complete_quest(self, partial_quest: Dict[str, Any]) -> Dict[str, Any]:
         """Complete a partially filled quest form using AI"""
@@ -100,28 +118,22 @@ Bad example: ["Step 1: Research designs", "Step 2: Create plan", "Step 3: Build"
 Return ONLY a valid JSON object with all quest fields completed. Ensure all arrays are properly formatted and all values are appropriate types."""
 
         try:
-            response = self.model.generate_content(
-                system_prompt + "\n\n" + user_prompt,
-                generation_config={
-                    'temperature': 0.7,
-                    'top_p': 0.9,
-                    'max_output_tokens': 2048,
-                }
+            # Combine prompts
+            full_prompt = system_prompt + "\n\n" + user_prompt
+
+            # Use inherited generate_json with creative_generation preset
+            # (quest creation benefits from some creativity)
+            completed_quest = self.generate_json(
+                full_prompt,
+                temperature=0.7,
+                top_p=0.9,
+                max_output_tokens=2048,
+                strict=False  # Return partial data on parse failure
             )
-            
-            # Parse the response
-            response_text = response.text.strip()
-            
-            # Clean up the response if needed (remove markdown code blocks)
-            if response_text.startswith('```'):
-                response_text = response_text.split('```')[1]
-                if response_text.startswith('json'):
-                    response_text = response_text[4:]
-                response_text = response_text.strip()
-            if response_text.endswith('```'):
-                response_text = response_text[:-3].strip()
-            
-            completed_quest = json.loads(response_text)
+
+            if not completed_quest:
+                # generate_json returned empty dict on parse failure
+                raise ValueError("Failed to parse AI response as JSON")
             
             # Merge with original data (preserve existing values)
             for key, value in partial_quest.items():

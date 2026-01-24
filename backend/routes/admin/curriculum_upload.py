@@ -79,8 +79,8 @@ VALID_EXTENSIONS = {
 MAX_FILE_SIZE = 100 * 1024 * 1024
 
 # File size limits by type (PDFs are more memory-intensive due to multi-stage AI processing)
-# A 10MB PDF can use 500MB+ RAM during processing (text extraction + AI prompts/responses)
-MAX_PDF_SIZE = 15 * 1024 * 1024  # 15MB for PDFs
+# Images are stripped before processing, so larger PDFs are now safe
+MAX_PDF_SIZE = 100 * 1024 * 1024  # 100MB for PDFs (images stripped automatically)
 MAX_DOCX_SIZE = 20 * 1024 * 1024  # 20MB for Word docs
 
 

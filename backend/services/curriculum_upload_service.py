@@ -385,6 +385,9 @@ class CurriculumUploadService(BaseAIService):
         logger.info(f"Processing {len(chunks)} chunks in parallel")
         results = []
 
+        # Timeout per chunk (150 seconds) - allows for API retries
+        CHUNK_TIMEOUT = 150
+
         with ThreadPoolExecutor(max_workers=3) as executor:
             futures = {
                 executor.submit(
@@ -396,7 +399,8 @@ class CurriculumUploadService(BaseAIService):
             for future in as_completed(futures):
                 chunk_idx = futures[future]
                 try:
-                    result = future.result()
+                    # Add timeout to prevent indefinite hangs
+                    result = future.result(timeout=CHUNK_TIMEOUT)
                     results.append((chunk_idx, result))
 
                     if upload_id:
@@ -405,6 +409,9 @@ class CurriculumUploadService(BaseAIService):
                             upload_id, 2, progress,
                             f"Processed chunk {len(results)} of {len(chunks)}"
                         )
+                except TimeoutError:
+                    logger.error(f"Chunk {chunk_idx} timed out after {CHUNK_TIMEOUT}s")
+                    results.append((chunk_idx, {'success': False, 'error': f'Chunk processing timed out after {CHUNK_TIMEOUT}s'}))
                 except Exception as e:
                     logger.error(f"Chunk {chunk_idx} failed: {str(e)}")
                     results.append((chunk_idx, {'success': False, 'error': str(e)}))
@@ -521,7 +528,7 @@ class CurriculumUploadService(BaseAIService):
         try:
             # Stage 1: Parse source
             self._update_progress(upload_id, 1, 0, "Starting document parsing")
-            parse_result = self.parse_source(source_type, content, filename, content_types)
+            parse_result = self.parse_source(source_type, content, filename, content_types, upload_id)
 
             if not parse_result.get('success'):
                 self._mark_error(upload_id, parse_result.get('error', 'Parse failed'))
@@ -725,7 +732,7 @@ class CurriculumUploadService(BaseAIService):
                 logger.info(f"Stage 1: Parsing {source_type} content")
 
                 self._update_progress(upload_id, 1, 30, "Extracting content...")
-                parse_result = self.parse_source(source_type, content, filename, content_types)
+                parse_result = self.parse_source(source_type, content, filename, content_types, upload_id)
 
                 if not parse_result.get('success'):
                     self._mark_error(upload_id, parse_result.get('error', 'Failed to parse source'))
@@ -1046,7 +1053,8 @@ class CurriculumUploadService(BaseAIService):
         source_type: str,
         content: bytes,
         filename: Optional[str] = None,
-        content_types: Optional[Dict] = None
+        content_types: Optional[Dict] = None,
+        upload_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Stage 1: Parse source content into raw text and sections.
@@ -1059,10 +1067,20 @@ class CurriculumUploadService(BaseAIService):
             filename: Original filename
             content_types: Optional dict of content types to include (for IMSCC)
                 e.g., {'assignments': True, 'pages': True, 'discussions': False}
+            upload_id: Optional upload ID for progress tracking
 
         Returns:
             Dict with raw_text, sections, metadata
         """
+        # Create progress callback if upload_id is provided
+        progress_callback = None
+        if upload_id:
+            def progress_callback(message: str):
+                try:
+                    self._update_progress(upload_id, 1, None, message)
+                except Exception:
+                    pass  # Don't let progress updates break parsing
+
         if source_type == 'imscc':
             # Use IMSCC parser for Canvas exports
             result = self.imscc_parser.parse_imscc_file(content)
@@ -1092,7 +1110,9 @@ class CurriculumUploadService(BaseAIService):
             }
         else:
             # Use document parser for PDF, DOCX, text
-            return self.document_parser.parse_document(content, source_type, filename)
+            return self.document_parser.parse_document(
+                content, source_type, filename, progress_callback
+            )
 
     def _filter_imscc_content(self, result: Dict, content_types: Dict) -> Dict:
         """

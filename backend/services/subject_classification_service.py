@@ -1,22 +1,19 @@
 """
 Subject Classification Service for Task XP Distribution
 Uses Gemini AI to determine school subject alignment for tasks.
+
+Refactored (Jan 2026): Extended BaseAIService for unified AI handling.
 """
 
-import os
 import json
 from typing import Dict, Optional
-from services.base_service import BaseService, ValidationError
-import google.generativeai as genai
+
+from services.base_ai_service import BaseAIService, AIServiceError
+from services.base_service import ValidationError
 
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
-
-# Configure Gemini
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
 
 # School subjects for diploma credits
 SCHOOL_SUBJECTS = [
@@ -47,20 +44,32 @@ SUBJECT_DESCRIPTIONS = {
     'electives': 'General interest areas, exploratory learning, interdisciplinary topics'
 }
 
-class SubjectClassificationService(BaseService):
-    """Service for classifying tasks into school subject areas using AI."""
+class SubjectClassificationService(BaseAIService):
+    """
+    Service for classifying tasks into school subject areas using AI.
+
+    Extends BaseAIService to leverage:
+    - Unified retry logic with exponential backoff
+    - Robust JSON extraction from AI responses
+    - Token usage tracking and cost monitoring
+    - Consistent model access (gemini-2.5-flash-lite per CLAUDE.md)
+    """
 
     def __init__(self):
-        """Initialize the service."""
-        super().__init__()
-        self.model = None
-        if GEMINI_API_KEY:
-            try:
-                # ALWAYS use gemini-2.5-flash-lite as specified in CLAUDE.md
-                self.model = genai.GenerativeModel('gemini-2.5-flash-lite')
-                logger.info("Gemini model initialized successfully")
-            except Exception as e:
-                logger.error(f"Failed to initialize Gemini model: {str(e)}")
+        """Initialize the service with BaseAIService."""
+        from database import get_supabase_admin_client
+
+        try:
+            # Initialize BaseAIService (uses gemini-2.5-flash-lite by default)
+            super().__init__()
+            self._model_available = True
+            logger.info("SubjectClassificationService initialized with Gemini model")
+        except AIServiceError as e:
+            logger.warning(f"Gemini API not available: {e}. Will use fallback mapping.")
+            self._model_available = False
+
+        # Initialize Supabase client for backfill operations
+        self.supabase = get_supabase_admin_client()
 
     def classify_task_subjects(
         self,
@@ -92,8 +101,8 @@ class SubjectClassificationService(BaseService):
         if not isinstance(xp_value, int) or xp_value <= 0:
             raise ValidationError(f"xp_value must be positive integer, got: {xp_value}")
 
-        # If no Gemini API key, use fallback mapping
-        if not self.model:
+        # If Gemini API not available, use fallback mapping
+        if not self._model_available:
             logger.warning("Gemini API not available, using fallback subject mapping")
             return self._fallback_subject_mapping(pillar, xp_value)
 
@@ -108,11 +117,15 @@ class SubjectClassificationService(BaseService):
 
             logger.info(f"Classifying task: {task_title}")
 
-            # Call Gemini API
-            response = self.model.generate_content(prompt)
+            # Use inherited generate method with deterministic preset
+            # (classification should be consistent and reproducible)
+            response_text = self.generate(
+                prompt,
+                generation_config_preset='deterministic'
+            )
 
             # Parse response
-            subject_distribution = self._parse_ai_response(response.text, xp_value)
+            subject_distribution = self._parse_ai_response(response_text, xp_value)
 
             logger.info(f"Classification result: {subject_distribution}")
 

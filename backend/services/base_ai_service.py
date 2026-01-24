@@ -21,18 +21,56 @@ Features:
     - Robust JSON extraction from AI responses
     - Optional safety filtering for generated content
     - Performance logging and metrics
+    - Generation config for temperature/sampling control
+    - Token usage tracking for cost monitoring
+    - Optional response caching
 """
 
 import os
 import re
 import json
 import time
+import hashlib
 from typing import Dict, List, Optional, Any, Union
 from services.base_service import BaseService
 
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+# =============================================================================
+# Standardized Generation Configs
+# =============================================================================
+
+GENERATION_CONFIGS = {
+    'default': {
+        'temperature': 0.7,
+        'top_p': 0.9,
+        'max_output_tokens': 2048,
+    },
+    'quality_scoring': {
+        'temperature': 0.3,
+        'top_p': 0.8,
+        'top_k': 40,
+        'max_output_tokens': 1500,
+    },
+    'creative_generation': {
+        'temperature': 0.8,
+        'top_p': 0.95,
+        'max_output_tokens': 4096,
+    },
+    'structured_output': {
+        'temperature': 0.5,
+        'top_p': 0.85,
+        'max_output_tokens': 2048,
+    },
+    'deterministic': {
+        'temperature': 0.1,
+        'top_p': 0.7,
+        'max_output_tokens': 1024,
+    },
+}
 
 
 class AIServiceError(Exception):
@@ -179,7 +217,13 @@ class BaseAIService(BaseService):
         prompt: str,
         max_retries: int = None,
         retry_delay: float = None,
-        log_tokens: bool = True
+        log_tokens: bool = True,
+        temperature: float = None,
+        max_output_tokens: int = None,
+        top_p: float = None,
+        top_k: int = None,
+        generation_config_preset: str = None,
+        cache_ttl: int = None
     ) -> str:
         """
         Generate content using Gemini with retry logic.
@@ -189,6 +233,13 @@ class BaseAIService(BaseService):
             max_retries: Number of retry attempts (default: 3)
             retry_delay: Initial delay between retries in seconds (default: 1.0)
             log_tokens: Whether to log token usage (default: True)
+            temperature: Sampling temperature (0.0-1.0). Lower = more deterministic.
+            max_output_tokens: Maximum tokens in response.
+            top_p: Nucleus sampling parameter (0.0-1.0).
+            top_k: Top-k sampling parameter.
+            generation_config_preset: Use a preset config ('quality_scoring',
+                'creative_generation', 'structured_output', 'deterministic').
+            cache_ttl: Cache response for this many seconds (None = no caching).
 
         Returns:
             Generated text response
@@ -197,9 +248,27 @@ class BaseAIService(BaseService):
             AIGenerationError: If generation fails after all retries
         """
         import gc
+        from cache import cache
 
         max_retries = max_retries or self.DEFAULT_MAX_RETRIES
         retry_delay = retry_delay or self.DEFAULT_RETRY_DELAY
+
+        # Build generation config
+        gen_config = self._build_generation_config(
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            top_p=top_p,
+            top_k=top_k,
+            preset=generation_config_preset
+        )
+
+        # Check cache if caching is enabled
+        if cache_ttl is not None and cache_ttl > 0:
+            cache_key = self._get_prompt_cache_key(prompt, gen_config)
+            cached_result = cache.get(cache_key)
+            if cached_result is not None:
+                logger.info(f"[{self.__class__.__name__}] Cache hit for prompt")
+                return cached_result
 
         start_time = time.time()
         last_error = None
@@ -207,7 +276,13 @@ class BaseAIService(BaseService):
         for attempt in range(max_retries):
             response = None
             try:
-                response = self.model.generate_content(prompt)
+                # Set timeout for API call (120 seconds) to prevent indefinite hangs
+                from google.generativeai.types import RequestOptions
+                response = self.model.generate_content(
+                    prompt,
+                    generation_config=gen_config if gen_config else None,
+                    request_options=RequestOptions(timeout=120)
+                )
 
                 if not response or not response.text:
                     raise AIGenerationError("Empty response from Gemini API")
@@ -218,13 +293,33 @@ class BaseAIService(BaseService):
 
                 elapsed = time.time() - start_time
 
+                # Extract actual token usage from response metadata
+                input_tokens = None
+                output_tokens = None
+                if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                    try:
+                        input_tokens = getattr(response.usage_metadata, 'prompt_token_count', None)
+                        output_tokens = getattr(response.usage_metadata, 'candidates_token_count', None)
+                    except Exception as e:
+                        logger.debug(f"Could not extract usage metadata: {e}")
+
                 if log_tokens:
                     self._log_generation(
                         attempt=attempt + 1,
                         elapsed_ms=int(elapsed * 1000),
                         prompt_length=len(prompt),
-                        response_length=response_length
+                        response_length=response_length,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        model_name=self.model_name,
+                        gen_config=gen_config
                     )
+
+                # Cache the result if caching is enabled
+                if cache_ttl is not None and cache_ttl > 0:
+                    cache_key = self._get_prompt_cache_key(prompt, gen_config)
+                    cache.set(cache_key, result_text, cache_ttl)
+                    logger.debug(f"Cached AI response for {cache_ttl}s")
 
                 return result_text
 
@@ -259,11 +354,80 @@ class BaseAIService(BaseService):
             f"Generation failed after {max_retries} attempts: {str(last_error)}"
         )
 
+    def _build_generation_config(
+        self,
+        temperature: float = None,
+        max_output_tokens: int = None,
+        top_p: float = None,
+        top_k: int = None,
+        preset: str = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Build generation config from parameters or preset.
+
+        Args:
+            temperature: Sampling temperature
+            max_output_tokens: Max output tokens
+            top_p: Nucleus sampling parameter
+            top_k: Top-k sampling parameter
+            preset: Name of preset config to use
+
+        Returns:
+            Generation config dict or None if no config specified
+        """
+        config = {}
+
+        # Start with preset if specified
+        if preset and preset in GENERATION_CONFIGS:
+            config = GENERATION_CONFIGS[preset].copy()
+        elif preset:
+            logger.warning(f"Unknown generation config preset: {preset}")
+
+        # Override with explicit parameters
+        if temperature is not None:
+            config['temperature'] = max(0.0, min(1.0, temperature))
+        if max_output_tokens is not None:
+            config['max_output_tokens'] = max_output_tokens
+        if top_p is not None:
+            config['top_p'] = max(0.0, min(1.0, top_p))
+        if top_k is not None:
+            config['top_k'] = top_k
+
+        return config if config else None
+
+    def _get_prompt_cache_key(self, prompt: str, gen_config: Optional[Dict] = None) -> str:
+        """
+        Generate a cache key for a prompt + config combination.
+
+        Args:
+            prompt: The prompt text
+            gen_config: Generation config dict
+
+        Returns:
+            Cache key string
+        """
+        # Create hash of prompt + config
+        key_parts = [prompt]
+        if gen_config:
+            key_parts.append(json.dumps(gen_config, sort_keys=True))
+        key_parts.append(self.model_name)
+
+        combined = '|'.join(key_parts)
+        hash_value = hashlib.sha256(combined.encode()).hexdigest()[:16]
+
+        return f"ai_response:{self.__class__.__name__}:{hash_value}"
+
     def generate_json(
         self,
         prompt: str,
         max_retries: int = None,
-        strict: bool = False
+        strict: bool = False,
+        temperature: float = None,
+        max_output_tokens: int = None,
+        top_p: float = None,
+        top_k: int = None,
+        generation_config_preset: str = None,
+        cache_ttl: int = None
     ) -> Union[Dict, List]:
         """
         Generate content and parse as JSON.
@@ -272,6 +436,13 @@ class BaseAIService(BaseService):
             prompt: The prompt to send to Gemini
             max_retries: Number of retry attempts
             strict: If True, raise on parse failure; if False, return empty dict
+            temperature: Sampling temperature (0.0-1.0). Lower = more deterministic.
+            max_output_tokens: Maximum tokens in response.
+            top_p: Nucleus sampling parameter (0.0-1.0).
+            top_k: Top-k sampling parameter.
+            generation_config_preset: Use a preset config ('quality_scoring',
+                'creative_generation', 'structured_output', 'deterministic').
+            cache_ttl: Cache response for this many seconds (None = no caching).
 
         Returns:
             Parsed JSON as dict or list
@@ -281,7 +452,16 @@ class BaseAIService(BaseService):
         """
         import gc
 
-        text = self.generate(prompt, max_retries=max_retries)
+        text = self.generate(
+            prompt,
+            max_retries=max_retries,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            top_p=top_p,
+            top_k=top_k,
+            generation_config_preset=generation_config_preset,
+            cache_ttl=cache_ttl
+        )
 
         # Log the raw response length for debugging
         logger.info(f"AI response length: {len(text)} chars")
@@ -974,14 +1154,154 @@ class BaseAIService(BaseService):
         attempt: int,
         elapsed_ms: int,
         prompt_length: int,
-        response_length: int
+        response_length: int,
+        input_tokens: Optional[int] = None,
+        output_tokens: Optional[int] = None,
+        model_name: Optional[str] = None,
+        gen_config: Optional[Dict] = None
     ):
-        """Log generation metrics for monitoring."""
-        logger.info(
-            f"[{self.__class__.__name__}] Generation complete: "
-            f"attempt={attempt}, time={elapsed_ms}ms, "
-            f"prompt={prompt_length} chars, response={response_length} chars"
+        """
+        Log generation metrics for monitoring.
+
+        Logs both character counts and actual token usage when available.
+        Token usage is extracted from Gemini's response.usage_metadata.
+        """
+        # Build log message
+        log_parts = [
+            f"[{self.__class__.__name__}] Generation complete:",
+            f"attempt={attempt}",
+            f"time={elapsed_ms}ms",
+            f"prompt={prompt_length} chars",
+            f"response={response_length} chars",
+        ]
+
+        # Add actual token usage if available
+        if input_tokens is not None and output_tokens is not None:
+            log_parts.append(f"tokens_in={input_tokens}")
+            log_parts.append(f"tokens_out={output_tokens}")
+
+            # Calculate estimated cost
+            cost = self._calculate_token_cost(input_tokens, output_tokens)
+            if cost > 0:
+                log_parts.append(f"cost=${cost:.6f}")
+
+        # Add model info
+        if model_name:
+            log_parts.append(f"model={model_name}")
+
+        # Add config info if custom
+        if gen_config and 'temperature' in gen_config:
+            log_parts.append(f"temp={gen_config['temperature']}")
+
+        logger.info(" ".join(log_parts))
+
+        # Track usage for cost monitoring (async/non-blocking)
+        if input_tokens is not None and output_tokens is not None:
+            self._track_usage_async(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                model_name=model_name or self.model_name,
+                response_time_ms=elapsed_ms,
+                gen_config=gen_config
+            )
+
+    def _calculate_token_cost(
+        self,
+        input_tokens: int,
+        output_tokens: int,
+        model: str = None
+    ) -> float:
+        """
+        Calculate estimated cost for token usage.
+
+        Args:
+            input_tokens: Number of input tokens
+            output_tokens: Number of output tokens
+            model: Model name (for future model-specific pricing)
+
+        Returns:
+            Estimated cost in USD
+        """
+        # Gemini 2.5 Flash Lite pricing (January 2025)
+        INPUT_COST_PER_MILLION = 0.075
+        OUTPUT_COST_PER_MILLION = 0.30
+
+        input_cost = (input_tokens / 1_000_000) * INPUT_COST_PER_MILLION
+        output_cost = (output_tokens / 1_000_000) * OUTPUT_COST_PER_MILLION
+
+        return input_cost + output_cost
+
+    def _track_usage_async(
+        self,
+        input_tokens: int,
+        output_tokens: int,
+        model_name: str,
+        prompt_hash: str = None,
+        response_time_ms: int = None,
+        gen_config: Dict = None,
+        user_id: str = None,
+        success: bool = True,
+        error_message: str = None
+    ):
+        """
+        Track AI usage for cost monitoring.
+        Logs to ai_usage_logs table for persistent tracking.
+
+        Args:
+            input_tokens: Number of input tokens
+            output_tokens: Number of output tokens
+            model_name: Model used for generation
+            prompt_hash: Hash of prompt for deduplication analysis
+            response_time_ms: Response time in milliseconds
+            gen_config: Generation config used
+            user_id: User ID if available from request context
+            success: Whether generation succeeded
+            error_message: Error message if generation failed
+        """
+        cost = self._calculate_token_cost(input_tokens, output_tokens)
+
+        # Log for immediate visibility
+        logger.debug(
+            f"AI Usage: {input_tokens}+{output_tokens} tokens, "
+            f"${cost:.6f}, model={model_name}"
         )
+
+        # Optionally persist to database (non-blocking)
+        # Skip if no tokens to log (e.g., cache hits)
+        if input_tokens == 0 and output_tokens == 0:
+            return
+
+        try:
+            from database import get_supabase_admin_client
+
+            supabase = get_supabase_admin_client()
+            if supabase:
+                log_entry = {
+                    'service_name': self.__class__.__name__,
+                    'model_name': model_name,
+                    'input_tokens': input_tokens,
+                    'output_tokens': output_tokens,
+                    'estimated_cost': float(cost),
+                    'success': success,
+                }
+
+                # Add optional fields if provided
+                if prompt_hash:
+                    log_entry['prompt_hash'] = prompt_hash
+                if response_time_ms is not None:
+                    log_entry['response_time_ms'] = response_time_ms
+                if gen_config:
+                    log_entry['generation_config'] = gen_config
+                if user_id:
+                    log_entry['user_id'] = user_id
+                if error_message:
+                    log_entry['error_message'] = error_message
+
+                # Insert asynchronously (fire and forget)
+                supabase.table('ai_usage_logs').insert(log_entry).execute()
+        except Exception as e:
+            # Don't let logging failures affect the main operation
+            logger.warning(f"Failed to log AI usage to database: {e}")
 
 
 # =============================================================================

@@ -86,8 +86,7 @@ class CostTracker(BaseService):
 
     def get_monthly_usage_report(self, days: int = 30) -> Dict:
         """
-        Generate monthly usage report from logs.
-        Note: This is a placeholder for future implementation.
+        Generate monthly usage report from ai_usage_logs table.
 
         Args:
             days: Number of days to look back
@@ -95,11 +94,66 @@ class CostTracker(BaseService):
         Returns:
             Dict with usage statistics
         """
-        # TODO: Implement by querying logs or creating a tracking table
-        return {
-            'period_days': days,
-            'total_cost_usd': 0.0,
-            'total_quests_generated': 0,
-            'avg_cost_per_quest': 0.0,
-            'recommendation': 'Add cost tracking table to database for accurate reporting'
-        }
+        try:
+            from datetime import datetime, timedelta
+
+            # Calculate the date threshold
+            date_threshold = (datetime.utcnow() - timedelta(days=days)).isoformat()
+
+            # Query usage logs
+            result = self.supabase.table('ai_usage_logs')\
+                .select('service_name, input_tokens, output_tokens, estimated_cost, created_at')\
+                .gte('created_at', date_threshold)\
+                .execute()
+
+            if not result.data:
+                return {
+                    'period_days': days,
+                    'total_cost_usd': 0.0,
+                    'total_requests': 0,
+                    'total_input_tokens': 0,
+                    'total_output_tokens': 0,
+                    'avg_cost_per_request': 0.0,
+                    'by_service': {}
+                }
+
+            # Aggregate the data
+            total_cost = sum(log.get('estimated_cost', 0) for log in result.data)
+            total_input = sum(log.get('input_tokens', 0) for log in result.data)
+            total_output = sum(log.get('output_tokens', 0) for log in result.data)
+            total_requests = len(result.data)
+
+            # Group by service
+            by_service = {}
+            for log in result.data:
+                service = log.get('service_name', 'unknown')
+                if service not in by_service:
+                    by_service[service] = {
+                        'requests': 0,
+                        'cost_usd': 0.0,
+                        'input_tokens': 0,
+                        'output_tokens': 0
+                    }
+                by_service[service]['requests'] += 1
+                by_service[service]['cost_usd'] += log.get('estimated_cost', 0)
+                by_service[service]['input_tokens'] += log.get('input_tokens', 0)
+                by_service[service]['output_tokens'] += log.get('output_tokens', 0)
+
+            return {
+                'period_days': days,
+                'total_cost_usd': round(total_cost, 6),
+                'total_requests': total_requests,
+                'total_input_tokens': total_input,
+                'total_output_tokens': total_output,
+                'avg_cost_per_request': round(total_cost / total_requests, 8) if total_requests > 0 else 0.0,
+                'by_service': by_service
+            }
+
+        except Exception as e:
+            logger.error(f"Error generating usage report: {e}")
+            return {
+                'period_days': days,
+                'total_cost_usd': 0.0,
+                'total_requests': 0,
+                'error': str(e)
+            }

@@ -402,6 +402,15 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Error registering AI Prompts routes: {e}", exc_info=True)
 
+# Register AI Cost Analytics blueprint (admin - superadmin only)
+try:
+    from routes.admin import ai_costs
+    app.register_blueprint(ai_costs.ai_costs_bp, url_prefix='/api/admin/ai')  # /api/admin/ai/costs/*
+except ImportError as e:
+    logger.warning(f"Warning: AI Costs module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering AI Costs routes: {e}", exc_info=True)
+
 # Batch Badge Generation removed (January 2026 - Microschool client feedback)
 
 # Register Calendar blueprint
