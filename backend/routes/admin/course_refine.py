@@ -3,7 +3,7 @@ Admin Course Refinement Routes
 ==============================
 
 AI-powered course-wide refinement endpoints.
-Superadmin-only feature for making conversational bulk changes to course content.
+Available to superadmins, org_admins, and advisors for making conversational bulk changes to course content.
 
 Flow:
 1. Start session - User describes change, AI asks clarifying questions
@@ -23,7 +23,7 @@ Endpoints:
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from utils.auth.decorators import require_superadmin
+from utils.auth.decorators import require_role
 from services.course_refine_service import CourseRefineService
 from services.base_ai_service import AIGenerationError
 
@@ -39,7 +39,7 @@ bp = Blueprint('admin_course_refine', __name__, url_prefix='/api/admin/curriculu
 # =============================================================================
 
 @bp.route('/categories', methods=['GET'])
-@require_superadmin
+@require_role('superadmin', 'org_admin', 'advisor')
 def get_refinement_categories(user_id):
     """
     Get suggested refinement categories.
@@ -76,7 +76,7 @@ def get_refinement_categories(user_id):
 # =============================================================================
 
 @bp.route('/<course_id>/start', methods=['POST'])
-@require_superadmin
+@require_role('superadmin', 'org_admin', 'advisor')
 def start_refine_session(user_id, course_id):
     """
     Start a refinement session for a course.
@@ -152,7 +152,7 @@ def start_refine_session(user_id, course_id):
 
 
 @bp.route('/<course_id>/answer', methods=['POST'])
-@require_superadmin
+@require_role('superadmin', 'org_admin', 'advisor')
 def process_answers(user_id, course_id):
     """
     Process answers to clarifying questions.
@@ -245,7 +245,7 @@ def process_answers(user_id, course_id):
 
 
 @bp.route('/<course_id>/apply', methods=['POST'])
-@require_superadmin
+@require_role('superadmin', 'org_admin', 'advisor')
 def apply_changes(user_id, course_id):
     """
     Apply selected changes to the course.
@@ -304,7 +304,7 @@ def apply_changes(user_id, course_id):
 
 
 @bp.route('/<course_id>/generate-prompt-update', methods=['POST'])
-@require_superadmin
+@require_role('superadmin', 'org_admin', 'advisor')
 def generate_prompt_update(user_id, course_id):
     """
     Generate a prompt modifier based on the refinement session.
@@ -376,7 +376,7 @@ def generate_prompt_update(user_id, course_id):
 
 
 @bp.route('/<course_id>/session/<session_id>', methods=['GET'])
-@require_superadmin
+@require_role('superadmin', 'org_admin', 'advisor')
 def get_session(user_id, course_id, session_id):
     """
     Get details of a refinement session.
@@ -428,7 +428,7 @@ def get_session(user_id, course_id, session_id):
 
 
 @bp.route('/<course_id>/session/<session_id>', methods=['DELETE'])
-@require_superadmin
+@require_role('superadmin', 'org_admin', 'advisor')
 def cancel_session(user_id, course_id, session_id):
     """
     Cancel an active refinement session.

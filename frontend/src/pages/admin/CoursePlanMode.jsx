@@ -60,7 +60,7 @@ const CoursePlanMode = () => {
     } catch (error) {
       console.error('Failed to load session:', error)
       toast.error(getErrorMessage(error, 'Failed to load session'))
-      navigate('/admin/course-plan')
+      navigate('/course-plan')
     } finally {
       setLoading(false)
     }
@@ -100,7 +100,7 @@ const CoursePlanMode = () => {
         setShowStartForm(false)
 
         // Update URL without full navigation
-        navigate(`/admin/course-plan/${newSessionId}`, { replace: true })
+        navigate(`/course-plan/${newSessionId}`, { replace: true })
 
         toast.success('Course outline created')
       }
@@ -192,7 +192,7 @@ const CoursePlanMode = () => {
     try {
       await planModeService.abandonSession(session.id)
       toast.success('Draft discarded')
-      navigate('/admin/course-plan')
+      navigate('/course-plan')
     } catch (error) {
       console.error('Failed to abandon session:', error)
       toast.error(getErrorMessage(error, 'Failed to discard draft'))
@@ -291,7 +291,7 @@ const CoursePlanMode = () => {
       <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link
-            to="/admin/course-plan"
+            to="/course-plan"
             className="text-gray-500 hover:text-gray-700"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -392,7 +392,7 @@ const RecentDrafts = () => {
         {drafts.slice(0, 5).map(draft => (
           <button
             key={draft.id}
-            onClick={() => navigate(`/admin/course-plan/${draft.id}`)}
+            onClick={() => navigate(`/course-plan/${draft.id}`)}
             className="w-full text-left px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-optio-purple hover:shadow-sm transition-all"
           >
             <div className="font-medium text-gray-900">{draft.title || 'Untitled'}</div>

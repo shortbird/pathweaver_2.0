@@ -10,7 +10,7 @@ Endpoints for managing AI content generation and quality monitoring jobs.
 """
 
 from flask import Blueprint, request, jsonify
-from utils.auth.decorators import require_admin
+from utils.auth.decorators import require_role
 from jobs.scheduler import JobScheduler
 from jobs.quality_monitor import QualityMonitor
 from services.ai_quest_maintenance_service import AIQuestMaintenanceService
@@ -24,7 +24,7 @@ ai_jobs_bp = Blueprint('ai_jobs', __name__)
 
 
 @ai_jobs_bp.route('/jobs/schedule', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def schedule_job(user_id):
     """Schedule a new AI job."""
     try:
@@ -60,7 +60,7 @@ def schedule_job(user_id):
 
 
 @ai_jobs_bp.route('/jobs/run', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def run_jobs(user_id):
     """Execute pending jobs immediately."""
     try:
@@ -79,7 +79,7 @@ def run_jobs(user_id):
 
 
 @ai_jobs_bp.route('/jobs/history', methods=['GET'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def get_job_history(user_id):
     """Get job execution history."""
     try:
@@ -103,7 +103,7 @@ def get_job_history(user_id):
 
 
 @ai_jobs_bp.route('/content/generate', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def trigger_content_generation(user_id):
     """Trigger content generation immediately."""
     try:
@@ -138,7 +138,7 @@ def trigger_content_generation(user_id):
 
 
 @ai_jobs_bp.route('/quality/audit', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def trigger_quality_audit(user_id):
     """Trigger quality audit immediately."""
     try:
@@ -170,7 +170,7 @@ def trigger_quality_audit(user_id):
 
 
 @ai_jobs_bp.route('/quality/report', methods=['GET'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def get_quality_report(user_id):
     """Get quality report for time period."""
     try:
@@ -183,7 +183,7 @@ def get_quality_report(user_id):
 
 
 @ai_jobs_bp.route('/quests/performance/<quest_id>', methods=['GET'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def analyze_quest_performance(user_id, quest_id):
     """Analyze performance of a specific quest."""
     try:
@@ -195,7 +195,7 @@ def analyze_quest_performance(user_id, quest_id):
 
 
 @ai_jobs_bp.route('/quests/analyze-all', methods=['GET'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def analyze_all_quests(user_id):
     """Analyze performance of all active quests."""
     try:
@@ -207,7 +207,7 @@ def analyze_all_quests(user_id):
 
 
 @ai_jobs_bp.route('/quests/suggestions/<quest_id>', methods=['GET'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def get_improvement_suggestions(user_id, quest_id):
     """Get AI-powered improvement suggestions for a quest."""
     try:
@@ -219,7 +219,7 @@ def get_improvement_suggestions(user_id, quest_id):
 
 
 @ai_jobs_bp.route('/metrics/update', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def update_metrics(user_id):
     """Update AI content metrics immediately."""
     try:
@@ -235,7 +235,7 @@ def update_metrics(user_id):
 
 
 @ai_jobs_bp.route('/reports/monthly', methods=['GET'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def generate_monthly_report(user_id):
     """Generate comprehensive monthly report."""
     try:
@@ -247,7 +247,7 @@ def generate_monthly_report(user_id):
 
 
 @ai_jobs_bp.route('/jobs/cleanup', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def cleanup_old_jobs(user_id):
     """Clean up old completed/failed jobs."""
     try:
@@ -266,7 +266,7 @@ def cleanup_old_jobs(user_id):
 
 
 @ai_jobs_bp.route('/recurring/setup', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def setup_recurring_jobs(user_id):
     """Schedule recurring jobs (daily, weekly, monthly tasks)."""
     try:

@@ -8,7 +8,7 @@ import { SparklesIcon, XMarkIcon, DocumentTextIcon, ListBulletIcon, PencilSquare
  * - Generate Tasks: Bulk generate tasks for lessons without tasks
  * - Generate Lessons: Generate lessons for projects without lessons
  * - Generate Lesson Content: Generate content/steps for empty lessons
- * - AI Refine: Course-wide refinements (superadmin only)
+ * - AI Refine: Course-wide refinements using natural language
  */
 const AIToolsModal = ({
   isOpen,
@@ -16,8 +16,7 @@ const AIToolsModal = ({
   onSelectTool,
   hasLessonsWithoutTasks = false,
   hasProjectsWithoutLessons = false,
-  hasLessonsWithoutContent = false,
-  isSuperadmin = false
+  hasLessonsWithoutContent = false
 }) => {
   if (!isOpen) return null
 
@@ -54,10 +53,8 @@ const AIToolsModal = ({
       title: 'AI Refine',
       description: 'Make bulk changes across the entire course using natural language.',
       icon: WrenchScrewdriverIcon,
-      available: isSuperadmin,
-      unavailableReason: 'Superadmin access required',
-      gradient: true,
-      superadminOnly: true
+      available: true,
+      gradient: true
     }
   ]
 
@@ -123,11 +120,6 @@ const AIToolsModal = ({
                       <h3 className={`font-medium ${isDisabled ? 'text-gray-400' : 'text-gray-900'}`}>
                         {tool.title}
                       </h3>
-                      {tool.superadminOnly && (
-                        <span className="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">
-                          Admin
-                        </span>
-                      )}
                     </div>
                     <p className={`text-sm mt-0.5 ${isDisabled ? 'text-gray-400' : 'text-gray-600'}`}>
                       {isDisabled ? tool.unavailableReason : tool.description}

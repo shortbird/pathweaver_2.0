@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import CourseVisibilityManager from '../admin/CourseVisibilityManager'
 import CourseEnrollmentManager from '../admin/CourseEnrollmentManager'
-import OrgCurriculumUpload from './OrgCurriculumUpload'
 
 function CourseCard({ course, onDelete }) {
   const projectCount = course.quest_count || course.project_count || 0
@@ -143,6 +142,7 @@ function CourseCard({ course, onDelete }) {
 }
 
 function CreateCourseModal({ orgId, navigate, onClose, onSuccess }) {
+  const [mode, setMode] = useState(null) // null = choose, 'manual' = form, 'ai' = redirect
   const [formData, setFormData] = useState({
     title: '',
     description: ''
@@ -177,73 +177,162 @@ function CreateCourseModal({ orgId, navigate, onClose, onSuccess }) {
     }
   }
 
+  const handleAICreate = () => {
+    navigate('/course-plan')
+    onClose()
+  }
+
   return createPortal(
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
       <div className="bg-white rounded-xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-2xl font-bold mb-2">Create Course</h2>
-        <p className="text-gray-600 mb-6">
-          Create a new course for your organization. You can add projects, lessons, and tasks after creation.
-        </p>
+        {mode === null ? (
+          // Choose creation method
+          <>
+            <h2 className="text-2xl font-bold mb-2">Create Course</h2>
+            <p className="text-gray-600 mb-6">
+              Choose how you want to create your course.
+            </p>
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Course Title</label>
-            <input
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-              placeholder="e.g., Introduction to Photography"
-              required
-            />
-          </div>
+            <div className="space-y-4">
+              {/* AI-Assisted Option */}
+              <button
+                onClick={handleAICreate}
+                className="w-full p-4 border-2 border-optio-purple rounded-xl hover:bg-optio-purple/5 transition-colors text-left group"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-900">AI Course Planner</h3>
+                      <span className="px-2 py-0.5 bg-optio-purple/10 text-optio-purple text-xs font-medium rounded-full">Recommended</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Describe your course idea and let AI help you plan the curriculum, projects, lessons, and tasks through an interactive conversation.
+                    </p>
+                  </div>
+                  <svg className="w-5 h-5 text-gray-400 group-hover:text-optio-purple transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </button>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium mb-1">Description</label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-              placeholder="Brief description of what students will learn..."
-              rows={3}
-            />
-          </div>
+              {/* Manual Option */}
+              <button
+                onClick={() => setMode('manual')}
+                className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-colors text-left group"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900">Manual Setup</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Create a blank course and manually add projects, lessons, and tasks using the course builder.
+                    </p>
+                  </div>
+                  <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </button>
+            </div>
 
-          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
-            <div className="flex gap-3">
-              <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div className="text-sm text-blue-800">
-                <p className="font-medium">Draft Mode</p>
-                <p className="mt-1">Your course will be saved as a draft. You can add projects, lessons, and tasks before publishing it to students.</p>
+            <div className="flex justify-end mt-6">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          // Manual creation form
+          <>
+            <div className="flex items-center gap-2 mb-4">
+              <button
+                onClick={() => setMode(null)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <h2 className="text-2xl font-bold">Create Course</h2>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Create a new course for your organization. You can add projects, lessons, and tasks after creation.
+            </p>
+
+            <form onSubmit={handleSubmit}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Course Title</label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+                  placeholder="e.g., Introduction to Photography"
+                  required
+                />
               </div>
-            </div>
-          </div>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-1">Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+                  placeholder="Brief description of what students will learn..."
+                  rows={3}
+                />
+              </div>
 
-          <div className="flex gap-3 justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || !formData.title.trim()}
-              className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50"
-            >
-              {loading ? 'Creating...' : 'Create Course'}
-            </button>
-          </div>
-        </form>
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
+                <div className="flex gap-3">
+                  <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium">Draft Mode</p>
+                    <p className="mt-1">Your course will be saved as a draft. You can add projects, lessons, and tasks before publishing it to students.</p>
+                  </div>
+                </div>
+              </div>
+
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+                  {error}
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !formData.title.trim()}
+                  className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                >
+                  {loading ? 'Creating...' : 'Create Course'}
+                </button>
+              </div>
+            </form>
+          </>
+        )}
       </div>
     </div>,
     document.body
@@ -617,16 +706,6 @@ export default function CourseTab({ orgId, orgData, onUpdate, siteSettings }) {
           }`}
         >
           Course Availability
-        </button>
-        <button
-          onClick={() => setCourseSubTab('upload')}
-          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-            courseSubTab === 'upload'
-              ? 'bg-white border border-b-white border-gray-200 -mb-[3px] text-optio-purple'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Upload Curriculum
         </button>
       </div>
 
@@ -1082,9 +1161,6 @@ export default function CourseTab({ orgId, orgData, onUpdate, siteSettings }) {
         </>
       )}
 
-      {courseSubTab === 'upload' && (
-        <OrgCurriculumUpload orgId={orgId} />
-      )}
     </div>
   )
 }

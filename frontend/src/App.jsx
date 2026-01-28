@@ -93,6 +93,7 @@ const CurriculumPage = lazy(() => import('./pages/curriculum/CurriculumPage'))
 const CourseBuilder = lazy(() => import('./pages/courses/CourseBuilder'))
 const CourseHomepage = lazy(() => import('./pages/courses/CourseHomepage'))
 const CourseCatalog = lazy(() => import('./pages/courses/CourseCatalog'))
+const CoursePlanMode = lazy(() => import('./pages/admin/CoursePlanMode'))
 const MyInvitations = lazy(() => import('./pages/student/MyInvitations'))
 const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
 const DependentProgressReport = lazy(() => import('./pages/parent/DependentProgressReport'))
@@ -430,6 +431,9 @@ function App() {
                 {/* Course Builder */}
                 <Route path="courses/:id/edit" element={<CourseBuilder />} />
                 <Route path="courses/new" element={<CourseBuilder />} />
+                {/* AI Course Plan - accessible to advisors and org_admins */}
+                <Route path="course-plan" element={<CoursePlanMode />} />
+                <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
               </Route>
 
               <Route element={<PrivateRoute requiredRole="parent" />}>

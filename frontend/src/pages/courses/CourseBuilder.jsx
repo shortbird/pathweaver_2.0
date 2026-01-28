@@ -1218,7 +1218,6 @@ const CourseBuilder = () => {
         hasLessonsWithoutTasks={hasLessonsWithoutTasks}
         hasProjectsWithoutLessons={hasProjectsWithoutLessons}
         hasLessonsWithoutContent={hasLessonsWithoutContent}
-        isSuperadmin={isSuperadmin}
       />
 
       <BulkTaskGenerationModal
@@ -1228,16 +1227,14 @@ const CourseBuilder = () => {
         onTasksUpdated={handleTasksUpdated}
       />
 
-      {/* AI Refine Modal - Superadmin only */}
-      {isSuperadmin && (
-        <AIRefineModal
-          isOpen={showRefineModal}
-          onClose={() => setShowRefineModal(false)}
-          courseId={courseId}
-          courseName={course?.title || 'Course'}
-          onRefineComplete={handleRefineComplete}
-        />
-      )}
+      {/* AI Refine Modal */}
+      <AIRefineModal
+        isOpen={showRefineModal}
+        onClose={() => setShowRefineModal(false)}
+        courseId={courseId}
+        courseName={course?.title || 'Course'}
+        onRefineComplete={handleRefineComplete}
+      />
 
       {/* Move Lesson Modal */}
       {movingLesson && (

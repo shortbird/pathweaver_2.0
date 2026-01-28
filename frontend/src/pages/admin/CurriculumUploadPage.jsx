@@ -774,7 +774,7 @@ const CurriculumUploadPage = () => {
               refine the outline through natural dialogue, then generate the full course.
             </p>
             <a
-              href="/admin/course-plan"
+              href="/course-plan"
               className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -24,7 +24,9 @@ const CourseCatalog = () => {
   const [searchTerm, setSearchTerm] = useState('')
 
   // Check if user can manage courses (see drafts, edit)
-  const canManageCourses = user?.role === 'superadmin' || user?.role === 'org_admin' || user?.role === 'advisor'
+  // For org-managed users, check org_role; for platform users, check role
+  const effectiveRole = user?.role === 'org_managed' ? user?.org_role : user?.role
+  const canManageCourses = effectiveRole === 'superadmin' || effectiveRole === 'org_admin' || effectiveRole === 'advisor'
 
   useEffect(() => {
     fetchCourses()

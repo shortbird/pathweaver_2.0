@@ -26,7 +26,7 @@ Endpoints:
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from utils.auth.decorators import require_admin
+from utils.auth.decorators import require_role
 from services.course_generation_service import CourseGenerationService
 from services.base_ai_service import AIGenerationError
 
@@ -62,7 +62,7 @@ def get_organization_id(user_id: str) -> str:
 # =============================================================================
 
 @bp.route('/outline', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def generate_outline(user_id):
     """
     Generate course outline alternatives for a topic.
@@ -123,7 +123,7 @@ def generate_outline(user_id):
 
 
 @bp.route('/outline/select', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def select_outline(user_id):
     """
     Select an outline and create a draft course.
@@ -183,7 +183,7 @@ def select_outline(user_id):
 # =============================================================================
 
 @bp.route('/<course_id>', methods=['GET'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def get_generation_state(user_id, course_id):
     """
     Get the current state of a course in generation.
@@ -232,7 +232,7 @@ def get_generation_state(user_id, course_id):
 # =============================================================================
 
 @bp.route('/<course_id>/lessons', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def generate_lessons(user_id, course_id):
     """
     Generate lessons for all projects in a course.
@@ -273,7 +273,7 @@ def generate_lessons(user_id, course_id):
 
 
 @bp.route('/<course_id>/lessons/<quest_id>', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def generate_lessons_for_project(user_id, course_id, quest_id):
     """
     Generate lessons for a specific project.
@@ -308,7 +308,7 @@ def generate_lessons_for_project(user_id, course_id, quest_id):
 # =============================================================================
 
 @bp.route('/<course_id>/lesson-content', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def generate_lesson_content_all(user_id, course_id):
     """
     Generate content (steps) for all lessons with empty content.
@@ -354,7 +354,7 @@ def generate_lesson_content_all(user_id, course_id):
 
 
 @bp.route('/<course_id>/lesson-content/<lesson_id>', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def generate_lesson_content_single(user_id, course_id, lesson_id):
     """
     Generate content (steps) for a single lesson with empty content.
@@ -396,7 +396,7 @@ def generate_lesson_content_single(user_id, course_id, lesson_id):
 # =============================================================================
 
 @bp.route('/<course_id>/tasks', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def generate_tasks(user_id, course_id):
     """
     Generate task suggestions for all lessons in a course.
@@ -437,7 +437,7 @@ def generate_tasks(user_id, course_id):
 
 
 @bp.route('/<course_id>/tasks/<lesson_id>', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def generate_tasks_for_lesson(user_id, course_id, lesson_id):
     """
     Generate tasks for a specific lesson.
@@ -492,7 +492,7 @@ def generate_tasks_for_lesson(user_id, course_id, lesson_id):
 # =============================================================================
 
 @bp.route('/<course_id>/finalize', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def finalize_course(user_id, course_id):
     """
     Finalize and publish the course.
@@ -526,7 +526,7 @@ def finalize_course(user_id, course_id):
 # =============================================================================
 
 @bp.route('/<course_id>/regenerate-outline', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def regenerate_outline(user_id, course_id):
     """
     Regenerate outline alternatives for an existing draft course.
@@ -579,7 +579,7 @@ def regenerate_outline(user_id, course_id):
 
 
 @bp.route('/<course_id>/regenerate-lesson/<lesson_id>', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def regenerate_lesson(user_id, course_id, lesson_id):
     """
     Regenerate alternatives for a specific lesson.
@@ -637,7 +637,7 @@ def regenerate_lesson(user_id, course_id, lesson_id):
 
 
 @bp.route('/<course_id>/regenerate-tasks/<lesson_id>', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def regenerate_tasks(user_id, course_id, lesson_id):
     """
     Regenerate task alternatives for a lesson.
@@ -699,7 +699,7 @@ def regenerate_tasks(user_id, course_id, lesson_id):
 # =============================================================================
 
 @bp.route('/<course_id>/lesson', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def save_lesson(user_id, course_id):
     """
     Save or update a lesson.
@@ -753,7 +753,7 @@ def save_lesson(user_id, course_id):
 
 
 @bp.route('/<course_id>/task', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def save_task(user_id, course_id):
     """
     Save a task and link to lesson.
@@ -807,7 +807,7 @@ def save_task(user_id, course_id):
 
 
 @bp.route('/<course_id>', methods=['DELETE'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def delete_draft(user_id, course_id):
     """
     Delete a draft course and all associated data.
@@ -840,7 +840,7 @@ def delete_draft(user_id, course_id):
 # =============================================================================
 
 @bp.route('/<course_id>/project', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def add_project(user_id, course_id):
     """
     Add a new project to the course.
@@ -930,7 +930,7 @@ def add_project(user_id, course_id):
 
 
 @bp.route('/<course_id>/project/<quest_id>', methods=['PUT'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def update_project(user_id, course_id, quest_id):
     """
     Update a project's details.
@@ -973,7 +973,7 @@ def update_project(user_id, course_id, quest_id):
 
 
 @bp.route('/<course_id>/project/<quest_id>', methods=['DELETE'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def delete_project(user_id, course_id, quest_id):
     """
     Delete a project and all its lessons/tasks.
@@ -1026,7 +1026,7 @@ def delete_project(user_id, course_id, quest_id):
 # =============================================================================
 
 @bp.route('/<course_id>/queue', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def queue_generation(user_id, course_id):
     """
     Queue a course for background generation.
@@ -1103,7 +1103,7 @@ def queue_generation(user_id, course_id):
 
 
 @bp.route('/jobs', methods=['GET'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def get_generation_jobs(user_id):
     """
     Get all generation jobs for the current user.
@@ -1141,7 +1141,7 @@ def get_generation_jobs(user_id):
 
 
 @bp.route('/jobs/<job_id>', methods=['GET'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def get_job_status(user_id, job_id):
     """
     Get detailed status for a specific job including logs.
@@ -1199,7 +1199,7 @@ def get_job_status(user_id, job_id):
 
 
 @bp.route('/jobs/<job_id>/start', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def start_job(user_id, job_id):
     """
     Start a pending job that wasn't auto-started.
@@ -1268,7 +1268,7 @@ def start_job(user_id, job_id):
 
 
 @bp.route('/jobs/<job_id>/cancel', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def cancel_job(user_id, job_id):
     """
     Cancel a pending or running job.
@@ -1297,7 +1297,7 @@ def cancel_job(user_id, job_id):
 
 
 @bp.route('/jobs/<job_id>/retry', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def retry_job(user_id, job_id):
     """
     Retry a failed job by creating a new one.
@@ -1328,7 +1328,7 @@ def retry_job(user_id, job_id):
 
 
 @bp.route('/jobs/process', methods=['POST'])
-@require_admin
+@require_role('superadmin', 'org_admin', 'advisor')
 def process_next_job(user_id):
     """
     Process the next pending job.
