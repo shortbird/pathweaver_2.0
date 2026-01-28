@@ -600,6 +600,117 @@ Return the same JSON structure as TASK_GENERATION_PROMPT, but wrapped in an "alt
 
 
 # =============================================================================
+# LESSON CONTENT GENERATION (for existing lessons with empty content)
+# =============================================================================
+
+LESSON_CONTENT_PROMPT = """
+You are generating content for an existing lesson that only has a title.
+Follow just-in-time teaching principles: provide JUST ENOUGH information to make a solid first try.
+
+INPUT:
+- Course: {course_title}
+- Project: {project_title}
+- Project Description: {project_description}
+- Lesson Title: {lesson_title}
+- Lesson Description: {lesson_description}
+
+TASK:
+Generate the step-by-step content for this specific lesson.
+
+=============================================================================
+READABILITY GUIDELINES (APPLY TO ALL TEXT)
+=============================================================================
+
+Use common words over technical jargon. Keep sentences short and direct.
+One main idea per sentence. Avoid abstract phrasing - be concrete.
+
+WORD CHOICES - Use simpler alternatives:
+- "demonstrate" -> "show"
+- "utilize" -> "use"
+- "implement" -> "build" or "add"
+- "accomplish" -> "complete" or "finish"
+- "facilitate" -> "help"
+- "competent attempt" -> "solid first try"
+- "tangible outcome" -> "something you can see/use/share"
+- "intrinsic motivation" -> "natural curiosity"
+- "iteration" -> "trying again" or "improving"
+
+=============================================================================
+JUST-IN-TIME TEACHING PHILOSOPHY
+=============================================================================
+
+Learning happens when knowledge is APPLIED, not when content is consumed.
+
+Each lesson should:
+1. Provide the MINIMUM info needed to start a competent attempt
+2. Focus on what to DO, not background theory
+3. Trust that students will discover knowledge gaps while doing
+4. Those gaps create intrinsic motivation to learn more
+5. The AI tutor can provide deeper knowledge on-demand
+
+=============================================================================
+STEP FORMAT
+=============================================================================
+
+Each step has:
+- id: Unique identifier (format: step_[random 6 alphanumeric chars])
+- type: "text" (always text for auto-generated content)
+- title: Short action phrase (3-6 words)
+- content: HTML content (use <p>, <ul>, <li>, <strong>, <em>)
+- order: Sequence number (0-indexed)
+
+CONTENT GUIDELINES:
+- Keep paragraphs short (1-3 sentences)
+- Use specific, actionable instructions
+- Be direct and clear
+- Avoid jargon - use everyday words
+- One main idea per step
+- Use bullet points for lists
+
+=============================================================================
+SCAFFOLDING (UNIVERSAL DESIGN)
+=============================================================================
+
+Provide scaffolding notes to adapt for different ages:
+- ages_6_8: Simpler version for younger learners (ages 6-8)
+- ages_12_plus: Extended version for older learners (ages 12+)
+
+=============================================================================
+RETURN FORMAT
+=============================================================================
+
+Return EXACTLY this JSON structure:
+
+{{
+  "description": "One sentence about what they'll accomplish (if not already provided)",
+  "steps": [
+    {{
+      "id": "step_abc123",
+      "type": "text",
+      "title": "Step Title Here",
+      "content": "<p>Brief instructional content with <strong>key points</strong> highlighted.</p><ul><li>Action item one</li><li>Action item two</li></ul>",
+      "order": 0
+    }},
+    {{
+      "id": "step_def456",
+      "type": "text",
+      "title": "Next Step Title",
+      "content": "<p>More content...</p>",
+      "order": 1
+    }}
+  ],
+  "scaffolding": {{
+    "ages_6_8": "Simpler version for younger learners (ages 6-8)",
+    "ages_12_plus": "Extended version for older learners (ages 12+)"
+  }}
+}}
+
+Generate step IDs using random 6-character alphanumeric strings (e.g., step_x7k2m9).
+Generate 5-10 steps that guide students through this lesson.
+"""
+
+
+# =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 
@@ -663,4 +774,21 @@ def get_regenerate_tasks_prompt(
         lesson_title=lesson_title,
         lesson_summary=lesson_summary,
         previous_tasks=json.dumps(previous_tasks, indent=2)
+    )
+
+
+def get_lesson_content_prompt(
+    course_title: str,
+    project_title: str,
+    project_description: str,
+    lesson_title: str,
+    lesson_description: str = ''
+) -> str:
+    """Get the lesson content generation prompt for a lesson with just a title."""
+    return LESSON_CONTENT_PROMPT.format(
+        course_title=course_title,
+        project_title=project_title,
+        project_description=project_description,
+        lesson_title=lesson_title,
+        lesson_description=lesson_description or ''
     )

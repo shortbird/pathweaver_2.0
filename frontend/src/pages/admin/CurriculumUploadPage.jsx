@@ -763,36 +763,25 @@ const CurriculumUploadPage = () => {
       {/* Generate from Prompt Tab */}
       {activeTab === 'generate' && (
         <div className="space-y-6">
+          {/* Plan Mode - Primary Option */}
           <div className="p-6 bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 border border-optio-purple/20 rounded-lg text-center">
             <svg className="w-16 h-16 mx-auto text-optio-purple mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">AI Course Generator</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Course Plan Mode</h3>
             <p className="text-gray-600 mb-6 max-w-lg mx-auto">
-              Create hands-on, action-oriented courses with our multi-stage wizard.
-              Enter a topic and AI will generate course outlines, lessons, and task suggestions -
-              with review and editing at every step.
+              Design courses through conversation with AI. Describe what you want to create,
+              refine the outline through natural dialogue, then generate the full course.
             </p>
-            <div className="flex items-center justify-center gap-4">
-              <a
-                href="/admin/generate-course"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                New Course
-              </a>
-              <a
-                href="/admin/course-generation-queue"
-                className="inline-flex items-center gap-2 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-                View Queue
-              </a>
-            </div>
+            <a
+              href="/admin/course-plan"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              Start Plan Mode
+            </a>
           </div>
 
           <div className="grid grid-cols-3 gap-4 text-center">
@@ -800,22 +789,47 @@ const CurriculumUploadPage = () => {
               <div className="w-10 h-10 mx-auto mb-2 bg-purple-100 text-optio-purple rounded-full flex items-center justify-center">
                 <span className="font-bold">1</span>
               </div>
-              <h4 className="font-medium text-gray-900 text-sm">Choose Outline</h4>
-              <p className="text-xs text-gray-500 mt-1">Pick from 3 AI-generated course directions</p>
+              <h4 className="font-medium text-gray-900 text-sm">Describe Your Course</h4>
+              <p className="text-xs text-gray-500 mt-1">Tell AI about the student and what they want to learn</p>
             </div>
             <div className="p-4 bg-white border border-gray-200 rounded-lg">
               <div className="w-10 h-10 mx-auto mb-2 bg-purple-100 text-optio-purple rounded-full flex items-center justify-center">
                 <span className="font-bold">2</span>
               </div>
-              <h4 className="font-medium text-gray-900 text-sm">Generate Lessons</h4>
-              <p className="text-xs text-gray-500 mt-1">AI creates lessons with just-in-time teaching</p>
+              <h4 className="font-medium text-gray-900 text-sm">Refine Through Chat</h4>
+              <p className="text-xs text-gray-500 mt-1">Iterate on the outline until it is perfect</p>
             </div>
             <div className="p-4 bg-white border border-gray-200 rounded-lg">
               <div className="w-10 h-10 mx-auto mb-2 bg-purple-100 text-optio-purple rounded-full flex items-center justify-center">
                 <span className="font-bold">3</span>
               </div>
-              <h4 className="font-medium text-gray-900 text-sm">Add Tasks</h4>
-              <p className="text-xs text-gray-500 mt-1">Hands-on task suggestions for each lesson</p>
+              <h4 className="font-medium text-gray-900 text-sm">Approve & Generate</h4>
+              <p className="text-xs text-gray-500 mt-1">Create the full course with lessons and tasks</p>
+            </div>
+          </div>
+
+          {/* Legacy wizard link */}
+          <div className="text-center border-t border-gray-200 pt-6">
+            <p className="text-sm text-gray-500 mb-2">Or use the classic wizard:</p>
+            <div className="flex items-center justify-center gap-4">
+              <a
+                href="/admin/generate-course"
+                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Course Wizard
+              </a>
+              <a
+                href="/admin/course-generation-queue"
+                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                View Queue
+              </a>
             </div>
           </div>
         </div>

@@ -31,7 +31,7 @@ from routes.courses import bp as courses_bp
 # Import routes
 from routes import tasks, admin_core, evidence_documents, analytics as analytics_routes, webhooks
 from routes.quest import register_quest_blueprints  # Refactored quest routes (P2-ARCH-1)
-from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management, observer_audit, ferpa_compliance, bulk_import, user_invitations, curriculum_upload, curriculum_generate, org_connections, course_enrollments, course_refine, transfer_credits
+from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management, observer_audit, ferpa_compliance, bulk_import, user_invitations, curriculum_upload, curriculum_generate, org_connections, course_enrollments, course_refine, transfer_credits, plan_mode
 # badge_management import removed (January 2026 - Microschool client feedback)
 from cors_config import configure_cors
 from middleware.security import security_middleware
@@ -184,6 +184,7 @@ app.register_blueprint(course_import.bp)  # /api/admin/courses (Course import fr
 app.register_blueprint(curriculum_upload.bp)  # /api/admin/curriculum (AI-powered curriculum upload and transformation)
 app.register_blueprint(curriculum_generate.bp)  # /api/admin/curriculum/generate (Multi-stage AI course generation wizard)
 app.register_blueprint(course_refine.bp)  # /api/admin/curriculum/refine (AI-powered course-wide refinement - superadmin only)
+app.register_blueprint(plan_mode.bp)  # /api/admin/curriculum/plan (Iterative AI course design through conversation)
 app.register_blueprint(organization_management.bp, url_prefix='/api/admin/organizations')  # /api/admin/organizations (Multi-organization management)
 app.register_blueprint(course_enrollments.bp)  # /api/admin/courses (Course enrollment management for admins)
 app.register_blueprint(bulk_import.bp)  # /api/admin/organizations/<org_id>/users/bulk-import (CSV bulk user import for org admins)

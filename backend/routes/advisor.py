@@ -562,3 +562,198 @@ def get_quest_invitations(user_id):
             'success': False,
             'error': 'Failed to fetch invitations'
         }), 500
+
+
+# ==================== Course Enrollment ====================
+
+@advisor_bp.route('/enrollable-courses', methods=['GET'])
+@require_role('advisor', 'org_admin', 'superadmin')
+def get_enrollable_courses(user_id):
+    """
+    Get published courses that this advisor can enroll students in.
+    Returns:
+    - Published courses from advisor's organization
+    - Public published courses from other organizations
+    - Superadmins can see all published courses
+    """
+    try:
+        from database import get_supabase_admin_client
+        admin = get_supabase_admin_client()
+
+        # Get advisor's role and organization
+        user_response = admin.table('users')\
+            .select('organization_id, role')\
+            .eq('id', user_id)\
+            .single()\
+            .execute()
+
+        if not user_response.data:
+            return jsonify({
+                'success': False,
+                'error': 'User not found'
+            }), 404
+
+        org_id = user_response.data.get('organization_id')
+        is_superadmin = user_response.data.get('role') == 'superadmin'
+
+        # Build query for published courses
+        query = admin.table('courses')\
+            .select('id, title, description, cover_image_url, status, visibility, organization_id, created_at')\
+            .eq('status', 'published')
+
+        if is_superadmin:
+            # Superadmin can see all published courses
+            pass
+        elif org_id:
+            # Org advisor: org courses + public courses + global courses (null org_id)
+            query = query.or_(f'organization_id.eq.{org_id},visibility.eq.public,organization_id.is.null')
+        else:
+            # No org: only global and public courses
+            query = query.or_('organization_id.is.null,visibility.eq.public')
+
+        query = query.order('created_at', desc=True).limit(100)
+        courses_response = query.execute()
+        courses = courses_response.data or []
+
+        # Get quest counts for each course
+        if courses:
+            course_ids = [c['id'] for c in courses]
+            quest_counts = admin.table('course_quests')\
+                .select('course_id, is_published')\
+                .in_('course_id', course_ids)\
+                .execute()
+
+            # Count only published quests per course
+            count_map = {}
+            for cq in (quest_counts.data or []):
+                if cq.get('is_published') is False:
+                    continue
+                cid = cq['course_id']
+                count_map[cid] = count_map.get(cid, 0) + 1
+
+            for course in courses:
+                course['quest_count'] = count_map.get(course['id'], 0)
+                course['is_org_course'] = course.get('organization_id') == org_id
+
+        return jsonify({
+            'success': True,
+            'courses': courses,
+            'total': len(courses)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching enrollable courses: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch courses'
+        }), 500
+
+
+@advisor_bp.route('/enroll-in-course', methods=['POST'])
+@require_role('advisor', 'org_admin', 'superadmin')
+def enroll_students_in_course(user_id):
+    """
+    Enroll multiple students in a published course.
+    This directly enrolls students (no invitation flow needed).
+    """
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        if 'course_id' not in data:
+            raise ValidationError("Missing required field: course_id")
+
+        if 'user_ids' not in data or not isinstance(data['user_ids'], list):
+            raise ValidationError("Missing or invalid field: user_ids (must be array)")
+
+        if len(data['user_ids']) == 0:
+            raise ValidationError("user_ids array cannot be empty")
+
+        if len(data['user_ids']) > 50:
+            raise ValidationError("Maximum 50 students per enrollment request")
+
+        from database import get_supabase_admin_client
+        admin = get_supabase_admin_client()
+
+        # Verify course exists and is published
+        course_response = admin.table('courses')\
+            .select('id, title, status, organization_id')\
+            .eq('id', data['course_id'])\
+            .single()\
+            .execute()
+
+        if not course_response.data:
+            return jsonify({
+                'success': False,
+                'error': 'Course not found'
+            }), 404
+
+        course = course_response.data
+        if course['status'] != 'published':
+            return jsonify({
+                'success': False,
+                'error': 'Can only enroll students in published courses'
+            }), 400
+
+        # Get advisor's organization
+        user_response = admin.table('users')\
+            .select('organization_id, role')\
+            .eq('id', user_id)\
+            .single()\
+            .execute()
+
+        if not user_response.data:
+            return jsonify({
+                'success': False,
+                'error': 'User not found'
+            }), 404
+
+        advisor_org = user_response.data.get('organization_id')
+        is_superadmin = user_response.data.get('role') == 'superadmin'
+
+        # Verify students are in advisor's organization (unless superadmin)
+        if not is_superadmin:
+            students_response = admin.table('users')\
+                .select('id, organization_id')\
+                .in_('id', data['user_ids'])\
+                .execute()
+
+            if not students_response.data:
+                return jsonify({
+                    'success': False,
+                    'error': 'No valid students found'
+                }), 400
+
+            # Check all students are in advisor's org
+            for student in students_response.data:
+                if student['organization_id'] != advisor_org:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Can only enroll students from your organization'
+                    }), 403
+
+        # Use CourseEnrollmentService for bulk enrollment
+        from services.course_enrollment_service import CourseEnrollmentService
+        enrollment_service = CourseEnrollmentService(admin)
+        result = enrollment_service.bulk_enroll(data['user_ids'], data['course_id'])
+
+        return jsonify({
+            'success': True,
+            'course_title': course['title'],
+            'enrolled': result['enrolled'],
+            'skipped': result['skipped'],
+            'failed': result['failed'],
+            'results': result['results']
+        }), 201
+
+    except ValidationError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
+    except Exception as e:
+        logger.error(f"Error enrolling students in course: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to enroll students'
+        }), 500

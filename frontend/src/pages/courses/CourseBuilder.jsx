@@ -42,6 +42,7 @@ import {
   CourseDetailsModal,
   BulkTaskGenerationModal,
   MoveLessonModal,
+  AIToolsModal,
 } from '../../components/course'
 import { AIRefineModal } from '../../components/course/refine'
 
@@ -73,6 +74,7 @@ const CourseBuilder = () => {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showBulkTaskModal, setShowBulkTaskModal] = useState(false)
   const [showRefineModal, setShowRefineModal] = useState(false)
+  const [showAIToolsModal, setShowAIToolsModal] = useState(false)
   const [movingLesson, setMovingLesson] = useState(null)
   const [editingProjectInfo, setEditingProjectInfo] = useState(false)
   const [projectEditData, setProjectEditData] = useState({ title: '', description: '' })
@@ -491,11 +493,11 @@ const CourseBuilder = () => {
   }
 
   // Delete course
-  const handleDeleteCourse = async () => {
+  const handleDeleteCourse = async ({ deleteQuests = false } = {}) => {
     try {
       setIsDeleting(true)
-      await courseService.deleteCourse(courseId)
-      toast.success('Course deleted successfully')
+      const result = await courseService.deleteCourse(courseId, { deleteQuests })
+      toast.success(result.message || 'Course deleted successfully')
       navigate('/courses')
     } catch (error) {
       console.error('Failed to delete course:', error)
@@ -520,6 +522,45 @@ const CourseBuilder = () => {
     }
   }
 
+  // Full refresh after AI Refine - refreshes course, quests, and lessons
+  const handleRefineComplete = async () => {
+    try {
+      // Refresh course data
+      const courseResponse = await courseService.getCourseById(courseId)
+      setCourse(courseResponse.course)
+
+      // Refresh quests/projects
+      const questsResponse = await api.get(`/api/courses/${courseId}/quests`)
+      const fetchedQuests = questsResponse.data.quests || []
+      setQuests(fetchedQuests)
+
+      // Update selectedQuest with fresh data
+      if (selectedQuest) {
+        const updatedQuest = fetchedQuests.find(q => q.id === selectedQuest.id)
+        if (updatedQuest) {
+          setSelectedQuest(updatedQuest)
+        }
+      }
+
+      // Refresh lessons for current quest
+      if (selectedQuest) {
+        const lessonsResponse = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons?include_unpublished=true`)
+        const fetchedLessons = lessonsResponse.data.lessons || []
+        setLessons(fetchedLessons)
+        if (selectedLesson) {
+          const updatedLesson = fetchedLessons.find(l => l.id === selectedLesson.id)
+          if (updatedLesson) {
+            setSelectedLesson(updatedLesson)
+          }
+        }
+      }
+
+      toast.success('Course data refreshed')
+    } catch (error) {
+      console.error('Failed to refresh after refine:', error)
+    }
+  }
+
   // Handle lesson moved to another project
   const handleLessonMoved = async (lessonId, targetQuestId) => {
     // Refresh lessons for current project
@@ -536,6 +577,108 @@ const CourseBuilder = () => {
     }
     setMovingLesson(null)
   }
+
+  // Handle AI tool selection from modal
+  const handleAIToolSelect = async (toolId) => {
+    switch (toolId) {
+      case 'generate-tasks':
+        setShowBulkTaskModal(true)
+        break
+      case 'generate-lessons':
+        await handleGenerateLessons()
+        break
+      case 'generate-content':
+        await handleGenerateLessonContent()
+        break
+      case 'ai-refine':
+        setShowRefineModal(true)
+        break
+      default:
+        break
+    }
+  }
+
+  // Generate lessons for projects without lessons
+  const handleGenerateLessons = async () => {
+    const toastId = toast.loading('Generating lessons for projects...')
+    try {
+      const response = await api.post(`/api/admin/curriculum/generate/${courseId}/lessons`, {})
+      if (response.data.success) {
+        toast.success('Lessons generated successfully!', { id: toastId })
+        // Refresh the current quest's lessons
+        if (selectedQuest) {
+          const lessonsResponse = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons?include_unpublished=true`)
+          setLessons(lessonsResponse.data.lessons || [])
+          if (lessonsResponse.data.lessons?.length > 0) {
+            setSelectedLesson(lessonsResponse.data.lessons[0])
+          }
+        }
+      } else {
+        toast.error(response.data.error || 'Failed to generate lessons', { id: toastId })
+      }
+    } catch (error) {
+      console.error('Failed to generate lessons:', error)
+      const errorMsg = error.response?.data?.error
+      const errorText = typeof errorMsg === 'string' ? errorMsg : errorMsg?.message || 'Failed to generate lessons'
+      toast.error(errorText, { id: toastId })
+    }
+  }
+
+  // Generate content for lessons with empty steps
+  const handleGenerateLessonContent = async () => {
+    const toastId = toast.loading('Generating lesson content...')
+    try {
+      const response = await api.post(`/api/admin/curriculum/generate/${courseId}/lesson-content`, {})
+      if (response.data.success) {
+        const count = response.data.generated_count || 0
+        if (count === 0) {
+          toast.success('All lessons already have content', { id: toastId })
+        } else {
+          toast.success(`Generated content for ${count} lesson${count > 1 ? 's' : ''}!`, { id: toastId })
+        }
+        // Refresh the current quest's lessons
+        if (selectedQuest) {
+          const lessonsResponse = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons?include_unpublished=true`)
+          setLessons(lessonsResponse.data.lessons || [])
+          if (selectedLesson) {
+            const updatedLesson = lessonsResponse.data.lessons?.find(l => l.id === selectedLesson.id)
+            if (updatedLesson) {
+              setSelectedLesson(updatedLesson)
+            }
+          }
+        }
+      } else {
+        toast.error(response.data.error || 'Failed to generate content', { id: toastId })
+      }
+    } catch (error) {
+      console.error('Failed to generate lesson content:', error)
+      const errorMsg = error.response?.data?.error
+      const errorText = typeof errorMsg === 'string' ? errorMsg : errorMsg?.message || 'Failed to generate content'
+      toast.error(errorText, { id: toastId })
+    }
+  }
+
+  // Calculate which AI tools are available
+  const hasLessonsWithoutTasks = quests.length > 0 // Always show as available if there are quests
+
+  // Projects without lessons - need to check all quests
+  // Since we only load lessons for the selected quest, we assume projects may need lessons
+  const hasProjectsWithoutLessons = quests.length > 0
+
+  // Check if any currently loaded lessons have empty content
+  const hasLessonsWithoutContent = lessons.some(lesson => {
+    const content = lesson.content
+    const steps = content?.steps || []
+    if (steps.length === 0) return true
+    // Check if any step has real content
+    const hasRealContent = steps.some(step => {
+      if (step.content && step.content.trim() && step.content !== '<p></p>') return true
+      if (step.video_url) return true
+      if (step.files && step.files.length > 0) return true
+      return false
+    })
+    return !hasRealContent
+  })
 
   // Save status indicator
   const SaveStatusIndicator = () => {
@@ -683,29 +826,15 @@ const CourseBuilder = () => {
               </button>
 
               <button
-                onClick={() => setShowBulkTaskModal(true)}
+                onClick={() => setShowAIToolsModal(true)}
                 disabled={quests.length === 0}
-                className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label="Generate tasks for lessons"
-                title="Generate AI tasks for all lessons without tasks"
+                className="flex items-center gap-2 px-3 py-2 text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 rounded-lg transition-opacity text-sm min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="AI Tools"
+                title="Open AI-powered tools for course building"
               >
                 <SparklesIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">Generate Tasks</span>
+                <span className="hidden sm:inline font-bold">AI Tools</span>
               </button>
-
-              {/* AI Refine button - Superadmin only */}
-              {isSuperadmin && (
-                <button
-                  onClick={() => setShowRefineModal(true)}
-                  disabled={quests.length === 0}
-                  className="flex items-center gap-2 px-3 py-2 text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 rounded-lg transition-opacity text-sm min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="AI Refine course content"
-                  title="Make AI-powered refinements across the entire course"
-                >
-                  <SparklesIcon className="w-4 h-4" />
-                  <span className="hidden sm:inline">AI Refine</span>
-                </button>
-              )}
 
               <button
                 onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
@@ -1044,6 +1173,7 @@ const CourseBuilder = () => {
         onDelete={handleDeleteCourse}
         isSaving={saveStatus === 'saving'}
         isDeleting={isDeleting}
+        questCount={quests?.length || 0}
       />
 
       {previewingLesson && (
@@ -1080,6 +1210,17 @@ const CourseBuilder = () => {
         }}
       />
 
+      {/* AI Tools Selection Modal */}
+      <AIToolsModal
+        isOpen={showAIToolsModal}
+        onClose={() => setShowAIToolsModal(false)}
+        onSelectTool={handleAIToolSelect}
+        hasLessonsWithoutTasks={hasLessonsWithoutTasks}
+        hasProjectsWithoutLessons={hasProjectsWithoutLessons}
+        hasLessonsWithoutContent={hasLessonsWithoutContent}
+        isSuperadmin={isSuperadmin}
+      />
+
       <BulkTaskGenerationModal
         isOpen={showBulkTaskModal}
         onClose={() => setShowBulkTaskModal(false)}
@@ -1094,7 +1235,7 @@ const CourseBuilder = () => {
           onClose={() => setShowRefineModal(false)}
           courseId={courseId}
           courseName={course?.title || 'Course'}
-          onRefineComplete={handleTasksUpdated}
+          onRefineComplete={handleRefineComplete}
         />
       )}
 

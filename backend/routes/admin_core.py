@@ -387,6 +387,9 @@ def delete_user_account(admin_id, user_id):
         supabase.table('org_invitations').delete().eq('accepted_by', user_id).execute()
         supabase.table('org_invitations').update({'invited_by': None}).eq('invited_by', user_id).execute()
 
+        # Clear promo code redemption references (keep the promo code record, just clear the user reference)
+        supabase.table('promo_codes').update({'redeemed_by_user_id': None}).eq('redeemed_by_user_id', user_id).execute()
+
         # Delete user quest enrollments and completions
         # NOTE: With CASCADE constraint, quest_task_completions will auto-delete when user_quest_tasks are deleted
         # But we delete explicitly here for clarity and to handle any edge cases

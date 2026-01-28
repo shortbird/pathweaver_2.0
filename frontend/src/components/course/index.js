@@ -7,6 +7,7 @@ export { default as LessonEditorModal } from './LessonEditorModal'
 export { default as CourseDetailsModal } from './CourseDetailsModal'
 export { default as BulkTaskGenerationModal } from './BulkTaskGenerationModal'
 export { default as MoveLessonModal } from './MoveLessonModal'
+export { default as AIToolsModal } from './AIToolsModal'
 
 // Course Display Components
 export { default as CourseCard } from './CourseCard'

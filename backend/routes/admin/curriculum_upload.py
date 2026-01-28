@@ -75,12 +75,11 @@ VALID_EXTENSIONS = {
     'docx': ['.docx', '.doc'],
 }
 
-# Max file size: 100MB (general limit)
-MAX_FILE_SIZE = 100 * 1024 * 1024
+# Max file size: 25MB (general limit)
+MAX_FILE_SIZE = 25 * 1024 * 1024
 
-# File size limits by type (PDFs are more memory-intensive due to multi-stage AI processing)
-# Images are stripped before processing, so larger PDFs are now safe
-MAX_PDF_SIZE = 100 * 1024 * 1024  # 100MB for PDFs (images stripped automatically)
+# File size limits by type
+MAX_PDF_SIZE = 25 * 1024 * 1024   # 25MB for PDFs
 MAX_DOCX_SIZE = 20 * 1024 * 1024  # 20MB for Word docs
 
 
@@ -407,7 +406,7 @@ def _handle_file_upload(user_id: str, organization_id: str, supabase):
     if file_size > MAX_FILE_SIZE:
         return jsonify({
             'success': False,
-            'error': f'File too large. Maximum size is 100MB.'
+            'error': f'File too large. Maximum size is 25MB.'
         }), 400
 
     # PDF-specific size limit (PDFs use ~10-20x memory during AI processing)

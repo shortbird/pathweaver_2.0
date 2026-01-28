@@ -484,7 +484,8 @@ def resend_verification():
         # Sanitize email input
         email = sanitize_input(email.lower().strip())
 
-        supabase = get_supabase_client()
+        # Use admin client since this is unauthenticated - avoids RLS infinite recursion
+        supabase = get_supabase_admin_client()
 
         # Check if user exists in our users table
         user_check = supabase.table('users').select('id').eq('email', email).execute()

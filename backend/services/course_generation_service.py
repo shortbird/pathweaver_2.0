@@ -496,6 +496,157 @@ class CourseGenerationService(BaseAIService):
 
         return result.data[0]['id']
 
+    def generate_lesson_content(
+        self,
+        course_id: str,
+        lesson_id: str
+    ) -> Dict[str, Any]:
+        """
+        Generate content (steps) for a lesson that only has a title.
+        Used for lessons created by Plan Mode with empty content.
+
+        Args:
+            course_id: The course ID
+            lesson_id: The lesson ID to generate content for
+
+        Returns:
+            Dict with generated steps and scaffolding
+        """
+        from prompts.course_generation import get_lesson_content_prompt
+
+        # Get lesson with quest info
+        lesson = self.admin_client.table('curriculum_lessons').select(
+            'id, title, description, content, quest_id'
+        ).eq('id', lesson_id).execute()
+
+        if not lesson.data:
+            raise Exception(f"Lesson {lesson_id} not found")
+
+        lesson_data = lesson.data[0]
+        quest_id = lesson_data['quest_id']
+
+        # Get course title
+        course = self.admin_client.table('courses').select('title').eq('id', course_id).execute()
+        course_title = course.data[0]['title'] if course.data else 'Untitled Course'
+
+        # Get project details
+        quest = self.admin_client.table('quests').select('title, description').eq('id', quest_id).execute()
+        project_title = quest.data[0]['title'] if quest.data else 'Project'
+        project_description = quest.data[0].get('description', '') if quest.data else ''
+
+        prompt = get_lesson_content_prompt(
+            course_title=course_title,
+            project_title=project_title,
+            project_description=project_description,
+            lesson_title=lesson_data['title'],
+            lesson_description=lesson_data.get('description', '')
+        )
+
+        logger.info(f"Generating content for lesson: {lesson_data['title']}")
+
+        result = self.generate_json(prompt, max_retries=3)
+
+        if not result or 'steps' not in result:
+            raise AIGenerationError(f"Failed to generate content for {lesson_data['title']}")
+
+        # Update lesson with generated content
+        scaffolding = result.get('scaffolding', {})
+        lesson_content = {
+            'version': 2,
+            'steps': result['steps'],
+            'scaffolding': scaffolding if scaffolding else None
+        }
+
+        update_data = {'content': lesson_content}
+        if result.get('description') and not lesson_data.get('description'):
+            update_data['description'] = result['description']
+
+        self.admin_client.table('curriculum_lessons').update(update_data).eq('id', lesson_id).execute()
+
+        logger.info(f"Generated {len(result['steps'])} steps for {lesson_data['title']}")
+
+        return result
+
+    def generate_content_for_empty_lessons(self, course_id: str) -> Dict[str, Any]:
+        """
+        Generate content for all lessons with empty steps in a course.
+
+        Args:
+            course_id: The course ID
+
+        Returns:
+            Dict with lesson_id keys and generated content as values
+        """
+        # Get all projects
+        projects_result = self.admin_client.table('course_quests').select(
+            'quest_id, quests(id, title)'
+        ).eq('course_id', course_id).execute()
+
+        if not projects_result.data:
+            raise Exception(f"No projects found for course {course_id}")
+
+        all_content = {}
+        generated_count = 0
+
+        for project_data in projects_result.data:
+            # Use quest_id directly from the course_quests row
+            quest_id = project_data.get('quest_id')
+            if not quest_id:
+                logger.warning(f"No quest_id found in project_data: {project_data}")
+                continue
+
+            # Get lessons for this project
+            lessons_result = self.admin_client.table('curriculum_lessons').select(
+                'id, title, content'
+            ).eq('quest_id', quest_id).order('sequence_order').execute()
+
+            if not lessons_result.data:
+                continue
+
+            for lesson in lessons_result.data:
+                lesson_id = lesson['id']
+                content = lesson.get('content', {})
+                steps = content.get('steps', []) if content else []
+
+                # Check if any step has actual content (not just empty strings)
+                has_real_content = False
+                if steps:
+                    for step in steps:
+                        step_content = step.get('content', '')
+                        # Check for text content
+                        if step_content and step_content.strip() and step_content != '<p></p>':
+                            has_real_content = True
+                            break
+                        # Check for video content
+                        if step.get('video_url'):
+                            has_real_content = True
+                            break
+                        # Check for file content
+                        if step.get('files') and len(step.get('files', [])) > 0:
+                            has_real_content = True
+                            break
+
+                logger.info(f"Checking lesson '{lesson['title']}': steps={len(steps) if steps else 0}, has_real_content={has_real_content}")
+
+                # Only generate for lessons without real content
+                if has_real_content:
+                    logger.info(f"Lesson '{lesson['title']}' already has content, skipping")
+                    continue
+
+                logger.info(f"Will generate content for lesson '{lesson['title']}'")
+
+                try:
+                    result = self.generate_lesson_content(course_id, lesson_id)
+                    all_content[lesson_id] = result
+                    generated_count += 1
+                    logger.info(f"Successfully generated content for '{lesson['title']}'")
+                except Exception as e:
+                    logger.error(f"Failed to generate content for lesson {lesson_id}: {str(e)}", exc_info=True)
+                    continue
+
+        logger.info(f"Generated content for {generated_count} lessons")
+        return all_content
+
     # =========================================================================
     # STAGE 3: TASK GENERATION
     # =========================================================================

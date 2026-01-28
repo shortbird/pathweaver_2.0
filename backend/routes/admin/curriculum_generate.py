@@ -304,6 +304,94 @@ def generate_lessons_for_project(user_id, course_id, quest_id):
 
 
 # =============================================================================
+# LESSON CONTENT GENERATION (for Plan Mode courses)
+# =============================================================================
+
+@bp.route('/<course_id>/lesson-content', methods=['POST'])
+@require_admin
+def generate_lesson_content_all(user_id, course_id):
+    """
+    Generate content (steps) for all lessons with empty content.
+
+    Used for courses created by Plan Mode where lessons have titles
+    but empty steps/content.
+
+    Returns:
+    {
+        "success": true,
+        "content": {
+            "lesson_id_1": { "steps": [...], "scaffolding": {...} },
+            "lesson_id_2": { "steps": [...], "scaffolding": {...} }
+        },
+        "generated_count": 5
+    }
+    """
+    try:
+        organization_id = get_organization_id(user_id)
+        service = CourseGenerationService(user_id, organization_id)
+
+        content = service.generate_content_for_empty_lessons(course_id)
+
+        return jsonify({
+            'success': True,
+            'content': content,
+            'generated_count': len(content)
+        }), 200
+
+    except AIGenerationError as e:
+        logger.error(f"AI content generation error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'AI generation failed: {str(e)}'
+        }), 500
+
+    except Exception as e:
+        logger.error(f"Lesson content generation error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@bp.route('/<course_id>/lesson-content/<lesson_id>', methods=['POST'])
+@require_admin
+def generate_lesson_content_single(user_id, course_id, lesson_id):
+    """
+    Generate content (steps) for a single lesson with empty content.
+
+    Returns:
+    {
+        "success": true,
+        "content": { "steps": [...], "scaffolding": {...} }
+    }
+    """
+    try:
+        organization_id = get_organization_id(user_id)
+        service = CourseGenerationService(user_id, organization_id)
+
+        content = service.generate_lesson_content(course_id, lesson_id)
+
+        return jsonify({
+            'success': True,
+            'content': content
+        }), 200
+
+    except AIGenerationError as e:
+        logger.error(f"AI content generation error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'AI generation failed: {str(e)}'
+        }), 500
+
+    except Exception as e:
+        logger.error(f"Lesson content generation error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# =============================================================================
 # STAGE 3: TASK GENERATION
 # =============================================================================
 

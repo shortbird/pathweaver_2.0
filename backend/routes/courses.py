@@ -423,11 +423,18 @@ def delete_course(user_id, course_id: str):
     Path params:
         course_id: Course UUID
 
+    Body (optional):
+        delete_quests: bool - If true, also delete the associated quests/projects
+
     Note: This cascades to delete course_quests and course_enrollments.
     """
     try:
         user_id = session_manager.get_effective_user_id()
         client = get_supabase_admin_client()
+
+        # Get optional body parameter
+        data = request.get_json(silent=True) or {}
+        delete_quests = data.get('delete_quests', False)
 
         # Check permissions
         course_result = client.table('courses').select('created_by, organization_id').eq('id', course_id).execute()
@@ -491,9 +498,51 @@ def delete_course(user_id, course_id: str):
 
         logger.info(f"Course deleted: {course_id} by {user_id}")
 
+        # Optionally delete the associated quests/projects
+        quests_deleted = 0
+        quests_skipped = 0
+        if delete_quests and quest_ids:
+            for quest_id in quest_ids:
+                try:
+                    # Check if this quest is used in any other courses
+                    # (course_quests for this course were already cascade-deleted)
+                    other_courses = client.table('course_quests')\
+                        .select('course_id')\
+                        .eq('quest_id', quest_id)\
+                        .execute()
+
+                    if other_courses.data:
+                        # Quest is used in other courses, skip deletion
+                        logger.info(f"Quest {quest_id} is used in {len(other_courses.data)} other course(s), skipping deletion")
+                        quests_skipped += 1
+                        continue
+
+                    # Delete lessons first (cascade should handle tasks)
+                    client.table('curriculum_lessons').delete().eq('quest_id', quest_id).execute()
+                    # Delete user_quest_tasks for this quest
+                    client.table('user_quest_tasks').delete().eq('quest_id', quest_id).execute()
+                    # Delete the quest
+                    client.table('quests').delete().eq('id', quest_id).execute()
+                    quests_deleted += 1
+                except Exception as quest_error:
+                    logger.warning(f"Failed to delete quest {quest_id}: {str(quest_error)}")
+
+            logger.info(f"Deleted {quests_deleted} quests along with course {course_id} (skipped {quests_skipped} shared quests)")
+
+        message = 'Course deleted successfully'
+        if delete_quests:
+            if quests_deleted > 0 and quests_skipped > 0:
+                message = f'Course deleted. {quests_deleted} project(s) deleted, {quests_skipped} skipped (used in other courses).'
+            elif quests_deleted > 0:
+                message = f'Course and {quests_deleted} project(s) deleted successfully.'
+            elif quests_skipped > 0:
+                message = f'Course deleted. {quests_skipped} project(s) were not deleted as they are used in other courses.'
+
         return jsonify({
             'success': True,
-            'message': 'Course deleted successfully'
+            'message': message,
+            'quests_deleted': quests_deleted if delete_quests else 0,
+            'quests_skipped': quests_skipped if delete_quests else 0
         }), 200
 
     except Exception as e:

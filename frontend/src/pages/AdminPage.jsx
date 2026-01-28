@@ -24,6 +24,7 @@ const CourseGeneratorWizard = lazy(() => import('./admin/CourseGeneratorWizard')
 const CourseGenerationQueue = lazy(() => import('./admin/CourseGenerationQueue'))
 const CourseEnrollmentsPage = lazy(() => import('./admin/CourseEnrollmentsPage'))
 const TransferCreditForm = lazy(() => import('./admin/TransferCreditForm'))
+const CoursePlanMode = lazy(() => import('./admin/CoursePlanMode'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -197,6 +198,8 @@ const AdminPage = () => {
           <Route path="generate-course/:courseId" element={<CourseGeneratorWizard />} />
           <Route path="course-generation-queue" element={<CourseGenerationQueue />} />
           <Route path="course-enrollments" element={<CourseEnrollmentsPage />} />
+          <Route path="course-plan" element={<CoursePlanMode />} />
+          <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
         </Routes>
       </Suspense>
     </div>

@@ -228,11 +228,15 @@ export const getCourseProgress = async (courseId) => {
  * Only the course creator or org_admin can delete a course.
  * This will cascade delete course_quests and course_enrollments.
  * @param {string} courseId - Course ID
+ * @param {Object} options - Deletion options
+ * @param {boolean} options.deleteQuests - If true, also delete the associated quests/projects
  * @returns {Promise<{success: boolean, message: string}>}
  */
-export const deleteCourse = async (courseId) => {
+export const deleteCourse = async (courseId, { deleteQuests = false } = {}) => {
   try {
-    const response = await api.delete(`/api/courses/${courseId}`)
+    const response = await api.delete(`/api/courses/${courseId}`, {
+      data: { delete_quests: deleteQuests }
+    })
     return response.data
   } catch (error) {
     console.error(`Error deleting course ${courseId}:`, error)

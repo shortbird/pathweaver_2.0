@@ -14,11 +14,13 @@ const CourseDetailsModal = ({
   onUpdate,
   onDelete,
   isSaving,
-  isDeleting
+  isDeleting,
+  questCount = 0
 }) => {
   const [localTitle, setLocalTitle] = useState(course?.title || '')
   const [localDescription, setLocalDescription] = useState(course?.description || '')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteQuests, setDeleteQuests] = useState(false)
 
   useEffect(() => {
     if (course) {
@@ -147,16 +149,35 @@ const CourseDetailsModal = ({
                 <p className="text-sm text-red-800 mb-3">
                   Are you sure you want to delete this course? This will permanently remove the course and all enrollments. This action cannot be undone.
                 </p>
+                {questCount > 0 && (
+                  <label className="flex items-start gap-2 mb-4 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={deleteQuests}
+                      onChange={(e) => setDeleteQuests(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                    />
+                    <span className="text-sm text-red-800">
+                      Also delete the {questCount} project{questCount !== 1 ? 's' : ''} in this course
+                      <span className="block text-xs text-red-600 mt-0.5">
+                        Projects shared with other courses will be kept. Only projects exclusive to this course will be deleted.
+                      </span>
+                    </span>
+                  </label>
+                )}
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setShowDeleteConfirm(false)}
+                    onClick={() => {
+                      setShowDeleteConfirm(false)
+                      setDeleteQuests(false)
+                    }}
                     disabled={isDeleting}
                     className="px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={onDelete}
+                    onClick={() => onDelete({ deleteQuests })}
                     disabled={isDeleting}
                     className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50"
                   >
