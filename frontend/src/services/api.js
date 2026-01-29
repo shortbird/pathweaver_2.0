@@ -237,11 +237,13 @@ api.interceptors.response.use(
               const response = await api.post('/api/auth/refresh', requestBody)
 
               if (response.status === 200) {
-                // CRITICAL FIX: Store new tokens for Safari/iOS/Firefox users
-                // Backend returns access_token and refresh_token in response body
-                if (useAuthHeaders && response.data.access_token && response.data.refresh_token) {
+                // CRITICAL FIX (January 2025): Always update in-memory tokens after refresh
+                // Previously only updated for Safari/iOS/Firefox, but Chrome users also have
+                // tokens in memory from login. Without this, expired tokens cause infinite 401 loops.
+                // Backend returns access_token and refresh_token in response body for all browsers.
+                if (response.data.access_token && response.data.refresh_token) {
                   await tokenStore.setTokens(response.data.access_token, response.data.refresh_token)
-                  logger.debug('[API] New tokens stored after refresh (Safari/iOS/Firefox)')
+                  logger.debug('[API] New tokens stored after refresh')
                 }
 
                 return true // Refresh successful
