@@ -1,14 +1,20 @@
 """
 Notification service for managing user notifications.
 
-Handles notification creation, retrieval, and marking as read.
+Handles notification creation, retrieval, marking as read, and real-time delivery
+via Supabase Realtime Broadcast and Web Push notifications.
 """
 
+import requests
 from services.base_service import BaseService
 from typing import Dict, List, Optional, Any
 from utils.logger import get_logger
+from app_config import Config
 
 logger = get_logger(__name__)
+
+# Notification types that should trigger push notifications
+PUSH_NOTIFICATION_TYPES = {'message_received'}
 
 
 class NotificationService(BaseService):
@@ -22,6 +28,13 @@ class NotificationService(BaseService):
         else:
             from database import get_supabase_admin_client
             self.supabase = get_supabase_admin_client()
+
+        # Setup Realtime broadcast endpoint
+        self._realtime_url = f"{Config.SUPABASE_URL}/realtime/v1/api/broadcast"
+        self._realtime_headers = {
+            'apikey': Config.SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json'
+        }
 
     def create_notification(
         self,
@@ -70,8 +83,23 @@ class NotificationService(BaseService):
                 .insert(notification_data)\
                 .execute()
 
+            notification = result.data[0] if result.data else {}
+
+            # Broadcast via Supabase Realtime for instant delivery
+            if notification:
+                self._broadcast_realtime(user_id, notification)
+
+            # Send push notification for supported types (message_received, etc.)
+            if notification and notification_type in PUSH_NOTIFICATION_TYPES:
+                self._send_push_notification(
+                    user_id=user_id,
+                    title=title,
+                    message=message,
+                    url=link
+                )
+
             logger.info(f"Created notification for user {user_id[:8]}: {notification_type}")
-            return result.data[0] if result.data else {}
+            return notification
 
         except Exception as e:
             logger.error(f"Error creating notification: {str(e)}")
@@ -233,6 +261,104 @@ class NotificationService(BaseService):
         except Exception as e:
             logger.error(f"Error deleting all notifications: {str(e)}")
             raise
+
+    def _send_push_notification(
+        self,
+        user_id: str,
+        title: str,
+        message: str,
+        url: Optional[str] = None
+    ) -> bool:
+        """
+        Send a Web Push notification for supported notification types.
+
+        This is used for message_received notifications to alert users
+        even when the app is backgrounded or closed.
+
+        Args:
+            user_id: Target user ID
+            title: Notification title
+            message: Notification body
+            url: Optional URL to open when clicked
+
+        Returns:
+            True if any push was sent successfully, False otherwise
+        """
+        try:
+            from services.push_notification_service import PushNotificationService
+
+            push_service = PushNotificationService(supabase=self.supabase)
+
+            if not push_service.is_configured():
+                logger.debug("Push notifications not configured, skipping")
+                return False
+
+            result = push_service.send_push_notification(
+                user_id=user_id,
+                title=title,
+                body=message,
+                url=url
+            )
+
+            return result.get('sent', 0) > 0
+
+        except ImportError:
+            logger.debug("Push notification service not available")
+            return False
+        except Exception as e:
+            # Don't fail notification creation if push fails
+            logger.warning(f"Push notification failed for user {user_id[:8]}: {str(e)}")
+            return False
+
+    def _broadcast_realtime(self, user_id: str, notification: Dict[str, Any]) -> bool:
+        """
+        Broadcast a notification via Supabase Realtime for instant delivery.
+
+        Uses Supabase Realtime Broadcast API to push notifications to connected
+        frontend clients. Each user has their own channel: 'notifications:{user_id}'
+
+        Args:
+            user_id: Target user ID
+            notification: The notification data to broadcast
+
+        Returns:
+            True if broadcast succeeded, False otherwise
+        """
+        try:
+            # Channel name format: notifications:{user_id}
+            channel_topic = f"notifications:{user_id}"
+
+            payload = {
+                'messages': [{
+                    'topic': channel_topic,
+                    'event': 'new_notification',
+                    'payload': notification
+                }]
+            }
+
+            response = requests.post(
+                self._realtime_url,
+                json=payload,
+                headers=self._realtime_headers,
+                timeout=5  # Don't block for too long
+            )
+
+            if response.status_code == 202:
+                logger.debug(f"Broadcast notification to channel {channel_topic}")
+                return True
+            else:
+                logger.warning(
+                    f"Realtime broadcast returned status {response.status_code}: {response.text}"
+                )
+                return False
+
+        except requests.exceptions.Timeout:
+            logger.warning(f"Realtime broadcast timed out for user {user_id[:8]}")
+            return False
+        except Exception as e:
+            # Don't fail the notification creation if broadcast fails
+            logger.warning(f"Realtime broadcast failed for user {user_id[:8]}: {str(e)}")
+            return False
 
     # Notification trigger helpers
     def notify_quest_invitation(

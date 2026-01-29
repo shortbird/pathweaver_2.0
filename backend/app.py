@@ -345,6 +345,15 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Error registering Direct Messages routes: {e}", exc_info=True)
 
+# Register Group Messages blueprint (group chat functionality)
+try:
+    from routes import group_messages
+    app.register_blueprint(group_messages.bp)  # /api/groups
+except ImportError as e:
+    logger.warning(f"Warning: Group Messages module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Group Messages routes: {e}", exc_info=True)
+
 # AI Quest Review routes removed in admin cleanup (January 2025)
 # Batch generation and AI tools have been removed from the admin panel
 
@@ -518,6 +527,15 @@ except ImportError as e:
     logger.warning(f"Warning: Notifications module not available: {e}")
 except Exception as e:
     logger.error(f"Error registering Notifications routes: {e}", exc_info=True)
+
+# Push Notifications - Web Push subscription management
+try:
+    from routes.push_subscriptions import bp as push_subscriptions_bp
+    app.register_blueprint(push_subscriptions_bp)  # /api/push (VAPID key, subscribe, unsubscribe)
+except ImportError as e:
+    logger.warning(f"Warning: Push Subscriptions module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Push Subscriptions routes: {e}", exc_info=True)
 
 # Admin Audit Logs - compliance and activity tracking
 try:

@@ -215,6 +215,11 @@ class Config:
     if not SUPERADMIN_EMAIL and FLASK_ENV == 'production':
         raise ValueError("SUPERADMIN_EMAIL must be set in production")
 
+    # Web Push Notifications (VAPID)
+    VAPID_PUBLIC_KEY = os.getenv('VAPID_PUBLIC_KEY')
+    VAPID_PRIVATE_KEY = os.getenv('VAPID_PRIVATE_KEY')
+    VAPID_MAILTO = os.getenv('VAPID_MAILTO', 'mailto:support@optioeducation.com')
+
     @classmethod
     def validate(cls) -> None:
         """Validate required configuration on startup"""

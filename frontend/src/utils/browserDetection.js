@@ -23,6 +23,32 @@ export const isIOS = () => {
 }
 
 /**
+ * Detect if the app is running as an iOS PWA (added to home screen)
+ * This is important for push notifications which require PWA mode on iOS
+ */
+export const isIOSPWA = () => {
+  return isIOS() && window.navigator.standalone === true
+}
+
+/**
+ * Check if push notifications are supported
+ * Returns false on iOS Safari unless running as PWA
+ */
+export const isPushNotificationSupported = () => {
+  // Basic feature detection
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return false
+  }
+
+  // iOS requires PWA mode for push notifications (iOS 16.4+)
+  if (isIOS() && !isIOSPWA()) {
+    return false
+  }
+
+  return true
+}
+
+/**
  * Detect if the browser is Firefox
  * Firefox has Enhanced Tracking Protection that blocks cross-site cookies
  */
