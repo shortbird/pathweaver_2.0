@@ -1178,6 +1178,103 @@ def bulk_generate_images(user_id):
             'error': f'Failed to generate images: {str(e)}'
         }), 500
 
+@bp.route('/quests/<quest_id>/clone-to-optio', methods=['POST'])
+@require_admin
+def clone_quest_to_optio(user_id, quest_id):
+    """
+    Clone a quest into an Optio universal quest with AI enhancement.
+    Superadmin only.
+
+    Creates a new quest with:
+    - organization_id = NULL (Optio universal)
+    - is_active = False (draft)
+    - is_public = False (private until reviewed)
+    - quest_type = 'optio'
+    - AI-enhanced title, description, and big_idea
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Verify user is superadmin
+        user = supabase.table('users').select('role').eq('id', user_id).execute()
+        user_role = user.data[0].get('role') if user.data else None
+
+        if user_role != 'superadmin':
+            return jsonify({'success': False, 'error': 'Only superadmin can clone quests to Optio'}), 403
+
+        # Fetch source quest
+        source_quest = supabase.table('quests').select('*').eq('id', quest_id).single().execute()
+        if not source_quest.data:
+            return jsonify({'success': False, 'error': 'Source quest not found'}), 404
+
+        # Use AI service to enhance the quest
+        from services.quest_ai_service import QuestAIService
+        ai_service = QuestAIService()
+        ai_result = ai_service.clone_quest_to_optio(source_quest.data)
+
+        if not ai_result.get('success'):
+            return jsonify({
+                'success': False,
+                'error': ai_result.get('error', 'AI enhancement failed')
+            }), 500
+
+        enhanced_quest = ai_result['quest']
+
+        # Auto-fetch header image using existing search_quest_image
+        image_url = search_quest_image(
+            enhanced_quest['title'],
+            enhanced_quest.get('description', '')
+        )
+        logger.info(f"Auto-fetched image for cloned quest '{enhanced_quest['title']}': {image_url}")
+
+        # Build metadata for tracking
+        metadata = {
+            'cloned_from': quest_id,
+            'cloned_at': datetime.utcnow().isoformat(),
+            'original_organization_id': source_quest.data.get('organization_id')
+        }
+
+        # Create new quest
+        new_quest_data = {
+            'title': enhanced_quest['title'],
+            'description': enhanced_quest['description'],
+            'big_idea': enhanced_quest['big_idea'],
+            'topics': enhanced_quest.get('topics', []),
+            'organization_id': None,  # Optio universal
+            'is_active': False,  # Draft
+            'is_public': False,  # Private until reviewed
+            'quest_type': 'optio',
+            'is_v3': True,
+            'header_image_url': image_url,
+            'image_url': image_url,
+            'created_by': user_id,
+            'created_at': datetime.utcnow().isoformat(),
+            'metadata': metadata
+        }
+
+        quest_result = supabase.table('quests').insert(new_quest_data).execute()
+
+        if not quest_result.data:
+            return jsonify({'success': False, 'error': 'Failed to create cloned quest'}), 500
+
+        new_quest = quest_result.data[0]
+        logger.info(f"Successfully cloned quest {quest_id[:8]} to Optio as {new_quest['id'][:8]}")
+
+        return jsonify({
+            'success': True,
+            'quest': new_quest,
+            'message': 'Quest cloned successfully. Review and publish when ready.',
+            'original_quest_id': quest_id
+        })
+
+    except Exception as e:
+        logger.error(f"Error cloning quest to Optio: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to clone quest: {str(e)}'
+        }), 500
+
+
 @bp.route('/quests/fix-course-enrollments', methods=['POST'])
 @require_admin
 def fix_course_quest_enrollments(user_id):

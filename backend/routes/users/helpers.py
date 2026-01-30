@@ -75,18 +75,19 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
                     except ValueError:
                         logger.warning(f"Could not normalize pillar '{pillar}' for user {user_id}")
 
-        # If no XP from user_skill_xp, calculate from approved tasks
+        # If no XP from user_skill_xp, calculate from COMPLETED tasks
         # This handles org students whose XP isn't synced to user_skill_xp
         if total_xp == 0:
-            approved_tasks = supabase.table('user_quest_tasks')\
-                .select('pillar, xp_value')\
+            # Get completed tasks with their XP values
+            completed_tasks = supabase.table('quest_task_completions')\
+                .select('user_quest_task_id, user_quest_tasks!quest_task_completions_user_quest_task_id_fkey(pillar, xp_value)')\
                 .eq('user_id', user_id)\
-                .eq('approval_status', 'approved')\
                 .execute()
 
-            if approved_tasks.data:
-                logger.info(f"Calculating XP from {len(approved_tasks.data)} approved tasks for user {user_id}")
-                for task in approved_tasks.data:
+            if completed_tasks.data:
+                logger.info(f"Calculating XP from {len(completed_tasks.data)} completed tasks for user {user_id}")
+                for completion in completed_tasks.data:
+                    task = completion.get('user_quest_tasks') or {}
                     pillar = task.get('pillar')
                     xp_amount = task.get('xp_value', 0) or 0
 
@@ -308,3 +309,159 @@ def format_skill_data(skill_breakdown: Dict[str, int]) -> List[Dict]:
         })
 
     return formatted
+
+
+# Valid diploma subject enum values (must match database enum and frontend CREDIT_REQUIREMENTS)
+VALID_DIPLOMA_SUBJECTS = {
+    'language_arts', 'math', 'science', 'social_studies', 'financial_literacy',
+    'health', 'pe', 'fine_arts', 'cte', 'digital_literacy', 'electives'
+}
+
+# Mapping from various subject name formats to canonical enum values
+SUBJECT_NAME_MAPPINGS = {
+    # Mathematics variations
+    'mathematics': 'math',
+    'maths': 'math',
+    'algebra': 'math',
+    'geometry': 'math',
+    'calculus': 'math',
+    'statistics': 'math',
+
+    # Physical Education variations
+    'physical_education': 'pe',
+    'physical education': 'pe',
+    'phys_ed': 'pe',
+    'sports': 'pe',
+    'fitness': 'pe',
+
+    # Career & Technical Education variations
+    'career_&_technical_education': 'cte',
+    'career_and_technical_education': 'cte',
+    'career & technical education': 'cte',
+    'career and technical education': 'cte',
+    'vocational': 'cte',
+    'technical_education': 'cte',
+    'business': 'cte',
+    'technology': 'cte',
+    'engineering': 'cte',
+    'construction': 'cte',
+
+    # Fine Arts variations
+    'art': 'fine_arts',
+    'arts': 'fine_arts',
+    'visual_arts': 'fine_arts',
+    'music': 'fine_arts',
+    'theater': 'fine_arts',
+    'theatre': 'fine_arts',
+    'drama': 'fine_arts',
+    'design': 'fine_arts',
+
+    # Language Arts variations
+    'english': 'language_arts',
+    'reading': 'language_arts',
+    'writing': 'language_arts',
+    'literature': 'language_arts',
+    'composition': 'language_arts',
+
+    # Social Studies variations
+    'history': 'social_studies',
+    'geography': 'social_studies',
+    'government': 'social_studies',
+    'civics_education': 'social_studies',
+    'economics': 'social_studies',
+    'political_science': 'social_studies',
+
+    # Health variations
+    'wellness': 'health',
+    'nutrition': 'health',
+    'life_skills': 'health',
+
+    # Science variations
+    'biology': 'science',
+    'chemistry': 'science',
+    'physics': 'science',
+    'earth_science': 'science',
+    'environmental_science': 'science',
+}
+
+
+def normalize_diploma_subject(subject_name: str) -> str:
+    """
+    Normalize a diploma subject name to its canonical enum value.
+
+    This handles various formats that may appear in diploma_subjects JSON:
+    - Display names like "Fine Arts", "Social Studies", "Mathematics"
+    - Already normalized names like "fine_arts", "social_studies"
+    - Variations and aliases like "Art", "History", "PE"
+
+    Args:
+        subject_name: The subject name to normalize (e.g., "Mathematics", "Fine Arts")
+
+    Returns:
+        Canonical subject enum value (e.g., "math", "fine_arts") or None if not recognized
+    """
+    if not subject_name:
+        return None
+
+    # Convert to lowercase and replace spaces with underscores
+    normalized = subject_name.lower().strip().replace(' ', '_').replace('&', 'and')
+
+    # If already a valid enum value, return as-is
+    if normalized in VALID_DIPLOMA_SUBJECTS:
+        return normalized
+
+    # Check special mappings
+    if normalized in SUBJECT_NAME_MAPPINGS:
+        return SUBJECT_NAME_MAPPINGS[normalized]
+
+    # Try without underscores (handles cases like "fineart" vs "fine_arts")
+    without_underscores = normalized.replace('_', '')
+    for valid_subject in VALID_DIPLOMA_SUBJECTS:
+        if valid_subject.replace('_', '') == without_underscores:
+            return valid_subject
+
+    # Log unrecognized subjects for debugging
+    logger.warning(f"Unrecognized diploma subject: '{subject_name}' (normalized: '{normalized}')")
+
+    return None
+
+
+def calculate_subject_xp_from_tasks(completed_tasks_data: list) -> Dict[str, int]:
+    """
+    Calculate subject XP from completed tasks' diploma_subjects field.
+
+    Args:
+        completed_tasks_data: List of completion records with nested user_quest_tasks data
+
+    Returns:
+        Dict mapping normalized subject names to XP amounts
+    """
+    subject_xp = {}
+
+    logger.info(f"[DIPLOMA DEBUG] Processing {len(completed_tasks_data)} completed tasks")
+
+    for i, completion in enumerate(completed_tasks_data):
+        task = completion.get('user_quest_tasks') or {}
+        diploma_subjects = task.get('diploma_subjects')
+
+        logger.info(f"[DIPLOMA DEBUG] Task {i}: user_quest_tasks={task}, diploma_subjects={diploma_subjects}")
+
+        # Skip if no diploma_subjects or not a dict (some old data has arrays)
+        if not diploma_subjects or not isinstance(diploma_subjects, dict):
+            logger.info(f"[DIPLOMA DEBUG] Task {i}: Skipping - no valid diploma_subjects")
+            continue
+
+        task_xp = task.get('xp_value', 0) or 0
+        if task_xp <= 0:
+            logger.info(f"[DIPLOMA DEBUG] Task {i}: Skipping - no XP value")
+            continue
+
+        for subject, percentage in diploma_subjects.items():
+            normalized_subject = normalize_diploma_subject(subject)
+            logger.info(f"[DIPLOMA DEBUG] Task {i}: '{subject}' -> '{normalized_subject}' ({percentage}% of {task_xp} XP)")
+            if normalized_subject:
+                subject_xp_amount = int(task_xp * percentage / 100)
+                subject_xp[normalized_subject] = subject_xp.get(normalized_subject, 0) + subject_xp_amount
+
+    logger.info(f"[DIPLOMA DEBUG] Final subject_xp: {subject_xp}")
+    return subject_xp

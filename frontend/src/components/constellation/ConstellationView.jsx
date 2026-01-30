@@ -78,7 +78,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
   });
 
   // Calculate gravitational position for quest orbs with collision detection
-  const calculateQuestPosition = useCallback((quest, pillarPositions, existingOrbs = []) => {
+  const calculateQuestPosition = useCallback((quest, pillarPositions, existingOrbs = [], questIndex = 0) => {
     const MIN_DISTANCE_FROM_PILLAR = 80; // Minimum 80px from any pillar
     const MIN_DISTANCE_BETWEEN_ORBS = 25; // Minimum 25px between quest orbs
     let x = 0, y = 0;
@@ -103,7 +103,8 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
     }
 
     // Add deterministic orbit offset based on quest ID
-    const hash = quest.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const questId = quest.id || `quest-${questIndex}`;
+    const hash = questId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     let orbitRadius = 30 + (hash % 40); // 30-70px orbit
     let angle = (hash % 360) * (Math.PI / 180);
 
@@ -202,7 +203,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
 
     filteredQuestOrbs.forEach((quest, index) => {
       // Calculate position, avoiding collisions with already-placed orbs
-      const position = calculateQuestPosition(quest, pillarPositions, existingPositions);
+      const position = calculateQuestPosition(quest, pillarPositions, existingPositions, index);
 
       const orbWithPosition = {
         ...quest,
@@ -516,7 +517,7 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
       {/* Quest Orbs - Render first so they're behind pillars */}
       {questOrbsWithPositions.map((quest, idx) => (
         <QuestOrb
-          key={quest.id}
+          key={quest.id || `quest-${idx}`}
           quest={quest}
           position={quest.position}
           pillarPositions={pillarPositions}

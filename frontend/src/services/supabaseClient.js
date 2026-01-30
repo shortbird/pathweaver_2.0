@@ -18,6 +18,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: false, // We handle token refresh in authService
     persistSession: false,   // We use our own session management
     detectSessionInUrl: true // Required for OAuth callback
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
   }
 })
 

@@ -60,11 +60,16 @@ def create_learning_event(user_id):
 
         # New optional fields for Learning Moments 2.0
         track_id = data.get('track_id')
+        quest_id = data.get('quest_id')  # Mutually exclusive with track_id
         parent_moment_id = data.get('parent_moment_id')
         source_type = data.get('source_type', 'realtime')
         estimated_duration_minutes = data.get('estimated_duration_minutes')
         ai_generated_title = data.get('ai_generated_title')
         ai_suggested_pillars = data.get('ai_suggested_pillars')
+
+        # Validate: track_id and quest_id are mutually exclusive
+        if track_id and quest_id:
+            return jsonify({'error': 'Cannot assign to both track and quest'}), 400
 
         # Validate source_type
         if source_type not in ['realtime', 'retroactive']:
@@ -85,6 +90,7 @@ def create_learning_event(user_id):
             title=title,
             pillars=pillars,
             track_id=track_id,
+            quest_id=quest_id,
             parent_moment_id=parent_moment_id,
             source_type=source_type,
             estimated_duration_minutes=estimated_duration_minutes,
@@ -124,12 +130,18 @@ def create_quick_learning_event(user_id):
             return jsonify({'error': 'Description is required'}), 400
 
         track_id = data.get('track_id')
+        quest_id = data.get('quest_id')  # Mutually exclusive with track_id
         parent_moment_id = data.get('parent_moment_id')
+
+        # Validate: track_id and quest_id are mutually exclusive
+        if track_id and quest_id:
+            return jsonify({'error': 'Cannot assign to both track and quest'}), 400
 
         result = LearningEventsService.create_quick_moment(
             user_id=user_id,
             description=description.strip(),
             track_id=track_id,
+            quest_id=quest_id,
             parent_moment_id=parent_moment_id
         )
 

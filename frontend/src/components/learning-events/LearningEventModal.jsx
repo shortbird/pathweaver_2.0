@@ -59,9 +59,29 @@ const LearningEventModal = ({
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [aiDismissed, setAiDismissed] = useState(false);
 
-  // Track and thread state
-  const [trackId, setTrackId] = useState(initialTrackId);
+  // Track/quest topic and thread state
+  // topic can be { type: 'track'|'quest', id: string } or legacy string (track_id)
+  const [topic, setTopic] = useState(initialTrackId ? { type: 'track', id: initialTrackId } : null);
   const [parentMomentId, setParentMomentId] = useState(initialParentMomentId);
+
+  // Helper to get legacy trackId for display and backwards compatibility
+  const getTrackId = () => {
+    if (!topic) return null;
+    if (typeof topic === 'string') return topic;
+    return topic.type === 'track' ? topic.id : null;
+  };
+
+  // Helper to handle topic selection from TrackSelector
+  const handleTopicChange = (newTopic) => {
+    // Handle both formats: { type, id } or legacy string
+    if (!newTopic || (!newTopic.id && typeof newTopic !== 'string')) {
+      setTopic(null);
+    } else if (typeof newTopic === 'string') {
+      setTopic({ type: 'track', id: newTopic });
+    } else {
+      setTopic(newTopic);
+    }
+  };
 
   const fileInputRef = useRef(null);
   const descriptionRef = useRef(null);
@@ -98,7 +118,14 @@ const LearningEventModal = ({
             order_index: block.order_index ?? index
           }))
         );
-        setTrackId(editEvent.track_id || null);
+        // Handle both track_id and quest_id from edit event
+        if (editEvent.quest_id) {
+          setTopic({ type: 'quest', id: editEvent.quest_id });
+        } else if (editEvent.track_id) {
+          setTopic({ type: 'track', id: editEvent.track_id });
+        } else {
+          setTopic(null);
+        }
         setParentMomentId(editEvent.parent_moment_id || null);
         setShowAdvanced(true); // Always show advanced in edit mode
         setAiSuggestions(null);
@@ -112,7 +139,7 @@ const LearningEventModal = ({
         setAiSuggestions(null);
         setAiDismissed(false);
         setShowAdvanced(!quickMode);
-        setTrackId(initialTrackId);
+        setTopic(initialTrackId ? { type: 'track', id: initialTrackId } : null);
         setParentMomentId(initialParentMomentId);
       }
     }
@@ -297,8 +324,17 @@ const LearningEventModal = ({
       // Add optional fields
       if (title.trim()) payload.title = title.trim();
       if (selectedPillars.length > 0) payload.pillars = selectedPillars;
-      if (trackId) payload.track_id = trackId;
       if (parentMomentId) payload.parent_moment_id = parentMomentId;
+
+      // Handle topic assignment (track, quest, or project)
+      // Note: 'project' type is a quest that belongs to a course
+      if (topic && topic.id) {
+        if (topic.type === 'quest' || topic.type === 'project') {
+          payload.quest_id = topic.id;
+        } else {
+          payload.track_id = topic.id;
+        }
+      }
 
       // Store AI suggestions metadata if used (only in create mode)
       if (!isEditMode && aiSuggestions) {
@@ -698,8 +734,8 @@ const LearningEventModal = ({
                   Topic of Interest
                 </label>
                 <TrackSelector
-                  value={trackId}
-                  onChange={setTrackId}
+                  value={topic}
+                  onChange={handleTopicChange}
                   placeholder="Select or create a topic"
                   showAISuggestion={description.length >= 30}
                   momentDescription={description}

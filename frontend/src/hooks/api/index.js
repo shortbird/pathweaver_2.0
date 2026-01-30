@@ -10,3 +10,10 @@
 export { useCourseBuilder } from './useCourseBuilder';
 export { useLessonManagement } from './useLessonManagement';
 export { useOrgUsers } from './useOrgUsers';
+export {
+  useNotifications,
+  useNotificationsQuery,
+  useNotificationSubscription,
+  useUnreadCount
+} from './useNotifications';
+export { useStudentOverview } from './useStudentOverview';

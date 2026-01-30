@@ -5,6 +5,7 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import InterestTracksList from '../components/interest-tracks/InterestTracksList';
 import InterestTrackDetail from '../components/interest-tracks/InterestTrackDetail';
+import QuestMomentsDetail from '../components/interest-tracks/QuestMomentsDetail';
 import LearningEventCard from '../components/learning-events/LearningEventCard';
 import QuickCaptureButton from '../components/learning-events/QuickCaptureButton';
 import EvolveTopicModal from '../components/interest-tracks/EvolveTopicModal';
@@ -19,6 +20,7 @@ const LearningJournalPage = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [selectedTrackId, setSelectedTrackId] = useState(null);
+  const [selectedQuestId, setSelectedQuestId] = useState(null);
   const [showUnassigned, setShowUnassigned] = useState(true); // Default to unassigned view
   const [unassignedMoments, setUnassignedMoments] = useState([]);
   const [isLoadingUnassigned, setIsLoadingUnassigned] = useState(false);
@@ -65,18 +67,29 @@ const LearningJournalPage = () => {
 
   const handleSelectTrack = (trackId) => {
     setSelectedTrackId(trackId);
+    setSelectedQuestId(null);
+    setShowUnassigned(false);
+    setMobileView('detail');
+  };
+
+  const handleSelectQuest = (questId) => {
+    console.log('[LearningJournalPage] handleSelectQuest called with:', questId);
+    setSelectedQuestId(questId);
+    setSelectedTrackId(null);
     setShowUnassigned(false);
     setMobileView('detail');
   };
 
   const handleSelectUnassigned = () => {
     setSelectedTrackId(null);
+    setSelectedQuestId(null);
     setShowUnassigned(true);
     setMobileView('detail');
   };
 
   const handleDeleteTrack = (trackId) => {
     setSelectedTrackId(null);
+    setSelectedQuestId(null);
     setShowUnassigned(true);
     setMobileView('list');
     setTracksRefreshKey(prev => prev + 1);
@@ -99,6 +112,8 @@ const LearningJournalPage = () => {
       fetchUnassignedMoments();
     } else if (selectedTrackId) {
       // The InterestTrackDetail will need to refresh
+    } else if (selectedQuestId) {
+      // QuestMomentsDetail will refresh on its own
     }
     // Also refresh tracks list to update moment counts
     setTracksRefreshKey(prev => prev + 1);
@@ -108,6 +123,20 @@ const LearningJournalPage = () => {
   const handleMomentAssigned = () => {
     fetchUnassignedMoments();
     setTracksRefreshKey(prev => prev + 1);
+  };
+
+  // Handler for when a moment is converted to a task
+  const handleMomentConverted = (task) => {
+    // Could show a link to the task or refresh data
+    setTracksRefreshKey(prev => prev + 1);
+  };
+
+  // Get the detail view label for mobile tab
+  const getDetailViewLabel = () => {
+    if (showUnassigned) return 'Unassigned';
+    if (selectedQuestId) return 'Quest Moments';
+    if (selectedTrackId) return 'Topic Detail';
+    return 'Select Topic';
   };
 
   // Auth loading
@@ -176,7 +205,7 @@ const LearningJournalPage = () => {
                 : 'text-gray-600 hover:text-gray-900'}
             `}
           >
-            {showUnassigned ? 'Unassigned' : selectedTrackId ? 'Topic Detail' : 'Select Topic'}
+            {getDetailViewLabel()}
           </button>
         </div>
       </header>
@@ -191,8 +220,10 @@ const LearningJournalPage = () => {
           `}
         >
           <InterestTracksList
-            selectedTrackId={showUnassigned ? null : selectedTrackId}
+            selectedTrackId={showUnassigned || selectedQuestId ? null : selectedTrackId}
+            selectedQuestId={selectedQuestId}
             onSelectTrack={handleSelectTrack}
+            onSelectQuest={handleSelectQuest}
             onSelectUnassigned={handleSelectUnassigned}
             showUnassigned={showUnassigned}
             refreshKey={tracksRefreshKey}
@@ -275,6 +306,12 @@ const LearningJournalPage = () => {
                 )}
               </div>
             </div>
+          ) : selectedQuestId ? (
+            // Quest Moments View
+            <QuestMomentsDetail
+              questId={selectedQuestId}
+              onMomentConverted={handleMomentConverted}
+            />
           ) : selectedTrackId ? (
             // Track Detail View
             <InterestTrackDetail

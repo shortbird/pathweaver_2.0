@@ -238,20 +238,32 @@ const SkillsRadarChart = ({ skillsXP, compact = false }) => {
         </ResponsiveContainer>
 
         {/* Compact stats grid - show all 5 pillars */}
-        <div className="grid grid-cols-2 gap-2 mt-2">
-          {competencyOrder.map(key => {
-            const info = competencyInfo[key];
-            const xp = skillsXP[key] || 0;
+        <div className="mt-2">
+          {/* First 4 pillars in 2x2 grid */}
+          <div className="grid grid-cols-2 gap-2">
+            {competencyOrder.slice(0, 4).map(key => {
+              const info = competencyInfo[key];
+              const xp = skillsXP[key] || 0;
 
-            return (
-              <div key={key} className="text-center p-2 rounded bg-gray-50">
-                <div className="text-xs font-semibold text-gray-700 truncate">{info.label}</div>
-                <div className="text-sm font-bold" style={{ color: info.color }}>
-                  {xp >= 1000 ? `${(xp/1000).toFixed(1)}k` : xp}
+              return (
+                <div key={key} className="text-center p-2 rounded bg-gray-50">
+                  <div className="text-xs font-semibold text-gray-700 truncate">{info.label}</div>
+                  <div className="text-sm font-bold" style={{ color: info.color }}>
+                    {xp >= 1000 ? `${(xp/1000).toFixed(1)}k` : xp}
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+          {/* 5th pillar centered below */}
+          <div className="flex justify-center mt-2">
+            <div className="text-center p-2 rounded bg-gray-50 w-1/2">
+              <div className="text-xs font-semibold text-gray-700 truncate">{competencyInfo[competencyOrder[4]].label}</div>
+              <div className="text-sm font-bold" style={{ color: competencyInfo[competencyOrder[4]].color }}>
+                {(skillsXP[competencyOrder[4]] || 0) >= 1000 ? `${((skillsXP[competencyOrder[4]] || 0)/1000).toFixed(1)}k` : (skillsXP[competencyOrder[4]] || 0)}
               </div>
-            );
-          })}
+            </div>
+          </div>
         </div>
       </div>
     );

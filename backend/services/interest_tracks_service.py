@@ -396,7 +396,7 @@ class InterestTracksService(BaseService):
         offset: int = 0
     ) -> Dict[str, Any]:
         """
-        Get learning moments that are not assigned to any track.
+        Get learning moments that are not assigned to any track or quest.
 
         Args:
             user_id: The user whose moments to fetch
@@ -409,10 +409,12 @@ class InterestTracksService(BaseService):
         try:
             supabase = get_supabase_admin_client()
 
+            # Get moments with no track_id AND no quest_id
             response = supabase.table('learning_events') \
                 .select('*, learning_event_evidence_blocks(*)') \
                 .eq('user_id', user_id) \
                 .is_('track_id', 'null') \
+                .is_('quest_id', 'null') \
                 .order('created_at', desc=True) \
                 .limit(limit) \
                 .offset(offset) \
@@ -991,3 +993,632 @@ class InterestTracksService(BaseService):
         except Exception as e:
             logger.error(f"Error transferring evidence to task {task_id}: {str(e)}")
             return 0
+
+    @staticmethod
+    def get_active_quest_topics(user_id: str) -> Dict[str, Any]:
+        """
+        Get user's active quests as topic options for the learning journal.
+        Groups course projects under their parent courses.
+
+        Optimized to use batch queries instead of N+1 queries.
+
+        Args:
+            user_id: The user whose active quests to fetch
+
+        Returns:
+            Dictionary with success status, standalone quest topics, and course topics
+        """
+        try:
+            supabase = get_supabase_admin_client()
+
+            # Get active quests with enrollment info
+            # Active = is_active=true AND status='picked_up'
+            response = supabase.table('user_quests') \
+                .select('id, quest_id, quests(id, title, image_url, description)') \
+                .eq('user_id', user_id) \
+                .eq('is_active', True) \
+                .eq('status', 'picked_up') \
+                .execute()
+
+            # Deduplicate by quest_id (there may be multiple enrollments)
+            seen_quest_ids = set()
+            quest_data = {}  # quest_id -> {quest info, enrollment id}
+
+            for enrollment in (response.data or []):
+                quest = enrollment.get('quests')
+                if quest and quest['id'] not in seen_quest_ids:
+                    seen_quest_ids.add(quest['id'])
+                    quest_data[quest['id']] = {
+                        'quest': quest,
+                        'user_quest_id': enrollment['id']
+                    }
+
+            if not quest_data:
+                return {
+                    'success': True,
+                    'quest_topics': [],
+                    'course_topics': []
+                }
+
+            quest_ids = list(quest_data.keys())
+
+            # OPTIMIZATION: Batch fetch all moment counts in ONE query
+            moment_counts = {}
+            moments_response = supabase.table('learning_events') \
+                .select('quest_id') \
+                .eq('user_id', user_id) \
+                .in_('quest_id', quest_ids) \
+                .execute()
+            for moment in (moments_response.data or []):
+                qid = moment.get('quest_id')
+                if qid:
+                    moment_counts[qid] = moment_counts.get(qid, 0) + 1
+
+            # Also count completed tasks for each quest
+            completed_task_counts = {}
+            completions_response = supabase.table('quest_task_completions') \
+                .select('quest_id') \
+                .eq('user_id', user_id) \
+                .in_('quest_id', quest_ids) \
+                .execute()
+            for completion in (completions_response.data or []):
+                qid = completion.get('quest_id')
+                if qid:
+                    completed_task_counts[qid] = completed_task_counts.get(qid, 0) + 1
+
+            # Get course info for these quests (single query)
+            course_quests_response = supabase.table('course_quests') \
+                .select('quest_id, course_id, sequence_order, courses(id, title, cover_image_url, description)') \
+                .in_('quest_id', quest_ids) \
+                .execute()
+
+            # Map quest_id -> course info
+            quest_to_course = {}
+            for cq in (course_quests_response.data or []):
+                if cq.get('courses'):
+                    quest_to_course[cq['quest_id']] = {
+                        'course': cq['courses'],
+                        'sequence_order': cq.get('sequence_order', 0)
+                    }
+
+            # Group by course vs standalone (no additional queries needed)
+            standalone_quests = []
+            courses_map = {}  # course_id -> {course info, projects list}
+
+            for quest_id, data in quest_data.items():
+                quest = data['quest']
+                user_quest_id = data['user_quest_id']
+                moment_count = moment_counts.get(quest_id, 0)
+                task_count = completed_task_counts.get(quest_id, 0)
+                total_items = moment_count + task_count
+
+                if quest_id in quest_to_course:
+                    # This quest is a course project
+                    course_info = quest_to_course[quest_id]
+                    course = course_info['course']
+                    course_id = course['id']
+
+                    if course_id not in courses_map:
+                        courses_map[course_id] = {
+                            'course': course,
+                            'projects': [],
+                            'total_moment_count': 0,
+                            'total_task_count': 0
+                        }
+
+                    courses_map[course_id]['projects'].append({
+                        'id': quest_id,
+                        'type': 'project',
+                        'name': quest['title'],
+                        'description': quest.get('description', ''),
+                        'image_url': quest.get('image_url'),
+                        'moment_count': moment_count,
+                        'task_count': task_count,
+                        'item_count': total_items,
+                        'user_quest_id': user_quest_id,
+                        'sequence_order': course_info['sequence_order']
+                    })
+                    courses_map[course_id]['total_moment_count'] += moment_count
+                    courses_map[course_id]['total_task_count'] += task_count
+                else:
+                    # Standalone quest
+                    standalone_quests.append({
+                        'id': quest_id,
+                        'type': 'quest',
+                        'name': quest['title'],
+                        'description': quest.get('description', ''),
+                        'image_url': quest.get('image_url'),
+                        'color': 'gradient',
+                        'icon': 'flag',
+                        'moment_count': moment_count,
+                        'task_count': task_count,
+                        'item_count': total_items,
+                        'user_quest_id': user_quest_id
+                    })
+
+            # Format course topics with nested projects
+            course_topics = []
+            for course_id, data in courses_map.items():
+                course = data['course']
+                # Sort projects by sequence order
+                projects = sorted(data['projects'], key=lambda p: p.get('sequence_order', 0))
+                total_items = data['total_moment_count'] + data.get('total_task_count', 0)
+                course_topics.append({
+                    'id': course_id,
+                    'type': 'course',
+                    'name': course['title'],
+                    'description': course.get('description', ''),
+                    'image_url': course.get('cover_image_url'),
+                    'color': 'gradient',
+                    'icon': 'academic-cap',
+                    'moment_count': data['total_moment_count'],
+                    'task_count': data.get('total_task_count', 0),
+                    'item_count': total_items,
+                    'projects': projects
+                })
+
+            return {
+                'success': True,
+                'quest_topics': standalone_quests,
+                'course_topics': course_topics
+            }
+
+        except Exception as e:
+            logger.error(f"Error fetching active quest topics: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e),
+                'quest_topics': [],
+                'course_topics': []
+            }
+
+    @staticmethod
+    def get_unified_topics(user_id: str) -> Dict[str, Any]:
+        """
+        Get combined list of interest tracks, active quests, and courses as topics.
+
+        Args:
+            user_id: The user whose topics to fetch
+
+        Returns:
+            Dictionary with success status and categorized topics
+        """
+        try:
+            # Get interest tracks
+            tracks_result = InterestTracksService.get_user_tracks(user_id)
+            tracks = tracks_result.get('tracks', []) if tracks_result.get('success') else []
+
+            # Get active quest topics (now includes course_topics)
+            quests_result = InterestTracksService.get_active_quest_topics(user_id)
+            quest_topics = quests_result.get('quest_topics', []) if quests_result.get('success') else []
+            course_topics = quests_result.get('course_topics', []) if quests_result.get('success') else []
+
+            # Format tracks as topics
+            formatted_tracks = []
+            for track in tracks:
+                formatted_tracks.append({
+                    'id': track['id'],
+                    'type': 'track',
+                    'name': track['name'],
+                    'description': track.get('description', ''),
+                    'color': track.get('color', '#6366f1'),
+                    'icon': track.get('icon', 'folder'),
+                    'moment_count': track.get('moment_count', 0)
+                })
+
+            # Combine all flat topics (standalone quests + tracks)
+            # Course topics are kept separate for nested display
+            all_topics = quest_topics + formatted_tracks
+
+            return {
+                'success': True,
+                'topics': all_topics,
+                'course_topics': course_topics,
+                'quest_count': len(quest_topics),
+                'course_count': len(course_topics),
+                'track_count': len(formatted_tracks)
+            }
+
+        except Exception as e:
+            logger.error(f"Error fetching unified topics: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e),
+                'topics': [],
+                'course_topics': []
+            }
+
+    @staticmethod
+    def assign_moment_to_topic(
+        user_id: str,
+        moment_id: str,
+        topic_type: str,
+        topic_id: Optional[str]
+    ) -> Dict[str, Any]:
+        """
+        Assign a learning moment to a track or quest topic.
+
+        Args:
+            user_id: The requesting user
+            moment_id: The moment to assign
+            topic_type: 'track' or 'quest'
+            topic_id: The topic ID (or None to unassign)
+
+        Returns:
+            Dictionary with success status
+        """
+        try:
+            supabase = get_supabase_admin_client()
+
+            # Get current moment assignment
+            current_response = supabase.table('learning_events') \
+                .select('track_id, quest_id') \
+                .eq('id', moment_id) \
+                .eq('user_id', user_id) \
+                .single() \
+                .execute()
+
+            if not current_response.data:
+                return {
+                    'success': False,
+                    'error': 'Moment not found'
+                }
+
+            old_track_id = current_response.data.get('track_id')
+            old_quest_id = current_response.data.get('quest_id')
+
+            # Prepare update data
+            update_data = {
+                'track_id': None,
+                'quest_id': None
+            }
+
+            if topic_id:
+                if topic_type == 'track':
+                    # Verify track ownership
+                    track_response = supabase.table('interest_tracks') \
+                        .select('id') \
+                        .eq('id', topic_id) \
+                        .eq('user_id', user_id) \
+                        .single() \
+                        .execute()
+
+                    if not track_response.data:
+                        return {
+                            'success': False,
+                            'error': 'Track not found'
+                        }
+                    update_data['track_id'] = topic_id
+
+                elif topic_type == 'quest':
+                    # Verify quest enrollment (is_active=true AND status='picked_up')
+                    enrollment_response = supabase.table('user_quests') \
+                        .select('id') \
+                        .eq('user_id', user_id) \
+                        .eq('quest_id', topic_id) \
+                        .eq('is_active', True) \
+                        .eq('status', 'picked_up') \
+                        .single() \
+                        .execute()
+
+                    if not enrollment_response.data:
+                        return {
+                            'success': False,
+                            'error': 'Quest not found or not enrolled'
+                        }
+                    update_data['quest_id'] = topic_id
+                else:
+                    return {
+                        'success': False,
+                        'error': 'Invalid topic type'
+                    }
+
+            # Update moment
+            response = supabase.table('learning_events') \
+                .update(update_data) \
+                .eq('id', moment_id) \
+                .eq('user_id', user_id) \
+                .execute()
+
+            if response.data and len(response.data) > 0:
+                # Update track moment counts if track assignment changed
+                if old_track_id and old_track_id != update_data.get('track_id'):
+                    supabase.rpc('decrement_track_moment_count', {'track_id': old_track_id}).execute()
+
+                if update_data.get('track_id') and update_data['track_id'] != old_track_id:
+                    supabase.rpc('increment_track_moment_count', {'track_id': update_data['track_id']}).execute()
+
+                return {
+                    'success': True,
+                    'moment': response.data[0]
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Failed to assign moment'
+                }
+
+        except Exception as e:
+            logger.error(f"Error assigning moment to topic: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    @staticmethod
+    def get_quest_moments(
+        user_id: str,
+        quest_id: str,
+        limit: int = 50,
+        offset: int = 0
+    ) -> Dict[str, Any]:
+        """
+        Get learning moments and completed tasks for a specific quest.
+
+        Args:
+            user_id: The requesting user
+            quest_id: The quest ID
+            limit: Maximum items to return
+            offset: Pagination offset
+
+        Returns:
+            Dictionary with quest info, moments, and completed tasks
+        """
+        import re
+        doc_id_pattern = re.compile(r'Document ID: ([a-f0-9-]+)')
+
+        try:
+            supabase = get_supabase_admin_client()
+            logger.info(f"get_quest_moments called for quest_id={quest_id}, user_id={user_id}")
+
+            # Verify user enrollment in quest (use limit 1 instead of single to handle duplicates)
+            enrollment_response = supabase.table('user_quests') \
+                .select('id, quests(id, title, description, image_url)') \
+                .eq('user_id', user_id) \
+                .eq('quest_id', quest_id) \
+                .limit(1) \
+                .execute()
+
+            if not enrollment_response.data or len(enrollment_response.data) == 0:
+                return {
+                    'success': False,
+                    'error': 'Quest not found or not enrolled'
+                }
+
+            quest = enrollment_response.data[0].get('quests')
+            user_quest_id = enrollment_response.data[0]['id']
+
+            # Get moments assigned to this quest
+            moments_response = supabase.table('learning_events') \
+                .select('*, learning_event_evidence_blocks(*)') \
+                .eq('quest_id', quest_id) \
+                .eq('user_id', user_id) \
+                .order('created_at', desc=True) \
+                .limit(limit) \
+                .offset(offset) \
+                .execute()
+
+            logger.info(f"Moments query returned {len(moments_response.data or [])} items")
+
+            # Rename evidence blocks for frontend
+            moments = moments_response.data or []
+            for moment in moments:
+                if 'learning_event_evidence_blocks' in moment:
+                    moment['evidence_blocks'] = moment.pop('learning_event_evidence_blocks')
+                moment['item_type'] = 'moment'
+
+            # Get completed tasks for this quest
+            completions_response = supabase.table('quest_task_completions') \
+                .select('*, user_quest_tasks(id, title, description, pillar, xp_value, source_moment_id)') \
+                .eq('quest_id', quest_id) \
+                .eq('user_id', user_id) \
+                .order('completed_at', desc=True) \
+                .execute()
+
+            logger.info(f"Completions query returned {len(completions_response.data or [])} items")
+
+            # Format completed tasks as moment-like items
+            completed_tasks = []
+            seen_source_moment_ids = set()
+
+            for completion in (completions_response.data or []):
+                task = completion.get('user_quest_tasks')
+                if task:
+                    # Track source_moment_ids so we can mark them in the moments list
+                    if task.get('source_moment_id'):
+                        seen_source_moment_ids.add(task['source_moment_id'])
+
+                    # Check if evidence_text contains a document reference
+                    evidence_text = completion.get('evidence_text') or ''
+                    evidence_blocks = []
+                    description = task.get('description') or ''
+
+                    try:
+                        if evidence_text and 'Document ID:' in evidence_text:
+                            # Extract document ID and fetch actual evidence blocks
+                            match = doc_id_pattern.search(evidence_text)
+                            if match:
+                                doc_id = match.group(1)
+                                logger.info(f"Fetching evidence blocks for document {doc_id}")
+                                blocks_response = supabase.table('evidence_document_blocks') \
+                                    .select('id, block_type, content, order_index') \
+                                    .eq('document_id', doc_id) \
+                                    .order('order_index') \
+                                    .execute()
+                                evidence_blocks = blocks_response.data or []
+                                logger.info(f"Found {len(evidence_blocks)} evidence blocks")
+                                # Use the first text block as description if available
+                                for block in evidence_blocks:
+                                    if block.get('block_type') == 'text' and block.get('content', {}).get('text'):
+                                        description = block['content']['text']
+                                        break
+                        elif evidence_text:
+                            # Plain text evidence
+                            description = evidence_text
+                    except Exception as ev_error:
+                        logger.warning(f"Error fetching evidence blocks: {str(ev_error)}")
+                        # Continue with empty evidence_blocks
+
+                    completed_tasks.append({
+                        'id': completion['id'],
+                        'item_type': 'completed_task',
+                        'title': task.get('title', 'Completed Task'),
+                        'description': description,
+                        'pillar': task.get('pillar'),
+                        'pillars': [task.get('pillar')] if task.get('pillar') else [],
+                        'xp_value': task.get('xp_value', 0),
+                        'evidence_url': completion.get('evidence_url'),
+                        'evidence_blocks': evidence_blocks,
+                        'completed_at': completion.get('completed_at'),
+                        'created_at': completion.get('completed_at'),
+                        'task_id': task.get('id'),
+                        'source_moment_id': task.get('source_moment_id')
+                    })
+
+            # Mark moments that have been converted to tasks
+            for moment in moments:
+                moment['has_task'] = moment['id'] in seen_source_moment_ids
+
+            # Combine and sort by created_at/completed_at
+            all_items = moments + completed_tasks
+            all_items.sort(key=lambda x: x.get('created_at') or '', reverse=True)
+
+            logger.info(f"Returning {len(all_items)} total items ({len(moments)} moments, {len(completed_tasks)} completed tasks)")
+
+            return {
+                'success': True,
+                'quest': quest,
+                'user_quest_id': user_quest_id,
+                'moments': all_items,
+                'moment_count': len(moments),
+                'completed_task_count': len(completed_tasks)
+            }
+
+        except Exception as e:
+            logger.error(f"Error fetching quest moments: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    @staticmethod
+    def convert_moment_to_task(
+        user_id: str,
+        moment_id: str,
+        title: Optional[str] = None,
+        pillar: str = 'stem',
+        xp_value: int = 100
+    ) -> Dict[str, Any]:
+        """
+        Convert a quest-assigned learning moment into a task on that quest.
+
+        Args:
+            user_id: The requesting user
+            moment_id: The moment to convert
+            title: Optional title override (uses moment title/description otherwise)
+            pillar: Learning pillar for the task
+            xp_value: XP value for the task
+
+        Returns:
+            Dictionary with success status and created task
+        """
+        try:
+            supabase = get_supabase_admin_client()
+
+            # Get moment with quest assignment
+            moment_response = supabase.table('learning_events') \
+                .select('*, learning_event_evidence_blocks(*)') \
+                .eq('id', moment_id) \
+                .eq('user_id', user_id) \
+                .single() \
+                .execute()
+
+            if not moment_response.data:
+                return {
+                    'success': False,
+                    'error': 'Moment not found'
+                }
+
+            moment = moment_response.data
+            quest_id = moment.get('quest_id')
+
+            if not quest_id:
+                return {
+                    'success': False,
+                    'error': 'Moment is not assigned to a quest'
+                }
+
+            # Get user's enrollment for this quest
+            enrollment_response = supabase.table('user_quests') \
+                .select('id') \
+                .eq('user_id', user_id) \
+                .eq('quest_id', quest_id) \
+                .single() \
+                .execute()
+
+            if not enrollment_response.data:
+                return {
+                    'success': False,
+                    'error': 'Not enrolled in this quest'
+                }
+
+            user_quest_id = enrollment_response.data['id']
+
+            # Determine task title
+            task_title = title
+            if not task_title:
+                task_title = moment.get('title') or moment.get('ai_generated_title')
+            if not task_title:
+                # Use first 100 chars of description
+                desc = moment.get('description', 'Learning moment task')
+                task_title = desc[:100] + ('...' if len(desc) > 100 else '')
+
+            # Create task
+            task_data = {
+                'user_id': user_id,
+                'quest_id': quest_id,
+                'user_quest_id': user_quest_id,
+                'title': task_title,
+                'description': moment.get('description', ''),
+                'pillar': pillar,
+                'xp_value': xp_value,
+                'is_required': False,
+                'is_manual': True,
+                'approval_status': 'pending',
+                'source_moment_id': moment_id  # Link back to source moment
+            }
+
+            task_response = supabase.table('user_quest_tasks').insert(task_data).execute()
+
+            if not task_response.data:
+                return {
+                    'success': False,
+                    'error': 'Failed to create task'
+                }
+
+            task = task_response.data[0]
+
+            # Transfer evidence from moment to task
+            evidence_blocks = moment.get('learning_event_evidence_blocks', [])
+            if evidence_blocks:
+                evidence_count = InterestTracksService._transfer_moment_evidence_to_task(
+                    supabase=supabase,
+                    user_id=user_id,
+                    quest_id=quest_id,
+                    task_id=task['id'],
+                    moment_ids=[moment_id]
+                )
+                logger.info(f"Transferred {evidence_count} evidence blocks to task {task['id']}")
+
+            return {
+                'success': True,
+                'task': task,
+                'message': f'Created task "{task_title}" with {xp_value} XP'
+            }
+
+        except Exception as e:
+            logger.error(f"Error converting moment to task: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }

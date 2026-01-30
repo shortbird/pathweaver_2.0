@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { BellIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { BellIcon as BellIconSolid } from '@heroicons/react/24/solid'
 import api from '../../services/api'
 import { formatDistanceToNow } from 'date-fns'
+import { useAuth } from '../../contexts/AuthContext'
+import { useNotificationSubscription } from '../../hooks/api/useNotifications'
 
 /**
  * NotificationBell component
@@ -12,27 +14,42 @@ import { formatDistanceToNow } from 'date-fns'
  * Clicking opens a dropdown showing recent notifications.
  *
  * Features:
- * - Unread count badge
+ * - Real-time notifications via Supabase Realtime
+ * - Unread count badge (updates instantly)
  * - Dropdown with recent notifications
  * - Mark as read on click
  * - Mark all as read button
  * - Link to full notifications page
  */
 const NotificationBell = () => {
+  const { user } = useAuth()
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const dropdownRef = useRef(null)
 
-  // Fetch notifications on mount and periodically
+  // Fetch notifications on mount
   useEffect(() => {
     fetchNotifications()
-
-    // Poll for new notifications every 60 seconds
-    const interval = setInterval(fetchNotifications, 60000)
-    return () => clearInterval(interval)
   }, [])
+
+  // Handle real-time notification updates
+  const handleNewNotification = useCallback((notification) => {
+    // Add new notification to the top of the list
+    setNotifications(prev => {
+      // Prevent duplicates
+      if (prev.some(n => n.id === notification.id)) {
+        return prev
+      }
+      // Add to beginning, keep max 10
+      return [notification, ...prev].slice(0, 10)
+    })
+    // Increment unread count
+    setUnreadCount(prev => prev + 1)
+  }, [])
+
+  // Subscribe to real-time notifications
+  useNotificationSubscription(user?.id, handleNewNotification)
 
   // Close dropdown when clicking outside
   useEffect(() => {

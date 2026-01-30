@@ -221,6 +221,7 @@ def get_contacts(user_id: str):
     Get all messaging contacts for the user (advisors, students, etc.)
     Organization isolation is enforced.
     This includes:
+    - For superadmin: ALL users on the platform
     - For students: their advisor(s) in the same organization
     - For advisors/admins: their assigned students in the same organization
     """
@@ -236,6 +237,29 @@ def get_contacts(user_id: str):
         contacts = []
         user_role = user.data.get('role')
         user_org_id = user.data.get('organization_id')
+
+        # SUPERADMIN: Return ALL users on the platform (no organization isolation)
+        if user_role == 'superadmin':
+            all_users = supabase.table('users').select(
+                'id, display_name, first_name, last_name, avatar_url, role, org_role, organization_id, email'
+            ).neq('id', user_id).order('display_name').execute()
+
+            if all_users.data:
+                for u in all_users.data:
+                    # Determine effective role for display
+                    effective_role = u.get('org_role') if u.get('role') == 'org_managed' else u.get('role')
+                    org_id = u.pop('organization_id', None)
+                    u.pop('org_role', None)
+                    contacts.append({
+                        **u,
+                        'relationship': effective_role or 'user',
+                        'organization_id': org_id  # Include for superadmin context
+                    })
+
+            return success_response({
+                'contacts': contacts,
+                'total': len(contacts)
+            })
 
         # For students: add their advisor(s) as contacts
         if user_role == 'student':
@@ -264,7 +288,7 @@ def get_contacts(user_id: str):
                         })
 
         # For advisors/admins: add all their assigned students
-        if user_role in ['advisor', 'org_admin', 'superadmin']:
+        if user_role in ['advisor', 'org_admin']:
             # Get student assignments for this advisor
             assignments = supabase.table('advisor_student_assignments').select(
                 'student_id'

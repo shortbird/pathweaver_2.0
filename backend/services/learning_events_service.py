@@ -25,6 +25,7 @@ class LearningEventsService(BaseService):
         title: Optional[str] = None,
         pillars: Optional[List[str]] = None,
         track_id: Optional[str] = None,
+        quest_id: Optional[str] = None,
         parent_moment_id: Optional[str] = None,
         source_type: str = 'realtime',
         estimated_duration_minutes: Optional[int] = None,
@@ -39,7 +40,8 @@ class LearningEventsService(BaseService):
             description: What the user learned/discovered
             title: Optional short title
             pillars: Optional list of pillar tags
-            track_id: Optional interest track ID
+            track_id: Optional interest track ID (mutually exclusive with quest_id)
+            quest_id: Optional quest ID to link moment to (mutually exclusive with track_id)
             parent_moment_id: Optional parent moment for threading
             source_type: 'realtime' or 'retroactive'
             estimated_duration_minutes: Estimated time spent
@@ -61,8 +63,11 @@ class LearningEventsService(BaseService):
             }
 
             # Add optional fields if provided
+            # Note: track_id and quest_id are mutually exclusive (enforced by DB constraint)
             if track_id:
                 event_data['track_id'] = track_id
+            if quest_id:
+                event_data['quest_id'] = quest_id
             if parent_moment_id:
                 event_data['parent_moment_id'] = parent_moment_id
             if source_type in ['realtime', 'retroactive']:
@@ -114,6 +119,7 @@ class LearningEventsService(BaseService):
         user_id: str,
         description: str,
         track_id: Optional[str] = None,
+        quest_id: Optional[str] = None,
         parent_moment_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -123,7 +129,8 @@ class LearningEventsService(BaseService):
         Args:
             user_id: The user creating the event
             description: What the user learned/discovered
-            track_id: Optional interest track ID
+            track_id: Optional interest track ID (mutually exclusive with quest_id)
+            quest_id: Optional quest ID (mutually exclusive with track_id)
             parent_moment_id: Optional parent moment for threading
 
         Returns:
@@ -133,6 +140,7 @@ class LearningEventsService(BaseService):
             user_id=user_id,
             description=description,
             track_id=track_id,
+            quest_id=quest_id,
             parent_moment_id=parent_moment_id,
             source_type='realtime'
         )

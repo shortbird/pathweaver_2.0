@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
 const TimeTravelSlider = ({ onTimeChange, currentTime, minTime, maxTime }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+
   const formatDate = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
@@ -9,6 +11,41 @@ const TimeTravelSlider = ({ onTimeChange, currentTime, minTime, maxTime }) => {
 
   const handleSliderChange = (e) => {
     onTimeChange(parseInt(e.target.value));
+  };
+
+  // Calculate step size (progress through range in ~10 seconds at 60fps)
+  const totalRange = maxTime - minTime;
+  const stepSize = Math.max(totalRange / 600, 86400000); // At least 1 day per step
+
+  // Auto-play effect
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const interval = setInterval(() => {
+      const next = currentTime + stepSize;
+      if (next >= maxTime) {
+        setIsPlaying(false);
+        onTimeChange(maxTime);
+      } else {
+        onTimeChange(next);
+      }
+    }, 16); // ~60fps
+
+    return () => clearInterval(interval);
+  }, [isPlaying, currentTime, maxTime, stepSize, onTimeChange]);
+
+  // Stop playing if user manually changes slider
+  const handleManualChange = (e) => {
+    setIsPlaying(false);
+    handleSliderChange(e);
+  };
+
+  const togglePlay = () => {
+    if (currentTime >= maxTime) {
+      // If at the end, restart from beginning
+      onTimeChange(minTime);
+    }
+    setIsPlaying(!isPlaying);
   };
 
   return (
@@ -38,6 +75,23 @@ const TimeTravelSlider = ({ onTimeChange, currentTime, minTime, maxTime }) => {
             <span className="text-white/80 text-sm font-medium">Time Travel</span>
           </div>
 
+          {/* Play/Pause Button */}
+          <button
+            onClick={togglePlay}
+            className="w-10 h-10 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-full transition-all"
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? (
+              <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            )}
+          </button>
+
           {/* Date Display */}
           <div className="text-white font-semibold text-base min-w-[120px] text-center">
             {formatDate(currentTime)}
@@ -51,7 +105,7 @@ const TimeTravelSlider = ({ onTimeChange, currentTime, minTime, maxTime }) => {
               min={minTime}
               max={maxTime}
               value={currentTime}
-              onChange={handleSliderChange}
+              onChange={handleManualChange}
               className="w-full max-w-[180px] sm:w-64 h-3 sm:h-2 bg-white/20 rounded-lg appearance-none cursor-pointer
                          focus:outline-none focus:ring-2 focus:ring-white/40
                          slider-thumb touch-manipulation"

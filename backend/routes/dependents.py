@@ -296,6 +296,94 @@ def update_dependent(user_id, dependent_id):
         return jsonify({'success': False, 'error': 'Failed to update dependent'}), 500
 
 
+@bp.route('/<dependent_id>/avatar', methods=['POST'])
+@require_auth
+@validate_uuid_param('dependent_id')
+def upload_dependent_avatar(user_id, dependent_id):
+    """
+    Upload avatar image for a dependent.
+
+    Requires multipart/form-data with 'avatar' file field.
+
+    Returns:
+        200: Avatar uploaded successfully with avatar_url
+        400: No file provided or invalid file type
+        403: Parent doesn't own this dependent
+        404: Dependent not found
+    """
+    import uuid as uuid_module
+    try:
+        verify_parent_role(user_id)
+
+        supabase = get_supabase_admin_client()
+        dependent_repo = DependentRepository(client=supabase)
+
+        # Verify parent owns this dependent
+        dependent = dependent_repo.get_dependent(dependent_id, user_id)
+        if not dependent:
+            raise RouteNotFoundError("Dependent not found")
+
+        if 'avatar' not in request.files:
+            raise ValidationError('No avatar file provided')
+
+        file = request.files['avatar']
+        if file.filename == '':
+            raise ValidationError('No file selected')
+
+        # Validate file type
+        allowed_types = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+        if file.content_type not in allowed_types:
+            raise ValidationError('Invalid file type. Allowed: JPEG, PNG, GIF, WebP')
+
+        # Validate file size (5MB max)
+        file.seek(0, 2)
+        size = file.tell()
+        file.seek(0)
+        if size > 5 * 1024 * 1024:
+            raise ValidationError('File too large. Maximum size is 5MB')
+
+        # Generate unique filename
+        ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'jpg'
+        filename = f"avatars/{dependent_id}/{uuid_module.uuid4()}.{ext}"
+
+        # Upload to Supabase Storage
+        file_bytes = file.read()
+        supabase.storage.from_('user-uploads').upload(
+            filename,
+            file_bytes,
+            {'content-type': file.content_type}
+        )
+
+        # Get public URL
+        avatar_url = supabase.storage.from_('user-uploads').get_public_url(filename)
+
+        # Update dependent's avatar_url
+        supabase.table('users')\
+            .update({'avatar_url': avatar_url})\
+            .eq('id', dependent_id)\
+            .execute()
+
+        logger.info(f"Parent {user_id} uploaded avatar for dependent {dependent_id}")
+
+        return jsonify({
+            'success': True,
+            'avatar_url': avatar_url,
+            'message': 'Avatar uploaded successfully'
+        }), 200
+
+    except AuthorizationError as e:
+        logger.warning(f"Authorization error for user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except ValidationError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except (NotFoundError, PermissionError, RouteNotFoundError) as e:
+        logger.warning(f"Error uploading avatar for dependent {dependent_id}: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error uploading avatar for dependent {dependent_id}: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to upload avatar'}), 500
+
+
 @bp.route('/<dependent_id>', methods=['DELETE'])
 @require_auth
 @validate_uuid_param('dependent_id')

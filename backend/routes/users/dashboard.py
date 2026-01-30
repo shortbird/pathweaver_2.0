@@ -27,7 +27,7 @@ from repositories import (
 )
 from utils.auth.decorators import require_auth
 from middleware.error_handler import NotFoundError
-from .helpers import calculate_user_xp, get_user_level, format_skill_data, SKILL_CATEGORIES
+from .helpers import calculate_user_xp, get_user_level, format_skill_data, SKILL_CATEGORIES, calculate_subject_xp_from_tasks
 
 from utils.logger import get_logger
 
@@ -199,17 +199,8 @@ def get_user_subject_xp(user_id):
 
             if completed_tasks.data:
                 logger.info(f"Calculating subject XP from {len(completed_tasks.data)} completed tasks for user {user_id}")
-                subject_xp_map = {}
-                for completion in completed_tasks.data:
-                    task_data = completion.get('user_quest_tasks') or {}
-                    diploma_subjects = task_data.get('diploma_subjects')
-                    if diploma_subjects and isinstance(diploma_subjects, dict):
-                        task_xp = task_data.get('xp_value', 0) or 0
-                        for subject, percentage in diploma_subjects.items():
-                            # Normalize subject name to snake_case to match frontend CREDIT_REQUIREMENTS
-                            normalized_subject = subject.lower().replace(' ', '_').replace('&', 'and')
-                            subject_xp_amount = int(task_xp * percentage / 100)
-                            subject_xp_map[normalized_subject] = subject_xp_map.get(normalized_subject, 0) + subject_xp_amount
+                # Use helper function for proper subject name normalization
+                subject_xp_map = calculate_subject_xp_from_tasks(completed_tasks.data)
 
                 # Convert to expected format
                 subject_xp = [
@@ -275,6 +266,13 @@ def get_dashboard(user_id):
         completed_quests_count = completed_quests_response.count or 0
         recent_completed_quests = completed_quests_response.data or []
 
+        # Get total completed tasks count
+        completed_tasks_response = supabase.table('quest_task_completions')\
+            .select('*', count='exact')\
+            .eq('user_id', user_id)\
+            .execute()
+        completed_tasks_count = completed_tasks_response.count if completed_tasks_response.count is not None else len(completed_tasks_response.data or [])
+
         # Calculate XP stats (needed for ConstellationPage and other features)
         total_xp, skill_breakdown = calculate_user_xp(supabase, user_id)
 
@@ -290,7 +288,8 @@ def get_dashboard(user_id):
             'stats': {
                 'total_xp': total_xp,
                 'level': level_info,
-                'completed_quests_count': completed_quests_count
+                'completed_quests_count': completed_quests_count,
+                'completed_tasks_count': completed_tasks_count
             },
             'xp_by_category': skill_breakdown,
             'skill_xp_data': skill_data,

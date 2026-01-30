@@ -18,9 +18,9 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
   }
 
   const isActiveToggle = (path) => {
-    // Dashboard toggle should be active for: /dashboard, /connections, /diploma, /profile, /badges, /admin, /communication, /calendar, /organization
+    // Dashboard toggle should be active for: /dashboard, /connections, /diploma, /profile, /overview, /badges, /admin, /communication, /calendar, /organization
     if (path === '/dashboard') {
-      return ['/dashboard', '/connections', '/diploma', '/profile', '/badges', '/admin', '/communication', '/calendar', '/organization'].some(route =>
+      return ['/dashboard', '/connections', '/diploma', '/profile', '/overview', '/badges', '/admin', '/communication', '/calendar', '/organization'].some(route =>
         location.pathname === route || location.pathname.startsWith(route + '/')
       )
     }
@@ -127,7 +127,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
 
                 {/* User Name - Show dependent's name when acting as them */}
                 <Link
-                  to="/profile"
+                  to="/overview"
                   className="hidden sm:block text-sm font-poppins font-medium text-neutral-700 hover:text-optio-purple transition-colors"
                 >
                   {actingAsDependent ? actingAsDependent.display_name : `${user?.first_name} ${user?.last_name}`}

@@ -18,6 +18,10 @@ Endpoints:
 - GET    /api/interest-tracks/suggestions  AI-detect potential new tracks
 - GET    /api/learning-events/unassigned   Get unassigned moments
 - POST   /api/learning-events/<id>/assign-track  Assign moment to track
+- GET    /api/topics/unified               Get combined tracks + active quests as topics
+- POST   /api/learning-events/<id>/assign-topic  Assign moment to track or quest
+- GET    /api/quests/<id>/moments          Get learning moments for a quest
+- POST   /api/learning-events/<id>/convert-to-task  Convert quest moment to task
 """
 
 from flask import Blueprint, request, jsonify
@@ -463,4 +467,162 @@ def evolve_track_to_quest(user_id, track_id):
 
     except Exception as e:
         logger.error(f"Error in evolve_track_to_quest: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@interest_tracks_bp.route('/api/topics/unified', methods=['GET'])
+@require_auth
+def get_unified_topics(user_id):
+    """Get combined list of interest tracks and active quests as topics."""
+    try:
+        result = InterestTracksService.get_unified_topics(user_id=user_id)
+
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'topics': result['topics'],
+                'course_topics': result.get('course_topics', []),
+                'quest_count': result.get('quest_count', 0),
+                'course_count': result.get('course_count', 0),
+                'track_count': result.get('track_count', 0)
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to fetch topics'),
+                'topics': [],
+                'course_topics': []
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error in get_unified_topics: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@interest_tracks_bp.route('/api/learning-events/<moment_id>/assign-topic', methods=['POST'])
+@require_auth
+def assign_moment_to_topic(user_id, moment_id):
+    """Assign a learning moment to a track or quest topic."""
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'error': 'Request body is required'}), 400
+
+        topic_type = data.get('type')  # 'track' or 'quest'
+        topic_id = data.get('topic_id')  # Can be None to unassign
+
+        # Validate topic_type if topic_id is provided
+        if topic_id and topic_type not in ['track', 'quest']:
+            return jsonify({'error': 'Type must be "track" or "quest"'}), 400
+
+        result = InterestTracksService.assign_moment_to_topic(
+            user_id=user_id,
+            moment_id=moment_id,
+            topic_type=topic_type or 'track',
+            topic_id=topic_id
+        )
+
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'moment': result.get('moment'),
+                'message': 'Moment assigned successfully' if topic_id else 'Moment unassigned'
+            }), 200
+        else:
+            status_code = 404 if 'not found' in result.get('error', '').lower() else 400
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to assign moment')
+            }), status_code
+
+    except Exception as e:
+        logger.error(f"Error in assign_moment_to_topic: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@interest_tracks_bp.route('/api/quests/<quest_id>/moments', methods=['GET'])
+@require_auth
+def get_quest_moments(user_id, quest_id):
+    """Get learning moments assigned to a specific quest."""
+    try:
+        limit = request.args.get('limit', 50, type=int)
+        offset = request.args.get('offset', 0, type=int)
+
+        if limit < 1 or limit > 100:
+            return jsonify({'error': 'Limit must be between 1 and 100'}), 400
+
+        result = InterestTracksService.get_quest_moments(
+            user_id=user_id,
+            quest_id=quest_id,
+            limit=limit,
+            offset=offset
+        )
+
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'quest': result['quest'],
+                'user_quest_id': result['user_quest_id'],
+                'moments': result['moments'],
+                'moment_count': result['moment_count']
+            }), 200
+        else:
+            status_code = 404 if 'not found' in result.get('error', '').lower() else 500
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to fetch quest moments')
+            }), status_code
+
+    except Exception as e:
+        logger.error(f"Error in get_quest_moments: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@interest_tracks_bp.route('/api/learning-events/<moment_id>/convert-to-task', methods=['POST'])
+@require_auth
+def convert_moment_to_task(user_id, moment_id):
+    """Convert a quest-assigned learning moment into a task on that quest."""
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'error': 'Request body is required'}), 400
+
+        title = data.get('title')
+        pillar = data.get('pillar', 'stem')
+        xp_value = data.get('xp_value', 100)
+
+        # Validate pillar
+        valid_pillars = ['art', 'stem', 'wellness', 'communication', 'civics']
+        if pillar not in valid_pillars:
+            return jsonify({'error': f'Pillar must be one of: {", ".join(valid_pillars)}'}), 400
+
+        # Validate xp_value
+        if not isinstance(xp_value, int) or xp_value < 10 or xp_value > 500:
+            return jsonify({'error': 'XP value must be between 10 and 500'}), 400
+
+        result = InterestTracksService.convert_moment_to_task(
+            user_id=user_id,
+            moment_id=moment_id,
+            title=title.strip() if title else None,
+            pillar=pillar,
+            xp_value=xp_value
+        )
+
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'task': result['task'],
+                'message': result['message']
+            }), 201
+        else:
+            status_code = 404 if 'not found' in result.get('error', '').lower() else 400
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to convert moment')
+            }), status_code
+
+    except Exception as e:
+        logger.error(f"Error in convert_moment_to_task: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500

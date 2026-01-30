@@ -1210,3 +1210,105 @@ Generate 4 approaches, each with 3-4 tasks.
             return max(25, min(200, xp))
         except (ValueError, TypeError):
             return 100
+
+    def clone_quest_to_optio(self, source_quest: Dict) -> Dict[str, Any]:
+        """
+        Clone a user/org quest into an Optio universal quest with AI enhancement.
+        Rewrites title, description, and big_idea to match Optio's educational
+        philosophy and quality standards.
+
+        Args:
+            source_quest: Dict containing title, description, big_idea, topics, etc.
+
+        Returns:
+            Dict with enhanced quest data ready for insertion
+        """
+        try:
+            original_title = source_quest.get('title', '')
+            original_description = source_quest.get('description', '') or source_quest.get('big_idea', '')
+            original_big_idea = source_quest.get('big_idea', '') or original_description
+
+            prompt = f"""You are enhancing a quest to match Optio's educational standards.
+
+{CORE_PHILOSOPHY}
+
+{TONE_LEVELS['content_generation']}
+
+ORIGINAL QUEST:
+Title: {original_title}
+Description: {original_description}
+Big Idea: {original_big_idea}
+
+YOUR TASK:
+Rewrite this quest to match Optio's "Process Is The Goal" philosophy and quality standards.
+
+FORMATTING STANDARDS:
+
+1. Title (3-6 words, action-oriented):
+   - Use simple, clear language
+   - Include action verb (Start, Learn, Build, Create, Master, Design, Write, Paint, etc.)
+   - Title case capitalization
+   - No emojis, no exclamation points
+   - Examples: "Start a Small Business", "Learn to Surf", "Build a Treehouse"
+
+2. Big Idea (exactly 2-3 sentences, process-focused):
+   - First sentence: Explain what students will DO in simple terms
+   - Keep it open to personal interpretation
+   - Focus on the EXPERIENCE itself, not future benefits
+   - Use simple, professional, respectful language
+   - NO "will help you" or outcome-oriented language
+   - NO flowery excitement, NO emojis, NO motivational hype
+   - Celebrate the present process
+
+3. Topics (3-5 relevant topic tags):
+   - Single words or short phrases
+   - Lowercase
+   - Describe what the quest is about
+
+Return ONLY valid JSON (no markdown code blocks):
+{{
+  "title": "Enhanced Title Here",
+  "description": "Enhanced 2-3 sentence description here.",
+  "big_idea": "Same as description (keep them in sync).",
+  "topics": ["topic1", "topic2", "topic3"]
+}}"""
+
+            response = self.model.generate_content(prompt)
+            if not response or not response.text:
+                raise Exception("Empty response from Gemini API")
+
+            # Parse the response
+            result = self.extract_json(response.text)
+
+            if not result:
+                raise ValueError("Failed to parse AI response as JSON")
+
+            # Validate required fields
+            if not result.get('title'):
+                result['title'] = original_title
+            if not result.get('description'):
+                result['description'] = original_description
+            if not result.get('big_idea'):
+                result['big_idea'] = result.get('description', original_big_idea)
+            if not result.get('topics'):
+                result['topics'] = []
+
+            # Keep description and big_idea in sync
+            result['big_idea'] = result['description']
+
+            # Add source metadata
+            result['original_quest_id'] = source_quest.get('id')
+            result['original_organization_id'] = source_quest.get('organization_id')
+
+            return {
+                'success': True,
+                'quest': result
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to clone quest to Optio: {str(e)}")
+            return {
+                'success': False,
+                'error': f"Failed to clone quest: {str(e)}",
+                'quest': None
+            }

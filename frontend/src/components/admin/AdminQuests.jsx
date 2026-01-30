@@ -135,6 +135,22 @@ const AdminQuests = () => {
     setOpenDropdownId(null)
   }
 
+  const handleCloneToOptio = async (questId) => {
+    if (!window.confirm('Clone this quest to Optio library? AI will enhance the content to match Optio standards.')) return
+
+    try {
+      setIsProcessing(true)
+      const response = await api.post(`/api/admin/quests/${questId}/clone-to-optio`, {})
+      toast.success('Quest cloned to Optio! It is saved as a draft.')
+      fetchQuests()  // Refresh list to show new quest
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to clone quest')
+    } finally {
+      setIsProcessing(false)
+      setOpenDropdownId(null)
+    }
+  }
+
   const handleUploadImage = (questId) => {
     const fileInput = document.createElement('input')
     fileInput.type = 'file'
@@ -403,6 +419,23 @@ const AdminQuests = () => {
               </svg>
               Generate Image
             </button>
+            {/* Clone to Optio - For superadmin to clone user-generated quests into polished Optio platform quests */}
+            {isSuperAdmin && quest.created_by !== user?.id && (
+              <>
+                <div className="border-t border-gray-100 my-1" />
+                <button
+                  onClick={() => handleCloneToOptio(quest.id)}
+                  disabled={isProcessing}
+                  className="w-full px-4 py-2 text-left text-sm text-optio-purple hover:bg-purple-50 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Clone to Optio
+                </button>
+              </>
+            )}
             <div className="border-t border-gray-100 my-1" />
             <button
               onClick={() => handleDelete(quest.id)}

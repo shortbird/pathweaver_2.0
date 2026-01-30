@@ -24,6 +24,7 @@ from .evidence_view import bp as evidence_view_bp
 from .analytics_insights import bp as analytics_insights_bp
 from .analytics import bp as analytics_bp
 from .engagement import bp as engagement_bp
+from .child_overview import bp as child_overview_bp
 
 # Export blueprints for direct import
 __all__ = [
@@ -33,6 +34,7 @@ __all__ = [
     'analytics_insights_bp',
     'analytics_bp',
     'engagement_bp',
+    'child_overview_bp',
     'register_parent_blueprints'
 ]
 
@@ -45,3 +47,4 @@ def register_parent_blueprints(app: Flask):
     app.register_blueprint(analytics_insights_bp)
     app.register_blueprint(analytics_bp)
     app.register_blueprint(engagement_bp)
+    app.register_blueprint(child_overview_bp)

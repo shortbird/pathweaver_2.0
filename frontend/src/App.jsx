@@ -64,7 +64,8 @@ const CreditTrackerPage = lazy(() => import('./pages/CreditTrackerPage'))
 const TranscriptPage = lazy(() => import('./pages/TranscriptPage'))
 // Other Pages
 const DiplomaPage = lazy(() => import('./pages/DiplomaPage'))
-const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const StudentOverviewPage = lazy(() => import('./pages/StudentOverviewPage'))
+// ProfilePage removed - redirects to StudentOverviewPage (January 2026)
 // FriendsPage removed - redirects to ConnectionsPage (January 2025)
 const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage'))
 const CommunicationPage = lazy(() => import('./pages/CommunicationPage'))
@@ -393,8 +394,10 @@ function App() {
                 {/* Credit & Transcript Routes */}
                 <Route path="credits" element={<CreditTrackerPage />} />
                 <Route path="transcript" element={<TranscriptPage />} />
-                {/* Other Routes */}
-                <Route path="profile" element={<ProfilePage />} />
+                {/* Student Overview - Unified page combining profile, diploma, and constellation */}
+                <Route path="overview" element={<StudentOverviewPage />} />
+                {/* Legacy routes - redirect to overview with hash anchors */}
+                <Route path="profile" element={<Navigate to="/overview" replace />} />
                 <Route path="friends" element={<Navigate to="/connections" replace />} />
                 <Route path="connections" element={<ConnectionsPage />} />
                 <Route path="communication" element={<CommunicationPage />} />

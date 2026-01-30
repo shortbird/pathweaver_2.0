@@ -3,26 +3,20 @@ import { useAuth } from '../contexts/AuthContext';
 import { useActingAs } from '../contexts/ActingAsContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import { parentAPI } from '../services/api';
-import api from '../services/api';
 import { toast } from 'react-hot-toast';
 import { getMyDependents } from '../services/dependentAPI';
-import { useStudentEngagement } from '../hooks/api/useQuests';
 import {
-  CheckCircleIcon,
   ExclamationTriangleIcon,
   UserIcon,
   PlusIcon,
-  UserGroupIcon,
-  Cog6ToothIcon
+  UserGroupIcon
 } from '@heroicons/react/24/outline';
 import AddDependentModal from '../components/parent/AddDependentModal';
 import RequestStudentConnectionModal from '../components/parent/RequestStudentConnectionModal';
 import VisibilityApprovalSection from '../components/parent/VisibilityApprovalSection';
 import DependentSettingsModal from '../components/parent/DependentSettingsModal';
 import FamilyObserverModal from '../components/parent/FamilyObserverModal';
-import RhythmIndicator from '../components/quest/RhythmIndicator';
-import EngagementCalendar from '../components/quest/EngagementCalendar';
-import RhythmExplainerModal from '../components/quest/RhythmExplainerModal';
+import ChildOverviewContent from '../components/parent/ChildOverviewContent';
 
 const ParentDashboardPage = () => {
   const { user } = useAuth();
@@ -32,32 +26,14 @@ const ParentDashboardPage = () => {
   const [selectedStudentId, setSelectedStudentId] = useState(studentId || null);
   const [children, setChildren] = useState([]);
   const [dependents, setDependents] = useState([]);
-  const [dashboardDataCache, setDashboardDataCache] = useState({}); // Cache by student ID
-  const [dashboardData, setDashboardData] = useState(null);
-  const [progressData, setProgressData] = useState(null);
-  const [creditData, setCreditData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [completedQuests, setCompletedQuests] = useState([]);
   const [showAddDependentModal, setShowAddDependentModal] = useState(false);
   const [showRequestConnectionModal, setShowRequestConnectionModal] = useState(false);
   const [showDependentSettingsModal, setShowDependentSettingsModal] = useState(false);
   const [selectedDependentForSettings, setSelectedDependentForSettings] = useState(null);
   const [selectedChildIsDependent, setSelectedChildIsDependent] = useState(true);
-  const [showRhythmModal, setShowRhythmModal] = useState(false);
   const [showFamilyObserverModal, setShowFamilyObserverModal] = useState(false);
-
-  // Fetch engagement data for selected student
-  const { data: engagement } = useStudentEngagement(selectedStudentId);
-
-  // Pillar display names mapping
-  const pillarDisplayNames = {
-    art: 'Art',
-    stem: 'STEM',
-    wellness: 'Wellness',
-    communication: 'Communication',
-    civics: 'Civics'
-  };
 
   // Load children list (admin-only linking, no invitations) and dependents
   // NOTE: All hooks must be declared before any conditional returns (React Rules of Hooks)
@@ -113,73 +89,15 @@ const ParentDashboardPage = () => {
   }, [user, actingAsDependent]); // Re-run when actingAsDependent changes (e.g., switching back from masquerade)
 
 
-  // Load dashboard data when student selected and children/dependents are loaded
+  // Stop loading once children/dependents are loaded and a student is selected
   useEffect(() => {
-    // Skip loading if acting as dependent (will be redirected to student dashboard)
-    if (actingAsDependent) {
-      return;
+    if (actingAsDependent) return;
+
+    // If we have a student selected or no children exist, stop showing top-level loading
+    if (selectedStudentId || (children.length === 0 && dependents.length === 0)) {
+      setLoading(false);
     }
-
-    const loadDashboardData = async () => {
-      // Wait until we have student data before trying to load dashboard
-      if (!selectedStudentId || (children.length === 0 && dependents.length === 0)) {
-        if (children.length === 0 && dependents.length === 0) {
-          setLoading(true); // Keep loading while children/dependents are being fetched
-        } else {
-          setLoading(false); // No student selected
-        }
-        return;
-      }
-
-      // Check cache first for instant switching
-      if (dashboardDataCache[selectedStudentId]) {
-        const cached = dashboardDataCache[selectedStudentId];
-        setDashboardData(cached.dashboard);
-        setProgressData(cached.progress);
-        setCreditData(cached.credits);
-        setCompletedQuests(cached.completed);
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      try {
-        // Load only overview data
-        const [dashboard, progress, credits, completed] = await Promise.all([
-          parentAPI.getDashboard(selectedStudentId),
-          parentAPI.getProgress(selectedStudentId),
-          api.get(`/api/credits/transcript/${selectedStudentId}`),
-          parentAPI.getCompletedQuests(selectedStudentId)
-        ]);
-
-        const data = {
-          dashboard: dashboard.data,
-          progress: progress.data,
-          credits: credits.data.transcript,
-          completed: completed.data.quests || []
-        };
-
-        // Store in cache
-        setDashboardDataCache(prev => ({
-          ...prev,
-          [selectedStudentId]: data
-        }));
-
-        setDashboardData(data.dashboard);
-        setProgressData(data.progress);
-        setCreditData(data.credits);
-        setCompletedQuests(data.completed);
-        setError(null);
-      } catch (error) {
-        console.error('Error loading dashboard:', error);
-        setError('Failed to load dashboard data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadDashboardData();
-  }, [selectedStudentId, children.length, dependents.length, user, actingAsDependent]); // Include actingAsDependent to re-run when switching back
+  }, [selectedStudentId, children.length, dependents.length, actingAsDependent]);
 
   // Helper to calculate age from date_of_birth
   const calculateAge = (dateOfBirth) => {
@@ -473,356 +391,30 @@ const ParentDashboardPage = () => {
             </div>
           )}
 
-          {/* Act As Banner for Under-13 Dependents */}
-          {(() => {
-            const selectedDependent = dependents.find(d => d.id === selectedStudentId);
-            if (!selectedDependent) return null;
 
-            const age = selectedDependent.age || calculateAge(selectedDependent.date_of_birth);
-            const isUnder13 = age !== null && age < 13;
-            const firstName = selectedDependent.display_name?.split(' ')[0] || selectedDependent.display_name;
-
-            if (!isUnder13) return null;
-
-            return (
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-l-4 border-optio-purple px-4 sm:px-6 py-3 mb-6 rounded-lg">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-900 text-sm sm:text-base" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      Managing {firstName}'s Profile (Under 13)
-                    </p>
-                    <p className="text-xs sm:text-sm text-gray-600 mt-0.5" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      You're viewing as a parent. Click "Act as {firstName}" to use the full platform as your student.
-                    </p>
-                  </div>
-                  <div className="flex gap-2 self-start sm:self-center flex-wrap">
-                    <button
-                      onClick={() => {
-                        setSelectedDependentForSettings(selectedDependent);
-                        setSelectedChildIsDependent(true);
-                        setShowDependentSettingsModal(true);
-                      }}
-                      className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 shadow-sm whitespace-nowrap min-h-[44px] flex items-center gap-1"
-                      style={{ fontFamily: 'Poppins, sans-serif' }}
-                    >
-                      <Cog6ToothIcon className="w-4 h-4" />
-                      Settings
-                    </button>
-                    <button
-                      onClick={() => handleActAsDependent(selectedDependent)}
-                      className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg text-sm font-semibold hover:opacity-90 shadow-sm whitespace-nowrap min-h-[44px]"
-                      style={{ fontFamily: 'Poppins, sans-serif' }}
-                    >
-                      Act As {firstName}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Settings Banner for Linked Students (non-dependents) */}
-          {(() => {
-            const selectedChild = children.find(c => c.student_id === selectedStudentId);
-            if (!selectedChild) return null;
-
-            const firstName = selectedChild.student_first_name || selectedChild.student_name || 'Child';
-
-            return (
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-500 px-4 sm:px-6 py-3 mb-6 rounded-lg">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-900 text-sm sm:text-base" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      {firstName}'s Dashboard
-                    </p>
-                    <p className="text-xs sm:text-sm text-gray-600 mt-0.5" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      You're viewing your linked student's progress and learning activities.
-                    </p>
-                  </div>
-                  <div className="flex gap-2 self-start sm:self-center flex-wrap">
-                    <button
-                      onClick={() => {
-                        setSelectedDependentForSettings(selectedChild);
-                        setSelectedChildIsDependent(false);
-                        setShowDependentSettingsModal(true);
-                      }}
-                      className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 shadow-sm whitespace-nowrap min-h-[44px] flex items-center gap-1"
-                      style={{ fontFamily: 'Poppins, sans-serif' }}
-                    >
-                      <Cog6ToothIcon className="w-4 h-4" />
-                      AI Settings
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
 
           {/* FERPA Compliance: Portfolio Visibility Approval Requests */}
           <VisibilityApprovalSection />
 
-          {/* Learning Rhythm Section */}
-          {(() => {
-            const selectedDependent = dependents.find(d => d.id === selectedStudentId);
-            const firstName = selectedDependent?.display_name?.split(' ')[0] || selectedStudent?.student_first_name || 'Student';
-            return (
-              <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    {firstName}'s Learning Rhythm
-                  </h3>
-                  {engagement?.rhythm && (
-                    <RhythmIndicator
-                      state={engagement.rhythm.state}
-                      stateDisplay={engagement.rhythm.state_display}
-                      message={engagement.rhythm.message}
-                      patternDescription={engagement.rhythm.pattern_description}
-                      onClick={() => setShowRhythmModal(true)}
-                      compact
-                    />
-                  )}
-                </div>
-                {engagement?.rhythm && (
-                  <p className="text-sm text-gray-500 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    {engagement.rhythm.message}
-                  </p>
-                )}
-                {engagement?.calendar && (
-                  <EngagementCalendar
-                    days={engagement.calendar.days}
-                    weeksActive={engagement.calendar.weeks_active}
-                    firstActivityDate={engagement.calendar.first_activity_date}
-                  />
-                )}
-                {!engagement && (
-                  <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Loading engagement data...
-                  </p>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* Overview Content */}
-          <div className="space-y-6">
-              {/* Active Quests */}
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  Active Quests
-                </h3>
-                {dashboardData?.active_quests?.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {dashboardData.active_quests.map((quest) => (
-                      <button
-                        key={quest.quest_id}
-                        onClick={() => navigate(`/parent/quest/${selectedStudentId}/${quest.quest_id}`)}
-                        className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer text-left min-h-[44px]"
-                      >
-                        {quest.image_url && (
-                          <img src={quest.image_url} alt={quest.title} className="w-full h-32 object-cover" />
-                        )}
-                        <div className="p-4">
-                          <h4 className="font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {quest.title}
-                          </h4>
-                          <div className="text-xs text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            Click to view tasks and add evidence
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  (() => {
-                    // Determine if this is a dependent (under 13) or linked student (13+)
-                    const selectedDependent = dependents.find(d => d.id === selectedStudentId);
-                    const isDependent = !!selectedDependent;
-                    const age = selectedDependent
-                      ? (selectedDependent.age || calculateAge(selectedDependent.date_of_birth))
-                      : null;
-                    const isUnder13 = age !== null && age < 13;
-                    const firstName = selectedDependent?.display_name?.split(' ')[0] || selectedStudent?.student_first_name;
-
-                    return (
-                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-                        <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0">
-                            <div className="w-10 h-10 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
-                              <UserIcon className="w-5 h-5 text-white" />
-                            </div>
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                              No Active Quests Yet
-                            </h4>
-                            {isDependent && isUnder13 ? (
-                              <div className="text-sm text-gray-700 space-y-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                <p>
-                                  {firstName} hasn't started any quests yet. To browse and start quests for them:
-                                </p>
-                                <ol className="list-decimal list-inside space-y-1 ml-2">
-                                  <li>Click the "Act as {firstName}" button above</li>
-                                  <li>Browse available quests in the Quest & Badge Hub</li>
-                                  <li>Start quests that interest them</li>
-                                  <li>Begin completing tasks and uploading evidence</li>
-                                </ol>
-                                <p className="text-xs text-gray-600 mt-3">
-                                  Once quests are started, they'll appear here for easy tracking.
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="text-sm text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                <p>
-                                  {firstName} hasn't started any quests yet. They can browse and start quests from their own dashboard.
-                                </p>
-                                <p className="text-xs text-gray-600 mt-3">
-                                  Once they start quests, they'll appear here so you can track their progress and upload evidence to help them.
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()
-                )}
-              </div>
-
-              {/* XP by Pillar */}
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  Learning Progress
-                </h3>
-                {progressData?.xp_by_pillar && Object.keys(progressData.xp_by_pillar).length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {Object.entries(progressData.xp_by_pillar)
-                      .filter(([pillar]) => {
-                        // Backend returns display names like "Art", "STEM", etc.
-                        // Only show the new pillar names (not old legacy names)
-                        const validPillarNames = Object.values(pillarDisplayNames);
-                        return validPillarNames.includes(pillar);
-                      })
-                      .map(([pillar, xp]) => (
-                        <div key={pillar} className="bg-gray-50 rounded-lg p-4">
-                          <h4 className="font-semibold text-gray-900 text-sm mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {pillar}
-                          </h4>
-                          <p className="text-2xl font-bold text-optio-purple" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {xp} XP
-                          </p>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0">
-                        <div className="w-10 h-10 bg-gradient-to-r from-optio-purple to-optio-pink rounded-full flex items-center justify-center">
-                          <CheckCircleIcon className="w-5 h-5 text-white" />
-                        </div>
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          Learning Progress Will Appear Here
-                        </h4>
-                        <div className="text-sm text-gray-700 space-y-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          <p>
-                            As {selectedStudent?.student_first_name || dependents.find(d => d.id === selectedStudentId)?.display_name?.split(' ')[0]} completes quest tasks, you'll see their progress tracked across five learning pillars:
-                          </p>
-                          <ul className="list-disc list-inside space-y-1 ml-2 text-gray-600">
-                            <li><strong>Art</strong> - Creative expression and design</li>
-                            <li><strong>STEM</strong> - Science, technology, engineering, math</li>
-                            <li><strong>Wellness</strong> - Physical and mental well-being</li>
-                            <li><strong>Communication</strong> - Writing, speaking, and connection</li>
-                            <li><strong>Civics</strong> - Community engagement and citizenship</li>
-                          </ul>
-                          <p className="text-xs text-gray-600 mt-3">
-                            Each completed task earns XP (experience points) in its related pillar. XP accumulates toward diploma credits (1,000 XP = 1 credit).
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Completed Quests */}
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  Completed Quests
-                </h3>
-                {completedQuests.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {completedQuests.map((quest) => (
-                      <button
-                        key={quest.quest_id}
-                        onClick={() => navigate(`/parent/quest/${selectedStudentId}/${quest.quest_id}`)}
-                        className="border border-green-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer text-left bg-green-50 min-h-[44px]"
-                      >
-                        {quest.image_url && (
-                          <img src={quest.image_url} alt={quest.title} className="w-full h-32 object-cover" />
-                        )}
-                        <div className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                              {quest.title}
-                            </h4>
-                            <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" />
-                          </div>
-                          <p className="text-xs text-gray-500 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            Completed {new Date(quest.completed_at).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric'
-                            })}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    No completed quests yet. They're just getting started on their learning journey!
-                  </p>
-                )}
-              </div>
-
-              {/* Diploma Credit Progress */}
-              {creditData?.subjects && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Diploma Progress
-                  </h3>
-                  <p className="text-gray-600 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    {creditData.total_credits} / 20 credits earned toward diploma
-                  </p>
-                  <div className="space-y-4">
-                    {creditData.subjects.map((subject) => {
-                      const creditsEarned = Math.floor(subject.xp / 1000);
-                      const progressPercent = (creditsEarned / 4) * 100;
-                      return (
-                        <div key={subject.subject}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                              {subject.subject}
-                            </span>
-                            <span className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                              {creditsEarned} / 4 credits
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-3">
-                            <div
-                              className="bg-gradient-primary h-3 rounded-full transition-all w-full"
-                              style={{ width: `${Math.min(progressPercent, 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-          </div>
+          {/* Child Overview Content - uses StudentOverviewPage components */}
+          {selectedStudentId && (
+            <ChildOverviewContent
+              studentId={selectedStudentId}
+              onEditClick={() => {
+                // Find the selected child/dependent for settings
+                const selectedDependent = dependents.find(d => d.id === selectedStudentId);
+                const selectedChild = children.find(c => c.student_id === selectedStudentId);
+                if (selectedDependent) {
+                  setSelectedDependentForSettings(selectedDependent);
+                  setSelectedChildIsDependent(true);
+                } else if (selectedChild) {
+                  setSelectedDependentForSettings(selectedChild);
+                  setSelectedChildIsDependent(false);
+                }
+                setShowDependentSettingsModal(true);
+              }}
+            />
+          )}
 
         </>
       )}
@@ -862,13 +454,7 @@ const ParentDashboardPage = () => {
             console.error('Error reloading children:', error);
           }
         }}
-      />
-
-      {/* Rhythm Explainer Modal */}
-      <RhythmExplainerModal
-        isOpen={showRhythmModal}
-        onClose={() => setShowRhythmModal(false)}
-        currentState={engagement?.rhythm?.state}
+        onActAs={handleActAsDependent}
       />
 
       <FamilyObserverModal

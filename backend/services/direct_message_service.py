@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 import uuid
 from services.base_service import BaseService
+from services.notification_service import NotificationService
 from database import get_supabase_admin_client
 
 from utils.logger import get_logger
@@ -42,6 +43,18 @@ class DirectMessageService(BaseService):
         try:
             supabase = self._get_client()
             print(f"[can_message_user] Checking permission: {user_id} -> {target_id}", file=sys.stderr, flush=True)
+
+            # SUPERADMIN: Can message anyone, and anyone can reply to superadmin
+            sender = supabase.table('users').select('role').eq('id', user_id).single().execute()
+            if sender.data and sender.data.get('role') == 'superadmin':
+                print(f"[can_message_user] ALLOWED: Superadmin can message anyone", file=sys.stderr, flush=True)
+                return True
+
+            # Check if target is superadmin - anyone can message superadmin
+            target = supabase.table('users').select('role').eq('id', target_id).single().execute()
+            if target.data and target.data.get('role') == 'superadmin':
+                print(f"[can_message_user] ALLOWED: Anyone can message superadmin", file=sys.stderr, flush=True)
+                return True
 
             # Check for advisor-student relationship via advisor_student_assignments table
             # Check if user_id is advisor for target_id
@@ -280,11 +293,59 @@ class DirectMessageService(BaseService):
                 content[:100]
             )
 
+            # Send notification to recipient
+            self._notify_recipient(sender_id, recipient_id, content)
+
             return result.data[0]
 
         except Exception as e:
             print(f"Error sending message: {str(e)}", file=sys.stderr, flush=True)
             raise
+
+    def _notify_recipient(self, sender_id: str, recipient_id: str, content: str) -> None:
+        """
+        Send a notification to the message recipient.
+
+        Args:
+            sender_id: UUID of the message sender
+            recipient_id: UUID of the message recipient
+            content: Message content (for preview)
+        """
+        try:
+            # Get sender info for notification
+            sender_info = self._get_user_info(sender_id)
+            sender_name = (
+                sender_info.get('display_name') or
+                f"{sender_info.get('first_name', '')} {sender_info.get('last_name', '')}".strip() or
+                'Someone'
+            )
+
+            # Get recipient's organization for notification
+            supabase = self._get_client()
+            recipient = supabase.table('users').select('organization_id').eq(
+                'id', recipient_id
+            ).single().execute()
+            organization_id = recipient.data.get('organization_id') if recipient.data else None
+
+            # Create notification
+            message_preview = content[:50] + '...' if len(content) > 50 else content
+            notification_service = NotificationService()
+            notification_service.create_notification(
+                user_id=recipient_id,
+                notification_type='message_received',
+                title=f'New message from {sender_name}',
+                message=message_preview,
+                link=f'/communication?user={sender_id}',
+                metadata={
+                    'sender_id': sender_id,
+                    'sender_name': sender_name
+                },
+                organization_id=organization_id
+            )
+
+        except Exception as e:
+            # Don't fail message send if notification fails
+            logger.warning(f"Failed to send message notification: {str(e)}")
 
     def get_conversation_messages(
         self,
