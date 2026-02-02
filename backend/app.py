@@ -305,14 +305,7 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Error registering Account Deletion routes: {e}", exc_info=True)
 
-# Register Advisor blueprint
-try:
-    from routes import advisor
-    app.register_blueprint(advisor.advisor_bp, url_prefix='/api/advisor')  # /api/advisor/*
-except ImportError as e:
-    logger.warning(f"Warning: Advisor module not available: {e}")
-except Exception as e:
-    logger.error(f"Error registering Advisor routes: {e}", exc_info=True)
+# Note: Main advisor routes registered via register_advisor_blueprints() below
 
 # Register Advisor Check-ins blueprint
 try:
@@ -473,6 +466,15 @@ except ImportError as e:
     logger.warning(f"Warning: Parent Dashboard module not available: {e}")
 except Exception as e:
     logger.error(f"Error registering Parent Dashboard routes: {e}", exc_info=True)
+
+# Register Advisor Student Overview blueprint (February 2026 - Org feedback features)
+try:
+    from routes.advisor import register_advisor_blueprints
+    register_advisor_blueprints(app)  # /api/advisor/student-overview
+except ImportError as e:
+    logger.warning(f"Warning: Advisor Student Overview module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Advisor Student Overview routes: {e}", exc_info=True)
 
 # Register Pillars Configuration API blueprint (public endpoint)
 try:

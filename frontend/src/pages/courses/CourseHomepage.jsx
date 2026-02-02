@@ -11,11 +11,13 @@ import {
   ArrowsPointingOutIcon,
   ArrowsPointingInIcon,
   ArrowRightStartOnRectangleIcon,
+  ExclamationTriangleIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
-import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
+import { CheckCircleIcon as CheckCircleSolid, ExclamationCircleIcon } from '@heroicons/react/24/solid'
 import { useCourseHomepage } from '../../hooks/api/useCourseData'
 import CurriculumView from '../../components/curriculum/CurriculumView'
-import { endCourse, enrollInCourse } from '../../services/courseService'
+import { endCourse, enrollInCourse, unenrollFromCourse } from '../../services/courseService'
 import toast from 'react-hot-toast'
 
 /**
@@ -33,21 +35,35 @@ const ExpandableQuestItem = ({
   selectedLessonId,
 }) => {
   const isCompleted = quest.progress?.is_completed
+  const canComplete = quest.progress?.can_complete
   const hasXP = quest.progress?.total_xp > 0
   const xpText = hasXP
     ? `${quest.progress.earned_xp || 0}/${quest.progress.total_xp} XP`
     : null
 
+  const progressPercent = quest.progress?.percentage || 0
+
+  // Show incomplete required tasks warning
+  const hasIncompleteRequired = quest.progress?.total_required_tasks > 0 &&
+    quest.progress?.completed_required_tasks < quest.progress?.total_required_tasks
+
   return (
     <div className="mb-2">
       {/* Quest Header */}
       <div
-        className={`flex items-center gap-2 p-3 rounded-lg transition-all cursor-pointer ${
+        className={`relative overflow-hidden flex items-center gap-2 p-3 rounded-lg transition-all cursor-pointer ${
           isSelected && !selectedLessonId
             ? 'bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 border-2 border-optio-purple'
             : 'bg-white border border-gray-200 hover:border-optio-purple/50'
         }`}
       >
+        {/* Progress bar background */}
+        {progressPercent > 0 && !isCompleted && !canComplete && (
+          <div
+            className="absolute inset-y-0 left-0 bg-optio-purple/15 transition-all duration-300"
+            style={{ width: `${Math.min(progressPercent, 100)}%` }}
+          />
+        )}
         {/* Expand/Collapse Chevron */}
         <button
           onClick={(e) => {
@@ -76,17 +92,34 @@ const ExpandableQuestItem = ({
           <h4 className="font-medium text-gray-900 text-sm leading-snug truncate">
             {quest.title || 'Untitled Project'}
           </h4>
-          {xpText && (
-            <span className="text-xs text-gray-500">{xpText}</span>
+          {/* XP and Progress on same row */}
+          {(xpText || (hasXP && !isCompleted && !canComplete)) && (
+            <div className="flex justify-between items-center">
+              {xpText && (
+                <span className="text-xs text-gray-500">{xpText}</span>
+              )}
+              {hasXP && !isCompleted && !canComplete && (
+                <span className="text-xs text-gray-500">
+                  {Math.round(Math.min(progressPercent, 100))}%
+                </span>
+              )}
+            </div>
+          )}
+          {/* Show required tasks warning if XP met but required tasks incomplete */}
+          {hasIncompleteRequired && progressPercent >= 100 && !isCompleted && (
+            <span className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
+              <ExclamationCircleIcon className="w-3 h-3" />
+              {quest.progress?.completed_required_tasks}/{quest.progress?.total_required_tasks} required
+            </span>
           )}
         </div>
 
         {/* Completion Status */}
-        {isCompleted || quest.progress?.percentage >= 100 ? (
+        {isCompleted ? (
           <CheckCircleSolid className="w-5 h-5 text-green-500 flex-shrink-0" />
-        ) : hasXP ? (
-          <span className="text-xs text-gray-500 flex-shrink-0">
-            {Math.round(quest.progress.percentage)}%
+        ) : canComplete ? (
+          <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded flex-shrink-0">
+            Ready
           </span>
         ) : null}
       </div>
@@ -97,6 +130,7 @@ const ExpandableQuestItem = ({
           {quest.lessons.map((lesson, idx) => {
             const isLessonCompleted = lesson.progress?.status === 'completed'
             const isLessonSelected = selectedLessonId === lesson.id
+            const hasIncompleteRequired = lesson.progress?.has_incomplete_required
 
             return (
               <div
@@ -121,6 +155,10 @@ const ExpandableQuestItem = ({
                 {/* Status */}
                 {isLessonCompleted ? (
                   <CheckCircleSolid className="w-4 h-4 text-green-500 flex-shrink-0" />
+                ) : hasIncompleteRequired ? (
+                  <span className="flex items-center gap-1 text-xs text-amber-600 flex-shrink-0" title={`${lesson.progress?.completed_required_tasks || 0}/${lesson.progress?.total_required_tasks || 0} required tasks`}>
+                    <ExclamationCircleIcon className="w-4 h-4" />
+                  </span>
                 ) : null}
               </div>
             )
@@ -137,6 +175,17 @@ const ExpandableQuestItem = ({
 const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
   return (
     <div className="p-6">
+      {/* Hero Image */}
+      {course.cover_image_url && (
+        <div className="mb-6 -mx-6 -mt-6">
+          <img
+            src={course.cover_image_url}
+            alt={course.title}
+            className="w-full h-48 sm:h-64 object-cover"
+          />
+        </div>
+      )}
+
       {/* Course Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">{course.title}</h1>
@@ -206,26 +255,40 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
                   )}
 
                   {/* Progress */}
-                  <div className="mt-3 flex items-center gap-2">
-                    {isCompleted || quest.progress?.percentage >= 100 ? (
-                      <span className="inline-flex items-center gap-1 text-sm text-green-600 font-medium">
-                        <CheckCircleSolid className="w-4 h-4" />
-                        Completed
-                      </span>
-                    ) : quest.progress?.total_tasks > 0 ? (
-                      <>
-                        <div className="flex-1 bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full"
-                            style={{ width: `${quest.progress.percentage}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-500">
-                          {Math.round(quest.progress.percentage)}%
+                  <div className="mt-3 flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      {isCompleted ? (
+                        <span className="inline-flex items-center gap-1 text-sm text-green-600 font-medium">
+                          <CheckCircleSolid className="w-4 h-4" />
+                          Completed
                         </span>
-                      </>
-                    ) : (
-                      <span className="text-sm text-gray-500">Not started</span>
+                      ) : quest.progress?.can_complete ? (
+                        <span className="inline-flex items-center gap-1 text-sm text-green-600 font-medium">
+                          <CheckCircleSolid className="w-4 h-4" />
+                          Ready to Complete
+                        </span>
+                      ) : quest.progress?.total_tasks > 0 ? (
+                        <>
+                          <div className="flex-1 bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-gradient-to-r from-optio-purple to-optio-pink h-2 rounded-full"
+                              style={{ width: `${quest.progress.percentage}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {Math.round(quest.progress.percentage)}%
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-sm text-gray-500">Not started</span>
+                      )}
+                    </div>
+                    {/* Show warning if XP met but required tasks incomplete */}
+                    {!isCompleted && quest.progress?.xp_met && !quest.progress?.required_tasks_met && (
+                      <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                        <ExclamationCircleIcon className="w-3.5 h-3.5" />
+                        {quest.progress?.completed_required_tasks}/{quest.progress?.total_required_tasks} required tasks
+                      </span>
                     )}
                   </div>
                 </div>
@@ -274,10 +337,15 @@ const QuestDetail = ({ quest, onSelectLesson, onStartQuest, fallbackImageUrl }) 
             <span className="text-gray-600">
               {quest.progress.completed_tasks} of {quest.progress.total_tasks} tasks completed
             </span>
-            {quest.progress.percentage >= 100 || isCompleted ? (
+            {isCompleted ? (
               <span className="inline-flex items-center gap-1 font-semibold text-green-600">
                 <CheckCircleSolid className="w-5 h-5" />
                 Complete
+              </span>
+            ) : quest.progress?.can_complete ? (
+              <span className="inline-flex items-center gap-1 font-semibold text-green-600">
+                <CheckCircleSolid className="w-5 h-5" />
+                Ready to Complete
               </span>
             ) : (
               <span className="font-semibold text-gray-900">
@@ -288,7 +356,7 @@ const QuestDetail = ({ quest, onSelectLesson, onStartQuest, fallbackImageUrl }) 
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
               className={`h-2 rounded-full transition-all ${
-                quest.progress.percentage >= 100 || isCompleted
+                isCompleted || quest.progress?.can_complete
                   ? 'bg-green-500'
                   : 'bg-gradient-to-r from-optio-purple to-optio-pink'
               }`}
@@ -377,6 +445,8 @@ const CourseHomepage = () => {
   const [initialStepIndex, setInitialStepIndex] = useState(null)
   const [isEnding, setIsEnding] = useState(false)
   const [isEnrolling, setIsEnrolling] = useState(false)
+  const [isUnenrolling, setIsUnenrolling] = useState(false)
+  const [incompleteProjectsModal, setIncompleteProjectsModal] = useState(null)
 
   // Handle enroll in course (for creators testing their course)
   const handleEnroll = async () => {
@@ -407,9 +477,50 @@ const CourseHomepage = () => {
       navigate('/')
     } catch (error) {
       console.error('Failed to end course:', error)
-      toast.error(error.response?.data?.error || 'Failed to end course')
+
+      // Check if this is an INCOMPLETE_PROJECTS error
+      const responseData = error.response?.data
+      if (responseData?.reason === 'INCOMPLETE_PROJECTS' && responseData?.incomplete_projects) {
+        // Show the incomplete projects modal
+        setIncompleteProjectsModal({
+          message: responseData.message,
+          projects: responseData.incomplete_projects
+        })
+      } else {
+        toast.error(responseData?.error || 'Failed to end course')
+      }
     } finally {
       setIsEnding(false)
+    }
+  }
+
+  // Handle unenroll from course (deletes all progress)
+  const handleUnenroll = async () => {
+    if (!window.confirm('Are you sure you want to unenroll from this course? This will DELETE all your progress, tasks, and XP from this course. This cannot be undone.')) {
+      return
+    }
+
+    try {
+      setIsUnenrolling(true)
+      await unenrollFromCourse(courseId)
+      toast.success('Successfully unenrolled from course')
+      navigate('/courses')
+    } catch (error) {
+      console.error('Failed to unenroll:', error)
+      toast.error(error.response?.data?.error || 'Failed to unenroll from course')
+    } finally {
+      setIsUnenrolling(false)
+    }
+  }
+
+  // Navigate to a project with incomplete requirements
+  const handleGoToProject = (questId) => {
+    const quest = data?.quests?.find(q => q.id === questId)
+    if (quest) {
+      setIncompleteProjectsModal(null)
+      setSelectedQuest(quest)
+      setSelectedLesson(null)
+      setSearchParams({ quest: questId })
     }
   }
 
@@ -599,7 +710,7 @@ const CourseHomepage = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
+        <div className="max-w-screen-2xl mx-auto px-2 sm:px-4 lg:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-2">
             {/* Left: Back + Title (clickable together) */}
             <button
@@ -635,17 +746,28 @@ const CourseHomepage = () => {
                 )}
               </div>
 
-              {/* Enroll or End Course Button */}
+              {/* Enroll, End Course, or Unenroll Buttons */}
               {isEnrolled ? (
-                <button
-                  onClick={handleEndCourse}
-                  disabled={isEnding}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
-                  title="End course (progress will be saved)"
-                >
-                  <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{isEnding ? 'Ending...' : 'End Course'}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleEndCourse}
+                    disabled={isEnding || isUnenrolling}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
+                    title="Complete course (progress will be saved)"
+                  >
+                    <CheckCircleIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">{isEnding ? 'Completing...' : 'Complete'}</span>
+                  </button>
+                  <button
+                    onClick={handleUnenroll}
+                    disabled={isUnenrolling || isEnding}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
+                    title="Unenroll from course (deletes all progress)"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">{isUnenrolling ? 'Unenrolling...' : 'Unenroll'}</span>
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={handleEnroll}
@@ -671,7 +793,7 @@ const CourseHomepage = () => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-screen-2xl mx-auto px-2 sm:px-4 lg:px-6 py-4">
         <div className="flex gap-6">
           {/* Sidebar */}
           <div
@@ -803,6 +925,10 @@ const CourseHomepage = () => {
                       onSaveProgress={setSaveProgressFn}
                       onTaskClick={handleTaskClick}
                       onStepChange={handleStepChange}
+                      onLessonSelect={(lesson) => {
+                        setSelectedLesson(lesson)
+                        setSearchParams({ quest: selectedQuest.id, lesson: lesson.id })
+                      }}
                     />
                   </div>
                 </div>
@@ -827,6 +953,110 @@ const CourseHomepage = () => {
           </div>
         </div>
       </div>
+
+      {/* Incomplete Projects Modal */}
+      {incompleteProjectsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-amber-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                  <ExclamationTriangleIcon className="w-6 h-6 text-amber-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Cannot Complete Course Yet</h2>
+                  <p className="text-sm text-gray-600">Some projects still need work</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIncompleteProjectsModal(null)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="px-6 py-4 overflow-y-auto max-h-[50vh]">
+              <p className="text-gray-600 mb-4">
+                To complete this course, all required projects must meet their completion requirements:
+              </p>
+              <ul className="text-sm text-gray-600 mb-4 list-disc list-inside">
+                <li>Reach the XP goal (if set)</li>
+                <li>Complete all required tasks</li>
+              </ul>
+
+              <h3 className="font-medium text-gray-900 mb-3">
+                Incomplete Projects ({incompleteProjectsModal.projects?.length || 0})
+              </h3>
+
+              <div className="space-y-3">
+                {incompleteProjectsModal.projects?.map((project) => (
+                  <div
+                    key={project.quest_id}
+                    className="p-4 bg-gray-50 rounded-lg border border-gray-200"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900 truncate">{project.title}</h4>
+                        <div className="mt-2 space-y-1">
+                          {/* XP Status */}
+                          {project.requirements?.required_xp > 0 && (
+                            <div className={`flex items-center gap-2 text-sm ${
+                              project.requirements?.xp_met ? 'text-green-600' : 'text-amber-600'
+                            }`}>
+                              {project.requirements?.xp_met ? (
+                                <CheckCircleSolid className="w-4 h-4" />
+                              ) : (
+                                <ExclamationCircleIcon className="w-4 h-4" />
+                              )}
+                              <span>
+                                XP: {project.requirements?.earned_xp || 0}/{project.requirements?.required_xp || 0}
+                              </span>
+                            </div>
+                          )}
+                          {/* Required Tasks Status */}
+                          {project.requirements?.total_required_tasks > 0 && (
+                            <div className={`flex items-center gap-2 text-sm ${
+                              project.requirements?.required_tasks_met ? 'text-green-600' : 'text-amber-600'
+                            }`}>
+                              {project.requirements?.required_tasks_met ? (
+                                <CheckCircleSolid className="w-4 h-4" />
+                              ) : (
+                                <ExclamationCircleIcon className="w-4 h-4" />
+                              )}
+                              <span>
+                                Required tasks: {project.requirements?.completed_required_tasks || 0}/{project.requirements?.total_required_tasks || 0}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleGoToProject(project.quest_id)}
+                        className="flex-shrink-0 px-3 py-1.5 text-sm font-medium text-optio-purple hover:text-white hover:bg-optio-purple border border-optio-purple rounded-lg transition-colors"
+                      >
+                        Go to Project
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setIncompleteProjectsModal(null)}
+                className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+              >
+                Got it, I'll finish my projects
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

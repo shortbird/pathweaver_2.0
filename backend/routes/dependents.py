@@ -349,9 +349,9 @@ def upload_dependent_avatar(user_id, dependent_id):
         # Upload to Supabase Storage
         file_bytes = file.read()
         supabase.storage.from_('user-uploads').upload(
-            filename,
-            file_bytes,
-            {'content-type': file.content_type}
+            path=filename,
+            file=file_bytes,
+            file_options={"content-type": file.content_type}
         )
 
         # Get public URL

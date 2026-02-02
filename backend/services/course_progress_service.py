@@ -437,3 +437,217 @@ class CourseProgressService(BaseService):
             'percentage': progress.percentage,
             'is_completed': progress.is_completed
         }
+
+    def check_quest_completion_eligibility(
+        self,
+        user_id: str,
+        quest_id: str,
+        course_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Check if a quest within a course meets completion criteria.
+
+        For course projects, completion requires BOTH:
+        1. XP threshold met (if set on course_quests)
+        2. ALL required tasks completed across all lessons
+
+        Args:
+            user_id: User ID
+            quest_id: Quest ID
+            course_id: Optional course ID (if known)
+
+        Returns:
+            Dictionary with:
+            - can_complete: bool - Whether the quest can be completed
+            - is_course_quest: bool - Whether this quest is part of a course
+            - xp_met: bool - Whether XP threshold is met
+            - required_tasks_met: bool - Whether all required tasks are completed
+            - earned_xp: int - XP earned so far
+            - required_xp: int - XP threshold required (0 if no threshold)
+            - completed_required: int - Number of completed required tasks
+            - total_required: int - Total number of required tasks
+            - incomplete_lessons: list - Lessons with incomplete required tasks
+        """
+        try:
+            result = {
+                'can_complete': True,
+                'is_course_quest': False,
+                'xp_met': True,
+                'required_tasks_met': True,
+                'earned_xp': 0,
+                'required_xp': 0,
+                'completed_required': 0,
+                'total_required': 0,
+                'incomplete_lessons': []
+            }
+
+            # Check if quest is part of a course
+            course_quest_query = self.client.table('course_quests')\
+                .select('course_id, xp_threshold, is_required, is_published')\
+                .eq('quest_id', quest_id)
+
+            if course_id:
+                course_quest_query = course_quest_query.eq('course_id', course_id)
+
+            course_quest_result = course_quest_query.execute()
+
+            if not course_quest_result.data:
+                # Not a course quest - standalone quests can be ended anytime
+                return result
+
+            course_quest = course_quest_result.data[0]
+            result['is_course_quest'] = True
+            result['required_xp'] = course_quest.get('xp_threshold', 0) or 0
+
+            # Get user's quest enrollment
+            enrollment_result = self.client.table('user_quests')\
+                .select('id')\
+                .eq('user_id', user_id)\
+                .eq('quest_id', quest_id)\
+                .execute()
+
+            if not enrollment_result.data:
+                result['can_complete'] = False
+                return result
+
+            user_quest_id = enrollment_result.data[0]['id']
+
+            # Get all lessons for this quest
+            lessons_result = self.client.table('curriculum_lessons')\
+                .select('id, title, is_published')\
+                .eq('quest_id', quest_id)\
+                .order('sequence_order')\
+                .execute()
+
+            lessons = [l for l in (lessons_result.data or []) if l.get('is_published') is not False]
+            lesson_ids = [l['id'] for l in lessons]
+
+            if not lesson_ids:
+                # No lessons - check if there's an XP threshold
+                if result['required_xp'] > 0:
+                    result['xp_met'] = False
+                    result['can_complete'] = False
+                return result
+
+            # Get all linked tasks for these lessons
+            linked_tasks_result = self.client.table('curriculum_lesson_tasks')\
+                .select('task_id, lesson_id')\
+                .eq('quest_id', quest_id)\
+                .in_('lesson_id', lesson_ids)\
+                .execute()
+
+            linked_task_ids = [lt['task_id'] for lt in (linked_tasks_result.data or [])]
+            task_to_lesson_map = {lt['task_id']: lt['lesson_id'] for lt in (linked_tasks_result.data or [])}
+
+            if not linked_task_ids:
+                # No linked tasks - check XP threshold only
+                if result['required_xp'] > 0:
+                    result['xp_met'] = False
+                    result['can_complete'] = False
+                return result
+
+            # Get user's tasks for this quest with their details
+            user_tasks_result = self.client.table('user_quest_tasks')\
+                .select('id, xp_value, is_required, source_task_id')\
+                .eq('user_quest_id', user_quest_id)\
+                .execute()
+
+            user_tasks = user_tasks_result.data or []
+
+            # Build map of source_task_id -> user_task for tracking
+            source_to_user_task = {}
+            for ut in user_tasks:
+                if ut.get('source_task_id'):
+                    source_to_user_task[ut['source_task_id']] = ut
+
+            # Get completed tasks
+            user_task_ids = [ut['id'] for ut in user_tasks]
+            completed_task_ids = set()
+            if user_task_ids:
+                completions_result = self.client.table('quest_task_completions')\
+                    .select('user_quest_task_id')\
+                    .eq('user_id', user_id)\
+                    .in_('user_quest_task_id', user_task_ids)\
+                    .execute()
+                completed_task_ids = {c['user_quest_task_id'] for c in (completions_result.data or [])}
+
+            # Calculate earned XP from linked tasks
+            earned_xp = 0
+            for ut in user_tasks:
+                if ut['id'] in completed_task_ids:
+                    earned_xp += ut.get('xp_value', 0) or 0
+
+            result['earned_xp'] = earned_xp
+
+            # Check XP threshold
+            if result['required_xp'] > 0 and earned_xp < result['required_xp']:
+                result['xp_met'] = False
+
+            # Get required tasks from the source (template) tasks
+            # We need to check which linked tasks are marked as required
+            required_source_tasks_result = self.client.table('user_quest_tasks')\
+                .select('id, is_required, title')\
+                .in_('id', linked_task_ids)\
+                .eq('is_required', True)\
+                .execute()
+
+            required_source_tasks = required_source_tasks_result.data or []
+
+            # Track incomplete required tasks by lesson
+            incomplete_by_lesson: Dict[str, List[str]] = {}
+            total_required = 0
+            completed_required = 0
+
+            for required_task in required_source_tasks:
+                total_required += 1
+                source_task_id = required_task['id']
+                lesson_id = task_to_lesson_map.get(source_task_id)
+
+                # Find the user's version of this task
+                user_task = source_to_user_task.get(source_task_id)
+
+                if user_task and user_task['id'] in completed_task_ids:
+                    completed_required += 1
+                else:
+                    # Track incomplete
+                    if lesson_id:
+                        if lesson_id not in incomplete_by_lesson:
+                            incomplete_by_lesson[lesson_id] = []
+                        incomplete_by_lesson[lesson_id].append(required_task.get('title', 'Unknown Task'))
+
+            result['total_required'] = total_required
+            result['completed_required'] = completed_required
+
+            if completed_required < total_required:
+                result['required_tasks_met'] = False
+
+                # Build incomplete lessons list
+                lesson_map = {l['id']: l['title'] for l in lessons}
+                for lesson_id, task_titles in incomplete_by_lesson.items():
+                    result['incomplete_lessons'].append({
+                        'id': lesson_id,
+                        'title': lesson_map.get(lesson_id, 'Unknown Lesson'),
+                        'incomplete_count': len(task_titles),
+                        'incomplete_tasks': task_titles
+                    })
+
+            # Final eligibility check
+            result['can_complete'] = result['xp_met'] and result['required_tasks_met']
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error checking quest completion eligibility for {quest_id}: {str(e)}", exc_info=True)
+            # On error, allow completion (fail open)
+            return {
+                'can_complete': True,
+                'is_course_quest': False,
+                'xp_met': True,
+                'required_tasks_met': True,
+                'earned_xp': 0,
+                'required_xp': 0,
+                'completed_required': 0,
+                'total_required': 0,
+                'incomplete_lessons': [],
+                'error': str(e)
+            }

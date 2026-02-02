@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Navigate, Link, useNavigate } from 'react-router-dom';
+import { Navigate, Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import InterestTracksList from '../components/interest-tracks/InterestTracksList';
@@ -8,6 +8,7 @@ import InterestTrackDetail from '../components/interest-tracks/InterestTrackDeta
 import QuestMomentsDetail from '../components/interest-tracks/QuestMomentsDetail';
 import LearningEventCard from '../components/learning-events/LearningEventCard';
 import QuickCaptureButton from '../components/learning-events/QuickCaptureButton';
+import ParentMomentCaptureButton from '../components/parent/ParentMomentCaptureButton';
 import EvolveTopicModal from '../components/interest-tracks/EvolveTopicModal';
 import {
   FolderOpenIcon,
@@ -19,6 +20,11 @@ import {
 const LearningJournalPage = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { childId } = useParams(); // Optional - when parent views child's journal
+
+  // Parent viewing mode
+  const isParentView = !!childId;
+  const [childInfo, setChildInfo] = useState(null);
   const [selectedTrackId, setSelectedTrackId] = useState(null);
   const [selectedQuestId, setSelectedQuestId] = useState(null);
   const [showUnassigned, setShowUnassigned] = useState(true); // Default to unassigned view
@@ -33,11 +39,38 @@ const LearningJournalPage = () => {
   const [showEvolveModal, setShowEvolveModal] = useState(false);
   const [trackToEvolve, setTrackToEvolve] = useState(null);
 
+  // Fetch child info when in parent mode
+  useEffect(() => {
+    if (isParentView && childId) {
+      const fetchChildInfo = async () => {
+        try {
+          const response = await api.get(`/api/parent/child-overview/${childId}`);
+          if (response.data?.student) {
+            setChildInfo(response.data.student);
+          }
+        } catch (error) {
+          console.error('Failed to fetch child info:', error);
+        }
+      };
+      fetchChildInfo();
+    }
+  }, [isParentView, childId]);
+
   const fetchUnassignedMoments = useCallback(async () => {
     try {
       setIsLoadingUnassigned(true);
-      const response = await api.get('/api/learning-events/unassigned');
-      if (response.data.success) {
+      // Use parent API when viewing child's journal
+      const endpoint = isParentView
+        ? `/api/parent/children/${childId}/learning-moments?limit=50`
+        : '/api/learning-events/unassigned';
+      const response = await api.get(endpoint);
+
+      if (isParentView) {
+        // Parent API returns all moments, filter unassigned ones
+        const moments = response.data.moments || [];
+        const unassigned = moments.filter(m => !m.track_id && !m.quest_id);
+        setUnassignedMoments(unassigned);
+      } else if (response.data.success) {
         setUnassignedMoments(response.data.moments);
       }
     } catch (error) {
@@ -46,7 +79,7 @@ const LearningJournalPage = () => {
     } finally {
       setIsLoadingUnassigned(false);
     }
-  }, []);
+  }, [isParentView, childId]);
 
   useEffect(() => {
     if (showUnassigned) {
@@ -166,20 +199,26 @@ const LearningJournalPage = () => {
             />
             <div className="h-6 w-px bg-gray-300" />
             <div>
-              <h1 className="text-lg sm:text-2xl font-bold text-gray-900">Learning Journal</h1>
+              <h1 className="text-lg sm:text-2xl font-bold text-gray-900">
+                {isParentView && childInfo
+                  ? `${childInfo.first_name || childInfo.display_name}'s Learning Journal`
+                  : 'Learning Journal'}
+              </h1>
               <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">
-                Track your spontaneous learning and organize it by topics of interest
+                {isParentView
+                  ? 'View and organize learning moments'
+                  : 'Track your spontaneous learning and organize it by topics of interest'}
               </p>
             </div>
           </div>
 
-          {/* Back to Platform - top right */}
+          {/* Back to Platform/Dashboard - top right */}
           <Link
-            to="/dashboard"
+            to={isParentView ? '/parent/dashboard' : '/dashboard'}
             className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeftIcon className="w-4 h-4" />
-            <span className="hidden sm:inline">Platform</span>
+            <span className="hidden sm:inline">{isParentView ? 'Dashboard' : 'Platform'}</span>
           </Link>
         </div>
 
@@ -229,6 +268,7 @@ const LearningJournalPage = () => {
             refreshKey={tracksRefreshKey}
             onMomentsAssigned={fetchUnassignedMoments}
             className="h-full"
+            studentId={isParentView ? childId : null}
           />
         </aside>
 
@@ -292,6 +332,7 @@ const LearningJournalPage = () => {
                         event={moment}
                         showTrackAssign={true}
                         onTrackAssigned={handleMomentAssigned}
+                        studentId={isParentView ? childId : null}
                       />
                     ))}
                   </div>
@@ -311,6 +352,7 @@ const LearningJournalPage = () => {
             <QuestMomentsDetail
               questId={selectedQuestId}
               onMomentConverted={handleMomentConverted}
+              studentId={isParentView ? childId : null}
             />
           ) : selectedTrackId ? (
             // Track Detail View
@@ -318,6 +360,7 @@ const LearningJournalPage = () => {
               trackId={selectedTrackId}
               onDelete={handleDeleteTrack}
               onGraduate={handleGraduateTrack}
+              studentId={isParentView ? childId : null}
             />
           ) : (
             // Empty state
@@ -348,7 +391,16 @@ const LearningJournalPage = () => {
       </div>
 
       {/* Quick Capture FAB */}
-      <QuickCaptureButton onSuccess={handleCaptureSuccess} />
+      {isParentView ? (
+        <ParentMomentCaptureButton
+          children={[]}
+          dependents={childInfo ? [{ id: childId, display_name: childInfo.first_name || childInfo.display_name }] : []}
+          selectedChildId={childId}
+          onSuccess={handleCaptureSuccess}
+        />
+      ) : (
+        <QuickCaptureButton onSuccess={handleCaptureSuccess} />
+      )}
 
       {/* Evolve Topic Modal */}
       <EvolveTopicModal

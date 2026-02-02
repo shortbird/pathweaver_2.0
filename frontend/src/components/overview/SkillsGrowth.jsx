@@ -45,14 +45,15 @@ const SkillsGrowth = ({
   subjectXp = {},
   pendingSubjectXp = {},
   totalXp = 0,
-  hideHeader = false
+  hideHeader = false,
+  showDiplomaCredits = true
 }) => {
   const totalCreditsEarned = calculateTotalCredits(subjectXp);
   const meetsRequirements = meetsGraduationRequirements(subjectXp);
   const creditProgress = getAllCreditProgress(subjectXp);
 
   const content = (
-    <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
+    <div className={`grid grid-cols-1 ${showDiplomaCredits ? 'lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x' : ''} divide-gray-100`}>
         {/* Skills Radar Chart Section */}
         <div className="p-6">
           <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-4">Learning Pillars</h3>
@@ -84,55 +85,57 @@ const SkillsGrowth = ({
           )}
         </div>
 
-        {/* Diploma Credits Section */}
-        <div className="p-6">
-          <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-4">Diploma Credits</h3>
+        {/* Diploma Credits Section - only shown for users 13+ */}
+        {showDiplomaCredits && (
+          <div className="p-6">
+            <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-4">Diploma Credits</h3>
 
-          {/* Overall Progress Bar */}
-          <div className={`p-4 rounded-lg mb-4 ${
-            meetsRequirements
-              ? 'bg-green-50 border border-green-200'
-              : 'bg-blue-50 border border-blue-200'
-          }`}>
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-semibold text-gray-800">
-                {totalCreditsEarned.toFixed(1)}/{TOTAL_CREDITS_REQUIRED}
-              </span>
-              <span className={`text-xs font-medium ${
-                meetsRequirements ? 'text-green-600' : 'text-blue-600'
-              }`}>
-                {Math.round((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100)}%
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className={`h-2 rounded-full transition-all duration-500 ${
-                  meetsRequirements
-                    ? 'bg-gradient-to-r from-green-400 to-green-600'
-                    : 'bg-gradient-to-r from-optio-purple to-optio-pink'
-                }`}
-                style={{
-                  width: `${Math.min((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100, 100)}%`
-                }}
-              ></div>
-            </div>
-            {meetsRequirements && (
-              <div className="mt-2 flex items-center gap-1 text-green-700">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-xs font-medium">Meets graduation requirements</span>
+            {/* Overall Progress Bar */}
+            <div className={`p-4 rounded-lg mb-4 ${
+              meetsRequirements
+                ? 'bg-green-50 border border-green-200'
+                : 'bg-blue-50 border border-blue-200'
+            }`}>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-semibold text-gray-800">
+                  {totalCreditsEarned.toFixed(1)}/{TOTAL_CREDITS_REQUIRED}
+                </span>
+                <span className={`text-xs font-medium ${
+                  meetsRequirements ? 'text-green-600' : 'text-blue-600'
+                }`}>
+                  {Math.round((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100)}%
+                </span>
               </div>
-            )}
-          </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${
+                    meetsRequirements
+                      ? 'bg-gradient-to-r from-green-400 to-green-600'
+                      : 'bg-gradient-to-r from-optio-purple to-optio-pink'
+                  }`}
+                  style={{
+                    width: `${Math.min((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100, 100)}%`
+                  }}
+                ></div>
+              </div>
+              {meetsRequirements && (
+                <div className="mt-2 flex items-center gap-1 text-green-700">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-xs font-medium">Meets graduation requirements</span>
+                </div>
+              )}
+            </div>
 
-          {/* Subject Progress List */}
-          <div className="space-y-2.5">
-            {creditProgress.map((credit) => (
-              <SubjectProgressRow key={credit.subject} credit={credit} />
-            ))}
+            {/* Subject Progress List */}
+            <div className="space-y-2.5">
+              {creditProgress.map((credit) => (
+                <SubjectProgressRow key={credit.subject} credit={credit} />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
   );
 
@@ -161,7 +164,9 @@ SkillsGrowth.propTypes = {
   xpByPillar: PropTypes.object,
   subjectXp: PropTypes.object,
   pendingSubjectXp: PropTypes.object,
-  totalXp: PropTypes.number
+  totalXp: PropTypes.number,
+  hideHeader: PropTypes.bool,
+  showDiplomaCredits: PropTypes.bool
 };
 
 export default SkillsGrowth;

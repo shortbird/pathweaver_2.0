@@ -576,11 +576,11 @@ class QuestRepository(BaseRepository):
             # Note: Since we applied search first, the org filtering now operates on a smaller set
             if policy == 'all_optio':
                 if org_id:
-                    # Global quests (NULL org_id) + organization quests
-                    query = query.or_(f'organization_id.is.null,organization_id.eq.{org_id}')
+                    # Global quests (NULL org_id) + organization quests + user's own created quests
+                    query = query.or_(f'organization_id.is.null,organization_id.eq.{org_id},created_by.eq.{user_id}')
                 else:
-                    # No organization - only global quests
-                    query = query.is_('organization_id', 'null')
+                    # No organization - global quests + user's own created quests
+                    query = query.or_(f'organization_id.is.null,created_by.eq.{user_id}')
 
             elif policy == 'curated':
                 if not org_id:

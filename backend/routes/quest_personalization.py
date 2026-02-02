@@ -392,7 +392,7 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
                 'subject_xp_distribution': subject_xp_distribution if subject_xp_distribution else None,
                 'xp_value': task.get('xp_value', 100),
                 'order_index': next_order + idx,
-                'is_required': True,
+                'is_required': False,
                 'is_manual': True,
                 'approval_status': 'approved',
                 'created_at': datetime.utcnow().isoformat()
@@ -549,7 +549,7 @@ def accept_task_immediate(user_id: str, quest_id: str):
             'subject_xp_distribution': subject_xp_distribution if subject_xp_distribution else None,
             'xp_value': task.get('xp_value', 100),
             'order_index': next_order,
-            'is_required': True,
+            'is_required': False,
             'is_manual': False,
             'approval_status': 'approved',
             'created_at': datetime.utcnow().isoformat()

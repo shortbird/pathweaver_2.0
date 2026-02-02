@@ -303,6 +303,19 @@ def get_current_user():
                     response_data['has_dependents'] = False
                     response_data['has_linked_students'] = False
 
+                # Check for advisor assignments (parent-advisor implicit access)
+                # This allows users assigned as advisors to access advisor features regardless of their role
+                try:
+                    advisor_assignments = admin_client.table('advisor_student_assignments')\
+                        .select('id', count='exact')\
+                        .eq('advisor_id', user_id)\
+                        .eq('is_active', True)\
+                        .execute()
+                    response_data['has_advisor_assignments'] = advisor_assignments.count > 0 if advisor_assignments.count else False
+                except Exception as advisor_check_error:
+                    logger.warning(f"Could not check advisor assignments for user {mask_user_id(user_id)}: {advisor_check_error}")
+                    response_data['has_advisor_assignments'] = False
+
                 # Return user data (legacy format for frontend compatibility)
                 # TODO: Migrate to standardized format after updating frontend
                 return jsonify(response_data), 200
@@ -481,7 +494,8 @@ def login():
             response = make_response(jsonify(response_data), 200)
 
             # Set httpOnly cookies for authentication (fallback for desktop browsers)
-            session_manager.set_auth_cookies(response, auth_response.user.id)
+            # CRITICAL: Pass the same tokens to ensure consistency between cookies and response body
+            session_manager.set_auth_cookies(response, auth_response.user.id, app_access_token, app_refresh_token)
 
             return response
         else:
@@ -789,7 +803,8 @@ def org_login(org_slug):
             response = make_response(jsonify(response_data), 200)
 
             # Set httpOnly cookies for authentication
-            session_manager.set_auth_cookies(response, auth_response.user.id)
+            # CRITICAL: Pass the same tokens to ensure consistency between cookies and response body
+            session_manager.set_auth_cookies(response, auth_response.user.id, app_access_token, app_refresh_token)
 
             return response
         else:
@@ -961,7 +976,9 @@ def refresh_token():
     }), 200)
 
     # Set httpOnly cookies for authentication
-    session_manager.set_auth_cookies(response, user_id)
+    # CRITICAL: Pass the same tokens to ensure consistency between cookies and response body
+    # This fixes the 15-minute timeout bug where Chrome users get mismatched tokens
+    session_manager.set_auth_cookies(response, user_id, new_access_token, new_refresh_token)
 
     # Also refresh Supabase access token cookie if we got one
     if supabase_access_token:

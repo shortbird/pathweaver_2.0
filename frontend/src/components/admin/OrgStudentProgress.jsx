@@ -23,10 +23,8 @@ export default function OrgStudentProgress({ orgId }) {
   const [exporting, setExporting] = useState(false);
 
   const handleStudentClick = (studentId) => {
-    // Navigate to student's portfolio with state to enable back navigation
-    navigate(`/public/diploma/${studentId}`, {
-      state: { from: 'org-progress', orgId }
-    });
+    // Navigate to student overview page with orgId in URL for reliable back navigation
+    navigate(`/admin/organizations/${orgId}/student/${studentId}?tab=progress`);
   };
 
   useEffect(() => {

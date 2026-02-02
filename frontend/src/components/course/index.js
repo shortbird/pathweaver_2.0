@@ -9,6 +9,9 @@ export { default as BulkTaskGenerationModal } from './BulkTaskGenerationModal'
 export { default as MoveLessonModal } from './MoveLessonModal'
 export { default as AIToolsModal } from './AIToolsModal'
 
+// Course Outline Components
+export { OutlineTree, OutlineTreeItem, OutlineEditor } from './outline'
+
 // Course Display Components
 export { default as CourseCard } from './CourseCard'
 export { default as CourseCardWithQuests } from './CourseCardWithQuests'

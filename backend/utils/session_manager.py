@@ -300,10 +300,20 @@ class SessionManager:
 
         return None
     
-    def set_auth_cookies(self, response, user_id: str):
-        """Set secure httpOnly cookies for authentication (works for both same-origin and cross-origin)"""
-        access_token = self.generate_access_token(user_id)
-        refresh_token = self.generate_refresh_token(user_id)
+    def set_auth_cookies(self, response, user_id: str, access_token: str = None, refresh_token: str = None):
+        """Set secure httpOnly cookies for authentication (works for both same-origin and cross-origin)
+
+        Args:
+            response: Flask response object
+            user_id: User ID for token generation (if tokens not provided)
+            access_token: Optional pre-generated access token (to ensure consistency with response body)
+            refresh_token: Optional pre-generated refresh token (to ensure consistency with response body)
+        """
+        # Use provided tokens or generate new ones
+        if not access_token:
+            access_token = self.generate_access_token(user_id)
+        if not refresh_token:
+            refresh_token = self.generate_refresh_token(user_id)
 
         # Safari ITP Fix: Add Partitioned attribute for cross-origin cookies
         # This enables CHIPS (Cookies Having Independent Partitioned State)

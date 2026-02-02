@@ -14,8 +14,11 @@ import CreateTrackModal from './CreateTrackModal';
 const InterestTrackDetail = ({
   trackId,
   onDelete,
-  onGraduate
+  onGraduate,
+  studentId = null  // Optional - when parent views child's track
 }) => {
+  // Determine if this is parent view mode
+  const isParentView = !!studentId;
   const [track, setTrack] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -30,7 +33,11 @@ const InterestTrackDetail = ({
   const fetchTrack = async () => {
     try {
       setIsLoading(true);
-      const response = await api.get(`/api/interest-tracks/${trackId}`);
+      // Use parent API when viewing child's track
+      const endpoint = isParentView
+        ? `/api/parent/children/${studentId}/topics/${trackId}`
+        : `/api/interest-tracks/${trackId}`;
+      const response = await api.get(endpoint);
       if (response.data.success) {
         setTrack(response.data.track);
       }
@@ -188,6 +195,7 @@ const InterestTrackDetail = ({
               <LearningEventCard
                 key={moment.id}
                 event={moment}
+                studentId={studentId}
               />
             ))}
           </div>

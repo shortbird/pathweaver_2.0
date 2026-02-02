@@ -5,9 +5,15 @@ import LearningEventModal from './LearningEventModal';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
-const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate }) => {
+const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate, studentId = null }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Determine if this is parent view mode
+  const isParentView = !!studentId;
+
+  // In parent view, parent can only edit/delete moments they captured
+  const canParentModify = isParentView && event?.captured_by_user_id;
 
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this learning moment? This cannot be undone.')) {
@@ -16,7 +22,11 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate }) => {
 
     setIsDeleting(true);
     try {
-      const response = await api.delete(`/api/learning-events/${event.id}`);
+      // Use parent API when in parent view
+      const endpoint = isParentView
+        ? `/api/parent/children/${studentId}/learning-moments/${event.id}`
+        : `/api/learning-events/${event.id}`;
+      const response = await api.delete(endpoint);
       if (response.data.success) {
         toast.success('Moment deleted');
         onClose();
@@ -28,7 +38,8 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate }) => {
       }
     } catch (error) {
       console.error('Failed to delete moment:', error);
-      toast.error('Failed to delete moment');
+      const errorMsg = error.response?.data?.error || 'Failed to delete moment';
+      toast.error(errorMsg);
     } finally {
       setIsDeleting(false);
     }
@@ -196,23 +207,6 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate }) => {
               </p>
             </div>
 
-            {/* Pillars */}
-            {event.pillars && event.pillars.length > 0 && (
-              <div className="mb-6">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Pillars</p>
-                <div className="flex flex-wrap gap-2">
-                  {event.pillars.map((pillar) => (
-                    <span
-                      key={pillar}
-                      className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium"
-                    >
-                      {pillar.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Evidence Blocks */}
             {hasEvidence && (
               <div>
@@ -235,36 +229,42 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate }) => {
           {/* Footer */}
           <div className="p-6 border-t border-gray-200 bg-gray-50 rounded-b-xl">
             <div className="flex gap-3">
-              <button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="px-4 py-3 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-                title="Delete moment"
-              >
-                <TrashIcon className="w-4 h-4" />
-              </button>
+              {/* Delete button - only show if user can modify (not parent view OR parent captured this moment) */}
+              {(!isParentView || canParentModify) && (
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="px-4 py-3 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                  title="Delete moment"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              )}
               <button
                 onClick={onClose}
                 className="flex-1 px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
               >
                 Close
               </button>
-              <button
-                onClick={() => setShowEditModal(true)}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-colors font-medium flex items-center justify-center gap-2"
-              >
-                {hasEvidence ? (
-                  <>
-                    <PencilIcon className="w-4 h-4" />
-                    Edit
-                  </>
-                ) : (
-                  <>
-                    <PencilIcon className="w-4 h-4" />
-                    Update Moment
-                  </>
-                )}
-              </button>
+              {/* Edit button - only show if user can modify (not parent view OR parent captured this moment) */}
+              {(!isParentView || canParentModify) && (
+                <button
+                  onClick={() => setShowEditModal(true)}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-colors font-medium flex items-center justify-center gap-2"
+                >
+                  {hasEvidence ? (
+                    <>
+                      <PencilIcon className="w-4 h-4" />
+                      Edit
+                    </>
+                  ) : (
+                    <>
+                      <PencilIcon className="w-4 h-4" />
+                      Update Moment
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -276,6 +276,7 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate }) => {
         onClose={() => setShowEditModal(false)}
         onSuccess={handleEditSuccess}
         editEvent={event}
+        studentId={studentId}
       />
     </>
   );

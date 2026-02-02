@@ -9,17 +9,19 @@ import {
   ExclamationTriangleIcon,
   UserIcon,
   PlusIcon,
+  Cog6ToothIcon,
   UserGroupIcon
 } from '@heroicons/react/24/outline';
 import AddDependentModal from '../components/parent/AddDependentModal';
 import RequestStudentConnectionModal from '../components/parent/RequestStudentConnectionModal';
 import VisibilityApprovalSection from '../components/parent/VisibilityApprovalSection';
 import DependentSettingsModal from '../components/parent/DependentSettingsModal';
-import FamilyObserverModal from '../components/parent/FamilyObserverModal';
+import FamilySettingsModal from '../components/parent/FamilySettingsModal';
 import ChildOverviewContent from '../components/parent/ChildOverviewContent';
+import ParentMomentCaptureButton from '../components/parent/ParentMomentCaptureButton';
 
 const ParentDashboardPage = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { setActingAs, actingAsDependent, clearActingAs } = useActingAs();
   const navigate = useNavigate();
   const { studentId } = useParams(); // Get student ID from URL if multi-child
@@ -33,7 +35,8 @@ const ParentDashboardPage = () => {
   const [showDependentSettingsModal, setShowDependentSettingsModal] = useState(false);
   const [selectedDependentForSettings, setSelectedDependentForSettings] = useState(null);
   const [selectedChildIsDependent, setSelectedChildIsDependent] = useState(true);
-  const [showFamilyObserverModal, setShowFamilyObserverModal] = useState(false);
+  const [showFamilySettingsModal, setShowFamilySettingsModal] = useState(false);
+  const [overviewRefreshKey, setOverviewRefreshKey] = useState(0);
 
   // Load children list (admin-only linking, no invitations) and dependents
   // NOTE: All hooks must be declared before any conditional returns (React Rules of Hooks)
@@ -125,8 +128,12 @@ const ParentDashboardPage = () => {
   };
 
   // Handle dependent creation success
-  const handleDependentAdded = (result) => {
+  const handleDependentAdded = async (result) => {
     toast.success(result.message || 'Dependent profile created');
+
+    // Refresh user data to update has_dependents flag in AuthContext
+    // This ensures the sidebar shows the parent dashboard link immediately
+    await refreshUser();
 
     // Reload the page to refresh the children/dependents list
     // This ensures the ProfileSwitcher shows the new dependent
@@ -307,20 +314,12 @@ const ParentDashboardPage = () => {
         {/* Header Action Buttons */}
         <div className="flex flex-wrap gap-2 sm:gap-3">
           <button
-            onClick={() => setShowFamilyObserverModal(true)}
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-shadow min-h-[44px] text-sm sm:text-base"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
-          >
-            <UserGroupIcon className="w-5 h-5" />
-            <span className="hidden xs:inline">Family </span>Observers
-          </button>
-          <button
-            onClick={() => setShowAddDependentModal(true)}
+            onClick={() => setShowFamilySettingsModal(true)}
             className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-lg transition-shadow min-h-[44px] text-sm sm:text-base"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
-            <PlusIcon className="w-5 h-5" />
-            Add Child
+            <Cog6ToothIcon className="w-5 h-5" />
+            Family Settings
           </button>
         </div>
       </div>
@@ -399,7 +398,9 @@ const ParentDashboardPage = () => {
           {/* Child Overview Content - uses StudentOverviewPage components */}
           {selectedStudentId && (
             <ChildOverviewContent
+              key={`${selectedStudentId}-${overviewRefreshKey}`}
               studentId={selectedStudentId}
+              isDependent={dependents.some(d => d.id === selectedStudentId)}
               onEditClick={() => {
                 // Find the selected child/dependent for settings
                 const selectedDependent = dependents.find(d => d.id === selectedStudentId);
@@ -450,6 +451,8 @@ const ParentDashboardPage = () => {
             ]);
             setChildren(childrenResponse.data.children || []);
             setDependents(dependentsResponse.dependents || []);
+            // Trigger ChildOverviewContent refresh by changing its key
+            setOverviewRefreshKey(prev => prev + 1);
           } catch (error) {
             console.error('Error reloading children:', error);
           }
@@ -457,23 +460,62 @@ const ParentDashboardPage = () => {
         onActAs={handleActAsDependent}
       />
 
-      <FamilyObserverModal
-        isOpen={showFamilyObserverModal}
-        onClose={() => setShowFamilyObserverModal(false)}
-        children={[
-          ...dependents.map(d => ({
-            id: d.id,
-            name: d.display_name,
-            avatar_url: d.avatar_url
-          })),
-          ...children.map(c => ({
-            id: c.student_id,
-            name: c.student_name || `${c.student_first_name || ''} ${c.student_last_name || ''}`.trim(),
-            avatar_url: c.avatar_url
-          }))
-        ]}
-        onSuccess={(result) => {
-          toast.success(result.message);
+      <FamilySettingsModal
+        isOpen={showFamilySettingsModal}
+        onClose={() => setShowFamilySettingsModal(false)}
+        children={children}
+        dependents={dependents}
+        onChildAdded={async () => {
+          // Reload dependents list
+          try {
+            const response = await getMyDependents();
+            setDependents(response.dependents || []);
+            // Select the new dependent if none selected
+            if (!selectedStudentId && response.dependents?.length > 0) {
+              setSelectedStudentId(response.dependents[response.dependents.length - 1].id);
+            }
+          } catch (error) {
+            console.error('Error reloading dependents:', error);
+          }
+        }}
+        onChildSettingsClick={(child) => {
+          // Close family settings and open child settings
+          setShowFamilySettingsModal(false);
+          const isDependent = dependents.some(d => d.id === child.id);
+          if (isDependent) {
+            const dep = dependents.find(d => d.id === child.id);
+            setSelectedDependentForSettings(dep);
+            setSelectedChildIsDependent(true);
+          } else {
+            const linkedChild = children.find(c => c.student_id === child.id);
+            setSelectedDependentForSettings(linkedChild);
+            setSelectedChildIsDependent(false);
+          }
+          setShowDependentSettingsModal(true);
+        }}
+        onRefresh={async () => {
+          try {
+            const [childrenResponse, dependentsResponse] = await Promise.all([
+              parentAPI.getMyChildren(),
+              getMyDependents()
+            ]);
+            setChildren(childrenResponse.data.children || []);
+            setDependents(dependentsResponse.dependents || []);
+            setOverviewRefreshKey(prev => prev + 1);
+          } catch (error) {
+            console.error('Error refreshing:', error);
+          }
+        }}
+      />
+
+      {/* Floating Learning Moment Capture Button */}
+      <ParentMomentCaptureButton
+        children={children}
+        dependents={dependents}
+        selectedChildId={selectedStudentId}
+        onSuccess={() => {
+          // Refresh the child overview to show the new moment
+          setOverviewRefreshKey(prev => prev + 1);
         }}
       />
     </div>

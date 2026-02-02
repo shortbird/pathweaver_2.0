@@ -140,8 +140,8 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
-  // Add Advisor link if user is advisor (platform or org)
-  const isAdvisor = user?.role === 'advisor' || user?.org_role === 'advisor'
+  // Add Advisor link if user is advisor (platform or org) OR has advisor assignments (parent-advisor implicit access)
+  const isAdvisor = user?.role === 'advisor' || user?.org_role === 'advisor' || user?.has_advisor_assignments
   if (isAdvisor) {
     navItems.push({
       name: 'Advisor',

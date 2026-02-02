@@ -19,6 +19,25 @@ from utils.roles import get_effective_role, UserRole
 
 logger = get_logger(__name__)
 
+
+def is_assigned_advisor(user_id: str) -> bool:
+    """
+    Check if user has active advisor_student_assignments.
+    This allows parents (or any user) with advisor assignments to access advisor features.
+    """
+    from database import get_supabase_admin_client
+    try:
+        supabase = get_supabase_admin_client()
+        result = supabase.table('advisor_student_assignments')\
+            .select('id', count='exact')\
+            .eq('advisor_id', user_id)\
+            .eq('is_active', True)\
+            .execute()
+        return (result.count or 0) > 0
+    except Exception as e:
+        logger.error(f"Error checking advisor assignments: {str(e)}")
+        return False
+
 def has_admin_privileges(role: str) -> bool:
     """Check if a role has admin privileges (superadmin only)."""
     return role == 'superadmin'
@@ -249,11 +268,16 @@ def require_advisor(f):
 
             user_data = user.data[0]
             effective_role = get_effective_role(user_data)
-            is_org_admin = user_data.get('is_org_admin', False)
+            is_org_admin_flag = user_data.get('is_org_admin', False)
 
             # Allow access if user has advisor/org_admin/superadmin effective role OR is_org_admin=True
-            if effective_role not in ['advisor', 'org_admin', 'superadmin'] and not is_org_admin:
-                raise AuthorizationError('Advisor access required')
+            # OR has active advisor_student_assignments (parent-advisor implicit access)
+            has_role_access = effective_role in ['advisor', 'org_admin', 'superadmin'] or is_org_admin_flag
+            if not has_role_access:
+                # Check if user has advisor assignments (parent-advisor implicit access)
+                has_assignments = is_assigned_advisor(user_id)
+                if not has_assignments:
+                    raise AuthorizationError('Advisor access required')
 
             return f(user_id, *args, **kwargs)
 

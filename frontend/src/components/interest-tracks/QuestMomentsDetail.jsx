@@ -170,7 +170,7 @@ const ConvertToTaskModal = ({ isOpen, onClose, moment, onSuccess }) => {
   );
 };
 
-const QuestMomentsDetail = ({ questId, onMomentConverted }) => {
+const QuestMomentsDetail = ({ questId, onMomentConverted, studentId = null }) => {
   const [quest, setQuest] = useState(null);
   const [moments, setMoments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -385,6 +385,7 @@ const QuestMomentsDetail = ({ questId, onMomentConverted }) => {
                     <LearningEventCard
                       event={item}
                       showTrackAssign={false}
+                      studentId={studentId}
                     />
                     {/* Convert to Task Button - overlaid */}
                     {!item.has_task && item.item_type === 'moment' && (

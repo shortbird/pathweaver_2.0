@@ -5,7 +5,8 @@
  * Manages lesson selection, progress tracking, and step navigation.
  */
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import {
@@ -111,6 +112,9 @@ const CurriculumView = ({
   onSaveProgress,
   onStepChange,
 }) => {
+  // React Router location for detecting navigation
+  const location = useLocation()
+
   // Sidebar state
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768)
 
@@ -157,7 +161,7 @@ const CurriculumView = ({
     return questTasks.filter(task => lesson.linked_task_ids.includes(task.id))
   }
 
-  // Calculate earned XP for a lesson
+  // Calculate earned XP for a lesson (tasks linked to that specific lesson)
   const getLessonEarnedXP = (lesson) => {
     const tasks = getLinkedTasks(lesson)
     return tasks.reduce((total, task) => {
@@ -165,14 +169,21 @@ const CurriculumView = ({
     }, 0)
   }
 
+  // Calculate project-wide earned XP (all completed tasks in the quest)
+  const getProjectEarnedXP = () => {
+    return questTasks.reduce((total, task) => {
+      return total + (task.is_completed ? (task.xp_value || 0) : 0)
+    }, 0)
+  }
+
   // Calculate step counts
   const linkedTasksForLesson = selectedLesson ? getLinkedTasks(selectedLesson) : []
   const hasTasksStep = linkedTasksForLesson.length > 0
-  const totalStepsWithTasks = hasTasksStep ? totalSteps + 2 : totalSteps
+  const totalStepsWithTasks = hasTasksStep ? totalSteps + 1 : totalSteps
 
-  // XP values
+  // XP values - use project-wide XP for the "Project XP Goal" display
   const selectedLessonXpThreshold = selectedLesson?.xp_threshold || 0
-  const selectedLessonEarnedXP = selectedLesson ? getLessonEarnedXP(selectedLesson) : 0
+  const selectedLessonEarnedXP = getProjectEarnedXP()
 
   // Fetch data when questId is provided
   useEffect(() => {
@@ -216,6 +227,46 @@ const CurriculumView = ({
     fetchData()
   }, [questId, propLessons])
 
+  // Function to refresh just the tasks (not lessons/progress)
+  const refreshQuestTasks = useCallback(async () => {
+    if (!questId) return
+    try {
+      const tasksResult = await api.get(`/api/quests/${questId}/tasks`)
+      setQuestTasks(tasksResult.data.tasks || [])
+    } catch (error) {
+      console.error('Failed to refresh tasks:', error)
+    }
+  }, [questId])
+
+  // Refresh tasks when location changes (handles returning from quest page after completing a task)
+  // This is the primary mechanism for detecting navigation back to this view
+  useEffect(() => {
+    if (!questId) return
+    refreshQuestTasks()
+  }, [questId, location.pathname, refreshQuestTasks])
+
+  // Also refresh on window focus and visibility change for robustness
+  useEffect(() => {
+    if (!questId) return
+
+    const handleFocus = () => {
+      refreshQuestTasks()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshQuestTasks()
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [questId, refreshQuestTasks])
+
   // Handle initialLessonId prop
   useEffect(() => {
     if (initialLessonId) {
@@ -231,7 +282,7 @@ const CurriculumView = ({
     const savedProgress = lessonProgress[selectedLessonId]
     const savedPosition = savedProgress?.last_position
     const contentSteps = lessonSteps.length
-    const tasksStepIndex = contentSteps + 1
+    const tasksStepIndex = contentSteps // Tasks step is directly after content (no "finished" step)
 
     if (initializedLessonIdRef.current === selectedLessonId) {
       if (propInitialStepIndex !== null && propInitialStepIndex !== undefined &&
@@ -390,11 +441,8 @@ const CurriculumView = ({
 
   // Lesson selection handler
   const handleLessonSelect = (lesson) => {
-    if (onLessonSelect) {
-      onLessonSelect(lesson)
-    } else {
-      setInternalSelectedId(lesson.id)
-    }
+    setInternalSelectedId(lesson.id)
+    onLessonSelect?.(lesson)
     if (window.innerWidth < 768) setIsSidebarOpen(false)
   }
 
@@ -525,7 +573,7 @@ const CurriculumView = ({
           </button>
         )}
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 sm:p-6">
+        <div className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-4">
           {(loading || (initialLessonId && !selectedLesson)) ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center px-4">
@@ -544,7 +592,7 @@ const CurriculumView = ({
               </div>
             </div>
           ) : (
-            <div className="max-w-4xl mx-auto">
+            <div>
               {/* Lesson Header */}
               <div className="mb-6 sm:mb-8 pb-4 sm:pb-6 border-b border-gray-200">
                 {selectedLesson.pillar && (
@@ -581,14 +629,14 @@ const CurriculumView = ({
                       </button>
                     ))}
                     {hasTasksStep && (
-                      <button onClick={() => goToStep(totalSteps + 1)} className="flex items-center gap-1.5 group" title="Practice Tasks">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${currentStepIndex === totalSteps + 1 ? 'bg-optio-purple text-white ring-2 ring-optio-purple/30' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'}`}>
+                      <button onClick={() => goToStep(totalSteps)} className="flex items-center gap-1.5 group" title="Practice Tasks">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${currentStepIndex === totalSteps ? 'bg-optio-purple text-white ring-2 ring-optio-purple/30' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'}`}>
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                         </div>
                       </button>
                     )}
                     <span className="ml-2 text-sm text-gray-500">
-                      {currentStepIndex < totalSteps ? `Step ${currentStepIndex + 1} of ${totalSteps}` : currentStepIndex === totalSteps ? 'Complete' : 'Practice'}
+                      {currentStepIndex < totalSteps ? `Step ${currentStepIndex + 1} of ${totalSteps}` : hasTasksStep ? 'Tasks' : 'Complete'}
                     </span>
                     {/* Age Adaptations Button - right aligned */}
                     {selectedLesson.content?.scaffolding && (selectedLesson.content.scaffolding.younger || selectedLesson.content.scaffolding.older) && (
@@ -631,6 +679,9 @@ const CurriculumView = ({
                 questId={questId}
                 lessonXpThreshold={selectedLessonXpThreshold}
                 lessonEarnedXP={selectedLessonEarnedXP}
+                allLessons={lessons}
+                allTasks={questTasks}
+                onLessonSelect={handleLessonSelect}
                 onTaskCreated={(newTask) => {
                   setQuestTasks(prev => [...prev, newTask])
                   setFetchedLessons(prev => prev.map(lesson =>

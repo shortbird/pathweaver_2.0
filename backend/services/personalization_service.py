@@ -483,7 +483,7 @@ class PersonalizationService(BaseService):
                     'subject_xp_distribution': subject_xp_distribution if subject_xp_distribution else None,
                     'xp_value': task.get('xp_value', 100),
                     'order_index': index,
-                    'is_required': True,
+                    'is_required': False,
                     'is_manual': False,
                     'approval_status': 'approved',
                     'created_at': datetime.utcnow().isoformat()

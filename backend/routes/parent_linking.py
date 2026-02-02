@@ -61,7 +61,10 @@ def get_linked_children(user_id):
                 avatar_url,
                 level,
                 total_xp,
-                ai_features_enabled
+                ai_features_enabled,
+                ai_chatbot_enabled,
+                ai_lesson_helper_enabled,
+                ai_task_generation_enabled
             )
         ''').eq('parent_user_id', user_id).eq('status', 'approved').execute()
 
@@ -82,6 +85,9 @@ def get_linked_children(user_id):
                     'student_level': student.get('level', 1),
                     'student_total_xp': student.get('total_xp', 0),
                     'ai_features_enabled': student.get('ai_features_enabled', False),
+                    'ai_chatbot_enabled': student.get('ai_chatbot_enabled', True),
+                    'ai_lesson_helper_enabled': student.get('ai_lesson_helper_enabled', True),
+                    'ai_task_generation_enabled': student.get('ai_task_generation_enabled', True),
                     'linked_since': link['created_at']
                 })
 
@@ -620,3 +626,124 @@ def reject_connection_request(user_id, link_id):
         logger.error(f"Error rejecting connection request: {str(e)}")
         import traceback
         return jsonify({'success': False, 'error': 'Failed to reject connection request'}), 500
+
+
+# ============================================================================
+# FAMILY SETTINGS - Co-Parent Management
+# ============================================================================
+
+@bp.route('/family-parents', methods=['GET'])
+@require_auth
+def get_family_parents(user_id):
+    """
+    Get list of co-parents who share access to this parent's children.
+    Co-parents are determined by shared access to the same dependents or linked students.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get current user's dependents (children they manage)
+        dependents_response = supabase.table('users').select('id').eq('managed_by_parent_id', user_id).execute()
+        dependent_ids = [d['id'] for d in (dependents_response.data or [])]
+
+        # Get current user's linked students
+        links_response = supabase.table('parent_student_links').select('student_user_id').eq('parent_user_id', user_id).eq('status', 'approved').execute()
+        linked_student_ids = [l['student_user_id'] for l in (links_response.data or [])]
+
+        all_child_ids = dependent_ids + linked_student_ids
+
+        if not all_child_ids:
+            return jsonify({'parents': []}), 200
+
+        co_parent_ids = set()
+
+        # Find other parents who manage the same dependents
+        for dep_id in dependent_ids:
+            # Get the dependent's info to find other parents with access
+            dep_info = supabase.table('users').select('managed_by_parent_id').eq('id', dep_id).single().execute()
+            if dep_info.data and dep_info.data.get('managed_by_parent_id'):
+                other_parent_id = dep_info.data['managed_by_parent_id']
+                if other_parent_id != user_id:
+                    co_parent_ids.add(other_parent_id)
+
+        # Find other parents linked to the same students
+        for student_id in linked_student_ids:
+            other_links = supabase.table('parent_student_links').select('parent_user_id').eq('student_user_id', student_id).eq('status', 'approved').neq('parent_user_id', user_id).execute()
+            for link in (other_links.data or []):
+                co_parent_ids.add(link['parent_user_id'])
+
+        # Get co-parent details
+        parents = []
+        for parent_id in co_parent_ids:
+            parent_info = supabase.table('users').select('id, first_name, last_name, email, avatar_url, display_name').eq('id', parent_id).single().execute()
+            if parent_info.data:
+                p = parent_info.data
+                parents.append({
+                    'id': p['id'],
+                    'name': p.get('display_name') or f"{p.get('first_name', '')} {p.get('last_name', '')}".strip() or 'Parent',
+                    'email': p.get('email'),
+                    'avatar_url': p.get('avatar_url'),
+                    'status': 'active'
+                })
+
+        return jsonify({'parents': parents}), 200
+
+    except Exception as e:
+        logger.error(f"Error getting family parents: {str(e)}")
+        return jsonify({'error': 'Failed to fetch family parents'}), 500
+
+
+@bp.route('/invite-parent', methods=['POST'])
+@require_auth
+def invite_parent(user_id):
+    """
+    Invite another parent to join the family.
+    The invited parent will gain access to all children managed by this parent.
+
+    Request body:
+    {
+        "email": "coparent@example.com"
+    }
+    """
+    try:
+        data = request.get_json()
+        email = data.get('email', '').strip().lower()
+
+        if not email:
+            raise ValidationError("Email is required")
+
+        supabase = get_supabase_admin_client()
+
+        # Check if user with this email already exists
+        existing_user = supabase.table('users').select('id, email, role').eq('email', email).execute()
+
+        if existing_user.data:
+            # User exists - check if they're already a co-parent
+            existing_id = existing_user.data[0]['id']
+
+            # Check if they already have access to any of our children
+            # For now, just return an error that they already have an account
+            return jsonify({
+                'success': False,
+                'error': 'This email is already registered. Please ask them to create their own parent account and contact support to be linked.'
+            }), 400
+
+        # TODO: Implement invitation system
+        # For now, return a placeholder response
+        # In a full implementation, this would:
+        # 1. Create an invitation record in a parent_invitations table
+        # 2. Send an email with a signup link
+        # 3. When they sign up, automatically grant them co-parent access
+
+        logger.info(f"Parent {user_id} requested to invite {email} as co-parent")
+
+        return jsonify({
+            'success': True,
+            'message': f'Invitation functionality coming soon. For now, please have {email} create their own account and contact support@optioeducation.com to be linked as a co-parent.'
+        }), 200
+
+    except ValidationError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error inviting parent: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to send invitation'}), 500

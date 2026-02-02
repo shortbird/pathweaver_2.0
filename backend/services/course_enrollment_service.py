@@ -206,11 +206,11 @@ class CourseEnrollmentService(BaseService):
                 quest_result = self.client.table('user_quests').insert(quest_enrollment_data).execute()
                 if quest_result.data:
                     quest_enrollments_created += 1
-                    user_quest_id = quest_result.data[0]['id']
                     logger.info(f"Auto-enrolled user {user_id} in quest {quest_id} (course enrollment)")
 
-                    # Copy lesson-linked tasks
-                    self._copy_lesson_linked_tasks(user_id, quest_id, user_quest_id)
+                    # Note: Tasks are NOT auto-copied. Students activate tasks manually
+                    # by clicking on them in the lesson view. This gives students agency
+                    # over which optional tasks they want to pursue.
 
             except Exception as quest_err:
                 logger.warning(f"Failed to auto-enroll in quest {quest_id}: {quest_err}")
@@ -276,7 +276,7 @@ class CourseEnrollmentService(BaseService):
                     'pillar': task['pillar'],
                     'xp_value': task.get('xp_value', 100),
                     'order_index': task.get('order_index', 0),
-                    'is_required': task.get('is_required', True),
+                    'is_required': task.get('is_required', False),
                     'is_manual': False,
                     'approval_status': 'approved',
                     'diploma_subjects': task.get('diploma_subjects', ['Electives']),

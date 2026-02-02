@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { useParentChildOverview } from '../../hooks/api/useParentChildOverview';
-import { PencilIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon } from '@heroicons/react/24/outline';
 
 // Overview Components
 import HeroSection from '../overview/HeroSection';
@@ -9,6 +9,8 @@ import LearningSnapshot from '../overview/LearningSnapshot';
 import SkillsGrowth from '../overview/SkillsGrowth';
 import ConstellationPreview from '../overview/ConstellationPreview';
 import PortfolioSection from '../overview/PortfolioSection';
+import LearningJournalSection from '../overview/LearningJournalSection';
+import ParentConversationsViewer from './ParentConversationsViewer';
 
 // Collapsible section wrapper (copied from StudentOverviewPage)
 const CollapsibleSection = ({ title, icon, children, defaultOpen = true, id }) => {
@@ -57,8 +59,12 @@ const LoadingSkeleton = () => (
 /**
  * ChildOverviewContent - Displays StudentOverviewPage components for a child in parent view.
  * Excludes AccountSettings and makes PortfolioSection read-only.
+ *
+ * @param {string} studentId - The student/child ID
+ * @param {function} onEditClick - Callback when edit button is clicked
+ * @param {boolean} isDependent - True if child is under 13 (hides diploma credits)
  */
-const ChildOverviewContent = ({ studentId, onEditClick }) => {
+const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false }) => {
   const { data, isLoading, error, refetch } = useParentChildOverview(studentId);
 
   if (isLoading) {
@@ -89,7 +95,7 @@ const ChildOverviewContent = ({ studentId, onEditClick }) => {
 
   return (
     <div className="space-y-6">
-      {/* Hero Section with Edit Button */}
+      {/* Hero Section with Actions Button */}
       <div className="relative">
         <HeroSection
           user={data.user}
@@ -100,15 +106,15 @@ const ChildOverviewContent = ({ studentId, onEditClick }) => {
           completedTasksCount={data.completedTasksCount}
           viewMode="parent"
         />
-        {/* Edit Button - positioned in top right of hero section */}
+        {/* Actions Button - bottom right of hero section */}
         {onEditClick && (
           <button
             onClick={onEditClick}
-            className="absolute top-4 right-4 flex items-center gap-2 px-3 py-2 bg-white/90 backdrop-blur-sm border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-white hover:shadow-md transition-all min-h-[40px]"
+            className="absolute bottom-4 right-4 flex items-center gap-2 px-3 py-2 border border-white/50 text-white rounded-lg text-sm font-medium bg-transparent hover:bg-white/20 hover:border-white transition-all"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
-            <PencilIcon className="w-4 h-4" />
-            Edit
+            <Cog6ToothIcon className="w-4 h-4" />
+            Actions
           </button>
         )}
       </div>
@@ -138,6 +144,7 @@ const ChildOverviewContent = ({ studentId, onEditClick }) => {
           pendingSubjectXp={data.pendingSubjectXp}
           totalXp={data.totalXp}
           hideHeader
+          showDiplomaCredits={!isDependent}
         />
       </CollapsibleSection>
 
@@ -169,13 +176,37 @@ const ChildOverviewContent = ({ studentId, onEditClick }) => {
           hideHeader
         />
       </CollapsibleSection>
+
+      {/* Learning Journal - Recent moments with link to organize */}
+      <CollapsibleSection
+        id="learning-journal"
+        title="Learning Journal"
+        icon={<svg className="w-6 h-6 text-optio-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>}
+      >
+        <LearningJournalSection
+          studentId={studentId}
+          viewMode="parent"
+          hideHeader
+        />
+      </CollapsibleSection>
+
+      {/* Communications - Read-only view of student's conversations */}
+      <CollapsibleSection
+        id="communications"
+        title="Communications"
+        icon={<svg className="w-6 h-6 text-optio-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>}
+        defaultOpen={false}
+      >
+        <ParentConversationsViewer studentId={studentId} />
+      </CollapsibleSection>
     </div>
   );
 };
 
 ChildOverviewContent.propTypes = {
   studentId: PropTypes.string.isRequired,
-  onEditClick: PropTypes.func
+  onEditClick: PropTypes.func,
+  isDependent: PropTypes.bool
 };
 
 export default ChildOverviewContent;

@@ -44,7 +44,8 @@ const LearningEventModal = ({
   quickMode = false,
   initialTrackId = null,
   initialParentMomentId = null,
-  editEvent = null  // Pass existing event to edit
+  editEvent = null,  // Pass existing event to edit
+  studentId = null   // Optional - when parent views child's topics
 }) => {
   const isEditMode = !!editEvent;
   const [description, setDescription] = useState('');
@@ -288,7 +289,12 @@ const LearningEventModal = ({
           formData.append('block_type', block.block_type);
           formData.append('order_index', index);
 
-          const response = await api.post(`/api/learning-events/${eventId}/upload`, formData, {
+          // Use parent API when studentId is provided
+          const uploadEndpoint = studentId
+            ? `/api/parent/children/${studentId}/learning-moments/${eventId}/upload`
+            : `/api/learning-events/${eventId}/upload`;
+
+          const response = await api.post(uploadEndpoint, formData, {
             headers: {
               'Content-Type': 'multipart/form-data'
             }
@@ -350,8 +356,11 @@ const LearningEventModal = ({
       let response;
 
       if (isEditMode) {
-        // Update existing event
-        response = await api.put(`/api/learning-events/${editEvent.id}`, payload);
+        // Update existing event - use parent API when studentId is provided
+        const endpoint = studentId
+          ? `/api/parent/children/${studentId}/learning-moments/${editEvent.id}`
+          : `/api/learning-events/${editEvent.id}`;
+        response = await api.put(endpoint, payload);
         eventId = editEvent.id;
       } else {
         // Create new event
@@ -379,7 +388,12 @@ const LearningEventModal = ({
             };
           });
 
-          await api.post(`/api/learning-events/${eventId}/evidence`, {
+          // Use parent API when studentId is provided
+          const evidenceEndpoint = studentId
+            ? `/api/parent/children/${studentId}/learning-moments/${eventId}/evidence`
+            : `/api/learning-events/${eventId}/evidence`;
+
+          await api.post(evidenceEndpoint, {
             blocks: cleanedBlocks
           });
 
@@ -707,27 +721,6 @@ const LearningEventModal = ({
                 />
               </div>
 
-              {/* Pillars Selection */}
-              <div className="mb-6">
-                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                  Learning Pillars
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(PILLAR_CONFIG).map(([key, config]) => (
-                    <button
-                      key={key}
-                      onClick={() => togglePillar(key)}
-                      className={`
-                        px-4 py-2 rounded-lg border text-sm font-medium transition-all
-                        ${selectedPillars.includes(key) ? config.selected : config.light}
-                      `}
-                    >
-                      {config.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Topic of Interest Selection */}
               <div className="mb-6">
                 <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
@@ -739,17 +732,7 @@ const LearningEventModal = ({
                   placeholder="Select or create a topic"
                   showAISuggestion={description.length >= 30}
                   momentDescription={description}
-                />
-              </div>
-
-              {/* Curiosity Thread / Spark Selector */}
-              <div className="mb-6">
-                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                  Sparked By
-                </label>
-                <SparkSelector
-                  value={parentMomentId}
-                  onChange={setParentMomentId}
+                  studentId={studentId}
                 />
               </div>
 

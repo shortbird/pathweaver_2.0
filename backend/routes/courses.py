@@ -414,6 +414,82 @@ def upload_course_cover_image(user_id, course_id: str):
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/quests/<quest_id>/header-image', methods=['POST'])
+@require_auth
+def upload_quest_header_image(user_id, quest_id: str):
+    """
+    Upload a header image for a quest/project.
+
+    Path params:
+        quest_id: Quest UUID
+
+    Form data:
+        - image: Image file (jpg, jpeg, png, gif, webp)
+    """
+    try:
+        user_id = session_manager.get_effective_user_id()
+        client = get_supabase_admin_client()
+        upload_service = FileUploadService(client)
+
+        # Check quest exists and user has permission
+        quest_result = client.table('quests').select('created_by, organization_id').eq('id', quest_id).execute()
+        if not quest_result.data:
+            return jsonify({'error': 'Quest not found'}), 404
+
+        quest = quest_result.data[0]
+        user_result = client.table('users').select('organization_id, role, org_role').eq('id', user_id).execute()
+        if not user_result.data:
+            return jsonify({'error': 'User not found'}), 404
+
+        user_data = user_result.data[0]
+        effective_role = get_effective_role(user_data)
+        is_creator = quest['created_by'] == user_id
+        has_admin_role = effective_role in ['superadmin', 'org_admin', 'advisor']
+        is_admin = has_admin_role and (effective_role == 'superadmin' or user_data['organization_id'] == quest['organization_id'])
+
+        if not (is_creator or is_admin):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+
+        if 'image' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+
+        # Read file data and extract metadata
+        file_data = file.read()
+        filename = file.filename
+        content_type = file.content_type or 'application/octet-stream'
+
+        result = upload_service.upload_quest_header(
+            file_data=file_data,
+            filename=filename,
+            content_type=content_type,
+            quest_id=quest_id
+        )
+
+        if not result.success:
+            return jsonify({'error': result.error_message}), 400
+
+        # Update quest with new header image URL
+        client.table('quests').update({
+            'header_image_url': result.url,
+            'updated_at': datetime.utcnow().isoformat()
+        }).eq('id', quest_id).execute()
+
+        logger.info(f"Header image uploaded for quest {quest_id}: {result.url}")
+
+        return jsonify({
+            'success': True,
+            'url': result.url
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error uploading header image for quest {quest_id}: {str(e)}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/<course_id>', methods=['DELETE'])
 @require_auth
 def delete_course(user_id, course_id: str):
@@ -671,7 +747,7 @@ def get_course_quests(user_id, course_id: str):
                 'quest_type': quest_data.get('quest_type'),
                 'header_image_url': quest_data.get('header_image_url'),
                 'order_index': item.get('sequence_order', 0),
-                'is_required': item.get('is_required', True),
+                'is_required': item.get('is_required', False),
                 'is_published': item.get('is_published', True),
                 'intro_content': item.get('intro_content'),
                 'xp_threshold': item.get('xp_threshold', 0)
@@ -703,7 +779,7 @@ def add_quest_to_course(user_id, course_id: str):
         - sequence_order: Position in course (defaults to end)
         - custom_title: Override quest title for this course
         - intro_content: JSONB intro content
-        - is_required: Boolean (default: true)
+        - is_required: Boolean (default: false)
     """
     try:
         user_id = session_manager.get_effective_user_id()
@@ -747,7 +823,7 @@ def add_quest_to_course(user_id, course_id: str):
             'sequence_order': sequence_order,
             'custom_title': data.get('custom_title'),
             'intro_content': data.get('intro_content', {}),
-            'is_required': data.get('is_required', True)
+            'is_required': data.get('is_required', False)
         }
 
         result = client.table('course_quests').insert(quest_data).execute()
@@ -980,6 +1056,10 @@ def update_project_details(user_id, course_id: str, quest_id: str):
         if 'description' in data:
             updates['description'] = data['description'].strip()
             updates['big_idea'] = data['description'].strip()  # Keep big_idea in sync
+        if 'header_image_url' in data:
+            # Allow null/empty to clear the image
+            header_url = data['header_image_url']
+            updates['header_image_url'] = header_url.strip() if header_url else None
 
         if not updates:
             return jsonify({'error': 'No valid fields to update'}), 400
@@ -1197,69 +1277,11 @@ def enroll_in_course(user_id, course_id: str):
                     quest_result = client.table('user_quests').insert(quest_enrollment_data).execute()
                     if quest_result.data:
                         quest_enrollments_created += 1
-                        user_quest_id = quest_result.data[0]['id']
                         logger.info(f"Auto-enrolled user {target_user_id} in quest {quest_id} (course enrollment)")
 
-                        # Copy lesson-linked tasks to user_quest_tasks
-                        try:
-                            # Get all task IDs linked to lessons for this quest
-                            linked_tasks_result = client.table('curriculum_lesson_tasks')\
-                                .select('task_id')\
-                                .eq('quest_id', quest_id)\
-                                .execute()
-
-                            logger.info(f"[COURSE ENROLL] Quest {quest_id[:8]}: Found {len(linked_tasks_result.data or [])} linked tasks in curriculum_lesson_tasks")
-
-                            if not linked_tasks_result.data:
-                                logger.info(f"[COURSE ENROLL] Quest {quest_id[:8]}: No tasks linked to lessons - skipping task copy")
-                            else:
-                                task_ids = list(set([lt['task_id'] for lt in linked_tasks_result.data]))
-                                logger.info(f"[COURSE ENROLL] Quest {quest_id[:8]}: Task IDs to check: {task_ids[:3]}...")
-
-                                # Check for existing tasks with same source_task_id (avoid duplicates)
-                                existing_tasks = client.table('user_quest_tasks')\
-                                    .select('source_task_id')\
-                                    .eq('user_id', target_user_id)\
-                                    .eq('quest_id', quest_id)\
-                                    .in_('source_task_id', task_ids)\
-                                    .execute()
-                                existing_source_ids = set(t['source_task_id'] for t in (existing_tasks.data or []) if t.get('source_task_id'))
-
-                                # Filter out tasks that already exist
-                                task_ids_to_copy = [tid for tid in task_ids if tid not in existing_source_ids]
-
-                                if task_ids_to_copy:
-                                    # Fetch the source task data
-                                    source_tasks_result = client.table('user_quest_tasks')\
-                                        .select('id, title, description, pillar, xp_value, order_index, is_required, diploma_subjects, subject_xp_distribution')\
-                                        .in_('id', task_ids_to_copy)\
-                                        .execute()
-
-                                    if source_tasks_result.data:
-                                        tasks_to_insert = []
-                                        for task in source_tasks_result.data:
-                                            tasks_to_insert.append({
-                                                'user_id': target_user_id,
-                                                'quest_id': quest_id,
-                                                'user_quest_id': user_quest_id,
-                                                'title': task['title'],
-                                                'description': task.get('description', ''),
-                                                'pillar': task['pillar'],
-                                                'xp_value': task.get('xp_value', 100),
-                                                'order_index': task.get('order_index', 0),
-                                                'is_required': task.get('is_required', True),
-                                                'is_manual': False,
-                                                'approval_status': 'approved',
-                                                'diploma_subjects': task.get('diploma_subjects', ['Electives']),
-                                                'subject_xp_distribution': task.get('subject_xp_distribution'),
-                                                'source_task_id': task['id']
-                                            })
-
-                                        if tasks_to_insert:
-                                            client.table('user_quest_tasks').insert(tasks_to_insert).execute()
-                                            logger.info(f"Copied {len(tasks_to_insert)} lesson-linked tasks for user {target_user_id} in quest {quest_id}")
-                        except Exception as task_err:
-                            logger.warning(f"Failed to copy tasks for quest {quest_id}: {task_err}")
+                        # Note: Tasks are NOT auto-copied. Students activate tasks manually
+                        # by clicking on them in the lesson view. This gives students agency
+                        # over which optional tasks they want to pursue.
                 except Exception as quest_err:
                     logger.warning(f"Failed to auto-enroll in quest {quest_id}: {quest_err}")
 
@@ -1359,9 +1381,14 @@ def end_course(user_id, course_id: str):
     Unlike unenroll, this preserves all progress, tasks, and XP.
     It marks the course and quests as completed rather than deleting them.
 
+    Completion requires ALL required projects to meet their completion criteria:
+    - XP threshold met (if set)
+    - ALL required tasks completed
+
     This will:
-    1. Update course_enrollments to status='completed' with completed_at timestamp
-    2. Mark all user_quests for this course as is_active=False with completed_at timestamp
+    1. Validate all projects meet completion requirements
+    2. Update course_enrollments to status='completed' with completed_at timestamp
+    3. Mark all user_quests for this course as is_active=False with completed_at timestamp
     """
     try:
         current_user_id = session_manager.get_effective_user_id()
@@ -1385,13 +1412,68 @@ def end_course(user_id, course_id: str):
                 'already_completed': True
             })
 
-        # Get course quests
+        # Get course quests (only published and required)
         course_quests = client.table('course_quests')\
-            .select('quest_id')\
+            .select('quest_id, is_required, is_published, xp_threshold, quests(title)')\
             .eq('course_id', course_id)\
             .execute()
 
-        quest_ids = [cq['quest_id'] for cq in (course_quests.data or [])]
+        # Filter to required, published quests
+        required_quests = [
+            cq for cq in (course_quests.data or [])
+            if cq.get('is_required', True) and cq.get('is_published') is not False
+        ]
+        all_quest_ids = [cq['quest_id'] for cq in (course_quests.data or [])]
+
+        # Check completion eligibility for all required quests
+        # Allow force parameter to bypass the check (for admin use or testing)
+        data = request.get_json(silent=True) or {}
+        force_complete = data.get('force', False)
+
+        incomplete_projects = []
+        if not force_complete and required_quests:
+            progress_service = CourseProgressService(client)
+
+            for cq in required_quests:
+                quest_id = cq['quest_id']
+                quest_title = cq.get('quests', {}).get('title', 'Unknown Project')
+
+                eligibility = progress_service.check_quest_completion_eligibility(
+                    current_user_id, quest_id, course_id
+                )
+
+                if not eligibility.get('can_complete'):
+                    reasons = []
+                    if not eligibility.get('xp_met'):
+                        reasons.append(f"XP: {eligibility.get('earned_xp', 0)}/{eligibility.get('required_xp', 0)}")
+                    if not eligibility.get('required_tasks_met'):
+                        incomplete_count = eligibility.get('total_required', 0) - eligibility.get('completed_required', 0)
+                        reasons.append(f"{incomplete_count} required task{'s' if incomplete_count != 1 else ''} incomplete")
+
+                    incomplete_projects.append({
+                        'quest_id': quest_id,
+                        'title': quest_title,
+                        'reasons': reasons,
+                        'requirements': {
+                            'xp_met': eligibility.get('xp_met', True),
+                            'required_tasks_met': eligibility.get('required_tasks_met', True),
+                            'earned_xp': eligibility.get('earned_xp', 0),
+                            'required_xp': eligibility.get('required_xp', 0),
+                            'completed_required_tasks': eligibility.get('completed_required', 0),
+                            'total_required_tasks': eligibility.get('total_required', 0),
+                            'incomplete_lessons': eligibility.get('incomplete_lessons', [])
+                        }
+                    })
+
+        if incomplete_projects:
+            project_names = [p['title'] for p in incomplete_projects]
+            return jsonify({
+                'success': False,
+                'error': 'Cannot complete course yet',
+                'reason': 'INCOMPLETE_PROJECTS',
+                'message': f"{len(incomplete_projects)} project{'s' if len(incomplete_projects) != 1 else ''} not completed: {', '.join(project_names)}",
+                'incomplete_projects': incomplete_projects
+            }), 400
 
         # Mark course enrollment as completed
         now = datetime.utcnow().isoformat()
@@ -1410,7 +1492,7 @@ def end_course(user_id, course_id: str):
         quests_ended = 0
         total_xp = 0
 
-        for quest_id in quest_ids:
+        for quest_id in all_quest_ids:
             # Get user_quest record
             user_quest = client.table('user_quests')\
                 .select('id, is_active')\

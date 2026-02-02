@@ -594,30 +594,45 @@ class CourseService(BaseService):
             completed_tasks = 0
             total_tasks = 0
 
-            # Get all linked task IDs from lessons
+            # Get all linked task IDs from lessons (these are template task IDs)
             all_linked_task_ids = []
             for lesson in lessons:
                 all_linked_task_ids.extend(lesson.get('linked_task_ids', []))
 
             if all_linked_task_ids and quest_enrollment:
-                enrollment_id = quest_enrollment['id']
-                user_tasks_result = supabase.table('user_quest_tasks')\
-                    .select('id, xp_value')\
-                    .eq('user_quest_id', enrollment_id)\
+                # Get template tasks to know their titles
+                template_tasks_result = supabase.table('user_quest_tasks')\
+                    .select('id, title, xp_value')\
                     .in_('id', all_linked_task_ids)\
                     .execute()
-
-                user_tasks = user_tasks_result.data or []
+                template_tasks = template_tasks_result.data or []
+                template_titles = {t['title'] for t in template_tasks}
                 total_tasks = len(all_linked_task_ids)
 
-                if user_tasks:
-                    task_ids = [t['id'] for t in user_tasks]
-                    task_xp_map = {t['id']: t.get('xp_value', 0) or 0 for t in user_tasks}
+                # Get the current user's tasks for this quest
+                user_tasks_result = supabase.table('user_quest_tasks')\
+                    .select('id, title, xp_value')\
+                    .eq('quest_id', quest_id)\
+                    .eq('user_id', user_id)\
+                    .execute()
+                user_tasks = user_tasks_result.data or []
 
+                # Match user tasks to template tasks by title
+                user_tasks_by_title = {t['title']: t for t in user_tasks}
+                matched_user_task_ids = []
+                task_xp_map = {}
+
+                for template_task in template_tasks:
+                    user_task = user_tasks_by_title.get(template_task['title'])
+                    if user_task:
+                        matched_user_task_ids.append(user_task['id'])
+                        task_xp_map[user_task['id']] = user_task.get('xp_value', 0) or template_task.get('xp_value', 0) or 0
+
+                if matched_user_task_ids:
                     completions_result = supabase.table('quest_task_completions')\
                         .select('user_quest_task_id')\
                         .eq('user_id', user_id)\
-                        .in_('user_quest_task_id', task_ids)\
+                        .in_('user_quest_task_id', matched_user_task_ids)\
                         .execute()
 
                     completions = completions_result.data or []
@@ -641,13 +656,92 @@ class CourseService(BaseService):
             except Exception as progress_err:
                 logger.warning(f"Could not fetch lesson progress: {progress_err}")
 
-            # Add progress to each lesson
+            # Check required tasks completion (both per-lesson and per-quest)
+            required_tasks_complete = True
+            total_required = 0
+            completed_required = 0
+
+            # Build per-lesson required task tracking
+            lesson_required_map = {}  # lesson_id -> {'total': int, 'completed': int}
+            required_template_ids = set()
+            completed_ids_set = set()
+            source_to_user = {}
+            title_to_user = {}
+
+            if all_linked_task_ids and quest_enrollment:
+                # Get required template tasks
+                required_templates_result = supabase.table('user_quest_tasks')\
+                    .select('id, title')\
+                    .in_('id', all_linked_task_ids)\
+                    .eq('is_required', True)\
+                    .execute()
+
+                required_templates = required_templates_result.data or []
+                total_required = len(required_templates)
+                required_template_ids = {t['id'] for t in required_templates}
+
+                if required_templates:
+                    # Get user's tasks for this quest
+                    user_tasks_result_2 = supabase.table('user_quest_tasks')\
+                        .select('id, title, source_task_id')\
+                        .eq('quest_id', quest_id)\
+                        .eq('user_id', user_id)\
+                        .execute()
+                    user_tasks_2 = user_tasks_result_2.data or []
+
+                    # Map source_task_id to user task id
+                    source_to_user = {t.get('source_task_id'): t['id'] for t in user_tasks_2 if t.get('source_task_id')}
+
+                    # Also map by title as fallback
+                    title_to_user = {t['title']: t['id'] for t in user_tasks_2}
+
+                    # Get all completions for this user/quest
+                    user_task_ids_2 = [t['id'] for t in user_tasks_2]
+                    if user_task_ids_2:
+                        completions_2 = supabase.table('quest_task_completions')\
+                            .select('user_quest_task_id')\
+                            .eq('user_id', user_id)\
+                            .in_('user_quest_task_id', user_task_ids_2)\
+                            .execute()
+                        completed_ids_set = {c['user_quest_task_id'] for c in (completions_2.data or [])}
+
+                    # Check each required template (for quest-level tracking)
+                    for req_template in required_templates:
+                        user_task_id = source_to_user.get(req_template['id']) or title_to_user.get(req_template['title'])
+                        if user_task_id and user_task_id in completed_ids_set:
+                            completed_required += 1
+
+                    required_tasks_complete = (completed_required >= total_required)
+
+            # Add progress to each lesson (including per-lesson required task counts)
             for lesson in lessons:
                 progress = lesson_progress_map.get(lesson['id'], {})
+
+                # Calculate per-lesson required task counts
+                lesson_linked_ids = lesson.get('linked_task_ids', [])
+                lesson_total_required = 0
+                lesson_completed_required = 0
+
+                for task_id in lesson_linked_ids:
+                    if task_id in required_template_ids:
+                        lesson_total_required += 1
+                        # Check if user completed this task
+                        user_task_id = source_to_user.get(task_id) or title_to_user.get(
+                            next((t['title'] for t in (required_templates_result.data or []) if t['id'] == task_id), None)
+                        )
+                        if user_task_id and user_task_id in completed_ids_set:
+                            lesson_completed_required += 1
+
                 lesson['progress'] = {
                     'status': progress.get('status', 'not_started'),
-                    'percentage': progress.get('progress_percentage', 0)
+                    'percentage': progress.get('progress_percentage', 0),
+                    'total_required_tasks': lesson_total_required,
+                    'completed_required_tasks': lesson_completed_required,
+                    'has_incomplete_required': lesson_total_required > 0 and lesson_completed_required < lesson_total_required
                 }
+
+            xp_met = earned_xp >= total_xp if total_xp > 0 else True
+            can_complete = xp_met and required_tasks_complete
 
             quests_with_data.append({
                 'id': quest_id,
@@ -665,7 +759,12 @@ class CourseService(BaseService):
                     'earned_xp': earned_xp,
                     'total_xp': total_xp,
                     'percentage': min(100, round((earned_xp / total_xp * 100), 1)) if total_xp > 0 else 0,
-                    'is_completed': (quest_enrollment.get('completed_at') is not None and not quest_enrollment.get('is_active')) if quest_enrollment else False
+                    'is_completed': (quest_enrollment.get('completed_at') is not None and not quest_enrollment.get('is_active')) if quest_enrollment else False,
+                    'xp_met': xp_met,
+                    'required_tasks_met': required_tasks_complete,
+                    'can_complete': can_complete,
+                    'completed_required_tasks': completed_required,
+                    'total_required_tasks': total_required
                 }
             })
 

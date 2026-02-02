@@ -59,18 +59,35 @@ export const Modal = ({
     }
   };
 
+  // Track if this modal instance set the overflow
+  const didLockScroll = React.useRef(false);
+
   React.useEffect(() => {
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown);
       // Prevent body scroll when modal is open
       document.body.style.overflow = 'hidden';
+      didLockScroll.current = true;
     }
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'unset';
+      // Only reset if this modal was the one that locked scroll
+      if (didLockScroll.current) {
+        document.body.style.overflow = '';
+        didLockScroll.current = false;
+      }
     };
   }, [isOpen]);
+
+  // Safety net: ensure scroll is restored on unmount (e.g., during navigation)
+  React.useEffect(() => {
+    return () => {
+      if (didLockScroll.current) {
+        document.body.style.overflow = '';
+      }
+    };
+  }, []);
 
   // Use createPortal to render modal at document.body level
   // This prevents stacking context issues from transforms/transitions on parent elements

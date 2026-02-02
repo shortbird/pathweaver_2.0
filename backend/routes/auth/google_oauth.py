@@ -343,7 +343,8 @@ def google_oauth_callback():
         response = make_response(jsonify(response_data), 200)
 
         # Set httpOnly cookies for authentication
-        session_manager.set_auth_cookies(response, user_id)
+        # CRITICAL: Pass the same tokens to ensure consistency between cookies and response body
+        session_manager.set_auth_cookies(response, user_id, app_access_token, app_refresh_token)
 
         logger.info(f"[GOOGLE_OAUTH] Session established for user: {mask_user_id(user_id)}")
 
@@ -525,7 +526,8 @@ def accept_tos():
         response = make_response(jsonify(response_data), 200)
 
         # Set httpOnly cookies for authentication
-        session_manager.set_auth_cookies(response, user_id)
+        # CRITICAL: Pass the same tokens to ensure consistency between cookies and response body
+        session_manager.set_auth_cookies(response, user_id, app_access_token, app_refresh_token)
 
         logger.info(f"[GOOGLE_OAUTH] TOS accepted, session established for: {mask_user_id(user_id)}")
 

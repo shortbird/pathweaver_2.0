@@ -158,7 +158,7 @@ def create_course_quest(user_id):
                 'pillar': pillar,
                 'xp_value': int(task.get('xp_value', 100)),
                 'order_index': task.get('order_index', i),
-                'is_required': task.get('is_required', True),
+                'is_required': task.get('is_required', False),
                 'diploma_subjects': task.get('diploma_subjects', ['Electives']),
                 'subject_xp_distribution': task.get('subject_xp_distribution', {}),
                 'created_at': datetime.utcnow().isoformat()
@@ -378,7 +378,7 @@ def update_course_tasks(user_id, quest_id):
                 'pillar': pillar,
                 'xp_value': int(task.get('xp_value', 100)),
                 'order_index': task.get('order_index', i),
-                'is_required': task.get('is_required', True),
+                'is_required': task.get('is_required', False),
                 'diploma_subjects': task.get('diploma_subjects', ['Electives']),
                 'subject_xp_distribution': task.get('subject_xp_distribution', {}),
                 'created_at': datetime.utcnow().isoformat()

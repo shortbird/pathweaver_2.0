@@ -16,6 +16,7 @@ import { useAIAccess } from '../../contexts/AIAccessContext'
 // Task card component for displaying linked tasks
 const TaskCard = ({ task, onClick, onUnlink, isSelected, onToggleSelect, selectionMode }) => {
   const pillarData = getPillarData(task.pillar)
+  const isRequired = task.is_required === true // Default to false if not set
 
   return (
     <div
@@ -36,7 +37,18 @@ const TaskCard = ({ task, onClick, onUnlink, isSelected, onToggleSelect, selecti
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <h4 className="font-medium text-gray-900 text-sm truncate">{task.title}</h4>
+        <div className="flex items-center gap-2">
+          <h4 className="font-medium text-gray-900 text-sm truncate">{task.title}</h4>
+          {isRequired ? (
+            <span className="px-1.5 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded" title="Required task">
+              Required
+            </span>
+          ) : (
+            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-500 rounded" title="Optional task">
+              Optional
+            </span>
+          )}
+        </div>
         {task.description && (
           <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{task.description}</p>
         )}
@@ -75,7 +87,8 @@ const TaskEditModal = ({ task, onSave, onClose, saving }) => {
     title: task.title || '',
     description: task.description || '',
     pillar: task.pillar || 'stem',
-    xp_value: task.xp_value || 100
+    xp_value: task.xp_value || 100,
+    is_required: task.is_required === true // Default to false if not set
   })
   const pillarData = getPillarData(formData.pillar)
 
@@ -164,6 +177,29 @@ const TaskEditModal = ({ task, onSave, onClose, saving }) => {
             </div>
           </div>
 
+          {/* Required Toggle */}
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div>
+              <label className="text-sm font-medium text-gray-700">Required Task</label>
+              <p className="text-xs text-gray-500 mt-0.5">Students must complete this task to finish the lesson</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, is_required: !formData.is_required })}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-optio-purple focus:ring-offset-2 ${
+                formData.is_required ? 'bg-optio-purple' : 'bg-gray-200'
+              }`}
+              role="switch"
+              aria-checked={formData.is_required}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  formData.is_required ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
         </div>
 
         {/* Footer */}
@@ -194,7 +230,8 @@ const ManualTaskForm = ({ onSave, onCancel, initialTask = null }) => {
     description: '',
     pillar: 'stem',
     xp_value: 100,
-    evidence_prompt: ''
+    evidence_prompt: '',
+    is_required: false
   })
   const [saving, setSaving] = useState(false)
 
@@ -268,6 +305,28 @@ const ManualTaskForm = ({ onSave, onCancel, initialTask = null }) => {
           className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
           placeholder="How should students show their work?"
         />
+      </div>
+      {/* Required Toggle */}
+      <div className="flex items-center justify-between p-2 bg-gray-100 rounded-lg">
+        <div>
+          <label className="text-xs font-medium text-gray-700">Required Task</label>
+          <p className="text-xs text-gray-500">Must complete to finish the lesson</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setTask({ ...task, is_required: !task.is_required })}
+          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-optio-purple focus:ring-offset-2 ${
+            task.is_required ? 'bg-optio-purple' : 'bg-gray-300'
+          }`}
+          role="switch"
+          aria-checked={task.is_required}
+        >
+          <span
+            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+              task.is_required ? 'translate-x-4' : 'translate-x-0'
+            }`}
+          />
+        </button>
       </div>
       <div className="flex justify-end gap-2">
         <button

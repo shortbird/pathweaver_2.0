@@ -73,6 +73,7 @@ const CalendarPage = lazy(() => import('./pages/CalendarPage'))
 // Admin & Special Pages
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const OrganizationManagement = lazy(() => import('./pages/admin/OrganizationManagement'))
+const OrgStudentOverviewPage = lazy(() => import('./pages/admin/OrgStudentOverviewPage'))
 const AdvisorDashboard = lazy(() => import('./pages/AdvisorDashboard'))
 // AdvisorBadgeForm removed (January 2026 - Microschool client feedback)
 const AdvisorCheckinPage = lazy(() => import('./pages/AdvisorCheckinPage'))
@@ -421,6 +422,11 @@ function App() {
                 <Route path="organization" element={<OrganizationManagement />} />
               </Route>
 
+              {/* Org Student Overview - accessible to org admins and advisors */}
+              <Route element={<PrivateRoute requiredRole={["advisor", "org_admin", "superadmin"]} />}>
+                <Route path="admin/organizations/:orgId/student/:studentId" element={<OrgStudentOverviewPage />} />
+              </Route>
+
               <Route element={<PrivateRoute requiredRole={["advisor", "org_admin", "superadmin"]} />}>
                 <Route path="advisor" element={<Navigate to="/advisor/dashboard" replace />} />
                 <Route path="advisor/dashboard" element={<AdvisorDashboard />} />
@@ -443,6 +449,7 @@ function App() {
                 <Route path="parent/dashboard" element={<ParentDashboardPage />} />
                 <Route path="parent/dashboard/:studentId" element={<ParentDashboardPage />} />
                 <Route path="parent/quest/:studentId/:questId" element={<ParentQuestView />} />
+                <Route path="parent/child/:childId/journal" element={<LearningJournalPage />} />
                 {/* LMS Features - Parent */}
                 <Route path="parent/students/:studentId/report" element={<DependentProgressReport />} />
               </Route>

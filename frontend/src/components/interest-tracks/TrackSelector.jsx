@@ -16,8 +16,11 @@ const TrackSelector = ({
   placeholder = 'Select or create a topic of interest',
   showAISuggestion = false,
   momentDescription = '',
-  className = ''
+  className = '',
+  studentId = null  // Optional - when parent views child's topics
 }) => {
+  // Determine if this is parent view mode
+  const isParentView = !!studentId;
   const [isOpen, setIsOpen] = useState(false);
   const [tracks, setTracks] = useState([]);
   const [questTopics, setQuestTopics] = useState([]);
@@ -32,7 +35,7 @@ const TrackSelector = ({
 
   useEffect(() => {
     fetchTopics();
-  }, []);
+  }, [studentId]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -55,7 +58,11 @@ const TrackSelector = ({
   const fetchTopics = async () => {
     try {
       setIsLoading(true);
-      const response = await api.get('/api/topics/unified');
+      // Use parent API when viewing child's topics
+      const endpoint = isParentView
+        ? `/api/parent/children/${studentId}/topics`
+        : '/api/topics/unified';
+      const response = await api.get(endpoint);
       if (response.data.success) {
         const topics = response.data.topics || [];
         // Separate quests and tracks
@@ -66,16 +73,18 @@ const TrackSelector = ({
       }
     } catch (error) {
       console.error('Failed to fetch topics:', error);
-      // Fallback to old endpoint if unified not available
-      try {
-        const fallbackResponse = await api.get('/api/interest-tracks');
-        if (fallbackResponse.data.success) {
-          setTracks(fallbackResponse.data.tracks);
-          setQuestTopics([]);
-          setCourseTopics([]);
+      // Fallback to old endpoint if unified not available (only for non-parent view)
+      if (!isParentView) {
+        try {
+          const fallbackResponse = await api.get('/api/interest-tracks');
+          if (fallbackResponse.data.success) {
+            setTracks(fallbackResponse.data.tracks);
+            setQuestTopics([]);
+            setCourseTopics([]);
+          }
+        } catch (fallbackError) {
+          console.error('Fallback also failed:', fallbackError);
         }
-      } catch (fallbackError) {
-        console.error('Fallback also failed:', fallbackError);
       }
     } finally {
       setIsLoading(false);
@@ -113,7 +122,11 @@ const TrackSelector = ({
 
     try {
       setIsSubmitting(true);
-      const response = await api.post('/api/interest-tracks', {
+      // Use parent API when viewing child's topics
+      const endpoint = isParentView
+        ? `/api/parent/children/${studentId}/topics`
+        : '/api/interest-tracks';
+      const response = await api.post(endpoint, {
         name: newTrackName.trim()
       });
 

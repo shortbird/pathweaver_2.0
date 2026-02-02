@@ -1385,7 +1385,7 @@ def fix_course_quest_enrollments(user_id):
                         'pillar': task['pillar'],
                         'xp_value': xp_value,
                         'order_index': task.get('order_index', 0),
-                        'is_required': task.get('is_required', True),
+                        'is_required': task.get('is_required', False),
                         'is_manual': False,
                         'approval_status': 'approved',
                         'diploma_subjects': task.get('diploma_subjects', ['Electives']),

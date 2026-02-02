@@ -56,6 +56,7 @@ let mockAuthValue = {
   login: vi.fn(),
   logout: vi.fn(),
   register: vi.fn(),
+  refreshUser: vi.fn().mockResolvedValue(true),
 }
 
 vi.mock('../contexts/AuthContext', () => ({

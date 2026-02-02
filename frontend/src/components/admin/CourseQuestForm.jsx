@@ -112,7 +112,7 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess, or
           pillar: task.pillar,
           xp_value: parseInt(task.xp_value) || 100,
           order_index: index,
-          is_required: true,
+          is_required: false,
           diploma_subjects: ['Electives'],
           subject_xp_distribution: {}
         }))

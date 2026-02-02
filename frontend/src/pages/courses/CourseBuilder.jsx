@@ -1,50 +1,34 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
+import { arrayMove } from '@dnd-kit/sortable'
 import {
   PlusIcon,
   CheckCircleIcon,
   ExclamationCircleIcon,
   ChevronLeftIcon,
   RocketLaunchIcon,
-  Bars4Icon,
   EyeIcon,
   Cog6ToothIcon,
   SparklesIcon,
-  PencilIcon,
-  XMarkIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import courseService from '../../services/courseService'
 import { useAuth } from '../../contexts/AuthContext'
-import CoursePreview from '../../components/CoursePreview'
+import StudentPreviewModal from '../../components/course/StudentPreviewModal'
 import LessonPreviewModal from '../../components/curriculum/LessonPreviewModal'
-import LessonTaskPanel from '../../components/curriculum/LessonTaskPanel'
 import {
-  SortableQuestItem,
-  SortableLessonItem,
   AddQuestModal,
   LessonEditorModal,
   CourseDetailsModal,
   BulkTaskGenerationModal,
   MoveLessonModal,
   AIToolsModal,
+  OutlineTree,
+  OutlineEditor,
 } from '../../components/course'
 import { AIRefineModal } from '../../components/course/refine'
+import useOutlineKeyboard from '../../hooks/useOutlineKeyboard'
 
 const CourseBuilder = () => {
   const { id: courseId } = useParams()
@@ -56,13 +40,18 @@ const CourseBuilder = () => {
   const [loading, setLoading] = useState(!isNewCourse)
   const [course, setCourse] = useState(isNewCourse ? { title: '', description: '', status: 'draft' } : null)
   const [quests, setQuests] = useState([])
-  const [selectedQuest, setSelectedQuest] = useState(null)
-  const [selectedLesson, setSelectedLesson] = useState(null)
-  const [lessons, setLessons] = useState([])
-  const [loadingLessons, setLoadingLessons] = useState(false)
+  const [lessonsMap, setLessonsMap] = useState({}) // { projectId: lessons[] }
+  const [tasksMap, setTasksMap] = useState({}) // { lessonId: tasks[] }
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState('saved')
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
+
+  // Selection state for outline view
+  const [selectedItem, setSelectedItem] = useState(null)
+  const [selectedType, setSelectedType] = useState(null) // 'project' | 'lesson' | 'task'
+  const [expandedIds, setExpandedIds] = useState(new Set())
+  const [outlineCollapsed, setOutlineCollapsed] = useState(false)
+
+  // Modal states
   const [showAddQuestModal, setShowAddQuestModal] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
@@ -76,14 +65,6 @@ const CourseBuilder = () => {
   const [showRefineModal, setShowRefineModal] = useState(false)
   const [showAIToolsModal, setShowAIToolsModal] = useState(false)
   const [movingLesson, setMovingLesson] = useState(null)
-  const [editingProjectInfo, setEditingProjectInfo] = useState(false)
-  const [projectEditData, setProjectEditData] = useState({ title: '', description: '' })
-
-  // DnD sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
 
   // Fetch course and quests
   useEffect(() => {
@@ -97,9 +78,31 @@ const CourseBuilder = () => {
         const fetchedQuests = questsResponse.data.quests || []
         setQuests(fetchedQuests)
 
+        // Start collapsed - only show projects
+        setExpandedIds(new Set())
+
+        // Select first project if available
         if (fetchedQuests.length > 0) {
-          setSelectedQuest(fetchedQuests[0])
+          setSelectedItem(fetchedQuests[0])
+          setSelectedType('project')
         }
+
+        // Fetch lessons for all projects
+        const lessonsData = {}
+        await Promise.all(fetchedQuests.map(async (quest) => {
+          try {
+            const response = await api.get(`/api/quests/${quest.id}/curriculum/lessons?include_unpublished=true`)
+            lessonsData[quest.id] = response.data.lessons || []
+          } catch (error) {
+            console.error(`Failed to load lessons for quest ${quest.id}:`, error)
+            lessonsData[quest.id] = []
+          }
+        }))
+        setLessonsMap(lessonsData)
+
+        // Tasks will be fetched on demand when lessons are selected/expanded
+        // Don't pre-populate with empty arrays as that prevents fetching
+        setTasksMap({})
       } catch (error) {
         console.error('Failed to load course:', error)
         toast.error('Failed to load course data')
@@ -113,39 +116,84 @@ const CourseBuilder = () => {
     }
   }, [courseId, isNewCourse])
 
-  // Fetch lessons when selectedQuest changes
-  useEffect(() => {
-    // Reset edit mode when switching projects
-    setEditingProjectInfo(false)
-    setProjectEditData({ title: '', description: '' })
-
-    const fetchLessons = async () => {
-      if (!selectedQuest?.id) {
-        setLessons([])
-        setSelectedLesson(null)
-        return
-      }
-
-      try {
-        setLoadingLessons(true)
-        setSelectedLesson(null)
-        const response = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons?include_unpublished=true`)
-        const fetchedLessons = response.data.lessons || []
-        setLessons(fetchedLessons)
-        if (fetchedLessons.length > 0) {
-          setSelectedLesson(fetchedLessons[0])
-        }
-      } catch (error) {
-        console.error('Failed to load lessons:', error)
-        toast.error('Failed to load lessons')
-        setLessons([])
-      } finally {
-        setLoadingLessons(false)
-      }
+  // Fetch tasks for a lesson when expanded
+  const fetchTasksForLesson = useCallback(async (lesson, questId) => {
+    const taskIds = lesson?.linked_task_ids || []
+    if (taskIds.length === 0) {
+      setTasksMap(prev => ({ ...prev, [lesson.id]: [] }))
+      return
     }
 
-    fetchLessons()
-  }, [selectedQuest?.id])
+    try {
+      const response = await api.get(`/api/quests/${questId}/tasks`)
+      const allTasks = response.data.tasks || []
+      const linkedTasks = allTasks.filter(t => taskIds.includes(t.id))
+      setTasksMap(prev => ({ ...prev, [lesson.id]: linkedTasks }))
+    } catch (error) {
+      console.error('Failed to fetch tasks:', error)
+    }
+  }, [])
+
+  // Selection handler
+  const handleSelectItem = useCallback((item, type) => {
+    setSelectedItem(item)
+    setSelectedType(type)
+
+    // If selecting a lesson, fetch its tasks if not already loaded
+    if (type === 'lesson' && item) {
+      // Find the project this lesson belongs to
+      const projectId = Object.keys(lessonsMap).find(pid =>
+        lessonsMap[pid]?.some(l => l.id === item.id)
+      )
+      if (projectId && tasksMap[item.id] === undefined) {
+        fetchTasksForLesson(item, projectId)
+      }
+    }
+  }, [lessonsMap, tasksMap, fetchTasksForLesson])
+
+  // Toggle expand for outline tree
+  const handleToggleExpand = useCallback((id) => {
+    setExpandedIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+
+    // Fetch tasks when expanding a lesson
+    const lesson = Object.values(lessonsMap).flat().find(l => l.id === id)
+    if (lesson && tasksMap[id] === undefined) {
+      const projectId = Object.keys(lessonsMap).find(pid =>
+        lessonsMap[pid]?.some(l => l.id === id)
+      )
+      if (projectId) {
+        fetchTasksForLesson(lesson, projectId)
+      }
+    }
+  }, [lessonsMap, tasksMap, fetchTasksForLesson])
+
+  // Keyboard navigation
+  useOutlineKeyboard({
+    projects: quests,
+    lessonsMap,
+    tasksMap,
+    expandedIds,
+    selectedItem,
+    selectedType,
+    onSelectItem: handleSelectItem,
+    onToggleExpand: handleToggleExpand,
+    onEdit: (item, type) => {
+      if (type === 'lesson') {
+        setEditingLesson(item)
+        setShowLessonEditor(true)
+      }
+    },
+    onDelete: handleDeleteItem,
+    enabled: !showLessonEditor && !showAddQuestModal && !showCourseDetails,
+  })
 
   // Create new course
   const handleCreateCourse = async () => {
@@ -195,7 +243,10 @@ const CourseBuilder = () => {
 
       const updatedQuest = { ...quest, order_index: quests.length }
       setQuests([...quests, updatedQuest])
-      setSelectedQuest(updatedQuest)
+      setLessonsMap(prev => ({ ...prev, [quest.id]: [] }))
+      setExpandedIds(prev => new Set([...prev, quest.id]))
+      setSelectedItem(updatedQuest)
+      setSelectedType('project')
       setShowAddQuestModal(false)
       toast.success('Project added to course')
     } catch (error) {
@@ -208,14 +259,12 @@ const CourseBuilder = () => {
 
   // Remove quest from course
   const handleRemoveQuest = async (questId) => {
-    // Show confirm dialog with option to also delete the quest
     const deleteQuest = window.confirm(
       'Remove this project from the course?\n\n' +
       'Click OK to also DELETE the project permanently (if not used elsewhere).\n' +
       'Click Cancel to just remove from this course (keeps the project).'
     )
 
-    // If they cancel the confirm, ask if they want to remove without deleting
     if (!deleteQuest) {
       const justRemove = window.confirm('Remove the project from this course without deleting it?')
       if (!justRemove) return
@@ -228,16 +277,22 @@ const CourseBuilder = () => {
       const updatedQuests = quests.filter(q => q.id !== questId)
       setQuests(updatedQuests)
 
-      if (selectedQuest?.id === questId) {
-        setSelectedQuest(updatedQuests[0] || null)
+      // Update lessonsMap
+      setLessonsMap(prev => {
+        const newMap = { ...prev }
+        delete newMap[questId]
+        return newMap
+      })
+
+      if (selectedItem?.id === questId && selectedType === 'project') {
+        setSelectedItem(updatedQuests[0] || null)
+        setSelectedType(updatedQuests[0] ? 'project' : null)
       }
 
-      // Show toast based on actual result, not user's request
       if (deleteQuest) {
         if (response.data.quest_deleted) {
           toast.success('Project removed and deleted')
         } else {
-          // Explain why it wasn't deleted (use custom toast for warning style)
           const reason = response.data.deletion_reason
           let message = 'Project removed from course but not deleted (still in use)'
           if (reason === 'used_in_other_courses') {
@@ -245,7 +300,7 @@ const CourseBuilder = () => {
           } else if (reason === 'has_enrollments') {
             message = 'Project removed from course but not deleted (has student enrollments)'
           }
-          toast(message, { icon: '⚠️', duration: 5000 })
+          toast(message, { icon: '!', duration: 5000 })
         }
       } else {
         toast.success('Project removed from course')
@@ -258,137 +313,107 @@ const CourseBuilder = () => {
     }
   }
 
-  const handleToggleQuestPublish = async (questId, isPublished) => {
-    try {
-      await api.put(`/api/courses/${courseId}/quests/${questId}`, {
-        is_published: isPublished
-      })
-
-      setQuests(quests.map(q =>
-        q.id === questId ? { ...q, is_published: isPublished } : q
-      ))
-
-      if (selectedQuest?.id === questId) {
-        setSelectedQuest({ ...selectedQuest, is_published: isPublished })
-      }
-
-      toast.success(isPublished ? 'Project published' : 'Project unpublished')
-    } catch (error) {
-      console.error('Failed to toggle project publish status:', error)
-      toast.error('Failed to update project')
-    }
-  }
-
-  const handleStartEditProject = () => {
-    if (!selectedQuest) return
-    setProjectEditData({
-      title: selectedQuest.title || '',
-      description: selectedQuest.description || ''
-    })
-    setEditingProjectInfo(true)
-  }
-
-  const handleSaveProjectEdit = async () => {
-    if (!selectedQuest || !projectEditData.title.trim()) {
-      toast.error('Project title is required')
-      return
-    }
-
-    try {
-      setSaving(true)
-      // Use the courses endpoint that allows org_admin/advisor/creator access
-      await api.put(`/api/courses/${courseId}/projects/${selectedQuest.id}`, {
-        title: projectEditData.title.trim(),
-        description: projectEditData.description.trim()
-      })
-
-      // Update local state
-      const updatedQuest = {
-        ...selectedQuest,
-        title: projectEditData.title.trim(),
-        description: projectEditData.description.trim()
-      }
-      setSelectedQuest(updatedQuest)
-      setQuests(quests.map(q =>
-        q.id === selectedQuest.id ? updatedQuest : q
-      ))
-
-      setEditingProjectInfo(false)
-      toast.success('Project updated')
-    } catch (error) {
-      console.error('Failed to update project:', error)
-      toast.error('Failed to update project')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleCancelProjectEdit = () => {
-    setEditingProjectInfo(false)
-    setProjectEditData({ title: '', description: '' })
-  }
-
-  const handlePublishAllQuests = async () => {
-    const unpublishedQuests = quests.filter(q => !q.is_published)
-    if (unpublishedQuests.length === 0) {
-      toast.success('All projects are already published')
-      return
-    }
-
-    if (!confirm(`Publish all ${unpublishedQuests.length} unpublished project(s)?`)) return
-
-    try {
-      setSaving(true)
-      // Publish all unpublished quests
-      await Promise.all(
-        unpublishedQuests.map(q =>
-          api.put(`/api/courses/${courseId}/quests/${q.id}`, { is_published: true })
+  // Delete item based on type
+  async function handleDeleteItem(item, type) {
+    if (type === 'project') {
+      await handleRemoveQuest(item.id)
+    } else if (type === 'lesson') {
+      if (!confirm('Delete this lesson?')) return
+      try {
+        // Find the project this lesson belongs to
+        const projectId = Object.keys(lessonsMap).find(pid =>
+          lessonsMap[pid]?.some(l => l.id === item.id)
         )
-      )
+        if (!projectId) return
 
-      // Update local state
-      setQuests(quests.map(q => ({ ...q, is_published: true })))
-      if (selectedQuest && !selectedQuest.is_published) {
-        setSelectedQuest({ ...selectedQuest, is_published: true })
+        await api.delete(`/api/quests/${projectId}/curriculum/lessons/${item.id}`)
+        setLessonsMap(prev => ({
+          ...prev,
+          [projectId]: prev[projectId].filter(l => l.id !== item.id)
+        }))
+
+        if (selectedItem?.id === item.id && selectedType === 'lesson') {
+          setSelectedItem(null)
+          setSelectedType(null)
+        }
+
+        toast.success('Lesson deleted')
+      } catch (error) {
+        toast.error('Failed to delete lesson')
       }
+    } else if (type === 'task') {
+      if (!confirm('Remove this task from the lesson?')) return
+      try {
+        // Find the lesson this task belongs to
+        const lessonId = Object.keys(tasksMap).find(lid =>
+          tasksMap[lid]?.some(t => t.id === item.id)
+        )
+        if (!lessonId) return
 
-      toast.success(`Published ${unpublishedQuests.length} project(s)`)
-    } catch (error) {
-      console.error('Failed to publish all projects:', error)
-      toast.error('Failed to publish all projects')
-    } finally {
-      setSaving(false)
+        // Find the project
+        const projectId = Object.keys(lessonsMap).find(pid =>
+          lessonsMap[pid]?.some(l => l.id === lessonId)
+        )
+        if (!projectId) return
+
+        await api.delete(`/api/quests/${projectId}/curriculum/lessons/${lessonId}/link-task/${item.id}`)
+        setTasksMap(prev => ({
+          ...prev,
+          [lessonId]: prev[lessonId].filter(t => t.id !== item.id)
+        }))
+
+        if (selectedItem?.id === item.id && selectedType === 'task') {
+          setSelectedItem(null)
+          setSelectedType(null)
+        }
+
+        toast.success('Task removed')
+      } catch (error) {
+        toast.error('Failed to remove task')
+      }
     }
   }
 
-  const handleXpThresholdChange = async (questId, xpThreshold) => {
-    try {
-      await api.put(`/api/courses/${courseId}/quests/${questId}`, {
-        xp_threshold: xpThreshold
-      })
-
-      setQuests(quests.map(q =>
-        q.id === questId ? { ...q, xp_threshold: xpThreshold } : q
-      ))
-
-      if (selectedQuest?.id === questId) {
-        setSelectedQuest({ ...selectedQuest, xp_threshold: xpThreshold })
-      }
-
-      toast.success('XP requirement updated')
-    } catch (error) {
-      console.error('Failed to update XP requirement:', error)
-      toast.error('Failed to update XP requirement')
+  // Edit item - opens appropriate editor
+  const handleEditItem = useCallback((item, type) => {
+    if (type === 'lesson') {
+      setEditingLesson(item)
+      setShowLessonEditor(true)
     }
-  }
+    // For project and task, the OutlineEditor handles inline editing
+  }, [])
 
-  // Reorder quests via drag and drop
-  const handleDragEnd = async (event) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
+  // Add child to item
+  const handleAddChild = useCallback((item, type) => {
+    if (type === 'project') {
+      // Add lesson to project
+      setEditingLesson(null)
+      // Find the quest for this project
+      const quest = quests.find(q => q.id === item.id)
+      if (quest) {
+        setSelectedItem(quest)
+        setSelectedType('project')
+        setShowLessonEditor(true)
+      }
+    } else if (type === 'lesson') {
+      // Add task to lesson - show task generation or manual creation
+      // For now, open the lesson editor which has task management
+      setEditingLesson(item)
+      setShowLessonEditor(true)
+    }
+  }, [quests])
 
-    const oldIndex = quests.findIndex(q => q.id === active.id)
-    const newIndex = quests.findIndex(q => q.id === over.id)
+  // Move item
+  const handleMoveItem = useCallback((item, type) => {
+    if (type === 'lesson') {
+      setMovingLesson(item)
+    }
+  }, [])
+
+  // Reorder projects
+  const handleReorderProjects = useCallback(async (activeId, overId) => {
+    const oldIndex = quests.findIndex(q => q.id === activeId)
+    const newIndex = quests.findIndex(q => q.id === overId)
     const reorderedQuests = arrayMove(quests, oldIndex, newIndex)
 
     const questsWithNewOrder = reorderedQuests.map((q, idx) => ({
@@ -397,13 +422,6 @@ const CourseBuilder = () => {
     }))
 
     setQuests(questsWithNewOrder)
-
-    if (selectedQuest) {
-      const updatedSelected = questsWithNewOrder.find(q => q.id === selectedQuest.id)
-      if (updatedSelected) {
-        setSelectedQuest(updatedSelected)
-      }
-    }
 
     try {
       await courseService.reorderQuests(
@@ -415,15 +433,13 @@ const CourseBuilder = () => {
       toast.error('Failed to save project order')
       setQuests(quests)
     }
-  }
+  }, [quests, courseId])
 
-  // Reorder lessons via drag and drop
-  const handleLessonDragEnd = async (event) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    const oldIndex = lessons.findIndex(l => l.id === active.id)
-    const newIndex = lessons.findIndex(l => l.id === over.id)
+  // Reorder lessons within a project
+  const handleReorderLessons = useCallback(async (projectId, activeId, overId) => {
+    const lessons = lessonsMap[projectId] || []
+    const oldIndex = lessons.findIndex(l => l.id === activeId)
+    const newIndex = lessons.findIndex(l => l.id === overId)
     const reorderedLessons = arrayMove(lessons, oldIndex, newIndex)
 
     const lessonsWithNewOrder = reorderedLessons.map((l, idx) => ({
@@ -432,30 +448,292 @@ const CourseBuilder = () => {
       order: idx + 1
     }))
 
-    setLessons(lessonsWithNewOrder)
+    setLessonsMap(prev => ({
+      ...prev,
+      [projectId]: lessonsWithNewOrder
+    }))
 
     try {
-      await api.put(`/api/quests/${selectedQuest.id}/curriculum/lessons/reorder`, {
+      await api.put(`/api/quests/${projectId}/curriculum/lessons/reorder`, {
         lesson_order: lessonsWithNewOrder.map(l => l.id)
       })
     } catch (error) {
       console.error('Failed to reorder lessons:', error)
       toast.error('Failed to save lesson order')
-      setLessons(lessons)
+      setLessonsMap(prev => ({ ...prev, [projectId]: lessons }))
     }
-  }
+  }, [lessonsMap])
 
-  // Handle lesson delete
-  const handleDeleteLesson = async (lesson) => {
-    if (!confirm('Delete this lesson?')) return
-    try {
-      await api.delete(`/api/quests/${selectedQuest.id}/curriculum/lessons/${lesson.id}`)
-      setLessons(lessons.filter(l => l.id !== lesson.id))
-      toast.success('Lesson deleted')
-    } catch (error) {
-      toast.error('Failed to delete lesson')
+  // Reorder steps within a lesson
+  const handleReorderSteps = useCallback(async (lessonId, activeId, overId) => {
+    // Find the project and lesson
+    const projectId = Object.keys(lessonsMap).find(pid =>
+      lessonsMap[pid]?.some(l => l.id === lessonId)
+    )
+    if (!projectId) return
+
+    const lesson = lessonsMap[projectId]?.find(l => l.id === lessonId)
+    if (!lesson) return
+
+    const steps = lesson.content?.steps || []
+    const oldIndex = steps.findIndex(s => s.id === activeId)
+    const newIndex = steps.findIndex(s => s.id === overId)
+
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const reorderedSteps = arrayMove(steps, oldIndex, newIndex)
+    const updatedContent = { version: 2, steps: reorderedSteps }
+
+    // Optimistic update
+    setLessonsMap(prev => ({
+      ...prev,
+      [projectId]: prev[projectId].map(l =>
+        l.id === lessonId ? { ...l, content: updatedContent } : l
+      )
+    }))
+
+    // Update selection if the selected step moved
+    if (selectedItem?.lessonId === lessonId && selectedItem?.stepIndex === oldIndex) {
+      setSelectedItem(prev => ({ ...prev, stepIndex: newIndex }))
     }
-  }
+
+    try {
+      await api.put(`/api/quests/${projectId}/curriculum/lessons/${lessonId}`, {
+        content: updatedContent
+      })
+    } catch (error) {
+      console.error('Failed to reorder steps:', error)
+      toast.error('Failed to save step order')
+      // Revert on error
+      setLessonsMap(prev => ({
+        ...prev,
+        [projectId]: prev[projectId].map(l =>
+          l.id === lessonId ? { ...l, content: { version: 2, steps } } : l
+        )
+      }))
+    }
+  }, [lessonsMap, selectedItem])
+
+  // Save from outline editor
+  const handleSaveFromEditor = useCallback(async (item, type, formData) => {
+    setSaving(true)
+    try {
+      if (type === 'project') {
+        // Update project (title, description, header_image_url)
+        await api.put(`/api/courses/${courseId}/projects/${item.id}`, {
+          title: formData.title,
+          description: formData.description,
+          header_image_url: formData.header_image_url || null
+        })
+
+        if (formData.xp_threshold !== item.xp_threshold) {
+          await api.put(`/api/courses/${courseId}/quests/${item.id}`, {
+            xp_threshold: formData.xp_threshold
+          })
+        }
+
+        setQuests(quests.map(q =>
+          q.id === item.id ? { ...q, ...formData } : q
+        ))
+        setSelectedItem(prev => prev?.id === item.id ? { ...prev, ...formData } : prev)
+      } else if (type === 'lesson') {
+        // Find project for this lesson
+        const projectId = Object.keys(lessonsMap).find(pid =>
+          lessonsMap[pid]?.some(l => l.id === item.id)
+        )
+        if (!projectId) return
+
+        await api.put(`/api/quests/${projectId}/curriculum/lessons/${item.id}`, {
+          title: formData.title
+        })
+
+        setLessonsMap(prev => ({
+          ...prev,
+          [projectId]: prev[projectId].map(l =>
+            l.id === item.id ? { ...l, ...formData } : l
+          )
+        }))
+        setSelectedItem(prev => prev?.id === item.id ? { ...prev, ...formData } : prev)
+      } else if (type === 'step') {
+        // Save step within a lesson
+        const { lessonId, stepIndex } = item
+        if (!lessonId) return
+
+        // Find project for this lesson
+        const projectId = Object.keys(lessonsMap).find(pid =>
+          lessonsMap[pid]?.some(l => l.id === lessonId)
+        )
+        if (!projectId) return
+
+        // Get current lesson
+        const lesson = lessonsMap[projectId]?.find(l => l.id === lessonId)
+        if (!lesson) return
+
+        // Update the step in the lesson content
+        const currentSteps = lesson.content?.steps || []
+        const updatedSteps = currentSteps.map((s, idx) =>
+          idx === stepIndex ? { ...s, ...formData, id: formData.id || s.id } : s
+        )
+
+        // Save lesson with updated steps
+        const updatedContent = { version: 2, steps: updatedSteps }
+        await api.put(`/api/quests/${projectId}/curriculum/lessons/${lessonId}`, {
+          content: updatedContent
+        })
+
+        // Update lessonsMap with new content
+        setLessonsMap(prev => ({
+          ...prev,
+          [projectId]: prev[projectId].map(l =>
+            l.id === lessonId ? { ...l, content: updatedContent } : l
+          )
+        }))
+
+        // Update selectedItem with new data
+        setSelectedItem(prev => prev?.id === item.id ? { ...prev, ...formData } : prev)
+      } else if (type === 'task') {
+        await api.put(`/api/tasks/${item.id}`, formData)
+
+        // Update tasksMap
+        const lessonId = Object.keys(tasksMap).find(lid =>
+          tasksMap[lid]?.some(t => t.id === item.id)
+        )
+        if (lessonId) {
+          setTasksMap(prev => ({
+            ...prev,
+            [lessonId]: prev[lessonId].map(t =>
+              t.id === item.id ? { ...t, ...formData } : t
+            )
+          }))
+        }
+        setSelectedItem(prev => prev?.id === item.id ? { ...prev, ...formData } : prev)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }, [courseId, quests, lessonsMap, tasksMap])
+
+  // Add a new step to a lesson
+  const handleAddStep = useCallback(async (lesson) => {
+    if (!lesson) return
+
+    // Find project for this lesson
+    const projectId = Object.keys(lessonsMap).find(pid =>
+      lessonsMap[pid]?.some(l => l.id === lesson.id)
+    )
+    if (!projectId) return
+
+    // Create new step
+    const newStep = {
+      id: `step_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'text',
+      title: `Step ${(lesson.content?.steps?.length || 0) + 1}`,
+      content: '',
+      order: lesson.content?.steps?.length || 0
+    }
+
+    // Add step to lesson content
+    const currentSteps = lesson.content?.steps || []
+    const updatedSteps = [...currentSteps, newStep]
+    const updatedContent = { version: 2, steps: updatedSteps }
+
+    try {
+      await api.put(`/api/quests/${projectId}/curriculum/lessons/${lesson.id}`, {
+        content: updatedContent
+      })
+
+      // Update lessonsMap
+      setLessonsMap(prev => ({
+        ...prev,
+        [projectId]: prev[projectId].map(l =>
+          l.id === lesson.id ? { ...l, content: updatedContent } : l
+        )
+      }))
+
+      // Select the new step
+      setSelectedItem({ ...newStep, lessonId: lesson.id, stepIndex: updatedSteps.length - 1 })
+      setSelectedType('step')
+
+      toast.success('Step added')
+    } catch (error) {
+      console.error('Failed to add step:', error)
+      toast.error('Failed to add step')
+    }
+  }, [lessonsMap])
+
+  // Delete a step from a lesson
+  const handleDeleteStep = useCallback(async (lesson, stepIndex) => {
+    if (!lesson || stepIndex === undefined) return
+
+    // Find project for this lesson
+    const projectId = Object.keys(lessonsMap).find(pid =>
+      lessonsMap[pid]?.some(l => l.id === lesson.id)
+    )
+    if (!projectId) return
+
+    // Get the actual lesson from lessonsMap (in case only {id} was passed)
+    const actualLesson = lessonsMap[projectId]?.find(l => l.id === lesson.id)
+    if (!actualLesson) return
+
+    // Remove step from lesson content
+    const currentSteps = actualLesson.content?.steps || []
+    const updatedSteps = currentSteps.filter((_, idx) => idx !== stepIndex)
+    const updatedContent = { version: 2, steps: updatedSteps }
+
+    try {
+      await api.put(`/api/quests/${projectId}/curriculum/lessons/${lesson.id}`, {
+        content: updatedContent
+      })
+
+      // Update lessonsMap
+      setLessonsMap(prev => ({
+        ...prev,
+        [projectId]: prev[projectId].map(l =>
+          l.id === lesson.id ? { ...l, content: updatedContent } : l
+        )
+      }))
+
+      // Clear selection if deleted step was selected
+      if (selectedItem?.lessonId === lesson.id && selectedItem?.stepIndex === stepIndex) {
+        setSelectedItem(actualLesson)
+        setSelectedType('lesson')
+      }
+
+      toast.success('Step deleted')
+    } catch (error) {
+      console.error('Failed to delete step:', error)
+      toast.error('Failed to delete step')
+    }
+  }, [lessonsMap, selectedItem])
+
+  // Toggle task required status
+  const handleToggleTaskRequired = useCallback(async (task) => {
+    if (!task) return
+
+    const newIsRequired = task.is_required === false ? true : false
+
+    try {
+      await api.put(`/api/tasks/${task.id}`, { is_required: newIsRequired })
+
+      // Update tasksMap
+      const lessonId = Object.keys(tasksMap).find(lid =>
+        tasksMap[lid]?.some(t => t.id === task.id)
+      )
+      if (lessonId) {
+        setTasksMap(prev => ({
+          ...prev,
+          [lessonId]: prev[lessonId].map(t =>
+            t.id === task.id ? { ...t, is_required: newIsRequired } : t
+          )
+        }))
+      }
+
+      toast.success(newIsRequired ? 'Task marked as required' : 'Task marked as optional')
+    } catch (error) {
+      console.error('Failed to update task:', error)
+      toast.error('Failed to update task')
+    }
+  }, [tasksMap])
 
   // Publish or unpublish course
   const handlePublishToggle = async () => {
@@ -507,78 +785,77 @@ const CourseBuilder = () => {
     }
   }
 
-  // Refresh lessons after task updates
-  const handleTasksUpdated = async () => {
-    try {
-      const response = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons?include_unpublished=true`)
-      const fetchedLessons = response.data.lessons || []
-      setLessons(fetchedLessons)
-      const updatedSelectedLesson = fetchedLessons.find(l => l.id === selectedLesson?.id)
-      if (updatedSelectedLesson) {
-        setSelectedLesson(updatedSelectedLesson)
-      }
-    } catch (error) {
-      console.error('Failed to refresh lessons:', error)
+  // Handle lesson saved from editor
+  const handleLessonSaved = (savedLesson) => {
+    // Find the project
+    let projectId = null
+    if (editingLesson) {
+      projectId = Object.keys(lessonsMap).find(pid =>
+        lessonsMap[pid]?.some(l => l.id === editingLesson.id)
+      )
     }
-  }
 
-  // Full refresh after AI Refine - refreshes course, quests, and lessons
-  const handleRefineComplete = async () => {
-    try {
-      // Refresh course data
-      const courseResponse = await courseService.getCourseById(courseId)
-      setCourse(courseResponse.course)
-
-      // Refresh quests/projects
-      const questsResponse = await api.get(`/api/courses/${courseId}/quests`)
-      const fetchedQuests = questsResponse.data.quests || []
-      setQuests(fetchedQuests)
-
-      // Update selectedQuest with fresh data
-      if (selectedQuest) {
-        const updatedQuest = fetchedQuests.find(q => q.id === selectedQuest.id)
-        if (updatedQuest) {
-          setSelectedQuest(updatedQuest)
-        }
-      }
-
-      // Refresh lessons for current quest
-      if (selectedQuest) {
-        const lessonsResponse = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons?include_unpublished=true`)
-        const fetchedLessons = lessonsResponse.data.lessons || []
-        setLessons(fetchedLessons)
-        if (selectedLesson) {
-          const updatedLesson = fetchedLessons.find(l => l.id === selectedLesson.id)
-          if (updatedLesson) {
-            setSelectedLesson(updatedLesson)
-          }
-        }
-      }
-
-      toast.success('Course data refreshed')
-    } catch (error) {
-      console.error('Failed to refresh after refine:', error)
+    // If no project found (new lesson), use selected project
+    if (!projectId && selectedType === 'project' && selectedItem) {
+      projectId = selectedItem.id
     }
+
+    if (!projectId) return
+
+    if (editingLesson) {
+      // Update existing lesson
+      setLessonsMap(prev => ({
+        ...prev,
+        [projectId]: prev[projectId].map(l =>
+          l.id === savedLesson.id ? savedLesson : l
+        )
+      }))
+    } else {
+      // Add new lesson
+      setLessonsMap(prev => ({
+        ...prev,
+        [projectId]: [...(prev[projectId] || []), savedLesson]
+      }))
+    }
+
+    setSelectedItem(savedLesson)
+    setSelectedType('lesson')
   }
 
   // Handle lesson moved to another project
   const handleLessonMoved = async (lessonId, targetQuestId) => {
-    // Refresh lessons for current project
-    try {
-      const response = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons?include_unpublished=true`)
-      setLessons(response.data.lessons || [])
+    // Find original project
+    const originalProjectId = Object.keys(lessonsMap).find(pid =>
+      lessonsMap[pid]?.some(l => l.id === lessonId)
+    )
 
-      // Clear selection if moved lesson was selected
-      if (selectedLesson?.id === lessonId) {
-        setSelectedLesson(null)
+    if (originalProjectId) {
+      const movedLesson = lessonsMap[originalProjectId].find(l => l.id === lessonId)
+
+      // Remove from original project
+      setLessonsMap(prev => ({
+        ...prev,
+        [originalProjectId]: prev[originalProjectId].filter(l => l.id !== lessonId)
+      }))
+
+      // Add to target project (will be refetched to get correct order)
+      if (movedLesson) {
+        setLessonsMap(prev => ({
+          ...prev,
+          [targetQuestId]: [...(prev[targetQuestId] || []), movedLesson]
+        }))
       }
-    } catch (error) {
-      console.error('Failed to refresh lessons after move:', error)
     }
+
+    if (selectedItem?.id === lessonId) {
+      setSelectedItem(null)
+      setSelectedType(null)
+    }
+
     setMovingLesson(null)
   }
 
-  // Handle AI tool selection from modal
+  // Handle AI tool selection
   const handleAIToolSelect = async (toolId) => {
     switch (toolId) {
       case 'generate-tasks':
@@ -598,21 +875,24 @@ const CourseBuilder = () => {
     }
   }
 
-  // Generate lessons for projects without lessons
+  // Generate lessons
   const handleGenerateLessons = async () => {
     const toastId = toast.loading('Generating lessons for projects...')
     try {
       const response = await api.post(`/api/admin/curriculum/generate/${courseId}/lessons`, {})
       if (response.data.success) {
         toast.success('Lessons generated successfully!', { id: toastId })
-        // Refresh the current quest's lessons
-        if (selectedQuest) {
-          const lessonsResponse = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons?include_unpublished=true`)
-          setLessons(lessonsResponse.data.lessons || [])
-          if (lessonsResponse.data.lessons?.length > 0) {
-            setSelectedLesson(lessonsResponse.data.lessons[0])
+        // Refresh lessons for all quests
+        const lessonsData = {}
+        await Promise.all(quests.map(async (quest) => {
+          try {
+            const resp = await api.get(`/api/quests/${quest.id}/curriculum/lessons?include_unpublished=true`)
+            lessonsData[quest.id] = resp.data.lessons || []
+          } catch (error) {
+            lessonsData[quest.id] = lessonsMap[quest.id] || []
           }
-        }
+        }))
+        setLessonsMap(lessonsData)
       } else {
         toast.error(response.data.error || 'Failed to generate lessons', { id: toastId })
       }
@@ -624,7 +904,7 @@ const CourseBuilder = () => {
     }
   }
 
-  // Generate content for lessons with empty steps
+  // Generate lesson content
   const handleGenerateLessonContent = async () => {
     const toastId = toast.loading('Generating lesson content...')
     try {
@@ -636,17 +916,17 @@ const CourseBuilder = () => {
         } else {
           toast.success(`Generated content for ${count} lesson${count > 1 ? 's' : ''}!`, { id: toastId })
         }
-        // Refresh the current quest's lessons
-        if (selectedQuest) {
-          const lessonsResponse = await api.get(`/api/quests/${selectedQuest.id}/curriculum/lessons?include_unpublished=true`)
-          setLessons(lessonsResponse.data.lessons || [])
-          if (selectedLesson) {
-            const updatedLesson = lessonsResponse.data.lessons?.find(l => l.id === selectedLesson.id)
-            if (updatedLesson) {
-              setSelectedLesson(updatedLesson)
-            }
+        // Refresh lessons
+        const lessonsData = {}
+        await Promise.all(quests.map(async (quest) => {
+          try {
+            const resp = await api.get(`/api/quests/${quest.id}/curriculum/lessons?include_unpublished=true`)
+            lessonsData[quest.id] = resp.data.lessons || []
+          } catch (error) {
+            lessonsData[quest.id] = lessonsMap[quest.id] || []
           }
-        }
+        }))
+        setLessonsMap(lessonsData)
       } else {
         toast.error(response.data.error || 'Failed to generate content', { id: toastId })
       }
@@ -658,19 +938,40 @@ const CourseBuilder = () => {
     }
   }
 
-  // Calculate which AI tools are available
-  const hasLessonsWithoutTasks = quests.length > 0 // Always show as available if there are quests
+  // Handle refine complete
+  const handleRefineComplete = async () => {
+    try {
+      const courseResponse = await courseService.getCourseById(courseId)
+      setCourse(courseResponse.course)
 
-  // Projects without lessons - need to check all quests
-  // Since we only load lessons for the selected quest, we assume projects may need lessons
+      const questsResponse = await api.get(`/api/courses/${courseId}/quests`)
+      const fetchedQuests = questsResponse.data.quests || []
+      setQuests(fetchedQuests)
+
+      const lessonsData = {}
+      await Promise.all(fetchedQuests.map(async (quest) => {
+        try {
+          const resp = await api.get(`/api/quests/${quest.id}/curriculum/lessons?include_unpublished=true`)
+          lessonsData[quest.id] = resp.data.lessons || []
+        } catch (error) {
+          lessonsData[quest.id] = []
+        }
+      }))
+      setLessonsMap(lessonsData)
+
+      toast.success('Course data refreshed')
+    } catch (error) {
+      console.error('Failed to refresh after refine:', error)
+    }
+  }
+
+  // Calculate AI tools availability
+  const hasLessonsWithoutTasks = quests.length > 0
   const hasProjectsWithoutLessons = quests.length > 0
-
-  // Check if any currently loaded lessons have empty content
-  const hasLessonsWithoutContent = lessons.some(lesson => {
-    const content = lesson.content
-    const steps = content?.steps || []
+  const allLessons = Object.values(lessonsMap).flat()
+  const hasLessonsWithoutContent = allLessons.some(lesson => {
+    const steps = lesson.content?.steps || []
     if (steps.length === 0) return true
-    // Check if any step has real content
     const hasRealContent = steps.some(step => {
       if (step.content && step.content.trim() && step.content !== '<p></p>') return true
       if (step.video_url) return true
@@ -679,6 +980,21 @@ const CourseBuilder = () => {
     })
     return !hasRealContent
   })
+
+  // Find the quest for the currently selected lesson (for LessonEditorModal)
+  // NOTE: This must be before any early returns to maintain hooks order
+  const selectedQuestForLesson = useMemo(() => {
+    if (editingLesson) {
+      const projectId = Object.keys(lessonsMap).find(pid =>
+        lessonsMap[pid]?.some(l => l.id === editingLesson.id)
+      )
+      return quests.find(q => q.id === projectId)
+    }
+    if (selectedType === 'project' && selectedItem) {
+      return selectedItem
+    }
+    return quests[0]
+  }, [editingLesson, lessonsMap, quests, selectedType, selectedItem])
 
   // Save status indicator
   const SaveStatusIndicator = () => {
@@ -797,28 +1113,40 @@ const CourseBuilder = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
-          <div className="flex items-center justify-between gap-2">
-            <button
-              onClick={() => navigate('/courses')}
-              className="flex items-center gap-2 sm:gap-3 p-2 -m-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Go back to courses"
-            >
-              <ChevronLeftIcon className="w-5 h-5 flex-shrink-0" />
-              <span className="text-base sm:text-xl font-bold text-gray-900">Course Builder</span>
-            </button>
-
-            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-              <div className="hidden sm:block">
-                <SaveStatusIndicator />
+      <div className="bg-white border-b border-gray-200 flex-shrink-0">
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                onClick={() => navigate('/courses')}
+                className="flex items-center gap-2 p-2 -m-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+                aria-label="Go back to courses"
+              >
+                <ChevronLeftIcon className="w-5 h-5" />
+              </button>
+              <div className="min-w-0">
+                <h1 className="text-lg font-bold text-gray-900 truncate">
+                  {course?.title || 'Course Builder'}
+                </h1>
+                <div className="flex items-center gap-2">
+                  <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${
+                    course?.status === 'published' ? 'bg-green-100 text-green-700' :
+                    course?.status === 'archived' ? 'bg-gray-100 text-gray-600' :
+                    'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {course?.status || 'draft'}
+                  </span>
+                  <SaveStatusIndicator />
+                </div>
               </div>
+            </div>
 
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={() => setShowCourseDetails(true)}
-                className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm min-h-[44px]"
+                className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm min-h-[40px]"
                 aria-label="Edit course details"
               >
                 <Cog6ToothIcon className="w-4 h-4" />
@@ -828,26 +1156,17 @@ const CourseBuilder = () => {
               <button
                 onClick={() => setShowAIToolsModal(true)}
                 disabled={quests.length === 0}
-                className="flex items-center gap-2 px-3 py-2 text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 rounded-lg transition-opacity text-sm min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-3 py-2 text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 rounded-lg transition-opacity text-sm min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="AI Tools"
-                title="Open AI-powered tools for course building"
               >
                 <SparklesIcon className="w-4 h-4" />
-                <span className="hidden sm:inline font-bold">AI Tools</span>
-              </button>
-
-              <button
-                onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-                className="lg:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors min-h-[44px] min-w-[44px]"
-                aria-label="Toggle sidebar"
-              >
-                <Bars4Icon className="w-5 h-5" />
+                <span className="hidden sm:inline font-medium">AI</span>
               </button>
 
               <button
                 onClick={() => setShowPreview(true)}
                 disabled={!course || quests.length === 0}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium min-h-[44px]"
+                className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium min-h-[40px]"
                 aria-label="Preview course"
               >
                 <EyeIcon className="w-4 h-4" />
@@ -857,7 +1176,7 @@ const CourseBuilder = () => {
               <button
                 onClick={handlePublishToggle}
                 disabled={isPublishing || !course || (course?.status !== 'published' && quests.length === 0)}
-                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium min-h-[44px] ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium min-h-[40px] ${
                   course?.status === 'published'
                     ? 'bg-gray-600 text-white hover:bg-gray-700'
                     : 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
@@ -865,7 +1184,7 @@ const CourseBuilder = () => {
               >
                 <RocketLaunchIcon className="w-4 h-4" />
                 <span className="hidden sm:inline">
-                  {isPublishing ? (course?.status === 'published' ? 'Unpublishing...' : 'Publishing...') : course?.status === 'published' ? 'Unpublish' : 'Publish'}
+                  {isPublishing ? '...' : course?.status === 'published' ? 'Unpublish' : 'Publish'}
                 </span>
               </button>
             </div>
@@ -873,278 +1192,44 @@ const CourseBuilder = () => {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6">
-        <div className="flex items-center gap-3 mb-4">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">
-            {course?.title || 'Untitled Course'}
-          </h2>
-          <span className={`flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded-full ${
-            course?.status === 'published' ? 'bg-green-100 text-green-700' :
-            course?.status === 'archived' ? 'bg-gray-100 text-gray-600' :
-            'bg-yellow-100 text-yellow-700'
-          }`}>
-            {course?.status || 'draft'}
-          </span>
-        </div>
+      {/* Main Content - Outline View */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Panel - Outline Tree */}
+        <OutlineTree
+          course={course}
+          projects={quests}
+          lessonsMap={lessonsMap}
+          tasksMap={tasksMap}
+          selectedItem={selectedItem}
+          selectedType={selectedType}
+          onSelectItem={handleSelectItem}
+          onAddProject={() => setShowAddQuestModal(true)}
+          onAddLesson={handleAddChild}
+          onAddTask={handleAddChild}
+          onAddStep={handleAddStep}
+          onEditItem={handleEditItem}
+          onDeleteItem={handleDeleteItem}
+          onMoveItem={handleMoveItem}
+          onReorderProjects={handleReorderProjects}
+          onReorderLessons={handleReorderLessons}
+          onReorderSteps={handleReorderSteps}
+          isCollapsed={outlineCollapsed}
+          onToggleCollapse={() => setOutlineCollapsed(!outlineCollapsed)}
+        />
 
-        <div className="flex gap-6">
-          {/* Quest List Sidebar */}
-          <div
-            className={`
-              lg:block lg:w-80 flex-shrink-0
-              ${isMobileSidebarOpen ? 'fixed inset-0 z-40 bg-white p-4' : 'hidden'}
-            `}
-          >
-            {isMobileSidebarOpen && (
-              <div
-                className="fixed inset-0 bg-black/50 -z-10 lg:hidden"
-                onClick={() => setIsMobileSidebarOpen(false)}
-              />
-            )}
-
-            <div className="bg-white rounded-xl border border-gray-200 p-4 h-full">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                <h2 className="text-lg font-bold text-gray-900">Projects ({quests.length})</h2>
-                <div className="flex items-center gap-1">
-                  {quests.length > 0 && quests.some(q => !q.is_published) && (
-                    <button
-                      onClick={handlePublishAllQuests}
-                      disabled={saving}
-                      className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors disabled:opacity-50"
-                      title="Publish all unpublished projects"
-                    >
-                      <RocketLaunchIcon className="w-3.5 h-3.5" />
-                      Publish All
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setShowAddQuestModal(true)}
-                    className="p-2 text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
-                    aria-label="Add project"
-                  >
-                    <PlusIcon className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {quests.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <p className="text-sm">No projects in this course yet.</p>
-                  <button
-                    onClick={() => setShowAddQuestModal(true)}
-                    className="mt-3 text-sm text-optio-purple hover:underline"
-                  >
-                    Add your first project
-                  </button>
-                </div>
-              ) : (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={quests.map(q => q.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <div className="space-y-2 max-h-[calc(100vh-250px)] overflow-y-auto">
-                      {quests.map((quest, index) => (
-                        <SortableQuestItem
-                          key={quest.id}
-                          quest={quest}
-                          index={index}
-                          isSelected={selectedQuest?.id === quest.id}
-                          onSelect={setSelectedQuest}
-                          onRemove={handleRemoveQuest}
-                          onTogglePublish={handleToggleQuestPublish}
-                          onXpThresholdChange={handleXpThresholdChange}
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-              )}
-            </div>
-          </div>
-
-          {/* Content Editor */}
-          <div className="flex-1 min-w-0 space-y-6">
-            {selectedQuest && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <div className="flex items-start justify-between gap-4 mb-4">
-                  {editingProjectInfo ? (
-                    <div className="flex-1 space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Project Title
-                        </label>
-                        <input
-                          type="text"
-                          value={projectEditData.title}
-                          onChange={(e) => setProjectEditData(prev => ({ ...prev, title: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
-                          placeholder="Enter project title"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Description
-                        </label>
-                        <textarea
-                          value={projectEditData.description}
-                          onChange={(e) => setProjectEditData(prev => ({ ...prev, description: e.target.value }))}
-                          rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple resize-none"
-                          placeholder="Enter project description"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={handleSaveProjectEdit}
-                          disabled={saving}
-                          className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium disabled:opacity-50"
-                        >
-                          {saving ? 'Saving...' : 'Save'}
-                        </button>
-                        <button
-                          onClick={handleCancelProjectEdit}
-                          disabled={saving}
-                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex-1 min-w-0">
-                        <h2 className="text-lg font-bold text-gray-900">{selectedQuest.title}</h2>
-                        {selectedQuest.description && (
-                          <p className="text-sm text-gray-600 mt-1">{selectedQuest.description}</p>
-                        )}
-                      </div>
-                      <button
-                        onClick={handleStartEditProject}
-                        className="p-2 text-gray-400 hover:text-optio-purple transition-colors rounded-lg hover:bg-gray-100"
-                        title="Edit project title and description"
-                      >
-                        <PencilIcon className="w-5 h-5" />
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                {/* Lessons and Tasks Section */}
-                <div className="border-t border-gray-200 pt-4">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* Column 1: Lessons List */}
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-sm font-medium text-gray-700">
-                          Lessons{!loadingLessons && ` (${lessons.length})`}
-                        </h3>
-                        <button
-                          onClick={() => {
-                            setEditingLesson(null)
-                            setShowLessonEditor(true)
-                          }}
-                          className="flex items-center gap-1 text-sm text-optio-purple hover:text-optio-pink transition-colors"
-                        >
-                          <PlusIcon className="w-4 h-4" />
-                          Add Lesson
-                        </button>
-                      </div>
-
-                      {loadingLessons ? (
-                        <div className="flex items-center justify-center py-8">
-                          <div className="w-6 h-6 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
-                        </div>
-                      ) : lessons.length === 0 ? (
-                        <div className="text-center py-8 bg-gray-50 rounded-lg">
-                          <p className="text-sm text-gray-500 mb-3">
-                            No lessons yet. Add your first lesson to this project.
-                          </p>
-                          <button
-                            onClick={() => {
-                              setEditingLesson(null)
-                              setShowLessonEditor(true)
-                            }}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
-                          >
-                            <PlusIcon className="w-4 h-4" />
-                            Add Lesson
-                          </button>
-                        </div>
-                      ) : (
-                        <DndContext
-                          sensors={sensors}
-                          collisionDetection={closestCenter}
-                          onDragEnd={handleLessonDragEnd}
-                        >
-                          <SortableContext
-                            items={lessons.sort((a, b) => (a.sequence_order || a.order || 0) - (b.sequence_order || b.order || 0)).map(l => l.id)}
-                            strategy={verticalListSortingStrategy}
-                          >
-                            <div className="space-y-2">
-                              {lessons
-                                .sort((a, b) => (a.sequence_order || a.order || 0) - (b.sequence_order || b.order || 0))
-                                .map((lesson) => (
-                                  <SortableLessonItem
-                                    key={lesson.id}
-                                    lesson={lesson}
-                                    isSelected={selectedLesson?.id === lesson.id}
-                                    onSelect={setSelectedLesson}
-                                    onPreview={setPreviewingLesson}
-                                    onEdit={(l) => {
-                                      setEditingLesson(l)
-                                      setShowLessonEditor(true)
-                                    }}
-                                    onDelete={handleDeleteLesson}
-                                    onMoveToProject={quests.length > 1 ? setMovingLesson : undefined}
-                                  />
-                                ))}
-                            </div>
-                          </SortableContext>
-                        </DndContext>
-                      )}
-                    </div>
-
-                    {/* Column 2: Tasks for Selected Lesson */}
-                    <div className="border-l border-gray-200 pl-4 min-h-[200px]">
-                      <LessonTaskPanel
-                        lesson={selectedLesson}
-                        questId={selectedQuest?.id}
-                        questTitle={selectedQuest?.title}
-                        questDescription={selectedQuest?.description}
-                        onTasksUpdated={handleTasksUpdated}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Empty state when no quests */}
-            {quests.length === 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-                <div className="max-w-sm mx-auto">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Add your first project</h3>
-                  <p className="text-gray-500 text-sm mb-4">
-                    Courses are made up of projects (quests). Add existing quests or create new ones to build your course.
-                  </p>
-                  <button
-                    onClick={() => setShowAddQuestModal(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
-                  >
-                    <PlusIcon className="w-5 h-5" />
-                    Add Project
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Right Panel - Editor */}
+        <OutlineEditor
+          selectedItem={selectedItem}
+          selectedType={selectedType}
+          onSave={handleSaveFromEditor}
+          onSelectItem={handleSelectItem}
+          tasksMap={tasksMap}
+          onAddStep={handleAddStep}
+          onDeleteStep={handleDeleteStep}
+          onToggleTaskRequired={handleToggleTaskRequired}
+          saving={saving}
+          questId={selectedItem?.lessonId ? Object.keys(lessonsMap).find(pid => lessonsMap[pid]?.some(l => l.id === selectedItem.lessonId)) : selectedItem?.id}
+        />
       </div>
 
       {/* Modals */}
@@ -1157,9 +1242,13 @@ const CourseBuilder = () => {
       />
 
       {showPreview && (
-        <CoursePreview
+        <StudentPreviewModal
           course={course}
-          quests={quests}
+          projects={quests}
+          lessonsMap={lessonsMap}
+          tasksMap={tasksMap}
+          initialProjectId={selectedItem?.id && selectedType === 'project' ? selectedItem.id : null}
+          initialLessonId={selectedItem?.id && selectedType === 'lesson' ? selectedItem.id : null}
           onClose={() => setShowPreview(false)}
         />
       )}
@@ -1190,27 +1279,15 @@ const CourseBuilder = () => {
 
       <LessonEditorModal
         isOpen={showLessonEditor}
-        questId={selectedQuest?.id}
+        questId={selectedQuestForLesson?.id}
         lesson={editingLesson}
-        onSave={(savedLesson) => {
-          if (editingLesson) {
-            setLessons(lessons.map(l => l.id === savedLesson.id ? savedLesson : l))
-            if (selectedLesson?.id === savedLesson.id) {
-              setSelectedLesson(savedLesson)
-            }
-          } else {
-            setLessons([...lessons, savedLesson])
-            setSelectedLesson(savedLesson)
-            setEditingLesson(savedLesson)
-          }
-        }}
+        onSave={handleLessonSaved}
         onClose={() => {
           setShowLessonEditor(false)
           setEditingLesson(null)
         }}
       />
 
-      {/* AI Tools Selection Modal */}
       <AIToolsModal
         isOpen={showAIToolsModal}
         onClose={() => setShowAIToolsModal(false)}
@@ -1224,10 +1301,22 @@ const CourseBuilder = () => {
         isOpen={showBulkTaskModal}
         onClose={() => setShowBulkTaskModal(false)}
         quests={quests}
-        onTasksUpdated={handleTasksUpdated}
+        onTasksUpdated={() => {
+          // Refresh lessons to get updated task counts
+          quests.forEach(async (quest) => {
+            try {
+              const resp = await api.get(`/api/quests/${quest.id}/curriculum/lessons?include_unpublished=true`)
+              setLessonsMap(prev => ({
+                ...prev,
+                [quest.id]: resp.data.lessons || []
+              }))
+            } catch (error) {
+              console.error('Failed to refresh lessons:', error)
+            }
+          })
+        }}
       />
 
-      {/* AI Refine Modal */}
       <AIRefineModal
         isOpen={showRefineModal}
         onClose={() => setShowRefineModal(false)}
@@ -1236,13 +1325,14 @@ const CourseBuilder = () => {
         onRefineComplete={handleRefineComplete}
       />
 
-      {/* Move Lesson Modal */}
       {movingLesson && (
         <MoveLessonModal
           isOpen={!!movingLesson}
           onClose={() => setMovingLesson(null)}
           lesson={movingLesson}
-          currentQuestId={selectedQuest?.id}
+          currentQuestId={Object.keys(lessonsMap).find(pid =>
+            lessonsMap[pid]?.some(l => l.id === movingLesson.id)
+          )}
           quests={quests}
           courseId={courseId}
           onMove={handleLessonMoved}

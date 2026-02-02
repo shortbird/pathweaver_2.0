@@ -207,7 +207,14 @@ const QuestDetail = () => {
       },
       onError: (error) => {
         console.error('Error ending quest:', error);
-        toast.error('Failed to finish quest. Please try again.');
+        const responseData = error.response?.data;
+
+        // Check if this is an INCOMPLETE_REQUIREMENTS error for course projects
+        if (responseData?.reason === 'INCOMPLETE_REQUIREMENTS') {
+          toast.error(responseData.message || 'Complete all requirements before finishing this project.');
+        } else {
+          toast.error(responseData?.error || 'Failed to finish quest. Please try again.');
+        }
       }
     });
   };

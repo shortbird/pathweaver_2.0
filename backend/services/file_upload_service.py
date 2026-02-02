@@ -465,6 +465,81 @@ class FileUploadService(BaseService):
             logger.error(f"Error uploading course cover: {str(e)}", exc_info=True)
             return UploadResult(success=False, error_message=f"Failed to upload course cover: {str(e)}")
 
+    def upload_quest_header(
+        self,
+        file_data: bytes,
+        filename: str,
+        content_type: str,
+        quest_id: str,
+        max_width: int = 1200
+    ) -> UploadResult:
+        """
+        Upload a quest/project header image.
+
+        Args:
+            file_data: Image content as bytes
+            filename: Original filename
+            content_type: MIME type of the file
+            quest_id: Quest ID for path organization
+            max_width: Maximum image width (default 1200px)
+
+        Returns:
+            UploadResult with URL on success
+        """
+        try:
+            # Validate file (same as image validation)
+            is_valid, error_msg, file_ext = self.validate_file(
+                file_data,
+                filename,
+                self.IMAGE_EXTENSIONS,
+                self.MAX_IMAGE_SIZE
+            )
+
+            if not is_valid:
+                return UploadResult(success=False, error_message=error_msg)
+
+            # Resize image if needed
+            processed_data = self._resize_image(file_data, file_ext, max_width)
+
+            # Generate unique filename
+            unique_filename = f"header_{uuid.uuid4().hex[:12]}.{file_ext}"
+
+            # Use quest-headers bucket
+            bucket_name = 'quest-headers'
+            self._ensure_bucket_exists(bucket_name, public=True)
+
+            # Upload to storage
+            file_path = f"quests/{quest_id}/{unique_filename}"
+            try:
+                self.client.storage.from_(bucket_name).upload(
+                    file_path,
+                    processed_data,
+                    {'content-type': content_type or 'image/jpeg'}
+                )
+            except Exception as upload_err:
+                error_msg = str(upload_err)
+                if 'not found' in error_msg.lower() or 'bucket' in error_msg.lower():
+                    logger.error(f"Storage bucket '{bucket_name}' not found.")
+                    return UploadResult(
+                        success=False,
+                        error_message="Storage not configured. Please contact administrator."
+                    )
+                raise
+
+            # Get public URL
+            file_url = self.client.storage.from_(bucket_name).get_public_url(file_path)
+
+            return UploadResult(
+                success=True,
+                url=file_url,
+                filename=filename,
+                file_size=len(processed_data)
+            )
+
+        except Exception as e:
+            logger.error(f"Error uploading quest header: {str(e)}", exc_info=True)
+            return UploadResult(success=False, error_message=f"Failed to upload quest header: {str(e)}")
+
     def delete_file(self, bucket_name: str, file_path: str) -> bool:
         """
         Delete a file from storage.

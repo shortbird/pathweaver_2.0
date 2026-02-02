@@ -609,20 +609,34 @@ def upload_child_avatar(user_id, child_id):
 
         # Upload to Supabase Storage
         file_bytes = file.read()
-        supabase.storage.from_('user-uploads').upload(
-            filename,
-            file_bytes,
-            {'content-type': file.content_type}
-        )
+        try:
+            upload_response = supabase.storage.from_('user-uploads').upload(
+                path=filename,
+                file=file_bytes,
+                file_options={"content-type": file.content_type}
+            )
+            logger.info(f"Storage upload response: {upload_response}")
+        except Exception as storage_err:
+            logger.error(f"Storage upload failed: {storage_err}")
+            raise ValidationError(f"Failed to upload file to storage: {str(storage_err)}")
 
         # Get public URL
         avatar_url = supabase.storage.from_('user-uploads').get_public_url(filename)
+        logger.info(f"Avatar URL generated: {avatar_url}")
 
-        # Update child's avatar_url
-        supabase.table('users')\
-            .update({'avatar_url': avatar_url})\
-            .eq('id', child_id)\
-            .execute()
+        # Update child's avatar_url using a fresh client to avoid storage client URL corruption
+        try:
+            from supabase import create_client
+            from app_config import Config
+            fresh_client = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
+            update_result = fresh_client.table('users')\
+                .update({'avatar_url': avatar_url})\
+                .eq('id', child_id)\
+                .execute()
+            logger.info(f"DB update result: {update_result}")
+        except Exception as db_err:
+            logger.error(f"DB update failed: {db_err}")
+            raise
 
         logger.info(f"Parent {user_id} uploaded avatar for child {child_id}")
 

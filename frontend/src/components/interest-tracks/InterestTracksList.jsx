@@ -13,8 +13,11 @@ const InterestTracksList = ({
   showUnassigned = false,
   refreshKey = 0,
   className = '',
-  onMomentsAssigned = null  // Callback when moments are auto-assigned to a new topic
+  onMomentsAssigned = null,  // Callback when moments are auto-assigned to a new topic
+  studentId = null  // Optional - when parent views child's topics
 }) => {
+  // Determine if this is parent view mode
+  const isParentView = !!studentId;
   const [tracks, setTracks] = useState([]);
   const [questTopics, setQuestTopics] = useState([]);
   const [courseTopics, setCourseTopics] = useState([]);
@@ -34,12 +37,16 @@ const InterestTracksList = ({
 
   useEffect(() => {
     fetchTopics();
-  }, [refreshKey]);
+  }, [refreshKey, studentId]);
 
   const fetchTopics = async () => {
     try {
       setIsLoading(true);
-      const response = await api.get('/api/topics/unified');
+      // Use parent API when viewing child's topics
+      const endpoint = isParentView
+        ? `/api/parent/children/${studentId}/topics`
+        : '/api/topics/unified';
+      const response = await api.get(endpoint);
       if (response.data.success) {
         const topics = response.data.topics || [];
         // Separate quests and tracks
@@ -60,15 +67,19 @@ const InterestTracksList = ({
       }
     } catch (error) {
       console.error('Failed to fetch topics:', error);
-      // Fallback to old endpoint
-      try {
-        const fallbackResponse = await api.get('/api/interest-tracks');
-        if (fallbackResponse.data.success) {
-          setTracks(fallbackResponse.data.tracks);
-          setQuestTopics([]);
-          setCourseTopics([]);
+      // Fallback to old endpoint (only for non-parent view)
+      if (!isParentView) {
+        try {
+          const fallbackResponse = await api.get('/api/interest-tracks');
+          if (fallbackResponse.data.success) {
+            setTracks(fallbackResponse.data.tracks);
+            setQuestTopics([]);
+            setCourseTopics([]);
+          }
+        } catch (fallbackError) {
+          toast.error('Failed to load topics');
         }
-      } catch (fallbackError) {
+      } else {
         toast.error('Failed to load topics');
       }
     } finally {
@@ -93,7 +104,11 @@ const InterestTracksList = ({
   const fetchSuggestions = async () => {
     try {
       setIsLoadingSuggestions(true);
-      const response = await api.get('/api/interest-tracks/suggestions');
+      // Use parent API when viewing child's topics
+      const endpoint = isParentView
+        ? `/api/parent/children/${studentId}/topics/suggestions`
+        : '/api/interest-tracks/suggestions';
+      const response = await api.get(endpoint);
       console.log('Suggestions response:', response.data);
       if (response.data.success) {
         setSuggestedTracks(response.data.suggested_tracks || []);
@@ -115,7 +130,11 @@ const InterestTracksList = ({
       console.log('Creating track with payload:', payload);
       console.log('Selected suggestion:', selectedSuggestion);
 
-      const response = await api.post('/api/interest-tracks', payload);
+      // Use parent API when viewing child's topics
+      const endpoint = isParentView
+        ? `/api/parent/children/${studentId}/topics`
+        : '/api/interest-tracks';
+      const response = await api.post(endpoint, payload);
       console.log('Create track response:', response.data);
       if (response.data.success) {
         const assignedCount = response.data.assigned_count || 0;

@@ -190,6 +190,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
       await updateDependent(childId, { display_name: displayName.trim() })
       toast.success('Profile updated!')
       onUpdate?.()
+      onClose()
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to update profile')
     } finally {

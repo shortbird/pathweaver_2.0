@@ -3,7 +3,7 @@ import { CalendarIcon } from '@heroicons/react/24/outline';
 import LearningEventDetailModal from './LearningEventDetailModal';
 import { getPillarData } from '../../utils/pillarMappings';
 
-const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned }) => {
+const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, studentId = null }) => {
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   const formatDate = (dateString) => {
@@ -69,6 +69,7 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned }
         isOpen={showDetailModal}
         onClose={() => setShowDetailModal(false)}
         onUpdate={onUpdate || onTrackAssigned}
+        studentId={studentId}
       />
     </>
   );

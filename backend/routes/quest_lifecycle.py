@@ -67,87 +67,25 @@ def pickup_quest(user_id, quest_id):
                 .eq('id', user_quest['id'])\
                 .execute()
 
-            # Check if this is a course quest that needs tasks loaded
+            # Check if this is a course quest
             quest_type = quest_check.data.get('quest_type', 'optio')
             skip_wizard = False
 
-            # If course quest and no tasks exist, auto-load preset tasks
+            # Course quests don't auto-copy tasks - students activate them manually from lessons
             if quest_type == 'course' and not user_quest.get('personalization_completed'):
-                logger.info(f"[PICKUP_COURSE_EXISTING] Course quest detected with no tasks - auto-copying preset tasks")
+                logger.info(f"[PICKUP_COURSE_EXISTING] Course quest detected - marking personalization complete, tasks activated on demand")
 
                 try:
-                    from routes.quest_types import get_course_tasks_for_quest
-                    from services.subject_classification_service import SubjectClassificationService
-
-                    # Check if tasks already exist
+                    # Mark personalization as completed (no wizard needed for course quests)
                     admin_client = get_supabase_admin_client()
-                    existing_tasks = admin_client.table('user_quest_tasks')\
-                        .select('id')\
-                        .eq('user_quest_id', user_quest['id'])\
+                    admin_client.table('user_quests')\
+                        .update({'personalization_completed': True})\
+                        .eq('id', user_quest['id'])\
                         .execute()
-
-                    if not existing_tasks.data:
-                        preset_tasks = get_course_tasks_for_quest(quest_id)
-                        logger.info(f"[PICKUP_COURSE_EXISTING] Found {len(preset_tasks)} preset tasks to copy")
-
-                        if preset_tasks:
-                            classification_service = SubjectClassificationService(client=admin_client)
-
-                            # Copy all preset tasks to user_quest_tasks
-                            user_tasks_data = []
-                            for task in preset_tasks:
-                                xp_value = task.get('xp_value', 100)
-
-                                # Auto-generate subject distribution if not present
-                                subject_distribution = task.get('subject_xp_distribution', {})
-                                if not subject_distribution:
-                                    try:
-                                        subject_distribution = classification_service.classify_task_subjects(
-                                            task['title'],
-                                            task.get('description', ''),
-                                            task['pillar'],
-                                            xp_value
-                                        )
-                                    except Exception as e:
-                                        logger.warning(f"[PICKUP_COURSE_EXISTING] Failed to classify task, using fallback: {str(e)}")
-                                        subject_distribution = classification_service._fallback_subject_mapping(
-                                            task['pillar'],
-                                            xp_value
-                                        )
-
-                                task_data = {
-                                    'user_id': user_id,
-                                    'quest_id': quest_id,
-                                    'user_quest_id': user_quest['id'],
-                                    'title': task['title'],
-                                    'description': task.get('description', ''),
-                                    'pillar': task['pillar'],
-                                    'xp_value': xp_value,
-                                    'order_index': task.get('order_index', 0),
-                                    'is_required': task.get('is_required', True),
-                                    'is_manual': False,
-                                    'approval_status': 'approved',
-                                    'diploma_subjects': task.get('diploma_subjects', ['Electives']),
-                                    'subject_xp_distribution': subject_distribution
-                                }
-                                user_tasks_data.append(task_data)
-
-                            # Bulk insert tasks using admin client
-                            if user_tasks_data:
-                                logger.info(f"[PICKUP_COURSE_EXISTING] Inserting {len(user_tasks_data)} tasks into user_quest_tasks")
-                                admin_client.table('user_quest_tasks').insert(user_tasks_data).execute()
-                                logger.info(f"[PICKUP_COURSE_EXISTING] Successfully inserted {len(user_tasks_data)} tasks")
-
-                            # Mark personalization as completed (no wizard needed)
-                            admin_client.table('user_quests')\
-                                .update({'personalization_completed': True})\
-                                .eq('id', user_quest['id'])\
-                                .execute()
-
-                            skip_wizard = True
+                    skip_wizard = True
 
                 except Exception as task_error:
-                    logger.error(f"[PICKUP_COURSE_EXISTING] ERROR copying tasks: {str(task_error)}", exc_info=True)
+                    logger.error(f"[PICKUP_COURSE_EXISTING] ERROR marking personalization complete: {str(task_error)}", exc_info=True)
                     # Don't fail the pickup, but log the error
 
             return jsonify({
@@ -178,77 +116,25 @@ def pickup_quest(user_id, quest_id):
         enrollment = result.data[0]
         skip_wizard = False
 
-        # Check if this is a course quest and auto-copy preset tasks
+        # Check if this is a course quest
         quest_type = quest_check.data.get('quest_type', 'optio')
         if quest_type == 'course':
-            logger.info(f"[PICKUP_COURSE] Course quest detected - auto-copying preset tasks for user {user_id[:8]}, quest {quest_id[:8]}")
+            # Course quest - tasks are NOT auto-copied. Students activate tasks manually
+            # by clicking on them in the lesson view. This gives students agency
+            # over which optional tasks they want to pursue.
+            logger.info(f"[PICKUP_COURSE] Course quest detected for user {user_id[:8]}, quest {quest_id[:8]} - skipping wizard, tasks activated on demand")
 
             try:
-                from routes.quest_types import get_course_tasks_for_quest
-                from services.subject_classification_service import SubjectClassificationService
-
-                preset_tasks = get_course_tasks_for_quest(quest_id)
-                logger.info(f"[PICKUP_COURSE] Found {len(preset_tasks)} preset tasks")
-
-                if preset_tasks:
-                    admin_client = get_supabase_admin_client()
-                    classification_service = SubjectClassificationService(client=admin_client)
-
-                    # Copy all preset tasks to user_quest_tasks
-                    user_tasks_data = []
-                    for task in preset_tasks:
-                        xp_value = task.get('xp_value', 100)
-
-                        # Auto-generate subject distribution if not present
-                        subject_distribution = task.get('subject_xp_distribution', {})
-                        if not subject_distribution:
-                            try:
-                                subject_distribution = classification_service.classify_task_subjects(
-                                    task['title'],
-                                    task.get('description', ''),
-                                    task['pillar'],
-                                    xp_value
-                                )
-                            except Exception as e:
-                                logger.warning(f"[PICKUP_COURSE] Failed to classify task, using fallback: {str(e)}")
-                                subject_distribution = classification_service._fallback_subject_mapping(
-                                    task['pillar'],
-                                    xp_value
-                                )
-
-                        task_data = {
-                            'user_id': user_id,
-                            'quest_id': quest_id,
-                            'user_quest_id': enrollment['id'],
-                            'title': task['title'],
-                            'description': task.get('description', ''),
-                            'pillar': task['pillar'],
-                            'xp_value': xp_value,
-                            'order_index': task.get('order_index', 0),
-                            'is_required': task.get('is_required', True),
-                            'is_manual': False,
-                            'approval_status': 'approved',
-                            'diploma_subjects': task.get('diploma_subjects', ['Electives']),
-                            'subject_xp_distribution': subject_distribution
-                        }
-                        user_tasks_data.append(task_data)
-
-                    # Bulk insert tasks using admin client
-                    if user_tasks_data:
-                        logger.info(f"[PICKUP_COURSE] Inserting {len(user_tasks_data)} tasks into user_quest_tasks")
-                        admin_client.table('user_quest_tasks').insert(user_tasks_data).execute()
-                        logger.info(f"[PICKUP_COURSE] Successfully inserted {len(user_tasks_data)} tasks")
-
-                    # Mark personalization as completed (no wizard needed)
-                    admin_client.table('user_quests')\
-                        .update({'personalization_completed': True})\
-                        .eq('id', enrollment['id'])\
-                        .execute()
-
-                    skip_wizard = True
+                # Mark personalization as completed (no wizard needed for course quests)
+                admin_client = get_supabase_admin_client()
+                admin_client.table('user_quests')\
+                    .update({'personalization_completed': True})\
+                    .eq('id', enrollment['id'])\
+                    .execute()
+                skip_wizard = True
 
             except Exception as task_error:
-                logger.error(f"[PICKUP_COURSE] ERROR copying tasks: {str(task_error)}", exc_info=True)
+                logger.error(f"[PICKUP_COURSE] ERROR marking personalization complete: {str(task_error)}", exc_info=True)
                 # Don't fail the pickup, but log the error
 
         return jsonify({

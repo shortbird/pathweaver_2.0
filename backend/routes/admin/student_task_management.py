@@ -158,7 +158,7 @@ def create_student_task(user_id, target_user_id, quest_id):
                 'subject_xp_distribution': subject_distribution,
                 'xp_value': int(xp_value),
                 'order_index': max_order + 1,
-                'is_required': True,
+                'is_required': False,
                 'approval_status': 'approved',  # Admin-created tasks are pre-approved
                 'created_at': datetime.utcnow().isoformat()
             }
@@ -222,7 +222,7 @@ def create_student_task(user_id, target_user_id, quest_id):
                 'subject_xp_distribution': subject_distribution,
                 'xp_value': int(xp_value),
                 'order_index': max_order + 1,
-                'is_required': True,
+                'is_required': False,
                 'approval_status': 'approved',  # Admin-created tasks are pre-approved
                 'created_at': datetime.utcnow().isoformat()
             }
@@ -347,7 +347,7 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
                 'subject_xp_distribution': None,
                 'xp_value': int(xp_value),
                 'order_index': max_order + idx + 1,
-                'is_required': True,
+                'is_required': False,
                 'approval_status': 'approved',
                 'created_at': datetime.utcnow().isoformat()
             }

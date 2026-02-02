@@ -501,6 +501,10 @@ export const parentAPI = {
 
   // NEW: Get parent's submitted connection requests with status (January 2025 Redesign)
   getMyConnectionRequests: () => api.get('/api/parents/my-connection-requests'),
+
+  // Family Settings - Co-Parents management
+  getFamilyParents: () => api.get('/api/parents/family-parents'),
+  inviteParent: (data) => api.post('/api/parents/invite-parent', data),
 }
 
 // Admin Parent Connections API methods (January 2025 Redesign)

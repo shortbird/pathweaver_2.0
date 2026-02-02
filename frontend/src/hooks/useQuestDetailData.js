@@ -46,6 +46,19 @@ export const useQuestDetailData = (questId) => {
   const [showRestartModal, setShowRestartModal] = useState(false);
   const [restartModalData, setRestartModalData] = useState({ previousTaskCount: 0, questTitle: '' });
 
+  // Handle showPersonalize query param (from course lesson "Create Your Own" link)
+  const showPersonalizeFromUrl = searchParams.get('showPersonalize');
+  const hasProcessedPersonalizeRef = useRef(false);
+
+  useEffect(() => {
+    if (showPersonalizeFromUrl === 'true' && !hasProcessedPersonalizeRef.current) {
+      hasProcessedPersonalizeRef.current = true;
+      setShowPersonalizationWizard(true);
+      // Clean up the URL param after processing
+      navigate(location.pathname, { replace: true });
+    }
+  }, [showPersonalizeFromUrl, navigate, location.pathname]);
+
   // Memoized XP calculations
   const xpData = useMemo(() => {
     if (!quest?.quest_tasks) return { baseXP: 0, totalXP: 0, earnedXP: 0 };
@@ -122,6 +135,16 @@ export const useQuestDetailData = (questId) => {
       // If not found, try source_task_id match (for course-copied tasks)
       if (!task) {
         task = quest.quest_tasks.find(t => t.source_task_id === taskIdFromUrl);
+      }
+
+      // If still not found, try title match via template task lookup
+      // This handles the case where URL has template task ID but user has their own copy
+      if (!task && taskIdFromUrl) {
+        // Store the template task ID to title mapping for later use
+        const templateTaskTitle = sessionStorage.getItem(`task_title_${taskIdFromUrl}`);
+        if (templateTaskTitle) {
+          task = quest.quest_tasks.find(t => t.title === templateTaskTitle);
+        }
       }
 
       if (task) {

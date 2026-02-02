@@ -11,6 +11,7 @@ from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth
 from utils.logger import get_logger
 from services.webhook_service import WebhookService
+from services.course_progress_service import CourseProgressService
 
 logger = get_logger(__name__)
 
@@ -373,6 +374,10 @@ def end_quest(user_id: str, quest_id: str):
     This is called when the user explicitly chooses to finish a quest,
     either from the quest completion celebration modal (after all tasks are done)
     or manually from the quest detail page.
+
+    For course projects, completion requires BOTH:
+    - XP threshold met (if set)
+    - ALL required tasks completed
     """
     try:
         # Use admin client - @require_auth already validated user
@@ -420,6 +425,47 @@ def end_quest(user_id: str, quest_id: str):
                     'xp_earned': total_xp
                 }
             })
+
+        # Check completion eligibility for course projects
+        # Allow force parameter to bypass the check (for admin use or testing)
+        data = request.get_json(silent=True) or {}
+        force_complete = data.get('force', False)
+
+        if not force_complete:
+            progress_service = CourseProgressService(supabase)
+            eligibility = progress_service.check_quest_completion_eligibility(user_id, quest_id)
+
+            if eligibility.get('is_course_quest') and not eligibility.get('can_complete'):
+                # Cannot complete - return error with details
+                error_reasons = []
+
+                if not eligibility.get('xp_met'):
+                    error_reasons.append(
+                        f"XP goal not reached ({eligibility.get('earned_xp', 0)}/{eligibility.get('required_xp', 0)} XP)"
+                    )
+
+                if not eligibility.get('required_tasks_met'):
+                    incomplete = eligibility.get('incomplete_lessons', [])
+                    task_count = eligibility.get('total_required', 0) - eligibility.get('completed_required', 0)
+                    error_reasons.append(
+                        f"{task_count} required task{'s' if task_count != 1 else ''} incomplete"
+                    )
+
+                return jsonify({
+                    'success': False,
+                    'error': 'Cannot complete project yet',
+                    'reason': 'INCOMPLETE_REQUIREMENTS',
+                    'message': ' and '.join(error_reasons) if error_reasons else 'Requirements not met',
+                    'requirements': {
+                        'xp_met': eligibility.get('xp_met', True),
+                        'required_tasks_met': eligibility.get('required_tasks_met', True),
+                        'earned_xp': eligibility.get('earned_xp', 0),
+                        'required_xp': eligibility.get('required_xp', 0),
+                        'completed_required_tasks': eligibility.get('completed_required', 0),
+                        'total_required_tasks': eligibility.get('total_required', 0),
+                        'incomplete_lessons': eligibility.get('incomplete_lessons', [])
+                    }
+                }), 400
 
         # If not already inactive, mark it as such
 

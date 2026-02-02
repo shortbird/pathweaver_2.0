@@ -893,6 +893,9 @@ def get_quest_tasks(user_id: str, quest_id: str):
     Get all tasks for a quest (for curriculum task linking).
     Includes completion status for the current user.
 
+    This endpoint handles the case where lessons link to "template" tasks (owned by course creator)
+    but each student has their own copy of tasks. It matches tasks by title to determine completion.
+
     Returns:
         200: List of quest tasks with is_completed field
         403: Permission denied
@@ -902,32 +905,76 @@ def get_quest_tasks(user_id: str, quest_id: str):
 
         _check_read_permission(user_id, quest_id, supabase)
 
-        result = supabase.table('user_quest_tasks')\
-            .select('id, title, description, pillar, xp_value, order_index, approval_status')\
+        # Get all tasks linked to lessons for this quest (template tasks)
+        linked_tasks_result = supabase.table('curriculum_lesson_tasks')\
+            .select('task_id')\
             .eq('quest_id', quest_id)\
+            .execute()
+
+        linked_task_ids = list(set(t['task_id'] for t in (linked_tasks_result.data or [])))
+
+        # Get template tasks (tasks linked to lessons - may be owned by course creator)
+        template_tasks = []
+        if linked_task_ids:
+            template_result = supabase.table('user_quest_tasks')\
+                .select('id, title, description, pillar, xp_value, order_index, approval_status, is_required')\
+                .in_('id', linked_task_ids)\
+                .order('order_index')\
+                .execute()
+            template_tasks = template_result.data or []
+
+        # Get the current user's tasks for this quest
+        user_tasks_result = supabase.table('user_quest_tasks')\
+            .select('id, title, description, pillar, xp_value, order_index, approval_status, is_required')\
+            .eq('quest_id', quest_id)\
+            .eq('user_id', user_id)\
             .order('order_index')\
             .execute()
 
-        tasks = result.data or []
+        user_tasks = user_tasks_result.data or []
 
-        if tasks:
-            task_ids = [t['id'] for t in tasks]
+        # Build a map of user's tasks by title for matching
+        user_tasks_by_title = {t['title']: t for t in user_tasks}
 
-            completions_result = supabase.table('quest_task_completions')\
-                .select('task_id, user_quest_task_id')\
-                .eq('user_id', user_id)\
-                .eq('quest_id', quest_id)\
-                .execute()
+        # Get completions for the current user
+        completions_result = supabase.table('quest_task_completions')\
+            .select('task_id, user_quest_task_id')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .execute()
 
-            completed_task_ids = set()
-            for comp in (completions_result.data or []):
-                if comp.get('task_id'):
-                    completed_task_ids.add(comp['task_id'])
-                if comp.get('user_quest_task_id'):
-                    completed_task_ids.add(comp['user_quest_task_id'])
+        completed_task_ids = set()
+        for comp in (completions_result.data or []):
+            if comp.get('task_id'):
+                completed_task_ids.add(comp['task_id'])
+            if comp.get('user_quest_task_id'):
+                completed_task_ids.add(comp['user_quest_task_id'])
 
-            for task in tasks:
-                task['is_completed'] = task['id'] in completed_task_ids
+        # Build result: Use template task IDs (for lesson linking) but with user's completion status
+        tasks = []
+        for template_task in template_tasks:
+            task = dict(template_task)
+
+            # Check if user has completed this task (by matching their task with same title)
+            user_task = user_tasks_by_title.get(template_task['title'])
+            if user_task:
+                # User has this task - check if completed
+                task['is_completed'] = user_task['id'] in completed_task_ids
+                # Use user's XP value if different
+                task['xp_value'] = user_task.get('xp_value', template_task.get('xp_value', 0))
+            else:
+                # User doesn't have this task yet
+                task['is_completed'] = False
+
+            tasks.append(task)
+
+        # Also include any user tasks not linked to lessons (user-created tasks)
+        template_titles = {t['title'] for t in template_tasks}
+        for user_task in user_tasks:
+            if user_task['title'] not in template_titles:
+                task = dict(user_task)
+                task['is_completed'] = user_task['id'] in completed_task_ids
+                tasks.append(task)
 
         return jsonify({
             'success': True,
@@ -939,6 +986,103 @@ def get_quest_tasks(user_id: str, quest_id: str):
     except Exception as e:
         logger.error(f"Error fetching quest tasks: {str(e)}")
         return jsonify({'error': 'Failed to fetch quest tasks'}), 500
+
+
+@bp.route('/<quest_id>/activate-task/<template_task_id>', methods=['POST'])
+@require_auth
+@rate_limit(limit=30, per=60)
+def activate_task(user_id: str, quest_id: str, template_task_id: str):
+    """
+    Activate (copy) a template task to the user's quest tasks.
+
+    This creates a copy of a lesson-linked "template" task for the user,
+    allowing them to work on and complete it.
+
+    Returns:
+        201: Task activated successfully
+        400: Task already activated or validation error
+        403: Permission denied
+        404: Template task not found
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        _check_read_permission(user_id, quest_id, supabase)
+
+        # Get the template task
+        template_result = supabase.table('user_quest_tasks')\
+            .select('id, title, description, pillar, xp_value, order_index, is_required, diploma_subjects, subject_xp_distribution')\
+            .eq('id', template_task_id)\
+            .execute()
+
+        if not template_result.data:
+            return jsonify({'error': 'Template task not found'}), 404
+
+        template_task = template_result.data[0]
+
+        # Check if user already has this task (by title match)
+        existing_task = supabase.table('user_quest_tasks')\
+            .select('id')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .eq('title', template_task['title'])\
+            .execute()
+
+        if existing_task.data:
+            # Task already exists for user - return it
+            return jsonify({
+                'success': True,
+                'task': existing_task.data[0],
+                'message': 'Task already activated',
+                'already_existed': True
+            }), 200
+
+        # Get user's quest enrollment
+        user_quest_result = supabase.table('user_quests')\
+            .select('id')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .execute()
+
+        user_quest_id = user_quest_result.data[0]['id'] if user_quest_result.data else None
+
+        # Create the task copy for the user
+        new_task = {
+            'user_id': user_id,
+            'quest_id': quest_id,
+            'user_quest_id': user_quest_id,
+            'title': template_task['title'],
+            'description': template_task.get('description', ''),
+            'pillar': template_task['pillar'],
+            'xp_value': template_task.get('xp_value', 100),
+            'order_index': template_task.get('order_index', 0),
+            'is_required': template_task.get('is_required', False),
+            'is_manual': False,
+            'approval_status': 'approved',
+            'diploma_subjects': template_task.get('diploma_subjects', ['Electives']),
+            'subject_xp_distribution': template_task.get('subject_xp_distribution'),
+            'source_task_id': template_task['id']
+        }
+
+        result = supabase.table('user_quest_tasks').insert(new_task).execute()
+
+        if not result.data:
+            return jsonify({'error': 'Failed to activate task'}), 500
+
+        logger.info(f"User {user_id} activated task '{template_task['title']}' in quest {quest_id}")
+
+        return jsonify({
+            'success': True,
+            'task': result.data[0],
+            'message': 'Task activated successfully',
+            'already_existed': False
+        }), 201
+
+    except (ValidationError, AuthorizationError, NotFoundError) as e:
+        return jsonify({'error': str(e)}), getattr(e, 'status_code', getattr(e, 'code', 400))
+    except Exception as e:
+        logger.error(f"Error activating task: {str(e)}")
+        return jsonify({'error': 'Failed to activate task'}), 500
 
 
 @bp.route('/<quest_id>/curriculum/lessons/<lesson_id>/link-task', methods=['POST'])

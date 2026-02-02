@@ -178,6 +178,9 @@ class DependentRepository(BaseRepository):
                     'total_xp': dep.get('total_xp', 0),
                     'active_quest_count': dep.get('active_quest_count', 0),
                     'ai_features_enabled': dep.get('ai_features_enabled', False),
+                    'ai_chatbot_enabled': dep.get('ai_chatbot_enabled', True),
+                    'ai_lesson_helper_enabled': dep.get('ai_lesson_helper_enabled', True),
+                    'ai_task_generation_enabled': dep.get('ai_task_generation_enabled', True),
                     'email': dep.get('email'),
                     'age': self._calculate_age(datetime.strptime(dep.get('date_of_birth'), '%Y-%m-%d').date()) if dep.get('date_of_birth') else None
                 })

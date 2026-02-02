@@ -206,7 +206,7 @@ def test_quest(test_supabase):
         'pillar': 'stem',
         'xp_value': 100,
         'order_index': 1,
-        'is_required': True,
+        'is_required': False,
     }
 
     yield quest_data, task_template
@@ -264,7 +264,7 @@ def sample_task():
         'pillar': 'stem',
         'xp_value': 100,
         'approval_status': 'pending',
-        'is_required': True
+        'is_required': False
     }
 
 @pytest.fixture

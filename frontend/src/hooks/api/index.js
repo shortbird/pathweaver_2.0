@@ -17,3 +17,5 @@ export {
   useUnreadCount
 } from './useNotifications';
 export { useStudentOverview } from './useStudentOverview';
+export { useAdvisorStudentOverview } from './useAdvisorStudentOverview';
+export { useParentChildOverview } from './useParentChildOverview';

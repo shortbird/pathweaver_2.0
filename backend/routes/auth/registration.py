@@ -416,7 +416,8 @@ def register():
             response = make_response(jsonify(response_data), 201)
 
             # Set httpOnly cookies for authentication (fallback method)
-            session_manager.set_auth_cookies(response, auth_response.user.id)
+            # CRITICAL: Pass the same tokens to ensure consistency between cookies and response body
+            session_manager.set_auth_cookies(response, auth_response.user.id, app_access_token, app_refresh_token)
 
             return response
         else:

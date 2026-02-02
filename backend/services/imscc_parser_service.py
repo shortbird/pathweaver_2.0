@@ -551,7 +551,7 @@ class IMSCCParserService(BaseService):
                 'pillar': 'stem',  # Default - would be determined during import
                 'xp_value': int(assignment.get('points_possible', 0)),  # Canvas points = XP
                 'order_index': idx + 1,
-                'is_required': True,
+                'is_required': False,
                 'is_manual': False,
                 'approval_status': 'approved',
                 'metadata': {

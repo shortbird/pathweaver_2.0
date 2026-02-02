@@ -586,6 +586,7 @@ def update_task(user_id: str, task_id: str):
         description: Task description (optional)
         pillar: Task pillar (optional, must be valid)
         xp_value: XP value (optional, 1-1000)
+        is_required: Whether task is required (optional, boolean)
 
     Returns:
         JSON response with updated task data
@@ -708,6 +709,9 @@ def update_task(user_id: str, task_id: str):
                     'success': False,
                     'error': 'XP value must be a valid number'
                 }), 400
+
+        if 'is_required' in data:
+            update_payload['is_required'] = bool(data['is_required'])
 
         if not update_payload:
             return jsonify({

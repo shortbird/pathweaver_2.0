@@ -115,7 +115,7 @@ const CourseImportEditor = ({ previewData, onBack, onImportComplete }) => {
           pillar: task.pillar,
           xp_value: task.xp_value,
           order_index: idx + 1,
-          is_required: true,
+          is_required: false,
           is_manual: false,
           metadata: task.metadata
         }))
