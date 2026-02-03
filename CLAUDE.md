@@ -1,6 +1,6 @@
 # Optio Platform - AI Agent Guide
 
-**Last Updated**: January 21, 2026 | **Local Dev**: Enabled | **Multi-Agent**: Available
+**Last Updated**: February 3, 2026 | **Local Dev**: Enabled | **Multi-Agent**: Available
 
 ---
 
@@ -225,6 +225,29 @@ cd C:/Users/tanne/Desktop/pw_v2/frontend && npm run dev  # background
 **Before committing:** `npx kill-port 3000 5001`
 
 **Full setup guide:** [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md)
+
+### Git Configuration
+
+**SSH Authentication:** Configured for Claude Code to push/pull without manual authentication.
+
+- Remote: `git@github.com:shortbird/pathweaver_2.0.git` (SSH)
+- SSH Key: `~/.ssh/id_rsa` (RSA 4096-bit)
+- Public key added to GitHub: https://github.com/settings/keys
+
+**Workflow:**
+```bash
+# Claude Code can now run these directly:
+git push origin develop    # Push to dev (auto-deploys to Render dev)
+git push origin main       # Push to prod (auto-deploys to Render prod)
+
+# Merge develop to main:
+git checkout main && git merge develop && git push origin main && git checkout develop
+```
+
+**If SSH agent not running:**
+```bash
+eval "$(ssh-agent -s)" && ssh-add ~/.ssh/id_rsa
+```
 
 ---
 
@@ -471,18 +494,30 @@ SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';
 
 ### Render MCP
 
+**Status:** Configured (user scope)
+
 **Add Render MCP:**
 ```bash
-claude mcp add -s user -t http render https://mcp.render.com/mcp -H "Authorization: Bearer <RENDER_API_KEY>"
+claude mcp add -s user render -- npx -y @anthropic-ai/mcp-server-render --api-key <RENDER_API_KEY>
 ```
 
 **Service IDs:**
-| Environment | Service | ID |
-|-------------|---------|-----|
-| Dev | Backend | `srv-d2tnvlvfte5s73ae8npg` |
-| Dev | Frontend | `srv-d2tnvrffte5s73ae8s4g` |
-| Prod | Backend | `srv-d2to00vfte5s73ae9310` |
-| Prod | Frontend | `srv-d2to04vfte5s73ae97ag` |
+| Environment | Service | ID | Branch |
+|-------------|---------|-----|--------|
+| Dev | Backend | `srv-d2tnvlvfte5s73ae8npg` | `develop` |
+| Dev | Frontend | `srv-d2tnvrffte5s73ae8s4g` | `develop` |
+| Prod | Backend | `srv-d2to00vfte5s73ae9310` | `main` |
+| Prod | Frontend | `srv-d2to04vfte5s73ae97ag` | `main` |
+
+**Auto-deploy:** Enabled on all services. Pushes to `develop` deploy to dev, pushes to `main` deploy to prod.
+
+**Manual deploy via API:**
+```bash
+curl -X POST "https://api.render.com/v1/services/<SERVICE_ID>/deploys" \
+  -H "Authorization: Bearer <RENDER_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"clearCache": "do_not_clear"}'
+```
 
 ### MCP Troubleshooting
 
