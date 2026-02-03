@@ -372,8 +372,15 @@ def create_lesson(user_id: str, quest_id: str):
             return jsonify({'error': 'Title is required'}), 400
 
         user_org_id = quest.get('_user_org')
-        if not user_org_id:
+        user_role = quest.get('_user_role')
+
+        # Allow superadmin to create lessons without org requirement
+        if not user_org_id and user_role != 'superadmin':
             return jsonify({'error': 'User must belong to an organization to create lessons'}), 400
+
+        # For superadmin without org, use quest's organization_id or null
+        if user_role == 'superadmin' and not user_org_id:
+            user_org_id = quest.get('organization_id')
 
         lesson = service.create_lesson(
             quest_id=quest_id,

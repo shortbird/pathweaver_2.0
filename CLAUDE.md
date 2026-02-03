@@ -209,20 +209,33 @@ user_quest_tasks     - id, user_id, quest_id, title, pillar, xp_value
 
 ## Local Development
 
-**Check if servers running:**
+**Check if servers running (from WSL):**
 ```bash
-curl -s http://localhost:5001/api/health  # Backend
-curl -s http://localhost:3000             # Frontend
+powershell.exe -Command "Invoke-WebRequest -Uri 'http://localhost:5001/api/health' -UseBasicParsing | Select-Object StatusCode"
+powershell.exe -Command "Test-NetConnection -ComputerName localhost -Port 3000 | Select-Object TcpTestSucceeded"
 ```
 
-**Start if not running:**
+**Start servers (from WSL using PowerShell):**
 ```bash
-npx kill-port 3000 5001
-cd C:/Users/tanne/Desktop/pw_v2 && venv/Scripts/python.exe backend/app.py  # background
-cd C:/Users/tanne/Desktop/pw_v2/frontend && npm run dev  # background
+# Backend
+powershell.exe -Command "Start-Process -FilePath 'C:\Users\tanne\Desktop\pw_v2\venv\Scripts\python.exe' -ArgumentList 'C:\Users\tanne\Desktop\pw_v2\backend\app.py' -WorkingDirectory 'C:\Users\tanne\Desktop\pw_v2' -WindowStyle Hidden"
+
+# Frontend
+powershell.exe -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c cd /d C:\Users\tanne\Desktop\pw_v2\frontend && npm run dev' -WindowStyle Hidden"
+
+# Wait for startup
+sleep 10
 ```
 
-**Before committing:** `npx kill-port 3000 5001`
+**Stop servers:**
+```bash
+powershell.exe -Command "Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force"
+powershell.exe -Command "Get-Process -Name python -ErrorAction SilentlyContinue | Where-Object { \$_.Path -like '*pw_v2*' } | Stop-Process -Force"
+```
+
+**Note:** WSL2 cannot directly access Windows localhost. Use `powershell.exe` commands to interact with local servers.
+
+**Before committing:** Stop the servers using the commands above
 
 **Full setup guide:** [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md)
 

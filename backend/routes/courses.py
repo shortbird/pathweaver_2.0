@@ -881,6 +881,10 @@ def remove_quest_from_course(user_id, course_id: str, quest_id: str):
 
         delete_quest = request.args.get('delete_quest', 'false').lower() == 'true'
 
+        # Only superadmin can permanently delete quests
+        if delete_quest and effective_role != 'superadmin':
+            delete_quest = False  # Force to just remove, not delete
+
         # Remove from course_quests junction table
         client.table('course_quests').delete().eq(
             'course_id', course_id

@@ -242,7 +242,16 @@ const CourseBuilder = () => {
 
       const updatedQuest = { ...quest, order_index: quests.length }
       setQuests([...quests, updatedQuest])
-      setLessonsMap(prev => ({ ...prev, [quest.id]: [] }))
+
+      // Fetch existing lessons for this quest instead of setting an empty array
+      try {
+        const lessonsResponse = await api.get(`/api/quests/${quest.id}/curriculum/lessons?include_unpublished=true`)
+        setLessonsMap(prev => ({ ...prev, [quest.id]: lessonsResponse.data.lessons || [] }))
+      } catch (lessonError) {
+        console.error(`Failed to load lessons for quest ${quest.id}:`, lessonError)
+        setLessonsMap(prev => ({ ...prev, [quest.id]: [] }))
+      }
+
       setExpandedIds(prev => new Set([...prev, quest.id]))
       setSelectedItem(updatedQuest)
       setSelectedType('project')
@@ -258,15 +267,23 @@ const CourseBuilder = () => {
 
   // Remove quest from course
   const handleRemoveQuest = async (questId) => {
-    const deleteQuest = window.confirm(
-      'Remove this project from the course?\n\n' +
-      'Click OK to also DELETE the project permanently (if not used elsewhere).\n' +
-      'Click Cancel to just remove from this course (keeps the project).'
-    )
+    let deleteQuest = false
 
-    if (!deleteQuest) {
-      const justRemove = window.confirm('Remove the project from this course without deleting it?')
-      if (!justRemove) return
+    if (isSuperadmin) {
+      // Only superadmin sees the permanent delete option
+      deleteQuest = window.confirm(
+        'Remove this project from the course?\n\n' +
+        'Click OK to also DELETE the project permanently (if not used elsewhere).\n' +
+        'Click Cancel to just remove from this course (keeps the project).'
+      )
+      if (!deleteQuest) {
+        const justRemove = window.confirm('Remove the project from this course without deleting it?')
+        if (!justRemove) return
+      }
+    } else {
+      // Non-superadmin only gets the remove option
+      const confirmRemove = window.confirm('Remove this project from the course?')
+      if (!confirmRemove) return
     }
 
     try {
