@@ -83,15 +83,17 @@ class OrganizationRepository(BaseRepository):
         """Get all users in an organization, optionally filtered by role.
 
         Note: Organization users have role='org_managed' with their actual role in org_role.
-        So filtering by 'student' will filter by org_role='student'.
+        Users can also have multiple roles in org_roles array (e.g., ['advisor', 'parent']).
+        So filtering by 'parent' will return users with org_role='parent' OR 'parent' in org_roles.
         """
         query = self.client.table('users')\
-            .select('id, email, display_name, first_name, last_name, role, org_role, is_org_admin, total_xp')\
+            .select('id, email, username, display_name, first_name, last_name, role, org_role, org_roles, is_org_admin, total_xp')\
             .eq('organization_id', org_id)
 
         if role:
-            # Organization users have role='org_managed' with actual role in org_role
-            query = query.eq('org_role', role)
+            # Check both org_role (single value) and org_roles (array) for the role
+            # This supports users with multiple roles like ['advisor', 'parent']
+            query = query.or_(f'org_role.eq.{role},org_roles.cs.["{role}"]')
 
         response = query.order('first_name').execute()
         return response.data if response.data else []

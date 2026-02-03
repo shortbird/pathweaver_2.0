@@ -95,6 +95,10 @@ const CurriculumPage = lazy(() => import('./pages/curriculum/CurriculumPage'))
 const CourseBuilder = lazy(() => import('./pages/courses/CourseBuilder'))
 const CourseHomepage = lazy(() => import('./pages/courses/CourseHomepage'))
 const CourseCatalog = lazy(() => import('./pages/courses/CourseCatalog'))
+const PublicCoursePage = lazy(() => import('./pages/courses/PublicCoursePage'))
+const PublicCatalogPage = lazy(() => import('./pages/courses/PublicCatalogPage'))
+// Platform explainer page
+const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage'))
 const CoursePlanMode = lazy(() => import('./pages/admin/CoursePlanMode'))
 const MyInvitations = lazy(() => import('./pages/student/MyInvitations'))
 const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
@@ -379,6 +383,10 @@ function App() {
                 <Route path="academy-handbook" element={<OptioAcademyHandbook />} />
                 <Route path="observer/accept/:invitationCode" element={<ObserverAcceptInvitationPage />} />
                 <Route path="parental-consent" element={<ParentalConsentUploadPage />} />
+                {/* Public course pages (no auth required) */}
+                <Route path="catalog" element={<PublicCatalogPage />} />
+                <Route path="course/:slug" element={<PublicCoursePage />} />
+                <Route path="how-it-works" element={<HowItWorksPage />} />
 
               <Route element={<PrivateRoute />}>
                 <Route path="dashboard" element={<DashboardPage />} />

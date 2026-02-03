@@ -5,6 +5,42 @@ import api from './api'
  * Handles all API calls related to LMS courses and course-quest relationships.
  */
 
+// ==================== Public Course Endpoints ====================
+
+/**
+ * Get all public courses (no authentication required)
+ * @param {Object} [params] - Query parameters
+ * @param {number} [params.limit] - Maximum courses to return (default: 50)
+ * @param {number} [params.offset] - Number to skip (default: 0)
+ * @returns {Promise<{success: boolean, courses: Array, count: number}>}
+ */
+export const getPublicCourses = async (params = {}) => {
+  try {
+    const response = await api.get('/api/public/courses', { params })
+    return response.data
+  } catch (error) {
+    console.error('Error fetching public courses:', error)
+    throw error
+  }
+}
+
+/**
+ * Get a public course by its slug (no authentication required)
+ * @param {string} slug - URL-friendly course identifier
+ * @returns {Promise<{success: boolean, course: Object}>}
+ */
+export const getPublicCourseBySlug = async (slug) => {
+  try {
+    const response = await api.get(`/api/public/courses/${slug}`)
+    return response.data
+  } catch (error) {
+    console.error(`Error fetching public course ${slug}:`, error)
+    throw error
+  }
+}
+
+// ==================== Authenticated Course Endpoints ====================
+
 /**
  * Get all courses (with optional filters)
  * @param {Object} [params] - Query parameters
@@ -244,7 +280,29 @@ export const deleteCourse = async (courseId, { deleteQuests = false } = {}) => {
   }
 }
 
+/**
+ * Generate showcase fields using AI based on course projects and lessons
+ * @param {string} courseId - Course ID
+ * @returns {Promise<{success: boolean, showcase: Object}>}
+ * showcase contains: learning_outcomes, final_deliverable, guidance_level,
+ * academic_alignment, age_range, estimated_hours
+ */
+export const generateShowcaseFields = async (courseId) => {
+  try {
+    // CSRF: Empty body required for POST requests
+    const response = await api.post(`/api/courses/${courseId}/generate-showcase`, {})
+    return response.data
+  } catch (error) {
+    console.error(`Error generating showcase fields for course ${courseId}:`, error)
+    throw error
+  }
+}
+
 export default {
+  // Public endpoints (no auth required)
+  getPublicCourses,
+  getPublicCourseBySlug,
+  // Authenticated endpoints
   getCourses,
   getCourseById,
   createCourse,
@@ -258,5 +316,6 @@ export default {
   enrollInCourse,
   unenrollFromCourse,
   endCourse,
-  getCourseProgress
+  getCourseProgress,
+  generateShowcaseFields
 }

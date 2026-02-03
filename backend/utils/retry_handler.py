@@ -213,3 +213,73 @@ def retry_api_call(func):
 def retry_network_operation(func):
     """Retry decorator specifically for network operations"""
     return retry_on_exception('network')(func)
+
+
+def with_connection_retry(operation: Callable, max_retries: int = 3, base_delay: float = 0.5, operation_name: str = None):
+    """
+    Execute an operation with automatic retry on transient connection failures.
+
+    Use this for inline operations (lambdas) that can't use decorators.
+    Specifically designed for Supabase database calls that may fail with
+    "Connection reset by peer" (errno 104) when connections become stale.
+
+    Args:
+        operation: A callable (function or lambda) to execute
+        max_retries: Maximum number of retry attempts (default: 3)
+        base_delay: Base delay in seconds for exponential backoff (default: 0.5)
+        operation_name: Optional name for logging (default: uses callable name)
+
+    Returns:
+        The result of the operation
+
+    Raises:
+        The last exception if all retries fail
+
+    Usage:
+        # Basic usage with lambda
+        result = with_connection_retry(
+            lambda: admin_client.table('users').select('*').eq('id', user_id).execute()
+        )
+
+        # With custom settings
+        result = with_connection_retry(
+            lambda: some_db_call(),
+            max_retries=5,
+            operation_name='fetch_user_profile'
+        )
+    """
+    name = operation_name or getattr(operation, '__name__', 'anonymous_operation')
+    last_error = None
+
+    for attempt in range(max_retries):
+        try:
+            return operation()
+        except Exception as e:
+            last_error = e
+
+            # Only retry on transient connection errors
+            if not is_retryable_error(e):
+                raise
+
+            # Don't retry on the last attempt
+            if attempt >= max_retries - 1:
+                logger.error(
+                    f"All {max_retries} retry attempts failed for {name}: {str(e)}"
+                )
+                raise
+
+            # Calculate exponential backoff delay
+            delay = base_delay * (2 ** attempt)
+            # Add small jitter to prevent thundering herd
+            delay = delay * (0.5 + random.random())
+
+            logger.warning(
+                f"Connection retry {attempt + 1}/{max_retries} for {name}: {str(e)}. "
+                f"Waiting {delay:.2f}s before retry."
+            )
+
+            time.sleep(delay)
+
+    # Should not reach here, but raise last error just in case
+    if last_error:
+        raise last_error

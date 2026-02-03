@@ -1,4 +1,5 @@
 import React, { useState, useEffect, memo } from 'react'
+import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import MetricCard from './charts/MetricCard'
@@ -26,12 +27,17 @@ const AlertIcon = () => (
 )
 
 const AdminDashboard = () => {
+  const { user } = useAuth()
   const [overviewData, setOverviewData] = useState(null)
   const [activityData, setActivityData] = useState(null)
   const [trendsData, setTrendsData] = useState(null)
+  const [aiCostData, setAiCostData] = useState(null)
+  const [aiTrendsData, setAiTrendsData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
+
+  const isSuperadmin = user?.role === 'superadmin'
 
   useEffect(() => {
     fetchAllData()
@@ -46,16 +52,33 @@ const AdminDashboard = () => {
       if (!loading) setRefreshing(true)
       setLoading(true)
 
-      // Fetch all analytics data in parallel (simplified - no health endpoint)
-      const [overviewRes, activityRes, trendsRes] = await Promise.all([
+      // Build promise array - include AI data only for superadmin
+      const promises = [
         api.get('/api/admin/analytics/overview'),
         api.get('/api/admin/analytics/activity'),
         api.get('/api/admin/analytics/trends')
-      ])
+      ]
 
-      setOverviewData(overviewRes.data.data)
-      setActivityData(activityRes.data.data)
-      setTrendsData(trendsRes.data.data)
+      // Add AI analytics endpoints for superadmins
+      if (isSuperadmin) {
+        promises.push(
+          api.get('/api/admin/ai/costs/summary?days=30').catch(() => ({ data: null })),
+          api.get('/api/admin/ai/costs/trends?days=30').catch(() => ({ data: null }))
+        )
+      }
+
+      const results = await Promise.all(promises)
+
+      setOverviewData(results[0].data.data)
+      setActivityData(results[1].data.data)
+      setTrendsData(results[2].data.data)
+
+      // Set AI data if superadmin
+      if (isSuperadmin && results.length > 3) {
+        setAiCostData(results[3].data)
+        setAiTrendsData(results[4].data)
+      }
+
       setLastUpdated(new Date())
 
     } catch (error) {
@@ -392,26 +415,131 @@ const AdminDashboard = () => {
               </p>
             </button>
 
-            {/* AI Tools */}
+            {/* Curriculum Upload */}
             <button
-              onClick={() => window.location.href = '/admin/ai-pipeline'}
+              onClick={() => window.location.href = '/admin/curriculum-upload'}
               className="group relative p-6 bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 rounded-xl hover:from-indigo-100 hover:to-indigo-200 transition-all duration-200 text-left min-h-[44px]"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="p-3 bg-indigo-500 rounded-lg">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                   </svg>
                 </div>
                 <svg className="w-5 h-5 text-indigo-400 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </div>
-              <h3 className="font-semibold text-gray-900 mb-1">AI Tools</h3>
-              <p className="text-sm text-gray-600">Access AI content pipeline and analytics</p>
+              <h3 className="font-semibold text-gray-900 mb-1">AI Upload</h3>
+              <p className="text-sm text-gray-600">Upload curriculum for AI processing</p>
             </button>
           </div>
         </div>
+
+        {/* AI Analytics Section - Superadmin Only */}
+        {isSuperadmin && aiCostData && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <h2 className="text-xl font-semibold text-gray-900">AI Analytics</h2>
+              <div className="text-sm text-gray-500">Last 30 days</div>
+            </div>
+
+            {/* AI Metrics Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Total AI Requests</p>
+                    <p className="text-3xl font-bold text-gray-900">{formatMetricValue(aiCostData.total_requests)}</p>
+                    <p className="text-sm text-gray-500 mt-1">{aiCostData.period_days} day period</p>
+                  </div>
+                  <div className="h-12 w-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Total Tokens</p>
+                    <p className="text-3xl font-bold text-gray-900">{formatMetricValue(aiCostData.total_tokens)}</p>
+                    <p className="text-sm text-gray-500 mt-1">{formatMetricValue(aiCostData.avg_tokens_per_request)} avg/request</p>
+                  </div>
+                  <div className="h-12 w-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Total Cost</p>
+                    <p className="text-3xl font-bold text-gray-900">${(aiCostData.total_cost_usd || 0).toFixed(2)}</p>
+                    <p className="text-sm text-gray-500 mt-1">${(aiCostData.avg_cost_per_request || 0).toFixed(4)} avg/req</p>
+                  </div>
+                  <div className="h-12 w-12 bg-green-100 rounded-xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`rounded-xl shadow-sm border-2 p-6 ${
+                (aiCostData.failed_requests || 0) > 10
+                  ? 'bg-red-50 border-red-200'
+                  : 'bg-white border-gray-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Success Rate</p>
+                    <p className={`text-3xl font-bold ${
+                      (aiCostData.failed_requests || 0) > 10 ? 'text-red-600' : 'text-gray-900'
+                    }`}>
+                      {aiCostData.total_requests > 0
+                        ? `${((aiCostData.successful_requests / aiCostData.total_requests) * 100).toFixed(1)}%`
+                        : '100%'
+                      }
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">{aiCostData.failed_requests || 0} failed</p>
+                  </div>
+                  <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
+                    (aiCostData.failed_requests || 0) > 10
+                      ? 'bg-red-200'
+                      : 'bg-emerald-100'
+                  }`}>
+                    <svg className={`w-6 h-6 ${
+                      (aiCostData.failed_requests || 0) > 10 ? 'text-red-600' : 'text-emerald-600'
+                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Cost Trends Chart */}
+            {aiTrendsData?.trends && aiTrendsData.trends.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">AI Usage Trend</h3>
+                  <div className="text-sm text-gray-500">Daily requests over time</div>
+                </div>
+                <LineChart
+                  data={aiTrendsData.trends.reduce((acc, t) => ({ ...acc, [t.date]: t.requests }), {})}
+                  title=""
+                  loading={loading}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

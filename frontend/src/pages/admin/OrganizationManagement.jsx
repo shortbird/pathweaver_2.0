@@ -3,18 +3,25 @@ import { useParams, useSearchParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import api from '../../services/api'
-import { OverviewTab, UsersTab, QuestsTab, CourseTab, ConnectionsTab } from '../../components/organization'
+import { SettingsTab, PeopleTab, ContentTab } from '../../components/organization'
 
 const OrgStudentProgress = lazy(() => import('../../components/admin/OrgStudentProgress'))
 
 const TABS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'users', label: 'Users' },
-  { id: 'connections', label: 'Connections' },
-  { id: 'quests', label: 'Quests' },
-  { id: 'courses', label: 'Courses' },
+  { id: 'settings', label: 'Settings' },
+  { id: 'people', label: 'People' },
+  { id: 'content', label: 'Content' },
   { id: 'progress', label: 'Progress' }
 ]
+
+// Map old tab names to new ones for URL compatibility
+const TAB_REDIRECTS = {
+  'overview': 'settings',
+  'users': 'people',
+  'connections': 'people',
+  'quests': 'content',
+  'courses': 'content'
+}
 
 export default function OrganizationManagement() {
   const { orgId: urlOrgId } = useParams()
@@ -31,18 +38,40 @@ export default function OrganizationManagement() {
 
   // Check for tab from navigation state (e.g., returning from student portfolio)
   const tabFromState = location.state?.activeTab
-  const tabFromUrl = searchParams.get('tab') || 'overview'
-  const [activeTab, setActiveTab] = useState(tabFromState || tabFromUrl)
+  const tabFromUrl = searchParams.get('tab') || 'settings'
+
+  // Handle redirects from old tab names
+  const getResolvedTab = (tab) => {
+    if (TAB_REDIRECTS[tab]) {
+      return TAB_REDIRECTS[tab]
+    }
+    // If the tab doesn't exist in TABS, default to settings
+    if (!TABS.find(t => t.id === tab)) {
+      return 'settings'
+    }
+    return tab
+  }
+
+  const [activeTab, setActiveTab] = useState(getResolvedTab(tabFromState || tabFromUrl))
 
   useEffect(() => {
     // If we came from navigation state (e.g., returning from student portfolio), use that tab
     if (tabFromState) {
-      setSearchParams({ tab: tabFromState }, { replace: true })
+      const resolvedTab = getResolvedTab(tabFromState)
+      setSearchParams({ tab: resolvedTab }, { replace: true })
+      setActiveTab(resolvedTab)
       return
     }
-    const tab = searchParams.get('tab') || 'overview'
-    if (tab !== activeTab) {
-      setActiveTab(tab)
+    const tab = searchParams.get('tab') || 'settings'
+    const resolvedTab = getResolvedTab(tab)
+
+    // Redirect old URLs to new tab names
+    if (resolvedTab !== tab) {
+      setSearchParams({ tab: resolvedTab }, { replace: true })
+    }
+
+    if (resolvedTab !== activeTab) {
+      setActiveTab(resolvedTab)
     }
   }, [searchParams, tabFromState])
 
@@ -136,8 +165,8 @@ export default function OrganizationManagement() {
         </nav>
       </div>
 
-      {activeTab === 'overview' && (
-        <OverviewTab
+      {activeTab === 'settings' && (
+        <SettingsTab
           orgId={orgId}
           orgData={orgData}
           onUpdate={fetchOrganizationData}
@@ -145,8 +174,8 @@ export default function OrganizationManagement() {
         />
       )}
 
-      {activeTab === 'users' && (
-        <UsersTab
+      {activeTab === 'people' && (
+        <PeopleTab
           orgId={orgId}
           orgSlug={orgData.organization?.slug}
           users={orgData.users}
@@ -154,21 +183,8 @@ export default function OrganizationManagement() {
         />
       )}
 
-      {activeTab === 'connections' && (
-        <ConnectionsTab orgId={orgId} />
-      )}
-
-      {activeTab === 'quests' && (
-        <QuestsTab
-          orgId={orgId}
-          orgData={orgData}
-          onUpdate={fetchOrganizationData}
-          siteSettings={siteSettings}
-        />
-      )}
-
-      {activeTab === 'courses' && (
-        <CourseTab
+      {activeTab === 'content' && (
+        <ContentTab
           orgId={orgId}
           orgData={orgData}
           onUpdate={fetchOrganizationData}

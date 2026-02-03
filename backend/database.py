@@ -37,10 +37,17 @@ def _get_shared_http_client() -> httpx.Client:
     """
     global _shared_http_client
     if _shared_http_client is None:
+        # CRITICAL FIX: Use 30s keepalive instead of Config.SUPABASE_CONN_LIFETIME (3600s)
+        # Network intermediaries (Render load balancers, Supabase infrastructure, NAT gateways)
+        # typically close idle connections after 30-60 seconds. When a connection sits idle
+        # for 1+ minutes then gets reused, the remote has already closed it, causing
+        # "Connection reset by peer" errors (errno 104) that cause random auth failures.
+        # Setting keepalive_expiry to 30s ensures stale connections are dropped from the pool
+        # before network intermediaries close them.
         limits = httpx.Limits(
             max_connections=Config.SUPABASE_POOL_SIZE + getattr(Config, 'SUPABASE_MAX_OVERFLOW', 5),
             max_keepalive_connections=Config.SUPABASE_POOL_SIZE,
-            keepalive_expiry=Config.SUPABASE_CONN_LIFETIME
+            keepalive_expiry=30  # 30 seconds - shorter than typical NAT/firewall timeouts
         )
         _shared_http_client = httpx.Client(
             limits=limits,
@@ -48,7 +55,7 @@ def _get_shared_http_client() -> httpx.Client:
         )
         _get_logger().info(
             f"[DATABASE] Created shared httpx.Client (pool_size={Config.SUPABASE_POOL_SIZE}, "
-            f"timeout={Config.SUPABASE_POOL_TIMEOUT}s, keepalive={Config.SUPABASE_CONN_LIFETIME}s)"
+            f"timeout={Config.SUPABASE_POOL_TIMEOUT}s, keepalive=30s)"
         )
     return _shared_http_client
 

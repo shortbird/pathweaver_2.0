@@ -1,32 +1,36 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, memo } from 'react'
 import api, { adminParentConnectionsAPI } from '../../services/api'
 import toast from 'react-hot-toast'
-import { CheckCircleIcon, ChevronDownIcon, ChevronUpIcon, MagnifyingGlassIcon, TrashIcon, UserPlusIcon, UsersIcon, XCircleIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { MagnifyingGlassIcon, TrashIcon, UserPlusIcon, XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
+
+/**
+ * AdminConnections - Unified view for managing advisor-student and parent-student connections
+ *
+ * Simplified from the previous two-section layout into a single unified list with type filters.
+ */
 
 const AdminConnections = () => {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [filterType, setFilterType] = useState('all') // 'all', 'advisor', 'parent'
 
-  // Advisor-Student state
+  // All connections unified
+  const [connections, setConnections] = useState([])
+
+  // For adding new connections
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [addConnectionType, setAddConnectionType] = useState('advisor') // 'advisor' or 'parent'
   const [advisors, setAdvisors] = useState([])
-  const [selectedAdvisor, setSelectedAdvisor] = useState(null)
-  const [assignedStudents, setAssignedStudents] = useState([])
-  const [unassignedStudents, setUnassignedStudents] = useState([])
-  const [showAssignModal, setShowAssignModal] = useState(false)
-  const [assignLoading, setAssignLoading] = useState(false)
-  const [expandedAdvisorId, setExpandedAdvisorId] = useState(null)
-
-  // Parent-Student state
-  const [parentLinks, setParentLinks] = useState([])
   const [parents, setParents] = useState([])
   const [students, setStudents] = useState([])
-  const [showDisconnectModal, setShowDisconnectModal] = useState(false)
-  const [showAddConnectionModal, setShowAddConnectionModal] = useState(false)
-  const [selectedLink, setSelectedLink] = useState(null)
-  const [selectedParent, setSelectedParent] = useState(null)
+  const [selectedPerson, setSelectedPerson] = useState(null)
   const [selectedStudentIds, setSelectedStudentIds] = useState([])
-  const [adminNotes, setAdminNotes] = useState('')
-  const [addConnectionLoading, setAddConnectionLoading] = useState(false)
+  const [addLoading, setAddLoading] = useState(false)
+  const [modalSearchTerm, setModalSearchTerm] = useState('')
+
+  // For disconnect confirmation
+  const [showDisconnectModal, setShowDisconnectModal] = useState(false)
+  const [selectedConnection, setSelectedConnection] = useState(null)
 
   useEffect(() => {
     loadAllData()
@@ -36,229 +40,225 @@ const AdminConnections = () => {
     setLoading(true)
     try {
       await Promise.all([
-        fetchAdvisors(),
-        fetchUnassignedStudents(),
-        loadParentLinks(),
-        loadParentsAndStudents()
+        loadConnections(),
+        loadAdvisorsAndParents(),
+        loadStudents()
       ])
     } catch (error) {
       console.error('Error loading data:', error)
+      toast.error('Failed to load connections')
     } finally {
       setLoading(false)
     }
   }
 
-  // Advisor-Student functions
-  const fetchAdvisors = async () => {
+  const loadConnections = async () => {
     try {
-      const response = await api.get('/api/admin/advisors')
-      setAdvisors(response.data.advisors || [])
-    } catch (error) {
-      toast.error('Failed to load advisors')
-      console.error('Error fetching advisors:', error)
-    }
-  }
-
-  const fetchUnassignedStudents = async () => {
-    try {
-      const response = await api.get('/api/admin/students/unassigned')
-      setUnassignedStudents(response.data.students || [])
-    } catch (error) {
-      console.error('Error fetching unassigned students:', error)
-    }
-  }
-
-  const fetchAdvisorStudents = async (advisorId) => {
-    try {
-      const response = await api.get(`/api/admin/advisors/${advisorId}/students`)
-      setAssignedStudents(response.data.students || [])
-    } catch (error) {
-      toast.error('Failed to load assigned students')
-      console.error('Error fetching advisor students:', error)
-    }
-  }
-
-  const handleSelectAdvisor = (advisor) => {
-    setSelectedAdvisor(advisor)
-    fetchAdvisorStudents(advisor.id)
-    setExpandedAdvisorId(advisor.id)
-  }
-
-  const handleAssignStudent = async (studentId) => {
-    if (!selectedAdvisor) return
-
-    setAssignLoading(true)
-    try {
-      await api.post(`/api/admin/advisors/${selectedAdvisor.id}/students`, {
-        student_id: studentId
-      })
-      toast.success('Student assigned successfully')
-
-      fetchAdvisorStudents(selectedAdvisor.id)
-      fetchUnassignedStudents()
-      fetchAdvisors()
-      setShowAssignModal(false)
-    } catch (error) {
-      const errorMessage = error.response?.data?.error || 'Failed to assign student'
-      toast.error(errorMessage)
-    } finally {
-      setAssignLoading(false)
-    }
-  }
-
-  const handleUnassignStudent = async (studentId) => {
-    if (!selectedAdvisor) return
-    if (!window.confirm('Are you sure you want to unassign this student?')) return
-
-    try {
-      await api.delete(`/api/admin/advisors/${selectedAdvisor.id}/students/${studentId}`)
-      toast.success('Student unassigned successfully')
-
-      fetchAdvisorStudents(selectedAdvisor.id)
-      fetchUnassignedStudents()
-      fetchAdvisors()
-    } catch (error) {
-      toast.error('Failed to unassign student')
-      console.error('Error unassigning student:', error)
-    }
-  }
-
-  // Parent-Student functions
-  const loadParentLinks = async () => {
-    try {
-      const response = await adminParentConnectionsAPI.getActiveLinks({ admin_verified: true })
-      setParentLinks(response.data.links || [])
-    } catch (error) {
-      console.error('Error loading parent links:', error)
-    }
-  }
-
-  const loadParentsAndStudents = async () => {
-    try {
-      const [parentsResponse, studentsResponse] = await Promise.all([
-        adminParentConnectionsAPI.getAllUsers({ role: 'parent', per_page: 100 }),
-        adminParentConnectionsAPI.getAllUsers({ role: 'student', per_page: 100 })
+      // Load both advisor-student and parent-student connections
+      const [advisorRes, parentRes] = await Promise.all([
+        api.get('/api/admin/advisors'),
+        adminParentConnectionsAPI.getActiveLinks({ admin_verified: true })
       ])
-      setParents(parentsResponse.data.users || [])
-      setStudents(studentsResponse.data.users || [])
+
+      const allConnections = []
+
+      // Process advisor connections
+      const advisorList = advisorRes.data.advisors || []
+      for (const advisor of advisorList) {
+        // Fetch students for each advisor
+        try {
+          const studentsRes = await api.get(`/api/admin/advisors/${advisor.id}/students`)
+          const assignedStudents = studentsRes.data.students || []
+          for (const student of assignedStudents) {
+            allConnections.push({
+              id: `advisor-${advisor.id}-${student.id}`,
+              type: 'advisor',
+              person: {
+                id: advisor.id,
+                name: advisor.display_name || `${advisor.first_name} ${advisor.last_name}`,
+                email: advisor.email,
+                role: advisor.role
+              },
+              student: {
+                id: student.id,
+                name: student.display_name || `${student.first_name} ${student.last_name}`,
+                email: student.email
+              },
+              created_at: student.assigned_at
+            })
+          }
+        } catch (e) {
+          console.error(`Failed to load students for advisor ${advisor.id}`)
+        }
+      }
+
+      // Process parent connections
+      const parentLinks = parentRes.data.links || []
+      for (const link of parentLinks) {
+        allConnections.push({
+          id: `parent-${link.id}`,
+          originalId: link.id,
+          type: 'parent',
+          person: {
+            id: link.parent?.id || link.parent_user_id,
+            name: `${link.parent?.first_name || ''} ${link.parent?.last_name || ''}`.trim(),
+            email: link.parent?.email
+          },
+          student: {
+            id: link.student?.id || link.student_user_id,
+            name: `${link.student?.first_name || ''} ${link.student?.last_name || ''}`.trim(),
+            email: link.student?.email
+          },
+          created_at: link.created_at
+        })
+      }
+
+      setConnections(allConnections)
     } catch (error) {
-      console.error('Error loading parents and students:', error)
+      console.error('Error loading connections:', error)
     }
   }
 
+  const loadAdvisorsAndParents = async () => {
+    try {
+      const [advisorRes, parentRes] = await Promise.all([
+        api.get('/api/admin/advisors'),
+        adminParentConnectionsAPI.getAllUsers({ role: 'parent', per_page: 100 })
+      ])
+      setAdvisors(advisorRes.data.advisors || [])
+      setParents(parentRes.data.users || [])
+    } catch (error) {
+      console.error('Error loading advisors and parents:', error)
+    }
+  }
+
+  const loadStudents = async () => {
+    try {
+      const response = await adminParentConnectionsAPI.getAllUsers({ role: 'student', per_page: 100 })
+      setStudents(response.data.users || [])
+    } catch (error) {
+      console.error('Error loading students:', error)
+    }
+  }
+
+  // Filter connections based on search and type
+  const filteredConnections = connections.filter(conn => {
+    // Type filter
+    if (filterType !== 'all' && conn.type !== filterType) return false
+
+    // Search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase()
+      return (
+        conn.person.name?.toLowerCase().includes(search) ||
+        conn.person.email?.toLowerCase().includes(search) ||
+        conn.student.name?.toLowerCase().includes(search) ||
+        conn.student.email?.toLowerCase().includes(search)
+      )
+    }
+    return true
+  })
+
+  // Add connection handlers
   const handleAddConnection = async () => {
-    if (!selectedParent || selectedStudentIds.length === 0) {
-      toast.error('Please select a parent and at least one student')
+    if (!selectedPerson || selectedStudentIds.length === 0) {
+      toast.error('Please select a person and at least one student')
       return
     }
 
-    setAddConnectionLoading(true)
+    setAddLoading(true)
     try {
-      // Create connections for each selected student
-      await Promise.all(
-        selectedStudentIds.map(studentId =>
-          adminParentConnectionsAPI.createManualLink(selectedParent.id, studentId, adminNotes)
+      if (addConnectionType === 'advisor') {
+        // Add advisor-student connections
+        await Promise.all(
+          selectedStudentIds.map(studentId =>
+            api.post(`/api/admin/advisors/${selectedPerson.id}/students`, { student_id: studentId })
+          )
         )
-      )
+        toast.success(`Assigned ${selectedStudentIds.length} student(s) to advisor`)
+      } else {
+        // Add parent-student connections
+        await Promise.all(
+          selectedStudentIds.map(studentId =>
+            adminParentConnectionsAPI.createManualLink(selectedPerson.id, studentId, '')
+          )
+        )
+        toast.success(`Connected ${selectedStudentIds.length} student(s) to parent`)
+      }
 
-      const studentCount = selectedStudentIds.length
-      toast.success(`Successfully added ${studentCount} student${studentCount > 1 ? 's' : ''} to parent`)
-      setShowAddConnectionModal(false)
-      setSelectedParent(null)
-      setSelectedStudentIds([])
-      setAdminNotes('')
-      loadParentLinks()
+      setShowAddModal(false)
+      resetAddModal()
+      loadConnections()
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to create connection')
+      toast.error(error.response?.data?.error || 'Failed to add connection')
     } finally {
-      setAddConnectionLoading(false)
+      setAddLoading(false)
     }
   }
 
-  const handleDisconnectParentLink = async () => {
-    if (!selectedLink) return
+  const handleDisconnect = async () => {
+    if (!selectedConnection) return
 
     try {
-      await adminParentConnectionsAPI.disconnectLink(selectedLink.id)
-      toast.success('Connection disconnected')
+      if (selectedConnection.type === 'advisor') {
+        await api.delete(`/api/admin/advisors/${selectedConnection.person.id}/students/${selectedConnection.student.id}`)
+        toast.success('Student unassigned from advisor')
+      } else {
+        await adminParentConnectionsAPI.disconnectLink(selectedConnection.originalId)
+        toast.success('Parent-student connection removed')
+      }
+
       setShowDisconnectModal(false)
-      setSelectedLink(null)
-      loadParentLinks()
+      setSelectedConnection(null)
+      loadConnections()
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to disconnect')
     }
   }
 
-  const toggleStudentSelection = (studentId) => {
-    setSelectedStudentIds(prev => {
-      if (prev.includes(studentId)) {
-        return prev.filter(id => id !== studentId)
-      } else {
-        return [...prev, studentId]
-      }
-    })
+  const resetAddModal = () => {
+    setSelectedPerson(null)
+    setSelectedStudentIds([])
+    setModalSearchTerm('')
   }
 
-  // Filtering
-  const filteredUnassignedStudents = unassignedStudents.filter(student => {
-    const searchLower = searchTerm.toLowerCase()
-    const displayName = student.display_name || ''
-    const email = student.email || ''
-    const firstName = student.first_name || ''
-    const lastName = student.last_name || ''
-
-    return (
-      displayName.toLowerCase().includes(searchLower) ||
-      email.toLowerCase().includes(searchLower) ||
-      firstName.toLowerCase().includes(searchLower) ||
-      lastName.toLowerCase().includes(searchLower)
+  const toggleStudentSelection = (studentId) => {
+    setSelectedStudentIds(prev =>
+      prev.includes(studentId)
+        ? prev.filter(id => id !== studentId)
+        : [...prev, studentId]
     )
-  })
+  }
 
-  const filteredParentLinks = parentLinks.filter(link => {
-    if (!searchTerm) return true
-    const search = searchTerm.toLowerCase()
-    return (
-      link.parent?.first_name?.toLowerCase().includes(search) ||
-      link.parent?.last_name?.toLowerCase().includes(search) ||
-      link.parent?.email?.toLowerCase().includes(search) ||
-      link.student?.first_name?.toLowerCase().includes(search) ||
-      link.student?.last_name?.toLowerCase().includes(search) ||
-      link.student?.email?.toLowerCase().includes(search)
-    )
-  })
-
-  const filteredParents = parents.filter(parent => {
-    if (!searchTerm) return true
-    const search = searchTerm.toLowerCase()
-    return (
-      parent.first_name?.toLowerCase().includes(search) ||
-      parent.last_name?.toLowerCase().includes(search) ||
-      parent.email?.toLowerCase().includes(search) ||
-      parent.display_name?.toLowerCase().includes(search)
-    )
-  })
-
+  // Get available students for the selected person (excludes already connected)
   const getAvailableStudents = () => {
-    if (!selectedParent) return []
+    if (!selectedPerson) return []
 
-    const linkedStudentIds = parentLinks
-      .filter(link => link.parent_user_id === selectedParent.id)
-      .map(link => link.student_user_id)
+    const connectedStudentIds = connections
+      .filter(c => c.type === addConnectionType && c.person.id === selectedPerson.id)
+      .map(c => c.student.id)
 
-    return students.filter(student => !linkedStudentIds.includes(student.id))
+    return students.filter(s => !connectedStudentIds.includes(s.id))
   }
 
   const filteredAvailableStudents = getAvailableStudents().filter(student => {
-    if (!searchTerm) return true
-    const search = searchTerm.toLowerCase()
+    if (!modalSearchTerm) return true
+    const search = modalSearchTerm.toLowerCase()
     return (
       student.first_name?.toLowerCase().includes(search) ||
       student.last_name?.toLowerCase().includes(search) ||
-      student.email?.toLowerCase().includes(search) ||
-      student.display_name?.toLowerCase().includes(search)
+      student.email?.toLowerCase().includes(search)
     )
   })
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'Unknown'
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })
+  }
 
   if (loading) {
     return (
@@ -268,436 +268,328 @@ const AdminConnections = () => {
     )
   }
 
+  const advisorCount = connections.filter(c => c.type === 'advisor').length
+  const parentCount = connections.filter(c => c.type === 'parent').length
+
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
+    <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>Connections</h2>
-        <p className="text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>Manage advisor-student assignments and parent-student connections</p>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">Connections</h2>
+          <p className="text-gray-600 text-sm">Manage advisor-student and parent-student relationships</p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium"
+        >
+          <UserPlusIcon className="w-5 h-5" />
+          Add Connection
+        </button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 rounded-lg text-white shadow-md">
-          <div className="flex items-center gap-3">
-            <UsersIcon className="w-10 h-10" />
-            <div>
-              <p className="text-sm opacity-90" style={{ fontFamily: 'Poppins, sans-serif' }}>Advisor-Student</p>
-              <p className="text-3xl font-bold" style={{ fontFamily: 'Poppins, sans-serif' }}>{advisors.length}</p>
-              <p className="text-sm opacity-90" style={{ fontFamily: 'Poppins, sans-serif' }}>Advisors & Admins</p>
-            </div>
+      {/* Search and Filters */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          {/* Search */}
+          <div className="relative flex-1">
+            <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by name or email..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+              aria-label="Search connections"
+            />
           </div>
-        </div>
 
-        <div className="bg-gradient-to-r from-optio-pink to-optio-purple p-6 rounded-lg text-white shadow-md">
-          <div className="flex items-center gap-3">
-            <UserPlusIcon className="w-10 h-10" />
-            <div>
-              <p className="text-sm opacity-90" style={{ fontFamily: 'Poppins, sans-serif' }}>Parent-Student</p>
-              <p className="text-3xl font-bold" style={{ fontFamily: 'Poppins, sans-serif' }}>{parentLinks.length}</p>
-              <p className="text-sm opacity-90" style={{ fontFamily: 'Poppins, sans-serif' }}>Active Connections</p>
-            </div>
+          {/* Type Filter Pills */}
+          <div className="flex bg-gray-100 rounded-lg p-1 self-start">
+            <button
+              onClick={() => setFilterType('all')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                filterType === 'all'
+                  ? 'bg-white shadow-sm text-gray-900'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              All ({connections.length})
+            </button>
+            <button
+              onClick={() => setFilterType('advisor')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                filterType === 'advisor'
+                  ? 'bg-white shadow-sm text-gray-900'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Advisors ({advisorCount})
+            </button>
+            <button
+              onClick={() => setFilterType('parent')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                filterType === 'parent'
+                  ? 'bg-white shadow-sm text-gray-900'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Parents ({parentCount})
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Advisor-Student Connections Section */}
-      <section className="bg-white rounded-lg shadow p-6">
-        <div className="mb-6">
-          <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>Advisor-Student Connections</h3>
-          <p className="text-gray-600 text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>Assign students to advisors and admins for check-ins and support</p>
+      {/* Connections List */}
+      {filteredConnections.length === 0 ? (
+        <div className="bg-white rounded-lg shadow p-12 text-center">
+          <UserPlusIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-600 font-medium">No connections found</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {searchTerm ? 'Try adjusting your search terms' : 'Click "Add Connection" to get started'}
+          </p>
         </div>
-
-        {advisors.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
-            <UsersIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <p style={{ fontFamily: 'Poppins, sans-serif' }}>No advisors or admins found</p>
-            <p className="text-sm mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>Create users with the "advisor" or "org_admin" role first</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {advisors.map(advisor => (
-              <div key={advisor.id} className="border-2 border-gray-200 rounded-lg overflow-hidden hover:border-purple-300 transition-colors">
-                {/* Advisor Header */}
-                <button
-                  onClick={() => handleSelectAdvisor(advisor)}
-                  className="w-full p-4 text-left flex justify-between items-center bg-gray-50 hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        {advisor.display_name || `${advisor.first_name} ${advisor.last_name}`}
-                      </p>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        advisor.role === 'org_admin' || advisor.role === 'superadmin'
+      ) : (
+        <>
+          {/* Desktop Table View */}
+          <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Person
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Connected To
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Since
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredConnections.map((conn) => (
+                  <tr key={conn.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{conn.person.name}</div>
+                        <div className="text-sm text-gray-500">{conn.person.email}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        conn.type === 'advisor'
                           ? 'bg-purple-100 text-purple-800'
-                          : 'bg-blue-100 text-blue-800'
-                      }`} style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        {advisor.role === 'org_admin' ? 'Org Admin' : advisor.role === 'superadmin' ? 'Superadmin' : 'Advisor'}
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {conn.type === 'advisor' ? 'Advisor' : 'Parent'}
                       </span>
-                    </div>
-                    <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>{advisor.email}</p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm font-medium text-optio-purple" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      {advisor.assigned_students_count || 0} students
-                    </span>
-                    {expandedAdvisorId === advisor.id ? (
-                      <ChevronUpIcon className="w-5 h-5 text-gray-400" />
-                    ) : (
-                      <ChevronDownIcon className="w-5 h-5 text-gray-400" />
-                    )}
-                  </div>
-                </button>
-
-                {/* Expanded Student List */}
-                {expandedAdvisorId === advisor.id && selectedAdvisor?.id === advisor.id && (
-                  <div className="p-4 bg-white border-t border-gray-200">
-                    <div className="flex justify-between items-center mb-4">
-                      <h4 className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        Assigned Students ({assignedStudents.length})
-                      </h4>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{conn.student.name}</div>
+                        <div className="text-sm text-gray-500">{conn.student.email}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {formatDate(conn.created_at)}
+                    </td>
+                    <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => setShowAssignModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium text-sm"
-                        style={{ fontFamily: 'Poppins, sans-serif' }}
+                        onClick={() => {
+                          setSelectedConnection(conn)
+                          setShowDisconnectModal(true)
+                        }}
+                        className="inline-flex items-center px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
                       >
-                        <UserPlusIcon className="w-4 h-4" />
-                        Assign Student
+                        <TrashIcon className="w-4 h-4 mr-1" />
+                        Remove
                       </button>
-                    </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-                    {assignedStudents.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
-                        <p style={{ fontFamily: 'Poppins, sans-serif' }}>No students assigned yet</p>
-                        <p className="text-sm mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>Click "Assign Student" to get started</p>
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4">
+            {filteredConnections.map((conn) => (
+              <div key={conn.id} className="bg-white rounded-lg shadow p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    conn.type === 'advisor'
+                      ? 'bg-purple-100 text-purple-800'
+                      : 'bg-green-100 text-green-800'
+                  }`}>
+                    {conn.type === 'advisor' ? 'Advisor' : 'Parent'}
+                  </span>
+                  <span className="text-xs text-gray-500">{formatDate(conn.created_at)}</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">{conn.type === 'advisor' ? 'Advisor' : 'Parent'}</p>
+                    <p className="text-sm font-medium text-gray-900">{conn.person.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{conn.person.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Student</p>
+                    <p className="text-sm font-medium text-gray-900">{conn.student.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{conn.student.email}</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setSelectedConnection(conn)
+                    setShowDisconnectModal(true)
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                  Remove Connection
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Add Connection Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Add Connection</h3>
+              <button
+                onClick={() => {
+                  setShowAddModal(false)
+                  resetAddModal()
+                }}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Connection Type Toggle */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Connection Type</label>
+                <div className="flex bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => {
+                      setAddConnectionType('advisor')
+                      setSelectedPerson(null)
+                      setSelectedStudentIds([])
+                    }}
+                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      addConnectionType === 'advisor'
+                        ? 'bg-white shadow-sm text-gray-900'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Advisor-Student
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAddConnectionType('parent')
+                      setSelectedPerson(null)
+                      setSelectedStudentIds([])
+                    }}
+                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      addConnectionType === 'parent'
+                        ? 'bg-white shadow-sm text-gray-900'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Parent-Student
+                  </button>
+                </div>
+              </div>
+
+              {/* Select Person */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select {addConnectionType === 'advisor' ? 'Advisor' : 'Parent'}
+                </label>
+                {selectedPerson ? (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {selectedPerson.display_name || `${selectedPerson.first_name} ${selectedPerson.last_name}`}
+                      </p>
+                      <p className="text-sm text-gray-500">{selectedPerson.email}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedPerson(null)
+                        setSelectedStudentIds([])
+                      }}
+                      className="text-sm text-red-600 hover:text-red-800 font-medium"
+                    >
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg">
+                    {(addConnectionType === 'advisor' ? advisors : parents).length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>No {addConnectionType === 'advisor' ? 'advisors' : 'parents'} found</p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {assignedStudents.map(student => (
-                          <div
-                            key={student.id}
-                            className="p-3 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors"
+                      <div className="divide-y divide-gray-200">
+                        {(addConnectionType === 'advisor' ? advisors : parents).map(person => (
+                          <button
+                            key={person.id}
+                            onClick={() => setSelectedPerson(person)}
+                            className="w-full text-left p-3 hover:bg-purple-50 transition-colors"
                           >
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-gray-900 text-sm truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                  {student.display_name || `${student.first_name} ${student.last_name}`}
-                                </p>
-                                <p className="text-xs text-gray-500 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>{student.email}</p>
-                                <p className="text-xs text-gray-400 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                  Assigned {new Date(student.assigned_at).toLocaleDateString()}
-                                </p>
-                              </div>
-                              <button
-                                onClick={() => handleUnassignStudent(student.id)}
-                                className="ml-2 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"
-                                style={{ fontFamily: 'Poppins, sans-serif' }}
-                              >
-                                Remove
-                              </button>
-                            </div>
-                          </div>
+                            <p className="font-medium text-gray-900">
+                              {person.display_name || `${person.first_name} ${person.last_name}`}
+                            </p>
+                            <p className="text-sm text-gray-500">{person.email}</p>
+                          </button>
                         ))}
                       </div>
                     )}
                   </div>
                 )}
               </div>
-            ))}
-          </div>
-        )}
-      </section>
 
-      {/* Parent-Student Connections Section */}
-      <section className="bg-white rounded-lg shadow p-6">
-        <div className="mb-6 flex justify-between items-center">
-          <div>
-            <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>Parent-Student Connections</h3>
-            <p className="text-gray-600 text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>Manage parent-student relationships and access</p>
-          </div>
-          <button
-            onClick={() => setShowAddConnectionModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
-          >
-            <UserPlusIcon className="w-5 h-5" />
-            Add Parent-Student Connection
-          </button>
-        </div>
-
-        {/* Search Bar */}
-        <div className="mb-6">
-          <div className="relative">
-            <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by parent or student name/email..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-              style={{ fontFamily: 'Poppins, sans-serif' }}
-              aria-label="Search parent-student connections by name or email"
-            />
-          </div>
-        </div>
-
-        {/* Active Connections Table */}
-        <div>
-          <h4 className="font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>Active Connections</h4>
-          {filteredParentLinks.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 rounded-lg">
-              <UserPlusIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>No active connections found</p>
-            </div>
-          ) : (
-            <div className="bg-white shadow-md rounded-lg overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Parent</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Student</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Connected Since</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Verified By</th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredParentLinks.map((link) => (
-                    <tr key={link.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {link.parent?.first_name} {link.parent?.last_name}
-                          </div>
-                          <div className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {link.parent?.email}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {link.student?.first_name} {link.student?.last_name}
-                          </div>
-                          <div className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {link.student?.email}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        {new Date(link.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        {link.verified_by ? `${link.verified_by.first_name} ${link.verified_by.last_name}` : 'System'}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => {
-                            setSelectedLink(link)
-                            setShowDisconnectModal(true)
-                          }}
-                          className="inline-flex items-center px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-                          style={{ fontFamily: 'Poppins, sans-serif' }}
-                        >
-                          <TrashIcon className="w-4 h-4 mr-1" />
-                          Disconnect
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Assign Student Modal */}
-      {showAssignModal && (
-        <Modal
-          title={`Assign Student to ${selectedAdvisor?.display_name}`}
-          onClose={() => setShowAssignModal(false)}
-        >
-          <div className="px-6 py-4 border-b">
-            <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search students by name or email..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                style={{ fontFamily: 'Poppins, sans-serif' }}
-              />
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-6 py-4 max-h-96">
-            {filteredUnassignedStudents.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <p style={{ fontFamily: 'Poppins, sans-serif' }}>No unassigned students found</p>
-                {searchTerm && (
-                  <p className="text-sm mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>Try adjusting your search</p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {filteredUnassignedStudents.map(student => (
-                  <button
-                    key={student.id}
-                    onClick={() => handleAssignStudent(student.id)}
-                    disabled={assignLoading}
-                    className="w-full text-left p-4 rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <p className="font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      {student.display_name || `${student.first_name} ${student.last_name}`}
-                    </p>
-                    <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>{student.email}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="px-6 py-4 border-t bg-gray-50">
-            <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              {filteredUnassignedStudents.length} unassigned student{filteredUnassignedStudents.length !== 1 ? 's' : ''} available
-            </p>
-          </div>
-        </Modal>
-      )}
-
-      {/* Add Parent-Student Connection Modal */}
-      {showAddConnectionModal && (
-        <Modal
-          title="Add Parent-Student Connection"
-          onClose={() => {
-            setShowAddConnectionModal(false)
-            setSelectedParent(null)
-            setSelectedStudentIds([])
-            setAdminNotes('')
-            setSearchTerm('')
-          }}
-        >
-          <div className="flex-1 overflow-y-auto">
-            <div className="px-6 py-4 space-y-6">
-              {/* Step 1: Select Parent */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  Step 1: Select Parent Account
-                </label>
-                {selectedParent ? (
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
-                    <div>
-                      <p className="font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        {selectedParent.first_name} {selectedParent.last_name}
-                      </p>
-                      <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>{selectedParent.email}</p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setSelectedParent(null)
-                        setSelectedStudentIds([])
-                      }}
-                      className="text-sm text-red-600 hover:text-red-800 font-medium"
-                      style={{ fontFamily: 'Poppins, sans-serif' }}
-                    >
-                      Change
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="relative mb-3">
-                      <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        type="text"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="Search parents by name or email..."
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        style={{ fontFamily: 'Poppins, sans-serif' }}
-                      />
-                    </div>
-                    <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg">
-                      {filteredParents.length === 0 ? (
-                        <div className="text-center py-8 text-gray-500">
-                          <p style={{ fontFamily: 'Poppins, sans-serif' }}>No parent accounts found</p>
-                        </div>
-                      ) : (
-                        <div className="divide-y divide-gray-200">
-                          {filteredParents.map(parent => (
-                            <button
-                              key={parent.id}
-                              onClick={() => {
-                                setSelectedParent(parent)
-                                setSearchTerm('')
-                              }}
-                              className="w-full text-left p-3 hover:bg-purple-50 transition-colors"
-                            >
-                              <p className="font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                {parent.first_name} {parent.last_name}
-                              </p>
-                              <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>{parent.email}</p>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Step 2: Select Students */}
-              {selectedParent && (
+              {/* Select Students */}
+              {selectedPerson && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Step 2: Select Student(s) to Add
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Student(s)
+                    {selectedStudentIds.length > 0 && (
+                      <span className="ml-2 text-optio-purple">({selectedStudentIds.length} selected)</span>
+                    )}
                   </label>
-                  {selectedStudentIds.length > 0 && (
-                    <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-sm font-medium text-blue-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        {selectedStudentIds.length} student{selectedStudentIds.length > 1 ? 's' : ''} selected
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {students
-                          .filter(s => selectedStudentIds.includes(s.id))
-                          .map(student => (
-                            <span
-                              key={student.id}
-                              className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-blue-300 rounded text-sm"
-                              style={{ fontFamily: 'Poppins, sans-serif' }}
-                            >
-                              {student.first_name} {student.last_name}
-                              <button
-                                onClick={() => toggleStudentSelection(student.id)}
-                                className="text-red-600 hover:text-red-800"
-                              >
-                                <XMarkIcon className="w-3 h-3" />
-                              </button>
-                            </span>
-                          ))}
-                      </div>
-                    </div>
-                  )}
                   <div className="relative mb-3">
                     <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="text"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search students by name or email..."
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      style={{ fontFamily: 'Poppins, sans-serif' }}
+                      value={modalSearchTerm}
+                      onChange={(e) => setModalSearchTerm(e.target.value)}
+                      placeholder="Search students..."
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
                     />
                   </div>
-                  <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg">
+                  <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg">
                     {filteredAvailableStudents.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
-                        <p style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        <p>
                           {getAvailableStudents().length === 0
-                            ? 'All students are already connected to this parent'
-                            : 'No students found matching your search'}
+                            ? 'All students are already connected'
+                            : 'No students match your search'}
                         </p>
                       </div>
                     ) : (
@@ -708,13 +600,13 @@ const AdminConnections = () => {
                             onClick={() => toggleStudentSelection(student.id)}
                             className={`w-full text-left p-3 transition-colors flex items-center gap-3 ${
                               selectedStudentIds.includes(student.id)
-                                ? 'bg-purple-50 border-l-4 border-purple-500'
+                                ? 'bg-purple-50'
                                 : 'hover:bg-gray-50'
                             }`}
                           >
                             <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
                               selectedStudentIds.includes(student.id)
-                                ? 'bg-purple-600 border-purple-600'
+                                ? 'bg-optio-purple border-optio-purple'
                                 : 'border-gray-300'
                             }`}>
                               {selectedStudentIds.includes(student.id) && (
@@ -722,10 +614,10 @@ const AdminConnections = () => {
                               )}
                             </div>
                             <div className="flex-1">
-                              <p className="font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              <p className="font-medium text-gray-900">
                                 {student.first_name} {student.last_name}
                               </p>
-                              <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>{student.email}</p>
+                              <p className="text-sm text-gray-500">{student.email}</p>
                             </div>
                           </button>
                         ))}
@@ -734,118 +626,67 @@ const AdminConnections = () => {
                   </div>
                 </div>
               )}
+            </div>
 
-              {/* Admin Notes */}
-              {selectedParent && selectedStudentIds.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Admin Notes (Optional)
-                  </label>
-                  <textarea
-                    value={adminNotes}
-                    onChange={(e) => setAdminNotes(e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                    style={{ fontFamily: 'Poppins, sans-serif' }}
-                    placeholder="Add any notes about this connection..."
-                  />
-                </div>
-              )}
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowAddModal(false)
+                  resetAddModal()
+                }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddConnection}
+                disabled={!selectedPerson || selectedStudentIds.length === 0 || addLoading}
+                className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {addLoading ? 'Adding...' : `Add Connection${selectedStudentIds.length > 1 ? 's' : ''}`}
+              </button>
             </div>
           </div>
-
-          {/* Footer with Actions */}
-          <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-            <button
-              onClick={() => {
-                setShowAddConnectionModal(false)
-                setSelectedParent(null)
-                setSelectedStudentIds([])
-                setAdminNotes('')
-                setSearchTerm('')
-              }}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors font-medium"
-              style={{ fontFamily: 'Poppins, sans-serif' }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleAddConnection}
-              disabled={!selectedParent || selectedStudentIds.length === 0 || addConnectionLoading}
-              className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ fontFamily: 'Poppins, sans-serif' }}
-            >
-              {addConnectionLoading ? 'Adding...' : `Add Connection${selectedStudentIds.length > 1 ? 's' : ''}`}
-            </button>
-          </div>
-        </Modal>
+        </div>
       )}
 
-      {/* Disconnect Parent Link Modal */}
-      {showDisconnectModal && (
-        <Modal
-          title="Disconnect Parent-Student Link"
-          onClose={() => {
-            setShowDisconnectModal(false)
-            setSelectedLink(null)
-          }}
-          onConfirm={handleDisconnectParentLink}
-          confirmText="Disconnect"
-          confirmClass="bg-red-600 hover:bg-red-700"
-        >
-          <p className="text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            Are you sure you want to disconnect <strong>{selectedLink?.parent?.first_name} {selectedLink?.parent?.last_name}</strong> from{' '}
-            <strong>{selectedLink?.student?.first_name} {selectedLink?.student?.last_name}</strong>?
-          </p>
-          <p className="text-sm text-red-600 mt-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            This action cannot be undone. The parent will lose access to this student's data.
-          </p>
-        </Modal>
+      {/* Disconnect Confirmation Modal */}
+      {showDisconnectModal && selectedConnection && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Remove Connection</h3>
+            <p className="text-gray-700 mb-2">
+              Are you sure you want to remove the connection between{' '}
+              <strong>{selectedConnection.person.name}</strong> and{' '}
+              <strong>{selectedConnection.student.name}</strong>?
+            </p>
+            <p className="text-sm text-red-600 mb-6">
+              {selectedConnection.type === 'parent'
+                ? 'The parent will lose access to this student\'s data.'
+                : 'The advisor will no longer be assigned to this student.'}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowDisconnectModal(false)
+                  setSelectedConnection(null)
+                }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDisconnect}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
 }
 
-// Modal Component
-const Modal = ({ title, children, onClose, onConfirm, confirmText, confirmClass }) => {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="px-6 py-4 border-b flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            {title}
-          </h3>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <XMarkIcon className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {children}
-        </div>
-        {onConfirm && (
-          <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors font-medium"
-              style={{ fontFamily: 'Poppins, sans-serif' }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onConfirm}
-              className={`px-4 py-2 text-white rounded-lg transition-colors font-semibold ${confirmClass}`}
-              style={{ fontFamily: 'Poppins, sans-serif' }}
-            >
-              {confirmText}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-export default AdminConnections
+export default memo(AdminConnections)

@@ -19,12 +19,21 @@ from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin, require_advisor
 from services.image_service import search_quest_image
+from services.subject_classification_service import SubjectClassificationService
 from datetime import datetime
 import json
 
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Initialize subject classification service for auto-classification
+_subject_service = None
+def get_subject_service():
+    global _subject_service
+    if _subject_service is None:
+        _subject_service = SubjectClassificationService()
+    return _subject_service
 
 bp = Blueprint('admin_course_quest_management', __name__, url_prefix='/api/admin')
 
@@ -151,6 +160,22 @@ def create_course_quest(user_id):
                 logger.warning(f"Task {i} has invalid pillar '{pillar}', defaulting to 'stem'")
                 pillar = 'stem'
 
+            # Auto-generate subject XP distribution if not provided
+            subject_xp_distribution = task.get('subject_xp_distribution', {})
+            if not subject_xp_distribution:
+                try:
+                    subject_service = get_subject_service()
+                    subject_xp_distribution = subject_service.classify_task_subjects(
+                        title=task['title'].strip(),
+                        description=task.get('description', '').strip(),
+                        pillar=pillar,
+                        xp_value=int(task.get('xp_value', 100))
+                    )
+                    logger.info(f"Auto-classified subjects for task '{task['title']}': {subject_xp_distribution}")
+                except Exception as e:
+                    logger.warning(f"Failed to auto-classify subjects for task '{task['title']}': {e}")
+                    subject_xp_distribution = {}
+
             task_data = {
                 'quest_id': quest_id,
                 'title': task['title'].strip(),
@@ -160,7 +185,7 @@ def create_course_quest(user_id):
                 'order_index': task.get('order_index', i),
                 'is_required': task.get('is_required', False),
                 'diploma_subjects': task.get('diploma_subjects', ['Electives']),
-                'subject_xp_distribution': task.get('subject_xp_distribution', {}),
+                'subject_xp_distribution': subject_xp_distribution if subject_xp_distribution else None,
                 'created_at': datetime.utcnow().isoformat()
             }
 
@@ -371,6 +396,22 @@ def update_course_tasks(user_id, quest_id):
                 logger.warning(f"Task {i} has invalid pillar '{pillar}', defaulting to 'stem'")
                 pillar = 'stem'
 
+            # Auto-generate subject XP distribution if not provided
+            subject_xp_distribution = task.get('subject_xp_distribution', {})
+            if not subject_xp_distribution:
+                try:
+                    subject_service = get_subject_service()
+                    subject_xp_distribution = subject_service.classify_task_subjects(
+                        title=task['title'].strip(),
+                        description=task.get('description', '').strip(),
+                        pillar=pillar,
+                        xp_value=int(task.get('xp_value', 100))
+                    )
+                    logger.info(f"Auto-classified subjects for task '{task['title']}': {subject_xp_distribution}")
+                except Exception as e:
+                    logger.warning(f"Failed to auto-classify subjects for task '{task['title']}': {e}")
+                    subject_xp_distribution = {}
+
             task_data = {
                 'quest_id': quest_id,
                 'title': task['title'].strip(),
@@ -380,7 +421,7 @@ def update_course_tasks(user_id, quest_id):
                 'order_index': task.get('order_index', i),
                 'is_required': task.get('is_required', False),
                 'diploma_subjects': task.get('diploma_subjects', ['Electives']),
-                'subject_xp_distribution': task.get('subject_xp_distribution', {}),
+                'subject_xp_distribution': subject_xp_distribution,
                 'created_at': datetime.utcnow().isoformat()
             }
 

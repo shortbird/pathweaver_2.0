@@ -125,9 +125,19 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
+  // Helper to check if user has a role (supports org_roles array)
+  const userHasRole = (role) => {
+    if (user?.role === role) return true
+    // Check org_roles array (new format)
+    if (user?.org_roles && Array.isArray(user.org_roles) && user.org_roles.includes(role)) return true
+    // Check legacy org_role field
+    if (user?.org_role === role) return true
+    return false
+  }
+
   // Add Parent link if user has parent relationships (dependents or linked students)
   // This allows org_admins/advisors who are also parents to access the parent dashboard
-  const hasParentRelationships = user?.has_dependents || user?.has_linked_students || user?.role === 'parent' || user?.org_role === 'parent'
+  const hasParentRelationships = user?.has_dependents || user?.has_linked_students || userHasRole('parent')
   if (hasParentRelationships) {
     navItems.push({
       name: 'Parent',
@@ -141,7 +151,8 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   }
 
   // Add Advisor link if user is advisor (platform or org) OR has advisor assignments (parent-advisor implicit access)
-  const isAdvisor = user?.role === 'advisor' || user?.org_role === 'advisor' || user?.has_advisor_assignments
+  // Check both org_role and org_roles array for multiple role support
+  const isAdvisor = userHasRole('advisor') || user?.has_advisor_assignments
   if (isAdvisor) {
     navItems.push({
       name: 'Advisor',
@@ -197,8 +208,14 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
 
   // Observer feed link - show for users who may have observer access
   // (superadmin, advisor, parent, or observer role)
+  // Check org_roles array for multi-role support
   // The feed page handles showing appropriate content or empty state
-  if (['superadmin', 'advisor', 'parent', 'observer'].includes(user?.role)) {
+  const hasObserverAccess = user?.role === 'superadmin' ||
+    userHasRole('observer') ||
+    userHasRole('advisor') ||
+    userHasRole('parent')
+
+  if (hasObserverAccess) {
     navItems.push({
       name: 'Observer',
       path: '/observer/feed',
@@ -212,9 +229,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   }
 
   // Add Organization link for org admins or platform admins with an organization
-  // Check effective role for org_managed users
-  const effectiveRole = user?.role === 'org_managed' && user?.org_role ? user.org_role : user?.role
-  if ((user?.is_org_admin || effectiveRole === 'org_admin' || effectiveRole === 'superadmin') && user?.organization_id) {
+  // Check org_roles array for multi-role support
+  const hasOrgAdminAccess = user?.is_org_admin || userHasRole('org_admin') || user?.role === 'superadmin'
+  if (hasOrgAdminAccess && user?.organization_id) {
     navItems.push({
       name: 'Organization',
       path: '/organization',

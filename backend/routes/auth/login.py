@@ -18,10 +18,13 @@ from utils.log_scrubber import mask_user_id, mask_email
 from middleware.error_handler import ValidationError, AuthenticationError
 from datetime import datetime, timedelta, timezone
 import os
+import time
+import random
 
 from utils.logger import get_logger
 from config.constants import MAX_LOGIN_ATTEMPTS, LOCKOUT_DURATION_MINUTES
 from utils.api_response_v1 import success_response, error_response
+from utils.retry_handler import with_connection_retry
 
 logger = get_logger(__name__)
 
@@ -32,6 +35,15 @@ bp = Blueprint('auth_login', __name__)
 # HELPER FUNCTIONS
 # ============================================================================
 
+def constant_time_delay(min_ms=100, max_ms=300):
+    """
+    Add a random delay to prevent timing attacks.
+    This makes response times statistically similar regardless of whether
+    an account exists or the password is correct.
+    """
+    time.sleep(random.randint(min_ms, max_ms) / 1000.0)
+
+
 def check_account_lockout(email):
     """
     Check if account is locked due to too many failed attempts.
@@ -40,11 +52,14 @@ def check_account_lockout(email):
     try:
         admin_client = get_supabase_admin_client()
 
-        # Get login attempt record
-        result = admin_client.table('login_attempts')\
-            .select('*')\
-            .eq('email', email.lower())\
-            .execute()
+        # Get login attempt record with retry logic for transient connection failures
+        result = with_connection_retry(
+            lambda: admin_client.table('login_attempts')
+                .select('*')
+                .eq('email', email.lower())
+                .execute(),
+            operation_name='check_account_lockout'
+        )
 
         if not result.data:
             return False, 0, 0
@@ -239,9 +254,12 @@ def get_current_user():
                     # Make token_issued_at timezone-aware (UTC) for comparison
                     token_issued_at = datetime.fromtimestamp(payload.get('iat'), tz=timezone.utc)
 
-                    # Use admin client to check last logout
+                    # Use admin client to check last logout with retry logic
                     admin_client = get_supabase_admin_client()
-                    user_data = admin_client.table('users').select('last_logout_at').eq('id', user_id).single().execute()
+                    user_data = with_connection_retry(
+                        lambda: admin_client.table('users').select('last_logout_at').eq('id', user_id).single().execute(),
+                        operation_name='check_last_logout_at'
+                    )
 
                     if user_data.data and user_data.data.get('last_logout_at'):
                         last_logout_at = datetime.fromisoformat(user_data.data['last_logout_at'].replace('Z', '+00:00'))
@@ -262,8 +280,11 @@ def get_current_user():
         admin_client = get_supabase_admin_client()
 
         try:
-            # Fetch complete user profile
-            user_data = admin_client.table('users').select('*').eq('id', user_id).single().execute()
+            # Fetch complete user profile with retry logic for transient connection failures
+            user_data = with_connection_retry(
+                lambda: admin_client.table('users').select('*').eq('id', user_id).single().execute(),
+                operation_name='fetch_user_profile'
+            )
 
             if user_data.data:
                 response_data = user_data.data
@@ -346,6 +367,10 @@ def get_current_user():
 @bp.route('/login', methods=['POST'])
 @rate_limit(max_requests=5, window_seconds=60)  # 5 login attempts per minute
 def login():
+    # SECURITY: Add constant-time delay to prevent timing attacks
+    # This makes response times statistically similar for all outcomes
+    constant_time_delay()
+
     data = request.json
     supabase = get_supabase_client()
 
@@ -376,18 +401,25 @@ def login():
         )
 
     try:
-        auth_response = supabase.auth.sign_in_with_password({
-            'email': email,
-            'password': data['password']
-        })
+        # Wrap auth call with retry logic for transient connection failures
+        auth_response = with_connection_retry(
+            lambda: supabase.auth.sign_in_with_password({
+                'email': email,
+                'password': data['password']
+            }),
+            operation_name='login_sign_in'
+        )
 
         if auth_response.user and auth_response.session:
             # Use admin client to fetch user data (bypasses RLS for login)
             admin_client = get_supabase_admin_client()
 
-            # Fetch user data with admin client
+            # Fetch user data with admin client (with retry for connection failures)
             try:
-                user_data = admin_client.table('users').select('*').eq('id', auth_response.user.id).single().execute()
+                user_data = with_connection_retry(
+                    lambda: admin_client.table('users').select('*').eq('id', auth_response.user.id).single().execute(),
+                    operation_name='login_fetch_user'
+                )
             except Exception as e:
                 # If user profile doesn't exist, create it
                 error_str = str(e)
@@ -557,14 +589,33 @@ def login():
             )
         elif "user not found" in error_lower:
             # Record failed login attempt even for non-existent users
-            record_failed_login(email)
+            # SECURITY: Use same message as invalid credentials to prevent account enumeration
+            is_now_locked, attempts_remaining, lockout_minutes = record_failed_login(email)
             logger.info(f"Login attempt with non-existent email: {mask_email(email)}")
-            return error_response(
-                code='USER_NOT_FOUND',
-                message='No account found with this email address. Please check your email spelling or create a new account.',
-                details={'user_not_found': True},
-                status=401
-            )
+
+            if is_now_locked:
+                return error_response(
+                    code='ACCOUNT_LOCKED',
+                    message=f'Too many failed login attempts. Your account has been temporarily locked for {lockout_minutes} minutes. Please try again later or use "Forgot Password" to reset your password.',
+                    details={'locked': True, 'lockout_duration': lockout_minutes},
+                    status=429
+                )
+            else:
+                # Use identical message to invalid credentials to prevent enumeration
+                if attempts_remaining <= 2:
+                    return error_response(
+                        code='INVALID_CREDENTIALS',
+                        message=f'Incorrect email or password. You have {attempts_remaining} {"attempt" if attempts_remaining == 1 else "attempts"} remaining before your account is temporarily locked. If you forgot your password, click "Forgot Password?" below.',
+                        details={'attempts_remaining': attempts_remaining, 'warning': True},
+                        status=401
+                    )
+                else:
+                    return error_response(
+                        code='INVALID_CREDENTIALS',
+                        message=f'Incorrect email or password. Please check your credentials and try again. ({attempts_remaining} {"attempt" if attempts_remaining == 1 else "attempts"} remaining)',
+                        details={'attempts_remaining': attempts_remaining},
+                        status=401
+                    )
         elif "rate limit" in error_lower or "too many requests" in error_lower:
             logger.warning(f"Rate limit hit for {mask_email(email)}")
             import re
@@ -925,10 +976,13 @@ def refresh_token():
 
     new_access_token, new_refresh_token, user_id, token_issued_at = refresh_result
 
-    # Check if token was issued before last logout
+    # Check if token was issued before last logout (with retry for connection failures)
     try:
         admin_client = get_supabase_admin_client()
-        user_data = admin_client.table('users').select('last_logout_at').eq('id', user_id).single().execute()
+        user_data = with_connection_retry(
+            lambda: admin_client.table('users').select('last_logout_at').eq('id', user_id).single().execute(),
+            operation_name='refresh_check_logout'
+        )
 
         if user_data.data and user_data.data.get('last_logout_at'):
             last_logout_at = datetime.fromisoformat(user_data.data['last_logout_at'].replace('Z', '+00:00'))

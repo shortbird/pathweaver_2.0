@@ -15,7 +15,7 @@ from utils.session_manager import session_manager
 from utils.validation import validate_uuid
 
 from utils.logger import get_logger
-from utils.roles import get_effective_role, UserRole
+from utils.roles import get_effective_role, get_effective_roles, has_any_role, UserRole
 
 logger = get_logger(__name__)
 
@@ -143,6 +143,8 @@ def require_role(*allowed_roles):
 
     Uses httpOnly cookies exclusively for enhanced security.
     Verifies user has one of the specified roles (using effective role for org_managed users).
+    Supports users with multiple roles (org_roles array) - access is granted if ANY user role
+    matches ANY of the allowed roles.
 
     When masquerading, this checks the masquerade target's role.
 
@@ -173,22 +175,22 @@ def require_role(*allowed_roles):
             for attempt in range(max_retries):
                 try:
                     supabase = get_supabase_admin_client()
-                    user = supabase.table('users').select('role, org_role').eq('id', user_id).execute()
+                    user = supabase.table('users').select('role, org_role, org_roles').eq('id', user_id).execute()
 
                     if not user.data or len(user.data) == 0:
                         raise AuthorizationError('User not found')
 
                     user_data = user.data[0]
-                    effective_role = get_effective_role(user_data)
 
                     # Superadmin has access to everything
-                    if effective_role == 'superadmin':
+                    if user_data.get('role') == 'superadmin':
                         return f(user_id, *args, **kwargs)
 
-                    if effective_role not in allowed_roles:
-                        raise AuthorizationError(f'Required role: {", ".join(allowed_roles)}')
+                    # Check if user has ANY of the allowed roles (supports multiple roles)
+                    if has_any_role(user_data, list(allowed_roles)):
+                        return f(user_id, *args, **kwargs)
 
-                    return f(user_id, *args, **kwargs)
+                    raise AuthorizationError(f'Required role: {", ".join(allowed_roles)}')
 
                 except (AuthenticationError, AuthorizationError):
                     raise
@@ -235,51 +237,81 @@ def require_advisor(f):
     Decorator to require advisor, org_admin, or superadmin access for routes.
 
     Uses httpOnly cookies exclusively for enhanced security.
-    Verifies user has 'advisor', 'org_admin', or 'superadmin' effective role,
+    Verifies user has 'advisor', 'org_admin', or 'superadmin' in their effective roles,
     OR has is_org_admin=True (for users who are org admins but have a different base role).
+    Supports users with multiple roles (org_roles array).
     Advisors can create quest drafts but need admin approval to publish.
 
-    When masquerading, this checks the actual admin identity, not the masquerade target.
+    Authorization: Checks the actual admin identity (not masquerade target).
+    Data fetching: Uses masquerade target's ID when masquerading, so "My Students"
+                   shows the masqueraded user's students, not the superadmin's.
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
         # Skip authentication for OPTIONS requests (CORS preflight)
+        # Flask-CORS handles the actual CORS headers
         if request.method == 'OPTIONS':
-            return ('', 200)
+            from flask import make_response
+            response = make_response()
+            response.status_code = 200
+            return response
 
-        # Get actual user ID (not masquerade target for advisor routes)
-        user_id = session_manager.get_actual_admin_id()
+        # Get actual user ID for authorization check
+        actual_user_id = session_manager.get_actual_admin_id()
 
-        if not user_id:
+        if not actual_user_id:
             raise AuthenticationError('Authentication required')
-
-        # Store user_id in request context
-        request.user_id = user_id
 
         # Verify advisor or admin status (use admin client to bypass RLS)
         from database import get_supabase_admin_client
         supabase = get_supabase_admin_client()
 
         try:
-            user = supabase.table('users').select('role, org_role, is_org_admin').eq('id', user_id).execute()
+            user = supabase.table('users').select('role, org_role, org_roles, is_org_admin').eq('id', actual_user_id).execute()
 
             if not user.data or len(user.data) == 0:
                 raise AuthorizationError('User not found')
 
             user_data = user.data[0]
-            effective_role = get_effective_role(user_data)
             is_org_admin_flag = user_data.get('is_org_admin', False)
 
-            # Allow access if user has advisor/org_admin/superadmin effective role OR is_org_admin=True
-            # OR has active advisor_student_assignments (parent-advisor implicit access)
-            has_role_access = effective_role in ['advisor', 'org_admin', 'superadmin'] or is_org_admin_flag
+            # Debug logging for advisor access issues
+            effective_roles = get_effective_roles(user_data)
+            logger.info(f"require_advisor check - actual_user_id: {actual_user_id}, role: {user_data.get('role')}, org_role: {user_data.get('org_role')}, org_roles: {user_data.get('org_roles')}, effective_roles: {effective_roles}, is_org_admin_flag: {is_org_admin_flag}")
+
+            # Check if user has any advisor-level role (supports multiple roles)
+            has_role_access = has_any_role(user_data, ['advisor', 'org_admin', 'superadmin']) or is_org_admin_flag
             if not has_role_access:
                 # Check if user has advisor assignments (parent-advisor implicit access)
-                has_assignments = is_assigned_advisor(user_id)
+                has_assignments = is_assigned_advisor(actual_user_id)
+                logger.info(f"require_advisor - user {actual_user_id} has_role_access={has_role_access}, checking assignments: {has_assignments}")
                 if not has_assignments:
                     raise AuthorizationError('Advisor access required')
 
-            return f(user_id, *args, **kwargs)
+            # Determine effective user_id for data operations
+            # When masquerading, use the target user's ID so "My Students" shows their students
+            effective_user_id = actual_user_id
+            masquerade_info = session_manager.get_masquerade_info()
+            if masquerade_info and masquerade_info.get('is_masquerading'):
+                target_user_id = masquerade_info.get('target_user_id')
+                if target_user_id:
+                    # Verify target user exists and has advisor access
+                    target_user = supabase.table('users')\
+                        .select('id, role, org_role, org_roles, is_org_admin')\
+                        .eq('id', target_user_id)\
+                        .single()\
+                        .execute()
+                    if target_user.data:
+                        target_data = target_user.data
+                        target_has_access = has_any_role(target_data, ['advisor', 'org_admin']) or target_data.get('is_org_admin', False) or is_assigned_advisor(target_user_id)
+                        if target_has_access:
+                            effective_user_id = target_user_id
+                            logger.info(f"require_advisor - masquerading as {target_user_id}, using their ID for data")
+
+            # Store user_id in request context
+            request.user_id = effective_user_id
+
+            return f(effective_user_id, *args, **kwargs)
 
         except (AuthenticationError, AuthorizationError):
             raise
@@ -295,6 +327,7 @@ def require_advisor_for_student(f):
 
     Uses httpOnly cookies exclusively for enhanced security.
     Checks advisor_student_assignments table to verify advisor is assigned to student.
+    Supports users with multiple roles (org_roles array).
     Admins always have access.
 
     When masquerading, this checks the actual admin identity, not the masquerade target.
@@ -329,20 +362,19 @@ def require_advisor_for_student(f):
 
         try:
             # Check user role
-            user = supabase.table('users').select('role, org_role').eq('id', user_id).execute()
+            user = supabase.table('users').select('role, org_role, org_roles').eq('id', user_id).execute()
 
             if not user.data or len(user.data) == 0:
                 raise AuthorizationError('User not found')
 
             user_data = user.data[0]
-            effective_role = get_effective_role(user_data)
 
             # Superadmin always has access
-            if effective_role == 'superadmin':
+            if user_data.get('role') == 'superadmin':
                 return f(user_id, *args, **kwargs)
 
-            # For advisors and org_admins, check if they're assigned to this student
-            if effective_role in ['advisor', 'org_admin']:
+            # For users with advisor or org_admin role, check if they're assigned to this student
+            if has_any_role(user_data, ['advisor', 'org_admin']):
                 assignment = supabase.table('advisor_student_assignments')\
                     .select('id')\
                     .eq('advisor_id', user_id)\
@@ -415,6 +447,7 @@ def require_school_admin(f):
     """
     Decorator to require org_admin or superadmin access for routes.
     (Legacy name - use require_org_admin for new code)
+    Supports users with multiple roles (org_roles array).
 
     Uses httpOnly cookies exclusively for enhanced security.
     Verifies user has 'org_admin' or 'superadmin' effective role, OR is_org_admin=True.
@@ -442,17 +475,16 @@ def require_school_admin(f):
         supabase = get_supabase_admin_client()
 
         try:
-            user = supabase.table('users').select('role, org_role, is_org_admin').eq('id', user_id).execute()
+            user = supabase.table('users').select('role, org_role, org_roles, is_org_admin').eq('id', user_id).execute()
 
             if not user.data or len(user.data) == 0:
                 raise AuthorizationError('User not found')
 
             user_data = user.data[0]
-            effective_role = get_effective_role(user_data)
-            is_org_admin = user_data.get('is_org_admin', False)
+            is_org_admin_flag = user_data.get('is_org_admin', False)
 
-            # Check if superadmin, org_admin effective role, or is_org_admin flag
-            if effective_role not in ['org_admin', 'superadmin'] and not is_org_admin:
+            # Check if superadmin, has org_admin role, or is_org_admin flag
+            if user_data.get('role') != 'superadmin' and not has_any_role(user_data, ['org_admin']) and not is_org_admin_flag:
                 raise AuthorizationError('Organization admin access required')
 
             return f(user_id, *args, **kwargs)
@@ -471,6 +503,7 @@ def require_org_admin(f):
     Decorator to require org admin or superadmin role.
     Org admins can manage their own organization.
     Superadmins can manage all organizations.
+    Supports users with multiple roles (org_roles array).
 
     Uses httpOnly cookies exclusively for enhanced security.
     When masquerading, this checks the ACTUAL admin identity for authorization,
@@ -499,7 +532,7 @@ def require_org_admin(f):
 
         try:
             user = supabase.table('users')\
-                .select('role, org_role, email, is_org_admin, organization_id')\
+                .select('role, org_role, org_roles, email, is_org_admin, organization_id')\
                 .eq('id', user_id)\
                 .single()\
                 .execute()
@@ -508,14 +541,13 @@ def require_org_admin(f):
                 raise AuthorizationError('User not found')
 
             user_data = user.data
-            effective_role = get_effective_role(user_data)
 
             # Check if superadmin
-            is_superadmin = effective_role == 'superadmin'
+            is_superadmin = user_data.get('role') == 'superadmin'
 
-            # Check if org admin (effective role or flag)
+            # Check if org admin (has org_admin role or flag) - supports multiple roles
             is_org_admin_flag = user_data.get('is_org_admin', False)
-            has_org_admin_access = is_superadmin or effective_role == 'org_admin' or is_org_admin_flag
+            has_org_admin_access = is_superadmin or has_any_role(user_data, ['org_admin']) or is_org_admin_flag
 
             if not has_org_admin_access:
                 raise AuthorizationError('Organization admin access required')
@@ -529,15 +561,14 @@ def require_org_admin(f):
                 target_user_id = masquerade_info.get('target_user_id')
                 if target_user_id:
                     target_user = supabase.table('users')\
-                        .select('organization_id, role, org_role')\
+                        .select('organization_id, role, org_role, org_roles')\
                         .eq('id', target_user_id)\
                         .single()\
                         .execute()
                     if target_user.data:
                         organization_id = target_user.data.get('organization_id')
                         # When masquerading, use the target's role context
-                        target_role = get_effective_role(target_user.data)
-                        effective_is_superadmin = target_role == 'superadmin'
+                        effective_is_superadmin = target_user.data.get('role') == 'superadmin'
 
             # Pass user info to handler
             return f(user_id, organization_id, effective_is_superadmin, *args, **kwargs)
@@ -554,6 +585,7 @@ def require_org_admin(f):
 def get_advisor_assigned_students(advisor_id):
     """
     Helper function to get list of student IDs assigned to an advisor.
+    Supports users with multiple roles (org_roles array).
 
     Args:
         advisor_id: UUID of the advisor
@@ -568,18 +600,17 @@ def get_advisor_assigned_students(advisor_id):
 
     try:
         # Check if user is admin
-        user = supabase.table('users').select('role, org_role').eq('id', advisor_id).execute()
+        user = supabase.table('users').select('role, org_role, org_roles').eq('id', advisor_id).execute()
 
         if user.data and len(user.data) > 0:
             user_data = user.data[0]
-            effective_role = get_effective_role(user_data)
 
             # Superadmin sees all students
-            if effective_role == 'superadmin':
+            if user_data.get('role') == 'superadmin':
                 return None
 
-            # Advisors and org_admins see only assigned students
-            if effective_role in ['advisor', 'org_admin']:
+            # Users with advisor or org_admin role see only assigned students
+            if has_any_role(user_data, ['advisor', 'org_admin']):
                 assignments = supabase.table('advisor_student_assignments')\
                     .select('student_id')\
                     .eq('advisor_id', advisor_id)\

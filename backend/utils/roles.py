@@ -158,17 +158,18 @@ def validate_org_role(org_role: str) -> bool:
 def get_effective_role(user: Dict) -> str:
     """
     Get the effective role for a user, resolving org_managed to the actual org_role.
+    For users with multiple roles, returns the primary (first) role.
 
     Role Model:
         - Platform users (organization_id = NULL): Use 'role' directly (student, parent, etc.)
-        - Organization users (organization_id set): Have role='org_managed', actual role in 'org_role'
+        - Organization users (organization_id set): Have role='org_managed', actual role in 'org_role' or 'org_roles'
         - Superadmin: Always organization_id = NULL, role = 'superadmin'
 
     Args:
-        user: User dict with 'role' and optionally 'org_role' keys
+        user: User dict with 'role' and optionally 'org_role'/'org_roles' keys
 
     Returns:
-        The effective role string to use for permission checks
+        The effective role string to use for permission checks (primary role if multiple)
     """
     role = user.get('role', UserRole.STUDENT.value)
 
@@ -176,17 +177,98 @@ def get_effective_role(user: Dict) -> str:
     if role == UserRole.SUPERADMIN.value:
         return UserRole.SUPERADMIN.value
 
-    # Organization users have role='org_managed' and actual role in org_role
+    # Organization users have role='org_managed' and actual role(s) in org_roles or org_role
     if role == UserRole.ORG_MANAGED.value:
+        # First check new org_roles array (takes precedence)
+        org_roles = user.get('org_roles')
+        if org_roles:
+            # org_roles can be a list/array - return first element as primary role
+            if isinstance(org_roles, list) and len(org_roles) > 0:
+                primary_role = org_roles[0]
+                if primary_role in VALID_ORG_ROLES:
+                    return primary_role
+
+        # Fallback to legacy org_role field
         org_role = user.get('org_role')
         if org_role and org_role in VALID_ORG_ROLES:
             return org_role
-        # Fallback to student if org_role is not set (shouldn't happen due to constraints)
+
+        # Fallback to student if no valid role found
         logger.warning(f"User has org_managed role but no valid org_role: {user.get('id')}")
         return UserRole.STUDENT.value
 
     # Platform users (no org) use their role directly
     return role
+
+
+def get_effective_roles(user: Dict) -> List[str]:
+    """
+    Get all effective roles for a user, resolving org_managed to org_roles.
+    Use this when you need to check if a user has ANY of multiple roles.
+
+    Args:
+        user: User dict with 'role' and optionally 'org_role'/'org_roles' keys
+
+    Returns:
+        List of role strings the user has
+    """
+    role = user.get('role', UserRole.STUDENT.value)
+
+    # Superadmin always returns just superadmin
+    if role == UserRole.SUPERADMIN.value:
+        return [UserRole.SUPERADMIN.value]
+
+    # Organization users have role='org_managed' and actual role(s) in org_roles or org_role
+    if role == UserRole.ORG_MANAGED.value:
+        # First check new org_roles array (takes precedence)
+        org_roles = user.get('org_roles')
+        if org_roles:
+            if isinstance(org_roles, list) and len(org_roles) > 0:
+                # Filter to only valid roles
+                return [r for r in org_roles if r in VALID_ORG_ROLES]
+
+        # Fallback to legacy org_role field
+        org_role = user.get('org_role')
+        if org_role and org_role in VALID_ORG_ROLES:
+            return [org_role]
+
+        # Fallback to student
+        return [UserRole.STUDENT.value]
+
+    # Platform users (no org) use their role directly
+    return [role]
+
+
+def has_role(user: Dict, role: str) -> bool:
+    """
+    Check if a user has a specific role.
+    Supports users with multiple roles (org_roles array).
+
+    Args:
+        user: User dict with 'role' and optionally 'org_role'/'org_roles' keys
+        role: The role to check for
+
+    Returns:
+        True if user has the role, False otherwise
+    """
+    effective_roles = get_effective_roles(user)
+    return role in effective_roles
+
+
+def has_any_role(user: Dict, roles: List[str]) -> bool:
+    """
+    Check if a user has any of the specified roles.
+    Supports users with multiple roles (org_roles array).
+
+    Args:
+        user: User dict with 'role' and optionally 'org_role'/'org_roles' keys
+        roles: List of roles to check for
+
+    Returns:
+        True if user has any of the roles, False otherwise
+    """
+    effective_roles = get_effective_roles(user)
+    return any(r in effective_roles for r in roles)
 
 
 def is_role_higher(role1: str, role2: str) -> bool:

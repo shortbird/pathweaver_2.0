@@ -19,6 +19,7 @@ const AdminQuests = () => {
   const [activeFilter, setActiveFilter] = useState('all')
   const [questTypeFilter, setQuestTypeFilter] = useState('all')
   const [publicFilter, setPublicFilter] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [openDropdownId, setOpenDropdownId] = useState(null)
 
@@ -452,6 +453,17 @@ const AdminQuests = () => {
     )
   }
 
+  // Filter quests by search term (client-side)
+  const filteredQuests = quests.filter(quest => {
+    if (!searchTerm.trim()) return true
+    const searchLower = searchTerm.toLowerCase()
+    return (
+      quest.title?.toLowerCase().includes(searchLower) ||
+      quest.description?.toLowerCase().includes(searchLower) ||
+      quest.big_idea?.toLowerCase().includes(searchLower)
+    )
+  })
+
   return (
     <div>
       {/* Header */}
@@ -536,6 +548,18 @@ const AdminQuests = () => {
 
       {/* Filter Row */}
       <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+        {/* Search Bar */}
+        <div className="w-full sm:w-auto sm:flex-1 sm:max-w-xs">
+          <input
+            type="text"
+            placeholder="Search quests by title..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+            aria-label="Search quests by title"
+          />
+        </div>
+
         {/* Select All Checkbox - Superadmin only */}
         {isSuperAdmin && quests.length > 0 && (
           <div className="flex items-center gap-2">
@@ -601,7 +625,10 @@ const AdminQuests = () => {
 
         {/* Results Summary */}
         <div className="ml-auto text-sm text-gray-600">
-          <span className="font-semibold">{quests.length}</span> quest{quests.length !== 1 ? 's' : ''}
+          <span className="font-semibold">{filteredQuests.length}</span> quest{filteredQuests.length !== 1 ? 's' : ''}
+          {searchTerm && quests.length !== filteredQuests.length && (
+            <span className="text-gray-400"> (of {quests.length})</span>
+          )}
         </div>
       </div>
 
@@ -670,19 +697,19 @@ const AdminQuests = () => {
         </div>
       ) : (
         <div>
-          {quests.length === 0 ? (
+          {filteredQuests.length === 0 ? (
             <div className="text-center py-16 text-gray-500 bg-gray-50 rounded-xl">
               <svg className="mx-auto h-16 w-16 text-gray-300 mb-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
               </svg>
               <p className="text-lg font-semibold">No quests found</p>
               <p className="text-sm mt-2">
-                No quests match your current filters. Try adjusting the filters above.
+                {searchTerm ? 'No quests match your search. Try different keywords.' : 'No quests match your current filters. Try adjusting the filters above.'}
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {quests.map(quest => (
+              {filteredQuests.map(quest => (
                 <div
                   key={quest.id}
                   onClick={() => isSuperAdmin && hasSelection && toggleSelection(quest.id)}

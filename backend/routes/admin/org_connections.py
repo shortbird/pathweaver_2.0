@@ -8,7 +8,7 @@ Accessible to org_admin users for their own organization.
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_org_admin
-from utils.roles import get_effective_role
+from utils.roles import get_effective_role, has_any_role
 from datetime import datetime
 from utils.logger import get_logger
 
@@ -306,6 +306,205 @@ def unassign_org_student_from_advisor(current_user_id, current_org_id, is_supera
         return jsonify({'success': False, 'error': 'Failed to unassign student'}), 500
 
 
+@bp.route('/<org_id>/students/advisor-assignments', methods=['GET'])
+@require_org_admin
+def get_org_students_with_advisors(current_user_id, current_org_id, is_superadmin, org_id):
+    """Get all students in the org with their assigned advisors list.
+
+    Supports multiple advisors per student. Returns each student with an 'advisors' array
+    containing all their assigned advisors.
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Get all students in this org
+        all_students = supabase.table('users')\
+            .select('id, display_name, first_name, last_name, email')\
+            .eq('organization_id', org_id)\
+            .eq('org_role', 'student')\
+            .order('display_name')\
+            .execute()
+
+        student_ids = [s['id'] for s in all_students.data]
+
+        if not student_ids:
+            return jsonify({
+                'success': True,
+                'students': [],
+                'total': 0
+            })
+
+        # Get all active assignments for these students with advisor info
+        assignments = supabase.table('advisor_student_assignments')\
+            .select('id, student_id, advisor_id, assigned_at, assigned_by')\
+            .eq('is_active', True)\
+            .in_('student_id', student_ids)\
+            .execute()
+
+        # Get advisor info for all advisors in assignments
+        advisor_ids = list(set(a['advisor_id'] for a in assignments.data))
+        advisors_map = {}
+        if advisor_ids:
+            advisors_result = supabase.table('users')\
+                .select('id, display_name, first_name, last_name, email, role, org_role')\
+                .in_('id', advisor_ids)\
+                .execute()
+            for advisor in advisors_result.data:
+                advisors_map[advisor['id']] = advisor
+
+        # Build assignments map grouped by student
+        student_advisors = {}
+        for assignment in assignments.data:
+            student_id = assignment['student_id']
+            advisor_id = assignment['advisor_id']
+            advisor_info = advisors_map.get(advisor_id, {})
+
+            if student_id not in student_advisors:
+                student_advisors[student_id] = []
+
+            student_advisors[student_id].append({
+                'assignment_id': assignment['id'],
+                'advisor_id': advisor_id,
+                'assigned_at': assignment['assigned_at'],
+                'display_name': advisor_info.get('display_name') or f"{advisor_info.get('first_name', '')} {advisor_info.get('last_name', '')}".strip(),
+                'email': advisor_info.get('email'),
+                'role': advisor_info.get('org_role') or advisor_info.get('role')
+            })
+
+        # Build response with students and their advisors
+        students_with_advisors = []
+        for student in all_students.data:
+            students_with_advisors.append({
+                **student,
+                'advisors': student_advisors.get(student['id'], []),
+                'advisor_count': len(student_advisors.get(student['id'], []))
+            })
+
+        return jsonify({
+            'success': True,
+            'students': students_with_advisors,
+            'total': len(students_with_advisors)
+        })
+
+    except Exception as e:
+        logger.error(f"Error in get_org_students_with_advisors: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Failed to retrieve students with advisors'}), 500
+
+
+@bp.route('/<org_id>/students/<student_id>/advisors', methods=['GET'])
+@require_org_admin
+def get_student_advisors(current_user_id, current_org_id, is_superadmin, org_id, student_id):
+    """Get all advisors assigned to a specific student"""
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Verify student belongs to org
+        student = supabase.table('users')\
+            .select('id, display_name, first_name, last_name, email, organization_id')\
+            .eq('id', student_id)\
+            .single()\
+            .execute()
+
+        if not student.data:
+            return jsonify({'success': False, 'error': 'Student not found'}), 404
+
+        if student.data.get('organization_id') != org_id and not is_superadmin:
+            return jsonify({'success': False, 'error': 'Student not in this organization'}), 403
+
+        # Get all active assignments for this student
+        assignments = supabase.table('advisor_student_assignments')\
+            .select('id, advisor_id, assigned_at, assigned_by')\
+            .eq('student_id', student_id)\
+            .eq('is_active', True)\
+            .execute()
+
+        if not assignments.data:
+            return jsonify({
+                'success': True,
+                'student': student.data,
+                'advisors': [],
+                'total': 0
+            })
+
+        # Get advisor info
+        advisor_ids = [a['advisor_id'] for a in assignments.data]
+        advisors_result = supabase.table('users')\
+            .select('id, display_name, first_name, last_name, email, role, org_role')\
+            .in_('id', advisor_ids)\
+            .execute()
+
+        advisors_map = {a['id']: a for a in advisors_result.data}
+
+        advisors = []
+        for assignment in assignments.data:
+            advisor = advisors_map.get(assignment['advisor_id'], {})
+            advisors.append({
+                'assignment_id': assignment['id'],
+                'advisor_id': assignment['advisor_id'],
+                'assigned_at': assignment['assigned_at'],
+                'display_name': advisor.get('display_name') or f"{advisor.get('first_name', '')} {advisor.get('last_name', '')}".strip(),
+                'first_name': advisor.get('first_name'),
+                'last_name': advisor.get('last_name'),
+                'email': advisor.get('email'),
+                'role': advisor.get('org_role') or advisor.get('role')
+            })
+
+        return jsonify({
+            'success': True,
+            'student': student.data,
+            'advisors': advisors,
+            'total': len(advisors)
+        })
+
+    except Exception as e:
+        logger.error(f"Error in get_student_advisors: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Failed to retrieve student advisors'}), 500
+
+
+@bp.route('/<org_id>/students/<student_id>/advisors/<advisor_id>', methods=['DELETE'])
+@require_org_admin
+def unassign_advisor_from_student(current_user_id, current_org_id, is_superadmin, org_id, student_id, advisor_id):
+    """Remove a specific advisor assignment from a student"""
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Verify student belongs to org
+        student = supabase.table('users')\
+            .select('id, organization_id')\
+            .eq('id', student_id)\
+            .single()\
+            .execute()
+
+        if not student.data or (student.data.get('organization_id') != org_id and not is_superadmin):
+            return jsonify({'success': False, 'error': 'Student not in this organization'}), 403
+
+        # Find the assignment
+        assignment = supabase.table('advisor_student_assignments')\
+            .select('id')\
+            .eq('advisor_id', advisor_id)\
+            .eq('student_id', student_id)\
+            .eq('is_active', True)\
+            .execute()
+
+        if not assignment.data or len(assignment.data) == 0:
+            return jsonify({'success': False, 'error': 'Assignment not found'}), 404
+
+        # Deactivate the assignment
+        supabase.table('advisor_student_assignments')\
+            .update({'is_active': False})\
+            .eq('id', assignment.data[0]['id'])\
+            .execute()
+
+        return jsonify({
+            'success': True,
+            'message': 'Advisor unassigned from student successfully'
+        })
+
+    except Exception as e:
+        logger.error(f"Error in unassign_advisor_from_student: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Failed to unassign advisor'}), 500
+
+
 @bp.route('/<org_id>/students/unassigned', methods=['GET'])
 @require_org_admin
 def get_org_unassigned_students(current_user_id, current_org_id, is_superadmin, org_id):
@@ -490,9 +689,9 @@ def create_org_manual_parent_link(current_user_id, current_org_id, is_superadmin
         if effective_student_role != 'student':
             return jsonify({'success': False, 'error': 'User is not a student'}), 400
 
-        # Verify parent exists and has parent role
+        # Verify parent exists and has parent role (supports multiple roles)
         parent = supabase.table('users')\
-            .select('id, role, org_role')\
+            .select('id, role, org_role, org_roles')\
             .eq('id', parent_user_id)\
             .single()\
             .execute()
@@ -500,8 +699,8 @@ def create_org_manual_parent_link(current_user_id, current_org_id, is_superadmin
         if not parent.data:
             return jsonify({'success': False, 'error': 'Parent not found'}), 404
 
-        effective_parent_role = get_effective_role(parent.data)
-        if effective_parent_role != 'parent':
+        # Check if user has parent role (supports users with multiple roles like ['advisor', 'parent'])
+        if not has_any_role(parent.data, ['parent']):
             return jsonify({'success': False, 'error': 'User is not a parent'}), 400
 
         # Check if link already exists

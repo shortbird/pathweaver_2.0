@@ -170,6 +170,16 @@ const OutlineEditor = ({
             formData={formData}
             onChange={handleChange}
             project={selectedItem}
+            onImageAutoSave={async (imageUrl) => {
+              // Auto-save project with new image URL
+              const updatedFormData = { ...formData, header_image_url: imageUrl }
+              try {
+                await onSave(selectedItem, selectedType, updatedFormData)
+                setHasChanges(false)
+              } catch (error) {
+                console.error('Failed to auto-save image:', error)
+              }
+            }}
           />
         )}
 
@@ -211,7 +221,7 @@ const OutlineEditor = ({
 /**
  * Project Editor - Title, description, XP threshold, header image
  */
-const ProjectEditor = ({ formData, onChange, project }) => {
+const ProjectEditor = ({ formData, onChange, project, onImageAutoSave }) => {
   return (
     <div className="space-y-5 max-w-4xl mx-auto">
       {/* Header Image */}
@@ -222,6 +232,7 @@ const ProjectEditor = ({ formData, onChange, project }) => {
         <ProjectHeaderImage
           imageUrl={formData.header_image_url}
           onUpdate={(url) => onChange('header_image_url', url)}
+          onAutoSave={onImageAutoSave}
           questId={project?.id}
           projectTitle={formData.title}
           projectDescription={formData.description}

@@ -6,16 +6,23 @@ const BulkUserImport = lazy(() => import('../admin/BulkUserImport'))
 const PendingInvitationsList = lazy(() => import('../admin/PendingInvitationsList'))
 
 function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
-  // For org_managed users, use org_role as the effective role
-  const effectiveRole = user.role === 'org_managed' && user.org_role
-    ? user.org_role
-    : user.role
+  // For org_managed users, get effective roles from org_roles array or fallback to org_role
+  const getEffectiveRoles = () => {
+    if (user.role !== 'org_managed') return [user.role]
+    // Check org_roles array first (new format)
+    if (user.org_roles && Array.isArray(user.org_roles) && user.org_roles.length > 0) {
+      return user.org_roles
+    }
+    // Fallback to legacy org_role
+    if (user.org_role) return [user.org_role]
+    return ['student']
+  }
 
   const [formData, setFormData] = useState({
     first_name: user.first_name || '',
     last_name: user.last_name || '',
     email: user.email || '',
-    org_role: effectiveRole || 'student'
+    org_roles: getEffectiveRoles()
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -63,10 +70,14 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
         email: formData.email
       })
 
-      // Use org-specific endpoint for setting org_role (org admins can use this)
-      if (formData.org_role !== effectiveRole) {
+      // Use org-specific endpoint for setting org_roles (org admins can use this)
+      // Send org_roles array to support multiple roles
+      const originalRoles = getEffectiveRoles()
+      const rolesChanged = JSON.stringify(formData.org_roles.sort()) !== JSON.stringify(originalRoles.sort())
+
+      if (rolesChanged) {
         await api.put(`/api/admin/org/users/${user.id}/role`, {
-          org_role: formData.org_role
+          org_roles: formData.org_roles
         })
       }
 
@@ -175,18 +186,43 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
           )}
 
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Organization Role</label>
-            <select
-              value={formData.org_role}
-              onChange={(e) => setFormData({ ...formData, org_role: e.target.value })}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-            >
-              <option value="student">Student</option>
-              <option value="parent">Parent</option>
-              <option value="advisor">Advisor</option>
-              <option value="observer">Observer</option>
-              <option value="org_admin">Organization Admin</option>
-            </select>
+            <label className="block text-sm font-medium mb-2">Organization Role(s)</label>
+            <p className="text-xs text-gray-500 mb-2">Users can have multiple roles (e.g., Parent + Advisor)</p>
+            <div className="space-y-2 border border-gray-200 rounded-lg p-3">
+              {[
+                { value: 'student', label: 'Student' },
+                { value: 'parent', label: 'Parent' },
+                { value: 'advisor', label: 'Advisor' },
+                { value: 'observer', label: 'Observer' },
+                { value: 'org_admin', label: 'Organization Admin' }
+              ].map(role => (
+                <label key={role.value} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                  <input
+                    type="checkbox"
+                    checked={formData.org_roles.includes(role.value)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        // Add role if not already present
+                        if (!formData.org_roles.includes(role.value)) {
+                          setFormData({ ...formData, org_roles: [...formData.org_roles, role.value] })
+                        }
+                      } else {
+                        // Remove role (but ensure at least one role remains)
+                        const newRoles = formData.org_roles.filter(r => r !== role.value)
+                        if (newRoles.length > 0) {
+                          setFormData({ ...formData, org_roles: newRoles })
+                        }
+                      }
+                    }}
+                    className="w-4 h-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+                  />
+                  <span className="text-sm">{role.label}</span>
+                </label>
+              ))}
+            </div>
+            {formData.org_roles.length === 0 && (
+              <p className="text-xs text-red-600 mt-1">At least one role is required</p>
+            )}
           </div>
 
           {error && (
@@ -480,8 +516,8 @@ export default function UsersTab({ orgId, orgSlug, users, onUpdate }) {
                       </td>
                       <td className="px-6 py-4">
                         {(() => {
-                          // In org context, always show org_role (never show "org_managed")
-                          const displayRole = user.org_role || user.role;
+                          // In org context, show all org_roles (or fallback to org_role)
+                          // Support multiple roles via org_roles array
                           const roleColors = {
                             superadmin: 'bg-purple-100 text-purple-700',
                             org_admin: 'bg-purple-100 text-purple-700',
@@ -498,12 +534,32 @@ export default function UsersTab({ orgId, orgSlug, users, onUpdate }) {
                             observer: 'Observer',
                             student: 'Student'
                           };
+
+                          // Get roles array (new format) or single role (legacy)
+                          let displayRoles = [];
+                          if (user.org_roles && Array.isArray(user.org_roles) && user.org_roles.length > 0) {
+                            displayRoles = user.org_roles;
+                          } else if (user.org_role) {
+                            displayRoles = [user.org_role];
+                          } else if (user.role && user.role !== 'org_managed') {
+                            displayRoles = [user.role];
+                          } else {
+                            displayRoles = ['student'];
+                          }
+
                           return (
-                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
-                              roleColors[displayRole] || 'bg-gray-100 text-gray-700'
-                            }`}>
-                              {roleDisplayNames[displayRole] || displayRole}
-                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {displayRoles.map(role => (
+                                <span
+                                  key={role}
+                                  className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
+                                    roleColors[role] || 'bg-gray-100 text-gray-700'
+                                  }`}
+                                >
+                                  {roleDisplayNames[role] || role}
+                                </span>
+                              ))}
+                            </div>
                           );
                         })()}
                       </td>

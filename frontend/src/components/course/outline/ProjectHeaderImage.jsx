@@ -16,6 +16,7 @@ import ImageCropModal from '../../ImageCropModal'
 const ProjectHeaderImage = ({
   imageUrl,
   onUpdate,
+  onAutoSave,
   questId,
   projectTitle,
   projectDescription,
@@ -42,6 +43,10 @@ const ProjectHeaderImage = ({
       if (response.data.success && response.data.image_url) {
         onUpdate(response.data.image_url)
         toast.success('Header image updated')
+        // Auto-save after image is generated
+        if (onAutoSave) {
+          onAutoSave(response.data.image_url)
+        }
       } else {
         toast.error('No suitable image found')
       }
@@ -104,6 +109,10 @@ const ProjectHeaderImage = ({
       if (response.data.success && response.data.url) {
         onUpdate(response.data.url)
         toast.success('Header image uploaded')
+        // Auto-save after image is uploaded
+        if (onAutoSave) {
+          onAutoSave(response.data.url)
+        }
       } else {
         toast.error(response.data.error || 'Failed to upload image')
       }
@@ -134,7 +143,7 @@ const ProjectHeaderImage = ({
   return (
     <div className="relative group">
       {/* Header Image Display */}
-      <div className="relative h-40 rounded-lg overflow-hidden bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 border border-gray-200">
+      <div className="relative h-64 rounded-xl overflow-hidden bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 border border-gray-200">
         {imageUrl ? (
           <img
             src={imageUrl}

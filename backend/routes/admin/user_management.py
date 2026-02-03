@@ -1121,26 +1121,59 @@ def update_org_user_role(admin_user_id, user_id):
     """
     Org admin endpoint to update a user's role within their organization.
     Org admins can only modify users in their own organization.
+    Supports multiple roles via org_roles array (e.g., ["parent", "advisor"]).
+
+    Request body can be:
+    - { "org_role": "advisor" } - Single role (legacy, still supported)
+    - { "org_roles": ["parent", "advisor"] } - Multiple roles (new format)
 
     Valid org_role values: student, parent, advisor, org_admin, observer
     """
     from utils.roles import get_effective_role, VALID_ORG_ROLES
+    import json
 
     try:
         data = request.json
-        new_org_role = data.get('org_role')
 
-        if new_org_role not in VALID_ORG_ROLES:
+        # Support both single role and array of roles
+        org_roles = data.get('org_roles')  # New format: array
+        new_org_role = data.get('org_role')  # Legacy format: single string
+
+        # Normalize to array
+        if org_roles is not None:
+            # Validate it's a list
+            if not isinstance(org_roles, list) or len(org_roles) == 0:
+                return jsonify({
+                    'success': False,
+                    'error': 'org_roles must be a non-empty array of role strings'
+                }), 400
+            # Validate each role
+            for role in org_roles:
+                if role not in VALID_ORG_ROLES:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Invalid role "{role}". Must be one of: {list(VALID_ORG_ROLES)}'
+                    }), 400
+            roles_to_set = org_roles
+        elif new_org_role is not None:
+            # Legacy single role format
+            if new_org_role not in VALID_ORG_ROLES:
+                return jsonify({
+                    'success': False,
+                    'error': f'Invalid org_role. Must be one of: {list(VALID_ORG_ROLES)}'
+                }), 400
+            roles_to_set = [new_org_role]
+        else:
             return jsonify({
                 'success': False,
-                'error': f'Invalid org_role. Must be one of: {list(VALID_ORG_ROLES)}'
+                'error': 'Either org_role or org_roles is required'
             }), 400
 
         from database import get_supabase_admin_client
         admin_client = get_supabase_admin_client()
 
         # Get admin's organization
-        admin_user = admin_client.table('users').select('organization_id, role, org_role').eq('id', admin_user_id).single().execute()
+        admin_user = admin_client.table('users').select('organization_id, role, org_role, org_roles').eq('id', admin_user_id).single().execute()
         if not admin_user.data:
             return jsonify({'success': False, 'error': 'Admin user not found'}), 404
 
@@ -1151,7 +1184,7 @@ def update_org_user_role(admin_user_id, user_id):
         is_superadmin = admin_effective_role == 'superadmin'
 
         # Get target user
-        target_user = admin_client.table('users').select('organization_id, role, org_role').eq('id', user_id).single().execute()
+        target_user = admin_client.table('users').select('organization_id, role, org_role, org_roles').eq('id', user_id).single().execute()
         if not target_user.data:
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
@@ -1166,18 +1199,22 @@ def update_org_user_role(admin_user_id, user_id):
                 }), 403
 
         # Prevent org_admin from removing their own org_admin role (unless superadmin)
-        if user_id == admin_user_id and new_org_role != 'org_admin' and not is_superadmin:
+        if user_id == admin_user_id and 'org_admin' not in roles_to_set and not is_superadmin:
             return jsonify({
                 'success': False,
                 'error': 'Cannot remove your own org_admin privileges'
             }), 403
 
-        # Set is_org_admin based on whether org_role is 'org_admin'
-        is_org_admin = new_org_role == 'org_admin'
+        # Set is_org_admin based on whether 'org_admin' is in the roles list
+        is_org_admin = 'org_admin' in roles_to_set
 
-        # Build update
+        # Use first role as the primary org_role (for backward compatibility)
+        primary_role = roles_to_set[0]
+
+        # Build update - set both org_role (legacy) and org_roles (new)
         update_data = {
-            'org_role': new_org_role,
+            'org_role': primary_role,  # Legacy field - set to primary role
+            'org_roles': roles_to_set,  # New field - full array
             'is_org_admin': is_org_admin
         }
 
@@ -1190,12 +1227,14 @@ def update_org_user_role(admin_user_id, user_id):
             .eq('id', user_id)\
             .execute()
 
-        logger.info(f"[ORG_ADMIN] User {user_id} org_role set to {new_org_role} by {admin_user_id}")
+        roles_str = ', '.join(roles_to_set)
+        logger.info(f"[ORG_ADMIN] User {user_id} org_roles set to [{roles_str}] by {admin_user_id}")
 
         return jsonify({
             'success': True,
-            'message': f'User role updated to {new_org_role}',
-            'org_role': new_org_role,
+            'message': f'User roles updated to {roles_str}',
+            'org_role': primary_role,  # Primary role (backward compatibility)
+            'org_roles': roles_to_set,  # Full roles array
             'is_org_admin': is_org_admin
         }), 200
 

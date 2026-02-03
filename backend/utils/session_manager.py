@@ -3,6 +3,7 @@ Secure session management using httpOnly cookies
 """
 import os
 import jwt
+import hashlib
 from datetime import datetime, timedelta, timezone
 from flask import make_response, request
 from functools import wraps
@@ -97,6 +98,50 @@ class SessionManager:
                 logger.warning(f"[SessionManager] Failed to extract cookie domain: {e}")
                 self.cookie_domain = None
 
+    def _get_device_fingerprint(self) -> str:
+        """
+        Generate a device fingerprint based on User-Agent header.
+        Used to detect if tokens are being used from different devices.
+
+        Returns:
+            str: First 16 characters of SHA-256 hash of User-Agent
+        """
+        ua = request.headers.get('User-Agent', '')
+        return hashlib.sha256(ua.encode()).hexdigest()[:16]
+
+    def _check_device_fingerprint(self, payload: Dict[str, Any], token_type: str) -> bool:
+        """
+        Check if the device fingerprint in the token matches the current request.
+        Phase 1: Log warnings on mismatch but don't reject.
+
+        Args:
+            payload: Decoded JWT payload
+            token_type: Type of token (access, refresh, etc.)
+
+        Returns:
+            bool: True if fingerprint matches or check is skipped
+        """
+        stored_dfp = payload.get('dfp')
+        if not stored_dfp:
+            # Token was issued before device fingerprinting was added
+            return True
+
+        current_dfp = self._get_device_fingerprint()
+        if stored_dfp != current_dfp:
+            user_id = payload.get('user_id', 'unknown')
+            # Phase 1: Log warning but don't reject (will reject in Phase 2)
+            logger.warning(
+                f"[SessionManager] Device fingerprint mismatch for {token_type} token | "
+                f"User: {user_id[:8]}... | "
+                f"Token DFP: {stored_dfp} | "
+                f"Request DFP: {current_dfp} | "
+                f"UA: {request.headers.get('User-Agent', 'unknown')[:50]}..."
+            )
+            # Phase 1: Return True (allow) - Change to False in Phase 2 to reject
+            return True
+
+        return True
+
     def is_session_expired(self, session_data: Dict[str, Any]) -> bool:
         """Check if session has exceeded timeout period
 
@@ -137,6 +182,7 @@ class SessionManager:
             'user_id': user_id,  # Keep for backward compatibility
             'type': 'access',
             'version': self.token_version,  # Add version for rotation tracking
+            'dfp': self._get_device_fingerprint(),  # Device fingerprint for token binding
             'exp': datetime.now(timezone.utc) + self.access_token_expiry,
             'iat': datetime.now(timezone.utc)
         }
@@ -149,6 +195,7 @@ class SessionManager:
             'user_id': user_id,  # Keep for backward compatibility
             'type': 'refresh',
             'version': self.token_version,  # Add version for rotation tracking
+            'dfp': self._get_device_fingerprint(),  # Device fingerprint for token binding
             'exp': datetime.now(timezone.utc) + self.refresh_token_expiry,
             'iat': datetime.now(timezone.utc)
         }
@@ -190,6 +237,8 @@ class SessionManager:
                 if self.is_session_expired(payload):
                     logger.info(f"[SessionManager] Access token rejected: session timeout exceeded")
                     return None
+                # Check device fingerprint (Phase 1: log only)
+                self._check_device_fingerprint(payload, 'access')
                 return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
             pass
@@ -203,6 +252,8 @@ class SessionManager:
                     if self.is_session_expired(payload):
                         logger.info(f"[SessionManager] Access token (old key) rejected: session timeout exceeded")
                         return None
+                    # Check device fingerprint (Phase 1: log only)
+                    self._check_device_fingerprint(payload, 'access')
                     logger.info(f"[SessionManager] Token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
@@ -220,6 +271,8 @@ class SessionManager:
                 if self.is_session_expired(payload):
                     logger.info(f"[SessionManager] Refresh token rejected: session timeout exceeded")
                     return None
+                # Check device fingerprint (Phase 1: log only)
+                self._check_device_fingerprint(payload, 'refresh')
                 return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
             pass
@@ -233,6 +286,8 @@ class SessionManager:
                     if self.is_session_expired(payload):
                         logger.info(f"[SessionManager] Refresh token (old key) rejected: session timeout exceeded")
                         return None
+                    # Check device fingerprint (Phase 1: log only)
+                    self._check_device_fingerprint(payload, 'refresh')
                     logger.info(f"[SessionManager] Refresh token validated with previous secret (version: {payload.get('version', 'unknown')})")
                     return payload
             except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):

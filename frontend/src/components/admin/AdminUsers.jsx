@@ -393,21 +393,12 @@ const AdminUsers = () => {
                     {formatDate(user.last_active)}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex gap-2 justify-end">
-                      <button
-                        onClick={() => navigate(`/admin/user/${user.id}/activity`)}
-                        className="px-4 py-2 min-h-[44px] min-w-[44px] bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 transition-colors text-sm font-medium touch-manipulation"
-                        title="View activity logs"
-                      >
-                        Activity
-                      </button>
-                      <button
-                        onClick={() => handleEditUser(user)}
-                        className="px-4 py-2 min-h-[44px] min-w-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors text-sm font-medium touch-manipulation"
-                      >
-                        Details
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => handleEditUser(user)}
+                      className="px-4 py-2 min-h-[44px] min-w-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors text-sm font-medium touch-manipulation"
+                    >
+                      View User
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -531,22 +522,13 @@ const AdminUsers = () => {
                   </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => navigate(`/admin/user/${user.id}/activity`)}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
-                    title="View activity logs"
-                  >
-                    Activity
-                  </button>
-                  <button
-                    onClick={() => handleEditUser(user)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
-                  >
-                    Details
-                  </button>
-                </div>
+                {/* Action Button */}
+                <button
+                  onClick={() => handleEditUser(user)}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+                >
+                  View User
+                </button>
               </div>
             </div>
           ))}

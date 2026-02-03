@@ -156,7 +156,13 @@ class ErrorHandler:
         """Handle application errors"""
         log_error(error, self.get_request_info())
         response = format_error_response(error)
-        return jsonify(response), error.status_code
+        resp = jsonify(response)
+        # Ensure CORS headers are set for error responses
+        origin = request.headers.get('Origin')
+        if origin:
+            resp.headers['Access-Control-Allow-Origin'] = origin
+            resp.headers['Access-Control-Allow-Credentials'] = 'true'
+        return resp, error.status_code
     
     def handle_http_error(self, error):
         """Handle HTTP errors"""

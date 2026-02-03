@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import CurriculumView from '../curriculum/CurriculumView'
+import { sanitizeHtml } from '../../utils/sanitize'
 
 /**
  * StudentPreviewModal - Shows exactly what students see when viewing a course
@@ -182,7 +183,7 @@ const StudentPreviewModal = ({
                       {selectedProject.description && (
                         <div
                           className="text-gray-600 prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: selectedProject.description }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedProject.description) }}
                         />
                       )}
                     </div>

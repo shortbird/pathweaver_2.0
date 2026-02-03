@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
-import { ChevronDownIcon, ChevronUpIcon, MagnifyingGlassIcon, TrashIcon, UserPlusIcon, UsersIcon, CheckCircleIcon, XMarkIcon, EnvelopeIcon, LinkIcon } from '@heroicons/react/24/outline'
+import { ChevronDownIcon, ChevronUpIcon, MagnifyingGlassIcon, TrashIcon, UserPlusIcon, UsersIcon, CheckCircleIcon, XMarkIcon, EnvelopeIcon, LinkIcon, EyeIcon } from '@heroicons/react/24/outline'
 
 export default function ConnectionsTab({ orgId }) {
   const [loading, setLoading] = useState(true)
@@ -13,10 +13,14 @@ export default function ConnectionsTab({ orgId }) {
   const [selectedAdvisor, setSelectedAdvisor] = useState(null)
   const [assignedStudents, setAssignedStudents] = useState([])
   const [unassignedStudents, setUnassignedStudents] = useState([])
+  const [allStudentsWithAdvisors, setAllStudentsWithAdvisors] = useState([])
   const [showAssignModal, setShowAssignModal] = useState(false)
   const [assignLoading, setAssignLoading] = useState(false)
   const [expandedAdvisorId, setExpandedAdvisorId] = useState(null)
   const [selectedStudentsForAdvisor, setSelectedStudentsForAdvisor] = useState([])
+  const [showUnassignedOnly, setShowUnassignedOnly] = useState(false)
+  const [showStudentAdvisorsModal, setShowStudentAdvisorsModal] = useState(false)
+  const [selectedStudentForAdvisors, setSelectedStudentForAdvisors] = useState(null)
 
   // Parent-Student state
   const [parentLinks, setParentLinks] = useState([])
@@ -48,6 +52,7 @@ export default function ConnectionsTab({ orgId }) {
       await Promise.all([
         fetchAdvisors(),
         fetchUnassignedStudents(),
+        fetchAllStudentsWithAdvisors(),
         loadParentLinks(),
         loadParentsAndStudents()
       ])
@@ -74,6 +79,15 @@ export default function ConnectionsTab({ orgId }) {
       setUnassignedStudents(response.data.students || [])
     } catch (error) {
       console.error('Error fetching unassigned students:', error)
+    }
+  }
+
+  const fetchAllStudentsWithAdvisors = async () => {
+    try {
+      const response = await api.get(`/api/admin/organizations/${orgId}/students/advisor-assignments`)
+      setAllStudentsWithAdvisors(response.data.students || [])
+    } catch (error) {
+      console.error('Error fetching students with advisors:', error)
     }
   }
 
@@ -121,6 +135,7 @@ export default function ConnectionsTab({ orgId }) {
 
       fetchAdvisorStudents(selectedAdvisor.id)
       fetchUnassignedStudents()
+      fetchAllStudentsWithAdvisors()
       fetchAdvisors()
       setShowAssignModal(false)
       setSelectedStudentsForAdvisor([])
@@ -142,11 +157,44 @@ export default function ConnectionsTab({ orgId }) {
 
       fetchAdvisorStudents(selectedAdvisor.id)
       fetchUnassignedStudents()
+      fetchAllStudentsWithAdvisors()
       fetchAdvisors()
     } catch (error) {
       toast.error('Failed to unassign student')
       console.error('Error unassigning student:', error)
     }
+  }
+
+  const handleUnassignAdvisorFromStudent = async (studentId, advisorId, advisorName) => {
+    if (!window.confirm(`Are you sure you want to remove ${advisorName} from this student?`)) return
+
+    try {
+      await api.delete(`/api/admin/organizations/${orgId}/students/${studentId}/advisors/${advisorId}`)
+      toast.success('Advisor removed successfully')
+
+      fetchAllStudentsWithAdvisors()
+      fetchUnassignedStudents()
+      fetchAdvisors()
+
+      // Refresh the modal data if it's open
+      if (selectedStudentForAdvisors && selectedStudentForAdvisors.id === studentId) {
+        const updated = allStudentsWithAdvisors.find(s => s.id === studentId)
+        if (updated) {
+          setSelectedStudentForAdvisors({
+            ...updated,
+            advisors: updated.advisors.filter(a => a.advisor_id !== advisorId)
+          })
+        }
+      }
+    } catch (error) {
+      toast.error('Failed to remove advisor')
+      console.error('Error removing advisor:', error)
+    }
+  }
+
+  const handleViewStudentAdvisors = (student) => {
+    setSelectedStudentForAdvisors(student)
+    setShowStudentAdvisorsModal(true)
   }
 
   // Parent-Student functions
@@ -295,6 +343,31 @@ export default function ConnectionsTab({ orgId }) {
       lastName.toLowerCase().includes(searchLower)
     )
   })
+
+  // Get students to show in assign modal based on toggle
+  const getStudentsForAssignModal = () => {
+    if (showUnassignedOnly) {
+      return filteredUnassignedStudents
+    }
+    // Show all students, filter out those already assigned to this specific advisor
+    const alreadyAssignedToThisAdvisor = assignedStudents.map(s => s.id)
+    return allStudentsWithAdvisors.filter(student => {
+      if (alreadyAssignedToThisAdvisor.includes(student.id)) return false
+      const searchLower = searchTerm.toLowerCase()
+      const displayName = student.display_name || ''
+      const email = student.email || ''
+      const firstName = student.first_name || ''
+      const lastName = student.last_name || ''
+      return (
+        displayName.toLowerCase().includes(searchLower) ||
+        email.toLowerCase().includes(searchLower) ||
+        firstName.toLowerCase().includes(searchLower) ||
+        lastName.toLowerCase().includes(searchLower)
+      )
+    })
+  }
+
+  const studentsForAssignModal = getStudentsForAssignModal()
 
   const filteredParentLinks = parentLinks.filter(link => {
     if (!searchTerm) return true
@@ -472,6 +545,78 @@ export default function ConnectionsTab({ orgId }) {
         )}
       </section>
 
+      {/* All Students Overview Section - Shows students with their advisor counts */}
+      <section className="bg-white rounded-lg shadow p-6">
+        <div className="mb-6">
+          <h3 className="text-xl font-bold mb-2">All Students Overview</h3>
+          <p className="text-gray-600 text-sm">View advisor assignments for all students. Students can have multiple advisors.</p>
+        </div>
+
+        {allStudentsWithAdvisors.length === 0 ? (
+          <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
+            <UsersIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <p>No students found in this organization</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Student</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Advisors</th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {allStudentsWithAdvisors.map((student) => (
+                  <tr key={student.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {student.display_name || `${student.first_name} ${student.last_name}`}
+                        </div>
+                        <div className="text-sm text-gray-500">{student.email}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {student.advisor_count === 0 ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                          No advisors
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            {student.advisor_count} advisor{student.advisor_count > 1 ? 's' : ''}
+                          </span>
+                          {student.advisors?.slice(0, 2).map((advisor, idx) => (
+                            <span key={advisor.advisor_id} className="text-xs text-gray-500">
+                              {idx > 0 && ', '}
+                              {advisor.display_name}
+                            </span>
+                          ))}
+                          {student.advisor_count > 2 && (
+                            <span className="text-xs text-gray-400">+{student.advisor_count - 2} more</span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={() => handleViewStudentAdvisors(student)}
+                        className="inline-flex items-center px-3 py-1 text-sm text-optio-purple hover:bg-purple-50 rounded-lg transition-colors font-medium gap-1"
+                      >
+                        <EyeIcon className="w-4 h-4" />
+                        View Advisors
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       {/* Parent-Student Connections Section */}
       <section className="bg-white rounded-lg shadow p-6">
         <div className="mb-6 flex justify-between items-center">
@@ -571,10 +716,11 @@ export default function ConnectionsTab({ orgId }) {
             setShowAssignModal(false)
             setSelectedStudentsForAdvisor([])
             setSearchTerm('')
+            setShowUnassignedOnly(false)
           }}
         >
           <div className="px-6 py-4 border-b">
-            <div className="relative">
+            <div className="relative mb-3">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
@@ -584,13 +730,33 @@ export default function ConnectionsTab({ orgId }) {
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
               />
             </div>
+            {/* Toggle for showing unassigned only vs all students */}
+            <div className="flex items-center gap-2">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showUnassignedOnly}
+                  onChange={(e) => setShowUnassignedOnly(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-optio-purple"></div>
+              </label>
+              <span className="text-sm text-gray-600">
+                {showUnassignedOnly ? 'Show unassigned only' : 'Show all students'}
+              </span>
+            </div>
+            {!showUnassignedOnly && (
+              <p className="text-xs text-gray-500 mt-1">
+                Students can be assigned to multiple advisors
+              </p>
+            )}
             {selectedStudentsForAdvisor.length > 0 && (
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm font-medium text-blue-900 mb-2">
                   {selectedStudentsForAdvisor.length} student{selectedStudentsForAdvisor.length > 1 ? 's' : ''} selected
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {unassignedStudents
+                  {(showUnassignedOnly ? unassignedStudents : allStudentsWithAdvisors)
                     .filter(s => selectedStudentsForAdvisor.includes(s.id))
                     .map(student => (
                       <span key={student.id} className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-blue-300 rounded text-sm">
@@ -606,14 +772,14 @@ export default function ConnectionsTab({ orgId }) {
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 py-4 max-h-96">
-            {filteredUnassignedStudents.length === 0 ? (
+            {studentsForAssignModal.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
-                <p>No unassigned students found</p>
+                <p>{showUnassignedOnly ? 'No unassigned students found' : 'No students available'}</p>
                 {searchTerm && <p className="text-sm mt-1">Try adjusting your search</p>}
               </div>
             ) : (
               <div className="space-y-2">
-                {filteredUnassignedStudents.map(student => (
+                {studentsForAssignModal.map(student => (
                   <button
                     key={student.id}
                     onClick={() => toggleStudentForAdvisor(student.id)}
@@ -638,6 +804,12 @@ export default function ConnectionsTab({ orgId }) {
                         {student.display_name || `${student.first_name} ${student.last_name}`}
                       </p>
                       <p className="text-sm text-gray-500">{student.email}</p>
+                      {/* Show existing advisors for this student if in "all students" mode */}
+                      {!showUnassignedOnly && student.advisor_count > 0 && (
+                        <p className="text-xs text-purple-600 mt-1">
+                          Currently has {student.advisor_count} advisor{student.advisor_count > 1 ? 's' : ''}
+                        </p>
+                      )}
                     </div>
                   </button>
                 ))}
@@ -647,7 +819,7 @@ export default function ConnectionsTab({ orgId }) {
 
           <div className="px-6 py-4 border-t bg-gray-50 flex justify-between items-center">
             <p className="text-sm text-gray-600">
-              {filteredUnassignedStudents.length} unassigned student{filteredUnassignedStudents.length !== 1 ? 's' : ''} available
+              {studentsForAssignModal.length} student{studentsForAssignModal.length !== 1 ? 's' : ''} available
             </p>
             <div className="flex gap-3">
               <button
@@ -655,6 +827,7 @@ export default function ConnectionsTab({ orgId }) {
                   setShowAssignModal(false)
                   setSelectedStudentsForAdvisor([])
                   setSearchTerm('')
+                  setShowUnassignedOnly(false)
                 }}
                 className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors font-medium"
               >
@@ -1035,6 +1208,65 @@ export default function ConnectionsTab({ orgId }) {
                 {inviteLoading ? 'Sending...' : 'Send Invitation'}
               </button>
             )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Student Advisors Modal - View and manage advisors for a specific student */}
+      {showStudentAdvisorsModal && selectedStudentForAdvisors && (
+        <Modal
+          title={`Advisors for ${selectedStudentForAdvisors.display_name || `${selectedStudentForAdvisors.first_name} ${selectedStudentForAdvisors.last_name}`}`}
+          onClose={() => {
+            setShowStudentAdvisorsModal(false)
+            setSelectedStudentForAdvisors(null)
+          }}
+        >
+          <div className="px-6 py-4">
+            {selectedStudentForAdvisors.advisors?.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <UsersIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>No advisors assigned to this student</p>
+                <p className="text-sm mt-1">Use the advisor cards above to assign advisors</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600 mb-4">
+                  This student has {selectedStudentForAdvisors.advisors.length} advisor{selectedStudentForAdvisors.advisors.length > 1 ? 's' : ''} assigned:
+                </p>
+                {selectedStudentForAdvisors.advisors.map(advisor => (
+                  <div key={advisor.assignment_id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
+                    <div>
+                      <p className="font-medium text-gray-900">{advisor.display_name}</p>
+                      <p className="text-sm text-gray-500">{advisor.email}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Assigned {new Date(advisor.assigned_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleUnassignAdvisorFromStudent(
+                        selectedStudentForAdvisors.id,
+                        advisor.advisor_id,
+                        advisor.display_name
+                      )}
+                      className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="px-6 py-4 border-t bg-gray-50 flex justify-end">
+            <button
+              onClick={() => {
+                setShowStudentAdvisorsModal(false)
+                setSelectedStudentForAdvisors(null)
+              }}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors font-medium"
+            >
+              Close
+            </button>
           </div>
         </Modal>
       )}

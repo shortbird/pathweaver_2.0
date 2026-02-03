@@ -430,16 +430,54 @@ export const AuthProvider = ({ children }) => {
   }
 
   // Get effective role (resolves org_managed to org_role)
+  // Returns primary role (first role if multiple)
   // Platform users: organization_id = NULL, use role directly
-  // Org users: organization_id set, role = 'org_managed', actual role in org_role
+  // Org users: organization_id set, role = 'org_managed', actual role in org_role/org_roles
   const getEffectiveRole = (u) => {
     if (!u) return null
     if (u.role === 'superadmin') return 'superadmin'
-    if (u.role === 'org_managed' && u.org_role) return u.org_role
+    if (u.role === 'org_managed') {
+      // Check new org_roles array first
+      if (u.org_roles && Array.isArray(u.org_roles) && u.org_roles.length > 0) {
+        return u.org_roles[0]  // Return primary (first) role
+      }
+      // Fallback to legacy org_role
+      if (u.org_role) return u.org_role
+    }
     return u.role
   }
 
+  // Get all effective roles (for users with multiple roles)
+  // Returns array of roles the user has
+  const getEffectiveRoles = (u) => {
+    if (!u) return []
+    if (u.role === 'superadmin') return ['superadmin']
+    if (u.role === 'org_managed') {
+      // Check new org_roles array first
+      if (u.org_roles && Array.isArray(u.org_roles) && u.org_roles.length > 0) {
+        return u.org_roles
+      }
+      // Fallback to legacy org_role
+      if (u.org_role) return [u.org_role]
+      return ['student']  // Default fallback
+    }
+    return [u.role]
+  }
+
+  // Check if user has a specific role (supports multiple roles)
+  const hasRole = (u, role) => {
+    const roles = getEffectiveRoles(u)
+    return roles.includes(role)
+  }
+
+  // Check if user has any of the specified roles
+  const hasAnyRole = (u, rolesToCheck) => {
+    const roles = getEffectiveRoles(u)
+    return rolesToCheck.some(r => roles.includes(r))
+  }
+
   const effectiveRole = getEffectiveRole(user)
+  const effectiveRoles = getEffectiveRoles(user)
 
   const value = {
     user,
@@ -454,8 +492,11 @@ export const AuthProvider = ({ children }) => {
     refreshUser,
     loginTimestamp, // Expose timestamp to trigger data refresh
     isAuthenticated: !!user,
-    effectiveRole, // The user's effective role (resolves org_managed)
-    isAdmin: effectiveRole === 'org_admin' || effectiveRole === 'superadmin',
+    effectiveRole, // The user's primary effective role (resolves org_managed)
+    effectiveRoles, // All roles the user has (for multi-role users)
+    hasRole: (role) => hasRole(user, role), // Check if user has a specific role
+    hasAnyRole: (rolesToCheck) => hasAnyRole(user, rolesToCheck), // Check if user has any of the roles
+    isAdmin: effectiveRoles.includes('org_admin') || effectiveRoles.includes('superadmin'),
     isSuperadmin: effectiveRole === 'superadmin',
     isCreator: user?.subscription_tier === 'creator' || user?.subscription_tier === 'enterprise',
     isAcademy: user?.subscription_tier === 'enterprise', // Academy tier uses 'enterprise' in database

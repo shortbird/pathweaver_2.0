@@ -3,6 +3,7 @@ Course Routes
 API endpoints for course management, quest sequencing, and student enrollments.
 """
 
+import re
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth, require_admin
@@ -17,6 +18,46 @@ from utils.logger import get_logger
 from utils.roles import get_effective_role
 
 logger = get_logger(__name__)
+
+
+def generate_slug(title: str) -> str:
+    """Generate a URL-friendly slug from a title."""
+    if not title:
+        return None
+    # Convert to lowercase
+    slug = title.lower()
+    # Replace spaces and special characters with hyphens
+    slug = re.sub(r'[^a-z0-9]+', '-', slug)
+    # Remove leading/trailing hyphens
+    slug = slug.strip('-')
+    # Collapse multiple hyphens
+    slug = re.sub(r'-+', '-', slug)
+    return slug
+
+
+def ensure_unique_slug(client, base_slug: str, course_id: str = None) -> str:
+    """Ensure a slug is unique, appending a number if needed."""
+    slug = base_slug
+    counter = 1
+
+    while True:
+        # Check if slug exists
+        query = client.table('courses').select('id').eq('slug', slug)
+        if course_id:
+            query = query.neq('id', course_id)  # Exclude current course when updating
+
+        result = query.execute()
+
+        if not result.data:
+            return slug
+
+        # Slug exists, try with counter
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+
+        if counter > 100:  # Safety limit
+            import uuid
+            return f"{base_slug}-{str(uuid.uuid4())[:8]}"
 
 bp = Blueprint('courses', __name__, url_prefix='/api/courses')
 
@@ -190,8 +231,13 @@ def create_course(user_id):
         if not data or not data.get('title'):
             return jsonify({'error': 'Title is required'}), 400
 
+        # Generate slug from title
+        base_slug = generate_slug(data['title'])
+        slug = ensure_unique_slug(client, base_slug) if base_slug else None
+
         course_data = {
             'title': data['title'],
+            'slug': slug,
             'organization_id': user_data['organization_id'],
             'created_by': user_id,
             'description': data.get('description'),
@@ -298,10 +344,28 @@ def update_course(user_id, course_id: str):
 
         # Build updates
         updates = {}
-        allowed_fields = ['title', 'description', 'intro_content', 'cover_image_url', 'visibility', 'navigation_mode', 'status']
+        allowed_fields = [
+            'title', 'description', 'intro_content', 'cover_image_url',
+            'visibility', 'navigation_mode', 'status',
+            # Showcase fields for public course pages
+            'slug', 'learning_outcomes', 'final_deliverable',
+            'educational_value', 'parent_guidance'
+        ]
         for field in allowed_fields:
             if field in data:
                 updates[field] = data[field]
+
+        # If slug is being updated, ensure uniqueness
+        if 'slug' in updates and updates['slug']:
+            base_slug = generate_slug(updates['slug'])
+            updates['slug'] = ensure_unique_slug(client, base_slug, course_id)
+
+        # Auto-generate slug if title changes and no slug exists
+        if 'title' in updates:
+            existing_course = client.table('courses').select('slug').eq('id', course_id).execute()
+            if existing_course.data and not existing_course.data[0].get('slug'):
+                base_slug = generate_slug(updates['title'])
+                updates['slug'] = ensure_unique_slug(client, base_slug, course_id)
 
         if not updates:
             return jsonify({'error': 'No valid fields to update'}), 400
@@ -338,6 +402,92 @@ def update_course(user_id, course_id: str):
 
     except Exception as e:
         logger.error(f"Error updating course {course_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<course_id>/generate-showcase', methods=['POST'])
+@require_auth
+def generate_showcase_fields(user_id, course_id: str):
+    """
+    Generate showcase fields using AI based on course projects and lessons.
+
+    Path params:
+        course_id: Course UUID
+
+    Returns:
+        Generated showcase fields: learning_outcomes, final_deliverable,
+        guidance_level, academic_alignment, age_range, estimated_hours
+    """
+    try:
+        user_id = session_manager.get_effective_user_id()
+        client = get_supabase_admin_client()
+
+        # Check permissions
+        course_result = client.table('courses').select('*').eq('id', course_id).execute()
+        if not course_result.data:
+            return jsonify({'error': 'Course not found'}), 404
+
+        course = course_result.data[0]
+        user_result = client.table('users').select('organization_id, role, org_role').eq('id', user_id).execute()
+        if not user_result.data:
+            return jsonify({'error': 'User not found'}), 404
+
+        user_data = user_result.data[0]
+        effective_role = get_effective_role(user_data)
+
+        # Must be creator or admin/org_admin/advisor in same org
+        is_creator = course['created_by'] == user_id
+        has_admin_role = effective_role in ['superadmin', 'org_admin', 'advisor']
+        is_admin = has_admin_role and (effective_role == 'superadmin' or user_data['organization_id'] == course['organization_id'])
+
+        if not (is_creator or is_admin):
+            return jsonify({'error': 'Insufficient permissions'}), 403
+
+        # Get projects (quests) for this course
+        quests_result = client.table('course_quests').select(
+            'quest_id, quests(id, title, description, quest_type)'
+        ).eq('course_id', course_id).order('sequence_order').execute()
+
+        projects = []
+        quest_ids = []
+        for cq in (quests_result.data or []):
+            quest = cq.get('quests') or {}
+            if quest:
+                projects.append(quest)
+                quest_ids.append(quest.get('id'))
+
+        # Get lessons for all quests in this course
+        lessons = []
+        if quest_ids:
+            lessons_result = client.table('curriculum_lessons').select(
+                'id, title, content, quest_id'
+            ).in_('quest_id', quest_ids).order('sequence_order').execute()
+            lessons = lessons_result.data or []
+
+        # Check if we have enough content to generate
+        if not projects:
+            return jsonify({
+                'error': 'No projects found. Add at least one project to generate showcase fields.'
+            }), 400
+
+        # Generate showcase fields using AI
+        from services.course_showcase_ai_service import CourseShowcaseAIService
+        ai_service = CourseShowcaseAIService()
+
+        result = ai_service.generate_showcase_fields(course, projects, lessons)
+
+        if not result.get('success'):
+            return jsonify({'error': 'AI generation failed'}), 500
+
+        logger.info(f"Generated showcase fields for course {course_id}")
+
+        return jsonify({
+            'success': True,
+            'showcase': result['showcase']
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error generating showcase fields for course {course_id}: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -473,12 +623,60 @@ def upload_quest_header_image(user_id, quest_id: str):
             return jsonify({'error': result.error_message}), 400
 
         # Update quest with new header image URL
-        client.table('quests').update({
+        # Use retry logic for transient connection issues
+        import time as time_module  # Import at top of function scope
+
+        update_data = {
             'header_image_url': result.url,
             'updated_at': datetime.utcnow().isoformat()
-        }).eq('id', quest_id).execute()
+        }
 
-        logger.info(f"Header image uploaded for quest {quest_id}: {result.url}")
+        max_retries = 3
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                update_result = client.table('quests').update(update_data).eq('id', quest_id).execute()
+                if update_result.data:
+                    logger.info(f"Header image uploaded for quest {quest_id}: {result.url}")
+                    break
+                else:
+                    # Update succeeded but no data returned - this is OK for updates
+                    logger.info(f"Header image uploaded for quest {quest_id}: {result.url} (no data returned)")
+                    break
+            except Exception as update_error:
+                last_error = update_error
+                error_str = str(update_error)
+
+                # Log detailed error information
+                logger.warning(f"Quest update attempt {attempt + 1}/{max_retries} failed for quest {quest_id}")
+                logger.warning(f"Error type: {type(update_error).__name__}")
+                logger.warning(f"Error message: {error_str}")
+
+                # Log exception attributes if available (Supabase errors have extra info)
+                if hasattr(update_error, 'message'):
+                    logger.warning(f"Error.message: {update_error.message}")
+                if hasattr(update_error, 'code'):
+                    logger.warning(f"Error.code: {update_error.code}")
+                if hasattr(update_error, 'details'):
+                    logger.warning(f"Error.details: {update_error.details}")
+
+                # Check if this is the unusual "Route not found" error
+                if 'Route' in error_str and 'not found' in error_str:
+                    logger.error(f"Unusual PostgREST error detected. This may indicate a Supabase configuration issue.")
+                    logger.error(f"Quest ID: {quest_id}, Update data: {update_data}")
+                    logger.error(f"This error typically indicates the Supabase REST API received an unexpected request format.")
+
+                if attempt < max_retries - 1:
+                    time_module.sleep(0.5 * (attempt + 1))  # Exponential backoff
+                else:
+                    # All retries failed - return the uploaded URL anyway since storage succeeded
+                    logger.error(f"All {max_retries} quest update attempts failed. Storage upload succeeded but DB update failed.")
+                    # Return success with the URL - the image is uploaded, just not linked
+                    return jsonify({
+                        'success': True,
+                        'url': result.url,
+                        'warning': 'Image uploaded but database update failed. Please save the project to link the image.'
+                    }), 200
 
         return jsonify({
             'success': True,
@@ -1068,11 +1266,45 @@ def update_project_details(user_id, course_id: str, quest_id: str):
         if not updates:
             return jsonify({'error': 'No valid fields to update'}), 400
 
-        client.table('quests').update(updates).eq('id', quest_id).execute()
+        # Use retry logic for transient connection issues
+        import time as time_module  # Import at function scope
 
-        logger.info(f"Project {quest_id} updated in course {course_id}")
+        max_retries = 3
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                update_result = client.table('quests').update(updates).eq('id', quest_id).execute()
+                logger.info(f"Project {quest_id} updated in course {course_id}")
+                return jsonify({'success': True}), 200
+            except Exception as update_error:
+                last_error = update_error
+                error_str = str(update_error)
 
-        return jsonify({'success': True}), 200
+                # Log detailed error information
+                logger.warning(f"Project update attempt {attempt + 1}/{max_retries} failed for quest {quest_id}")
+                logger.warning(f"Error type: {type(update_error).__name__}")
+                logger.warning(f"Error message: {error_str}")
+
+                # Log exception attributes if available (Supabase errors have extra info)
+                if hasattr(update_error, 'message'):
+                    logger.warning(f"Error.message: {update_error.message}")
+                if hasattr(update_error, 'code'):
+                    logger.warning(f"Error.code: {update_error.code}")
+                if hasattr(update_error, 'details'):
+                    logger.warning(f"Error.details: {update_error.details}")
+
+                # Check if this is the unusual "Route not found" error
+                if 'Route' in error_str and 'not found' in error_str:
+                    logger.error(f"Unusual PostgREST error detected. This may indicate a Supabase configuration issue.")
+                    logger.error(f"Quest ID: {quest_id}, Update data keys: {list(updates.keys())}")
+                    logger.error(f"This error typically indicates the Supabase REST API received an unexpected request format.")
+
+                if attempt < max_retries - 1:
+                    time_module.sleep(0.5 * (attempt + 1))  # Exponential backoff
+
+        # All retries failed
+        logger.error(f"All {max_retries} project update attempts failed for quest {quest_id}")
+        return jsonify({'error': f'Database update failed after {max_retries} attempts: {str(last_error)}'}), 500
 
     except Exception as e:
         logger.error(f"Error updating project in course {course_id}: {str(e)}")

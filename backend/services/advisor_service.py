@@ -99,6 +99,48 @@ class AdvisorService(BaseService):
 
     # ==================== Advisor-Student Relationships ====================
 
+    def get_student_advisors(self, student_id: str) -> List[Dict[str, Any]]:
+        """
+        Get all advisors assigned to a specific student.
+
+        Args:
+            student_id: UUID of the student
+
+        Returns:
+            List of advisor records with assignment details
+        """
+        try:
+            # Get all active assignments for this student with advisor info
+            response = self.supabase.table('advisor_student_assignments')\
+                .select('id, advisor_id, assigned_at, assigned_by, users!advisor_student_assignments_advisor_id_fkey(id, display_name, first_name, last_name, email, role, org_role)')\
+                .eq('student_id', student_id)\
+                .eq('is_active', True)\
+                .execute()
+
+            advisors = []
+            if response.data:
+                for assignment in response.data:
+                    if assignment.get('users'):
+                        advisor = assignment['users']
+                        # Provide fallback for display_name
+                        if not advisor.get('display_name'):
+                            advisor['display_name'] = f"{advisor.get('first_name', '')} {advisor.get('last_name', '')}".strip()
+                        advisors.append({
+                            'assignment_id': assignment['id'],
+                            'advisor_id': assignment['advisor_id'],
+                            'assigned_at': assignment['assigned_at'],
+                            'assigned_by': assignment['assigned_by'],
+                            **advisor
+                        })
+
+            return advisors
+
+        except Exception as e:
+            import traceback
+            print(f"Error fetching student advisors: {str(e)}", file=sys.stderr, flush=True)
+            print(f"Traceback: {traceback.format_exc()}", file=sys.stderr, flush=True)
+            raise
+
     def get_advisor_students(self, advisor_id: str) -> List[Dict[str, Any]]:
         """
         Get all students assigned to this advisor.
