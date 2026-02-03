@@ -363,13 +363,11 @@ const OutlineTree = ({
             </SortableContext>
           </DndContext>
         )}
-      </div>
 
-      {/* Footer - Add Project button */}
-      <div className="p-3 border-t border-gray-200">
+        {/* Add Project button - below projects list */}
         <button
           onClick={onAddProject}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-optio-purple border border-dashed border-optio-purple/50 rounded-lg hover:bg-optio-purple/5 transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 mt-2 text-sm font-medium text-optio-purple border border-dashed border-optio-purple/50 rounded-lg hover:bg-optio-purple/5 transition-colors"
         >
           <PlusIcon className="w-4 h-4" />
           Add Project

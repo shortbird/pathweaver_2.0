@@ -205,15 +205,14 @@ api.interceptors.response.use(
 
     // Handle 401 responses by attempting token refresh
     // BUT: Don't refresh on login failures - those are genuine wrong credentials
-    // AND: Don't refresh for /auth/me if we have no tokens (initial session check)
-    const hasTokens = !!tokenStore.getAccessToken() || !!tokenStore.getRefreshToken()
-    const isInitialSessionCheck = originalRequest.url?.includes('/auth/me') && !hasTokens
-
+    // FIXED (February 2026): Always attempt refresh on 401, even when in-memory tokens are absent.
+    // Chrome users rely on httpOnly cookies, and IndexedDB token restore can fail. The backend
+    // will determine if valid refresh_token cookies exist. For truly unauthenticated users,
+    // the refresh will fail and redirect to login (same result, one extra fast request).
     if (error.response?.status === 401 &&
         !originalRequest._retry &&
         !originalRequest.url?.includes('/auth/refresh') &&
-        !originalRequest.url?.includes('/auth/login') &&
-        !isInitialSessionCheck) {
+        !originalRequest.url?.includes('/auth/login')) {
       originalRequest._retry = true
 
       try {

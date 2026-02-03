@@ -237,9 +237,8 @@ const CourseBuilder = () => {
   const handleAddQuest = async (quest) => {
     try {
       setSaving(true)
-      await courseService.addQuestToCourse(courseId, quest.id, {
-        sequence_order: quests.length
-      })
+      // Don't send sequence_order - let backend auto-calculate to avoid conflicts
+      await courseService.addQuestToCourse(courseId, quest.id, {})
 
       const updatedQuest = { ...quest, order_index: quests.length }
       setQuests([...quests, updatedQuest])
