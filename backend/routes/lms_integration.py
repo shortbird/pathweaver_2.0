@@ -230,8 +230,7 @@ def grade_sync_status(user_id):
         from repositories import (
             UserRepository,
             QuestRepository,
-            BadgeRepository,
-            EvidenceRepository,
+    EvidenceRepository,
             FriendshipRepository,
             ParentRepository,
             TutorRepository,

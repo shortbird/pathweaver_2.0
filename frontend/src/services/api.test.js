@@ -20,7 +20,6 @@ import api, {
   parentAPI,
   adminParentConnectionsAPI,
   questLifecycleAPI,
-  badgeClaimingAPI,
   checkinAPI,
   helperEvidenceAPI,
 } from './api'
@@ -622,38 +621,6 @@ describe('api.js - Core API Client', () => {
         expect(call).toContain('/api/reflection-prompts')
         expect(call).toContain('limit=5')
         expect(call).not.toContain('category=')
-      })
-    })
-
-    describe('badgeClaimingAPI', () => {
-      it('claimBadge calls correct endpoint', async () => {
-        const mockPost = vi.spyOn(api, 'post').mockResolvedValue({ data: {} })
-        await badgeClaimingAPI.claimBadge('badge-123')
-        expect(mockPost).toHaveBeenCalledWith('/api/badges/badge-123/claim', {})
-      })
-
-      it('getClaimableBadges calls correct endpoint', async () => {
-        const mockGet = vi.spyOn(api, 'get').mockResolvedValue({ data: [] })
-        await badgeClaimingAPI.getClaimableBadges()
-        expect(mockGet).toHaveBeenCalledWith('/api/badges/claimable')
-      })
-
-      it('getClaimedBadges calls correct endpoint', async () => {
-        const mockGet = vi.spyOn(api, 'get').mockResolvedValue({ data: [] })
-        await badgeClaimingAPI.getClaimedBadges()
-        expect(mockGet).toHaveBeenCalledWith('/api/badges/claimed')
-      })
-
-      it('getBadgeProgress calls correct endpoint', async () => {
-        const mockGet = vi.spyOn(api, 'get').mockResolvedValue({ data: {} })
-        await badgeClaimingAPI.getBadgeProgress('badge-123')
-        expect(mockGet).toHaveBeenCalledWith('/api/badges/badge-123/progress')
-      })
-
-      it('markNotificationSent calls correct endpoint', async () => {
-        const mockPost = vi.spyOn(api, 'post').mockResolvedValue({ data: {} })
-        await badgeClaimingAPI.markNotificationSent('badge-123')
-        expect(mockPost).toHaveBeenCalledWith('/api/badges/badge-123/mark-notification-sent', {})
       })
     })
 

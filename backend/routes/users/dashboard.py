@@ -17,7 +17,6 @@ from database import get_supabase_admin_client
 from repositories import (
     UserRepository,
     QuestRepository,
-    BadgeRepository,
     EvidenceRepository,
     FriendshipRepository,
     ParentRepository,
@@ -89,6 +88,45 @@ def get_enrolled_courses(supabase, user_id: str) -> tuple:
                 for uq in (uq_response.data or []):
                     user_quest_enrollments[uq['quest_id']] = uq
 
+            # Batch fetch all tasks and completions upfront to avoid N+1 queries
+            user_quest_ids = [uq['id'] for uq in user_quest_enrollments.values() if uq.get('id')]
+
+            # Build task count lookup: user_quest_id -> count of approved tasks
+            task_counts = {}
+            task_id_to_user_quest = {}  # Map task_id -> user_quest_id for completions lookup
+
+            if user_quest_ids:
+                # Fetch all tasks for all user quests in one query
+                all_tasks_response = supabase.table('user_quest_tasks')\
+                    .select('id, user_quest_id')\
+                    .in_('user_quest_id', user_quest_ids)\
+                    .eq('approval_status', 'approved')\
+                    .execute()
+
+                # Build lookup maps
+                for task in (all_tasks_response.data or []):
+                    uq_id = task['user_quest_id']
+                    task_counts[uq_id] = task_counts.get(uq_id, 0) + 1
+                    task_id_to_user_quest[task['id']] = uq_id
+
+                # Fetch all completions for all tasks in one query
+                all_task_ids = list(task_id_to_user_quest.keys())
+                completion_counts = {}
+
+                if all_task_ids:
+                    completions_response = supabase.table('quest_task_completions')\
+                        .select('user_quest_task_id')\
+                        .eq('user_id', user_id)\
+                        .in_('user_quest_task_id', all_task_ids)\
+                        .execute()
+
+                    # Count completions per user_quest_id
+                    for completion in (completions_response.data or []):
+                        task_id = completion['user_quest_task_id']
+                        uq_id = task_id_to_user_quest.get(task_id)
+                        if uq_id:
+                            completion_counts[uq_id] = completion_counts.get(uq_id, 0) + 1
+
             # Build quest details with progress
             quests_with_progress = []
             completed_count = 0
@@ -106,28 +144,14 @@ def get_enrolled_courses(supabase, user_id: str) -> tuple:
                 if is_completed:
                     completed_count += 1
 
-                # Get task progress if enrolled
+                # Get task progress from preloaded data
                 completed_tasks = 0
                 total_tasks = 0
 
                 if user_quest.get('id'):
-                    # Get user's tasks for this quest
-                    tasks_response = supabase.table('user_quest_tasks')\
-                        .select('id')\
-                        .eq('user_quest_id', user_quest['id'])\
-                        .eq('approval_status', 'approved')\
-                        .execute()
-
-                    task_ids = [t['id'] for t in (tasks_response.data or [])]
-                    total_tasks = len(task_ids)
-
-                    if task_ids:
-                        completions_response = supabase.table('quest_task_completions')\
-                            .select('user_quest_task_id')\
-                            .eq('user_id', user_id)\
-                            .in_('user_quest_task_id', task_ids)\
-                            .execute()
-                        completed_tasks = len(completions_response.data or [])
+                    uq_id = user_quest['id']
+                    total_tasks = task_counts.get(uq_id, 0)
+                    completed_tasks = completion_counts.get(uq_id, 0)
 
                 quests_with_progress.append({
                     'id': quest_id,
@@ -382,19 +406,44 @@ def get_active_quests(supabase, user_id: str, exclude_quest_ids: set = None) -> 
             if filtered_count > 0:
                 logger.info(f"Filtered out {filtered_count} stale completed quest(s) from active list")
 
-            # Process each quest to add calculated fields
-            for enrollment in active_only:
-                enrollment_id = enrollment.get('id')
+            # Batch fetch all tasks and completions upfront to avoid N+1 queries
+            user_quest_ids = [e.get('id') for e in active_only if e.get('id')]
 
-                # Get user's personalized tasks for this enrollment
-                user_tasks = supabase.table('user_quest_tasks')\
+            # Build task lookup: user_quest_id -> list of tasks
+            tasks_by_enrollment = {}
+            all_task_ids = []
+
+            if user_quest_ids:
+                # Fetch all tasks for all enrollments in one query
+                all_tasks_response = supabase.table('user_quest_tasks')\
                     .select('*')\
-                    .eq('user_quest_id', enrollment_id)\
+                    .in_('user_quest_id', user_quest_ids)\
                     .eq('approval_status', 'approved')\
                     .order('order_index')\
                     .execute()
 
-                tasks = user_tasks.data if user_tasks.data else []
+                for task in (all_tasks_response.data or []):
+                    uq_id = task.get('user_quest_id')
+                    if uq_id not in tasks_by_enrollment:
+                        tasks_by_enrollment[uq_id] = []
+                    tasks_by_enrollment[uq_id].append(task)
+                    all_task_ids.append(task['id'])
+
+            # Fetch all completions in one query
+            completed_task_ids_set = set()
+            if all_task_ids:
+                completions_response = supabase.table('quest_task_completions')\
+                    .select('user_quest_task_id')\
+                    .eq('user_id', user_id)\
+                    .in_('user_quest_task_id', all_task_ids)\
+                    .execute()
+
+                completed_task_ids_set = {t['user_quest_task_id'] for t in (completions_response.data or [])}
+
+            # Process each quest using preloaded data
+            for enrollment in active_only:
+                enrollment_id = enrollment.get('id')
+                tasks = tasks_by_enrollment.get(enrollment_id, [])
                 task_count = len(tasks)
 
                 # Calculate total XP and pillar breakdown
@@ -415,32 +464,17 @@ def get_active_quests(supabase, user_id: str, exclude_quest_ids: set = None) -> 
                 quest_info['task_count'] = task_count
                 quest_info['pillar_breakdown'] = pillar_breakdown
 
-                # Get completed tasks for progress and marking tasks as complete
-                try:
-                    if task_count > 0:
-                        task_ids = [t['id'] for t in tasks]
-                        completed_tasks_response = supabase.table('quest_task_completions')\
-                            .select('user_quest_task_id')\
-                            .eq('user_id', user_id)\
-                            .in_('user_quest_task_id', task_ids)\
-                            .execute()
+                # Count completed tasks and mark completion status using preloaded data
+                completed_count = 0
+                for task in tasks:
+                    is_completed = task['id'] in completed_task_ids_set
+                    task['is_completed'] = is_completed
+                    if is_completed:
+                        completed_count += 1
 
-                        completed_task_ids = {t['user_quest_task_id'] for t in (completed_tasks_response.data or [])}
-                        enrollment['completed_tasks'] = len(completed_task_ids)
+                enrollment['completed_tasks'] = completed_count
+                quest_info['quest_tasks'] = tasks
 
-                        # Mark each task as completed or not for frontend
-                        for task in tasks:
-                            task['is_completed'] = task['id'] in completed_task_ids
-                    else:
-                        enrollment['completed_tasks'] = 0
-
-                    # Add enriched tasks to quest data for frontend
-                    quest_info['quest_tasks'] = tasks
-                except Exception as e:
-                    logger.error(f"Error getting completed tasks: {str(e)}")
-                    enrollment['completed_tasks'] = 0
-                    quest_info['quest_tasks'] = []
-            
             return active_only
         
     except Exception as e:
@@ -491,74 +525,83 @@ def get_active_quests(supabase, user_id: str, exclude_quest_ids: set = None) -> 
                 filtered_count = len(active_quests.data) - len(active_only)
                 if filtered_count > 0:
                     logger.info(f"Fallback: Filtered out {filtered_count} stale completed quest(s) from active list")
-                
-                # Manually fetch quest details for each
+
+                # Batch fetch all quest details, tasks, and completions upfront
+                quest_ids = [e.get('quest_id') for e in active_only if e.get('quest_id')]
+                user_quest_ids = [e.get('id') for e in active_only if e.get('id')]
+
+                # Fetch all quests in one query
+                quests_by_id = {}
+                if quest_ids:
+                    quests_response = supabase.table('quests')\
+                        .select('*')\
+                        .in_('id', quest_ids)\
+                        .execute()
+                    for q in (quests_response.data or []):
+                        quests_by_id[q['id']] = q
+
+                # Fetch all tasks in one query
+                tasks_by_enrollment = {}
+                all_task_ids = []
+                if user_quest_ids:
+                    all_tasks_response = supabase.table('user_quest_tasks')\
+                        .select('*')\
+                        .in_('user_quest_id', user_quest_ids)\
+                        .eq('approval_status', 'approved')\
+                        .order('order_index')\
+                        .execute()
+
+                    for task in (all_tasks_response.data or []):
+                        uq_id = task.get('user_quest_id')
+                        if uq_id not in tasks_by_enrollment:
+                            tasks_by_enrollment[uq_id] = []
+                        tasks_by_enrollment[uq_id].append(task)
+                        all_task_ids.append(task['id'])
+
+                # Fetch all completions in one query
+                completed_task_ids_set = set()
+                if all_task_ids:
+                    completions_response = supabase.table('quest_task_completions')\
+                        .select('user_quest_task_id')\
+                        .eq('user_id', user_id)\
+                        .in_('user_quest_task_id', all_task_ids)\
+                        .execute()
+                    completed_task_ids_set = {t['user_quest_task_id'] for t in (completions_response.data or [])}
+
+                # Process each enrollment using preloaded data
                 for enrollment in active_only:
-                    try:
-                        enrollment_id = enrollment.get('id')
-                        quest = supabase.table('quests')\
-                            .select('*')\
-                            .eq('id', enrollment['quest_id'])\
-                            .single()\
-                            .execute()
-                        enrollment['quests'] = quest.data if quest.data else {}
+                    enrollment_id = enrollment.get('id')
+                    enrollment['quests'] = quests_by_id.get(enrollment.get('quest_id'), {})
+                    tasks = tasks_by_enrollment.get(enrollment_id, [])
+                    task_count = len(tasks)
 
-                        # Get user's personalized tasks for this enrollment
-                        user_tasks = supabase.table('user_quest_tasks')\
-                            .select('*')\
-                            .eq('user_quest_id', enrollment_id)\
-                            .eq('approval_status', 'approved')\
-                            .order('order_index')\
-                            .execute()
+                    quest_info = enrollment['quests']
+                    total_xp = 0
+                    pillar_breakdown = {}
 
-                        tasks = user_tasks.data if user_tasks.data else []
-                        task_count = len(tasks)
+                    for task in tasks:
+                        xp_amount = task.get('xp_value', 0)
+                        pillar = task.get('pillar', 'creativity')
+                        total_xp += xp_amount
+                        if pillar not in pillar_breakdown:
+                            pillar_breakdown[pillar] = 0
+                        pillar_breakdown[pillar] += xp_amount
 
-                        # Calculate fields for the fallback case too
-                        quest_info = enrollment['quests']
-                        total_xp = 0
-                        pillar_breakdown = {}
+                    quest_info['total_xp'] = total_xp
+                    quest_info['task_count'] = task_count
+                    quest_info['pillar_breakdown'] = pillar_breakdown
 
-                        for task in tasks:
-                            xp_amount = task.get('xp_value', 0)
-                            pillar = task.get('pillar', 'creativity')
-                            total_xp += xp_amount
-                            if pillar not in pillar_breakdown:
-                                pillar_breakdown[pillar] = 0
-                            pillar_breakdown[pillar] += xp_amount
+                    # Count completed tasks and mark completion status
+                    completed_count = 0
+                    for task in tasks:
+                        is_completed = task['id'] in completed_task_ids_set
+                        task['is_completed'] = is_completed
+                        if is_completed:
+                            completed_count += 1
 
-                        quest_info['total_xp'] = total_xp
-                        quest_info['task_count'] = task_count
-                        quest_info['pillar_breakdown'] = pillar_breakdown
+                    enrollment['completed_tasks'] = completed_count
+                    quest_info['quest_tasks'] = tasks
 
-                        # Get completed tasks count and mark completion status
-                        try:
-                            if task_count > 0:
-                                task_ids = [t['id'] for t in tasks]
-                                completed_tasks_response = supabase.table('quest_task_completions')\
-                                    .select('user_quest_task_id')\
-                                    .eq('user_id', user_id)\
-                                    .in_('user_quest_task_id', task_ids)\
-                                    .execute()
-
-                                completed_task_ids = {t['user_quest_task_id'] for t in (completed_tasks_response.data or [])}
-                                enrollment['completed_tasks'] = len(completed_task_ids)
-
-                                # Mark each task as completed or not for frontend
-                                for task in tasks:
-                                    task['is_completed'] = task['id'] in completed_task_ids
-                            else:
-                                enrollment['completed_tasks'] = 0
-
-                            # Add enriched tasks to quest data for frontend
-                            quest_info['quest_tasks'] = tasks
-                        except Exception as e:
-                            logger.error(f"Error getting completed tasks fallback: {str(e)}")
-                            enrollment['completed_tasks'] = 0
-                            quest_info['quest_tasks'] = []
-                    except:
-                        enrollment['quests'] = {}
-                
                 return active_only
                 
         except Exception as fallback_error:

@@ -272,10 +272,16 @@ def reset_password():
             logger.info(f"[RESET_PASSWORD] Found user in auth.users: {mask_email(auth_email)}")
 
             # Update password using Supabase Admin API
-            supabase_client = get_supabase_client()
+            # Also confirm email if not already confirmed - user has proven email access
+            # by clicking the reset link
+            update_data = {'password': new_password}
+            if not auth_user.user.email_confirmed_at:
+                update_data['email_confirm'] = True
+                logger.info(f"[RESET_PASSWORD] Also confirming email for {mask_email(auth_email)}")
+
             auth_response = admin_client.auth.admin.update_user_by_id(
                 user_id,
-                {'password': new_password}
+                update_data
             )
 
             if not auth_response:

@@ -8,6 +8,8 @@ export { default as CourseDetailsModal } from './CourseDetailsModal'
 export { default as BulkTaskGenerationModal } from './BulkTaskGenerationModal'
 export { default as MoveLessonModal } from './MoveLessonModal'
 export { default as AIToolsModal } from './AIToolsModal'
+export { default as NewCourseForm } from './NewCourseForm'
+export { default as CourseBuilderHeader } from './CourseBuilderHeader'
 
 // Course Outline Components
 export { OutlineTree, OutlineTreeItem, OutlineEditor } from './outline'

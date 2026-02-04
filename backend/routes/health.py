@@ -10,7 +10,6 @@ from database import get_supabase_client
 from repositories import (
     UserRepository,
     QuestRepository,
-    BadgeRepository,
     EvidenceRepository,
     FriendshipRepository,
     ParentRepository,

@@ -8,7 +8,6 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from services.base_service import BaseService
 from database import get_supabase_admin_client
-from services.badge_service import BadgeService
 
 from utils.logger import get_logger
 
@@ -20,7 +19,6 @@ class AdvisorService(BaseService):
     def __init__(self):
         super().__init__()
         self.supabase = get_supabase_admin_client()
-        self.badge_service = BadgeService()
 
     # ==================== Organization Isolation ====================
 

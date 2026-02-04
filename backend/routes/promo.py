@@ -18,7 +18,6 @@ from middleware.rate_limiter import rate_limit
 from repositories import (
     UserRepository,
     QuestRepository,
-    BadgeRepository,
     EvidenceRepository,
     FriendshipRepository,
     ParentRepository,

@@ -11,7 +11,6 @@ const ConstellationPage = () => {
   const navigate = useNavigate();
   const [pillarsData, setPillarsData] = useState([]);
   const [questOrbs, setQuestOrbs] = useState([]);
-  const [badgeOrbs, setBadgeOrbs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -229,30 +228,6 @@ const ConstellationPage = () => {
         console.error('Error fetching quests:', questError);
         // Don't fail the whole page if quests fail
       }
-
-      // Fetch user's earned badges
-      try {
-        const badgesResponse = await api.get('/api/badges/my-badges?status=completed');
-        const earnedBadges = badgesResponse.data.completed_badges || [];
-
-        // Process badges for constellation display
-        const processedBadges = earnedBadges.map(userBadge => {
-          const badge = userBadge.badges || {};
-          return {
-            id: badge.id,
-            name: badge.name,
-            description: badge.description,
-            pillar: badge.pillar || badge.pillar_primary,
-            earnedAt: userBadge.earned_at,
-            icon_url: badge.icon_url || badge.image_url
-          };
-        });
-
-        setBadgeOrbs(processedBadges);
-      } catch (badgeError) {
-        console.error('Error fetching badges:', badgeError);
-        // Don't fail the whole page if badges fail
-      }
     } catch (error) {
       console.error('Error fetching constellation data:', error);
       setError('Failed to load constellation data');
@@ -386,7 +361,7 @@ const ConstellationPage = () => {
   }
 
   // Main Constellation View
-  return <ConstellationView pillarsData={pillarsData} questOrbs={questOrbs} badgeOrbs={badgeOrbs} onExit={handleExit} />;
+  return <ConstellationView pillarsData={pillarsData} questOrbs={questOrbs} onExit={handleExit} />;
 };
 
 export default ConstellationPage;

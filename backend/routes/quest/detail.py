@@ -9,7 +9,7 @@ from flask import Blueprint, jsonify
 from database import get_supabase_admin_client, get_supabase_client
 from utils.auth.decorators import require_auth
 from utils.source_utils import get_quest_header_image
-from utils.pillar_mapping import normalize_pillar_name
+from utils.pillar_utils import normalize_pillar_name
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

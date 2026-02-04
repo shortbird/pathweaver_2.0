@@ -72,12 +72,7 @@ const AdminOverview = () => {
           icon={<BookOpenIcon className="w-8 h-8" />}
           gradient="from-purple-500 to-purple-600"
         />
-        <StatCard
-          title="Badges Created"
-          value={stats?.total_badges || 0}
-          icon={<TrophyIcon className="w-8 h-8" />}
-          gradient="from-pink-500 to-optio-pink"
-        />
+        {/* Badge stats removed (January 2026 - Badge system removed) */}
         <StatCard
           title="Pending Reviews"
           value={stats?.pending_submissions || 0}
@@ -228,8 +223,7 @@ const ActivityItem = ({ event }) => {
         return <BookOpenIcon className="w-5 h-5 text-green-600" />
       case 'user_signup':
         return <UserPlusIcon className="w-5 h-5 text-blue-600" />
-      case 'badge_earned':
-        return <TrophyIcon className="w-5 h-5 text-optio-purple" />
+      // badge_earned case removed (January 2026 - Badge system removed)
       default:
         return <ExclamationCircleIcon className="w-5 h-5 text-gray-600" />
     }

@@ -15,7 +15,6 @@ from database import get_supabase_admin_client, get_user_client
 from repositories import (
     UserRepository,
     QuestRepository,
-    BadgeRepository,
     EvidenceRepository,
     FriendshipRepository,
     ParentRepository,
@@ -348,18 +347,49 @@ def complete_task(user_id: str, task_id: str):
         logger.info("================================")
 
         # Award XP using XP service
+        task_pillar = task_data.get('pillar', 'stem')  # Default to 'stem' (valid current pillar)
         xp_awarded = xp_service.award_xp(
             effective_user_id,
-            task_data.get('pillar', 'creativity'),  # Default to old key, service will normalize
+            task_pillar,
             final_xp,
             f'task_completion:{task_id}'
         )
 
+        xp_award_pending = False
         if not xp_awarded:
-            logger.error(f"Warning: Failed to award XP for task {task_id} to user {effective_user_id}")
+            logger.error(f"Failed to award XP for task {task_id} to user {effective_user_id}")
+            xp_award_pending = True
+            # Track failed XP award for later reconciliation
+            try:
+                admin_supabase.table('xp_award_failures').insert({
+                    'user_id': effective_user_id,
+                    'task_id': task_id,
+                    'pillar': task_pillar,
+                    'xp_amount': final_xp,
+                    'reason': 'XP service award_xp returned False'
+                }).execute()
+                logger.info(f"Tracked failed XP award for reconciliation: user={effective_user_id}, task={task_id}, xp={final_xp}")
+            except Exception as track_error:
+                # If tracking fails, log it but don't fail the task completion
+                logger.error(f"Failed to track XP award failure: {track_error}")
 
-        # Award subject-specific XP for diploma credits (optional - for backward compatibility with old tasks)
+        # Award subject-specific XP for diploma credits
+        # Prefer subject_xp_distribution (direct XP values), fall back to diploma_subjects (percentages)
         subject_xp_distribution = task_data.get('subject_xp_distribution', {})
+
+        # If no subject_xp_distribution, convert diploma_subjects percentages to XP values
+        if not subject_xp_distribution:
+            diploma_subjects = task_data.get('diploma_subjects', {})
+            if diploma_subjects and isinstance(diploma_subjects, dict):
+                logger.info(f"Converting diploma_subjects to subject XP for task {task_id}")
+                logger.info(f"diploma_subjects: {diploma_subjects}, task_xp: {final_xp}")
+                subject_xp_distribution = {}
+                for subject, percentage in diploma_subjects.items():
+                    if isinstance(percentage, (int, float)) and percentage > 0:
+                        subject_xp = int(final_xp * percentage / 100)
+                        if subject_xp > 0:
+                            subject_xp_distribution[subject] = subject_xp
+
         if subject_xp_distribution:
             logger.info(f"=== SUBJECT XP TRACKING ===")
             logger.info(f"Task ID: {task_id}, User ID: {effective_user_id}")
@@ -527,7 +557,8 @@ def complete_task(user_id: str, task_id: str):
                     'quest_id': quest_id,
                     'task_title': task_data.get('title', 'Unknown Task'),
                     'xp_awarded': final_xp,
-                    'pillar': task_data.get('pillar', 'creativity'),
+                    'xp_award_pending': xp_award_pending,
+                    'pillar': task_pillar,
                     'completed_at': datetime.utcnow().isoformat() + 'Z'
                 },
                 organization_id=organization_id
@@ -540,6 +571,7 @@ def complete_task(user_id: str, task_id: str):
             data={
                 'message': f'Task completed! Earned {final_xp} XP',
                 'xp_awarded': final_xp,
+                'xp_award_pending': xp_award_pending,
                 'quest_completed': quest_completed,
                 'completion': completion_data
             }

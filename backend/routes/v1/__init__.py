@@ -72,17 +72,7 @@ def register_v1_routes(app: Flask):
     except Exception as e:
         logger.error(f"✗ Failed to register v1 task routes: {e}")
 
-    # Phase 1: Badge routes (HIGH PRIORITY)
-    try:
-        from routes.v1 import badges, badge_claiming
-        app.register_blueprint(badges.bp, url_prefix='/api/v1/badges', name='badges_v1')
-        app.register_blueprint(badge_claiming.badge_claiming_bp, url_prefix='/api/v1', name='badge_claiming_v1')
-        registered_count += 1
-        logger.info("✓ Registered v1 badge routes")
-    except ImportError:
-        logger.warning("✗ Badge routes v1 not yet migrated")
-    except Exception as e:
-        logger.error(f"✗ Failed to register v1 badge routes: {e}")
+    # Badge routes removed (January 2026 - Microschool client feedback)
 
     # Phase 1: User profile routes (HIGH PRIORITY)
     try:

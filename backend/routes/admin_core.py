@@ -14,7 +14,6 @@ from database import get_supabase_admin_client
 from repositories import (
     UserRepository,
     QuestRepository,
-    BadgeRepository,
     EvidenceRepository,
     FriendshipRepository,
     ParentRepository,
@@ -24,7 +23,7 @@ from repositories import (
 )
 from utils.auth.decorators import require_admin
 from utils.pillar_utils import is_valid_pillar
-from utils.pillar_mapping import normalize_pillar_name
+from utils.pillar_utils import normalize_pillar_name
 from utils.school_subjects import validate_school_subjects, normalize_subject_key
 from datetime import datetime, timedelta
 import json

@@ -17,7 +17,6 @@ Handles pick up/set down workflow and reflection system.
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from database import get_user_client, get_supabase_admin_client
-from services.badge_service import BadgeService
 from services.quest_invitation_service import QuestInvitationService
 from middleware.error_handler import ValidationError, NotFoundError
 from datetime import datetime
@@ -263,16 +262,14 @@ def get_reflection_prompts(user_id):
     """
     Get random reflection prompts for set down flow.
     Optional category filter via query param.
+
+    NOTE: Badge system removed (January 2026). This endpoint returns empty list.
     """
     try:
-        category = request.args.get('category')
-        limit = int(request.args.get('limit', 5))
-
-        prompts = BadgeService.get_reflection_prompts(category=category, limit=limit)
-
+        # Badge system removed - return empty prompts
         return jsonify({
-            'prompts': prompts,
-            'count': len(prompts)
+            'prompts': [],
+            'count': 0
         }), 200
 
     except Exception as e:

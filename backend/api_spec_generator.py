@@ -52,12 +52,7 @@ def generate_endpoint_specs(app):
         'tasks': 'Tasks',
         'tasks_v1': 'Tasks',
 
-        # Badges
-        'badges': 'Badges',
-        'badges_v1': 'Badges',
-        'badge_claiming': 'Badges',
-        'badge_claiming_v1': 'Badges',
-        'badge_management': 'Admin - Badges',
+        # Badges (removed in Feb 2026 refactor)
 
         # Evidence
         'evidence': 'Evidence',
@@ -103,7 +98,6 @@ def generate_endpoint_specs(app):
         'admin_user_management_v1': 'Admin - Users',
         'quest_management': 'Admin - Quests',
         'admin_quest_management_v1': 'Admin - Quests',
-        'admin_badge_management_v1': 'Admin - Badges',
         'analytics': 'Admin - Analytics',
         'admin_analytics_v1': 'Admin - Analytics',
         'organization_management': 'Admin - Organizations',
@@ -166,7 +160,6 @@ def generate_endpoint_specs(app):
         'quest_ai': 'Admin - Quests',
         'quest_lifecycle': 'Quests',
         'quest_lifecycle_bp': 'Quests',
-        'quest_badge_hub': 'Quests',
         'task_library': 'Tasks',
         'task_library_bp': 'Tasks',
 
@@ -174,7 +167,6 @@ def generate_endpoint_specs(app):
         'task_approval': 'Admin - Users',
         'admin_services': 'Admin - Users',
         'admin_services_bp': 'Admin - Users',
-        'admin_badge_seed': 'Admin - Badges',
         'subject_backfill': 'Admin - Users',
         'subject_backfill_bp': 'Admin - Users',
         'ai_jobs': 'Admin - Quests',
@@ -183,8 +175,6 @@ def generate_endpoint_specs(app):
         'batch_generation_bp': 'Admin - Quests',
         'ai_quest_review': 'Admin - Quests',
         'ai_quest_review_bp': 'Admin - Quests',
-        'batch_badge_generation': 'Admin - Badges',
-        'batch_badge_generation_bp': 'Admin - Badges',
         'khan_academy_sync': 'LMS Integration',
 
         # Compliance & Privacy
@@ -503,7 +493,6 @@ def generate_openapi_spec(app):
             {"name": "Users", "description": "User profiles and settings"},
             {"name": "Quests", "description": "Quest discovery and management"},
             {"name": "Tasks", "description": "Task completion and evidence submission"},
-            {"name": "Badges", "description": "Badge system and achievements"},
             {"name": "Evidence", "description": "Evidence document management"},
             {"name": "Portfolio", "description": "Public portfolios and diplomas"},
             {"name": "Connections", "description": "Student connections and social features"},
@@ -512,7 +501,6 @@ def generate_openapi_spec(app):
             {"name": "Advisor", "description": "Advisor tools and student management"},
             {"name": "Admin - Users", "description": "User administration"},
             {"name": "Admin - Quests", "description": "Quest administration"},
-            {"name": "Admin - Badges", "description": "Badge administration"},
             {"name": "Admin - Analytics", "description": "Platform analytics"},
             {"name": "Admin - Organizations", "description": "Organization management"},
             {"name": "Admin - CRM", "description": "Email campaigns and automation"},

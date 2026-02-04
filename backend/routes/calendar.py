@@ -18,7 +18,6 @@ from database import get_supabase_admin_client, get_user_client
 from repositories import (
     UserRepository,
     QuestRepository,
-    BadgeRepository,
     EvidenceRepository,
     FriendshipRepository,
     ParentRepository,

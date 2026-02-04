@@ -759,7 +759,7 @@ Return ONLY valid JSON (no markdown code blocks):
             return 'stem'  # Default to new single-word key
 
         # Import pillar utilities for proper conversion
-        from utils.pillar_mapping import normalize_pillar_name
+        from utils.pillar_utils import normalize_pillar_name
 
         # Try to normalize the pillar (handles display names, old keys, new keys)
         try:

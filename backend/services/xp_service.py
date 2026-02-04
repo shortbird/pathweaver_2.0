@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from services.base_service import BaseService, ValidationError, DatabaseError
 from utils.pillar_utils import is_valid_pillar
-from utils.pillar_mapping import normalize_pillar_name
+from utils.pillar_utils import normalize_pillar_name
 import json
 
 from utils.logger import get_logger
@@ -165,49 +165,55 @@ class XPService(BaseService):
     def get_user_total_xp(self, user_id: str) -> Dict[str, int]:
         """
         Get total XP for a user across all pillars.
-        
+
         Args:
             user_id: User ID
-            
+
         Returns:
-            Dictionary of pillar -> xp_amount
+            Dictionary of pillar -> xp_amount using current pillar keys
+            (art, stem, communication, civics, wellness)
         """
         try:
             xp_data = self.supabase.table('user_skill_xp')\
                 .select('pillar, xp_amount')\
                 .eq('user_id', user_id)\
                 .execute()
-            
-            if xp_data.data:
-                # Handle pillar key normalization - convert old keys to new ones
-                pillar_mapping = {
-                    'creativity': 'arts_creativity',
-                    'critical_thinking': 'stem_logic',
-                    'practical_skills': 'life_wellness',
-                    'communication': 'language_communication',
-                    'cultural_literacy': 'society_culture'
-                }
-                
-                result = {}
-                for item in xp_data.data:
-                    old_pillar = item['pillar']
-                    new_pillar = pillar_mapping.get(old_pillar, old_pillar)
-                    result[new_pillar] = item['xp_amount']
-                    
-                return result
-            
-            # Return zeros for all pillars if no data (using new pillar keys)
-            return {
-                'arts_creativity': 0,
-                'stem_logic': 0,
-                'life_wellness': 0,
-                'language_communication': 0,
-                'society_culture': 0
+
+            # Initialize result with zeros for all current pillar keys
+            result = {
+                'art': 0,
+                'stem': 0,
+                'communication': 0,
+                'civics': 0,
+                'wellness': 0
             }
-            
+
+            if xp_data.data:
+                for item in xp_data.data:
+                    db_pillar = item['pillar']
+                    xp_amount = item['xp_amount'] or 0
+
+                    # Normalize any legacy pillar names to current format
+                    try:
+                        normalized_pillar = normalize_pillar_name(db_pillar)
+                        if normalized_pillar in result:
+                            result[normalized_pillar] += xp_amount
+                        else:
+                            logger.warning(f"Unknown pillar '{normalized_pillar}' for user {user_id}")
+                    except ValueError:
+                        logger.warning(f"Could not normalize pillar '{db_pillar}' for user {user_id}")
+
+            return result
+
         except Exception as e:
             logger.error(f"Error getting user XP: {str(e)}")
-            return {}
+            return {
+                'art': 0,
+                'stem': 0,
+                'communication': 0,
+                'civics': 0,
+                'wellness': 0
+            }
     
     def get_leaderboard(self, pillar: Optional[str] = None, limit: int = 10) -> List[Dict]:
         """
@@ -396,8 +402,13 @@ class XPService(BaseService):
             for task in completed_tasks.data:
                 user_task = task.get('user_quest_tasks')
                 if user_task:
-                    pillar = user_task.get('pillar', 'stem')
+                    raw_pillar = user_task.get('pillar', 'stem')
                     xp = user_task.get('xp_value', 0) or 0
+                    # Normalize pillar name to current format
+                    try:
+                        pillar = normalize_pillar_name(raw_pillar)
+                    except ValueError:
+                        pillar = 'stem'  # Default fallback
                     if pillar in expected_xp:
                         expected_xp[pillar] += xp
 

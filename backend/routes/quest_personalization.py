@@ -332,7 +332,7 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
     All tasks are approved immediately - students have full control of their learning.
     """
     try:
-        from utils.pillar_mapping import normalize_pillar_name
+        from utils.pillar_utils import normalize_pillar_name
         from services.subject_classification_service import SubjectClassificationService
 
         supabase = get_supabase_admin_client()
@@ -491,7 +491,7 @@ def accept_task_immediate(user_id: str, quest_id: str):
     """
     try:
         from services.task_library_service import TaskLibraryService
-        from utils.pillar_mapping import normalize_pillar_name
+        from utils.pillar_utils import normalize_pillar_name
         from services.subject_classification_service import SubjectClassificationService
 
         supabase = get_supabase_admin_client()
@@ -611,7 +611,7 @@ def skip_task_save_to_library(user_id: str, quest_id: str):
     """
     try:
         from services.task_library_service import TaskLibraryService
-        from utils.pillar_mapping import normalize_pillar_name
+        from utils.pillar_utils import normalize_pillar_name
 
         data = request.get_json()
 

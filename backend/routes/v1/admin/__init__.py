@@ -40,7 +40,7 @@ def register_admin_blueprints_v1(app: Flask):
         # Import existing admin blueprints
         from routes import admin_core
         from routes.admin import (
-            user_management, quest_management, badge_management,
+            user_management, quest_management,
             analytics, student_task_management, sample_task_management,
             course_quest_management, task_flags, advisor_management,
             parent_connections, masquerade, crm, course_import,
@@ -58,10 +58,6 @@ def register_admin_blueprints_v1(app: Flask):
         # Register quest management with v1 prefix
         app.register_blueprint(quest_management.bp, url_prefix='/api/v1/admin',
                              name='admin_quest_management_v1')
-
-        # Register badge management with v1 prefix
-        app.register_blueprint(badge_management.bp, url_prefix='/api/v1/admin',
-                             name='admin_badge_management_v1')
 
         # Register analytics with v1 prefix
         app.register_blueprint(analytics.bp, url_prefix='/api/v1/admin/analytics',

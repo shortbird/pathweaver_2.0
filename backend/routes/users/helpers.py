@@ -64,7 +64,7 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
                     skill_breakdown[pillar] += xp_amount
                 else:
                     # Handle old pillar keys - map them to new single-word format
-                    from utils.pillar_mapping import normalize_pillar_name
+                    from utils.pillar_utils import normalize_pillar_name
                     try:
                         normalized_pillar = normalize_pillar_name(pillar)
                         if normalized_pillar in skill_breakdown:
@@ -96,7 +96,7 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
                         skill_breakdown[pillar] += xp_amount
                     else:
                         # Try to normalize pillar name
-                        from utils.pillar_mapping import normalize_pillar_name
+                        from utils.pillar_utils import normalize_pillar_name
                         try:
                             normalized_pillar = normalize_pillar_name(pillar)
                             if normalized_pillar in skill_breakdown:
@@ -130,7 +130,7 @@ def calculate_xp_from_legacy_tables(supabase, user_id: str) -> Tuple[int, Dict[s
         logger.info(f"Raw skill_xp query response count: {len(skill_xp.data) if skill_xp.data else 0}")
 
         if skill_xp.data:
-            from utils.pillar_mapping import normalize_pillar_name
+            from utils.pillar_utils import normalize_pillar_name
             for record in skill_xp.data:
                 xp_amount = record.get('xp_amount', 0)
                 skill_cat = record.get('pillar')
@@ -428,7 +428,10 @@ def normalize_diploma_subject(subject_name: str) -> str:
 
 def calculate_subject_xp_from_tasks(completed_tasks_data: list) -> Dict[str, int]:
     """
-    Calculate subject XP from completed tasks' diploma_subjects field.
+    Calculate subject XP from completed tasks.
+
+    Prefers subject_xp_distribution (direct XP values) over diploma_subjects (percentages).
+    Falls back to diploma_subjects if subject_xp_distribution is not present.
 
     Args:
         completed_tasks_data: List of completion records with nested user_quest_tasks data
@@ -442,13 +445,24 @@ def calculate_subject_xp_from_tasks(completed_tasks_data: list) -> Dict[str, int
 
     for i, completion in enumerate(completed_tasks_data):
         task = completion.get('user_quest_tasks') or {}
-        diploma_subjects = task.get('diploma_subjects')
 
+        # Prefer subject_xp_distribution (direct XP values)
+        subject_xp_distribution = task.get('subject_xp_distribution')
+        if subject_xp_distribution and isinstance(subject_xp_distribution, dict):
+            logger.info(f"[DIPLOMA DEBUG] Task {i}: Using subject_xp_distribution: {subject_xp_distribution}")
+            for subject, xp_amount in subject_xp_distribution.items():
+                normalized_subject = normalize_diploma_subject(subject)
+                if normalized_subject and isinstance(xp_amount, (int, float)) and xp_amount > 0:
+                    subject_xp[normalized_subject] = subject_xp.get(normalized_subject, 0) + int(xp_amount)
+            continue
+
+        # Fall back to diploma_subjects (percentage-based)
+        diploma_subjects = task.get('diploma_subjects')
         logger.info(f"[DIPLOMA DEBUG] Task {i}: user_quest_tasks={task}, diploma_subjects={diploma_subjects}")
 
         # Skip if no diploma_subjects or not a dict (some old data has arrays)
         if not diploma_subjects or not isinstance(diploma_subjects, dict):
-            logger.info(f"[DIPLOMA DEBUG] Task {i}: Skipping - no valid diploma_subjects")
+            logger.info(f"[DIPLOMA DEBUG] Task {i}: Skipping - no valid diploma_subjects or subject_xp_distribution")
             continue
 
         task_xp = task.get('xp_value', 0) or 0
@@ -459,9 +473,10 @@ def calculate_subject_xp_from_tasks(completed_tasks_data: list) -> Dict[str, int
         for subject, percentage in diploma_subjects.items():
             normalized_subject = normalize_diploma_subject(subject)
             logger.info(f"[DIPLOMA DEBUG] Task {i}: '{subject}' -> '{normalized_subject}' ({percentage}% of {task_xp} XP)")
-            if normalized_subject:
+            if normalized_subject and isinstance(percentage, (int, float)):
                 subject_xp_amount = int(task_xp * percentage / 100)
-                subject_xp[normalized_subject] = subject_xp.get(normalized_subject, 0) + subject_xp_amount
+                if subject_xp_amount > 0:
+                    subject_xp[normalized_subject] = subject_xp.get(normalized_subject, 0) + subject_xp_amount
 
     logger.info(f"[DIPLOMA DEBUG] Final subject_xp: {subject_xp}")
     return subject_xp

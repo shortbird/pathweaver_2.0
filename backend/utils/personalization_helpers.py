@@ -5,7 +5,7 @@ Helper functions for quest personalization.
 from typing import Dict, Any
 from database import get_supabase_admin_client
 from utils.logger import get_logger
-from utils.pillar_mapping import normalize_pillar_name
+from utils.pillar_utils import normalize_pillar_name
 
 logger = get_logger(__name__)
 

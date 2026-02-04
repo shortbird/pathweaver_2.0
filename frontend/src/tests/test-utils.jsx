@@ -184,25 +184,7 @@ export function createMockTask(overrides = {}) {
   }
 }
 
-/**
- * Creates a mock badge object for testing
- *
- * @example
- * const badge = createMockBadge({ name: 'STEM Explorer' })
- */
-export function createMockBadge(overrides = {}) {
-  return {
-    id: 'test-badge-id',
-    name: 'Test Badge',
-    description: 'A test badge',
-    pillar_primary: 'stem',
-    tier_name: 'explorer',
-    min_quests: 5,
-    min_xp: 100,
-    image_url: '/badges/test-badge.png',
-    ...overrides
-  }
-}
+// createMockBadge removed (Feb 2026 - badge system removal)
 
 /**
  * Waits for async operations to complete

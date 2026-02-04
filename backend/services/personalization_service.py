@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from services.base_service import BaseService
 from database import get_supabase_admin_client
-from utils.pillar_mapping import normalize_pillar_name
+from utils.pillar_utils import normalize_pillar_name
 
 from utils.logger import get_logger
 

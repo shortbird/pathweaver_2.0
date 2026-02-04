@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import Masonry from 'react-masonry-css';
 import UnifiedEvidenceDisplay from '../evidence/UnifiedEvidenceDisplay';
-import CollaborationBadge from '../collaboration/CollaborationBadge';
+// CollaborationBadge import removed (badge system removal)
 import { getPillarGradient, getPillarDisplayName } from '../../config/pillars';
 import { CREDIT_REQUIREMENTS } from '../../utils/creditRequirements';
 import './EvidenceMasonryGallery.css';
@@ -338,7 +338,9 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
                       </p>
                       {item.isCollaborative && (
                         <div className="mt-1.5">
-                          <CollaborationBadge size="xs" />
+                          <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-500/20 text-blue-200 text-xs rounded">
+                            Collaborative
+                          </span>
                         </div>
                       )}
                     </div>

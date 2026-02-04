@@ -18,9 +18,9 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
   }
 
   const isActiveToggle = (path) => {
-    // Dashboard toggle should be active for: /dashboard, /connections, /diploma, /profile, /overview, /badges, /admin, /communication, /calendar, /organization
+    // Dashboard toggle should be active for: /dashboard, /connections, /diploma, /profile, /overview, /admin, /communication, /calendar, /organization
     if (path === '/dashboard') {
-      return ['/dashboard', '/connections', '/diploma', '/profile', '/overview', '/badges', '/admin', '/communication', '/calendar', '/organization'].some(route =>
+      return ['/dashboard', '/connections', '/diploma', '/profile', '/overview', '/admin', '/communication', '/calendar', '/organization'].some(route =>
         location.pathname === route || location.pathname.startsWith(route + '/')
       )
     }

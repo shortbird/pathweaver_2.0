@@ -4,54 +4,14 @@ API endpoints that do not require authentication.
 Used for public course pages, discovery, and marketing.
 """
 
-import re
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from utils.slug_utils import generate_slug, ensure_unique_slug
 
 logger = get_logger(__name__)
 
 bp = Blueprint('public', __name__, url_prefix='/api/public')
-
-
-def generate_slug(title: str) -> str:
-    """Generate a URL-friendly slug from a title."""
-    if not title:
-        return None
-    # Convert to lowercase
-    slug = title.lower()
-    # Replace spaces and special characters with hyphens
-    slug = re.sub(r'[^a-z0-9]+', '-', slug)
-    # Remove leading/trailing hyphens
-    slug = slug.strip('-')
-    # Collapse multiple hyphens
-    slug = re.sub(r'-+', '-', slug)
-    return slug
-
-
-def ensure_unique_slug(client, base_slug: str, course_id: str = None) -> str:
-    """Ensure a slug is unique, appending a number if needed."""
-    slug = base_slug
-    counter = 1
-
-    while True:
-        # Check if slug exists
-        query = client.table('courses').select('id').eq('slug', slug)
-        if course_id:
-            query = query.neq('id', course_id)  # Exclude current course when updating
-
-        result = query.execute()
-
-        if not result.data:
-            return slug
-
-        # Slug exists, try with counter
-        slug = f"{base_slug}-{counter}"
-        counter += 1
-
-        if counter > 100:  # Safety limit
-            import uuid
-            return f"{base_slug}-{str(uuid.uuid4())[:8]}"
 
 
 @bp.route('/courses', methods=['GET'])

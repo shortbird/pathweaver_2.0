@@ -75,13 +75,13 @@ const LoginPage = () => {
   const onSubmit = async (data) => {
     setLoading(true)
     setLoginError('') // Clear any previous errors
-    
+
     const result = await login(data.email, data.password)
-    
+
     if (!result.success) {
       setLoginError(result.error || 'Login failed. Please try again.')
     }
-    
+
     setLoading(false)
   }
 

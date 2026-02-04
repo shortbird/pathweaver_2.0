@@ -8,7 +8,7 @@ to eliminate the N+1 problem identified in quest_v3.py.
 from typing import Dict, List, Optional, Set, Any
 from services.base_service import BaseService
 from database import get_supabase_admin_client
-from utils.pillar_mapping import normalize_pillar_name
+from utils.pillar_utils import normalize_pillar_name
 
 from utils.logger import get_logger
 

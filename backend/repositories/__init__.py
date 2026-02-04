@@ -32,7 +32,6 @@ from repositories.base_repository import (
 )
 from repositories.user_repository import UserRepository
 from repositories.quest_repository import QuestRepository, QuestTaskRepository
-from repositories.badge_repository import BadgeRepository
 from repositories.evidence_repository import EvidenceRepository
 from repositories.friendship_repository import FriendshipRepository
 from repositories.parent_repository import ParentRepository
@@ -57,7 +56,6 @@ __all__ = [
     'UserRepository',
     'QuestRepository',
     'QuestTaskRepository',
-    'BadgeRepository',
     'EvidenceRepository',
     'FriendshipRepository',
     'ParentRepository',

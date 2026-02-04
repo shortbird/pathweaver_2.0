@@ -584,27 +584,6 @@ export const questLifecycleAPI = {
   },
 }
 
-/**
- * Badge Claiming API
- * Handles badge claiming workflow (January 2025)
- */
-export const badgeClaimingAPI = {
-  // Claim a badge that's available
-  claimBadge: (badgeId) => api.post(`/api/badges/${badgeId}/claim`, {}),
-
-  // Get badges ready to claim (for notification banner)
-  getClaimableBadges: () => api.get('/api/badges/claimable'),
-
-  // Get all claimed badges
-  getClaimedBadges: () => api.get('/api/badges/claimed'),
-
-  // Get detailed badge progress (OnFire vs Optio breakdown)
-  getBadgeProgress: (badgeId) => api.get(`/api/badges/${badgeId}/progress`),
-
-  // Mark claim notification as sent (prevent duplicates)
-  markNotificationSent: (badgeId) => api.post(`/api/badges/${badgeId}/mark-notification-sent`, {}),
-}
-
 // Advisor Check-in API
 export const checkinAPI = {
   // Create a new check-in

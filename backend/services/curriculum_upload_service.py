@@ -84,6 +84,24 @@ from services.document_parser_service import DocumentParserService
 from services.imscc_parser_service import IMSCCParserService
 from database import get_supabase_admin_client
 
+# Import helpers from curriculum submodule
+from services.curriculum import (
+    ProgressTracker,
+    chunk_content,
+    merge_structure_results,
+    filter_imscc_content,
+    imscc_to_text,
+    imscc_to_sections,
+    build_content_summary,
+    validate_philosophy_alignment,
+    clean_course_description,
+    clean_quest_description,
+    process_course,
+    process_projects,
+    process_lessons,
+    build_preview,
+)
+
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

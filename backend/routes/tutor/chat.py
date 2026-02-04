@@ -35,7 +35,6 @@ from database import get_user_client, get_supabase_admin_client
 from repositories import (
     UserRepository,
     QuestRepository,
-    BadgeRepository,
     EvidenceRepository,
     FriendshipRepository,
     ParentRepository,
