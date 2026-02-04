@@ -150,11 +150,7 @@ const LoginPage = () => {
                 <input
                   id="password"
                   {...register('password', {
-                    required: 'Password is required',
-                    minLength: {
-                      value: 12,
-                      message: 'Password must be at least 12 characters'
-                    }
+                    required: 'Password is required'
                   })}
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
