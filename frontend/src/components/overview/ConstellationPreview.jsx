@@ -59,12 +59,20 @@ const PreviewLines = ({ positions }) => {
 
 // Full-screen modal for expanded constellation
 const FullScreenConstellation = ({ isOpen, onClose, pillarsData, questOrbs, badgeOrbs }) => {
+  // Track if this component instance set the overflow
+  const didLockScroll = useRef(false);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      didLockScroll.current = true;
     }
     return () => {
-      document.body.style.overflow = '';
+      // Only reset if this component was the one that locked scroll
+      if (didLockScroll.current) {
+        document.body.style.overflow = '';
+        didLockScroll.current = false;
+      }
     };
   }, [isOpen]);
 

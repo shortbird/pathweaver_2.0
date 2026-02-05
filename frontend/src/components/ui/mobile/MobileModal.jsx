@@ -42,6 +42,8 @@ const MobileModal = ({
   const [touchOffset, setTouchOffset] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const modalRef = useRef(null);
+  // Track if this modal instance set the overflow
+  const didLockScroll = useRef(false);
 
   if (!isOpen) return null;
 
@@ -113,11 +115,16 @@ const MobileModal = ({
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
+      didLockScroll.current = true;
     }
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'unset';
+      // Only reset if this modal was the one that locked scroll
+      if (didLockScroll.current) {
+        document.body.style.overflow = '';
+        didLockScroll.current = false;
+      }
     };
   }, [isOpen]);
 

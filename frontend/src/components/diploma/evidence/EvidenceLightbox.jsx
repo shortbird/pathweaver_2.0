@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 
 const EvidenceLightbox = ({
   isOpen,
@@ -10,6 +10,8 @@ const EvidenceLightbox = ({
 }) => {
   const currentImage = images[currentIndex];
   const hasMultipleImages = images.length > 1;
+  // Track if this component instance set the overflow
+  const didLockScroll = useRef(false);
 
   // Keyboard navigation
   const handleKeyDown = useCallback((event) => {
@@ -43,12 +45,15 @@ const EvidenceLightbox = ({
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
+      didLockScroll.current = true;
     }
 
     return () => {
-      document.body.style.overflow = 'unset';
+      // Only reset if this component was the one that locked scroll
+      if (didLockScroll.current) {
+        document.body.style.overflow = '';
+        didLockScroll.current = false;
+      }
     };
   }, [isOpen]);
 
