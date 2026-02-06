@@ -7,6 +7,7 @@ Observer comment functionality on student work.
 from flask import request, jsonify
 from datetime import datetime, timedelta
 import logging
+import threading
 
 from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth, validate_uuid_param
@@ -15,6 +16,62 @@ from services.observer_audit_service import ObserverAuditService
 from services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
+
+
+def send_comment_notifications_async(student_id, observer_id, comment_text):
+    """Send comment notifications in background thread."""
+    try:
+        notification_service = NotificationService()
+        parents = notification_service.get_parents_for_student(student_id)
+        logger.info(f"[async_notify] Found {len(parents)} parents for student {student_id[:8]}")
+
+        if parents:
+            db = notification_service.supabase
+
+            # Get observer name
+            observer_result = db.table('users') \
+                .select('display_name, first_name, last_name') \
+                .eq('id', observer_id) \
+                .limit(1) \
+                .execute()
+            observer_data = observer_result.data[0] if observer_result.data else {}
+            observer_name = observer_data.get('display_name') or \
+                f"{observer_data.get('first_name', '')} {observer_data.get('last_name', '')}".strip() or \
+                'Someone'
+
+            # Get student name and org_id
+            student_result = db.table('users') \
+                .select('display_name, first_name, organization_id') \
+                .eq('id', student_id) \
+                .limit(1) \
+                .execute()
+            student_data = student_result.data[0] if student_result.data else {}
+            student_name = student_data.get('display_name') or \
+                student_data.get('first_name') or 'your child'
+            student_org_id = student_data.get('organization_id')
+
+            # Notify parents
+            for parent in parents:
+                if parent['id'] != observer_id:
+                    notification_service.notify_parent_observer_comment(
+                        parent_user_id=parent['id'],
+                        observer_name=observer_name,
+                        student_name=student_name,
+                        comment_preview=comment_text,
+                        student_id=student_id,
+                        organization_id=parent.get('organization_id')
+                    )
+
+            # Notify student
+            if student_id != observer_id:
+                notification_service.notify_student_comment(
+                    student_id=student_id,
+                    observer_name=observer_name,
+                    comment_preview=comment_text,
+                    organization_id=student_org_id
+                )
+    except Exception as e:
+        logger.error(f"[async_notify] Failed to send comment notifications: {e}", exc_info=True)
 
 
 def register_routes(bp):
@@ -115,62 +172,13 @@ def register_routes(bp):
                 # Don't fail the request if audit logging fails
                 logger.error(f"Failed to log observer access: {audit_error}")
 
-            # Notify parents of the student about the comment
-            try:
-                notification_service = NotificationService(supabase=supabase)
-                parents = notification_service.get_parents_for_student(student_id)
-                logger.info(f"[post_observer_comment] Found {len(parents)} parents for student {student_id[:8]}, observer={observer_id[:8]}")
-
-                if parents:
-                    # Get observer name
-                    observer = supabase.table('users') \
-                        .select('display_name, first_name, last_name') \
-                        .eq('id', observer_id) \
-                        .single() \
-                        .execute()
-                    observer_name = observer.data.get('display_name') or \
-                        f"{observer.data.get('first_name', '')} {observer.data.get('last_name', '')}".strip() or \
-                        'Someone'
-
-                    # Get student name
-                    student = supabase.table('users') \
-                        .select('display_name, first_name') \
-                        .eq('id', student_id) \
-                        .single() \
-                        .execute()
-                    student_name = student.data.get('display_name') or \
-                        student.data.get('first_name') or 'your child'
-
-                    for parent in parents:
-                        # Don't notify if the parent is the one who commented
-                        if parent['id'] != observer_id:
-                            logger.info(f"[post_observer_comment] Sending notification to parent {parent['id'][:8]}")
-                            notification_service.notify_parent_observer_comment(
-                                parent_user_id=parent['id'],
-                                observer_name=observer_name,
-                                student_name=student_name,
-                                comment_preview=data['comment_text'],
-                                student_id=student_id,
-                                organization_id=parent.get('organization_id')
-                            )
-                        else:
-                            logger.info(f"[post_observer_comment] Skipping self-notification for parent {parent['id'][:8]}")
-
-                    # Also notify the student (unless they commented on their own work)
-                    if student_id != observer_id:
-                        student_user = supabase.table('users').select('organization_id').eq('id', student_id).single().execute()
-                        notification_service.notify_student_comment(
-                            student_id=student_id,
-                            observer_name=observer_name,
-                            comment_preview=data['comment_text'],
-                            organization_id=student_user.data.get('organization_id') if student_user.data else None
-                        )
-                        logger.info(f"[post_observer_comment] Sent notification to student {student_id[:8]}")
-                else:
-                    logger.info(f"[post_observer_comment] No parents found to notify")
-            except Exception as notify_error:
-                # Don't fail the comment if notification fails
-                logger.error(f"Failed to send comment notification: {notify_error}", exc_info=True)
+            # Send notifications in background thread (non-blocking)
+            thread = threading.Thread(
+                target=send_comment_notifications_async,
+                args=(student_id, observer_id, data['comment_text'])
+            )
+            thread.daemon = True
+            thread.start()
 
             return jsonify({
                 'status': 'success',

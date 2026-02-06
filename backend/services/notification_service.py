@@ -23,11 +23,10 @@ class NotificationService(BaseService):
     def __init__(self, supabase=None):
         """Initialize with optional supabase client."""
         super().__init__()
-        if supabase:
-            self.supabase = supabase
-        else:
-            from database import get_supabase_admin_client
-            self.supabase = get_supabase_admin_client()
+        # Always create a fresh client to avoid Flask g context issues
+        from supabase import create_client
+        from app_config import Config
+        self.supabase = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
 
         # Setup Realtime broadcast endpoint
         self._realtime_url = f"{Config.SUPABASE_URL}/realtime/v1/api/broadcast"
@@ -589,12 +588,15 @@ class NotificationService(BaseService):
         try:
             from repositories.parent_repository import ParentRepository
 
+            # Use self.supabase which is already a fresh client
+            admin_client = self.supabase
+
             parents = []
             parent_ids_found = set()
             logger.info(f"[get_parents_for_student] Looking for parents of student {student_id[:8]}...")
 
             # Method 1: Check if student has a managing parent (dependent under 13)
-            student_result = self.supabase.table('users') \
+            student_result = admin_client.table('users') \
                 .select('managed_by_parent_id') \
                 .eq('id', student_id) \
                 .limit(1) \
@@ -605,7 +607,7 @@ class NotificationService(BaseService):
             if student_data and student_data.get('managed_by_parent_id'):
                 parent_id = student_data['managed_by_parent_id']
                 logger.info(f"[get_parents_for_student] Found managing parent: {parent_id[:8]}")
-                parent = self.supabase.table('users') \
+                parent = admin_client.table('users') \
                     .select('id, display_name, first_name, last_name, organization_id') \
                     .eq('id', parent_id) \
                     .single() \
@@ -616,7 +618,7 @@ class NotificationService(BaseService):
                     logger.info(f"[get_parents_for_student] Added managing parent to list")
 
             # Method 2: Check parent_student_links for linked parents (13+ students)
-            parent_repo = ParentRepository(client=self.supabase)
+            parent_repo = ParentRepository(client=admin_client)
             linked_parents = parent_repo.find_parents(student_id)
             logger.info(f"[get_parents_for_student] Found {len(linked_parents)} parent_student_links")
 
@@ -624,7 +626,7 @@ class NotificationService(BaseService):
                 parent_data = link.get('parent')
                 if parent_data and parent_data.get('id') not in parent_ids_found:
                     # Get full parent info including organization_id
-                    parent_info = self.supabase.table('users') \
+                    parent_info = admin_client.table('users') \
                         .select('id, display_name, first_name, last_name, organization_id') \
                         .eq('id', parent_data['id']) \
                         .single() \
