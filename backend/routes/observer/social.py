@@ -53,10 +53,6 @@ def register_routes(bp):
 
             # Verify observer has access to this student
             student_id = completion.data['user_id']
-            # Debug: log student_id for comparison
-            with open('C:/Users/tanne/Desktop/pw_v2/debug_comparison.log', 'a') as f:
-                from datetime import datetime
-                f.write(f"[{datetime.now()}] LIKE: student_id={student_id}, observer_id={observer_id}\n")
             has_access = False
 
             # Check if superadmin (superadmins have full access)
@@ -222,10 +218,6 @@ def register_routes(bp):
 
             # Verify observer has access to this student
             student_id = learning_event.data['user_id']
-            # Debug: log student_id for comparison
-            with open('C:/Users/tanne/Desktop/pw_v2/debug_comparison.log', 'a') as f:
-                from datetime import datetime
-                f.write(f"[{datetime.now()}] LEARNING_EVENT_LIKE: student_id={student_id}, observer_id={observer_id}\n")
             has_access = False
 
             # Check if superadmin (superadmins have full access)
@@ -308,8 +300,6 @@ def register_routes(bp):
                 try:
                     notification_service = NotificationService(supabase=supabase)
                     parents = notification_service.get_parents_for_student(student_id)
-                    with open('C:/Users/tanne/Desktop/pw_v2/debug_comparison.log', 'a') as f:
-                        f.write(f"[{datetime.now()}] LEARNING_EVENT_LIKE NOTIFY: found {len(parents)} parents: {[p.get('id') for p in parents]}\n")
 
                     if parents:
                         # Get observer name

@@ -602,10 +602,6 @@ class NotificationService(BaseService):
 
             student_data = student_result.data[0] if student_result.data else None
 
-            with open('C:/Users/tanne/Desktop/pw_v2/debug_comparison.log', 'a') as f:
-                from datetime import datetime
-                f.write(f"[{datetime.now()}] get_parents_for_student: managed_by_parent_id={student_data.get('managed_by_parent_id') if student_data else None}\n")
-
             if student_data and student_data.get('managed_by_parent_id'):
                 parent_id = student_data['managed_by_parent_id']
                 logger.info(f"[get_parents_for_student] Found managing parent: {parent_id[:8]}")
@@ -622,10 +618,6 @@ class NotificationService(BaseService):
             # Method 2: Check parent_student_links for linked parents (13+ students)
             parent_repo = ParentRepository(client=self.supabase)
             linked_parents = parent_repo.find_parents(student_id)
-
-            with open('C:/Users/tanne/Desktop/pw_v2/debug_comparison.log', 'a') as f:
-                f.write(f"[{datetime.now()}] get_parents_for_student: find_parents returned {len(linked_parents)} links: {linked_parents}\n")
-
             logger.info(f"[get_parents_for_student] Found {len(linked_parents)} parent_student_links")
 
             for link in linked_parents:
@@ -646,11 +638,6 @@ class NotificationService(BaseService):
             return parents
 
         except Exception as e:
-            import traceback
-            with open('C:/Users/tanne/Desktop/pw_v2/debug_comparison.log', 'a') as f:
-                from datetime import datetime
-                f.write(f"[{datetime.now()}] get_parents_for_student ERROR: {str(e)}\n")
-                f.write(f"{traceback.format_exc()}\n")
             logger.error(f"Error getting parents for student: {str(e)}", exc_info=True)
             return []
 

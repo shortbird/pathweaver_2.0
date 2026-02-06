@@ -54,9 +54,6 @@ def register_routes(bp):
         try:
             supabase = get_supabase_admin_client()
             student_id = data['student_id']
-            # Debug: log student_id for comparison
-            with open('C:/Users/tanne/Desktop/pw_v2/debug_comparison.log', 'a') as f:
-                f.write(f"[{datetime.now()}] COMMENT: student_id={student_id}, observer_id={observer_id}\n")
             can_comment = False
 
             # Check if superadmin (superadmins have full access)
@@ -122,8 +119,6 @@ def register_routes(bp):
             try:
                 notification_service = NotificationService(supabase=supabase)
                 parents = notification_service.get_parents_for_student(student_id)
-                with open('C:/Users/tanne/Desktop/pw_v2/debug_comparison.log', 'a') as f:
-                    f.write(f"[{datetime.now()}] COMMENT NOTIFY: student_id={student_id}, found {len(parents)} parents: {[p.get('id') for p in parents]}\n")
                 logger.info(f"[post_observer_comment] Found {len(parents)} parents for student {student_id[:8]}, observer={observer_id[:8]}")
 
                 if parents:
