@@ -9,11 +9,11 @@ import {
   VideoCameraIcon,
   PaperAirplaneIcon,
   TrashIcon,
-  DocumentIcon,
   UserCircleIcon,
   ChevronDownIcon,
   ChevronUpIcon
 } from '@heroicons/react/24/outline';
+import DocumentPreview from './DocumentPreview';
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 
 // Pillar colors mapping
@@ -336,19 +336,10 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
             </a>
           )}
           {item.evidence.type === 'document' && (
-            <a
-              href={item.evidence.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <DocumentIcon className="w-6 h-6 shrink-0 text-orange-600" />
-                <span className="text-base font-medium text-orange-600">
-                  {item.evidence.title || 'View Document'}
-                </span>
-              </div>
-            </a>
+            <DocumentPreview
+              url={item.evidence.url}
+              title={item.evidence.title}
+            />
           )}
         </div>
       )}

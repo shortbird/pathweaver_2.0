@@ -272,7 +272,7 @@ def register_routes(bp):
                             text = content.get('text', '')
                             evidence_preview = text[:200] + '...' if len(text) > 200 else text
                         elif block['block_type'] == 'document':
-                            evidence_type = 'link'
+                            evidence_type = 'document'
                             evidence_preview = get_content_url(content)
                             evidence_title = content.get('title') or content.get('filename')
 
