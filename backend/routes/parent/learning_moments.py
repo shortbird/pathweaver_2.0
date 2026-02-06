@@ -20,8 +20,8 @@ bp = Blueprint('parent_learning_moments', __name__, url_prefix='/api/parent')
 # Constants for file uploads
 MAX_MEDIA_SIZE = 50 * 1024 * 1024  # 50MB
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
-ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov', 'avi', 'webm'}
-ALLOWED_MEDIA_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_VIDEO_EXTENSIONS
+ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx'}
+ALLOWED_UPLOAD_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS
 
 
 @bp.route('/children/<child_id>/learning-moments', methods=['POST'])
@@ -35,10 +35,12 @@ def create_child_learning_moment(user_id, child_id):
         "description": "string (optional)",
         "media": [
             {
-                "type": "image" | "video",
-                "file_url": "https://...",
-                "file_name": "photo.jpg",
-                "file_size": 12345
+                "type": "image" | "document" | "link",
+                "file_url": "https://..." (for image/document),
+                "url": "https://..." (for link),
+                "file_name": "photo.jpg" (for image/document),
+                "file_size": 12345 (for image/document),
+                "title": "Link title" (optional, for link)
             }
         ]
     }
@@ -62,7 +64,7 @@ def create_child_learning_moment(user_id, child_id):
 
         # Validate: at least description OR media required
         if not description and not media:
-            raise ValidationError("Please provide a description or attach at least one photo/video")
+            raise ValidationError("Please provide a description, attach a file, or include a link")
 
         # Create the learning event for the child
         event_data = {
@@ -85,21 +87,51 @@ def create_child_learning_moment(user_id, child_id):
         evidence_blocks = []
         for idx, media_item in enumerate(media):
             media_type = media_item.get('type', 'image')
-            block_type = 'image' if media_type == 'image' else 'video'
 
-            block_data = {
-                'learning_event_id': event_id,
-                'block_type': block_type,
-                'content': {
-                    'url': media_item.get('file_url'),
-                    'caption': '',
-                    'alt_text': media_item.get('file_name', '')
-                },
-                'order_index': idx,
-                'file_url': media_item.get('file_url'),
-                'file_name': media_item.get('file_name'),
-                'file_size': media_item.get('file_size', 0)
-            }
+            # Determine block_type based on media type
+            if media_type == 'link':
+                block_type = 'link'
+                block_data = {
+                    'learning_event_id': event_id,
+                    'block_type': block_type,
+                    'content': {
+                        'url': media_item.get('url'),
+                        'title': media_item.get('title', ''),
+                        'caption': ''
+                    },
+                    'order_index': idx
+                }
+            elif media_type == 'document':
+                block_type = 'document'
+                block_data = {
+                    'learning_event_id': event_id,
+                    'block_type': block_type,
+                    'content': {
+                        'url': media_item.get('file_url'),
+                        'filename': media_item.get('file_name', ''),
+                        'caption': ''
+                    },
+                    'order_index': idx,
+                    'file_url': media_item.get('file_url'),
+                    'file_name': media_item.get('file_name'),
+                    'file_size': media_item.get('file_size', 0)
+                }
+            else:
+                # Default to image
+                block_type = 'image'
+                block_data = {
+                    'learning_event_id': event_id,
+                    'block_type': block_type,
+                    'content': {
+                        'url': media_item.get('file_url'),
+                        'caption': '',
+                        'alt_text': media_item.get('file_name', '')
+                    },
+                    'order_index': idx,
+                    'file_url': media_item.get('file_url'),
+                    'file_name': media_item.get('file_name'),
+                    'file_size': media_item.get('file_size', 0)
+                }
 
             block_response = supabase.table('learning_event_evidence_blocks').insert(block_data).execute()
 
@@ -129,10 +161,10 @@ def create_child_learning_moment(user_id, child_id):
 @require_auth
 def upload_moment_media(user_id, child_id):
     """
-    Upload photo/video for a learning moment.
+    Upload photo or document for a learning moment.
 
     Multipart form data:
-    - file: The media file to upload
+    - file: The media file to upload (image or document)
 
     Returns:
         200: Signed URL for the uploaded file
@@ -157,8 +189,8 @@ def upload_moment_media(user_id, child_id):
         filename = file.filename
         file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
 
-        if file_ext not in ALLOWED_MEDIA_EXTENSIONS:
-            allowed = ', '.join(sorted(ALLOWED_MEDIA_EXTENSIONS))
+        if file_ext not in ALLOWED_UPLOAD_EXTENSIONS:
+            allowed = ', '.join(sorted(ALLOWED_UPLOAD_EXTENSIONS))
             raise ValidationError(f'Invalid file type ".{file_ext}". Allowed: {allowed}')
 
         # Read file content
@@ -169,7 +201,7 @@ def upload_moment_media(user_id, child_id):
             raise ValidationError(f"File size exceeds {MAX_MEDIA_SIZE // (1024*1024)}MB limit")
 
         # Determine media type
-        media_type = 'image' if file_ext in ALLOWED_IMAGE_EXTENSIONS else 'video'
+        media_type = 'image' if file_ext in ALLOWED_IMAGE_EXTENSIONS else 'document'
 
         # Generate unique filename
         unique_filename = f"learning_moments/{child_id}/{uuid.uuid4()}.{file_ext}"

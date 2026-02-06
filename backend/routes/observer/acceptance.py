@@ -182,8 +182,13 @@ def register_routes(bp):
             supabase = get_supabase_admin_client()
 
             # Get user role to check if they're superadmin/advisor/parent
-            user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
+            # Need both role and org_role to handle org-managed users
+            user_result = supabase.table('users').select('role, org_role').eq('id', user_id).single().execute()
             user_role = user_result.data.get('role') if user_result.data else None
+            user_org_role = user_result.data.get('org_role') if user_result.data else None
+
+            # Determine effective role (org_role for org_managed users, role otherwise)
+            effective_role = user_org_role if user_role == 'org_managed' else user_role
 
             # Get student links for this observer
             links = supabase.table('observer_student_links') \
@@ -196,7 +201,7 @@ def register_routes(bp):
 
             # For superadmin or advisor, also get students from advisor_student_assignments
             advisor_student_ids = []
-            if user_role in ('superadmin', 'advisor'):
+            if effective_role in ('superadmin', 'advisor'):
                 advisor_assignments = supabase.table('advisor_student_assignments') \
                     .select('student_id') \
                     .eq('advisor_id', user_id) \
@@ -206,7 +211,7 @@ def register_routes(bp):
 
             # For parents, include their children (dependents + linked students)
             parent_child_ids = []
-            if user_role == 'parent':
+            if effective_role == 'parent':
                 # Get dependents (under 13, managed by this parent)
                 dependents = supabase.table('users') \
                     .select('id') \

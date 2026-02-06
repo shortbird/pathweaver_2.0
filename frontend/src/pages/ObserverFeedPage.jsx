@@ -86,6 +86,18 @@ export default function ObserverFeedPage() {
       }
 
       setStudents(fetchedStudents);
+
+      // Fetch feed immediately after students are loaded
+      // This ensures the feed loads on initial page load without waiting for selectedStudentId change
+      if (fetchedStudents.length > 0) {
+        setFeedItems([]);
+        setNextCursor(null);
+        setHasMore(true);
+        // Small delay to ensure state updates are processed
+        setTimeout(() => {
+          fetchFeedDirect(null); // null = all students
+        }, 50);
+      }
     } catch (error) {
       console.error('Failed to fetch students:', error);
       toast.error('Failed to load students');
@@ -96,6 +108,34 @@ export default function ObserverFeedPage() {
 
   // Use ref to track loading state to avoid stale closures
   const feedLoadingRef = useRef(false);
+
+  // Direct feed fetch function that doesn't rely on useCallback closures
+  // Used for initial load after students are fetched
+  const fetchFeedDirect = async (studentId) => {
+    if (feedLoadingRef.current) return;
+
+    feedLoadingRef.current = true;
+    setFeedLoading(true);
+    try {
+      const params = { limit: 20 };
+      if (studentId) {
+        params.studentId = studentId;
+      }
+
+      const response = await observerAPI.getFeed(params);
+      const newItems = response.data.items || [];
+
+      setFeedItems(newItems);
+      setHasMore(response.data.has_more);
+      setNextCursor(response.data.next_cursor);
+    } catch (error) {
+      console.error('Failed to fetch feed:', error);
+      toast.error('Failed to load feed');
+    } finally {
+      feedLoadingRef.current = false;
+      setFeedLoading(false);
+    }
+  };
 
   const fetchFeed = useCallback(async (reset = false, studentIdOverride = undefined) => {
     // Use ref for loading check to avoid stale closure
@@ -137,8 +177,15 @@ export default function ObserverFeedPage() {
     }
   }, [selectedStudentId, hasMore, nextCursor]);
 
-  // Reset feed when student filter changes
+  // Track if this is the initial mount to avoid double-fetching
+  const isInitialMountRef = useRef(true);
+
+  // Reset feed when student filter changes (skip initial mount - handled by fetchMyStudents)
   useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
     setFeedItems([]);
     setNextCursor(null);
     setHasMore(true);
@@ -315,9 +362,9 @@ export default function ObserverFeedPage() {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+      <div className="max-w-3xl mx-auto px-0 sm:px-6 py-4 sm:py-6">
         {/* Header with Student Filter Dropdown */}
-        <div className="flex flex-col gap-3 mb-4 sm:mb-6">
+        <div className="flex flex-col gap-3 mb-4 sm:mb-6 px-4 sm:px-0">
           {/* Student Filter Dropdown - Full width on mobile, first on mobile for quick access */}
           <div className="relative order-first sm:order-last">
             <select
@@ -348,14 +395,14 @@ export default function ObserverFeedPage() {
             </h2>
             <p className="text-sm text-gray-500">
               {selectedStudentId
-                ? 'Recent task completions and achievements'
+                ? 'Tasks completed and learning moments captured'
                 : `Activity from all ${students.length} linked students`}
             </p>
           </div>
         </div>
 
         {/* Feed Items */}
-        <div className="space-y-3 sm:space-y-4">
+        <div className="space-y-3 sm:space-y-5">
           {feedItems.length > 0 ? (
             <>
               {feedItems.map(item => (
@@ -377,18 +424,18 @@ export default function ObserverFeedPage() {
               </div>
             </>
           ) : feedLoading ? (
-            <div className="bg-white rounded-lg shadow p-8 sm:p-12 text-center">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 sm:p-12 text-center mx-2 sm:mx-0">
               <div className="animate-spin rounded-full h-8 w-8 sm:h-10 sm:w-10 border-b-2 border-optio-purple mx-auto" />
               <p className="text-gray-500 mt-3 sm:mt-4 text-sm sm:text-base">Loading activity...</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow p-6 sm:p-12 text-center">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-12 text-center mx-2 sm:mx-0">
               <SparklesIcon className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-3 sm:mb-4" />
               <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">No Activity Yet</h3>
               <p className="text-sm sm:text-base text-gray-600 max-w-md mx-auto">
                 {selectedStudentId
-                  ? "This student hasn't completed any tasks yet. Check back soon!"
-                  : "Your linked students haven't completed any tasks yet. Completed work will appear here."}
+                  ? "This student hasn't completed any tasks or captured learning moments yet. Check back soon!"
+                  : "Your linked students haven't completed any tasks or captured learning moments yet. Activity will appear here."}
               </p>
             </div>
           )}

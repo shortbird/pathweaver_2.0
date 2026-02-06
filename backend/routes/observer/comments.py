@@ -12,6 +12,7 @@ from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.rate_limiter import rate_limit
 from services.observer_audit_service import ObserverAuditService
+from services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ def register_routes(bp):
         Body:
             student_id: UUID of student
             task_completion_id: UUID of task completion (optional)
+            learning_event_id: UUID of learning event (optional)
             quest_id: UUID of quest (optional)
             comment_text: Comment text (max 2000 characters)
 
@@ -52,6 +54,9 @@ def register_routes(bp):
         try:
             supabase = get_supabase_admin_client()
             student_id = data['student_id']
+            # Debug: log student_id for comparison
+            with open('C:/Users/tanne/Desktop/pw_v2/debug_comparison.log', 'a') as f:
+                f.write(f"[{datetime.now()}] COMMENT: student_id={student_id}, observer_id={observer_id}\n")
             can_comment = False
 
             # Check if superadmin (superadmins have full access)
@@ -88,6 +93,7 @@ def register_routes(bp):
                 'student_id': data['student_id'],
                 'quest_id': data.get('quest_id'),
                 'task_completion_id': data.get('task_completion_id'),
+                'learning_event_id': data.get('learning_event_id'),
                 'comment_text': data['comment_text']
             }).execute()
 
@@ -112,6 +118,65 @@ def register_routes(bp):
                 # Don't fail the request if audit logging fails
                 logger.error(f"Failed to log observer access: {audit_error}")
 
+            # Notify parents of the student about the comment
+            try:
+                notification_service = NotificationService(supabase=supabase)
+                parents = notification_service.get_parents_for_student(student_id)
+                with open('C:/Users/tanne/Desktop/pw_v2/debug_comparison.log', 'a') as f:
+                    f.write(f"[{datetime.now()}] COMMENT NOTIFY: student_id={student_id}, found {len(parents)} parents: {[p.get('id') for p in parents]}\n")
+                logger.info(f"[post_observer_comment] Found {len(parents)} parents for student {student_id[:8]}, observer={observer_id[:8]}")
+
+                if parents:
+                    # Get observer name
+                    observer = supabase.table('users') \
+                        .select('display_name, first_name, last_name') \
+                        .eq('id', observer_id) \
+                        .single() \
+                        .execute()
+                    observer_name = observer.data.get('display_name') or \
+                        f"{observer.data.get('first_name', '')} {observer.data.get('last_name', '')}".strip() or \
+                        'Someone'
+
+                    # Get student name
+                    student = supabase.table('users') \
+                        .select('display_name, first_name') \
+                        .eq('id', student_id) \
+                        .single() \
+                        .execute()
+                    student_name = student.data.get('display_name') or \
+                        student.data.get('first_name') or 'your child'
+
+                    for parent in parents:
+                        # Don't notify if the parent is the one who commented
+                        if parent['id'] != observer_id:
+                            logger.info(f"[post_observer_comment] Sending notification to parent {parent['id'][:8]}")
+                            notification_service.notify_parent_observer_comment(
+                                parent_user_id=parent['id'],
+                                observer_name=observer_name,
+                                student_name=student_name,
+                                comment_preview=data['comment_text'],
+                                student_id=student_id,
+                                organization_id=parent.get('organization_id')
+                            )
+                        else:
+                            logger.info(f"[post_observer_comment] Skipping self-notification for parent {parent['id'][:8]}")
+
+                    # Also notify the student (unless they commented on their own work)
+                    if student_id != observer_id:
+                        student_user = supabase.table('users').select('organization_id').eq('id', student_id).single().execute()
+                        notification_service.notify_student_comment(
+                            student_id=student_id,
+                            observer_name=observer_name,
+                            comment_preview=data['comment_text'],
+                            organization_id=student_user.data.get('organization_id') if student_user.data else None
+                        )
+                        logger.info(f"[post_observer_comment] Sent notification to student {student_id[:8]}")
+                else:
+                    logger.info(f"[post_observer_comment] No parents found to notify")
+            except Exception as notify_error:
+                # Don't fail the comment if notification fails
+                logger.error(f"Failed to send comment notification: {notify_error}", exc_info=True)
+
             return jsonify({
                 'status': 'success',
                 'comment': comment.data[0]
@@ -127,7 +192,12 @@ def register_routes(bp):
     @validate_uuid_param('comment_id')
     def delete_observer_comment(user_id, comment_id):
         """
-        Delete an observer comment (only the comment author can delete)
+        Delete an observer comment
+
+        Authorized users:
+        - The comment author (observer who posted the comment)
+        - Parents of the student the comment is about
+        - Superadmins
 
         Args:
             user_id: UUID of authenticated user (from @require_auth)
@@ -141,9 +211,9 @@ def register_routes(bp):
         try:
             supabase = get_supabase_admin_client()
 
-            # Get the comment and verify ownership
+            # Get the comment with student_id for parent check
             comment = supabase.table('observer_comments') \
-                .select('id, observer_id') \
+                .select('id, observer_id, student_id') \
                 .eq('id', comment_id) \
                 .single() \
                 .execute()
@@ -151,11 +221,27 @@ def register_routes(bp):
             if not comment.data:
                 return jsonify({'error': 'Comment not found'}), 404
 
-            # Check if user is the comment author or superadmin
+            # Check if user is the comment author
+            is_author = comment.data['observer_id'] == user_id
+
+            # Check user role
             user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
             user_role = user_result.data.get('role') if user_result.data else None
+            is_superadmin = user_role == 'superadmin'
 
-            if comment.data['observer_id'] != user_id and user_role != 'superadmin':
+            # Check if user is a parent of the student
+            is_parent_of_student = False
+            if not is_author and not is_superadmin:
+                student_id = comment.data['student_id']
+                # Check parent_student_links table
+                parent_link = supabase.table('parent_student_links') \
+                    .select('id') \
+                    .eq('parent_id', user_id) \
+                    .eq('student_id', student_id) \
+                    .execute()
+                is_parent_of_student = bool(parent_link.data)
+
+            if not is_author and not is_superadmin and not is_parent_of_student:
                 return jsonify({'error': 'Not authorized to delete this comment'}), 403
 
             # Delete the comment

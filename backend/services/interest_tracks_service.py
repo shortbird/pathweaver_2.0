@@ -1184,6 +1184,8 @@ class InterestTracksService(BaseService):
             Dictionary with success status and categorized topics
         """
         try:
+            supabase = get_supabase_admin_client()
+
             # Get interest tracks
             tracks_result = InterestTracksService.get_user_tracks(user_id)
             tracks = tracks_result.get('tracks', []) if tracks_result.get('success') else []
@@ -1193,7 +1195,22 @@ class InterestTracksService(BaseService):
             quest_topics = quests_result.get('quest_topics', []) if quests_result.get('success') else []
             course_topics = quests_result.get('course_topics', []) if quests_result.get('success') else []
 
-            # Format tracks as topics
+            # Calculate actual moment counts for tracks from learning_events table
+            # This ensures accurate counts even if the denormalized moment_count is stale
+            track_ids = [t['id'] for t in tracks]
+            track_moment_counts = {}
+            if track_ids:
+                moments_response = supabase.table('learning_events') \
+                    .select('track_id') \
+                    .eq('user_id', user_id) \
+                    .in_('track_id', track_ids) \
+                    .execute()
+                for moment in (moments_response.data or []):
+                    tid = moment.get('track_id')
+                    if tid:
+                        track_moment_counts[tid] = track_moment_counts.get(tid, 0) + 1
+
+            # Format tracks as topics with accurate moment counts
             formatted_tracks = []
             for track in tracks:
                 formatted_tracks.append({
@@ -1203,7 +1220,7 @@ class InterestTracksService(BaseService):
                     'description': track.get('description', ''),
                     'color': track.get('color', '#6366f1'),
                     'icon': track.get('icon', 'folder'),
-                    'moment_count': track.get('moment_count', 0)
+                    'moment_count': track_moment_counts.get(track['id'], 0)
                 })
 
             # Combine all flat topics (standalone quests + tracks)

@@ -45,8 +45,13 @@ def register_routes(bp):
             supabase = get_supabase_admin_client()
 
             # Get user role to check if they're superadmin/advisor/parent
-            user_result = supabase.table('users').select('role').eq('id', observer_id).single().execute()
+            # Need both role and org_role to handle org-managed users
+            user_result = supabase.table('users').select('role, org_role').eq('id', observer_id).single().execute()
             user_role = user_result.data.get('role') if user_result.data else None
+            user_org_role = user_result.data.get('org_role') if user_result.data else None
+
+            # Determine effective role (org_role for org_managed users, role otherwise)
+            effective_role = user_org_role if user_role == 'org_managed' else user_role
 
             # Get all linked students for this observer
             links = supabase.table('observer_student_links') \
@@ -58,7 +63,7 @@ def register_routes(bp):
             evidence_permissions = {link['student_id']: link['can_view_evidence'] for link in links.data}
 
             # For superadmin or advisor, also get students from advisor_student_assignments
-            if user_role in ('superadmin', 'advisor'):
+            if effective_role in ('superadmin', 'advisor'):
                 advisor_assignments = supabase.table('advisor_student_assignments') \
                     .select('student_id') \
                     .eq('advisor_id', observer_id) \
@@ -70,30 +75,30 @@ def register_routes(bp):
                         student_ids.append(sid)
                         evidence_permissions[sid] = True  # Advisors can view evidence
 
-            # For parents, include their children (dependents + linked students)
-            if user_role == 'parent':
-                # Get dependents (under 13, managed by this parent)
-                dependents = supabase.table('users') \
-                    .select('id') \
-                    .eq('managed_by_parent_id', observer_id) \
-                    .execute()
-                for dep in dependents.data:
-                    sid = dep['id']
-                    if sid not in student_ids:
-                        student_ids.append(sid)
-                        evidence_permissions[sid] = True  # Parents can view their children's evidence
+            # Always check for user's children (dependents + linked students)
+            # This applies to parents, but also superadmins or anyone who has children
+            # Get dependents (under 13, managed by this user)
+            dependents = supabase.table('users') \
+                .select('id') \
+                .eq('managed_by_parent_id', observer_id) \
+                .execute()
+            for dep in dependents.data:
+                sid = dep['id']
+                if sid not in student_ids:
+                    student_ids.append(sid)
+                    evidence_permissions[sid] = True  # Parents can view their children's evidence
 
-                # Get linked students (13+, via parent_student_links)
-                linked_students = supabase.table('parent_student_links') \
-                    .select('student_user_id') \
-                    .eq('parent_user_id', observer_id) \
-                    .eq('status', 'approved') \
-                    .execute()
-                for linked in linked_students.data:
-                    sid = linked['student_user_id']
-                    if sid not in student_ids:
-                        student_ids.append(sid)
-                        evidence_permissions[sid] = True  # Parents can view their children's evidence
+            # Get linked students (13+, via parent_student_links)
+            linked_students = supabase.table('parent_student_links') \
+                .select('student_user_id') \
+                .eq('parent_user_id', observer_id) \
+                .eq('status', 'approved') \
+                .execute()
+            for linked in linked_students.data:
+                sid = linked['student_user_id']
+                if sid not in student_ids:
+                    student_ids.append(sid)
+                    evidence_permissions[sid] = True  # Parents can view their children's evidence
 
             if not student_ids:
                 return jsonify({'items': [], 'has_more': False}), 200
@@ -118,7 +123,30 @@ def register_routes(bp):
 
             completions = query.execute()
 
-            if not completions.data:
+            # Also query learning_events for learning moments
+            learning_events_query = supabase.table('learning_events') \
+                .select('id, user_id, title, description, pillars, created_at, source_type, captured_by_user_id, track_id') \
+                .in_('user_id', student_ids) \
+                .order('created_at', desc=True) \
+                .limit(limit + 1)
+
+            if cursor:
+                learning_events_query = learning_events_query.lt('created_at', cursor)
+
+            learning_events = learning_events_query.execute()
+
+            # Get track names for learning events
+            track_ids = list(set([e['track_id'] for e in (learning_events.data or []) if e.get('track_id')]))
+            tracks_map = {}
+            if track_ids:
+                tracks = supabase.table('interest_tracks') \
+                    .select('id, name') \
+                    .in_('id', track_ids) \
+                    .execute()
+                tracks_map = {t['id']: t['name'] for t in tracks.data}
+
+            # If no completions AND no learning events, return empty
+            if not completions.data and not learning_events.data:
                 return jsonify({'items': [], 'has_more': False}), 200
 
             # Get task details
@@ -180,6 +208,22 @@ def register_routes(bp):
                     if doc_id not in evidence_blocks_map:
                         evidence_blocks_map[doc_id] = []
                     evidence_blocks_map[doc_id].append(block)
+
+            # Get evidence blocks for learning events
+            learning_event_ids = [e['id'] for e in learning_events.data] if learning_events.data else []
+            learning_event_blocks_map = {}  # learning_event_id -> list of blocks
+            if learning_event_ids:
+                le_blocks = supabase.table('learning_event_evidence_blocks') \
+                    .select('id, learning_event_id, block_type, content, order_index, created_at, file_url, file_name') \
+                    .in_('learning_event_id', learning_event_ids) \
+                    .order('order_index') \
+                    .execute()
+
+                for block in le_blocks.data:
+                    le_id = block['learning_event_id']
+                    if le_id not in learning_event_blocks_map:
+                        learning_event_blocks_map[le_id] = []
+                    learning_event_blocks_map[le_id].append(block)
 
             # Build feed items - one per evidence block
             raw_feed_items = []
@@ -302,6 +346,92 @@ def register_routes(bp):
                             'evidence_title': None  # Legacy evidence doesn't have titles
                         })
 
+            # Build feed items for learning moments
+            for event in (learning_events.data or []):
+                student_info = students_map.get(event['user_id'], {})
+                can_view = evidence_permissions.get(event['user_id'], False)
+
+                if not can_view:
+                    continue
+
+                student_name = student_info.get('display_name') or \
+                    f"{student_info.get('first_name', '')} {student_info.get('last_name', '')}".strip() or 'Student'
+
+                # Get evidence blocks for this learning event
+                event_blocks = learning_event_blocks_map.get(event['id'], [])
+
+                if event_blocks:
+                    # Create one feed item per evidence block
+                    for block in event_blocks:
+                        evidence_type = None
+                        evidence_preview = None
+                        evidence_title = None
+                        content = block.get('content', {})
+
+                        if block['block_type'] == 'image':
+                            evidence_type = 'image'
+                            evidence_preview = content.get('url') or block.get('file_url')
+                        elif block['block_type'] == 'video':
+                            evidence_type = 'video'
+                            evidence_preview = content.get('url') or block.get('file_url')
+                            evidence_title = content.get('title')
+                        elif block['block_type'] == 'link':
+                            evidence_type = 'link'
+                            evidence_preview = content.get('url')
+                            evidence_title = content.get('title')
+                        elif block['block_type'] == 'text':
+                            evidence_type = 'text'
+                            text = content.get('text', '')
+                            evidence_preview = text[:200] + '...' if len(text) > 200 else text
+                        elif block['block_type'] == 'document':
+                            evidence_type = 'document'
+                            evidence_preview = content.get('url') or block.get('file_url')
+                            evidence_title = content.get('title') or content.get('filename') or block.get('file_name')
+
+                        if evidence_type:
+                            raw_feed_items.append({
+                                'id': f"le_{event['id']}_{block['id']}",
+                                'learning_event_id': event['id'],
+                                'block_id': block['id'],
+                                'timestamp': block.get('created_at') or event['created_at'],
+                                'student_id': event['user_id'],
+                                'student_name': student_name,
+                                'student_avatar': student_info.get('avatar_url'),
+                                'event_title': event.get('title') or 'Learning Moment',
+                                'event_description': event.get('description', ''),
+                                'event_pillars': event.get('pillars', []),
+                                'topic_name': tracks_map.get(event.get('track_id')),
+                                'source_type': event.get('source_type', 'realtime'),
+                                'captured_by_user_id': event.get('captured_by_user_id'),
+                                'evidence_type': evidence_type,
+                                'evidence_preview': evidence_preview,
+                                'evidence_title': evidence_title,
+                                'item_type': 'learning_moment'
+                            })
+                else:
+                    # Learning moment with just text description (no media blocks)
+                    description = event.get('description', '')
+                    if description:
+                        raw_feed_items.append({
+                            'id': f"le_{event['id']}",
+                            'learning_event_id': event['id'],
+                            'block_id': None,
+                            'timestamp': event['created_at'],
+                            'student_id': event['user_id'],
+                            'student_name': student_name,
+                            'student_avatar': student_info.get('avatar_url'),
+                            'event_title': event.get('title') or 'Learning Moment',
+                            'event_description': description,
+                            'event_pillars': event.get('pillars', []),
+                            'topic_name': tracks_map.get(event.get('track_id')),
+                            'source_type': event.get('source_type', 'realtime'),
+                            'captured_by_user_id': event.get('captured_by_user_id'),
+                            'evidence_type': 'text',
+                            'evidence_preview': description[:200] + '...' if len(description) > 200 else description,
+                            'evidence_title': None,
+                            'item_type': 'learning_moment'
+                        })
+
             # Sort by timestamp descending and paginate
             raw_feed_items.sort(key=lambda x: x['timestamp'], reverse=True)
 
@@ -309,8 +439,8 @@ def register_routes(bp):
             has_more = len(raw_feed_items) > limit
             paginated_items = raw_feed_items[:limit]
 
-            # Get like counts and user's likes
-            completion_ids = list(set([item['completion_id'] for item in paginated_items]))
+            # Get like counts and user's likes for task completions
+            completion_ids = list(set([item.get('completion_id') for item in paginated_items if item.get('completion_id')]))
             likes_count = {}
             user_likes = set()
             try:
@@ -325,9 +455,28 @@ def register_routes(bp):
                         if like['observer_id'] == observer_id:
                             user_likes.add(like['completion_id'])
             except Exception as likes_error:
-                logger.warning(f"Could not fetch observer_likes: {likes_error}")
+                logger.warning(f"Could not fetch observer_likes for completions: {likes_error}")
 
-            # Get comment counts
+            # Get like counts and user's likes for learning events
+            le_ids = list(set([item.get('learning_event_id') for item in paginated_items if item.get('learning_event_id')]))
+            le_likes_count = {}
+            le_user_likes = set()
+            try:
+                if le_ids:
+                    le_likes = supabase.table('observer_likes') \
+                        .select('learning_event_id, observer_id') \
+                        .in_('learning_event_id', le_ids) \
+                        .execute()
+
+                    for like in le_likes.data:
+                        le_id = like['learning_event_id']
+                        le_likes_count[le_id] = le_likes_count.get(le_id, 0) + 1
+                        if like['observer_id'] == observer_id:
+                            le_user_likes.add(le_id)
+            except Exception as likes_error:
+                logger.warning(f"Could not fetch observer_likes for learning events: {likes_error}")
+
+            # Get comment counts for task completions
             comments_count = {}
             try:
                 if completion_ids:
@@ -340,42 +489,90 @@ def register_routes(bp):
                         if comment['task_completion_id']:
                             comments_count[comment['task_completion_id']] = comments_count.get(comment['task_completion_id'], 0) + 1
             except Exception as comments_error:
-                logger.warning(f"Could not fetch observer_comments: {comments_error}")
+                logger.warning(f"Could not fetch observer_comments for completions: {comments_error}")
+
+            # Get comment counts for learning events
+            le_comments_count = {}
+            try:
+                if le_ids:
+                    le_comments = supabase.table('observer_comments') \
+                        .select('learning_event_id') \
+                        .in_('learning_event_id', le_ids) \
+                        .execute()
+
+                    for comment in le_comments.data:
+                        if comment['learning_event_id']:
+                            le_comments_count[comment['learning_event_id']] = le_comments_count.get(comment['learning_event_id'], 0) + 1
+            except Exception as comments_error:
+                logger.warning(f"Could not fetch observer_comments for learning events: {comments_error}")
 
             # Build final feed items in the expected format
             feed_items = []
             for item in paginated_items:
-                feed_items.append({
-                    'type': 'task_completed',
-                    'id': item['id'],
-                    'completion_id': item['completion_id'],
-                    'timestamp': item['timestamp'],
-                    'student': {
-                        'id': item['student_id'],
-                        'display_name': item['student_name'],
-                        'avatar_url': item['student_avatar']
-                    },
-                    'task': {
-                        'id': item['task_id'],
-                        'title': item['task_title'],
-                        'pillar': item['task_pillar'],
-                        'xp_value': item['task_xp']
-                    },
-                    'quest': {
-                        'id': item['quest_id'],
-                        'title': item['quest_title']
-                    },
-                    'evidence': {
-                        'type': item['evidence_type'],
-                        'url': item['evidence_preview'] if item['evidence_type'] != 'text' else None,
-                        'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None,
-                        'title': item.get('evidence_title')
-                    },
-                    'xp_awarded': item['task_xp'],
-                    'likes_count': likes_count.get(item['completion_id'], 0),
-                    'comments_count': comments_count.get(item['completion_id'], 0),
-                    'user_has_liked': item['completion_id'] in user_likes
-                })
+                if item.get('item_type') == 'learning_moment':
+                    # Learning moment feed item
+                    le_id = item['learning_event_id']
+                    feed_items.append({
+                        'type': 'learning_moment',
+                        'id': item['id'],
+                        'learning_event_id': le_id,
+                        'timestamp': item['timestamp'],
+                        'student': {
+                            'id': item['student_id'],
+                            'display_name': item['student_name'],
+                            'avatar_url': item['student_avatar']
+                        },
+                        'moment': {
+                            'title': item['event_title'],
+                            'description': item['event_description'],
+                            'pillars': item['event_pillars'],
+                            'topic_name': item.get('topic_name'),
+                            'source_type': item['source_type'],
+                            'captured_by_user_id': item.get('captured_by_user_id')
+                        },
+                        'evidence': {
+                            'type': item['evidence_type'],
+                            'url': item['evidence_preview'] if item['evidence_type'] not in ('text',) else None,
+                            'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None,
+                            'title': item.get('evidence_title')
+                        },
+                        'likes_count': le_likes_count.get(le_id, 0),
+                        'comments_count': le_comments_count.get(le_id, 0),
+                        'user_has_liked': le_id in le_user_likes
+                    })
+                else:
+                    # Task completion feed item
+                    feed_items.append({
+                        'type': 'task_completed',
+                        'id': item['id'],
+                        'completion_id': item.get('completion_id'),
+                        'timestamp': item['timestamp'],
+                        'student': {
+                            'id': item['student_id'],
+                            'display_name': item['student_name'],
+                            'avatar_url': item['student_avatar']
+                        },
+                        'task': {
+                            'id': item.get('task_id'),
+                            'title': item.get('task_title', 'Task'),
+                            'pillar': item.get('task_pillar'),
+                            'xp_value': item.get('task_xp', 0)
+                        },
+                        'quest': {
+                            'id': item.get('quest_id'),
+                            'title': item.get('quest_title', 'Quest')
+                        },
+                        'evidence': {
+                            'type': item['evidence_type'],
+                            'url': item['evidence_preview'] if item['evidence_type'] != 'text' else None,
+                            'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None,
+                            'title': item.get('evidence_title')
+                        },
+                        'xp_awarded': item.get('task_xp', 0),
+                        'likes_count': likes_count.get(item.get('completion_id'), 0),
+                        'comments_count': comments_count.get(item.get('completion_id'), 0),
+                        'user_has_liked': item.get('completion_id') in user_likes
+                    })
 
             # Log feed access
             try:

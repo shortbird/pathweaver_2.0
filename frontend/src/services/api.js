@@ -277,8 +277,9 @@ api.interceptors.response.use(
         const isQuestsPage = currentPath.startsWith('/quests') || currentPath.startsWith('/badges')
         const isJoinPage = currentPath.startsWith('/join/')
         const isPublicCoursePage = currentPath.startsWith('/course/')
+        const isObserverAcceptPage = currentPath.startsWith('/observer/accept/')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isPromoPage && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isPromoPage && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage) {
           window.location.href = '/login'
         }
 
@@ -359,19 +360,35 @@ export const observerAPI = {
 
   getMyStudents: () => api.get('/api/observers/my-students'),
 
-  // Likes
+  // Likes on task completions
   toggleLike: (completionId) =>
     api.post(`/api/observers/completions/${completionId}/like`, {}),
+
+  // Likes on learning events (moments)
+  toggleLearningEventLike: (learningEventId) =>
+    api.post(`/api/observers/learning-events/${learningEventId}/like`, {}),
 
   // Comments on specific completions
   getCompletionComments: (completionId) =>
     api.get(`/api/observers/completions/${completionId}/comments`),
+
+  // Comments on learning events (moments)
+  getLearningEventComments: (learningEventId) =>
+    api.get(`/api/observers/learning-events/${learningEventId}/comments`),
 
   postComment: (studentId, completionId, commentText, questId = null) =>
     api.post('/api/observers/comments', {
       student_id: studentId,
       task_completion_id: completionId,
       quest_id: questId,
+      comment_text: commentText
+    }),
+
+  // Post comment on learning event (moment)
+  postLearningEventComment: (studentId, learningEventId, commentText) =>
+    api.post('/api/observers/comments', {
+      student_id: studentId,
+      learning_event_id: learningEventId,
       comment_text: commentText
     }),
 

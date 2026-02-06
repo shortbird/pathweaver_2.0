@@ -496,6 +496,164 @@ class NotificationService(BaseService):
             organization_id=organization_id
         )
 
+    def notify_parent_observer_like(
+        self,
+        parent_user_id: str,
+        observer_name: str,
+        student_name: str,
+        item_title: str,
+        student_id: str,
+        organization_id: Optional[str] = None
+    ):
+        """Send notification to parent when an observer likes their child's work."""
+        return self.create_notification(
+            user_id=parent_user_id,
+            notification_type='observer_like',
+            title='New Like',
+            message=f'{observer_name} liked {student_name}\'s "{item_title}"',
+            link='/observer/feed',
+            metadata={'student_id': student_id, 'observer_name': observer_name},
+            organization_id=organization_id
+        )
+
+    def notify_parent_observer_comment(
+        self,
+        parent_user_id: str,
+        observer_name: str,
+        student_name: str,
+        comment_preview: str,
+        student_id: str,
+        organization_id: Optional[str] = None
+    ):
+        """Send notification to parent when an observer comments on their child's work."""
+        return self.create_notification(
+            user_id=parent_user_id,
+            notification_type='observer_comment',
+            title='New Comment',
+            message=f'{observer_name} commented on {student_name}\'s work: "{comment_preview[:50]}{"..." if len(comment_preview) > 50 else ""}"',
+            link='/observer/feed',
+            metadata={'student_id': student_id, 'observer_name': observer_name},
+            organization_id=organization_id
+        )
+
+    def notify_student_like(
+        self,
+        student_id: str,
+        observer_name: str,
+        item_title: str,
+        organization_id: Optional[str] = None
+    ):
+        """Send notification to student when someone likes their work."""
+        return self.create_notification(
+            user_id=student_id,
+            notification_type='observer_like',
+            title='Someone liked your work!',
+            message=f'{observer_name} liked your "{item_title}"',
+            link='/feedback',
+            metadata={'observer_name': observer_name},
+            organization_id=organization_id
+        )
+
+    def notify_student_comment(
+        self,
+        student_id: str,
+        observer_name: str,
+        comment_preview: str,
+        organization_id: Optional[str] = None
+    ):
+        """Send notification to student when someone comments on their work."""
+        return self.create_notification(
+            user_id=student_id,
+            notification_type='observer_comment',
+            title='New comment on your work!',
+            message=f'{observer_name} commented: "{comment_preview[:50]}{"..." if len(comment_preview) > 50 else ""}"',
+            link='/feedback',
+            metadata={'observer_name': observer_name},
+            organization_id=organization_id
+        )
+
+    def get_parents_for_student(self, student_id: str) -> List[Dict[str, Any]]:
+        """
+        Get all parents linked to a student.
+
+        Checks both:
+        - managed_by_parent_id (dependent students under 13)
+        - parent_student_links table (linked students 13+)
+
+        Args:
+            student_id: The student's user ID
+
+        Returns:
+            List of parent user records with id and display_name
+        """
+        try:
+            from repositories.parent_repository import ParentRepository
+
+            parents = []
+            parent_ids_found = set()
+            logger.info(f"[get_parents_for_student] Looking for parents of student {student_id[:8]}...")
+
+            # Method 1: Check if student has a managing parent (dependent under 13)
+            student_result = self.supabase.table('users') \
+                .select('managed_by_parent_id') \
+                .eq('id', student_id) \
+                .limit(1) \
+                .execute()
+
+            student_data = student_result.data[0] if student_result.data else None
+
+            with open('C:/Users/tanne/Desktop/pw_v2/debug_comparison.log', 'a') as f:
+                from datetime import datetime
+                f.write(f"[{datetime.now()}] get_parents_for_student: managed_by_parent_id={student_data.get('managed_by_parent_id') if student_data else None}\n")
+
+            if student_data and student_data.get('managed_by_parent_id'):
+                parent_id = student_data['managed_by_parent_id']
+                logger.info(f"[get_parents_for_student] Found managing parent: {parent_id[:8]}")
+                parent = self.supabase.table('users') \
+                    .select('id, display_name, first_name, last_name, organization_id') \
+                    .eq('id', parent_id) \
+                    .single() \
+                    .execute()
+                if parent.data:
+                    parents.append(parent.data)
+                    parent_ids_found.add(parent_id)
+                    logger.info(f"[get_parents_for_student] Added managing parent to list")
+
+            # Method 2: Check parent_student_links for linked parents (13+ students)
+            parent_repo = ParentRepository(client=self.supabase)
+            linked_parents = parent_repo.find_parents(student_id)
+
+            with open('C:/Users/tanne/Desktop/pw_v2/debug_comparison.log', 'a') as f:
+                f.write(f"[{datetime.now()}] get_parents_for_student: find_parents returned {len(linked_parents)} links: {linked_parents}\n")
+
+            logger.info(f"[get_parents_for_student] Found {len(linked_parents)} parent_student_links")
+
+            for link in linked_parents:
+                parent_data = link.get('parent')
+                if parent_data and parent_data.get('id') not in parent_ids_found:
+                    # Get full parent info including organization_id
+                    parent_info = self.supabase.table('users') \
+                        .select('id, display_name, first_name, last_name, organization_id') \
+                        .eq('id', parent_data['id']) \
+                        .single() \
+                        .execute()
+                    if parent_info.data:
+                        parents.append(parent_info.data)
+                        parent_ids_found.add(parent_data['id'])
+                        logger.info(f"[get_parents_for_student] Added linked parent {parent_data['id'][:8]}")
+
+            logger.info(f"[get_parents_for_student] Total parents found: {len(parents)}")
+            return parents
+
+        except Exception as e:
+            import traceback
+            with open('C:/Users/tanne/Desktop/pw_v2/debug_comparison.log', 'a') as f:
+                from datetime import datetime
+                f.write(f"[{datetime.now()}] get_parents_for_student ERROR: {str(e)}\n")
+                f.write(f"{traceback.format_exc()}\n")
+            logger.error(f"Error getting parents for student: {str(e)}", exc_info=True)
+            return []
+
     def broadcast_notification(
         self,
         sender_id: str,

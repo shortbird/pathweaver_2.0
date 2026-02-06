@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import toast from 'react-hot-toast'
-import { SparklesIcon, HeartIcon, ChatBubbleLeftIcon, PhotoIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
+import { HeartIcon, ChatBubbleLeftIcon, PhotoIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 
 export default function ObserverAcceptInvitationPage() {
   const { invitationCode } = useParams()
@@ -80,7 +80,6 @@ export default function ObserverAcceptInvitationPage() {
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-8 text-white text-center">
-            <SparklesIcon className="w-16 h-16 mx-auto mb-4" />
             <h1 className="text-3xl font-bold mb-2">You've Been Invited!</h1>
             <p className="text-purple-100 text-lg">
               A student has invited you to follow their learning journey on Optio

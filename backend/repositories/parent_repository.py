@@ -71,7 +71,7 @@ class ParentRepository(BaseRepository):
                 .select('*, parent:parent_user_id(id, display_name, avatar_url, first_name, last_name)')\
                 .eq('student_user_id', student_id)\
                 .eq('status', 'approved')\
-                .order('approved_at', desc=True)\
+                .order('created_at', desc=True)\
                 .execute()
 
             return result.data or []

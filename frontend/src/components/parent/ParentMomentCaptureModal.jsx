@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { Modal, Alert } from '../ui';
-import { PhotoIcon, VideoCameraIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PhotoIcon, DocumentIcon, LinkIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import api from '../../services/api';
 
@@ -19,19 +19,53 @@ const ParentMomentCaptureModal = ({
   const [selectedChild, setSelectedChild] = useState(selectedChildId || (children[0]?.id || ''));
   const [description, setDescription] = useState('');
   const [attachments, setAttachments] = useState([]); // { file, preview, type, uploading, uploaded, file_url, file_name, file_size }
+  const [links, setLinks] = useState([]); // { url, title }
+  const [linkInput, setLinkInput] = useState('');
+  const [showLinkInput, setShowLinkInput] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const photoInputRef = useRef(null);
-  const videoInputRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Reset form when modal opens/closes
   const resetForm = () => {
     setSelectedChild(selectedChildId || (children[0]?.id || ''));
     setDescription('');
     setAttachments([]);
+    setLinks([]);
+    setLinkInput('');
+    setShowLinkInput(false);
     setError('');
     setIsSubmitting(false);
+  };
+
+  // URL validation helper
+  const isValidUrl = (string) => {
+    try {
+      new URL(string);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
+
+  // Add link handler
+  const handleAddLink = () => {
+    const trimmedUrl = linkInput.trim();
+    if (trimmedUrl && isValidUrl(trimmedUrl)) {
+      setLinks(prev => [...prev, { url: trimmedUrl, title: '' }]);
+      setLinkInput('');
+      setShowLinkInput(false);
+      setError('');
+    } else if (trimmedUrl) {
+      setError('Please enter a valid URL (e.g., https://example.com)');
+    }
+  };
+
+  // Remove link handler
+  const removeLink = (index) => {
+    setLinks(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleClose = () => {
@@ -51,16 +85,25 @@ const ParentMomentCaptureModal = ({
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    const newAttachments = files.map(file => ({
-      file,
-      preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
-      type: file.type.startsWith('image/') ? 'image' : 'video',
-      uploading: false,
-      uploaded: false,
-      file_url: null,
-      file_name: file.name,
-      file_size: file.size
-    }));
+    const newAttachments = files.map(file => {
+      let fileType = type;
+      if (type === 'image' && file.type.startsWith('image/')) {
+        fileType = 'image';
+      } else if (type === 'document') {
+        fileType = 'document';
+      }
+
+      return {
+        file,
+        preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+        type: fileType,
+        uploading: false,
+        uploaded: false,
+        file_url: null,
+        file_name: file.name,
+        file_size: file.size
+      };
+    });
 
     setAttachments(prev => [...prev, ...newAttachments]);
     setError('');
@@ -135,8 +178,8 @@ const ParentMomentCaptureModal = ({
       return;
     }
 
-    if (!description.trim() && attachments.length === 0) {
-      setError('Please add a description or attach at least one photo/video');
+    if (!description.trim() && attachments.length === 0 && links.length === 0) {
+      setError('Please add a description, attach a file, or include a link');
       return;
     }
 
@@ -150,14 +193,24 @@ const ParentMomentCaptureModal = ({
       );
 
       // Create the learning moment
-      const media = uploadedAttachments
-        .filter(att => att.uploaded && att.file_url)
-        .map(att => ({
-          type: att.type,
-          file_url: att.file_url,
-          file_name: att.file_name,
-          file_size: att.file_size
-        }));
+      // Combine uploaded file attachments with links
+      const media = [
+        // File attachments (images, documents)
+        ...uploadedAttachments
+          .filter(att => att.uploaded && att.file_url)
+          .map(att => ({
+            type: att.type,
+            file_url: att.file_url,
+            file_name: att.file_name,
+            file_size: att.file_size
+          })),
+        // Links
+        ...links.map(link => ({
+          type: 'link',
+          url: link.url,
+          title: link.title || ''
+        }))
+      ];
 
       const response = await api.post(
         `/api/parent/children/${selectedChild}/learning-moments`,
@@ -184,7 +237,7 @@ const ParentMomentCaptureModal = ({
   };
 
   // Check if form is valid for submission
-  const isValid = selectedChild && (description.trim() || attachments.length > 0);
+  const isValid = selectedChild && (description.trim() || attachments.length > 0 || links.length > 0);
   const isUploading = attachments.some(att => att.uploading);
 
   // Format file size for display
@@ -272,7 +325,7 @@ const ParentMomentCaptureModal = ({
         </div>
 
         {/* Media Upload Buttons */}
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           <button
             type="button"
             onClick={() => photoInputRef.current?.click()}
@@ -294,30 +347,77 @@ const ParentMomentCaptureModal = ({
 
           <button
             type="button"
-            onClick={() => videoInputRef.current?.click()}
+            onClick={() => fileInputRef.current?.click()}
             disabled={isSubmitting}
             className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors disabled:opacity-50 min-h-[44px]"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
-            <VideoCameraIcon className="w-5 h-5" />
-            <span className="font-medium">Video</span>
+            <DocumentIcon className="w-5 h-5" />
+            <span className="font-medium">File</span>
           </button>
           <input
-            ref={videoInputRef}
+            ref={fileInputRef}
             type="file"
-            accept="video/*"
+            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             multiple
-            onChange={(e) => handleFileSelect(e, 'video')}
+            onChange={(e) => handleFileSelect(e, 'document')}
             className="hidden"
           />
+
+          <button
+            type="button"
+            onClick={() => setShowLinkInput(!showLinkInput)}
+            disabled={isSubmitting}
+            className={`flex items-center gap-2 px-4 py-2 border-2 border-dashed rounded-lg transition-colors disabled:opacity-50 min-h-[44px] ${
+              showLinkInput
+                ? 'border-optio-purple text-optio-purple'
+                : 'border-gray-300 text-gray-600 hover:border-optio-purple hover:text-optio-purple'
+            }`}
+            style={{ fontFamily: 'Poppins, sans-serif' }}
+          >
+            <LinkIcon className="w-5 h-5" />
+            <span className="font-medium">Link</span>
+          </button>
         </div>
 
+        {/* Link Input Field */}
+        {showLinkInput && (
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={linkInput}
+              onChange={(e) => setLinkInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddLink();
+                }
+              }}
+              placeholder="Paste URL (e.g., https://youtube.com/watch?v=...)"
+              disabled={isSubmitting}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent transition-all min-h-[44px]"
+              style={{ fontFamily: 'Poppins, sans-serif' }}
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={handleAddLink}
+              disabled={isSubmitting || !linkInput.trim()}
+              className="px-4 py-2 bg-optio-purple text-white rounded-lg font-medium hover:bg-optio-purple/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+              style={{ fontFamily: 'Poppins, sans-serif' }}
+            >
+              Add
+            </button>
+          </div>
+        )}
+
         {/* Attachment Previews */}
-        {attachments.length > 0 && (
+        {(attachments.length > 0 || links.length > 0) && (
           <div className="space-y-2">
+            {/* File Attachments */}
             {attachments.map((att, idx) => (
               <div
-                key={idx}
+                key={`file-${idx}`}
                 className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg"
               >
                 {/* Preview thumbnail or icon */}
@@ -329,7 +429,7 @@ const ParentMomentCaptureModal = ({
                   />
                 ) : (
                   <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
-                    <VideoCameraIcon className="w-6 h-6 text-gray-500" />
+                    <DocumentIcon className="w-6 h-6 text-gray-500" />
                   </div>
                 )}
 
@@ -359,6 +459,40 @@ const ParentMomentCaptureModal = ({
                     <XMarkIcon className="w-5 h-5" />
                   </button>
                 )}
+              </div>
+            ))}
+
+            {/* Link Attachments */}
+            {links.map((link, idx) => (
+              <div
+                key={`link-${idx}`}
+                className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg"
+              >
+                {/* Link icon */}
+                <div className="w-12 h-12 bg-blue-100 rounded flex items-center justify-center">
+                  <LinkIcon className="w-6 h-6 text-blue-600" />
+                </div>
+
+                {/* Link info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    {link.url}
+                  </p>
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Link
+                  </p>
+                </div>
+
+                {/* Remove */}
+                <button
+                  type="button"
+                  onClick={() => removeLink(idx)}
+                  disabled={isSubmitting}
+                  className="p-1 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                  aria-label="Remove link"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
               </div>
             ))}
           </div>
