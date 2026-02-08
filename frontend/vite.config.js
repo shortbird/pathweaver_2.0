@@ -73,16 +73,13 @@ export default defineConfig(({ mode }) => {
                 id.includes('react-ga4') || id.includes('focus-trap-react') ||
                 id.includes('react-hook-form') || id.includes('@tanstack/react-query') ||
                 id.includes('@fullcalendar/react') || id.includes('@tiptap') ||
-                id.includes('framer-motion') || id.includes('use-sync-external-store')) {
+                id.includes('framer-motion') || id.includes('use-sync-external-store') ||
+                id.includes('recharts') || id.includes('react-pdf')) {
               return 'react-vendor';
             }
             // UI libraries (React-independent)
             if (id.includes('@heroicons')) {
               return 'ui-vendor';
-            }
-            // Heavy chart libraries
-            if (id.includes('recharts')) {
-              return 'recharts';
             }
             // Calendar library core (non-React parts)
             if (id.includes('@fullcalendar') && !id.includes('@fullcalendar/react')) {
@@ -99,32 +96,8 @@ export default defineConfig(({ mode }) => {
             // All other vendors
             return 'vendor';
           }
-
-          // Application code chunks (by route/feature)
-          // Admin pages - large bundle, accessed only by admins
-          if (id.includes('/pages/AdminPage') || id.includes('/components/admin/')) {
-            return 'admin';
-          }
-          // Quest & Badge pages - core functionality
-          if (id.includes('/pages/Quest') || id.includes('/pages/Badge') || id.includes('/components/quest/') || id.includes('/components/badges/')) {
-            return 'quests-badges';
-          }
-          // Parent pages - role-specific
-          if (id.includes('/pages/ParentDashboard') || id.includes('/pages/ParentQuest') || id.includes('/components/parent/')) {
-            return 'parent';
-          }
-          // Observer pages - role-specific
-          if (id.includes('/pages/Observer') || id.includes('/components/observer/')) {
-            return 'observer';
-          }
-          // Advisor pages - role-specific
-          if (id.includes('/pages/Advisor') || id.includes('/components/advisor/')) {
-            return 'advisor';
-          }
-          // Diploma/Portfolio - public-facing, can be separate
-          if (id.includes('/pages/DiplomaPage') || id.includes('/components/diploma/')) {
-            return 'diploma';
-          }
+          // Let Vite handle application code splitting automatically
+          // Manual app chunks were causing load order issues with React
         },
       },
     },
