@@ -73,16 +73,13 @@ export default defineConfig(({ mode }) => {
                 id.includes('react-ga4') || id.includes('focus-trap-react') ||
                 id.includes('react-hook-form') || id.includes('@tanstack/react-query') ||
                 id.includes('@fullcalendar/react') || id.includes('@tiptap') ||
-                id.includes('framer-motion') || id.includes('use-sync-external-store')) {
+                id.includes('framer-motion') || id.includes('use-sync-external-store') ||
+                id.includes('recharts') || id.includes('react-pdf')) {
               return 'react-vendor';
             }
             // UI libraries (React-independent)
             if (id.includes('@heroicons')) {
               return 'ui-vendor';
-            }
-            // Heavy chart libraries
-            if (id.includes('recharts')) {
-              return 'recharts';
             }
             // Calendar library core (non-React parts)
             if (id.includes('@fullcalendar') && !id.includes('@fullcalendar/react')) {
