@@ -96,32 +96,8 @@ export default defineConfig(({ mode }) => {
             // All other vendors
             return 'vendor';
           }
-
-          // Application code chunks (by route/feature)
-          // Admin pages - large bundle, accessed only by admins
-          if (id.includes('/pages/AdminPage') || id.includes('/components/admin/')) {
-            return 'admin';
-          }
-          // Quest & Badge pages - core functionality
-          if (id.includes('/pages/Quest') || id.includes('/pages/Badge') || id.includes('/components/quest/') || id.includes('/components/badges/')) {
-            return 'quests-badges';
-          }
-          // Parent pages - role-specific
-          if (id.includes('/pages/ParentDashboard') || id.includes('/pages/ParentQuest') || id.includes('/components/parent/')) {
-            return 'parent';
-          }
-          // Observer pages - role-specific
-          if (id.includes('/pages/Observer') || id.includes('/components/observer/')) {
-            return 'observer';
-          }
-          // Advisor pages - role-specific
-          if (id.includes('/pages/Advisor') || id.includes('/components/advisor/')) {
-            return 'advisor';
-          }
-          // Diploma/Portfolio - public-facing, can be separate
-          if (id.includes('/pages/DiplomaPage') || id.includes('/components/diploma/')) {
-            return 'diploma';
-          }
+          // Let Vite handle application code splitting automatically
+          // Manual app chunks were causing load order issues with React
         },
       },
     },
