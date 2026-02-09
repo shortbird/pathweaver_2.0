@@ -51,17 +51,6 @@ vi.mock('../components/quest/QuestCompletionCelebration', () => ({
   )
 }))
 
-vi.mock('../components/quest/TaskTimeline', () => ({
-  default: ({ tasks }) => (
-    <div data-testid="task-timeline">
-      {tasks.map(task => (
-        <div key={task.id} data-testid={`timeline-task-${task.id}`}>
-          {task.title}
-        </div>
-      ))}
-    </div>
-  )
-}))
 
 vi.mock('../components/quest/TaskWorkspace', () => ({
   default: ({ task, onOpenEvidenceModal }) => (

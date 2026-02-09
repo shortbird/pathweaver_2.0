@@ -229,14 +229,47 @@ def enroll_in_quest(user_id: str, quest_id: str):
         skip_wizard = False
 
         if quest_type == 'course':
-            # Course quest - tasks are NOT auto-copied. Students activate tasks manually
-            # by clicking on them in the lesson view. This gives students agency
-            # over which optional tasks they want to pursue.
-            logger.info(f"[COURSE_ENROLL] Course quest detected for user {user_id[:8]}, quest {quest_id[:8]} - skipping wizard, tasks activated on demand")
+            # Course quest - copy preset tasks from course_quest_tasks to user_quest_tasks
+            logger.info(f"[COURSE_ENROLL] Course quest detected for user {user_id[:8]}, quest {quest_id[:8]} - copying preset tasks")
 
             try:
-                # Mark personalization as completed (no wizard needed for course quests)
                 admin_client = get_supabase_admin_client()
+
+                # Fetch preset tasks from course_quest_tasks
+                preset_tasks = admin_client.table('course_quest_tasks')\
+                    .select('*')\
+                    .eq('quest_id', quest_id)\
+                    .order('order_index')\
+                    .execute()
+
+                tasks_copied = 0
+                if preset_tasks.data:
+                    # Copy each preset task to user_quest_tasks
+                    tasks_to_insert = []
+                    for task in preset_tasks.data:
+                        tasks_to_insert.append({
+                            'user_id': user_id,
+                            'quest_id': quest_id,
+                            'user_quest_id': enrollment['id'],
+                            'title': task['title'],
+                            'description': task.get('description', ''),
+                            'pillar': task['pillar'],
+                            'xp_value': task.get('xp_value', 100),
+                            'order_index': task.get('order_index', 0),
+                            'is_required': task.get('is_required', False),
+                            'is_manual': False,
+                            'approval_status': 'approved',
+                            'diploma_subjects': task.get('diploma_subjects', ['Electives']),
+                            'subject_xp_distribution': task.get('subject_xp_distribution'),
+                            'source_task_id': task['id']  # Track original preset task
+                        })
+
+                    if tasks_to_insert:
+                        admin_client.table('user_quest_tasks').insert(tasks_to_insert).execute()
+                        tasks_copied = len(tasks_to_insert)
+                        logger.info(f"[COURSE_ENROLL] Copied {tasks_copied} preset tasks for user {user_id[:8]}")
+
+                # Mark personalization as completed (no wizard needed for course quests)
                 admin_client.table('user_quests')\
                     .update({'personalization_completed': True})\
                     .eq('id', enrollment['id'])\
@@ -244,8 +277,17 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 logger.info(f"[COURSE_ENROLL] Personalization marked complete")
                 skip_wizard = True
 
+                return jsonify({
+                    'success': True,
+                    'message': f'Successfully enrolled in "{quest.get("title")}"',
+                    'enrollment': enrollment,
+                    'skip_wizard': True,
+                    'tasks_loaded': tasks_copied,
+                    'quest_type': quest_type
+                })
+
             except Exception as task_error:
-                logger.error(f"[COURSE_ENROLL] ERROR marking personalization complete: {str(task_error)}", exc_info=True)
+                logger.error(f"[COURSE_ENROLL] ERROR copying preset tasks: {str(task_error)}", exc_info=True)
                 skip_wizard = False
 
         return jsonify({

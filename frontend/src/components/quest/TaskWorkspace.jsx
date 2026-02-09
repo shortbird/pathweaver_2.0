@@ -9,6 +9,8 @@ import {
   PlusIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
   Bars3Icon,
   TrashIcon
 } from '@heroicons/react/24/outline';
@@ -25,7 +27,7 @@ import { SparklesIcon } from '@heroicons/react/24/outline';
 import { useAIAccess } from '../../contexts/AIAccessContext';
 
 // Sortable Task Item for the collapsible list
-const SortableTaskItem = ({ task, isSelected, onClick, onRemove }) => {
+const SortableTaskItem = ({ task, isSelected, onClick, onRemove, onMoveUp, onMoveDown, isFirst, isLast }) => {
   const {
     attributes,
     listeners,
@@ -42,6 +44,7 @@ const SortableTaskItem = ({ task, isSelected, onClick, onRemove }) => {
   };
 
   const pillarData = getPillarData(task.pillar);
+  const isRequired = task.is_required;
 
   return (
     <div
@@ -49,56 +52,96 @@ const SortableTaskItem = ({ task, isSelected, onClick, onRemove }) => {
       style={style}
       onClick={onClick}
       className={`
-        group flex items-start gap-2 px-3 py-3 rounded-lg cursor-pointer transition-all min-h-[56px]
+        group flex items-start gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all
+        min-h-[72px] bg-white border
+        ${isRequired ? 'border-l-4 border-l-amber-500' : ''}
         ${isSelected
-          ? 'bg-optio-purple/10 border-l-4 border-optio-purple'
-          : 'hover:bg-gray-50 border-l-4 border-transparent'
+          ? 'border-optio-purple bg-optio-purple/5 shadow-sm'
+          : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
         }
-        ${task.is_completed ? 'opacity-60' : ''}
+        ${task.is_completed ? 'opacity-60 bg-gray-50' : ''}
       `}
     >
-      {/* Drag handle */}
-      <button
-        type="button"
-        className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 p-3 -m-2 min-w-[44px] min-h-[44px] touch-manipulation flex-shrink-0 flex items-center justify-center"
-        {...attributes}
-        {...listeners}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Bars3Icon className="w-5 h-5" />
-      </button>
-
-      {/* Completion indicator */}
-      {task.is_completed ? (
-        <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-      ) : (
-        <div
-          className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1.5"
-          style={{ backgroundColor: pillarData.color }}
-        />
-      )}
-
-      {/* Task title - full text, no truncation */}
-      <span className={`flex-1 text-sm leading-snug ${isSelected ? 'font-medium text-gray-900' : 'text-gray-700'}`} style={{ fontFamily: 'Poppins' }}>
-        {task.title}
-      </span>
-
-      {/* XP and Delete in a column */}
-      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-        <span className="text-xs text-gray-400">{task.xp_amount}</span>
-        {/* Delete - hover only */}
-        {onRemove && !task.is_completed && (
+      {/* Reorder controls or required icon */}
+      {!isRequired ? (
+        <div className="flex flex-col items-center justify-center flex-shrink-0">
+          {/* Desktop: Drag handle */}
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove(task.id);
-            }}
-            className="sm:opacity-0 sm:group-hover:opacity-100 p-2 min-w-[44px] min-h-[44px] text-red-400 hover:text-red-600 hover:bg-red-50 active:bg-red-100 rounded transition-all touch-manipulation flex items-center justify-center"
+            className="hidden sm:flex cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 min-w-[24px] min-h-[24px] touch-manipulation items-center justify-center"
+            {...attributes}
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}
           >
-            <TrashIcon className="w-4 h-4" />
+            <Bars3Icon className="w-4 h-4" />
           </button>
-        )}
+          {/* Mobile: Up/Down arrows */}
+          <div className="flex sm:hidden flex-col -my-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveUp?.();
+              }}
+              disabled={isFirst}
+              className={`p-1 rounded transition-colors ${isFirst ? 'text-gray-200' : 'text-gray-400 active:bg-gray-100'}`}
+            >
+              <ChevronUpIcon className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveDown?.();
+              }}
+              disabled={isLast}
+              className={`p-1 rounded transition-colors ${isLast ? 'text-gray-200' : 'text-gray-400 active:bg-gray-100'}`}
+            >
+              <ChevronDownIcon className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="p-1 min-w-[24px] min-h-[24px] flex-shrink-0 flex items-center justify-center" title="Required task">
+          <ExclamationCircleIcon className="w-4 h-4 text-amber-500" />
+        </div>
+      )}
+
+      {/* Task content - title and metadata */}
+      <div className="flex-1 min-w-0">
+        {/* Task title - full width */}
+        <span className={`block text-sm leading-snug line-clamp-2 ${isSelected ? 'font-medium text-gray-900' : 'text-gray-700'}`} style={{ fontFamily: 'Poppins' }}>
+          {task.title}
+        </span>
+        {/* XP pill + status row */}
+        <div className="flex items-center gap-2 mt-1">
+          {task.is_completed ? (
+            <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+              <CheckCircleIcon className="w-3.5 h-3.5" />
+              Completed
+            </span>
+          ) : (
+            <span
+              className="text-xs font-medium px-2 py-0.5 rounded-full text-white"
+              style={{ backgroundColor: pillarData.color }}
+            >
+              {task.xp_amount || task.xp_value} XP
+            </span>
+          )}
+          {/* Delete button inline - hover only, hidden for required tasks */}
+          {onRemove && !task.is_completed && !isRequired && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(task.id);
+              }}
+              className="sm:opacity-0 sm:group-hover:opacity-100 p-0.5 text-red-400 hover:text-red-600 rounded transition-all ml-auto"
+            >
+              <TrashIcon className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -521,6 +564,24 @@ const TaskWorkspace = ({
     }
   };
 
+  // Handle moving a task up in the list (mobile reordering)
+  const handleMoveUp = (taskId) => {
+    const currentIndex = tasks.findIndex(t => t.id === taskId);
+    const taskAbove = currentIndex > 0 ? tasks[currentIndex - 1] : null;
+    // Don't move if first task or if task above is required
+    if (currentIndex > 0 && !taskAbove?.is_required && onTaskReorder) {
+      onTaskReorder(currentIndex, currentIndex - 1);
+    }
+  };
+
+  // Handle moving a task down in the list (mobile reordering)
+  const handleMoveDown = (taskId) => {
+    const currentIndex = tasks.findIndex(t => t.id === taskId);
+    if (currentIndex < tasks.length - 1 && onTaskReorder) {
+      onTaskReorder(currentIndex, currentIndex + 1);
+    }
+  };
+
   const pillarData = task ? getPillarData(task.pillar) : null;
   const isTaskCompleted = task?.is_completed || false;
 
@@ -529,91 +590,8 @@ const TaskWorkspace = ({
   const completedTasks = tasks.filter(t => t.is_completed);
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Full-width Header */}
-      <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
-        {task ? (
-          <div className="space-y-2">
-            {/* Title - always fully visible, wraps on mobile */}
-            <h2 className="text-base sm:text-xl font-bold text-gray-900 break-words" style={{ fontFamily: 'Poppins' }}>
-              {task.title}
-            </h2>
-            {/* Description - expandable on tap */}
-            {task.description && (
-              <div>
-                <p
-                  className={`text-sm text-gray-600 ${isDescriptionExpanded ? '' : 'line-clamp-2'}`}
-                  style={{ fontFamily: 'Poppins' }}
-                >
-                  {task.description}
-                </p>
-                {task.description.length > 100 && (
-                  <button
-                    onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                    className="text-xs text-optio-purple font-medium mt-1 touch-manipulation min-h-[32px] flex items-center"
-                    style={{ fontFamily: 'Poppins' }}
-                  >
-                    {isDescriptionExpanded ? 'Show less' : 'Show more'}
-                  </button>
-                )}
-              </div>
-            )}
-            {/* Pillar and XP badges - below title/description */}
-            <div className="flex items-end justify-between gap-2">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div
-                    className="px-3 py-1 rounded-full text-xs font-semibold text-white"
-                    style={{ backgroundColor: pillarData?.color, fontFamily: 'Poppins' }}
-                  >
-                    {pillarData?.name}
-                  </div>
-                  <div
-                    className="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"
-                    style={{
-                      backgroundColor: `${pillarData?.color}20`,
-                      color: pillarData?.color,
-                      fontFamily: 'Poppins'
-                    }}
-                  >
-                    <TrophyIcon className="w-3.5 h-3.5" />
-                    {task.xp_amount} XP
-                  </div>
-                </div>
-                {/* Subject XP Distribution */}
-                {(task.subject_xp_distribution || task.school_subjects) && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>Credits:</span>
-                    <SubjectBadges
-                      subjectXpDistribution={task.subject_xp_distribution || task.school_subjects}
-                      compact={false}
-                      maxDisplay={3}
-                    />
-                  </div>
-                )}
-              </div>
-              {/* Break into Steps button - bottom right */}
-              {canUseTaskGeneration && !task.is_completed && (
-                <button
-                  onClick={() => setIsStepsModalOpen(true)}
-                  className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-optio-purple bg-optio-purple/10 hover:bg-optio-purple/20 rounded-lg transition-colors"
-                  style={{ fontFamily: 'Poppins' }}
-                >
-                  <SparklesIcon className="w-3.5 h-3.5" />
-                  Steps
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="text-gray-400">
-            <p className="font-medium" style={{ fontFamily: 'Poppins' }}>Select a task to get started</p>
-          </div>
-        )}
-      </div>
-
-      {/* Content Area with Collapsible Sidebar */}
-      <div className="flex-1 flex min-h-0">
+    <div className="h-full flex">
+      {/* Content Area with Full-Height Sidebar */}
         {/* Expand button when collapsed */}
         {!isTaskListOpen && (
           <button
@@ -646,37 +624,45 @@ const TaskWorkspace = ({
             </div>
 
             {/* Task List */}
-            <div className="flex-1 overflow-y-auto py-2">
+            <div className="flex-1 overflow-y-auto px-2 py-2">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={activeTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                  {activeTasks.map((t) => (
-                    <SortableTaskItem
-                      key={t.id}
-                      task={t}
-                      isSelected={t.id === task?.id}
-                      onClick={() => onTaskSelect?.(t)}
-                      onRemove={onRemoveTask}
-                    />
-                  ))}
+                  <div className="space-y-2">
+                    {activeTasks.map((t, index) => (
+                      <SortableTaskItem
+                        key={t.id}
+                        task={t}
+                        isSelected={t.id === task?.id}
+                        onClick={() => onTaskSelect?.(t)}
+                        onRemove={onRemoveTask}
+                        onMoveUp={() => handleMoveUp(t.id)}
+                        onMoveDown={() => handleMoveDown(t.id)}
+                        isFirst={index === 0 || activeTasks[index - 1]?.is_required === true}
+                        isLast={index === activeTasks.length - 1}
+                      />
+                    ))}
+                  </div>
                 </SortableContext>
               </DndContext>
 
               {/* Completed Tasks */}
               {completedTasks.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <div className="px-3 mb-2">
-                    <span className="text-xs text-gray-400" style={{ fontFamily: 'Poppins' }}>
+                <div className="mt-4 pt-3 border-t border-gray-200">
+                  <div className="px-1 mb-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>
                       Completed ({completedTasks.length})
                     </span>
                   </div>
-                  {completedTasks.map((t) => (
-                    <SortableTaskItem
-                      key={t.id}
-                      task={t}
-                      isSelected={t.id === task?.id}
-                      onClick={() => onTaskSelect?.(t)}
-                    />
-                  ))}
+                  <div className="space-y-2">
+                    {completedTasks.map((t) => (
+                      <SortableTaskItem
+                        key={t.id}
+                        task={t}
+                        isSelected={t.id === task?.id}
+                        onClick={() => onTaskSelect?.(t)}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -702,7 +688,96 @@ const TaskWorkspace = ({
           {/* Content */}
           {task ? (
             <div className="flex-1 overflow-y-auto">
-              {/* Sticky Header with My Evidence + Action Buttons */}
+              {/* Task Details Section */}
+              <div className="px-4 sm:px-6 py-5 border-b border-gray-200">
+                {/* Title row with Steps button */}
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight" style={{ fontFamily: 'Poppins' }}>
+                      {task.title}
+                    </h2>
+                    {task.is_required && (
+                      <span className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 text-xs font-semibold rounded-md border border-amber-200 mt-1" style={{ fontFamily: 'Poppins' }}>
+                        <ExclamationCircleIcon className="w-4 h-4" />
+                        Required
+                      </span>
+                    )}
+                  </div>
+                  {/* Break into Steps button - right aligned */}
+                  {canUseTaskGeneration && !task.is_completed && (
+                    <button
+                      onClick={() => setIsStepsModalOpen(true)}
+                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-optio-purple bg-optio-purple/10 hover:bg-optio-purple/20 rounded-lg transition-colors"
+                      style={{ fontFamily: 'Poppins' }}
+                    >
+                      <SparklesIcon className="w-4 h-4" />
+                      Steps
+                    </button>
+                  )}
+                </div>
+
+                {/* Description - expandable on tap */}
+                {task.description && (
+                  <div className="mb-5">
+                    <p
+                      className={`text-sm text-gray-600 leading-relaxed ${isDescriptionExpanded ? '' : 'line-clamp-3'}`}
+                      style={{ fontFamily: 'Poppins' }}
+                    >
+                      {task.description}
+                    </p>
+                    {task.description.length > 150 && (
+                      <button
+                        onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                        className="text-xs text-optio-purple font-medium mt-2 touch-manipulation min-h-[32px] flex items-center"
+                        style={{ fontFamily: 'Poppins' }}
+                      >
+                        {isDescriptionExpanded ? 'Show less' : 'Show more'}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Task metadata cards */}
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Pillar badge */}
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-medium"
+                    style={{ backgroundColor: pillarData?.color, fontFamily: 'Poppins' }}
+                  >
+                    <div className="w-2 h-2 rounded-full bg-white/40" />
+                    {pillarData?.name}
+                  </div>
+
+                  {/* XP badge */}
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold"
+                    style={{
+                      backgroundColor: `${pillarData?.color}15`,
+                      color: pillarData?.color,
+                      fontFamily: 'Poppins'
+                    }}
+                  >
+                    <TrophyIcon className="w-4 h-4" />
+                    {task.xp_amount || task.xp_value} XP
+                  </div>
+                </div>
+
+                {/* Subject Credits - separate row */}
+                {(task.subject_xp_distribution || task.school_subjects) && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Credits</span>
+                      <SubjectBadges
+                        subjectXpDistribution={task.subject_xp_distribution || task.school_subjects}
+                        compact={false}
+                        maxDisplay={4}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* My Evidence Header + Action Buttons */}
               <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3 shadow-sm">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide whitespace-nowrap" style={{ fontFamily: 'Poppins' }}>
@@ -808,7 +883,6 @@ const TaskWorkspace = ({
             </div>
           )}
         </div>
-      </div>
 
       {/* Add/Edit Evidence Modal */}
       <AddEvidenceModal

@@ -153,8 +153,8 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
             allowed_fields = ['name', 'quest_visibility_policy', 'course_visibility_policy', 'branding_config', 'is_active',
                             'ai_features_enabled', 'ai_chatbot_enabled', 'ai_lesson_helper_enabled', 'ai_task_generation_enabled']
         else:
-            # Org admins can update name, branding, AI settings, and course visibility policy
-            allowed_fields = ['name', 'branding_config', 'course_visibility_policy', 'ai_features_enabled',
+            # Org admins can update name, branding, AI settings, and visibility policies
+            allowed_fields = ['name', 'branding_config', 'quest_visibility_policy', 'course_visibility_policy', 'ai_features_enabled',
                             'ai_chatbot_enabled', 'ai_lesson_helper_enabled', 'ai_task_generation_enabled']
 
         update_data = {k: v for k, v in data.items() if k in allowed_fields}
