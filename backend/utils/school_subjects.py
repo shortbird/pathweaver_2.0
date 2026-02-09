@@ -112,8 +112,13 @@ def get_description(subject_key):
     return SCHOOL_SUBJECT_DESCRIPTIONS.get(subject_key, "")
 
 def get_suggested_subjects_for_pillar(pillar):
-    """Get suggested school subjects based on the selected pillar."""
-    return PILLAR_TO_SUBJECTS.get(pillar, ['electives'])
+    """
+    Get suggested school subjects based on the selected pillar.
+    Never returns electives - uses CTE as catch-all for unrecognized pillars.
+    """
+    subjects = PILLAR_TO_SUBJECTS.get(pillar, [])
+    # Use CTE as catch-all for hands-on/practical work, not electives
+    return subjects if subjects else ['cte']
 
 def format_subjects_for_display(subjects):
     """Format school subjects list for display."""

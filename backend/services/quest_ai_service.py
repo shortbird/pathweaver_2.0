@@ -431,17 +431,25 @@ Return ONLY valid JSON (no markdown code blocks):
         Return ONLY a valid JSON array with these exact field names. No markdown, no code blocks.
         """
 
-    def _get_fallback_tasks(self) -> List[Dict[str, Any]]:
+    def _get_fallback_tasks(self, pillar: str = 'stem') -> List[Dict[str, Any]]:
         """
         Provide fallback tasks when AI generation fails.
         These are generic but valid tasks that can be used as a safety net.
+        Uses pillar context to assign appropriate subjects instead of electives.
         """
+        from utils.school_subjects import PILLAR_TO_SUBJECTS
+
+        # Get appropriate subjects based on pillar context
+        subjects = PILLAR_TO_SUBJECTS.get(pillar.lower(), ['cte']) if pillar else ['cte']
+        if not subjects:
+            subjects = ['cte']  # CTE as catch-all for hands-on work, not electives
+
         return [
             {
                 'title': 'Review Lesson Content',
                 'description': 'Read through the lesson materials carefully and take notes on key concepts.',
-                'pillar': 'stem',
-                'school_subjects': ['electives'],
+                'pillar': pillar or 'stem',
+                'school_subjects': subjects,
                 'xp_value': 50,
                 'evidence_prompt': 'Share your notes or a summary of what you learned',
                 'order_index': 1
@@ -449,8 +457,8 @@ Return ONLY valid JSON (no markdown code blocks):
             {
                 'title': 'Apply What You Learned',
                 'description': 'Choose one concept from the lesson and create something that demonstrates your understanding.',
-                'pillar': 'stem',
-                'school_subjects': ['electives'],
+                'pillar': pillar or 'stem',
+                'school_subjects': subjects,
                 'xp_value': 100,
                 'evidence_prompt': 'Show your work through writing, video, diagram, or practical example',
                 'order_index': 2
@@ -732,22 +740,25 @@ Return ONLY valid JSON (no markdown code blocks):
     def _validate_tasks_data(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Validate and fix task data"""
         validated_tasks = []
-        
+
         for i, task in enumerate(tasks):
+            # Validate pillar first so we can pass it to school_subjects validation
+            validated_pillar = self._validate_pillar(task.get('pillar', 'STEM & Logic'))
+
             # Ensure required fields
             validated_task = {
                 'title': task.get('title', f'Task {i+1}'),
                 'description': task.get('description', 'Complete this task.'),
-                'pillar': self._validate_pillar(task.get('pillar', 'STEM & Logic')),
-                'school_subjects': self._validate_school_subjects(task.get('school_subjects', [])),
+                'pillar': validated_pillar,
+                'school_subjects': self._validate_school_subjects(task.get('school_subjects', []), validated_pillar),
                 'xp_value': self._validate_xp(task.get('xp_value', 100)),
                 'evidence_prompt': task.get('evidence_prompt', 'Provide evidence of your completed work.'),
                 'materials_needed': task.get('materials_needed', []),
                 'order_index': task.get('order_index', i + 1)
             }
-            
+
             validated_tasks.append(validated_task)
-        
+
         return validated_tasks
     
     def _validate_pillar(self, pillar: str) -> str:
@@ -786,14 +797,27 @@ Return ONLY valid JSON (no markdown code blocks):
 
         return 'stem_logic'  # Default fallback as key
     
-    def _validate_school_subjects(self, school_subjects) -> list:
-        """Validate school subjects array"""
+    def _validate_school_subjects(self, school_subjects, pillar: str = None) -> list:
+        """
+        Validate school subjects array.
+        Uses pillar-based inference instead of defaulting to electives.
+        """
+        from utils.school_subjects import PILLAR_TO_SUBJECTS
+
+        # Helper to get pillar-based subjects (never electives)
+        def get_pillar_fallback(p):
+            if p:
+                subjects = PILLAR_TO_SUBJECTS.get(p.lower(), [])
+                if subjects:
+                    return subjects
+            return ['cte']  # CTE as catch-all, not electives
+
         if not school_subjects:
-            return ['electives']  # Default fallback
-        
+            return get_pillar_fallback(pillar)
+
         if not isinstance(school_subjects, list):
-            return ['electives']
-        
+            return get_pillar_fallback(pillar)
+
         # Validate each subject and convert display names to keys
         validated_subjects = []
         for subject in school_subjects:
@@ -807,9 +831,9 @@ Return ONLY valid JSON (no markdown code blocks):
                     if subject.lower() == display_name.lower():
                         validated_subjects.append(key)
                         break
-        
-        # Return validated subjects or default if none were valid
-        return validated_subjects if validated_subjects else ['electives']
+
+        # Return validated subjects or pillar-based fallback if none were valid
+        return validated_subjects if validated_subjects else get_pillar_fallback(pillar)
     
     def _validate_xp(self, xp_value: Any) -> int:
         """Validate and normalize XP value"""
