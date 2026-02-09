@@ -18,7 +18,6 @@ const TaskEvidenceModal = lazy(() => import('../components/quest/TaskEvidenceMod
 const TaskDetailModal = lazy(() => import('../components/quest/TaskDetailModal'));
 const QuestPersonalizationWizard = lazy(() => import('../components/quests/QuestPersonalizationWizard'));
 const QuestCompletionCelebration = lazy(() => import('../components/quest/QuestCompletionCelebration'));
-const TaskTimeline = lazy(() => import('../components/quest/TaskTimeline'));
 const TaskWorkspace = lazy(() => import('../components/quest/TaskWorkspace'));
 const RestartQuestModal = lazy(() => import('../components/quest/RestartQuestModal'));
 

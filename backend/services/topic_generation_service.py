@@ -315,14 +315,112 @@ Example for "Build a robot arm":
                 'failed': 0
             }
 
-    def get_topic_stats(self) -> Dict[str, Any]:
-        """Get counts of quests per topic category."""
-        try:
-            result = self.supabase.table('quests').select(
-                'topic_primary'
-            ).eq('is_active', True).eq('is_public', True).execute()
+    def get_topic_stats(self, user_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get counts of quests per topic category.
 
-            quests = result.data or []
+        If user_id is provided, counts are filtered based on the user's
+        organization visibility policy (matching what they can actually see).
+
+        Args:
+            user_id: Optional user ID for organization-aware filtering
+
+        Returns:
+            Dict with topics list (name, count) and total
+        """
+        try:
+            # Build base query
+            query = self.supabase.table('quests').select(
+                'topic_primary, organization_id, is_public, created_by'
+            ).eq('is_active', True)
+
+            # If no user, only count global public quests
+            if not user_id:
+                query = query.is_('organization_id', 'null').eq('is_public', True)
+                result = query.execute()
+                quests = result.data or []
+            else:
+                # Get user's organization and policy
+                user_response = self.supabase.table('users')\
+                    .select('organization_id')\
+                    .eq('id', user_id)\
+                    .single()\
+                    .execute()
+
+                if not user_response.data:
+                    # User not found, fall back to public quests only
+                    query = query.is_('organization_id', 'null').eq('is_public', True)
+                    result = query.execute()
+                    quests = result.data or []
+                else:
+                    org_id = user_response.data.get('organization_id')
+
+                    if not org_id:
+                        # No organization - global public quests + user's own
+                        query = query.or_(f'and(organization_id.is.null,is_public.eq.true),created_by.eq.{user_id}')
+                        result = query.execute()
+                        quests = result.data or []
+                    else:
+                        # Get organization policy
+                        org_response = self.supabase.table('organizations')\
+                            .select('quest_visibility_policy')\
+                            .eq('id', org_id)\
+                            .single()\
+                            .execute()
+
+                        policy = org_response.data.get('quest_visibility_policy', 'all_optio') if org_response.data else 'all_optio'
+
+                        if policy == 'all_optio':
+                            # Global public quests + org quests + user's own
+                            query = query.or_(
+                                f'and(organization_id.is.null,is_public.eq.true),'
+                                f'organization_id.eq.{org_id},'
+                                f'created_by.eq.{user_id}'
+                            )
+                            result = query.execute()
+                            quests = result.data or []
+
+                        elif policy == 'curated':
+                            # Get curated quest IDs
+                            curated = self.supabase.table('organization_quest_access')\
+                                .select('quest_id')\
+                                .eq('organization_id', org_id)\
+                                .execute()
+
+                            quest_ids = [q['quest_id'] for q in curated.data] if curated.data else []
+
+                            if quest_ids:
+                                quest_ids_str = ','.join(quest_ids)
+                                query = query.or_(
+                                    f'id.in.({quest_ids_str}),'
+                                    f'organization_id.eq.{org_id},'
+                                    f'created_by.eq.{user_id}'
+                                )
+                            else:
+                                query = query.or_(
+                                    f'organization_id.eq.{org_id},'
+                                    f'created_by.eq.{user_id}'
+                                )
+                            result = query.execute()
+                            quests = result.data or []
+
+                        elif policy == 'private_only':
+                            # Only org quests + user's own
+                            query = query.or_(
+                                f'organization_id.eq.{org_id},'
+                                f'created_by.eq.{user_id}'
+                            )
+                            result = query.execute()
+                            quests = result.data or []
+                        else:
+                            # Unknown policy, fall back to all_optio behavior
+                            query = query.or_(
+                                f'and(organization_id.is.null,is_public.eq.true),'
+                                f'organization_id.eq.{org_id},'
+                                f'created_by.eq.{user_id}'
+                            )
+                            result = query.execute()
+                            quests = result.data or []
 
             # Count by category
             counts = {}

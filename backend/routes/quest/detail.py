@@ -84,7 +84,7 @@ def get_quest_detail(user_id: str, quest_id: str):
             enrollment_to_use = active_enrollment or completed_enrollment
             # Get user's personalized tasks (select only needed columns)
             user_tasks = supabase.table('user_quest_tasks')\
-                .select('id, title, description, pillar, xp_value, diploma_subjects, order_index, approval_status, user_quest_id')\
+                .select('id, title, description, pillar, xp_value, diploma_subjects, order_index, approval_status, user_quest_id, is_required, source_task_id')\
                 .eq('user_quest_id', enrollment_to_use['id'])\
                 .eq('approval_status', 'approved')\
                 .order('order_index')\

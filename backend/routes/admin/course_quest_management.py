@@ -110,6 +110,23 @@ def create_course_quest(user_id):
             image_url = search_quest_image(data['title'].strip(), quest_desc)
             logger.info(f"Auto-fetched image for course quest '{data['title']}': {image_url}")
 
+        # Generate AI topics for quest filtering/discovery
+        topic_primary = None
+        topics = None
+        try:
+            from services.topic_generation_service import get_topic_generation_service
+            topic_service = get_topic_generation_service()
+            topic_result = topic_service.generate_topics(
+                data['title'].strip(),
+                data.get('description', '').strip()
+            )
+            if topic_result.get('success'):
+                topic_primary = topic_result.get('primary')
+                topics = topic_result.get('topics')
+                logger.info(f"Generated topics for course quest '{data['title']}': {topic_primary} - {topics}")
+        except Exception as e:
+            logger.warning(f"Failed to generate topics for course quest '{data['title']}': {e}")
+
         # Determine is_active value based on role
         # Admins can set is_active=True (publish immediately)
         # Advisors always create drafts (is_active=False)
@@ -133,6 +150,8 @@ def create_course_quest(user_id):
             'image_url': image_url,
             'created_by': user_id,
             'organization_id': organization_id,  # Organization isolation
+            'topic_primary': topic_primary,
+            'topics': topics,
             'created_at': datetime.utcnow().isoformat()
         }
 
@@ -367,6 +386,22 @@ def update_course_tasks(user_id, quest_id):
                         return jsonify({'success': False, 'error': error_msg}), 400
 
             quest_update_data['is_active'] = data['is_active']
+
+        # Regenerate topics if title or description changed
+        if 'title' in data or 'description' in data:
+            try:
+                from services.topic_generation_service import get_topic_generation_service
+                topic_service = get_topic_generation_service()
+                topic_result = topic_service.generate_topics(
+                    data.get('title', '').strip() or quest.data.get('title', ''),
+                    data.get('description', '').strip() or quest.data.get('big_idea', '')
+                )
+                if topic_result.get('success'):
+                    quest_update_data['topic_primary'] = topic_result.get('primary')
+                    quest_update_data['topics'] = topic_result.get('topics')
+                    logger.info(f"Regenerated topics for course quest {quest_id}: {topic_result.get('primary')} - {topic_result.get('topics')}")
+            except Exception as e:
+                logger.warning(f"Failed to regenerate topics for course quest {quest_id}: {e}")
 
         # Always update the updated_at timestamp
         quest_update_data['updated_at'] = datetime.utcnow().isoformat()

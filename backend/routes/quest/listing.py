@@ -356,13 +356,31 @@ def get_quest_topics():
     """
     Get topic statistics for quest discovery map.
     Returns counts of quests per topic category.
-    Public endpoint - no auth required.
+
+    If authenticated, counts are filtered based on the user's organization
+    visibility policy (showing only quests they can actually see).
     """
     try:
         from services.topic_generation_service import get_topic_generation_service
+        from utils.session_manager import session_manager
+
+        # Check if user is authenticated
+        user_id = session_manager.get_effective_user_id()
+
+        # Fallback to Authorization header if no cookie session
+        if not user_id:
+            auth_header = request.headers.get('Authorization')
+            if auth_header and auth_header.startswith('Bearer '):
+                try:
+                    from utils.auth.token_utils import verify_token
+                    token = auth_header.split(' ')[1]
+                    user_id = verify_token(token)
+                except Exception as e:
+                    logger.error(f"Auth check failed: {e}")
+                    pass  # Continue without auth
 
         topic_service = get_topic_generation_service()
-        stats = topic_service.get_topic_stats()
+        stats = topic_service.get_topic_stats(user_id=user_id)
 
         if stats['success']:
             return jsonify({

@@ -563,9 +563,11 @@ class QuestRepository(BaseRepository):
             filters = filters or {}
             search_term = filters.get('search')
 
-            # Base query: only active and public quests
+            # Base query: only active quests
             # Use admin client to bypass RLS and apply our own visibility logic
-            query = admin.table('quests').select('*', count='exact').eq('is_active', True).eq('is_public', True)
+            # NOTE: is_public filter is applied per-category below, not globally
+            # Organization quests should be visible to org members even if not "public"
+            query = admin.table('quests').select('*', count='exact').eq('is_active', True)
 
             # Apply search FIRST (before org filtering) to reduce result set
             # Search in title and big_idea
@@ -574,18 +576,25 @@ class QuestRepository(BaseRepository):
 
             # Apply organization visibility policy
             # Note: Since we applied search first, the org filtering now operates on a smaller set
+            # is_public only applies to global Optio quests (organization_id IS NULL)
+            # Organization quests are visible to org members regardless of is_public
+            # User's own created quests are always visible to them
             if policy == 'all_optio':
                 if org_id:
-                    # Global quests (NULL org_id) + organization quests + user's own created quests
-                    query = query.or_(f'organization_id.is.null,organization_id.eq.{org_id},created_by.eq.{user_id}')
+                    # Global PUBLIC quests (NULL org_id + is_public) + organization quests (any is_public) + user's own created quests
+                    query = query.or_(
+                        f'and(organization_id.is.null,is_public.eq.true),'
+                        f'organization_id.eq.{org_id},'
+                        f'created_by.eq.{user_id}'
+                    )
                 else:
-                    # No organization - global quests + user's own created quests
-                    query = query.or_(f'organization_id.is.null,created_by.eq.{user_id}')
+                    # No organization - global PUBLIC quests + user's own created quests
+                    query = query.or_(f'and(organization_id.is.null,is_public.eq.true),created_by.eq.{user_id}')
 
             elif policy == 'curated':
                 if not org_id:
-                    # No organization - fallback to global quests only
-                    query = query.is_('organization_id', 'null')
+                    # No organization - fallback to global PUBLIC quests only
+                    query = query.is_('organization_id', 'null').eq('is_public', True)
                 else:
                     # Get curated quest IDs
                     curated = admin.table('organization_quest_access')\

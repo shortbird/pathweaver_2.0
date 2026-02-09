@@ -103,7 +103,7 @@ const QuestDetailHeader = ({
   return (
     <div className="bg-white">
       {/* Hero Section with Image and Overlaid Content */}
-      <div className="relative w-full h-[150px] sm:h-[175px] md:h-[200px] overflow-hidden">
+      <div className="relative w-full min-h-[150px] sm:min-h-[175px] md:min-h-[200px] overflow-hidden">
         {/* Background Image */}
         {isSparkQuest ? (
           <div className="absolute inset-0 bg-gradient-to-r from-orange-50 to-amber-50">
@@ -129,7 +129,7 @@ const QuestDetailHeader = ({
         <div className="absolute inset-0 bg-gradient-to-r from-white via-white/95 to-transparent sm:via-white/90 sm:to-white/20" />
 
         {/* Content overlay */}
-        <div className="relative h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center py-3">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           {/* Back button - absolute positioned */}
           <button
             onClick={handleBackClick}
@@ -178,7 +178,7 @@ const QuestDetailHeader = ({
           </div>
 
           {/* Title and XP badge - pt-14 clears the absolute positioned back button */}
-          <div className="max-w-xl sm:max-w-2xl pt-14">
+          <div className="max-w-xl sm:max-w-2xl pt-14 pb-2">
             {totalXP > 0 && (
               <div className="inline-block mb-1 px-2 py-0.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full text-xs font-semibold shadow-sm">
                 {totalXP} XP
@@ -200,7 +200,49 @@ const QuestDetailHeader = ({
                 {quest?.big_idea || quest?.description}
               </p>
             )}
+
+            {/* Engagement/Rhythm Section - inline in hero */}
+            {(isEnrolled || isQuestCompleted) && engagement?.rhythm && (
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <RhythmIndicator
+                  state={engagement.rhythm.state}
+                  stateDisplay={engagement.rhythm.state_display}
+                  message={engagement.rhythm.message}
+                  patternDescription={engagement.rhythm.pattern_description}
+                  onClick={() => setShowRhythmModal(true)}
+                  compact
+                />
+
+                {/* Engagement Calendar Toggle */}
+                {engagement?.calendar && (
+                  <button
+                    onClick={() => setShowJourney(!showJourney)}
+                    className="flex items-center gap-1 text-xs text-gray-600 hover:text-optio-purple transition-colors bg-white/80 backdrop-blur-sm px-2 py-1 rounded-full"
+                    style={{ fontFamily: 'Poppins' }}
+                  >
+                    <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${showJourney ? 'rotate-180' : ''}`} />
+                    <span>{showJourney ? 'Hide' : 'Show'} journey</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
+
+          {/* Engagement Calendar (collapsible) - expands hero when shown */}
+          {showJourney && engagement?.calendar && (
+            <div className="max-w-xl sm:max-w-2xl pb-3 animate-fade-in">
+              <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 border border-gray-200">
+                <div className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2" style={{ fontFamily: 'Poppins' }}>
+                  Your Journey
+                </div>
+                <EngagementCalendar
+                  days={engagement.calendar.days}
+                  weeksActive={engagement.calendar.weeks_active}
+                  firstActivityDate={engagement.calendar.first_activity_date}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -230,45 +272,6 @@ const QuestDetailHeader = ({
             {(isEnrolled || isQuestCompleted) && earnedXP > 0 && (
               <div className="flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 rounded-full text-xs font-medium text-optio-purple">
                 <span>{earnedXP} XP earned</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Rhythm Indicator - for enrolled users */}
-        {(isEnrolled || isQuestCompleted) && engagement?.rhythm && (
-          <div className="mb-4 p-4 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-xl border border-optio-purple/10">
-            <RhythmIndicator
-              state={engagement.rhythm.state}
-              stateDisplay={engagement.rhythm.state_display}
-              message={engagement.rhythm.message}
-              patternDescription={engagement.rhythm.pattern_description}
-              onClick={() => setShowRhythmModal(true)}
-            />
-
-            {/* Engagement Calendar Toggle */}
-            {engagement?.calendar && (
-              <button
-                onClick={() => setShowJourney(!showJourney)}
-                className="flex items-center gap-1 mt-3 text-sm text-optio-purple hover:text-optio-pink transition-colors"
-                style={{ fontFamily: 'Poppins' }}
-              >
-                <ChevronDownIcon className={`w-4 h-4 transition-transform ${showJourney ? 'rotate-180' : ''}`} />
-                <span>{showJourney ? 'Hide' : 'Show'} your journey</span>
-              </button>
-            )}
-
-            {/* Engagement Calendar (collapsible) */}
-            {showJourney && engagement?.calendar && (
-              <div className="mt-3 pt-3 border-t border-optio-purple/10 animate-fade-in">
-                <div className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2" style={{ fontFamily: 'Poppins' }}>
-                  Your Journey
-                </div>
-                <EngagementCalendar
-                  days={engagement.calendar.days}
-                  weeksActive={engagement.calendar.weeks_active}
-                  firstActivityDate={engagement.calendar.first_activity_date}
-                />
               </div>
             )}
           </div>
