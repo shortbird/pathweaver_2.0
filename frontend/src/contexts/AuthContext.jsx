@@ -42,6 +42,12 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // ✅ SAFARI FIX + P0 SECURITY FIX: Detect browser and initialize secure token storage
     const checkSession = async () => {
+      // Skip session check on auth callback page - it handles its own auth flow
+      if (window.location.pathname === '/auth/callback') {
+        setLoading(false)
+        return
+      }
+
       try {
         // Initialize secure token store (migrates from localStorage if needed)
         await tokenStore.init()

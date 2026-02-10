@@ -280,7 +280,7 @@ const QuestDetailHeader = ({
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Curriculum Button */}
-          {quest?.quest_type === 'course' && quest?.material_link ? (
+          {quest?.material_link ? (
             <a
               href={quest.material_link}
               target="_blank"

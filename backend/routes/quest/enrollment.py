@@ -224,29 +224,25 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 logger.error(f"[QUEST_RESTART] Error copying previous tasks: {str(copy_error)}", exc_info=True)
                 # Continue with normal enrollment flow if copy fails
 
-        # Check quest type and handle accordingly
-        quest_type = quest.get('quest_type', 'optio')
+        # UNIFIED ENROLLMENT: Handle required and optional template tasks
+        # No longer depends on quest_type - any quest can have required + optional tasks
+        from routes.quest_types import get_template_tasks, get_quest_task_summary
+
+        task_summary = get_quest_task_summary(quest_id)
         skip_wizard = False
+        tasks_copied = 0
 
-        if quest_type == 'course':
-            # Course quest - copy preset tasks from course_quest_tasks to user_quest_tasks
-            logger.info(f"[COURSE_ENROLL] Course quest detected for user {user_id[:8]}, quest {quest_id[:8]} - copying preset tasks")
+        logger.info(f"[UNIFIED_ENROLL] Quest {quest_id[:8]} task summary: {task_summary}")
 
+        # Step 1: Copy all REQUIRED template tasks to user_quest_tasks
+        if task_summary.get('has_required'):
             try:
                 admin_client = get_supabase_admin_client()
+                required_tasks = get_template_tasks(quest_id, filter_type='required')
 
-                # Fetch preset tasks from course_quest_tasks
-                preset_tasks = admin_client.table('course_quest_tasks')\
-                    .select('*')\
-                    .eq('quest_id', quest_id)\
-                    .order('order_index')\
-                    .execute()
-
-                tasks_copied = 0
-                if preset_tasks.data:
-                    # Copy each preset task to user_quest_tasks
+                if required_tasks:
                     tasks_to_insert = []
-                    for task in preset_tasks.data:
+                    for task in required_tasks:
                         tasks_to_insert.append({
                             'user_id': user_id,
                             'quest_id': quest_id,
@@ -256,46 +252,76 @@ def enroll_in_quest(user_id: str, quest_id: str):
                             'pillar': task['pillar'],
                             'xp_value': task.get('xp_value', 100),
                             'order_index': task.get('order_index', 0),
-                            'is_required': task.get('is_required', False),
+                            'is_required': True,
                             'is_manual': False,
                             'approval_status': 'approved',
                             'diploma_subjects': task.get('diploma_subjects', ['Electives']),
                             'subject_xp_distribution': task.get('subject_xp_distribution'),
-                            'source_task_id': task['id']  # Track original preset task
+                            'source_template_task_id': task.get('id'),  # Track template task
+                            'source_task_id': task.get('id')  # Legacy compatibility
                         })
 
                     if tasks_to_insert:
                         admin_client.table('user_quest_tasks').insert(tasks_to_insert).execute()
                         tasks_copied = len(tasks_to_insert)
-                        logger.info(f"[COURSE_ENROLL] Copied {tasks_copied} preset tasks for user {user_id[:8]}")
+                        logger.info(f"[UNIFIED_ENROLL] Copied {tasks_copied} required tasks for user {user_id[:8]}")
 
-                # Mark personalization as completed (no wizard needed for course quests)
+            except Exception as task_error:
+                logger.error(f"[UNIFIED_ENROLL] Error copying required tasks: {str(task_error)}", exc_info=True)
+                # Continue - don't fail enrollment if task copy fails
+
+        # Step 2: Determine if wizard should be shown
+        # Skip wizard if: quest has required tasks (preset curriculum - nothing to choose)
+        # Show wizard only if: no required tasks AND (has optional suggestions OR allows custom tasks)
+        allow_custom = quest.get('allow_custom_tasks', True)
+        has_optional = task_summary.get('has_optional', False)
+        has_required = task_summary.get('has_required', False)
+
+        if has_required:
+            # Quest has required tasks (like Khan Academy courses) - skip wizard entirely
+            # Students get the preset curriculum, no customization needed
+            skip_wizard = True
+            logger.info(f"[UNIFIED_ENROLL] Wizard skipped: quest has required tasks (preset curriculum)")
+            # Mark personalization as complete since it's a preset curriculum
+            try:
+                admin_client = get_supabase_admin_client()
                 admin_client.table('user_quests')\
                     .update({'personalization_completed': True})\
                     .eq('id', enrollment['id'])\
                     .execute()
-                logger.info(f"[COURSE_ENROLL] Personalization marked complete")
-                skip_wizard = True
+                logger.info(f"[UNIFIED_ENROLL] Personalization auto-completed (preset curriculum)")
+            except Exception as e:
+                logger.warning(f"[UNIFIED_ENROLL] Failed to mark personalization complete: {e}")
+        elif has_optional or allow_custom:
+            # No required tasks, but has optional suggestions or allows custom - show wizard
+            skip_wizard = False
+            logger.info(f"[UNIFIED_ENROLL] Wizard enabled: has_optional={has_optional}, allow_custom={allow_custom}")
+        else:
+            # No tasks to choose from and custom tasks disabled - skip wizard
+            skip_wizard = True
+            # Mark personalization as complete since there's nothing to personalize
+            try:
+                admin_client = get_supabase_admin_client()
+                admin_client.table('user_quests')\
+                    .update({'personalization_completed': True})\
+                    .eq('id', enrollment['id'])\
+                    .execute()
+                logger.info(f"[UNIFIED_ENROLL] Personalization auto-completed (no customization available)")
+            except Exception as e:
+                logger.warning(f"[UNIFIED_ENROLL] Failed to mark personalization complete: {e}")
 
-                return jsonify({
-                    'success': True,
-                    'message': f'Successfully enrolled in "{quest.get("title")}"',
-                    'enrollment': enrollment,
-                    'skip_wizard': True,
-                    'tasks_loaded': tasks_copied,
-                    'quest_type': quest_type
-                })
-
-            except Exception as task_error:
-                logger.error(f"[COURSE_ENROLL] ERROR copying preset tasks: {str(task_error)}", exc_info=True)
-                skip_wizard = False
+        # Legacy compatibility: still return quest_type for frontend during transition
+        quest_type = quest.get('quest_type', 'optio')
 
         return jsonify({
             'success': True,
             'message': f'Successfully enrolled in "{quest.get("title")}"',
             'enrollment': enrollment,
-            'skip_wizard': skip_wizard,  # Tell frontend to skip personalization wizard
-            'quest_type': quest_type
+            'skip_wizard': skip_wizard,
+            'tasks_loaded': tasks_copied,
+            'has_optional_tasks': has_optional,
+            'allow_custom_tasks': allow_custom,
+            'quest_type': quest_type  # Legacy field - will be removed after migration
         })
 
     except NotFoundError as e:

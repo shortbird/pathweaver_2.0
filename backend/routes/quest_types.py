@@ -2,14 +2,13 @@
 Quest Type-Specific API Routes
 ===============================
 
-Handles quest type differentiation (Optio vs Course quests).
-Provides sample tasks for Optio quests and preset tasks for Course quests.
+Handles quest task templates (unified required + optional tasks).
+The quest_type distinction is being phased out in favor of a unified model
+where any quest can have both required tasks AND optional suggestions.
 
-REPOSITORY MIGRATION: MIGRATION CANDIDATE
-- Multiple direct database calls (7+ supabase.table() calls)
-- Task operations should use TaskRepository
-- Quest enrollment checks should use QuestRepository
-- Helper functions get_sample_tasks_for_quest and get_course_tasks_for_quest are good migration targets
+REPOSITORY MIGRATION: COMPLETED
+- Uses QuestTemplateTaskRepository for unified template task operations
+- Legacy functions maintained for backward compatibility during migration
 """
 
 from flask import Blueprint, request, jsonify
@@ -19,6 +18,7 @@ from datetime import datetime
 import random
 
 from utils.logger import get_logger
+from repositories.quest_template_task_repository import QuestTemplateTaskRepository
 
 logger = get_logger(__name__)
 
@@ -180,6 +180,9 @@ def get_course_tasks_for_quest(quest_id: str):
 
     Note: Course tasks are ONLY stored in course_quest_tasks table.
     This is different from Optio quests which use quest_sample_tasks.
+
+    DEPRECATED: Use get_template_tasks() instead. This function remains
+    for backward compatibility during the unified quest migration.
     """
     supabase = get_supabase_admin_client()
 
@@ -201,6 +204,109 @@ def get_course_tasks_for_quest(quest_id: str):
     except Exception as e:
         logger.error(f"Error getting course tasks: {str(e)}")
         return []
+
+
+def get_template_tasks(quest_id: str, filter_type: str = 'all', randomize_optional: bool = False):
+    """
+    UNIFIED: Get template tasks for any quest type.
+
+    This is the new unified function that replaces the quest_type-specific
+    functions (get_sample_tasks_for_quest and get_course_tasks_for_quest).
+
+    Args:
+        quest_id: Quest ID
+        filter_type: 'all', 'required', or 'optional'
+        randomize_optional: If True, shuffle optional tasks for variety
+
+    Returns:
+        List of template task records from quest_template_tasks table.
+        Falls back to legacy tables if no template tasks exist.
+    """
+    try:
+        repo = QuestTemplateTaskRepository()
+        tasks = repo.get_template_tasks(quest_id, filter_type=filter_type, randomize=randomize_optional)
+
+        if tasks:
+            logger.info(f"Found {len(tasks)} template tasks for quest {quest_id[:8]} (filter: {filter_type})")
+            return tasks
+
+        # Fallback to legacy tables during migration period
+        logger.info(f"No template tasks found, falling back to legacy tables for quest {quest_id[:8]}")
+        return _get_legacy_tasks(quest_id, filter_type, randomize_optional)
+
+    except Exception as e:
+        logger.error(f"Error getting template tasks for quest {quest_id}: {str(e)}")
+        # Fallback to legacy
+        return _get_legacy_tasks(quest_id, filter_type, randomize_optional)
+
+
+def _get_legacy_tasks(quest_id: str, filter_type: str, randomize_optional: bool):
+    """
+    Fallback to legacy task tables during migration.
+    Checks both course_quest_tasks (required) and quest_sample_tasks (optional).
+    """
+    supabase = get_supabase_admin_client()
+    tasks = []
+
+    try:
+        # Get course tasks (treated as required)
+        if filter_type in ['all', 'required']:
+            course_tasks = supabase.table('course_quest_tasks')\
+                .select('*')\
+                .eq('quest_id', quest_id)\
+                .order('order_index')\
+                .execute()
+
+            if course_tasks.data:
+                for task in course_tasks.data:
+                    task['is_required'] = task.get('is_required', True)  # Default to required
+                tasks.extend(course_tasks.data)
+
+        # Get sample tasks (treated as optional)
+        if filter_type in ['all', 'optional']:
+            sample_tasks = supabase.table('quest_sample_tasks')\
+                .select('*')\
+                .eq('quest_id', quest_id)\
+                .execute()
+
+            if sample_tasks.data:
+                optional_tasks = []
+                for task in sample_tasks.data:
+                    task['is_required'] = False  # Sample tasks are optional
+                    optional_tasks.append(task)
+
+                if randomize_optional:
+                    random.shuffle(optional_tasks)
+
+                tasks.extend(optional_tasks)
+
+        return tasks
+
+    except Exception as e:
+        logger.error(f"Error getting legacy tasks: {str(e)}")
+        return []
+
+
+def get_quest_task_summary(quest_id: str):
+    """
+    Get a summary of template tasks for a quest.
+    Useful for determining enrollment behavior.
+
+    Returns:
+        Dictionary with task counts and requirement info
+    """
+    try:
+        repo = QuestTemplateTaskRepository()
+        return repo.get_quest_task_summary(quest_id)
+    except Exception as e:
+        logger.error(f"Error getting task summary for quest {quest_id}: {str(e)}")
+        return {
+            'total_tasks': 0,
+            'required_count': 0,
+            'optional_count': 0,
+            'has_required': False,
+            'has_optional': False
+        }
 
 
 @bp.route('/similar', methods=['GET'])

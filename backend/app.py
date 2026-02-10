@@ -188,6 +188,16 @@ app.register_blueprint(curriculum_generate.bp)  # /api/admin/curriculum/generate
 app.register_blueprint(course_refine.bp)  # /api/admin/curriculum/refine (AI-powered course-wide refinement - superadmin only)
 app.register_blueprint(plan_mode.bp)  # /api/admin/curriculum/plan (Iterative AI course design through conversation)
 app.register_blueprint(organization_management.bp, url_prefix='/api/admin/organizations')  # /api/admin/organizations (Multi-organization management)
+
+# Register Organization Classes blueprint (February 2026 - Classroom management for organizations)
+try:
+    from routes.classes import bp as classes_bp
+    app.register_blueprint(classes_bp)  # /api/organizations/<org_id>/classes, /api/advisor/classes
+except ImportError as e:
+    logger.warning(f"Warning: Organization Classes module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Organization Classes routes: {e}", exc_info=True)
+
 app.register_blueprint(course_enrollments.bp)  # /api/admin/courses (Course enrollment management for admins)
 app.register_blueprint(bulk_import.bp)  # /api/admin/organizations/<org_id>/users/bulk-import (CSV bulk user import for org admins)
 app.register_blueprint(user_invitations.bp)  # /api/admin/organizations/<org_id>/invitations (Email invitations for org admins)
@@ -550,6 +560,15 @@ except ImportError as e:
     logger.warning(f"Warning: Admin Audit Logs module not available: {e}")
 except Exception as e:
     logger.error(f"Error registering Admin Audit Logs routes: {e}", exc_info=True)
+
+# Evidence Reports - shareable evidence reports with PDF download
+try:
+    from routes.evidence_reports import bp as evidence_reports_bp
+    app.register_blueprint(evidence_reports_bp)  # /api/evidence-reports, /api/public/report/:token
+except ImportError as e:
+    logger.warning(f"Warning: Evidence Reports module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Evidence Reports routes: {e}", exc_info=True)
 
 
 @app.route('/', methods=['GET', 'HEAD'])

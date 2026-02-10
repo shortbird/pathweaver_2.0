@@ -11,14 +11,26 @@ import ConstellationPreview from '../overview/ConstellationPreview';
 import PortfolioSection from '../overview/PortfolioSection';
 import CollapsibleSection from '../overview/CollapsibleSection';
 import OverviewLoadingSkeleton from '../overview/OverviewLoadingSkeleton';
+import EditUserModal from '../organization/people/EditUserModal';
 
 /**
  * AdvisorStudentOverviewContent - Displays StudentOverviewPage components for a student in advisor view.
  * Mirrors ChildOverviewContent.jsx pattern but for advisors/org_admins.
  * Includes link to full portfolio view.
+ * When canEdit=true (org admins), shows edit profile button and portfolio privacy controls.
  */
-const AdvisorStudentOverviewContent = ({ studentId }) => {
+const AdvisorStudentOverviewContent = ({ studentId, canEdit = false, orgId }) => {
   const { data, isLoading, error, refetch } = useAdvisorStudentOverview(studentId);
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  const handleEditProfile = () => {
+    setShowEditModal(true);
+  };
+
+  const handleEditSuccess = () => {
+    setShowEditModal(false);
+    refetch(); // Refresh data after edit
+  };
 
   if (isLoading) {
     return <OverviewLoadingSkeleton />;
@@ -59,7 +71,8 @@ const AdvisorStudentOverviewContent = ({ studentId }) => {
           totalXp={data.totalXp}
           completedQuestsCount={data.completedQuestsCount}
           completedTasksCount={data.completedTasksCount}
-          viewMode="advisor"
+          viewMode="student"
+          onEditProfile={canEdit ? handleEditProfile : undefined}
         />
         {/* View Full Portfolio Link */}
         <Link
@@ -116,7 +129,7 @@ const AdvisorStudentOverviewContent = ({ studentId }) => {
         />
       </CollapsibleSection>
 
-      {/* Portfolio Evidence - Read-only for advisors */}
+      {/* Portfolio Evidence - Read-only for advisors, editable for org admins */}
       <CollapsibleSection
         id="portfolio"
         title="Portfolio"
@@ -126,16 +139,32 @@ const AdvisorStudentOverviewContent = ({ studentId }) => {
           achievements={data.achievements}
           visibilityStatus={data.visibilityStatus}
           userId={studentId}
-          readOnly
+          readOnly={!canEdit}
           hideHeader
         />
       </CollapsibleSection>
+
+      {/* Edit User Modal */}
+      {showEditModal && canEdit && data?.user && (
+        <EditUserModal
+          orgId={orgId || data.user.organization_id}
+          user={data.user}
+          onClose={() => setShowEditModal(false)}
+          onSuccess={handleEditSuccess}
+          onRemove={() => {
+            // For now, just close the modal - removal would need navigation back
+            setShowEditModal(false);
+          }}
+        />
+      )}
     </div>
   );
 };
 
 AdvisorStudentOverviewContent.propTypes = {
-  studentId: PropTypes.string.isRequired
+  studentId: PropTypes.string.isRequired,
+  canEdit: PropTypes.bool,
+  orgId: PropTypes.string
 };
 
 export default AdvisorStudentOverviewContent;

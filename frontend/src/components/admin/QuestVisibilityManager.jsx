@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import UnifiedQuestForm from './UnifiedQuestForm';
-import CourseQuestForm from './CourseQuestForm';
+import QuestForm from './QuestForm';
 
 /**
  * QuestVisibilityManager - Quest availability control for organization admins
@@ -19,7 +18,6 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
   const [accessibleQuestIds, setAccessibleQuestIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all'); // 'all', 'optio', 'course'
   const [sourceFilter, setSourceFilter] = useState('all'); // 'all', 'org', 'optio'
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
@@ -48,7 +46,7 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
   // Reset to first page when search or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, typeFilter, sourceFilter]);
+  }, [searchTerm, sourceFilter]);
 
   // Handle quest deletion
   const handleDeleteQuest = async (questId) => {
@@ -61,6 +59,28 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
     } catch (error) {
       console.error('Failed to delete quest:', error);
       toast.error(error.response?.data?.error || 'Failed to delete quest');
+    }
+  };
+
+  // Toggle is_active for organization quests
+  const handleToggleActive = async (questId, currentlyActive) => {
+    // Optimistic update
+    setQuests(prev => prev.map(q =>
+      q.id === questId ? { ...q, is_active: !currentlyActive } : q
+    ));
+
+    try {
+      await api.put(`/api/admin/quests/${questId}`, {
+        is_active: !currentlyActive
+      });
+      toast.success(`Quest ${!currentlyActive ? 'activated' : 'deactivated'}`);
+    } catch (error) {
+      console.error('Failed to toggle quest active status:', error);
+      // Revert on failure
+      setQuests(prev => prev.map(q =>
+        q.id === questId ? { ...q, is_active: currentlyActive } : q
+      ));
+      toast.error(error.response?.data?.error || 'Failed to update quest');
     }
   };
 
@@ -216,12 +236,6 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
                          quest.description?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const isOrgQuest = quest.organization_id === orgId;
-    const questType = quest.quest_type || 'optio';
-
-    // Type filter
-    if (typeFilter !== 'all' && questType !== typeFilter) {
-      return false;
-    }
 
     // Source filter
     if (sourceFilter === 'org' && !isOrgQuest) {
@@ -276,15 +290,6 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
               className="border border-gray-200 rounded-lg px-4 py-2 w-48 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
             />
             <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-            >
-              <option value="all">All Types</option>
-              <option value="optio">Optio</option>
-              <option value="course">Course</option>
-            </select>
-            <select
               value={sourceFilter}
               onChange={(e) => setSourceFilter(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
@@ -293,11 +298,10 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
               <option value="org">{orgName}</option>
               <option value="optio">Optio</option>
             </select>
-            {(searchTerm || typeFilter !== 'all' || sourceFilter !== 'all') && (
+            {(searchTerm || sourceFilter !== 'all') && (
               <button
                 onClick={() => {
                   setSearchTerm('');
-                  setTypeFilter('all');
                   setSourceFilter('all');
                 }}
                 className="text-gray-500 hover:text-gray-700 text-sm"
@@ -361,9 +365,9 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
                 </th>
               )}
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Quest</th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Type</th>
               <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Source</th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Status</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Active</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Visible</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -380,7 +384,7 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
                 const available = isQuestAvailable(quest.id);
                 const isOrgQuest = quest.organization_id === orgId;
                 const isSelected = selectedIds.has(quest.id);
-                const questType = quest.quest_type || 'optio';
+                const isActive = quest.is_active !== false; // Default to true if undefined
 
                 return (
                   <tr
@@ -408,17 +412,6 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-center">
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                          questType === 'course'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-purple-100 text-purple-700'
-                        }`}>
-                          {questType === 'course' ? 'Course' : 'Optio'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-center">
                         {isOrgQuest ? (
                           <span className="text-xs font-medium text-gray-600" title={orgName}>{orgName}</span>
                         ) : (
@@ -436,10 +429,37 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
                         )}
                       </div>
                     </td>
+                    {/* Active toggle - only for org quests */}
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-center">
                         {isOrgQuest ? (
-                          // Org quests are always available
+                          <button
+                            onClick={() => handleToggleActive(quest.id, isActive)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-optio-purple focus:ring-offset-2 ${
+                              isActive ? 'bg-green-500' : 'bg-gray-300'
+                            }`}
+                            title={isActive ? 'Quest is active - click to deactivate' : 'Quest is inactive - click to activate'}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+                                isActive ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        ) : (
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                            isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {isActive ? 'Yes' : 'No'}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    {/* Visible column - whether students can see this quest */}
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-center">
+                        {isOrgQuest ? (
+                          // Org quests are always available to org members
                           <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700">
                             Always
                           </span>
@@ -530,25 +550,9 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
         </div>
       )}
 
-      {/* Edit Quest Modals */}
-      {editingQuest && editingQuest.quest_type === 'course' && (
-        <CourseQuestForm
-          mode="edit"
-          quest={editingQuest}
-          organizationId={orgId}
-          canDelete={isSuperAdmin || editingQuest.organization_id === orgId}
-          onDelete={handleDeleteQuest}
-          onClose={() => setEditingQuest(null)}
-          onSuccess={(updatedQuest) => {
-            setQuests(prev => prev.map(q => q.id === updatedQuest.id ? { ...q, ...updatedQuest } : q));
-            setEditingQuest(null);
-            onUpdate?.();
-          }}
-        />
-      )}
-
-      {editingQuest && editingQuest.quest_type !== 'course' && (
-        <UnifiedQuestForm
+      {/* Edit Quest Modal - Unified form for all quest types */}
+      {editingQuest && (
+        <QuestForm
           mode="edit"
           quest={editingQuest}
           organizationId={orgId}

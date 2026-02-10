@@ -1,18 +1,14 @@
 """
-REPOSITORY MIGRATION: MIGRATION CANDIDATE
-- Direct database calls for course quest CRUD operations
-- Uses image_service for quest image generation (line 11)
-- Could create CourseQuestRepository with methods:
-  - create_course_quest(quest_data, creator_id)
-  - update_course_quest(quest_id, quest_data)
-  - delete_course_quest(quest_id)
-  - get_course_quest_with_preset_tasks(quest_id)
-- Image management should remain in service layer
+Admin Quest Template Task Management Routes
+============================================
 
-Admin Course Quest Management Routes
-=====================================
+Handles CRUD operations for quest template tasks (unified required + optional).
+This file now supports both the legacy course_quest_tasks table and the new
+unified quest_template_tasks table during the migration period.
 
-Handles CRUD operations for course quests and their preset tasks.
+REPOSITORY MIGRATION: PARTIALLY COMPLETED
+- New unified routes use QuestTemplateTaskRepository
+- Legacy routes maintained for backward compatibility
 """
 
 from flask import Blueprint, request, jsonify
@@ -537,3 +533,256 @@ def delete_course_task(user_id, quest_id, task_id):
             'success': False,
             'error': f'Failed to delete course task: {str(e)}'
         }), 500
+
+
+# =============================================================================
+# UNIFIED TEMPLATE TASK ROUTES (New - replaces quest_type-specific routes)
+# =============================================================================
+
+@bp.route('/quests/<quest_id>/template-tasks', methods=['GET'])
+@require_advisor
+def get_template_tasks(user_id, quest_id):
+    """
+    Get template tasks for any quest (unified approach).
+    Works regardless of quest_type.
+
+    Query params:
+    - filter: 'all' (default), 'required', or 'optional'
+    - randomize: 'true' to shuffle optional tasks
+    """
+    from utils.roles import get_effective_role
+    from repositories.quest_template_task_repository import QuestTemplateTaskRepository
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Verify quest exists and check access
+        quest = supabase.table('quests').select('organization_id').eq('id', quest_id).single().execute()
+        if not quest.data:
+            return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
+        # Check organization access
+        user_result = supabase.table('users').select('organization_id, role, org_role').eq('id', user_id).single().execute()
+        if user_result.data:
+            user_role = get_effective_role(user_result.data)
+            user_org = user_result.data.get('organization_id')
+            quest_org = quest.data.get('organization_id')
+
+            if user_role != 'superadmin' and quest_org and quest_org != user_org:
+                return jsonify({'success': False, 'error': 'Permission denied'}), 403
+
+        # Get filter options
+        filter_type = request.args.get('filter', 'all')
+        randomize = request.args.get('randomize', 'false').lower() == 'true'
+
+        # Get template tasks using the unified function
+        from routes.quest_types import get_template_tasks as fetch_template_tasks
+        tasks = fetch_template_tasks(quest_id, filter_type=filter_type, randomize_optional=randomize)
+
+        # Get summary
+        repo = QuestTemplateTaskRepository()
+        summary = repo.get_quest_task_summary(quest_id)
+
+        return jsonify({
+            'success': True,
+            'tasks': tasks,
+            'total': len(tasks),
+            'summary': summary
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting template tasks: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to retrieve template tasks'
+        }), 500
+
+
+@bp.route('/quests/<quest_id>/template-tasks', methods=['PUT'])
+@require_advisor
+def update_template_tasks(user_id, quest_id):
+    """
+    Replace all template tasks for a quest (unified approach).
+    Supports both required and optional tasks.
+
+    Request body:
+    {
+        "tasks": [
+            {
+                "title": "Task 1",
+                "description": "...",
+                "pillar": "stem",
+                "xp_value": 100,
+                "order_index": 0,
+                "is_required": true,  // Required = auto-copied on enrollment
+                "diploma_subjects": ["Math"],
+                "subject_xp_distribution": {"Math": 100}
+            },
+            ...
+        ]
+    }
+    """
+    from utils.roles import get_effective_role
+    from repositories.quest_template_task_repository import QuestTemplateTaskRepository
+    supabase = get_supabase_admin_client()
+
+    try:
+        data = request.json
+
+        # Verify quest exists and check access
+        quest = supabase.table('quests').select('organization_id').eq('id', quest_id).single().execute()
+        if not quest.data:
+            return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
+        # Check organization access
+        user_result = supabase.table('users').select('organization_id, role, org_role').eq('id', user_id).single().execute()
+        if user_result.data:
+            user_role = get_effective_role(user_result.data)
+            user_org = user_result.data.get('organization_id')
+            quest_org = quest.data.get('organization_id')
+
+            if user_role != 'superadmin' and quest_org and quest_org != user_org:
+                return jsonify({'success': False, 'error': 'Permission denied'}), 403
+
+        if not data.get('tasks'):
+            return jsonify({
+                'success': False,
+                'error': 'Tasks array is required'
+            }), 400
+
+        # Validate and prepare tasks
+        valid_pillars = ['stem', 'wellness', 'communication', 'civics', 'art']
+        tasks_data = []
+
+        for i, task in enumerate(data['tasks']):
+            if not task.get('title'):
+                logger.warning(f"Task {i} missing title, skipping")
+                continue
+
+            pillar = task.get('pillar', 'stem').lower().strip()
+            if pillar not in valid_pillars:
+                pillar = 'stem'
+
+            # Auto-generate subject XP distribution if not provided
+            subject_xp_distribution = task.get('subject_xp_distribution', {})
+            if not subject_xp_distribution:
+                try:
+                    subject_service = get_subject_service()
+                    subject_xp_distribution = subject_service.classify_task_subjects(
+                        title=task['title'].strip(),
+                        description=task.get('description', '').strip(),
+                        pillar=pillar,
+                        xp_value=int(task.get('xp_value', 100))
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to auto-classify subjects: {e}")
+                    subject_xp_distribution = {}
+
+            tasks_data.append({
+                'title': task['title'].strip(),
+                'description': task.get('description', '').strip(),
+                'pillar': pillar,
+                'xp_value': int(task.get('xp_value', 100)),
+                'order_index': task.get('order_index', i),
+                'is_required': task.get('is_required', False),
+                'diploma_subjects': task.get('diploma_subjects', ['Electives']),
+                'subject_xp_distribution': subject_xp_distribution
+            })
+
+        # Use repository to bulk update
+        repo = QuestTemplateTaskRepository()
+        created_tasks = repo.bulk_update_template_tasks(quest_id, tasks_data)
+
+        # Also update legacy table for backward compatibility during migration
+        _sync_to_legacy_table(quest_id, tasks_data, supabase)
+
+        return jsonify({
+            'success': True,
+            'message': f'Template tasks updated: {len(created_tasks)} tasks',
+            'tasks': created_tasks,
+            'total': len(created_tasks)
+        })
+
+    except Exception as e:
+        logger.error(f"Error updating template tasks: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to update template tasks: {str(e)}'
+        }), 500
+
+
+@bp.route('/quests/<quest_id>/template-tasks/<task_id>', methods=['DELETE'])
+@require_advisor
+def delete_template_task(user_id, quest_id, task_id):
+    """Delete a single template task"""
+    from utils.roles import get_effective_role
+    from repositories.quest_template_task_repository import QuestTemplateTaskRepository
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Verify quest exists and check access
+        quest = supabase.table('quests').select('organization_id').eq('id', quest_id).single().execute()
+        if not quest.data:
+            return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
+        # Check organization access
+        user_result = supabase.table('users').select('organization_id, role, org_role').eq('id', user_id).single().execute()
+        if user_result.data:
+            user_role = get_effective_role(user_result.data)
+            user_org = user_result.data.get('organization_id')
+            quest_org = quest.data.get('organization_id')
+
+            if user_role != 'superadmin' and quest_org and quest_org != user_org:
+                return jsonify({'success': False, 'error': 'Permission denied'}), 403
+
+        # Delete from unified table
+        repo = QuestTemplateTaskRepository()
+        repo.delete_template_task(task_id)
+
+        return jsonify({
+            'success': True,
+            'message': 'Template task deleted successfully'
+        })
+
+    except Exception as e:
+        logger.error(f"Error deleting template task: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to delete template task: {str(e)}'
+        }), 500
+
+
+def _sync_to_legacy_table(quest_id: str, tasks_data: list, supabase):
+    """
+    Sync template tasks to legacy table for backward compatibility.
+    This ensures the old course_quest_tasks table stays in sync during migration.
+    """
+    try:
+        # Check if quest has any required tasks (legacy "course quest" behavior)
+        required_tasks = [t for t in tasks_data if t.get('is_required')]
+
+        if required_tasks:
+            # Sync to course_quest_tasks
+            supabase.table('course_quest_tasks').delete().eq('quest_id', quest_id).execute()
+
+            legacy_tasks = []
+            for task in required_tasks:
+                legacy_tasks.append({
+                    'quest_id': quest_id,
+                    'title': task['title'],
+                    'description': task.get('description', ''),
+                    'pillar': task['pillar'],
+                    'xp_value': task['xp_value'],
+                    'order_index': task['order_index'],
+                    'is_required': task['is_required'],
+                    'diploma_subjects': task.get('diploma_subjects', ['Electives']),
+                    'subject_xp_distribution': task.get('subject_xp_distribution'),
+                    'created_at': datetime.utcnow().isoformat()
+                })
+
+            if legacy_tasks:
+                supabase.table('course_quest_tasks').insert(legacy_tasks).execute()
+                logger.info(f"Synced {len(legacy_tasks)} required tasks to legacy course_quest_tasks for quest {quest_id[:8]}")
+
+    except Exception as e:
+        logger.warning(f"Failed to sync to legacy table: {e}")
+        # Don't fail the main operation if legacy sync fails

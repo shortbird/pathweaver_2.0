@@ -439,8 +439,11 @@ const QuestDetail = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-4">
-        {/* Starter Paths Section - only show for optio quests (not course quests which have preset tasks) */}
-        {quest.quest_type === 'optio' && (
+        {/* Starter Paths Section - show when quest allows customization AND has no required tasks
+            Quests with required tasks (like Khan Academy) skip this and auto-enroll with preset tasks */}
+        {quest.allow_custom_tasks !== false &&
+         !quest.preset_tasks?.length &&
+         !quest.template_tasks?.some(t => t.is_required) && (
           <QuestApproachExamples
             questId={quest.id}
             questTitle={quest.title}

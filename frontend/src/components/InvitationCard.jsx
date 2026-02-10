@@ -58,11 +58,6 @@ const InvitationCard = ({ invitation, onAccept, onDecline, isLoading }) => {
         )}
 
         <div className="flex items-center gap-3 text-xs text-gray-500">
-          {quest?.quest_type && (
-            <span className="px-2 py-1 bg-gray-100 rounded">
-              {quest.quest_type}
-            </span>
-          )}
           {quest?.pillar && (
             <span className="px-2 py-1 bg-gradient-to-r from-optio-purple/20 to-optio-pink/20 rounded">
               {quest.pillar}

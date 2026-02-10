@@ -211,7 +211,8 @@ def google_oauth_callback():
             # Case A: Returning Google-native user (signed up with Google originally)
             user_data = existing_by_id.data[0]
             admin_client.table('users').update({
-                'last_active': datetime.utcnow().isoformat()
+                'last_active': datetime.utcnow().isoformat(),
+                'last_logout_at': None  # Clear logout timestamp on login
             }).eq('id', user_id).execute()
             logger.info(f"[GOOGLE_OAUTH] Existing Google user logged in: {mask_user_id(user_id)}")
 
@@ -220,7 +221,8 @@ def google_oauth_callback():
             user_data = existing_by_google_id.data[0]
             user_id = user_data['id']  # Use original user_id for session tokens
             admin_client.table('users').update({
-                'last_active': datetime.utcnow().isoformat()
+                'last_active': datetime.utcnow().isoformat(),
+                'last_logout_at': None  # Clear logout timestamp on login
             }).eq('id', user_id).execute()
             logger.info(f"[GOOGLE_OAUTH] Linked user logged in: {mask_user_id(user_id)}")
 
@@ -235,7 +237,8 @@ def google_oauth_callback():
                     'google_user_id': google_oauth_user_id,
                     'auth_provider': 'email,google',
                     'avatar_url': avatar_url or user_data.get('avatar_url'),
-                    'last_active': datetime.utcnow().isoformat()
+                    'last_active': datetime.utcnow().isoformat(),
+                    'last_logout_at': None  # Clear logout timestamp on login
                 }).eq('id', original_user_id).execute()
                 user_data['google_user_id'] = google_oauth_user_id
                 user_data['auth_provider'] = 'email,google'
@@ -246,7 +249,8 @@ def google_oauth_callback():
                 admin_client.table('users').update({
                     'auth_provider': 'email,google',
                     'avatar_url': avatar_url or user_data.get('avatar_url'),
-                    'last_active': datetime.utcnow().isoformat()
+                    'last_active': datetime.utcnow().isoformat(),
+                    'last_logout_at': None  # Clear logout timestamp on login
                 }).eq('id', original_user_id).execute()
                 user_data['auth_provider'] = 'email,google'
                 logger.info(f"[GOOGLE_OAUTH] Account partially linked (no google_user_id): {mask_user_id(original_user_id)}")
@@ -465,7 +469,8 @@ def accept_tos():
             'tos_accepted_at': datetime.utcnow().isoformat(),
             'privacy_policy_accepted_at': datetime.utcnow().isoformat(),
             'tos_version': CURRENT_TOS_VERSION,
-            'privacy_policy_version': CURRENT_PRIVACY_POLICY_VERSION
+            'privacy_policy_version': CURRENT_PRIVACY_POLICY_VERSION,
+            'last_logout_at': None  # Clear logout timestamp on login
         }
 
         # Apply promo code role if valid

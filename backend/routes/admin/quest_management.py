@@ -430,7 +430,8 @@ def update_quest(user_id, quest_id):
     """
     Update an existing quest.
     Advisors can only edit their own unpublished quests.
-    Admins can edit any quest and toggle is_active.
+    Org admins can edit and toggle is_active for their organization's quests.
+    Superadmins can edit any quest and toggle is_active.
     """
     supabase = get_supabase_admin_client()
 
@@ -442,19 +443,36 @@ def update_quest(user_id, quest_id):
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
 
-        # Get user role
-        user = supabase.table('users').select('role').eq('id', user_id).execute()
-        user_role = user.data[0].get('role') if user.data else 'advisor'
+        # Get user role and organization
+        user = supabase.table('users').select('role, organization_id, org_role').eq('id', user_id).execute()
+        user_data = user.data[0] if user.data else {}
+        user_role = user_data.get('role', 'advisor')
+        user_org_id = user_data.get('organization_id')
+        user_org_role = user_data.get('org_role')
 
-        # Check ownership for advisors
-        if user_role == 'advisor':
-            # Advisors can only edit their own quests
-            if quest.data.get('created_by') != user_id:
-                return jsonify({'success': False, 'error': 'Not authorized to edit this quest'}), 403
+        # Determine effective role for permissions
+        is_superadmin = user_role == 'superadmin'
+        is_org_admin = user_role == 'org_managed' and user_org_role == 'org_admin'
+        quest_org_id = quest.data.get('organization_id')
 
-            # Advisors cannot edit published quests
-            if quest.data.get('is_active'):
-                return jsonify({'success': False, 'error': 'Cannot edit published quests'}), 403
+        # Check if user can edit this quest
+        can_edit = False
+        can_toggle_active = False
+
+        if is_superadmin:
+            can_edit = True
+            can_toggle_active = True
+        elif is_org_admin and quest_org_id and quest_org_id == user_org_id:
+            # Org admins can edit their organization's quests
+            can_edit = True
+            can_toggle_active = True
+        elif user_role == 'advisor' or (user_role == 'org_managed' and user_org_role == 'advisor'):
+            # Advisors can only edit their own unpublished quests
+            if quest.data.get('created_by') == user_id and not quest.data.get('is_active'):
+                can_edit = True
+
+        if not can_edit:
+            return jsonify({'success': False, 'error': 'Not authorized to edit this quest'}), 403
 
         # Update quest data
         update_data = {}
@@ -473,9 +491,9 @@ def update_quest(user_id, quest_id):
         if 'material_link' in data:
             update_data['material_link'] = data['material_link'].strip() if data['material_link'] else None
 
-        # Only admins can change is_active (publish/unpublish quests)
+        # Admins and org admins can change is_active (publish/unpublish quests)
         if 'is_active' in data:
-            if user_role == 'superadmin':
+            if can_toggle_active:
                 # Validate course quests have preset tasks before activation
                 if data['is_active']:
                     from utils.quest_validation import can_activate_quest
@@ -486,9 +504,9 @@ def update_quest(user_id, quest_id):
                 update_data['is_active'] = data['is_active']
             # Silently ignore is_active changes from advisors
 
-        # Only admins can change is_public (make quests available in public quest library)
+        # Only superadmins can change is_public (make quests available in public quest library)
         if 'is_public' in data:
-            if user_role == 'superadmin':
+            if is_superadmin:
                 # Validate course quests have preset tasks before making public
                 if data['is_public']:
                     from utils.quest_validation import can_make_public

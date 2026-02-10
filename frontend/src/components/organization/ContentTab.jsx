@@ -3,10 +3,8 @@ import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import QuestVisibilityManager from '../admin/QuestVisibilityManager'
-import CourseVisibilityManager from '../admin/CourseVisibilityManager'
 import CourseEnrollmentManager from '../admin/CourseEnrollmentManager'
-import UnifiedQuestForm from '../admin/UnifiedQuestForm'
-import CourseQuestForm from '../admin/CourseQuestForm'
+import QuestForm from '../admin/QuestForm'
 
 // Visibility Policy Options
 const VISIBILITY_POLICY_OPTIONS = [
@@ -326,7 +324,7 @@ function CreateCourseModal({ orgId, navigate, onClose }) {
 
 export default function ContentTab({ orgId, orgData, onUpdate, siteSettings }) {
   const navigate = useNavigate()
-  const [contentView, setContentView] = useState('courses') // 'courses' | 'quests' | 'availability'
+  const [contentView, setContentView] = useState('quests') // 'quests' | 'courses' | 'availability'
 
   // Visibility policy state
   const [questPolicy, setQuestPolicy] = useState(orgData?.organization?.quest_visibility_policy || 'all_optio')
@@ -341,8 +339,7 @@ export default function ContentTab({ orgId, orgData, onUpdate, siteSettings }) {
   const [showCreateCourseModal, setShowCreateCourseModal] = useState(false)
 
   // Quests state
-  const [showOptioQuestForm, setShowOptioQuestForm] = useState(false)
-  const [showCourseQuestForm, setShowCourseQuestForm] = useState(false)
+  const [showQuestForm, setShowQuestForm] = useState(false)
   const [questRefreshKey, setQuestRefreshKey] = useState(0)
 
   useEffect(() => {
@@ -491,16 +488,6 @@ export default function ContentTab({ orgId, orgData, onUpdate, siteSettings }) {
       {/* Content View Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
         <button
-          onClick={() => setContentView('courses')}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            contentView === 'courses'
-              ? 'border-b-2 border-optio-purple text-optio-purple'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Courses ({courses.length})
-        </button>
-        <button
           onClick={() => setContentView('quests')}
           className={`px-4 py-2 text-sm font-medium transition-colors ${
             contentView === 'quests'
@@ -510,18 +497,16 @@ export default function ContentTab({ orgId, orgData, onUpdate, siteSettings }) {
         >
           Standalone Quests
         </button>
-        {(questPolicy === 'curated' || coursePolicy === 'curated') && (
-          <button
-            onClick={() => setContentView('availability')}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              contentView === 'availability'
-                ? 'border-b-2 border-optio-purple text-optio-purple'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Manage Availability
-          </button>
-        )}
+        <button
+          onClick={() => setContentView('courses')}
+          className={`px-4 py-2 text-sm font-medium transition-colors ${
+            contentView === 'courses'
+              ? 'border-b-2 border-optio-purple text-optio-purple'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Courses ({courses.length})
+        </button>
       </div>
 
       {/* Courses View */}
@@ -587,7 +572,7 @@ export default function ContentTab({ orgId, orgData, onUpdate, siteSettings }) {
       {/* Quests View */}
       {contentView === 'quests' && (
         <div className="space-y-4">
-          {/* Header with Create Buttons */}
+          {/* Header with Create Button */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Standalone Quests</h2>
@@ -595,20 +580,12 @@ export default function ContentTab({ orgId, orgData, onUpdate, siteSettings }) {
                 Independent learning experiences not part of a course
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setShowCourseQuestForm(true)}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Create Course Quest
-              </button>
-              <button
-                onClick={() => setShowOptioQuestForm(true)}
-                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity"
-              >
-                Create Optio Quest
-              </button>
-            </div>
+            <button
+              onClick={() => setShowQuestForm(true)}
+              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity"
+            >
+              Create Quest
+            </button>
           </div>
 
           {/* Info Banner */}
@@ -629,42 +606,6 @@ export default function ContentTab({ orgId, orgData, onUpdate, siteSettings }) {
         </div>
       )}
 
-      {/* Availability View (only shown for curated policies) */}
-      {contentView === 'availability' && (
-        <div className="space-y-6">
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800">
-              <strong>Curated Mode:</strong> Toggle content on/off to control what's visible to your students.
-            </p>
-          </div>
-
-          {questPolicy === 'curated' && (
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Quest Availability</h3>
-              <QuestVisibilityManager
-                orgId={orgId}
-                orgData={orgData}
-                onUpdate={onUpdate}
-                siteSettings={siteSettings}
-                refreshKey={questRefreshKey}
-              />
-            </div>
-          )}
-
-          {coursePolicy === 'curated' && (
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Course Availability</h3>
-              <CourseVisibilityManager
-                orgId={orgId}
-                orgData={orgData}
-                onUpdate={onUpdate}
-                siteSettings={siteSettings}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Modals */}
       {showCreateCourseModal && (
         <CreateCourseModal
@@ -674,20 +615,11 @@ export default function ContentTab({ orgId, orgData, onUpdate, siteSettings }) {
         />
       )}
 
-      {showOptioQuestForm && (
-        <UnifiedQuestForm
+      {showQuestForm && (
+        <QuestForm
           mode="create"
           organizationId={orgId}
-          onClose={() => setShowOptioQuestForm(false)}
-          onSuccess={handleQuestCreated}
-        />
-      )}
-
-      {showCourseQuestForm && (
-        <CourseQuestForm
-          mode="create"
-          organizationId={orgId}
-          onClose={() => setShowCourseQuestForm(false)}
+          onClose={() => setShowQuestForm(false)}
           onSuccess={handleQuestCreated}
         />
       )}
