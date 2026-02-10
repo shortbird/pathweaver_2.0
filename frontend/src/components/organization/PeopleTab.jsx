@@ -129,6 +129,10 @@ export default function PeopleTab({ orgId, orgSlug, users, onUpdate }) {
           copiedLinkId={state.copiedLinkId}
           handleCopyLink={state.handleCopyLink}
           handleGenerateLink={state.handleGenerateLink}
+          refreshConfirmRole={state.refreshConfirmRole}
+          handleRefreshLinkRequest={state.handleRefreshLinkRequest}
+          handleCancelRefresh={state.handleCancelRefresh}
+          handleConfirmRefresh={state.handleConfirmRefresh}
         />
 
         <PendingInvitationsSection

@@ -112,6 +112,45 @@ export default function AuthCallback() {
   }
 
   /**
+   * Handle pending org invitation - accept it directly
+   * Returns object with accepted status
+   */
+  const handlePendingOrgInvitation = async (userEmail) => {
+    const pendingInvitation = localStorage.getItem('pendingOrgInvitation')
+    if (pendingInvitation && userEmail) {
+      try {
+        console.log('[AuthCallback] Accepting pending org invitation:', pendingInvitation, 'for user:', userEmail)
+        const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/admin/organizations/invitations/accept/${pendingInvitation}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            email: userEmail,
+            skip_password_check: true
+          })
+        })
+        const data = await response.json()
+        if (response.ok && data.success) {
+          console.log('[AuthCallback] Org invitation accepted successfully')
+          localStorage.removeItem('pendingOrgInvitation')
+          return { accepted: true, orgName: data.organization_name }
+        } else {
+          console.error('[AuthCallback] Failed to accept org invitation:', data.error)
+          localStorage.removeItem('pendingOrgInvitation')
+          return { accepted: false, error: data.error }
+        }
+      } catch (err) {
+        console.error('[AuthCallback] Error accepting org invitation:', err)
+        localStorage.removeItem('pendingOrgInvitation')
+        return { accepted: false, error: err.message }
+      }
+    }
+    return { accepted: false }
+  }
+
+  /**
    * Handle Google OAuth callback via Supabase
    */
   const handleGoogleOAuth = async () => {
@@ -128,6 +167,9 @@ export default function AuthCallback() {
           setStatus('tos_required')
           return
         }
+
+        // Handle any pending org invitation (accept directly)
+        const orgInvitationResult = await handlePendingOrgInvitation(result.user?.email)
 
         // Handle any pending observer invitation
         const invitationAccepted = await handlePendingObserverInvitation()
@@ -198,6 +240,9 @@ export default function AuthCallback() {
         setShowTosModal(false)
         // Set status to success immediately to avoid showing "Almost There" during invitation acceptance
         setStatus('success')
+
+        // Handle any pending org invitation (accept directly)
+        const orgInvitationResult = await handlePendingOrgInvitation(result.user?.email)
 
         // Handle any pending observer invitation
         const invitationAccepted = await handlePendingObserverInvitation()

@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import authService from '../services/authService';
+import GoogleButton from '../components/auth/GoogleButton';
 
 export default function AcceptInvitationPage() {
   const { code } = useParams();
@@ -12,6 +14,15 @@ export default function AcceptInvitationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [siteSettings, setSiteSettings] = useState(null);
+
+  // Current user state (if logged in)
+  const [currentUser, setCurrentUser] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // Email check state for link-based invitations
+  const [emailChecked, setEmailChecked] = useState(false);
+  const [existingAccount, setExistingAccount] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -25,44 +36,111 @@ export default function AcceptInvitationPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Initialize page - check auth, validate invitation, fetch settings
   useEffect(() => {
-    validateInvitation();
-    fetchSiteSettings();
+    let isMounted = true;
+
+    const initializePage = async () => {
+      // Check auth first
+      try {
+        const response = await api.get('/api/auth/me');
+        if (isMounted && response.data) {
+          setCurrentUser(response.data);
+        }
+      } catch (err) {
+        // Not logged in - that's fine
+      } finally {
+        if (isMounted) {
+          setCheckingAuth(false);
+        }
+      }
+
+      // Validate invitation
+      try {
+        if (!isMounted) return;
+        setLoading(true);
+        setError(null);
+        const response = await api.get(`/api/admin/organizations/invitations/validate/${code}`);
+
+        if (!isMounted) return;
+
+        if (response.data.valid) {
+          setInvitation(response.data.invitation);
+          setFormData(prev => ({
+            ...prev,
+            email: response.data.invitation.email || '',
+            first_name: response.data.invitation.invited_name?.split(' ')[0] || '',
+            last_name: response.data.invitation.invited_name?.split(' ').slice(1).join(' ') || ''
+          }));
+        } else {
+          setError(response.data.error || 'Invalid invitation');
+        }
+      } catch (err) {
+        if (isMounted) {
+          console.error('Failed to validate invitation:', err);
+          setError(err.response?.data?.error || 'This invitation is invalid or has expired.');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+
+      // Fetch site settings
+      try {
+        const response = await api.get('/api/settings');
+        if (isMounted) {
+          setSiteSettings(response.data.settings || response.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch site settings:', err);
+      }
+    };
+
+    initializePage();
+
+    return () => {
+      isMounted = false;
+    };
   }, [code]);
 
-  const fetchSiteSettings = async () => {
-    try {
-      const response = await api.get('/api/settings');
-      setSiteSettings(response.data.settings || response.data);
-    } catch (err) {
-      console.error('Failed to fetch site settings:', err);
-    }
-  };
+  // Check if email has an existing account (for link-based invitations)
+  const checkEmailExists = useCallback(async (email) => {
+    if (!email || !invitation?.is_link_based) return;
 
-  const validateInvitation = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get(`/api/admin/organizations/invitations/validate/${code}`);
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) return;
 
-      if (response.data.valid) {
-        setInvitation(response.data.invitation);
-        // Pre-fill email and name from invitation
-        setFormData(prev => ({
-          ...prev,
-          email: response.data.invitation.email || '',
-          first_name: response.data.invitation.invited_name?.split(' ')[0] || '',
-          last_name: response.data.invitation.invited_name?.split(' ').slice(1).join(' ') || ''
-        }));
-      } else {
-        setError(response.data.error || 'Invalid invitation');
+    setCheckingEmail(true);
+    try {
+      const response = await api.post('/api/admin/organizations/invitations/check-email', {
+        email,
+        invitation_code: code
+      });
+      setExistingAccount(response.data.exists);
+      setEmailChecked(true);
+
+      // If existing account has name on file, we don't need name fields
+      if (response.data.exists && response.data.has_name) {
+        setFormData(prev => ({ ...prev, first_name: '', last_name: '' }));
       }
     } catch (err) {
-      console.error('Failed to validate invitation:', err);
-      setError(err.response?.data?.error || 'This invitation is invalid or has expired.');
+      console.error('Failed to check email:', err);
     } finally {
-      setLoading(false);
+      setCheckingEmail(false);
     }
-  };
+  }, [code, invitation?.is_link_based]);
+
+  // Debounce email check
+  useEffect(() => {
+    if (!invitation?.is_link_based || !formData.email) return;
+
+    const timer = setTimeout(() => {
+      checkEmailExists(formData.email);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.email, checkEmailExists, invitation?.is_link_based]);
 
   const validateForm = () => {
     const errors = {};
@@ -76,12 +154,15 @@ export default function AcceptInvitationPage() {
       }
     }
 
-    if (!formData.first_name.trim()) {
-      errors.first_name = 'First name is required';
-    }
+    // Only require name for new accounts
+    if (!existingAccount) {
+      if (!formData.first_name.trim()) {
+        errors.first_name = 'First name is required';
+      }
 
-    if (!formData.last_name.trim()) {
-      errors.last_name = 'Last name is required';
+      if (!formData.last_name.trim()) {
+        errors.last_name = 'Last name is required';
+      }
     }
 
     if (!formData.password) {
@@ -90,7 +171,8 @@ export default function AcceptInvitationPage() {
       errors.password = 'Password must be at least 8 characters';
     }
 
-    if (formData.password !== formData.confirmPassword) {
+    // Only require confirm password for new accounts
+    if (!existingAccount && formData.password !== formData.confirmPassword) {
       errors.confirmPassword = 'Passwords do not match';
     }
 
@@ -128,8 +210,41 @@ export default function AcceptInvitationPage() {
     }
   };
 
+  // Handle logged-in user joining
+  const handleLoggedInJoin = async () => {
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await api.post(`/api/admin/organizations/invitations/accept/${code}`, {
+        email: currentUser.email,
+        first_name: currentUser.first_name || '',
+        last_name: currentUser.last_name || '',
+        skip_password_check: true  // User is already authenticated
+      });
+
+      if (response.data.success) {
+        // For existing users, redirect to dashboard after joining
+        if (response.data.existing_user) {
+          // Refresh user data to get new org info
+          await authService.checkAuthStatus();
+          navigate('/dashboard');
+        } else {
+          setSuccess(true);
+        }
+      } else {
+        setError(response.data.error || 'Failed to join organization');
+      }
+    } catch (err) {
+      console.error('Failed to join organization:', err);
+      setError(err.response?.data?.error || 'Failed to join organization. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Loading state
-  if (loading) {
+  if (loading || checkingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -165,6 +280,52 @@ export default function AcceptInvitationPage() {
 
   // Success state
   if (success) {
+    // Different success messages for existing vs new users
+    const isExistingUserJoin = existingAccount;
+
+    if (isExistingUserJoin) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+          <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome!</h1>
+            <p className="text-gray-600 mb-2">
+              You've been added to <strong>{invitation?.organization?.name}</strong>.
+            </p>
+            {invitation?.is_parent_invitation && invitation?.students?.length > 0 && (
+              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-800 mb-4">
+                <p>
+                  You've been connected to:{' '}
+                  <strong>
+                    {invitation.students.map((s, i) => (
+                      <span key={s.id}>
+                        {s.first_name} {s.last_name}
+                        {i < invitation.students.length - 1 ? (i === invitation.students.length - 2 ? ' and ' : ', ') : ''}
+                      </span>
+                    ))}
+                  </strong>
+                </p>
+              </div>
+            )}
+            <p className="text-gray-600 mb-6">
+              Log in to access your account.
+            </p>
+            <Link
+              to="/login"
+              className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90"
+            >
+              Go to Login
+            </Link>
+          </div>
+        </div>
+      );
+    }
+
+    // New user success - needs email verification
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
         <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
@@ -209,7 +370,107 @@ export default function AcceptInvitationPage() {
     );
   }
 
-  // Registration form
+  // Logged-in user flow - simplified join interface
+  if (currentUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="max-w-md w-full">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center gap-4 mb-6">
+              {invitation?.organization?.branding_config?.logo_url && (
+                <>
+                  <img
+                    src={invitation.organization.branding_config.logo_url}
+                    alt={invitation.organization.name}
+                    className="h-10 object-contain"
+                  />
+                  <div className="h-8 w-px bg-gray-300"></div>
+                </>
+              )}
+              <Link to="/">
+                {siteSettings?.logo_url ? (
+                  <img src={siteSettings.logo_url} alt={siteSettings?.site_name || "Optio"} className="h-10" />
+                ) : (
+                  <span className="text-2xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent">
+                    {siteSettings?.site_name || "Optio"}
+                  </span>
+                )}
+              </Link>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              Join {invitation?.organization?.name}
+            </h1>
+            <p className="text-gray-600">
+              You're invited to join as a <strong>{invitation?.role}</strong>
+            </p>
+          </div>
+
+          {/* Logged-in user card */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center text-white font-semibold text-lg">
+                {currentUser.first_name?.[0] || currentUser.email?.[0]?.toUpperCase()}
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">
+                  {currentUser.display_name || `${currentUser.first_name} ${currentUser.last_name}`}
+                </p>
+                <p className="text-sm text-gray-500">{currentUser.email}</p>
+              </div>
+            </div>
+
+            {/* Parent invitation info */}
+            {invitation?.is_parent_invitation && invitation?.students?.length > 0 && (
+              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-800 mb-6">
+                <p>
+                  You'll be connected to:{' '}
+                  <strong>
+                    {invitation.students.map((s, i) => (
+                      <span key={s.id}>
+                        {s.first_name} {s.last_name}
+                        {i < invitation.students.length - 1 ? (i === invitation.students.length - 2 ? ' and ' : ', ') : ''}
+                      </span>
+                    ))}
+                  </strong>
+                </p>
+              </div>
+            )}
+
+            {/* Error message */}
+            {error && (
+              <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm mb-4">
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={handleLoggedInJoin}
+              disabled={submitting}
+              className="w-full py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+            >
+              {submitting ? 'Joining...' : `Join ${invitation?.organization?.name}`}
+            </button>
+
+            <p className="text-center text-sm text-gray-500 mt-4">
+              Not {currentUser.first_name || 'you'}?{' '}
+              <button
+                onClick={async () => {
+                  await authService.logout();
+                  setCurrentUser(null);
+                }}
+                className="text-optio-purple hover:underline font-medium"
+              >
+                Log out
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Registration form (for users not logged in)
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="max-w-md w-full">
@@ -270,19 +531,35 @@ export default function AcceptInvitationPage() {
               </label>
               {invitation?.is_link_based ? (
                 <>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
-                      formErrors.email ? 'border-red-300' : 'border-gray-200'
-                    }`}
-                    placeholder="your@email.com"
-                  />
+                  <div className="relative">
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => {
+                        setFormData({ ...formData, email: e.target.value });
+                        setEmailChecked(false);
+                        setExistingAccount(false);
+                      }}
+                      className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
+                        formErrors.email ? 'border-red-300' : 'border-gray-200'
+                      }`}
+                      placeholder="your@email.com"
+                    />
+                    {checkingEmail && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-optio-purple"></div>
+                      </div>
+                    )}
+                  </div>
                   {formErrors.email && (
                     <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>
                   )}
-                  <p className="text-xs text-gray-500 mt-1">Enter your email to create your account</p>
+                  {emailChecked && existingAccount && (
+                    <p className="text-xs text-green-600 mt-1">Account found - enter your password to join</p>
+                  )}
+                  {!emailChecked && !existingAccount && (
+                    <p className="text-xs text-gray-500 mt-1">Enter your email to create your account</p>
+                  )}
                 </>
               ) : (
                 <>
@@ -297,43 +574,45 @@ export default function AcceptInvitationPage() {
               )}
             </div>
 
-            {/* Name fields */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  First Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.first_name}
-                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                  className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
-                    formErrors.first_name ? 'border-red-300' : 'border-gray-200'
-                  }`}
-                  placeholder="John"
-                />
-                {formErrors.first_name && (
-                  <p className="text-xs text-red-600 mt-1">{formErrors.first_name}</p>
-                )}
+            {/* Name fields - only show for new accounts */}
+            {!existingAccount && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    First Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.first_name}
+                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                    className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
+                      formErrors.first_name ? 'border-red-300' : 'border-gray-200'
+                    }`}
+                    placeholder="John"
+                  />
+                  {formErrors.first_name && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.first_name}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.last_name}
+                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                    className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
+                      formErrors.last_name ? 'border-red-300' : 'border-gray-200'
+                    }`}
+                    placeholder="Doe"
+                  />
+                  {formErrors.last_name && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.last_name}</p>
+                  )}
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Last Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.last_name}
-                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
-                    formErrors.last_name ? 'border-red-300' : 'border-gray-200'
-                  }`}
-                  placeholder="Doe"
-                />
-                {formErrors.last_name && (
-                  <p className="text-xs text-red-600 mt-1">{formErrors.last_name}</p>
-                )}
-              </div>
-            </div>
+            )}
 
             {/* Password */}
             <div>
@@ -348,7 +627,7 @@ export default function AcceptInvitationPage() {
                   className={`w-full border rounded-lg px-3 py-2 pr-10 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
                     formErrors.password ? 'border-red-300' : 'border-gray-200'
                   }`}
-                  placeholder="At least 8 characters"
+                  placeholder={existingAccount ? 'Enter your password' : 'At least 8 characters'}
                 />
                 <button
                   type="button"
@@ -372,55 +651,59 @@ export default function AcceptInvitationPage() {
               )}
             </div>
 
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Confirm Password <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  className={`w-full border rounded-lg px-3 py-2 pr-10 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
-                    formErrors.confirmPassword ? 'border-red-300' : 'border-gray-200'
-                  }`}
-                  placeholder="Confirm your password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showConfirmPassword ? (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
-                </button>
+            {/* Confirm Password - only for new accounts */}
+            {!existingAccount && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Confirm Password <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    className={`w-full border rounded-lg px-3 py-2 pr-10 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none ${
+                      formErrors.confirmPassword ? 'border-red-300' : 'border-gray-200'
+                    }`}
+                    placeholder="Confirm your password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showConfirmPassword ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                {formErrors.confirmPassword && (
+                  <p className="text-xs text-red-600 mt-1">{formErrors.confirmPassword}</p>
+                )}
               </div>
-              {formErrors.confirmPassword && (
-                <p className="text-xs text-red-600 mt-1">{formErrors.confirmPassword}</p>
-              )}
-            </div>
+            )}
 
-            {/* Date of Birth (optional) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Date of Birth <span className="text-gray-400">(optional)</span>
-              </label>
-              <input
-                type="date"
-                value={formData.date_of_birth}
-                onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-              />
-            </div>
+            {/* Date of Birth (optional) - only for new accounts */}
+            {!existingAccount && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Date of Birth <span className="text-gray-400">(optional)</span>
+                </label>
+                <input
+                  type="date"
+                  value={formData.date_of_birth}
+                  onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+                />
+              </div>
+            )}
 
             {/* Error message */}
             {error && (
@@ -435,8 +718,29 @@ export default function AcceptInvitationPage() {
               disabled={submitting}
               className="w-full py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
-              {submitting ? 'Creating Account...' : 'Create Account & Join'}
+              {submitting
+                ? (existingAccount ? 'Joining...' : 'Creating Account...')
+                : (existingAccount ? 'Log In & Join' : 'Create Account & Join')
+              }
             </button>
+
+            {/* Divider */}
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">or</span>
+              </div>
+            </div>
+
+            {/* Google Sign In */}
+            <GoogleButton
+              mode="signin"
+              onError={(error) => setError(error)}
+              disabled={submitting}
+              orgInvitationCode={code}
+            />
           </form>
 
           {/* Login link */}

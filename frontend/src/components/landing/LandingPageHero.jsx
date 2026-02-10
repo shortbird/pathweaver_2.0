@@ -45,7 +45,7 @@ const LandingPageHero = ({
   // Split Layout Render
   if (splitLayout && backgroundImage) {
     return (
-      <div className="relative min-h-[500px] md:min-h-[550px] -mt-12 sm:mt-0">
+      <div className="relative min-h-[500px] md:min-h-[550px] -mt-12 sm:mt-0 overflow-x-hidden">
         {/* Mobile background image - centered */}
         <div className="absolute inset-0 overflow-hidden md:hidden">
           <img
@@ -87,7 +87,7 @@ const LandingPageHero = ({
           <div className="w-full md:w-[55%] lg:w-1/2 px-6 py-8 md:py-20 md:px-12 lg:px-16">
             {/* Main Title */}
             <h1
-              className="text-4xl sm:text-5xl md:text-5xl lg:text-6xl text-white mb-2 leading-tight text-center md:text-left whitespace-nowrap"
+              className="text-4xl sm:text-5xl md:text-5xl lg:text-6xl text-white mb-2 leading-tight text-center md:text-left"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
               {title}

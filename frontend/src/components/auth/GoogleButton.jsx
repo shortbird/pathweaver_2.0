@@ -8,7 +8,7 @@ import authService from '../../services/authService'
  * Reusable button for Google OAuth authentication.
  * Can be used on both login and registration pages.
  */
-const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = '', promoCode = null, invitationCode = null }) => {
+const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = '', promoCode = null, invitationCode = null, orgInvitationCode = null, onBeforeRedirect = null }) => {
   const [loading, setLoading] = useState(false)
 
   const handleGoogleClick = async () => {
@@ -17,6 +17,11 @@ const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = 
     setLoading(true)
 
     try {
+      // Call onBeforeRedirect if provided (for custom pre-redirect logic)
+      if (onBeforeRedirect) {
+        onBeforeRedirect()
+      }
+
       // Store promo code before OAuth redirect (will be applied after TOS acceptance)
       if (promoCode) {
         localStorage.setItem('pendingPromoCode', promoCode)
@@ -27,6 +32,11 @@ const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = 
         localStorage.setItem('pendingObserverInvitation', invitationCode)
       }
 
+      // Store org invitation code before OAuth redirect (will redirect back to invitation page)
+      if (orgInvitationCode) {
+        localStorage.setItem('pendingOrgInvitation', orgInvitationCode)
+      }
+
       const result = await authService.signInWithGoogle()
 
       if (!result.success && !result.redirecting) {
@@ -34,6 +44,7 @@ const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = 
         // Clear pending codes if OAuth initiation failed
         localStorage.removeItem('pendingPromoCode')
         localStorage.removeItem('pendingObserverInvitation')
+        localStorage.removeItem('pendingOrgInvitation')
         onError?.(result.error || 'Failed to sign in with Google')
         setLoading(false)
       }
@@ -43,6 +54,7 @@ const GoogleButton = ({ mode = 'signin', onError, disabled = false, className = 
     } catch (error) {
       localStorage.removeItem('pendingPromoCode')
       localStorage.removeItem('pendingObserverInvitation')
+      localStorage.removeItem('pendingOrgInvitation')
       onError?.(error.message || 'Failed to sign in with Google')
       setLoading(false)
     }
@@ -136,7 +148,9 @@ GoogleButton.propTypes = {
   disabled: PropTypes.bool,
   className: PropTypes.string,
   promoCode: PropTypes.string,
-  invitationCode: PropTypes.string
+  invitationCode: PropTypes.string,
+  orgInvitationCode: PropTypes.string,
+  onBeforeRedirect: PropTypes.func
 }
 
 export default GoogleButton

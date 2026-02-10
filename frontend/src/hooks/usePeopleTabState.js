@@ -2,12 +2,11 @@ import { useState, useEffect, useCallback } from 'react'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 
+// Roles available for invitation link generation (not org_admin or observer)
 const VALID_ROLES = [
   { value: 'student', label: 'Student' },
   { value: 'parent', label: 'Parent' },
-  { value: 'advisor', label: 'Advisor' },
-  { value: 'org_admin', label: 'Organization Admin' },
-  { value: 'observer', label: 'Observer' }
+  { value: 'advisor', label: 'Advisor' }
 ]
 
 /**
@@ -36,11 +35,12 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
   const [generating, setGenerating] = useState(null)
   const [copiedLinkId, setCopiedLinkId] = useState(null)
   const [showInvitationLinks, setShowInvitationLinks] = useState(true)
+  const [refreshConfirmRole, setRefreshConfirmRole] = useState(null) // Role pending refresh confirmation
 
   // Pending invitations state
   const [pendingInvitations, setPendingInvitations] = useState([])
   const [pendingLoading, setPendingLoading] = useState(true)
-  const [showPendingInvitations, setShowPendingInvitations] = useState(false)
+  const [showPendingInvitations, setShowPendingInvitations] = useState(true)
 
   // Relationships state
   const [showRelationships, setShowRelationships] = useState(false)
@@ -109,6 +109,30 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
     fetchInvitationLinks()
     fetchPendingInvitations()
   }, [fetchInvitationLinks, fetchPendingInvitations])
+
+  // Request to refresh a link (shows confirmation if link already exists)
+  const handleRefreshLinkRequest = (role) => {
+    const existingForRole = invitationLinks.find(l => l.role === role)
+    if (existingForRole) {
+      // Link exists - show confirmation
+      setRefreshConfirmRole(role)
+    } else {
+      // No existing link - generate directly
+      handleGenerateLink(role)
+    }
+  }
+
+  // Cancel refresh confirmation
+  const handleCancelRefresh = () => {
+    setRefreshConfirmRole(null)
+  }
+
+  // Confirm and execute the refresh
+  const handleConfirmRefresh = async () => {
+    if (!refreshConfirmRole) return
+    await handleGenerateLink(refreshConfirmRole)
+    setRefreshConfirmRole(null)
+  }
 
   const handleGenerateLink = async (role) => {
     setGenerating(role)
@@ -555,6 +579,10 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
     copiedLinkId,
     showInvitationLinks,
     setShowInvitationLinks,
+    refreshConfirmRole,
+    handleRefreshLinkRequest,
+    handleCancelRefresh,
+    handleConfirmRefresh,
 
     // Pending invitations
     pendingInvitations,

@@ -23,7 +23,10 @@ const AdminUsers = () => {
     sortOrder: 'desc'
   })
   const [organizations, setOrganizations] = useState([])
-  const [viewMode, setViewMode] = useState('list') // 'list' or 'card'
+  // Default to card view on mobile (< 768px), list view on larger screens
+  const [viewMode, setViewMode] = useState(() =>
+    window.innerWidth < 768 ? 'card' : 'list'
+  )
   const [selectedUsers, setSelectedUsers] = useState(new Set())
   const [showUserModal, setShowUserModal] = useState(false)
   const [showBulkEmailModal, setShowBulkEmailModal] = useState(false)

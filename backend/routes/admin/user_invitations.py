@@ -832,6 +832,54 @@ def validate_invitation_code(invitation_code):
         return jsonify({'valid': False, 'error': 'Failed to validate invitation'}), 500
 
 
+@bp.route('/invitations/check-email', methods=['POST'])
+@rate_limit(max_requests=10, window_seconds=60)  # 10 checks per minute
+def check_email_exists():
+    """
+    Check if an email already has an Optio account.
+    Used by AcceptInvitationPage to determine if user needs full registration or just password.
+
+    Body:
+        email: Email to check
+        invitation_code: The invitation code (for context/logging)
+
+    Returns:
+        exists: boolean - whether account exists
+        has_name: boolean - whether we have first/last name on file
+    """
+    try:
+        data = request.json
+        email = data.get('email', '').strip().lower()
+
+        if not email or not validate_email(email):
+            return jsonify({'error': 'Valid email is required'}), 400
+
+        supabase = get_supabase_admin_client()
+
+        # Check if user exists
+        result = supabase.table('users') \
+            .select('id, first_name, last_name') \
+            .eq('email', email) \
+            .execute()
+
+        if result.data:
+            user = result.data[0]
+            has_name = bool(user.get('first_name') and user.get('last_name'))
+            return jsonify({
+                'exists': True,
+                'has_name': has_name
+            }), 200
+
+        return jsonify({
+            'exists': False,
+            'has_name': False
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Failed to check email: {e}")
+        return jsonify({'error': 'Failed to check email'}), 500
+
+
 @bp.route('/invitations/accept/<invitation_code>', methods=['POST'])
 @rate_limit(max_requests=5, window_seconds=300)  # 5 attempts per 5 minutes
 def accept_invitation(invitation_code):
@@ -840,14 +888,21 @@ def accept_invitation(invitation_code):
 
     Body:
         email: Email (must match invitation)
-        password: Password for new account
+        password: Password for new account (not required if already authenticated)
         first_name: First name
         last_name: Last name
         date_of_birth: Date of birth (optional, YYYY-MM-DD)
+        skip_password_check: Boolean (only valid if user is already authenticated)
     """
     try:
+        from utils.session_manager import session_manager
+
         data = request.json
         supabase = get_supabase_admin_client()
+
+        # Check if user is already authenticated (logged in)
+        authenticated_user_id = session_manager.get_effective_user_id()
+        skip_password_check = data.get('skip_password_check', False) and authenticated_user_id is not None
 
         # Find the invitation
         result = supabase.table('org_invitations') \
@@ -903,24 +958,54 @@ def accept_invitation(invitation_code):
             if existing_in_org.data:
                 return jsonify({'error': 'This email is already a member of this organization'}), 409
 
-        # Validate password
-        if not password or len(password) < 8:
-            return jsonify({'error': 'Password must be at least 8 characters'}), 400
-
-        if not first_name or not last_name:
-            return jsonify({'error': 'First name and last name are required'}), 400
-
-        # Check if user already exists
+        # Check if user already exists (before validating all fields)
+        # Existing users only need password verification
         existing_user = supabase.table('users') \
-            .select('id, organization_id') \
+            .select('id, organization_id, first_name, last_name') \
             .eq('email', email) \
             .execute()
 
-        if existing_user.data:
-            # User exists - update their organization
+        is_existing_user = bool(existing_user.data)
+
+        # Validate password (not required if user is already authenticated)
+        if not skip_password_check and (not password or len(password) < 8):
+            return jsonify({'error': 'Password must be at least 8 characters'}), 400
+
+        # Only require name for new users
+        if not is_existing_user and (not first_name or not last_name):
+            return jsonify({'error': 'First name and last name are required'}), 400
+
+        # Handle existing user
+        if is_existing_user:
             user = existing_user.data[0]
 
-            # Update user's organization and role
+            # If user is already authenticated, verify their identity matches
+            if skip_password_check:
+                if authenticated_user_id != user['id']:
+                    return jsonify({'error': 'Authenticated user does not match invitation email'}), 403
+                logger.info(f"Authenticated user {authenticated_user_id} joining org via invitation (password check skipped)")
+            else:
+                # User is not authenticated - verify password through Supabase Auth
+                try:
+                    auth_response = supabase.auth.sign_in_with_password({
+                        'email': email,
+                        'password': password
+                    })
+                    if not auth_response.user:
+                        return jsonify({'error': 'Invalid password'}), 401
+                except Exception as auth_error:
+                    error_str = str(auth_error).lower()
+                    # Check if this is an OAuth user (no password set)
+                    if 'invalid login credentials' in error_str or 'invalid password' in error_str:
+                        # Could be OAuth user - suggest logging in first
+                        return jsonify({
+                            'error': 'Unable to verify password. If you signed up with Google or another provider, please log in first and then use the invitation link.',
+                            'oauth_hint': True
+                        }), 401
+                    logger.warning(f"Password verification failed for {email}: {auth_error}")
+                    return jsonify({'error': 'Invalid password. Please try again.'}), 401
+
+            # Identity verified - update user's organization and role
             # Organization users have role='org_managed' with actual role in org_role
             supabase.table('users') \
                 .update({
@@ -931,19 +1016,17 @@ def accept_invitation(invitation_code):
                 .eq('id', user['id']) \
                 .execute()
 
-            # Mark invitation as accepted (update email for link-based invites)
-            update_data = {
-                'status': 'accepted',
-                'accepted_at': datetime.utcnow().isoformat(),
-                'accepted_by': user['id']
-            }
-            if is_link_based:
-                update_data['email'] = email  # Record actual email used
-
-            supabase.table('org_invitations') \
-                .update(update_data) \
-                .eq('id', inv['id']) \
-                .execute()
+            # For email-based invitations, mark as accepted
+            # For link-based invitations, keep them pending so they can be reused
+            if not is_link_based:
+                supabase.table('org_invitations') \
+                    .update({
+                        'status': 'accepted',
+                        'accepted_at': datetime.utcnow().isoformat(),
+                        'accepted_by': user['id']
+                    }) \
+                    .eq('id', inv['id']) \
+                    .execute()
 
             # Handle parent invitation - auto-create parent-student links
             linked_students = []
@@ -1035,20 +1118,17 @@ def accept_invitation(invitation_code):
             from routes.auth.registration import ensure_user_diploma_and_skills
             ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name)
 
-            # Mark invitation as accepted (update email for link-based invites)
-            update_data = {
-                'status': 'accepted',
-                'accepted_at': datetime.utcnow().isoformat(),
-                'accepted_by': user_id
-            }
-            if is_link_based:
-                update_data['email'] = email  # Record actual email used
-                update_data['invited_name'] = f"{first_name} {last_name}"
-
-            supabase.table('org_invitations') \
-                .update(update_data) \
-                .eq('id', inv['id']) \
-                .execute()
+            # For email-based invitations, mark as accepted
+            # For link-based invitations, keep them pending so they can be reused
+            if not is_link_based:
+                supabase.table('org_invitations') \
+                    .update({
+                        'status': 'accepted',
+                        'accepted_at': datetime.utcnow().isoformat(),
+                        'accepted_by': user_id
+                    }) \
+                    .eq('id', inv['id']) \
+                    .execute()
 
             # Handle parent invitation - auto-create parent-student links
             linked_students = []
