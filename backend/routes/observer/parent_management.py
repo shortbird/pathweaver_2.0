@@ -88,6 +88,14 @@ def register_routes(bp):
 
             student_name = student.get('display_name') or f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or 'Your child'
 
+            # Cancel any existing pending invitations from this parent for this student
+            supabase.table('observer_invitations') \
+                .delete() \
+                .eq('student_id', student_id) \
+                .eq('invited_by_user_id', parent_id) \
+                .eq('status', 'pending') \
+                .execute()
+
             # Generate unique invitation code
             invitation_code = secrets.token_urlsafe(32)
 
@@ -247,6 +255,7 @@ def register_routes(bp):
                     observer_info = observer_map.get(link['observer_id'], {})
                     observers_data.append({
                         **link,
+                        'link_id': link['id'],  # Frontend expects link_id for delete operations
                         'observer': observer_info
                     })
 

@@ -13,8 +13,8 @@ const ParentMomentCaptureModal = ({
   isOpen,
   onClose,
   children,
-  selectedChildId,
-  onSuccess
+  selectedChildId = null,
+  onSuccess = null
 }) => {
   const [selectedChild, setSelectedChild] = useState(selectedChildId || (children[0]?.id || ''));
   const [description, setDescription] = useState('');
@@ -518,11 +518,6 @@ ParentMomentCaptureModal.propTypes = {
   })).isRequired,
   selectedChildId: PropTypes.string,
   onSuccess: PropTypes.func
-};
-
-ParentMomentCaptureModal.defaultProps = {
-  selectedChildId: null,
-  onSuccess: null
 };
 
 export default ParentMomentCaptureModal;

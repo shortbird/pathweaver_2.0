@@ -113,16 +113,16 @@ const DocumentPreview = ({ url, title }) => {
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        {/* PDF Container */}
-        <div className="flex flex-col items-center py-4 pointer-events-none">
+        {/* PDF Container - fixed aspect ratio prevents layout shift */}
+        <div className="aspect-square flex items-center justify-center pointer-events-none overflow-hidden">
           {loading && (
-            <div className="flex items-center justify-center h-64 w-full">
+            <div className="flex items-center justify-center w-full h-full">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
             </div>
           )}
 
           {error && (
-            <div className="flex flex-col items-center justify-center h-64 w-full text-gray-500 pointer-events-auto">
+            <div className="flex flex-col items-center justify-center w-full h-full text-gray-500 pointer-events-auto">
               <DocumentIcon className="w-12 h-12 mb-2" />
               <p className="text-sm">{error}</p>
               <button
@@ -139,7 +139,7 @@ const DocumentPreview = ({ url, title }) => {
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
             loading={null}
-            className={loading ? 'hidden' : 'shadow-lg'}
+            className={loading ? 'hidden' : 'shadow-lg max-h-full'}
           >
             <Page
               key={`page-${pageNumber}`}
@@ -195,11 +195,11 @@ const DocumentPreview = ({ url, title }) => {
   // Render image preview (for images typed as documents)
   if (isImage(url, title)) {
     return (
-      <div className="relative bg-gray-100">
+      <div className="relative bg-gray-100 aspect-square flex items-center justify-center">
         <img
           src={url}
           alt={displayTitle}
-          className="w-full max-h-[600px] object-contain"
+          className="max-w-full max-h-full object-contain"
           loading="lazy"
         />
         {/* Open in new tab button */}

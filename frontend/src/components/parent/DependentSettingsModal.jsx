@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { XMarkIcon, KeyIcon, SparklesIcon, EyeIcon, EyeSlashIcon, ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, UserIcon, UserGroupIcon, TrashIcon, LinkIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, KeyIcon, SparklesIcon, EyeIcon, EyeSlashIcon, ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, UserIcon, UserGroupIcon, TrashIcon, LinkIcon, ClipboardDocumentIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import { addDependentLogin, toggleDependentAIAccess, updateDependentAIFeatures, updateDependent } from '../../services/dependentAPI'
 import { observerAPI } from '../../services/api'
 import api from '../../services/api'
@@ -51,8 +51,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
   // Observer state
   const [observers, setObservers] = useState([])
   const [observersLoading, setObserversLoading] = useState(false)
-  const [pendingInvites, setPendingInvites] = useState([])
-  const [inviteLink, setInviteLink] = useState(null)
+  const [activeInvite, setActiveInvite] = useState(null)
   const [creatingInvite, setCreatingInvite] = useState(false)
 
   // Default org limits if not provided
@@ -97,7 +96,15 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
         observerAPI.getParentInvitations(childId)
       ])
       setObservers(observersRes.data.observers || [])
-      setPendingInvites(invitesRes.data.invitations || [])
+      // Get the most recent pending invitation (if any)
+      const invites = invitesRes.data.invitations || []
+      if (invites.length > 0) {
+        const invite = invites[0]
+        const inviteUrl = invite.invite_url || `${window.location.origin}/observer/accept/${invite.invitation_code}`
+        setActiveInvite({ ...invite, url: inviteUrl })
+      } else {
+        setActiveInvite(null)
+      }
     } catch (error) {
       console.error('Error loading observers:', error)
       toast.error('Failed to load observers')
@@ -274,22 +281,19 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
   }
 
   // Observer handlers
-  const handleCreateInvite = async () => {
+  const handleCreateOrRefreshInvite = async () => {
     setCreatingInvite(true)
     try {
       const response = await observerAPI.parentCreateInvite(childId, 'family')
-      // Backend returns data directly (not wrapped in 'invitation')
       const data = response.data
       const inviteUrl = data.shareable_link || `${window.location.origin}/observer/accept/${data.invitation_code}`
-      setInviteLink(inviteUrl)
-      // Add to pending invites with the format expected by the UI
-      setPendingInvites([...pendingInvites, {
+      setActiveInvite({
         id: data.invitation_id,
         invitation_code: data.invitation_code,
-        invite_url: inviteUrl,
+        url: inviteUrl,
         created_at: new Date().toISOString()
-      }])
-      toast.success('Invite link created!')
+      })
+      toast.success(activeInvite ? 'Invite link refreshed!' : 'Invite link created!')
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to create invite')
     } finally {
@@ -298,9 +302,9 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
   }
 
   const handleCopyInviteLink = async () => {
-    if (inviteLink) {
-      await navigator.clipboard.writeText(inviteLink)
-      toast.success('Link copied to clipboard!')
+    if (activeInvite?.url) {
+      await navigator.clipboard.writeText(activeInvite.url)
+      toast.success('Link copied!')
     }
   }
 
@@ -313,16 +317,6 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
       toast.success('Observer removed')
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to remove observer')
-    }
-  }
-
-  const handleCancelInvite = async (inviteId) => {
-    try {
-      await observerAPI.cancelInvitation(inviteId)
-      setPendingInvites(pendingInvites.filter(i => i.id !== inviteId))
-      toast.success('Invitation cancelled')
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to cancel invitation')
     }
   }
 
@@ -691,6 +685,61 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
                 </div>
               ) : (
                 <>
+                  {/* Invite Link Section */}
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-medium text-gray-700">Invite Link</h4>
+                      {activeInvite && (
+                        <button
+                          onClick={handleCreateOrRefreshInvite}
+                          disabled={creatingInvite}
+                          className="flex items-center gap-1 text-xs text-optio-purple hover:text-optio-pink transition-colors disabled:opacity-50"
+                          title="Generate new link"
+                        >
+                          <ArrowPathIcon className={`w-3.5 h-3.5 ${creatingInvite ? 'animate-spin' : ''}`} />
+                          Refresh
+                        </button>
+                      )}
+                    </div>
+                    {activeInvite ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={activeInvite.url}
+                          readOnly
+                          className="flex-1 px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg text-gray-600"
+                        />
+                        <button
+                          onClick={handleCopyInviteLink}
+                          className="px-3 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg text-sm font-medium hover:opacity-90"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleCreateOrRefreshInvite}
+                        disabled={creatingInvite}
+                        className="w-full py-2 px-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {creatingInvite ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                            Creating...
+                          </>
+                        ) : (
+                          <>
+                            <LinkIcon className="w-4 h-4" />
+                            Create Invite Link
+                          </>
+                        )}
+                      </button>
+                    )}
+                    <p className="mt-2 text-xs text-gray-500">
+                      Share this link with family members to let them observe {firstName}'s learning journey.
+                    </p>
+                  </div>
+
                   {/* Current Observers */}
                   {observers.length > 0 && (
                     <div className="space-y-2">
@@ -705,10 +754,9 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
                                 <UserIcon className="w-5 h-5 text-optio-purple" />
                               )}
                             </div>
-                            <div>
-                              <p className="font-medium text-gray-900 text-sm">{observer.name || observer.email}</p>
-                              <p className="text-xs text-gray-500">{observer.relationship || 'Observer'}</p>
-                            </div>
+                            <p className="font-medium text-gray-900 text-sm">
+                              {observer.observer?.display_name || observer.observer?.email || 'Observer'}
+                            </p>
                           </div>
                           <button
                             onClick={() => handleRemoveObserver(observer.link_id)}
@@ -722,96 +770,10 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
                     </div>
                   )}
 
-                  {/* Pending Invites */}
-                  {pendingInvites.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-gray-700">Pending Invitations</h4>
-                      {pendingInvites.map((invite) => (
-                        <div key={invite.id} className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
-                          <div className="flex items-center gap-3">
-                            <LinkIcon className="w-5 h-5 text-amber-600" />
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">Invite Link</p>
-                              <p className="text-xs text-gray-500">
-                                Created {new Date(invite.created_at).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                const url = invite.invite_url || `${window.location.origin}/observer/accept/${invite.invitation_code}`
-                                navigator.clipboard.writeText(url)
-                                toast.success('Link copied!')
-                              }}
-                              className="p-2 text-gray-600 hover:bg-amber-100 rounded-lg transition-colors"
-                              title="Copy link"
-                            >
-                              <ClipboardDocumentIcon className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleCancelInvite(invite.id)}
-                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Cancel invitation"
-                            >
-                              <XMarkIcon className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                  {observers.length === 0 && (
+                    <div className="text-center py-4 text-gray-500">
+                      <p className="text-sm">No observers connected yet</p>
                     </div>
-                  )}
-
-                  {observers.length === 0 && pendingInvites.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <UserGroupIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                      <p className="text-sm">No observers yet</p>
-                    </div>
-                  )}
-
-                  {/* Create Invite */}
-                  {inviteLink ? (
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                      <p className="text-sm font-medium text-green-800 mb-2">Share this link with family members:</p>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={inviteLink}
-                          readOnly
-                          className="flex-1 px-3 py-2 text-sm bg-white border border-green-300 rounded-lg"
-                        />
-                        <button
-                          onClick={handleCopyInviteLink}
-                          className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
-                        >
-                          Copy
-                        </button>
-                      </div>
-                      <button
-                        onClick={() => setInviteLink(null)}
-                        className="mt-2 text-sm text-green-700 hover:underline"
-                      >
-                        Done
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handleCreateInvite}
-                      disabled={creatingInvite}
-                      className="w-full py-2 px-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {creatingInvite ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                          Creating...
-                        </>
-                      ) : (
-                        <>
-                          <LinkIcon className="w-4 h-4" />
-                          Create Invite Link
-                        </>
-                      )}
-                    </button>
                   )}
                 </>
               )}

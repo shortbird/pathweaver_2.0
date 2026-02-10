@@ -97,11 +97,12 @@ const ParentDashboardPage = () => {
   useEffect(() => {
     if (actingAsDependent) return;
 
-    // If we have a student selected or no children exist, stop showing top-level loading
-    if (selectedStudentId || (children.length === 0 && dependents.length === 0)) {
+    // Only stop loading once we have a student selected
+    // (the "no children/dependents" case is handled in loadChildrenAndDependents)
+    if (selectedStudentId) {
       setLoading(false);
     }
-  }, [selectedStudentId, children.length, dependents.length, actingAsDependent]);
+  }, [selectedStudentId, actingAsDependent]);
 
   // Helper to calculate age from date_of_birth
   const calculateAge = (dateOfBirth) => {

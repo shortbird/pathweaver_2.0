@@ -346,7 +346,7 @@ def register_routes(bp):
                             'evidence_title': None  # Legacy evidence doesn't have titles
                         })
 
-            # Build feed items for learning moments
+            # Build feed items for learning moments - group all media into single items
             for event in (learning_events.data or []):
                 student_info = students_map.get(event['user_id'], {})
                 can_view = evidence_permissions.get(event['user_id'], False)
@@ -360,77 +360,76 @@ def register_routes(bp):
                 # Get evidence blocks for this learning event
                 event_blocks = learning_event_blocks_map.get(event['id'], [])
 
+                # Collect all media items for this learning event
+                media_items = []
+                primary_evidence = None  # First media item for backwards compatibility
+
                 if event_blocks:
-                    # Create one feed item per evidence block
                     for block in event_blocks:
-                        evidence_type = None
-                        evidence_preview = None
-                        evidence_title = None
                         content = block.get('content', {})
+                        media_item = None
 
                         if block['block_type'] == 'image':
-                            evidence_type = 'image'
-                            evidence_preview = content.get('url') or block.get('file_url')
+                            media_item = {
+                                'type': 'image',
+                                'url': content.get('url') or block.get('file_url'),
+                                'title': None
+                            }
                         elif block['block_type'] == 'video':
-                            evidence_type = 'video'
-                            evidence_preview = content.get('url') or block.get('file_url')
-                            evidence_title = content.get('title')
+                            media_item = {
+                                'type': 'video',
+                                'url': content.get('url') or block.get('file_url'),
+                                'title': content.get('title')
+                            }
                         elif block['block_type'] == 'link':
-                            evidence_type = 'link'
-                            evidence_preview = content.get('url')
-                            evidence_title = content.get('title')
-                        elif block['block_type'] == 'text':
-                            evidence_type = 'text'
-                            text = content.get('text', '')
-                            evidence_preview = text[:200] + '...' if len(text) > 200 else text
+                            media_item = {
+                                'type': 'link',
+                                'url': content.get('url'),
+                                'title': content.get('title')
+                            }
                         elif block['block_type'] == 'document':
-                            evidence_type = 'document'
-                            evidence_preview = content.get('url') or block.get('file_url')
-                            evidence_title = content.get('title') or content.get('filename') or block.get('file_name')
+                            media_item = {
+                                'type': 'document',
+                                'url': content.get('url') or block.get('file_url'),
+                                'title': content.get('title') or content.get('filename') or block.get('file_name')
+                            }
 
-                        if evidence_type:
-                            raw_feed_items.append({
-                                'id': f"le_{event['id']}_{block['id']}",
-                                'learning_event_id': event['id'],
-                                'block_id': block['id'],
-                                'timestamp': block.get('created_at') or event['created_at'],
-                                'student_id': event['user_id'],
-                                'student_name': student_name,
-                                'student_avatar': student_info.get('avatar_url'),
-                                'event_title': event.get('title') or 'Learning Moment',
-                                'event_description': event.get('description', ''),
-                                'event_pillars': event.get('pillars', []),
-                                'topic_name': tracks_map.get(event.get('track_id')),
-                                'source_type': event.get('source_type', 'realtime'),
-                                'captured_by_user_id': event.get('captured_by_user_id'),
-                                'evidence_type': evidence_type,
-                                'evidence_preview': evidence_preview,
-                                'evidence_title': evidence_title,
-                                'item_type': 'learning_moment'
-                            })
-                else:
-                    # Learning moment with just text description (no media blocks)
-                    description = event.get('description', '')
-                    if description:
-                        raw_feed_items.append({
-                            'id': f"le_{event['id']}",
-                            'learning_event_id': event['id'],
-                            'block_id': None,
-                            'timestamp': event['created_at'],
-                            'student_id': event['user_id'],
-                            'student_name': student_name,
-                            'student_avatar': student_info.get('avatar_url'),
-                            'event_title': event.get('title') or 'Learning Moment',
-                            'event_description': description,
-                            'event_pillars': event.get('pillars', []),
-                            'topic_name': tracks_map.get(event.get('track_id')),
-                            'source_type': event.get('source_type', 'realtime'),
-                            'captured_by_user_id': event.get('captured_by_user_id'),
-                            'evidence_type': 'text',
-                            'evidence_preview': description[:200] + '...' if len(description) > 200 else description,
-                            'evidence_title': None,
-                            'item_type': 'learning_moment'
-                        })
+                        if media_item and media_item.get('url'):
+                            media_items.append(media_item)
+                            if primary_evidence is None:
+                                primary_evidence = {
+                                    'type': media_item['type'],
+                                    'preview': media_item['url'],
+                                    'title': media_item.get('title')
+                                }
+
+                # Create single feed item for this learning event
+                description = event.get('description', '')
+
+                # Only add if we have media or description
+                if media_items or description:
+                    raw_feed_items.append({
+                        'id': f"le_{event['id']}",
+                        'learning_event_id': event['id'],
+                        'block_id': None,
+                        'timestamp': event['created_at'],
+                        'student_id': event['user_id'],
+                        'student_name': student_name,
+                        'student_avatar': student_info.get('avatar_url'),
+                        'event_title': event.get('title') or 'Learning Moment',
+                        'event_description': description,
+                        'event_pillars': event.get('pillars', []),
+                        'topic_name': tracks_map.get(event.get('track_id')),
+                        'source_type': event.get('source_type', 'realtime'),
+                        'captured_by_user_id': event.get('captured_by_user_id'),
+                        # Primary evidence for backwards compatibility
+                        'evidence_type': primary_evidence['type'] if primary_evidence else ('text' if description else None),
+                        'evidence_preview': primary_evidence['preview'] if primary_evidence else (description[:200] + '...' if len(description) > 200 else description),
+                        'evidence_title': primary_evidence.get('title') if primary_evidence else None,
+                        # All media items for carousel display
+                        'media_items': media_items,
+                        'item_type': 'learning_moment'
+                    })
 
             # Sort by timestamp descending and paginate
             raw_feed_items.sort(key=lambda x: x['timestamp'], reverse=True)
@@ -536,6 +535,8 @@ def register_routes(bp):
                             'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None,
                             'title': item.get('evidence_title')
                         },
+                        # All media items for carousel display
+                        'media': item.get('media_items', []),
                         'likes_count': le_likes_count.get(le_id, 0),
                         'comments_count': le_comments_count.get(le_id, 0),
                         'user_has_liked': le_id in le_user_likes

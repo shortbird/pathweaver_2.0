@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { observerAPI } from '../../services/api';
 import {
@@ -14,6 +15,7 @@ import {
   ChevronUpIcon
 } from '@heroicons/react/24/outline';
 import DocumentPreview from './DocumentPreview';
+import MediaCarousel from './MediaCarousel';
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 
 // Pillar colors mapping
@@ -173,6 +175,11 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  const formatDate = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
   const getObserverName = (observer) => {
     if (!observer) return 'Observer';
     return observer.display_name ||
@@ -200,43 +207,47 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
   // Check if we have media evidence (not text-only)
   const hasMediaEvidence = item.evidence && item.evidence.type !== 'text' && item.evidence.url;
 
+  // Check if we have multiple media items (for carousel display)
+  const hasMediaCarousel = isLearningMoment && item.media && item.media.length > 0;
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mx-2 sm:mx-0">
       {/* 1. Student name header */}
       <div className="px-4 py-3 sm:px-5 sm:py-4 flex items-center gap-3">
         {showStudentName && (
-          hasAvatar ? (
-            <img
-              src={item.student.avatar_url}
-              alt={item.student?.display_name || 'Student'}
-              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover shrink-0"
-            />
-          ) : (
-            <UserCircleIcon className="w-10 h-10 sm:w-12 sm:h-12 text-purple-300 shrink-0" />
-          )
-        )}
-        <div className="flex-1 min-w-0">
-          {showStudentName && (
-            <p className="font-semibold text-gray-900 truncate text-sm sm:text-base">
-              {item.student?.display_name}
-            </p>
-          )}
-          {/* 2. "completed a task in {quest}" or "captured a learning moment" */}
-          <p className="text-xs sm:text-sm text-gray-500 truncate">
-            {isLearningMoment ? (
-              item.moment?.source_type === 'parent_captured' ? (
-                <span>Learning moment captured by parent</span>
-              ) : (
-                <span>Captured a learning moment</span>
-              )
+          <Link
+            to={`/observer/student/${item.student?.id}`}
+            className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity"
+          >
+            {hasAvatar ? (
+              <img
+                src={item.student.avatar_url}
+                alt={item.student?.display_name || 'Student'}
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover shrink-0"
+              />
             ) : (
-              <>Completed a task in <span className="font-medium text-gray-700">{item.quest?.title}</span></>
+              <UserCircleIcon className="w-10 h-10 sm:w-12 sm:h-12 text-purple-300 shrink-0" />
             )}
-          </p>
-        </div>
-        <span className="text-xs text-gray-400 shrink-0">
-          {formatTimestamp(item.timestamp)}
-        </span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900 truncate text-sm sm:text-base">
+                {item.student?.display_name}
+              </p>
+              {/* 2. "completed a task in {quest}" - only for task completions */}
+              {!isLearningMoment && (
+                <p className="text-xs sm:text-sm text-gray-500 truncate">
+                  Completed a task in <span className="font-medium text-gray-700">{item.quest?.title}</span>
+                </p>
+              )}
+            </div>
+          </Link>
+        )}
+        {!showStudentName && !isLearningMoment && (
+          <div className="flex-1 min-w-0">
+            <p className="text-xs sm:text-sm text-gray-500 truncate">
+              Completed a task in <span className="font-medium text-gray-700">{item.quest?.title}</span>
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 3. Task name / Learning moment title */}
@@ -279,15 +290,20 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
       </div>
 
       {/* 5. Evidence (image, video, link, doc, text) */}
-      {hasMediaEvidence && (
+      {/* Use MediaCarousel for learning moments with multiple media items */}
+      {hasMediaCarousel ? (
+        <MediaCarousel media={item.media} />
+      ) : hasMediaEvidence && (
         <div className="bg-gray-100">
           {item.evidence.type === 'image' && (
-            <img
-              src={item.evidence.url}
-              alt="Evidence"
-              className="w-full max-h-[600px] object-contain"
-              loading="lazy"
-            />
+            <div className="aspect-square flex items-center justify-center">
+              <img
+                src={item.evidence.url}
+                alt="Evidence"
+                className="max-w-full max-h-full object-contain"
+                loading="lazy"
+              />
+            </div>
           )}
           {item.evidence.type === 'video' && (
             <div className="aspect-video bg-gray-900">
@@ -347,9 +363,14 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
       {/* Text evidence or learning moment description */}
       {descriptionText && (
         <div className="px-4 sm:px-5 py-3 border-t border-gray-100">
-          <p className="text-sm sm:text-base text-gray-700 whitespace-pre-wrap">
-            {displayText}
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm sm:text-base text-gray-700 whitespace-pre-wrap flex-1">
+              {displayText}
+            </p>
+            <span className="text-xs text-gray-400 shrink-0 pt-0.5">
+              {formatDate(item.timestamp)}
+            </span>
+          </div>
           {isLongText && (
             <button
               onClick={() => setTextExpanded(!textExpanded)}
@@ -362,6 +383,15 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
               )}
             </button>
           )}
+        </div>
+      )}
+
+      {/* Date for posts without description */}
+      {!descriptionText && (
+        <div className="px-4 sm:px-5 py-2 border-t border-gray-100 flex justify-end">
+          <span className="text-xs text-gray-400">
+            {formatDate(item.timestamp)}
+          </span>
         </div>
       )}
 
@@ -511,6 +541,11 @@ FeedCard.propTypes = {
       preview_text: PropTypes.string,
       title: PropTypes.string
     }),
+    media: PropTypes.arrayOf(PropTypes.shape({
+      type: PropTypes.string,
+      url: PropTypes.string,
+      title: PropTypes.string
+    })),
     xp_awarded: PropTypes.number,
     likes_count: PropTypes.number,
     comments_count: PropTypes.number,

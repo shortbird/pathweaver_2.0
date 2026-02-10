@@ -86,6 +86,7 @@ const ParentQuestView = lazy(() => import('./pages/ParentQuestView'))
 const ObserverAcceptInvitationPage = lazy(() => import('./pages/ObserverAcceptInvitationPage'))
 const ObserverWelcomePage = lazy(() => import('./pages/ObserverWelcomePage'))
 const ObserverFeedPage = lazy(() => import('./pages/ObserverFeedPage'))
+const ObserverStudentOverviewPage = lazy(() => import('./pages/ObserverStudentOverviewPage'))
 // Parental Consent (COPPA Compliance - December 2025)
 const ParentalConsentUploadPage = lazy(() => import('./pages/ParentalConsentUploadPage'))
 
@@ -356,6 +357,7 @@ function App() {
               <Route element={<PrivateRoute requiredRole={['observer', 'parent', 'advisor', 'superadmin']} />}>
                 <Route path="observer/welcome" element={<ObserverWelcomePage />} />
                 <Route path="observer/feed" element={<ObserverFeedPage />} />
+                <Route path="observer/student/:studentId" element={<ObserverStudentOverviewPage />} />
               </Route>
 
               {/* Learning Journal - full-screen experience for all authenticated users */}
