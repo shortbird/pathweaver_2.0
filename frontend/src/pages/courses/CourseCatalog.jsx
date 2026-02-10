@@ -160,9 +160,8 @@ const CourseCatalog = () => {
               const isArchived = course.status === 'archived'
               const isCompleted = course.progress?.percentage >= 100 || course.progress?.is_completed
               const isExternal = course.is_external
-              // org_admins and advisors can only edit courses from their own organization
-              const canEditThisCourse = user?.role === 'superadmin' ||
-                ((user?.role === 'org_admin' || user?.role === 'advisor') && !isExternal)
+              // Users can only edit courses they created themselves
+              const canEditThisCourse = course.created_by === user?.id
 
               return (
                 <div
