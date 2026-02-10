@@ -85,8 +85,8 @@ const Layout = () => {
       {/* Main Content Area */}
       <main
         id="main-content"
+        style={{ paddingTop: 'var(--navbar-height, 64px)' }}
         className={`
-        pt-28 sm:pt-16
         transition-all duration-200
         ${shouldShowSidebar ? (isSidebarExpanded ? 'lg:ml-64' : 'lg:ml-16') : ''}
         min-h-[calc(100vh-4rem)]

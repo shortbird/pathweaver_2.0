@@ -381,14 +381,12 @@ function App() {
                 <Route path="join/:slug" element={<OrganizationSignup />} />
                 <Route path="forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="reset-password" element={<ResetPasswordPage />} />
-                <Route path="invitation/:code" element={<AcceptInvitationPage />} />
                 <Route path="auth/callback" element={<AuthCallback />} />
                 <Route path="email-verification" element={<EmailVerificationPage />} />
                 <Route path="terms" element={<TermsOfService />} />
                 <Route path="privacy" element={<PrivacyPolicy />} />
                 <Route path="academy-agreement" element={<OptioAcademyAgreement />} />
                 <Route path="academy-handbook" element={<OptioAcademyHandbook />} />
-                <Route path="observer/accept/:invitationCode" element={<ObserverAcceptInvitationPage />} />
                 <Route path="parental-consent" element={<ParentalConsentUploadPage />} />
                 {/* Public course pages (no auth required) */}
                 <Route path="catalog" element={<PublicCatalogPage />} />
@@ -486,6 +484,10 @@ function App() {
 
             {/* Public evidence report view (no auth required) */}
             <Route path="report/:token" element={<PublicEvidenceReport />} />
+
+            {/* Invitation pages - standalone full-screen layouts */}
+            <Route path="invitation/:code" element={<AcceptInvitationPage />} />
+            <Route path="observer/accept/:invitationCode" element={<ObserverAcceptInvitationPage />} />
           </Routes>
           </Suspense>
             </ActingAsProvider>

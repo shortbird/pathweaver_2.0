@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useRef, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
@@ -7,11 +7,26 @@ import NotificationBell from '../notifications/NotificationBell'
 // import { getTierDisplayName, getTierBadgeColor } from '../../utils/tierMapping' // REMOVED - Phase 3 refactoring (January 2025)
 
 const TopNavbar = ({ onMenuClick, siteSettings }) => {
+  const navRef = useRef(null)
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout, isAuthenticated } = useAuth()
   const { organization } = useOrganization()
   const { actingAsDependent, parentName } = useActingAs()
+
+  // Set CSS variable for navbar height so Layout can use dynamic padding
+  useEffect(() => {
+    const updateNavbarHeight = () => {
+      if (navRef.current) {
+        const height = navRef.current.offsetHeight
+        document.documentElement.style.setProperty('--navbar-height', `${height}px`)
+      }
+    }
+
+    updateNavbarHeight()
+    window.addEventListener('resize', updateNavbarHeight)
+    return () => window.removeEventListener('resize', updateNavbarHeight)
+  }, [isAuthenticated]) // Re-measure when auth state changes
 
   const handleLogout = async () => {
     await logout()
@@ -41,7 +56,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
   }
 
   return (
-    <nav className="fixed top-0 left-0 right-0 bg-white shadow-sm border-b border-gray-200 z-30">
+    <nav ref={navRef} className="fixed top-0 left-0 right-0 bg-white shadow-sm border-b border-gray-200 z-30">
       <div className="h-16 px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-full">
           {/* Left Section: Logo + Toggle */}

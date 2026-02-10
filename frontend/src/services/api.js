@@ -279,8 +279,9 @@ api.interceptors.response.use(
         const isPublicCoursePage = currentPath.startsWith('/course/')
         const isObserverAcceptPage = currentPath.startsWith('/observer/accept/')
         const isPublicReportPage = currentPath.startsWith('/report/')
+        const isInvitationPage = currentPath.startsWith('/invitation/')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isPromoPage && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isPromoPage && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isInvitationPage) {
           window.location.href = '/login'
         }
 

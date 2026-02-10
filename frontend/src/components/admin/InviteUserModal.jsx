@@ -4,9 +4,7 @@ import api from '../../services/api';
 const VALID_ROLES = [
   { value: 'student', label: 'Student' },
   { value: 'parent', label: 'Parent' },
-  { value: 'advisor', label: 'Advisor' },
-  { value: 'org_admin', label: 'Organization Admin' },
-  { value: 'observer', label: 'Observer' }
+  { value: 'advisor', label: 'Advisor' }
 ];
 
 export default function InviteUserModal({ organizationId, onClose, onSuccess }) {
