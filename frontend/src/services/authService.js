@@ -334,15 +334,16 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // Store tokens for Safari/iOS/Firefox if needed
-      if (shouldUseAuthHeaders()) {
-        const appAccessToken = response.data.app_access_token
-        const appRefreshToken = response.data.app_refresh_token
+      // ALWAYS store tokens for Google OAuth to ensure cross-origin compatibility
+      // This is critical because cookies may not work reliably in cross-origin scenarios
+      const appAccessToken = response.data.app_access_token
+      const appRefreshToken = response.data.app_refresh_token
 
-        if (appAccessToken && appRefreshToken) {
-          await this.setTokens(appAccessToken, appRefreshToken)
-          logger.debug('[AuthService] Google OAuth tokens stored for Authorization header usage')
-        }
+      if (appAccessToken && appRefreshToken) {
+        await this.setTokens(appAccessToken, appRefreshToken)
+        logger.debug('[AuthService] Google OAuth tokens stored in IndexedDB')
+      } else {
+        logger.warn('[AuthService] Google OAuth: No tokens received from server')
       }
 
       // Store user data for quick access
@@ -400,15 +401,13 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // Store tokens for Safari/iOS/Firefox if needed
-      if (shouldUseAuthHeaders()) {
-        const appAccessToken = response.data.app_access_token
-        const appRefreshToken = response.data.app_refresh_token
+      // ALWAYS store tokens for TOS acceptance to ensure cross-origin compatibility
+      const appAccessToken = response.data.app_access_token
+      const appRefreshToken = response.data.app_refresh_token
 
-        if (appAccessToken && appRefreshToken) {
-          await this.setTokens(appAccessToken, appRefreshToken)
-          logger.debug('[AuthService] TOS acceptance tokens stored')
-        }
+      if (appAccessToken && appRefreshToken) {
+        await this.setTokens(appAccessToken, appRefreshToken)
+        logger.debug('[AuthService] TOS acceptance tokens stored in IndexedDB')
       }
 
       // Store user data for quick access
@@ -672,11 +671,10 @@ class AuthService {
     // Initialize token store for encrypted IndexedDB
     await tokenStore.init()
 
-    // For browsers using Authorization headers (Safari/iOS/Firefox), restore tokens from IndexedDB
-    if (shouldUseAuthHeaders()) {
-      await tokenStore.restoreTokens()
-      logger.debug('[AuthService] Tokens restored from IndexedDB for Authorization header usage')
-    }
+    // ALWAYS restore tokens from IndexedDB for cross-origin compatibility
+    // This is critical because cookies may not work reliably in cross-origin scenarios
+    // (e.g., localhost:3000 -> localhost:5001 in development)
+    await tokenStore.restoreTokens()
 
     // First check if we have cached user data
     this.getCurrentUser()

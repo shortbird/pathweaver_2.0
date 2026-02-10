@@ -1,8 +1,57 @@
 # UI Component Library - Complete Migration Guide
 
 **Created**: December 19, 2025
+**Updated**: February 10, 2026
 **Status**: In Progress (31% Complete)
 **Target**: 100% modal migration + Button enforcement
+
+---
+
+## CRITICAL: Modal Portal Requirement
+
+**ALL modals MUST use either `Modal` or `ModalOverlay` from the UI library.**
+
+### Why This Matters
+
+The app layout uses CSS transforms on the sidebar (`transform transition-all`). When a parent element has a `transform`, `fixed` positioning becomes relative to that transformed parent instead of the viewport. This causes modals to appear incorrectly (e.g., not covering the full screen, offset from center).
+
+### The Solution
+
+Both `Modal` and `ModalOverlay` use React's `createPortal` to render at `document.body`, bypassing any transformed parent containers.
+
+### When to Use Each
+
+| Component | Use When |
+|-----------|----------|
+| `Modal` | Standard modals with gradient header, title, footer |
+| `ModalOverlay` | Custom modal layouts that don't fit the standard pattern |
+
+### ModalOverlay Example
+
+```jsx
+import { ModalOverlay } from '../ui'
+
+function MyCustomModal({ onClose }) {
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+        {/* Your custom modal content */}
+      </div>
+    </ModalOverlay>
+  )
+}
+```
+
+### NEVER Do This
+
+```jsx
+// BAD - Will break in containers with CSS transforms
+return (
+  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+    <div className="bg-white rounded-xl">...</div>
+  </div>
+)
+```
 
 ---
 

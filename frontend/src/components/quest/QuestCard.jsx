@@ -92,14 +92,8 @@ const QuestCard = ({ quest, onClick }) => {
           </div>
         )}
 
-        {/* Quest type badge */}
-        {quest_type === 'course' && (
-          <div className="absolute top-3 left-3">
-            <span className="bg-blue-500 text-white text-xs font-medium px-2 py-1 rounded-full">
-              Course
-            </span>
-          </div>
-        )}
+        {/* Quest type badge - Legacy: will be removed after migration */}
+        {/* Keeping badge for quests that have required tasks */}
 
         {/* Title overlay at bottom of image */}
         <div className="absolute bottom-0 left-0 right-0 p-4">

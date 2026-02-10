@@ -75,6 +75,7 @@ const AdminPage = lazy(() => import('./pages/AdminPage'))
 const OrganizationManagement = lazy(() => import('./pages/admin/OrganizationManagement'))
 const OrgStudentOverviewPage = lazy(() => import('./pages/admin/OrgStudentOverviewPage'))
 const AdvisorDashboard = lazy(() => import('./pages/AdvisorDashboard'))
+const AdvisorClassesPage = lazy(() => import('./pages/AdvisorClassesPage'))
 // AdvisorBadgeForm removed (January 2026 - Microschool client feedback)
 const AdvisorCheckinPage = lazy(() => import('./pages/AdvisorCheckinPage'))
 const TeacherVerificationPage = lazy(() => import('./pages/TeacherVerificationPage'))
@@ -105,6 +106,10 @@ const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
 const DependentProgressReport = lazy(() => import('./pages/parent/DependentProgressReport'))
 const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'))
 const StudentFeedbackPage = lazy(() => import('./pages/StudentFeedbackPage'))
+// Evidence Reports (February 2026 - Shareable evidence reports with PDF download)
+const MyEvidenceReports = lazy(() => import('./pages/MyEvidenceReports'))
+const EvidenceReportBuilder = lazy(() => import('./pages/EvidenceReportBuilder'))
+const PublicEvidenceReport = lazy(() => import('./pages/PublicEvidenceReport'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -419,6 +424,10 @@ function App() {
                 {/* <Route path="subscription" element={<SubscriptionPage />} /> REMOVED - Phase 3 refactoring (January 2025) */}
                 {/* Observer feed inside Layout for users with other roles (parent, advisor, etc.) */}
                 <Route path="observer/feed" element={<ObserverFeedPage />} />
+                {/* Evidence Reports - shareable evidence with PDF download (February 2026) */}
+                <Route path="evidence-reports" element={<MyEvidenceReports />} />
+                <Route path="evidence-reports/new" element={<EvidenceReportBuilder />} />
+                <Route path="evidence-reports/:id/edit" element={<EvidenceReportBuilder />} />
               </Route>
               
               <Route element={<PrivateRoute requiredRole="superadmin" />}>
@@ -439,6 +448,9 @@ function App() {
                 <Route path="advisor" element={<Navigate to="/advisor/dashboard" replace />} />
                 <Route path="advisor/dashboard" element={<AdvisorDashboard />} />
                 <Route path="advisor/checkin/:studentId" element={<AdvisorCheckinPage />} />
+                {/* Organization Classes (February 2026) */}
+                <Route path="classes" element={<AdvisorClassesPage />} />
+                <Route path="classes/:classId" element={<AdvisorClassesPage />} />
                 <Route path="advisor/verification" element={<TeacherVerificationPage />} />
                 <Route path="advisor/collaborations" element={<CollaborationsPage />} />
                 {/* Advisor badge routes removed (January 2026 - Microschool client feedback) */}
@@ -469,6 +481,9 @@ function App() {
             <Route path="diploma" element={<DiplomaPage />} />
             <Route path="portfolio/:slug" element={<DiplomaPage />} />
             <Route path="public/diploma/:userId" element={<DiplomaPage />} />
+
+            {/* Public evidence report view (no auth required) */}
+            <Route path="report/:token" element={<PublicEvidenceReport />} />
           </Routes>
           </Suspense>
             </ActingAsProvider>

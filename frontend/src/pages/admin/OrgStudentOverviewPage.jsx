@@ -1,5 +1,6 @@
 import React from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import AdvisorStudentOverviewContent from '../../components/advisor/AdvisorStudentOverviewContent';
 
 /**
@@ -7,6 +8,7 @@ import AdvisorStudentOverviewContent from '../../components/advisor/AdvisorStude
  *
  * Shows comprehensive student overview analytics instead of diploma view.
  * Provides URL-based back navigation (no state dependency).
+ * Org admins have edit access to student information.
  *
  * Route: /admin/organizations/:orgId/student/:studentId
  */
@@ -14,6 +16,10 @@ export default function OrgStudentOverviewPage() {
   const { orgId, studentId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { isAdmin, isSuperadmin } = useAuth();
+
+  // Org admins and superadmins can edit student information
+  const canEdit = isAdmin || isSuperadmin;
   const returnTab = searchParams.get('tab') || 'progress';
 
   const handleBack = () => {
@@ -44,7 +50,7 @@ export default function OrgStudentOverviewPage() {
 
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <AdvisorStudentOverviewContent studentId={studentId} />
+        <AdvisorStudentOverviewContent studentId={studentId} canEdit={canEdit} orgId={orgId} />
       </div>
     </div>
   );

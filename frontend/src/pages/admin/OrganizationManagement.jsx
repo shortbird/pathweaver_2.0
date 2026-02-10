@@ -4,12 +4,14 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import api from '../../services/api'
 import { SettingsTab, PeopleTab, ContentTab } from '../../components/organization'
+import { ClassList, ClassDetailPage } from '../../components/classes'
 
 const OrgStudentProgress = lazy(() => import('../../components/admin/OrgStudentProgress'))
 
 const TABS = [
   { id: 'settings', label: 'Settings' },
   { id: 'people', label: 'People' },
+  { id: 'classes', label: 'Classes' },
   { id: 'content', label: 'Content' },
   { id: 'progress', label: 'Progress' }
 ]
@@ -21,6 +23,31 @@ const TAB_REDIRECTS = {
   'connections': 'people',
   'quests': 'content',
   'courses': 'content'
+}
+
+/**
+ * ClassesTab - Wrapper component for organization classes management
+ */
+function ClassesTab({ orgId, orgData }) {
+  const [selectedClass, setSelectedClass] = useState(null)
+
+  if (selectedClass) {
+    return (
+      <ClassDetailPage
+        classId={selectedClass.id}
+        orgId={orgId}
+        onBack={() => setSelectedClass(null)}
+      />
+    )
+  }
+
+  return (
+    <ClassList
+      orgId={orgId}
+      isAdvisorView={false}
+      onSelectClass={setSelectedClass}
+    />
+  )
 }
 
 export default function OrganizationManagement() {
@@ -180,6 +207,13 @@ export default function OrganizationManagement() {
           orgSlug={orgData.organization?.slug}
           users={orgData.users}
           onUpdate={fetchOrganizationData}
+        />
+      )}
+
+      {activeTab === 'classes' && (
+        <ClassesTab
+          orgId={orgId}
+          orgData={orgData}
         />
       )}
 

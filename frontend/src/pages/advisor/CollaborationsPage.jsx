@@ -248,9 +248,6 @@ export default function CollaborationsPage() {
                       }`}
                     >
                       <div className="font-medium text-gray-900">{quest.title}</div>
-                      {quest.quest_type && (
-                        <div className="text-sm text-gray-500">{quest.quest_type}</div>
-                      )}
                     </button>
                   ))
                 )}

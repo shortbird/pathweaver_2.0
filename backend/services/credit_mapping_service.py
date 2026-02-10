@@ -18,13 +18,14 @@ class CreditMappingService(BaseService):
     """Service for tracking academic credits derived from XP."""
 
     # Standard diploma requirements (20 credits total)
+    # Keys must match SCHOOL_SUBJECTS from utils/school_subjects.py
     DIPLOMA_REQUIREMENTS = {
         'math': 4.0,
         'science': 4.0,
-        'english': 4.0,
-        'history': 3.0,
+        'language_arts': 4.0,      # Was 'english'
+        'social_studies': 3.0,     # Was 'history'
         'foreign_language': 2.0,
-        'arts': 1.0,
+        'fine_arts': 1.0,          # Was 'arts'
         'electives': 2.0
     }
 

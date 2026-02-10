@@ -106,6 +106,46 @@ import { Modal } from '@/components/ui';
 - Overlay click to close (optional)
 - Responsive sizing
 - Custom header/footer slots
+- Uses React Portal (renders at document.body)
+
+---
+
+### 1b. ModalOverlay
+
+**Use When**: You need a custom modal layout that doesn't fit the standard Modal pattern.
+
+**Why It Exists**: The app's sidebar uses CSS transforms, which breaks `fixed` positioning for child elements. ModalOverlay uses React's `createPortal` to render at `document.body`, bypassing this issue.
+
+**Basic Usage**:
+```jsx
+import { ModalOverlay } from '@/components/ui';
+
+<ModalOverlay onClose={handleClose}>
+  <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+    {/* Your custom modal content */}
+    <div className="p-4">
+      <h2>Custom Header</h2>
+    </div>
+    <div className="p-4">
+      <p>Custom body content</p>
+    </div>
+  </div>
+</ModalOverlay>
+```
+
+**Props**:
+- `children` (ReactNode, required): Modal content
+- `onClose` (function): Close handler
+- `closeOnOverlayClick` (boolean): Close on overlay click (default: true)
+- `className` (string): Additional classes for overlay
+
+**Features**:
+- React Portal rendering (bypasses CSS transform issues)
+- Escape key handling
+- Body scroll lock
+- Overlay click to close
+
+**IMPORTANT**: Never use raw `fixed inset-0` for modals - always use Modal or ModalOverlay.
 
 ---
 
@@ -532,13 +572,27 @@ import { Modal, Alert, FormField } from '@/components/ui';
 
 ## Best Practices
 
-### 1. Always Use UI Components for New Features
-```jsx
-// DON'T create custom modals
-<div className="fixed inset-0...">...</div>
+### 1. ALWAYS Use Modal or ModalOverlay for Modals
 
-// DO use Modal component
-<Modal isOpen={isOpen} onClose={handleClose}>...</Modal>
+**This is critical** - the app layout uses CSS transforms which break `fixed` positioning.
+
+```jsx
+// NEVER DO THIS - Will break in containers with CSS transforms
+<div className="fixed inset-0 bg-black/50 z-50">
+  <div className="bg-white rounded-xl">...</div>
+</div>
+
+// DO use Modal for standard modals
+<Modal isOpen={isOpen} onClose={handleClose} title="Title">
+  {content}
+</Modal>
+
+// DO use ModalOverlay for custom layouts
+<ModalOverlay onClose={handleClose}>
+  <div className="bg-white rounded-xl max-w-md w-full">
+    {customContent}
+  </div>
+</ModalOverlay>
 ```
 
 ### 2. Prefer Composition Over Custom Styling
@@ -616,5 +670,5 @@ Questions? Check the migrated components for real-world examples:
 
 ---
 
-**Last Updated**: December 19, 2025
+**Last Updated**: February 10, 2026
 **Maintained By**: Optio Engineering Team

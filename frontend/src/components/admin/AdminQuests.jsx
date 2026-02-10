@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
-import UnifiedQuestForm from './UnifiedQuestForm'
-import CourseQuestForm from './CourseQuestForm'
+import QuestForm from './QuestForm'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 
 const AdminQuests = () => {
@@ -15,9 +14,7 @@ const AdminQuests = () => {
   const [showManager, setShowManager] = useState(false)
   const [editingQuest, setEditingQuest] = useState(null)
   const [showCreationForm, setShowCreationForm] = useState(false)
-  const [showCourseQuestForm, setShowCourseQuestForm] = useState(false)
   const [activeFilter, setActiveFilter] = useState('all')
-  const [questTypeFilter, setQuestTypeFilter] = useState('all')
   const [publicFilter, setPublicFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
@@ -48,7 +45,7 @@ const AdminQuests = () => {
   useEffect(() => {
     fetchQuests()
     clearSelection()
-  }, [activeFilter, questTypeFilter, publicFilter])
+  }, [activeFilter, publicFilter])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -67,9 +64,6 @@ const AdminQuests = () => {
       const params = new URLSearchParams({ per_page: '10000' })
       if (activeFilter !== 'all') {
         params.append('is_active', activeFilter === 'active' ? 'true' : 'false')
-      }
-      if (questTypeFilter !== 'all') {
-        params.append('quest_type', questTypeFilter)
       }
       if (publicFilter !== 'all') {
         params.append('is_public', publicFilter === 'public' ? 'true' : 'false')
@@ -95,13 +89,7 @@ const AdminQuests = () => {
   }
 
   const handleEdit = (quest) => {
-    if (quest.quest_type === 'course') {
-      // Edit course quests with CourseQuestForm
-      setEditingQuest(quest)
-      setShowCourseQuestForm(true)
-      setOpenDropdownId(null)
-      return
-    }
+    // Use unified QuestForm for all quest types
     setEditingQuest(quest)
     setShowManager(true)
     setOpenDropdownId(null)
@@ -477,16 +465,10 @@ const AdminQuests = () => {
             Create Course
           </button>
           <button
-            onClick={() => setShowCourseQuestForm(true)}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
-          >
-            Create Course Quest
-          </button>
-          <button
             onClick={() => setShowCreationForm(true)}
             className="bg-gradient-primary text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
           >
-            Create Optio Quest
+            Create Quest
           </button>
         </div>
       </div>
@@ -595,20 +577,6 @@ const AdminQuests = () => {
           </select>
         </div>
 
-        {/* Quest Type Filter */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-600">Type:</span>
-          <select
-            value={questTypeFilter}
-            onChange={(e) => setQuestTypeFilter(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-          >
-            <option value="all">All Types</option>
-            <option value="optio">Optio</option>
-            <option value="course">Course</option>
-          </select>
-        </div>
-
         {/* Public Status Filter */}
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-gray-600">Visibility:</span>
@@ -632,9 +600,9 @@ const AdminQuests = () => {
         </div>
       </div>
 
-      {/* Forms */}
+      {/* Forms - Using unified QuestForm for all quest types */}
       {showManager && (
-        <UnifiedQuestForm
+        <QuestForm
           mode="edit"
           quest={editingQuest}
           onClose={() => {
@@ -642,11 +610,13 @@ const AdminQuests = () => {
             setEditingQuest(null)
           }}
           onSuccess={handleQuestSave}
+          canDelete={isSuperAdmin}
+          onDelete={handleDelete}
         />
       )}
 
       {showCreationForm && (
-        <UnifiedQuestForm
+        <QuestForm
           mode="create"
           onClose={() => setShowCreationForm(false)}
           onSuccess={(newQuest) => {
@@ -654,40 +624,9 @@ const AdminQuests = () => {
               setQuests(prev => [newQuest, ...prev])
             }
             setShowCreationForm(false)
-          }}
-        />
-      )}
-
-      {showCourseQuestForm && (
-        <CourseQuestForm
-          mode={editingQuest ? 'edit' : 'create'}
-          quest={editingQuest}
-          onClose={() => {
-            setShowCourseQuestForm(false)
-            setEditingQuest(null)
-          }}
-          onSuccess={(updatedQuest) => {
-            if (updatedQuest?.id) {
-              if (editingQuest) {
-                setQuests(prev => prev.map(q => q.id === updatedQuest.id ? { ...q, ...updatedQuest } : q))
-              } else {
-                setQuests(prev => [updatedQuest, ...prev])
-              }
-            }
-            setShowCourseQuestForm(false)
-            setEditingQuest(null)
             fetchQuests()
           }}
         />
-      )}
-
-      {/* Info Banner for Course Quests */}
-      {questTypeFilter === 'course' && (
-        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-blue-800">
-            <strong>Course Quests</strong> have preset tasks aligned to existing curriculum (e.g., Khan Academy). Students do not personalize tasks - they receive the preset tasks automatically when enrolling.
-          </p>
-        </div>
       )}
 
       {/* Quest Grid */}
@@ -750,11 +689,6 @@ const AdminQuests = () => {
                           Active
                         </span>
                       )}
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        quest.quest_type === 'course' ? 'bg-blue-500 text-white' : 'bg-purple-500 text-white'
-                      }`}>
-                        {quest.quest_type === 'course' ? 'Course Quest' : 'Optio Quest'}
-                      </span>
                       {quest.is_project && (
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500 text-white" title={quest.connected_courses?.map(c => c.course_title).join(', ')}>
                           Project

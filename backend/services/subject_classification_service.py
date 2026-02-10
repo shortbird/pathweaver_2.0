@@ -31,17 +31,17 @@ SCHOOL_SUBJECTS = [
 ]
 
 SUBJECT_DESCRIPTIONS = {
-    'language_arts': 'English, Literature, Writing, Reading Comprehension, Communication',
-    'math': 'Algebra, Geometry, Statistics, Applied Mathematics, Mathematical Reasoning',
-    'science': 'Biology, Chemistry, Physics, Earth Sciences, Scientific Method',
-    'social_studies': 'History, Government, Geography, Economics, Civics',
-    'financial_literacy': 'Personal Finance, Economics, Budgeting, Financial Planning',
-    'health': 'Health Education, Nutrition, Wellness, Mental Health',
-    'pe': 'Physical Fitness, Sports, Exercise Science, Movement',
-    'fine_arts': 'Visual Arts, Music, Theater, Dance, Creative Expression',
-    'cte': 'Career Preparation, Technical Skills, Vocational Training, Professional Development',
-    'digital_literacy': 'Computer Skills, Digital Citizenship, Technology, Coding',
-    'electives': 'General interest areas, exploratory learning, interdisciplinary topics'
+    'language_arts': 'English, Literature, Writing, Reading Comprehension, Communication, Essays, Poetry, Journalism',
+    'math': 'Algebra, Geometry, Statistics, Applied Mathematics, Mathematical Reasoning, Calculations, Numbers, Data Analysis',
+    'science': 'Biology, Chemistry, Physics, Earth Sciences, Scientific Method, Experiments, Lab Work, Research',
+    'social_studies': 'History, Government, Geography, Economics, Civics, Culture, Society, Politics',
+    'financial_literacy': 'Personal Finance, Economics, Budgeting, Financial Planning, Money Management, Investing',
+    'health': 'Health Education, Nutrition, Wellness, Mental Health, Safety, First Aid',
+    'pe': 'Physical Fitness, Sports, Exercise Science, Movement, Athletics, Physical Activity',
+    'fine_arts': 'Visual Arts, Music, Theater, Dance, Creative Expression, Drawing, Painting, Sculpture, Performance',
+    'cte': 'Career Preparation, Technical Skills, Vocational Training, Professional Development, Trades, Hands-on Building',
+    'digital_literacy': 'Computer Skills, Digital Citizenship, Technology, Coding, Programming, Web Development, Software',
+    'electives': 'ONLY for tasks that genuinely do not fit ANY other category - should be rare'
 }
 
 class SubjectClassificationService(BaseAIService):
@@ -104,7 +104,7 @@ class SubjectClassificationService(BaseAIService):
         # If Gemini API not available, use fallback mapping
         if not self._model_available:
             logger.warning("Gemini API not available, using fallback subject mapping")
-            return self._fallback_subject_mapping(pillar, xp_value)
+            return self._fallback_subject_mapping(pillar, xp_value, task_title)
 
         try:
             # Build prompt for Gemini
@@ -134,7 +134,7 @@ class SubjectClassificationService(BaseAIService):
         except Exception as e:
             logger.error(f"Error in AI classification: {str(e)}")
             # Fall back to rule-based mapping on error
-            return self._fallback_subject_mapping(pillar, xp_value)
+            return self._fallback_subject_mapping(pillar, xp_value, task_title)
 
     def _build_classification_prompt(
         self,
@@ -162,26 +162,37 @@ Task Information:
 Available School Subjects:
 {subjects_text}
 
-Instructions:
+IMPORTANT GUIDELINES:
 1. Analyze the task and determine which 1-2 school subjects it most strongly aligns with
 2. Distribute the total XP ({xp_value}) across those subjects based on relevance
 3. The XP amounts MUST sum to exactly {xp_value}
 4. Most tasks should have 1 primary subject (unless truly interdisciplinary)
-5. Return ONLY valid JSON in this exact format (no markdown, no code blocks):
+5. AVOID 'electives' unless the task truly does not fit ANY specific subject category
+   - Electives should be RARE (less than 5% of tasks)
+   - If a task involves ANY creative work, use 'fine_arts'
+   - If a task involves ANY math, numbers, or data, use 'math'
+   - If a task involves ANY science concepts or experiments, use 'science'
+   - If a task involves ANY writing or reading, use 'language_arts'
+   - If a task involves ANY physical activity, use 'pe'
+   - If a task involves ANY building, making, or hands-on skills, use 'cte'
+   - If a task involves ANY technology or computers, use 'digital_literacy'
+6. Return ONLY valid JSON in this exact format (no markdown, no code blocks):
 
 {{"subject1": xp_amount1, "subject2": xp_amount2}}
 
-Example 1:
-Task: "Create a 3D object in Blender"
-Response: {{"fine_arts": 25, "cte": 75}}
+CORRECT Examples:
+Task: "Paint a landscape in watercolors" -> {{"fine_arts": {xp_value}}}
+Task: "Solve 10 algebra problems" -> {{"math": {xp_value}}}
+Task: "Build a birdhouse" -> {{"cte": {xp_value}}}
+Task: "Write a lab report on photosynthesis" -> {{"science": 60, "language_arts": 40}}
+Task: "Create a 3D object in Blender" -> {{"digital_literacy": 50, "fine_arts": 50}}
+Task: "Practice yoga for 30 minutes" -> {{"pe": {xp_value}}}
+Task: "Research World War II causes" -> {{"social_studies": {xp_value}}}
 
-Example 2:
-Task: "Write a persuasive essay about climate change"
-Response: {{"language_arts": 60, "science": 40}}
-
-Example 3:
-Task: "Practice yoga for 30 minutes"
-Response: {{"pe": 100}}
+INCORRECT (do NOT do this):
+Task: "Paint a landscape" -> {{"electives": {xp_value}}}  (WRONG: should be fine_arts)
+Task: "Build a model rocket" -> {{"electives": {xp_value}}}  (WRONG: should be science + cte)
+Task: "Learn guitar chords" -> {{"electives": {xp_value}}}  (WRONG: should be fine_arts)
 
 Now classify the task above. Return ONLY the JSON object."""
 
@@ -267,32 +278,100 @@ Now classify the task above. Return ONLY the JSON object."""
             logger.error(f"Error parsing AI response: {str(e)}")
             raise
 
-    def _fallback_subject_mapping(self, pillar: str, xp_value: int) -> Dict[str, int]:
+    def _fallback_subject_mapping(self, pillar: str, xp_value: int, task_title: str = '') -> Dict[str, int]:
         """
         Fallback rule-based subject mapping when AI is unavailable.
+        Uses keyword inference for better accuracy. Never defaults to electives.
 
         Args:
             pillar: Learning pillar
             xp_value: Total XP value
+            task_title: Optional task title for keyword inference
 
         Returns:
-            Subject distribution based on pillar
+            Subject distribution based on pillar and keywords
         """
-        # Map pillars to primary school subjects
-        pillar_to_subject = {
-            'stem': 'science',
-            'art': 'fine_arts',
-            'wellness': 'health',
-            'communication': 'language_arts',
-            'civics': 'social_studies'
-        }
+        from utils.school_subjects import PILLAR_TO_SUBJECTS
 
-        # Get primary subject for this pillar
-        primary_subject = pillar_to_subject.get(pillar.lower(), 'electives')
+        pillar_lower = pillar.lower() if pillar else ''
+        title_lower = task_title.lower() if task_title else ''
+
+        # First, try keyword inference from task title (more specific than pillar)
+        if title_lower:
+            subject = self._infer_subject_from_keywords(title_lower)
+            if subject:
+                logger.info(f"Using keyword inference: '{task_title[:50]}' -> {subject} ({xp_value} XP)")
+                return {subject: xp_value}
+
+        # Get candidate subjects from pillar using the comprehensive mapping
+        subjects = PILLAR_TO_SUBJECTS.get(pillar_lower, [])
+
+        # For STEM pillar, try to distinguish between math, science, and digital_literacy
+        if pillar_lower in ['stem', 'stem_logic'] and title_lower:
+            refined = self._refine_stem_subject(title_lower)
+            if refined:
+                subjects = [refined]
+
+        # Use first subject from mapping, or CTE as last resort (not electives)
+        if subjects:
+            primary_subject = subjects[0]
+        else:
+            # Use CTE as catch-all for practical/hands-on work, not electives
+            primary_subject = 'cte'
 
         logger.info(f"Using fallback mapping: {pillar} -> {primary_subject} ({xp_value} XP)")
-
         return {primary_subject: xp_value}
+
+    def _infer_subject_from_keywords(self, text: str) -> Optional[str]:
+        """
+        Infer subject from keywords in task title/description.
+        Returns None if no strong match found.
+        """
+        # Keyword patterns for each subject (ordered by specificity)
+        keyword_patterns = {
+            'math': ['math', 'algebra', 'geometry', 'calcul', 'statistic', 'equation', 'number', 'fraction', 'percent', 'graph', 'formula'],
+            'science': ['science', 'experiment', 'hypothesis', 'lab', 'biology', 'chemistry', 'physics', 'molecule', 'cell', 'ecosystem', 'research'],
+            'language_arts': ['write', 'essay', 'read', 'book', 'story', 'poem', 'literature', 'grammar', 'vocabulary', 'journal', 'author'],
+            'social_studies': ['history', 'geography', 'government', 'civics', 'culture', 'society', 'war', 'president', 'country', 'civilization'],
+            'fine_arts': ['paint', 'draw', 'art', 'music', 'song', 'instrument', 'dance', 'theater', 'sculpt', 'creative', 'design', 'sketch'],
+            'pe': ['exercise', 'sport', 'fitness', 'workout', 'run', 'swim', 'yoga', 'athletic', 'physical', 'train'],
+            'health': ['health', 'nutrition', 'wellness', 'mental', 'diet', 'safety', 'first aid', 'hygiene'],
+            'digital_literacy': ['code', 'program', 'computer', 'software', 'app', 'website', 'digital', 'tech', 'algorithm'],
+            'cte': ['build', 'construct', 'repair', 'tool', 'craft', 'trade', 'career', 'job', 'wood', 'metal', 'sew', 'cook'],
+            'financial_literacy': ['money', 'budget', 'finance', 'invest', 'bank', 'saving', 'income', 'expense']
+        }
+
+        for subject, keywords in keyword_patterns.items():
+            for keyword in keywords:
+                if keyword in text:
+                    return subject
+
+        return None
+
+    def _refine_stem_subject(self, title: str) -> Optional[str]:
+        """
+        For STEM pillar tasks, try to determine if it's more math, science, or digital_literacy.
+        """
+        # Math indicators
+        math_keywords = ['math', 'algebra', 'geometry', 'calcul', 'equation', 'formula', 'number', 'statistic', 'data']
+        for kw in math_keywords:
+            if kw in title:
+                return 'math'
+
+        # Digital/Tech indicators
+        tech_keywords = ['code', 'program', 'computer', 'software', 'app', 'website', 'digital', 'tech', 'algorithm', 'robot']
+        for kw in tech_keywords:
+            if kw in title:
+                return 'digital_literacy'
+
+        # Science indicators (default for STEM)
+        science_keywords = ['science', 'experiment', 'lab', 'biology', 'chemistry', 'physics', 'molecule', 'cell', 'research']
+        for kw in science_keywords:
+            if kw in title:
+                return 'science'
+
+        # Default STEM to science
+        return 'science'
 
     def backfill_task_subjects(self, task_id: str) -> bool:
         """

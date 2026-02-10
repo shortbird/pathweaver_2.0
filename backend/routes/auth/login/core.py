@@ -299,10 +299,11 @@ def register_routes(bp):
                 # Log successful login
                 logger.info(f"Successful login for {mask_email(email)} (user_id: {mask_user_id(auth_response.user.id)})")
 
-                # Update last_active timestamp
+                # Update last_active timestamp and clear logout timestamp
                 try:
                     admin_client.table('users').update({
-                        'last_active': datetime.utcnow().isoformat()
+                        'last_active': datetime.utcnow().isoformat(),
+                        'last_logout_at': None  # Clear logout timestamp on login
                     }).eq('id', auth_response.user.id).execute()
                 except Exception as update_error:
                     logger.error(f"Warning: Failed to update last_active timestamp: {update_error}")
@@ -633,10 +634,11 @@ def register_routes(bp):
                 # Log successful login
                 logger.info(f"Successful org login for {username} in {org_slug} (user_id: {mask_user_id(auth_response.user.id)})")
 
-                # Update last_active timestamp
+                # Update last_active timestamp and clear logout timestamp
                 try:
                     admin_client.table('users').update({
-                        'last_active': datetime.utcnow().isoformat()
+                        'last_active': datetime.utcnow().isoformat(),
+                        'last_logout_at': None  # Clear logout timestamp on login
                     }).eq('id', auth_response.user.id).execute()
                 except Exception as update_error:
                     logger.error(f"Warning: Failed to update last_active timestamp: {update_error}")

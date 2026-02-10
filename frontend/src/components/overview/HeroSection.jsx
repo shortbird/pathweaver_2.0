@@ -34,7 +34,7 @@ const HeroSection = ({
   const rhythmConfig = rhythm ? RHYTHM_CONFIG[rhythm] : null;
 
   return (
-    <section className="bg-gradient-to-r from-optio-purple to-optio-pink text-white py-8 sm:py-12 px-6 rounded-2xl shadow-lg">
+    <section className="relative bg-gradient-to-r from-optio-purple to-optio-pink text-white py-8 sm:py-12 px-6 rounded-2xl shadow-lg">
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
           {/* Avatar Circle with Image or Initials */}
@@ -73,18 +73,6 @@ const HeroSection = ({
             )}
           </div>
 
-          {/* Edit Profile Button - hidden in parent view */}
-          {showEditButton && (
-            <button
-              onClick={onEditProfile}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white font-medium transition-colors min-h-[44px]"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-              Edit Profile
-            </button>
-          )}
         </div>
 
         {/* Quick Stats Row */}
@@ -119,20 +107,20 @@ const HeroSection = ({
             </div>
           </div>
         </div>
-
-        {/* Mobile Edit Profile Button - hidden in parent view */}
-        {showEditButton && (
-          <button
-            onClick={onEditProfile}
-            className="sm:hidden mt-6 w-full flex items-center justify-center gap-2 px-4 py-3 bg-white/20 hover:bg-white/30 rounded-lg text-white font-medium transition-colors min-h-[44px]"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
-            Edit Profile
-          </button>
-        )}
       </div>
+
+      {/* Edit Profile Button - positioned bottom right like View Full Portfolio */}
+      {showEditButton && (
+        <button
+          onClick={onEditProfile}
+          className="absolute bottom-4 right-4 flex items-center gap-2 px-3 py-2 bg-white/90 backdrop-blur-sm border border-white/20 text-gray-700 rounded-lg text-sm font-medium hover:bg-white hover:shadow-md transition-all min-h-[40px]"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+          </svg>
+          Edit Profile
+        </button>
+      )}
     </section>
   );
 };
