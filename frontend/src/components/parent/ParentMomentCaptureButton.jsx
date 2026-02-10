@@ -12,10 +12,10 @@ const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public
  * Matches the QuickCaptureButton styling from the student dashboard.
  */
 const ParentMomentCaptureButton = ({
-  children,
-  dependents,
-  selectedChildId,
-  onSuccess
+  children = [],
+  dependents = [],
+  selectedChildId = null,
+  onSuccess = null
 }) => {
   const [showModal, setShowModal] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -139,13 +139,6 @@ ParentMomentCaptureButton.propTypes = {
   })),
   selectedChildId: PropTypes.string,
   onSuccess: PropTypes.func
-};
-
-ParentMomentCaptureButton.defaultProps = {
-  children: [],
-  dependents: [],
-  selectedChildId: null,
-  onSuccess: null
 };
 
 export default ParentMomentCaptureButton;

@@ -100,7 +100,10 @@ export default function ObserverFeedPage() {
       }
     } catch (error) {
       console.error('Failed to fetch students:', error);
-      toast.error('Failed to load students');
+      // Don't show error toast if this is a fresh invitation - we'll retry
+      if (!wasFreshInvitationRef.current || retryCountRef.current >= 3) {
+        toast.error('Failed to load students');
+      }
     } finally {
       setLoading(false);
     }
@@ -409,7 +412,7 @@ export default function ObserverFeedPage() {
                 <FeedCard
                   key={item.id}
                   item={item}
-                  showStudentName={!selectedStudentId}
+                  showStudentName={true}
                 />
               ))}
 

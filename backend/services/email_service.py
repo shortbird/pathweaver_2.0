@@ -804,6 +804,44 @@ class EmailService(BaseService):
             }
         )
 
+    def send_observer_linked_notification(
+        self,
+        parent_email: str,
+        parent_name: str,
+        student_name: str,
+        observer_name: str,
+        observer_email: str
+    ) -> bool:
+        """
+        Send notification to parent when an observer links to their child's account.
+
+        Args:
+            parent_email: Parent's email address
+            parent_name: Parent's display name
+            student_name: Child's display name
+            observer_name: Observer's display name
+            observer_email: Observer's email address
+
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        # Get frontend URL for dashboard link
+        frontend_url = os.getenv('FRONTEND_URL', 'https://www.optioeducation.com')
+        dashboard_url = f"{frontend_url}/parent/dashboard"
+
+        return self.send_templated_email(
+            to_email=parent_email,
+            subject=f"New observer linked to {student_name}'s Optio account",
+            template_name='observer_linked_notification',
+            context={
+                'parent_name': parent_name,
+                'student_name': student_name,
+                'observer_name': observer_name,
+                'observer_email': observer_email,
+                'dashboard_url': dashboard_url
+            }
+        )
+
 
 # Create singleton instance
 email_service = EmailService()

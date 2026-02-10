@@ -1,25 +1,15 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { useNavigate } from 'react-router-dom';
-
-// Rhythm indicator colors and labels
-const RHYTHM_CONFIG = {
-  in_flow: { label: 'In Flow', color: 'bg-green-500', textColor: 'text-green-700', bgColor: 'bg-green-100' },
-  building: { label: 'Building', color: 'bg-yellow-500', textColor: 'text-yellow-700', bgColor: 'bg-yellow-100' },
-  resting: { label: 'Resting', color: 'bg-blue-500', textColor: 'text-blue-700', bgColor: 'bg-blue-100' }
-};
 
 const HeroSection = ({
   user,
   memberSince,
-  rhythm,
   totalXp,
   completedQuestsCount,
   completedTasksCount,
   onEditProfile,
   viewMode = 'student' // 'student' or 'parent'
 }) => {
-  const navigate = useNavigate();
   const showEditButton = viewMode !== 'parent' && onEditProfile;
 
   // Get user initials for avatar
@@ -29,9 +19,6 @@ const HeroSection = ({
   const formattedMemberSince = memberSince
     ? new Date(memberSince).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
     : null;
-
-  // Get rhythm config
-  const rhythmConfig = rhythm ? RHYTHM_CONFIG[rhythm] : null;
 
   return (
     <section className="relative bg-gradient-to-r from-optio-purple to-optio-pink text-white py-8 sm:py-12 px-6 rounded-2xl shadow-lg">
@@ -54,18 +41,9 @@ const HeroSection = ({
 
           {/* User Info */}
           <div className="flex-1 text-center sm:text-left">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                {user?.first_name} {user?.last_name}
-              </h1>
-              {/* Rhythm Indicator Badge */}
-              {rhythmConfig && (
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${rhythmConfig.bgColor} ${rhythmConfig.textColor}`}>
-                  <span className={`w-2 h-2 rounded-full ${rhythmConfig.color}`}></span>
-                  {rhythmConfig.label}
-                </span>
-              )}
-            </div>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              {user?.first_name} {user?.last_name}
+            </h1>
             {formattedMemberSince && (
               <p className="text-white/90 text-sm sm:text-base md:text-lg mt-1" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
                 Learning since {formattedMemberSince}
@@ -75,38 +53,40 @@ const HeroSection = ({
 
         </div>
 
-        {/* Quick Stats Row */}
-        <div className="mt-6 sm:mt-8 grid grid-cols-3 gap-4 sm:gap-6 max-w-lg mx-auto">
-          {/* Total XP */}
-          <div className="text-center">
-            <div className="text-2xl sm:text-3xl md:text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-              {totalXp?.toLocaleString() || 0}
+        {/* Quick Stats Row - hidden if no activity yet */}
+        {(totalXp > 0 || completedQuestsCount > 0 || completedTasksCount > 0) && (
+          <div className="mt-6 sm:mt-8 grid grid-cols-3 gap-4 sm:gap-6 max-w-lg mx-auto">
+            {/* Total XP */}
+            <div className="text-center">
+              <div className="text-2xl sm:text-3xl md:text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                {totalXp?.toLocaleString() || 0}
+              </div>
+              <div className="text-white/80 text-xs sm:text-sm uppercase tracking-wide mt-1">
+                Total XP
+              </div>
             </div>
-            <div className="text-white/80 text-xs sm:text-sm uppercase tracking-wide mt-1">
-              Total XP
-            </div>
-          </div>
 
-          {/* Quests Completed */}
-          <div className="text-center border-l border-white/20">
-            <div className="text-2xl sm:text-3xl md:text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-              {completedQuestsCount || 0}
+            {/* Quests Completed */}
+            <div className="text-center border-l border-white/20">
+              <div className="text-2xl sm:text-3xl md:text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                {completedQuestsCount || 0}
+              </div>
+              <div className="text-white/80 text-xs sm:text-sm uppercase tracking-wide mt-1">
+                Quests
+              </div>
             </div>
-            <div className="text-white/80 text-xs sm:text-sm uppercase tracking-wide mt-1">
-              Quests
-            </div>
-          </div>
 
-          {/* Tasks Completed */}
-          <div className="text-center border-l border-white/20">
-            <div className="text-2xl sm:text-3xl md:text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-              {completedTasksCount || 0}
-            </div>
-            <div className="text-white/80 text-xs sm:text-sm uppercase tracking-wide mt-1">
-              Completed Tasks
+            {/* Tasks Completed */}
+            <div className="text-center border-l border-white/20">
+              <div className="text-2xl sm:text-3xl md:text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                {completedTasksCount || 0}
+              </div>
+              <div className="text-white/80 text-xs sm:text-sm uppercase tracking-wide mt-1">
+                Completed Tasks
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Edit Profile Button - positioned bottom right like View Full Portfolio */}
@@ -132,7 +112,6 @@ HeroSection.propTypes = {
     avatar_url: PropTypes.string
   }),
   memberSince: PropTypes.string,
-  rhythm: PropTypes.oneOf(['in_flow', 'building', 'resting']),
   totalXp: PropTypes.number,
   completedQuestsCount: PropTypes.number,
   completedTasksCount: PropTypes.number,

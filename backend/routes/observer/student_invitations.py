@@ -132,30 +132,49 @@ def register_routes(bp):
     @validate_uuid_param('invitation_id')
     def cancel_observer_invitation(invitation_id):
         """
-        Student cancels pending invitation
+        Student or parent cancels pending invitation
 
         Args:
             invitation_id: UUID of invitation to cancel
 
         Returns:
             200: Invitation cancelled
-            404: Invitation not found or not owned by student
+            404: Invitation not found or not authorized
         """
         user_id = request.user_id
 
         try:
-            supabase = get_user_client()
+            supabase = get_supabase_admin_client()
 
-            # Verify invitation belongs to student and is pending
+            # Get the invitation first
             invitation = supabase.table('observer_invitations') \
-                .select('id, status') \
+                .select('id, status, student_id, invited_by_user_id, invited_by_role') \
                 .eq('id', invitation_id) \
-                .eq('student_id', user_id) \
                 .eq('status', 'pending') \
                 .execute()
 
             if not invitation.data:
                 return jsonify({'error': 'Invitation not found'}), 404
+
+            inv = invitation.data[0]
+
+            # Check authorization: user is the student OR the parent who created it
+            is_student = inv['student_id'] == user_id
+            is_parent_creator = inv.get('invited_by_user_id') == user_id and inv.get('invited_by_role') == 'parent'
+
+            # Also check if user is parent of the student (can cancel any invitation for their child)
+            is_parent_of_student = False
+            if not is_student and not is_parent_creator:
+                student = supabase.table('users') \
+                    .select('managed_by_parent_id') \
+                    .eq('id', inv['student_id']) \
+                    .single() \
+                    .execute()
+                if student.data and student.data.get('managed_by_parent_id') == user_id:
+                    is_parent_of_student = True
+
+            if not is_student and not is_parent_creator and not is_parent_of_student:
+                return jsonify({'error': 'Not authorized to cancel this invitation'}), 403
 
             # Delete invitation
             supabase.table('observer_invitations') \

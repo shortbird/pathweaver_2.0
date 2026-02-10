@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { ArrowRightIcon, ChatBubbleLeftIcon, ArrowRightOnRectangleIcon, ArrowLeftIcon, ArrowTopRightOnSquareIcon, HeartIcon, SparklesIcon, FireIcon } from '@heroicons/react/24/outline'
+import { ArrowRightIcon, ArrowRightOnRectangleIcon, ArrowLeftIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import EngagementCalendar from '../components/quest/EngagementCalendar'
 import SkillsRadarChart from '../components/diploma/SkillsRadarChart'
@@ -51,6 +51,11 @@ export default function ObserverWelcomePage() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const [siteSettings, setSiteSettings] = useState(null);
+
+  // Mark welcome as seen when leaving this page
+  const markWelcomeSeen = () => {
+    localStorage.setItem('observerWelcomeSeen', 'true');
+  };
 
   // Fetch site settings for logo
   useEffect(() => {
@@ -103,6 +108,7 @@ export default function ObserverWelcomePage() {
             <div className="flex items-center gap-2 sm:gap-3">
               <Link
                 to="/observer/feed"
+                onClick={markWelcomeSeen}
                 className="flex items-center gap-1 text-sm text-gray-600 hover:text-optio-purple transition-colors"
               >
                 <ArrowLeftIcon className="w-4 h-4" />
@@ -110,6 +116,7 @@ export default function ObserverWelcomePage() {
               </Link>
               <Link
                 to="/dashboard"
+                onClick={markWelcomeSeen}
                 className="hidden sm:flex items-center gap-1 text-sm bg-gradient-to-r from-optio-purple to-optio-pink text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity font-medium"
               >
                 <ArrowTopRightOnSquareIcon className="w-4 h-4" />
@@ -186,14 +193,14 @@ export default function ObserverWelcomePage() {
             <h3 className="text-sm sm:text-base font-semibold text-gray-800 mb-3">Growth Dimensions (Example)</h3>
 
             {/* Desktop: side-by-side layout, Mobile: stacked */}
-            <div className="flex flex-col md:flex-row md:items-center md:gap-6">
+            <div className="grid md:grid-cols-2 items-center gap-6">
               {/* Radar chart - clip to hide the stats grid below it */}
-              <div className="md:flex-shrink-0 overflow-hidden" style={{ maxHeight: '290px' }}>
+              <div className="overflow-hidden" style={{ maxHeight: '290px' }}>
                 <SkillsRadarChart skillsXP={exampleSkillsXP} compact={true} />
               </div>
 
               {/* Pillar information */}
-              <div className="text-xs sm:text-sm text-gray-600 space-y-3 mt-4 md:mt-0">
+              <div className="text-xs sm:text-sm text-gray-600 space-y-3">
                 <p className="font-medium text-gray-700">The five pillars of growth:</p>
                 <ul className="space-y-2">
                   <li><strong>Art</strong> - Creative expression, music, visual arts</li>
@@ -255,40 +262,28 @@ export default function ObserverWelcomePage() {
 
           <div className="grid grid-cols-2 gap-2 sm:gap-4">
             <div className="bg-purple-50 rounded-lg p-3 sm:p-4">
-              <div className="flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-2">
-                <ChatBubbleLeftIcon className="w-4 h-4 sm:w-5 sm:h-5 text-optio-purple" />
-                <h3 className="font-semibold text-gray-900 text-xs sm:text-base">Leave Comments</h3>
-              </div>
+              <h3 className="font-semibold text-gray-900 text-xs sm:text-base mb-1 sm:mb-2">Leave Comments</h3>
               <p className="text-gray-700 text-xs sm:text-sm">
                 Share encouraging words and celebrate their work
               </p>
             </div>
 
             <div className="bg-pink-50 rounded-lg p-3 sm:p-4">
-              <div className="flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-2">
-                <HeartIcon className="w-4 h-4 sm:w-5 sm:h-5 text-optio-pink" />
-                <h3 className="font-semibold text-gray-900 text-xs sm:text-base">React</h3>
-              </div>
+              <h3 className="font-semibold text-gray-900 text-xs sm:text-base mb-1 sm:mb-2">React</h3>
               <p className="text-gray-700 text-xs sm:text-sm">
                 Use emoji reactions to show you're following along
               </p>
             </div>
 
             <div className="bg-blue-50 rounded-lg p-3 sm:p-4">
-              <div className="flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-2">
-                <SparklesIcon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-                <h3 className="font-semibold text-gray-900 text-xs sm:text-base">View Feed</h3>
-              </div>
+              <h3 className="font-semibold text-gray-900 text-xs sm:text-base mb-1 sm:mb-2">View Feed</h3>
               <p className="text-gray-700 text-xs sm:text-sm">
                 See their recent completions and milestones
               </p>
             </div>
 
             <div className="bg-green-50 rounded-lg p-3 sm:p-4">
-              <div className="flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-2">
-                <FireIcon className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
-                <h3 className="font-semibold text-gray-900 text-xs sm:text-base">Stay Updated</h3>
-              </div>
+              <h3 className="font-semibold text-gray-900 text-xs sm:text-base mb-1 sm:mb-2">Stay Updated</h3>
               <p className="text-gray-700 text-xs sm:text-sm">
                 Get email digests of their progress
               </p>
@@ -300,6 +295,7 @@ export default function ObserverWelcomePage() {
         <div className="text-center">
           <Link
             to="/observer/feed"
+            onClick={markWelcomeSeen}
             className="inline-flex items-center gap-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold py-3 sm:py-4 px-6 sm:px-8 rounded-xl hover:shadow-lg transition-all duration-200 text-sm sm:text-base"
           >
             View Student Feed

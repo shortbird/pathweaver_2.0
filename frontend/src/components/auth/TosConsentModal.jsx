@@ -15,13 +15,15 @@ import { DocumentTextIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
  * @param {function} onAccept - Accept handler (user consents)
  * @param {boolean} loading - Whether the request is in progress
  * @param {string} userName - User's name from Google (optional)
+ * @param {boolean} isObserverSignup - Whether this is an observer invitation signup
  */
 const TosConsentModal = ({
   isOpen,
   onClose,
   onAccept,
   loading = false,
-  userName = ''
+  userName = '',
+  isObserverSignup = false
 }) => {
   const [tosChecked, setTosChecked] = useState(false);
   const [privacyChecked, setPrivacyChecked] = useState(false);
@@ -74,8 +76,10 @@ const TosConsentModal = ({
         {/* Introduction */}
         <div className="text-gray-600">
           <p>
-            Before you can start your learning journey, please review and accept
-            our Terms of Service and Privacy Policy.
+            {isObserverSignup
+              ? "Before you can start following a student's learning journey, please review and accept our Terms of Service and Privacy Policy."
+              : 'Before you can start your learning journey, please review and accept our Terms of Service and Privacy Policy.'
+            }
           </p>
         </div>
 
@@ -86,8 +90,10 @@ const TosConsentModal = ({
             <div>
               <h4 className="font-medium text-gray-900">Your Privacy Matters</h4>
               <p className="text-gray-600 text-sm mt-1">
-                Optio is designed to help you track your educational journey.
-                Your data is protected and you control what you share.
+                {isObserverSignup
+                  ? "As an observer, you'll be able to view and encourage a student's progress. Your data is protected and student privacy is our priority."
+                  : 'Optio is designed to help you track your educational journey. Your data is protected and you control what you share.'
+                }
               </p>
             </div>
           </div>

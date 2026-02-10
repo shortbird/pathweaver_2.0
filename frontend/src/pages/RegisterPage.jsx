@@ -162,6 +162,7 @@ const RegisterPage = () => {
             onError={(error) => setGoogleError(error)}
             disabled={loading}
             promoCode={promoCodeStatus.valid ? promoCode : null}
+            invitationCode={invitationCode}
           />
           {promoCodeStatus.valid && (
             <p className="mt-2 text-sm text-center text-green-600">

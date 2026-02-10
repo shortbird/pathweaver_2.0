@@ -20,16 +20,16 @@ bp = Blueprint('parent_dashboard_overview', __name__, url_prefix='/api/parent')
 
 def verify_parent_access(supabase, parent_user_id, student_user_id):
     """
-    Helper function to verify parent has active access to student.
+    Helper function to verify user has access to view student data.
     IMPORTANT: Accepts supabase client to avoid connection exhaustion.
 
     Access is granted if:
     1. User is superadmin (universal access)
-    2. User has role='parent' or org_role='parent'
-    3. User has an approved link in parent_student_links to this student
-    4. User manages this student as a dependent (managed_by_parent_id)
+    2. User has an approved link in parent_student_links to this student
+    3. User manages this student as a dependent (managed_by_parent_id)
+    4. User has an observer link in observer_student_links to this student
 
-    This allows org_admins/advisors who are also parents to access their children.
+    This allows parents, observers, and admins to access linked students.
     Optimized to minimize database queries.
     """
     try:
@@ -79,20 +79,30 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
             if is_dependent and managed_by == parent_user_id:
                 return True
 
+        # Check for observer link to this student
+        observer_link = supabase.table('observer_student_links') \
+            .select('id') \
+            .eq('observer_id', parent_user_id) \
+            .eq('student_id', student_user_id) \
+            .execute()
+
+        if observer_link.data and len(observer_link.data) > 0:
+            return True
+
         # If user has parent role but no relationship to this student, deny access
         # (They can only access their own children, not all children)
         has_parent_role = user_role == 'parent' or user_org_role == 'parent'
         if has_parent_role:
             raise AuthorizationError("You do not have access to this student's data")
 
-        # No parent relationship found
-        raise AuthorizationError("Only parent accounts or users with linked children can access this endpoint")
+        # No relationship found
+        raise AuthorizationError("You do not have access to this student's data")
 
     except AuthorizationError:
         raise
     except Exception as e:
         logger.error(f"Error in verify_parent_access: {str(e)}")
-        raise AuthorizationError("Failed to verify parent access")
+        raise AuthorizationError("Failed to verify access")
 
 
 @bp.route('/dashboard/<student_id>', methods=['GET'])

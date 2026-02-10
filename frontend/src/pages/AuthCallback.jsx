@@ -135,15 +135,29 @@ export default function AuthCallback() {
         setStatus('success')
 
         // Determine redirect path based on user role
-        const user = result.user
-        let redirectPath = user?.role === 'parent' ? '/parent/dashboard'
-          : user?.role === 'observer' ? '/observer/feed'
-          : '/dashboard'
-
-        // Add fresh param if invitation was just accepted (for observer feed retry logic)
-        if (invitationAccepted && redirectPath.includes('observer')) {
-          redirectPath += '?fresh=1'
+        // If invitation was just accepted, user is now an observer regardless of what the response said
+        let redirectPath
+        if (invitationAccepted) {
+          // First-time observer - send to welcome page
+          redirectPath = '/observer/welcome'
+        } else {
+          const user = result.user
+          // Check if observer has seen welcome page
+          const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
+          if (user?.role === 'observer' && !hasSeenWelcome) {
+            redirectPath = '/observer/welcome'
+          } else {
+            redirectPath = user?.role === 'parent' ? '/parent/dashboard'
+              : user?.role === 'observer' ? '/observer/feed'
+              : '/dashboard'
+          }
         }
+
+        // Signal to PrivateRoute that auth just completed (prevents flash to login)
+        sessionStorage.setItem('authJustCompleted', Date.now().toString())
+
+        // Small delay to ensure IndexedDB token writes are persisted before navigation
+        await new Promise(resolve => setTimeout(resolve, 100))
 
         // Force full page reload to ensure AuthContext is updated
         window.location.href = redirectPath
@@ -182,22 +196,36 @@ export default function AuthCallback() {
 
       if (result.success) {
         setShowTosModal(false)
+        // Set status to success immediately to avoid showing "Almost There" during invitation acceptance
+        setStatus('success')
 
         // Handle any pending observer invitation
         const invitationAccepted = await handlePendingObserverInvitation()
 
-        setStatus('success')
-
         // Determine redirect path based on user role
-        const user = result.user
-        let redirectPath = user?.role === 'parent' ? '/parent/dashboard'
-          : user?.role === 'observer' ? '/observer/feed'
-          : '/dashboard'
-
-        // Add fresh param if invitation was just accepted (for observer feed retry logic)
-        if (invitationAccepted && redirectPath.includes('observer')) {
-          redirectPath += '?fresh=1'
+        // If invitation was just accepted, user is now an observer regardless of what TOS response said
+        let redirectPath
+        if (invitationAccepted) {
+          // First-time observer - send to welcome page
+          redirectPath = '/observer/welcome'
+        } else {
+          const user = result.user
+          // Check if observer has seen welcome page
+          const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
+          if (user?.role === 'observer' && !hasSeenWelcome) {
+            redirectPath = '/observer/welcome'
+          } else {
+            redirectPath = user?.role === 'parent' ? '/parent/dashboard'
+              : user?.role === 'observer' ? '/observer/feed'
+              : '/dashboard'
+          }
         }
+
+        // Signal to PrivateRoute that auth just completed (prevents flash to login)
+        sessionStorage.setItem('authJustCompleted', Date.now().toString())
+
+        // Small delay to ensure IndexedDB token writes are persisted before navigation
+        await new Promise(resolve => setTimeout(resolve, 100))
 
         // Force full page reload to ensure AuthContext is updated
         window.location.href = redirectPath
@@ -350,6 +378,7 @@ export default function AuthCallback() {
         onAccept={handleTosAccept}
         loading={tosLoading}
         userName={tosUserName}
+        isObserverSignup={!!localStorage.getItem('pendingObserverInvitation')}
       />
     </>
   )
