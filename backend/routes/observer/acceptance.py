@@ -18,6 +18,98 @@ logger = logging.getLogger(__name__)
 
 def register_routes(bp):
     """Register routes on the blueprint."""
+
+    @bp.route('/api/observers/invitation/<invitation_code>/preview', methods=['GET'])
+    @rate_limit(limit=20, per=60)  # 20 requests per minute
+    def preview_observer_invitation(invitation_code):
+        """
+        Preview invitation details without accepting (public endpoint).
+
+        Used by the accept invitation page to show personalized info like the student's name.
+
+        Args:
+            invitation_code: Invitation code from URL
+
+        Returns:
+            200: Invitation details (student name, valid status)
+            404: Invitation not found
+            410: Invitation expired
+        """
+        try:
+            supabase = get_supabase_admin_client()
+
+            # Find invitation
+            invitation = supabase.table('observer_invitations') \
+                .select('id, student_id, expires_at, status, invited_by_user_id') \
+                .eq('invitation_code', invitation_code) \
+                .execute()
+
+            if not invitation.data:
+                return jsonify({'error': 'Invitation not found', 'valid': False}), 404
+
+            inv = invitation.data[0]
+
+            # Check if invitation was explicitly expired/revoked
+            if inv.get('status') == 'expired':
+                return jsonify({'error': 'Invitation has been revoked', 'valid': False}), 410
+
+            # Check expiration
+            expires_at = datetime.fromisoformat(inv['expires_at'].replace('Z', '+00:00'))
+            if datetime.utcnow() > expires_at.replace(tzinfo=None):
+                return jsonify({'error': 'Invitation expired', 'valid': False}), 410
+
+            # Get student names for personalization
+            # Check for multi-child invitation first
+            invitation_students = supabase.table('observer_invitation_students') \
+                .select('student_id') \
+                .eq('invitation_id', inv['id']) \
+                .execute()
+
+            student_ids = []
+            if invitation_students.data:
+                student_ids = [s['student_id'] for s in invitation_students.data]
+            elif inv.get('student_id'):
+                student_ids = [inv['student_id']]
+
+            # Get student details
+            student_names = []
+            student_avatar = None  # Only show avatar for single-student invitations
+            if student_ids:
+                students = supabase.table('users') \
+                    .select('first_name, display_name, avatar_url') \
+                    .in_('id', student_ids) \
+                    .execute()
+
+                for student in students.data:
+                    name = student.get('first_name') or student.get('display_name') or 'A student'
+                    student_names.append(name)
+
+                # For single-student invitations, include the avatar
+                if len(students.data) == 1:
+                    student_avatar = students.data[0].get('avatar_url')
+
+            # Format display text
+            if len(student_names) == 0:
+                student_display = "A student"
+            elif len(student_names) == 1:
+                student_display = student_names[0]
+            elif len(student_names) == 2:
+                student_display = f"{student_names[0]} and {student_names[1]}"
+            else:
+                student_display = f"{student_names[0]}, {student_names[1]}, and {len(student_names) - 2} more"
+
+            return jsonify({
+                'valid': True,
+                'student_name': student_display,
+                'student_avatar': student_avatar,
+                'student_count': len(student_names),
+                'is_family_invitation': len(student_names) > 1
+            }), 200
+
+        except Exception as e:
+            logger.error(f"Failed to preview invitation: {str(e)}", exc_info=True)
+            return jsonify({'error': 'Failed to load invitation', 'valid': False}), 500
+
     @bp.route('/api/observers/accept/<invitation_code>', methods=['POST'])
     @require_auth
     @rate_limit(limit=5, per=300)  # 5 attempts per 5 minutes
