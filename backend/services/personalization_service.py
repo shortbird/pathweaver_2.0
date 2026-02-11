@@ -664,13 +664,17 @@ Generate 6-10 tasks that:
 8. Follow the selected approach: {approach_desc}
 
 CRITICAL TASK WRITING GUIDELINES:
-- Title: Use action-oriented verbs (Earn, Master, Complete, Build, Create, Write, Draw, Design, Research, etc.)
-  Examples: "Build a Historical Timeline", "Master Algebraic Equations", "Create a Science Poster"
-- Title should be ONE simple idea (5-8 words max)
-- Description: Short and focused (1-2 sentences) on HOW this task could be completed in the context of the school subjects
-  Focus on completion methods, not motivational language
-  Example: "Create a visual timeline showing major events. Include dates, descriptions, and illustrations for each event."
-- Keep language simple, direct, and actionable - no flowery or overly enthusiastic phrases
+- READING LEVEL: Write for a 5th-6th grade reading level. Use common, everyday words that any student can understand.
+  BAD: "Analyze the socioeconomic factors influencing historical migration patterns"
+  GOOD: "Make a map showing why people moved to new places in history"
+- Title: Use simple action verbs (Make, Build, Create, Write, Draw, Learn, Try, Show, Find, etc.)
+  Examples: "Make a Timeline of Events", "Learn Basic Math Facts", "Create a Science Poster"
+- Title should be ONE simple idea (5-8 words max) using words a 10-year-old would know
+- Description: 1-2 short sentences explaining what to do. Use simple words.
+  BAD: "Synthesize research from multiple sources to formulate a comprehensive analysis"
+  GOOD: "Look up information from 2-3 websites. Write a short summary of what you learned."
+- The TASK can be challenging, but the WORDS describing it should be simple
+- Avoid jargon, academic language, and long words when shorter ones work
 
 IMPORTANT: Students should CHOOSE these tasks, not just agree to AI suggestions. Make tasks feel like genuine options, not prescriptive requirements.
 

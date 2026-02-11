@@ -280,19 +280,25 @@ Return ONLY valid JSON (no markdown code blocks):
             Quest Title: {title}
             Quest Description: {description}
 
+            READING LEVEL: Write for 5th-6th grade reading level. Use common everyday words any student can understand.
+
             For each task, provide:
-            - title: Action-oriented task name using verbs like Earn, Master, Complete, Build, Create, Write, Draw, Design, Research (5-8 words max, ONE simple idea)
-            - description: Short and focused (2-3 sentences) offering different IDEAS and APPROACHES for how the student might complete this task. Frame as suggestions, not directions. Example: "You could research online sources, interview someone with experience, or explore hands-on experiments. Consider what format best fits your learning style."
+            - title: Simple action verbs like Make, Build, Create, Write, Draw, Learn, Try, Show, Find (5-8 words max, ONE simple idea)
+              GOOD: "Make a Timeline of Events", "Write About Your Favorite Topic"
+              BAD: "Synthesize Historical Migration Patterns", "Analyze Socioeconomic Factors"
+            - description: Short (1-2 sentences) using simple words. Offer ideas for how to do it.
+              GOOD: "Pick a topic you like and write a short report. You could use websites, books, or talk to someone who knows about it."
+              BAD: "Synthesize research from multiple sources to formulate a comprehensive analysis of the subject matter."
             - pillar: One of [{', '.join(self.valid_pillars)}]
             - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
             - xp_value: XP points (50-300 based on complexity)
-            - evidence_prompt: Suggested evidence options - offer multiple ways students could demonstrate learning (written work, video, presentation, model, website, etc.)
+            - evidence_prompt: Simple options for showing work (writing, video, poster, project, etc.)
 
             Tasks should:
             - Build naturally on each other
             - Cover different skill areas when possible
-            - Use simple, direct, actionable language
-            - Avoid flowery or overly enthusiastic phrases
+            - Use simple words a 10-year-old would know
+            - The TASK can be challenging, but the WORDS should be simple
 
             Evidence prompts should suggest multiple ways students could demonstrate learning:
             "Could be demonstrated through a written reflection, video presentation, creative project, model, website, or other format that shows your understanding"
@@ -410,20 +416,26 @@ Return ONLY valid JSON (no markdown code blocks):
         Lesson Content:
         {lesson_snippet}
 
+        READING LEVEL: Write for 5th-6th grade reading level. Use common everyday words any student can understand.
+
         For each task, provide:
-        - title: Action-oriented task name using verbs like Learn, Practice, Research, Create, Apply, Explore (5-8 words max)
-        - description: Short and focused (2-3 sentences) offering different IDEAS and APPROACHES for how the student might complete this task. Frame as suggestions, not directions. Example: "You could create a visual diagram, write a short explanation, or build a simple model. Consider connecting this to real-world examples you find interesting."
+        - title: Simple action verbs like Learn, Try, Make, Create, Draw, Write, Show (5-8 words max)
+          GOOD: "Make a Drawing of the Main Idea", "Write What You Learned"
+          BAD: "Synthesize Conceptual Understanding", "Demonstrate Mastery of Fundamentals"
+        - description: Short (1-2 sentences) using simple words. Give ideas for how to do it.
+          GOOD: "Draw a picture or diagram that shows the main idea. Add labels to explain the parts."
+          BAD: "Create a comprehensive visual representation synthesizing the fundamental concepts."
         - pillar: One of [{', '.join(self.valid_pillars)}] that best matches the lesson content
         - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
         - xp_value: XP points (50-300 based on complexity and time required)
-        - evidence_prompt: How students demonstrate completion - offer multiple formats (written work, video, presentation, project, etc.)
+        - evidence_prompt: Simple options for showing work (writing, video, poster, project, etc.)
 
         Tasks should:
         - Directly relate to concepts in the lesson content
-        - Progress from foundational to advanced understanding
-        - Be achievable by students working independently
-        - Use simple, direct, actionable language
-        - Avoid motivational hype or flowery language
+        - Progress from easy to harder
+        - Be doable by students working on their own
+        - Use simple words a 10-year-old would know
+        - The TASK can be challenging, but the WORDS should be simple
 
         Evidence prompts should be flexible:
         "Demonstrate your understanding through a written summary, video explanation, visual diagram, practical example, or other format of your choice"
@@ -602,25 +614,29 @@ Return ONLY valid JSON (no markdown code blocks):
 
 {CORE_PHILOSOPHY}
 
+        READING LEVEL: Write for 5th-6th grade reading level. Use common everyday words any student can understand.
+
         Generate a quest with:
-        1. title: Simple, clear quest name (e.g. "Build Your Own Solar System", "Create a Family Recipe Book", "Start a Small Business")
-        2. big_idea: Brief 2-3 sentence description explaining what students will create and why it matters
+        1. title: Simple quest name using words a 10-year-old would know (e.g. "Build Your Own Solar System", "Make a Family Recipe Book", "Start a Small Business")
+        2. big_idea: Brief 2-3 sentences explaining what students will make or do
         3. tasks: Array of 4-5 tasks, each with:
-           - title: Clear task name
-           - description: Simple framework (50-100 words) - provide direction without being prescriptive
+           - title: Simple action words like Make, Build, Create, Write, Draw, Learn, Try (5-8 words max)
+             GOOD: "Make a Plan for Your Project"
+             BAD: "Formulate a Comprehensive Strategy"
+           - description: Short (1-2 sentences) using simple words. Give direction without being bossy.
+             GOOD: "Think of what you want to make. Write down your ideas and pick your favorite."
+             BAD: "Synthesize your conceptual understanding to formulate a comprehensive project plan."
            - pillar: One of [{', '.join(self.valid_pillars)}]
            - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
-           - xp_value: Points 50-300 based on complexity
-           - evidence_prompt: Suggested evidence options - offer multiple ways students could demonstrate learning (written work, video, presentation, model, website, etc.)
+           - xp_value: Points 50-300 based on how hard it is
+           - evidence_prompt: Simple options for showing work (writing, video, poster, photos, etc.)
            - order_index: Sequential number starting from 1
 
         Guidelines:
-        - Use simple, direct language
-        - Focus on what students will create or accomplish
-        - Tasks should build naturally on each other
-        - Avoid flowery or overly enthusiastic language
+        - Use simple words a 10-year-old would know
+        - The TASK can be challenging, but the WORDS should be simple
+        - Tasks should build on each other
         - Total XP should be 400-1200 points
-        - Evidence prompts should suggest multiple options: "Show you completed this task by writing, video, presentation, model, website, or another creative format"
 
         Return as valid JSON with exact field names shown above.
         """
@@ -988,22 +1004,24 @@ Return ONLY valid JSON (no markdown code blocks):
         - Total approximately {target_xp} XP across all tasks
         - Include 4-5 tasks that build on each other
 
+        READING LEVEL: Write for 5th-6th grade reading level. Use common everyday words any student can understand.
+
         Generate a quest with:
-        1. title: Simple, clear quest name related to {badge_name}
-        2. big_idea: 2-3 sentences explaining what students will create/accomplish
+        1. title: Simple quest name related to {badge_name} using words a 10-year-old would know
+        2. big_idea: 2-3 sentences explaining what students will make or do
         3. tasks: Array of 4-5 tasks, each with:
-           - title: Clear task name
-           - description: Simple framework (50-100 words)
+           - title: Simple action words like Make, Build, Create, Write, Draw, Learn, Try (5-8 words max)
+           - description: Short (1-2 sentences) using simple words
            - pillar: Primary should be {pillar_primary}, but include variety
            - school_subjects: Relevant subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
-           - xp_value: Points 50-300 based on complexity
-           - evidence_prompt: Multiple evidence options
+           - xp_value: Points 50-300 based on how hard it is
+           - evidence_prompt: Simple options for showing work
            - order_index: Sequential number starting from 1
 
         Guidelines:
         - Align with badge identity: "{identity_statement}"
-        - Use simple, direct language
-        - Focus on process and growth (not outcomes)
+        - Use words a 10-year-old would understand
+        - The TASK can be challenging, but the WORDS should be simple
         - Tasks should feel meaningful and creative
         - Total XP around {target_xp} points
 
@@ -1143,13 +1161,16 @@ About: {quest_description}
 Create 4 different "starter paths" for this quest. Each path is a different way a student might approach it based on their interests.
 
 RULES:
-- Use simple, everyday words (8th grade reading level)
+- Use simple, everyday words (5th-6th grade reading level)
 - Each path needs a short name (1-3 words) and 3-4 starter tasks
 - Tasks should be specific and doable
-- Each task needs: title (action verb + what), short description (1 sentence), pillar, and XP (50-150)
+- Each task needs: title (simple action verb + what), short description (1 sentence using simple words), pillar, and XP (50-150)
 - Paths should feel genuinely different - not just renamed versions of each other
 - Focus on the doing, not the outcome
 - IMPORTANT: Mix different pillars within each path (don't use the same pillar for all tasks in a path)
+- Use words a 10-year-old would understand
+- GOOD title: "Draw a Picture of Your Idea"
+- BAD title: "Visualize Your Conceptual Framework"
 
 PILLARS: {pillar_list}
 - stem: math, science, technology, logic, data

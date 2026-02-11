@@ -436,22 +436,30 @@ Assign XP based on effort and complexity:
 - 150-200 XP: Substantial tasks (1-2 hours), significant creation or challenge
 
 =============================================================================
-TASK NAMING
+TASK NAMING AND LANGUAGE (5th-6th GRADE READING LEVEL)
 =============================================================================
 
-Use action verbs that show what they'll DO:
-- Create, Build, Design, Write, Record, Draw, Make, Construct, Develop, etc.
+Use simple action verbs that show what they'll DO:
+- Make, Build, Draw, Write, Record, Create, Try, etc.
 
-BAD task names:
-- "Learn about color theory" (passive)
-- "Understand the basics" (no outcome)
-- "Read about techniques" (consumption, not creation)
+The TASK can be challenging, but the WORDS should be simple enough for a 10-year-old to understand.
 
-GOOD task names:
-- "Create a color palette for your project"
-- "Build a simple prototype using household materials"
-- "Record a 2-minute explanation video"
-- "Design three logo options"
+BAD task names (too complex or passive):
+- "Synthesize a comprehensive color palette" -> "Pick colors for your project"
+- "Demonstrate understanding of techniques" -> "Show what you learned"
+- "Analyze and evaluate your prototype" -> "Test your project and find problems"
+
+GOOD task names (simple words, clear action):
+- "Pick colors for your project"
+- "Build a quick test version with stuff from home"
+- "Record a 2-minute video explaining your idea"
+- "Draw three different logo ideas"
+
+BAD descriptions:
+- "Synthesize your research to formulate a comprehensive design strategy"
+
+GOOD descriptions:
+- "Look at what you learned and use it to plan your design. Write down your ideas."
 
 =============================================================================
 RETURN FORMAT

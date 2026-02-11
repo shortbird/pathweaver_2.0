@@ -116,27 +116,31 @@ Generate exactly {count} diverse sample tasks that:
 
 {PILLAR_DEFINITIONS}
 
-TASK TITLE EXAMPLES (concise, clear, 3-8 words):
-- "Explore [concept] Through Your Favorite Hobby"
-- "Create [artifact] That Connects to Your Life"
-- "Discover Patterns in [topic] Around You"
-- "Experiment with [skill] in Nature"
+READING LEVEL: Write for 5th-6th grade reading level. Use common everyday words any student can understand.
 
-TASK DESCRIPTION EXAMPLES (2-3 sentences, process-focused, no exclamation points):
-- "Dive into how [concept] appears in your favorite sport or hobby. Document what you discover through photos, videos, or drawings."
-- "Create something unique that connects [topic] to what matters to you. Let your curiosity guide the process and see what connections emerge."
-- "Observe [subject] in your daily routine for a week. Notice patterns, changes, and surprises as you pay closer attention."
+TASK TITLE EXAMPLES (simple words, 3-8 words):
+- "Find [topic] in Your Favorite Hobby"
+- "Make Something That Shows [concept]"
+- "Look for Patterns in [topic] Around You"
+- "Try [skill] Outside"
 
-IMPORTANT - TONE RULES:
+TASK DESCRIPTION EXAMPLES (1-2 sentences, simple words, no exclamation points):
+- "Look for how [concept] shows up in your favorite sport or hobby. Take photos or videos of what you find."
+- "Make something that connects [topic] to your life. See what ideas come to you as you work."
+- "Watch for [subject] in your daily life for a week. Write down what you notice."
+
+IMPORTANT - WRITING RULES:
+- Use simple words a 10-year-old would understand
 - NO exclamation points
-- NO "You're becoming..." or similar motivational phrases
-- Focus on WHAT they will do, not how they will feel
-- Let the activity speak for itself without hype
-- Simple, direct, inviting language
+- NO "You're becoming..." or similar phrases
+- Focus on WHAT they will do
+- The TASK can be challenging, but the WORDS should be simple
+- BAD: "Synthesize your observations" → GOOD: "Write about what you noticed"
+- BAD: "Document your discoveries" → GOOD: "Take photos or notes"
 
 For each task, provide:
-- title: Concise, clear (3-8 words)
-- description: 2-3 sentences, process-focused, specific but flexible
+- title: Simple words (3-8 words)
+- description: 1-2 sentences using simple words
 - pillar: Must be one of: "stem", "wellness", "communication", "civics", "art"
 - xp_value: Integer between 50-200 (most should be 100-150, complex tasks can be 150-200)
 
