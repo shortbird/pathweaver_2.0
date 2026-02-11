@@ -148,7 +148,7 @@ export default function ObserverWelcomePage() {
             Welcome to Optio!
           </h1>
           <p className="text-base sm:text-xl text-gray-600 max-w-2xl mx-auto">
-            You're now an Observer. Here's how you can support and celebrate the student's learning journey.
+            You're now an observer. Here's how you can support and celebrate the student's learning journey.
           </p>
         </div>
 
@@ -221,7 +221,7 @@ export default function ObserverWelcomePage() {
         <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
           <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">Your Important Role</h2>
           <p className="text-sm sm:text-base text-gray-700 leading-relaxed mb-4 sm:mb-6">
-            As an Observer, you play a vital role in encouraging the student's learning. Your support and celebration
+            As an observer, you play a vital role in encouraging the student's learning. Your support and celebration
             of their efforts - not just outcomes - helps reinforce the process-focused mindset.
           </p>
 
