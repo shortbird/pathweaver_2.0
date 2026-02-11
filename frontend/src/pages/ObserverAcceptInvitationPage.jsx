@@ -9,16 +9,69 @@ export default function ObserverAcceptInvitationPage() {
   const { invitationCode } = useParams()
   const { currentUser } = useAuth()
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [invitationValid, setInvitationValid] = useState(null)
   const [accepting, setAccepting] = useState(false)
+  const [isVisible, setIsVisible] = useState(false)
+  const [studentName, setStudentName] = useState(null)
+  const [studentAvatar, setStudentAvatar] = useState(null)
+  const [invitationError, setInvitationError] = useState(null)
 
+  // Fetch invitation details for personalization
   useEffect(() => {
-    // If user is already logged in, auto-accept the invitation
-    if (currentUser && invitationCode) {
+    const fetchInvitationDetails = async () => {
+      if (!invitationCode) {
+        setLoading(false)
+        setInvitationValid(false)
+        return
+      }
+
+      try {
+        const response = await api.get(`/api/observers/invitation/${invitationCode}/preview`)
+        if (response.data.valid) {
+          setInvitationValid(true)
+          setStudentName(response.data.student_name)
+          setStudentAvatar(response.data.student_avatar)
+        } else {
+          setInvitationValid(false)
+          // Handle error - could be a string or an object with a message property
+          const errorData = response.data.error
+          const errorMessage = typeof errorData === 'string'
+            ? errorData
+            : (errorData?.message || 'Invalid invitation')
+          setInvitationError(errorMessage)
+        }
+      } catch (error) {
+        console.error('Failed to fetch invitation details:', error)
+        setInvitationValid(false)
+        // Handle error - could be a string or an object with a message property
+        const errorData = error.response?.data?.error
+        const errorMessage = typeof errorData === 'string'
+          ? errorData
+          : (errorData?.message || error.response?.data?.message || 'Unable to load invitation')
+        setInvitationError(errorMessage)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchInvitationDetails()
+  }, [invitationCode])
+
+  // Trigger fade-in animation after loading
+  useEffect(() => {
+    if (!loading) {
+      const timer = setTimeout(() => setIsVisible(true), 50)
+      return () => clearTimeout(timer)
+    }
+  }, [loading])
+
+  // If user is already logged in and invitation is valid, auto-accept
+  useEffect(() => {
+    if (currentUser && invitationCode && invitationValid === true) {
       handleAutoAccept()
     }
-  }, [currentUser, invitationCode])
+  }, [currentUser, invitationCode, invitationValid])
 
   const handleAutoAccept = async () => {
     setAccepting(true)
@@ -61,45 +114,109 @@ export default function ObserverAcceptInvitationPage() {
     }
   }
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-optio-purple mx-auto mb-4" />
+          <p className="text-gray-600">Loading invitation...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Invalid invitation state
+  if (invitationValid === false) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+          <img
+            src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png"
+            alt="Optio Education"
+            className="h-10 mx-auto mb-6"
+          />
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Invitation Not Available</h2>
+          <p className="text-gray-600 mb-6">
+            {invitationError || 'This invitation link is no longer valid. It may have expired or been revoked.'}
+          </p>
+          <p className="text-sm text-gray-500">
+            Please ask the student or their parent to send you a new invitation link.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Accepting state (logged in user)
   if (currentUser && accepting) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-optio-purple mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Accepting Invitation...</h2>
-          <p className="text-gray-600">Linking your account to the student</p>
+          <p className="text-gray-600">Linking your account to {studentName || 'the student'}</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center p-4 sm:p-6">
+      <div
+        className={`max-w-2xl w-full transition-all duration-500 ease-out ${
+          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        }`}
+      >
+        {/* Logo above card */}
+        <div className="text-center mb-6">
+          <img
+            src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png"
+            alt="Optio Education"
+            className="h-10 sm:h-12 mx-auto"
+          />
+        </div>
+
         {/* Main Card */}
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-8 text-white text-center">
-            <h1 className="text-3xl font-bold mb-2">You've Been Invited!</h1>
-            <p className="text-purple-100 text-lg">
-              A student has invited you to follow their learning journey on Optio
-            </p>
+          <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 sm:p-8 text-white text-center">
+            {studentAvatar && (
+              <div className="mb-6">
+                <div className="relative inline-block">
+                  <img
+                    src={studentAvatar}
+                    alt={studentName || 'Student'}
+                    className="w-36 h-36 sm:w-44 sm:h-44 rounded-full mx-auto border-4 border-white object-cover shadow-2xl"
+                  />
+                  <div className="absolute inset-0 rounded-full ring-4 ring-white/20 ring-offset-4 ring-offset-transparent"></div>
+                </div>
+              </div>
+            )}
+            <h1 className="text-2xl sm:text-3xl font-bold">
+              You've been invited to cheer on {studentName || 'a student'}.
+            </h1>
           </div>
 
           {/* Content */}
-          <div className="p-8">
+          <div className="p-6 sm:p-8">
+            {/* What is Optio - Improved copy */}
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">What is Optio?</h2>
-              <p className="text-gray-700 leading-relaxed mb-4">
-                Optio is a learning platform where students explore their interests through self-directed quests,
-                build real-world skills, and create a personalized portfolio. We believe that{' '}
-                <strong className="text-optio-purple">the process is the goal</strong> - focusing on curiosity,
-                effort, and growth rather than grades or test scores.
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-3">Stay Connected to Learning</h2>
+              <p className="text-gray-700 leading-relaxed">
+                Optio helps students explore their interests through hands-on projects and build real-world skills.
+                As an observer, you'll have a window into their learning journey - celebrating their growth and progress along the way.
               </p>
             </div>
 
+            {/* Observer capabilities */}
             <div className="mb-8">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">As an Observer, you'll be able to:</h3>
+              <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">As an observer, you'll be able to:</h3>
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
                   <CheckCircleIcon className="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" />
@@ -155,7 +272,7 @@ export default function ObserverAcceptInvitationPage() {
                       to={`/register?invitation=${invitationCode}`}
                       className="block w-full bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold py-4 px-6 rounded-xl hover:shadow-lg transition-all duration-200 text-center"
                     >
-                      Create Observer Account
+                      Create observer account
                     </Link>
                     <Link
                       to={`/login?invitation=${invitationCode}`}
