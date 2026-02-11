@@ -27,9 +27,6 @@ const EvidenceReportBuilder = () => {
   const [description, setDescription] = useState('');
   const [selectedQuestIds, setSelectedQuestIds] = useState([]);
   const [selectedCourseIds, setSelectedCourseIds] = useState([]);
-  const [includeLearningEvents, setIncludeLearningEvents] = useState(false);
-  const [includeXpSummary, setIncludeXpSummary] = useState(true);
-  const [includeSkillsBreakdown, setIncludeSkillsBreakdown] = useState(true);
 
   // UI state
   const [isLoading, setIsLoading] = useState(true);
@@ -59,9 +56,6 @@ const EvidenceReportBuilder = () => {
           setDescription(report.description || '');
           setSelectedQuestIds(report.included_quest_ids || []);
           setSelectedCourseIds(report.included_course_ids || []);
-          setIncludeLearningEvents(report.include_learning_events || false);
-          setIncludeXpSummary(report.include_xp_summary !== false);
-          setIncludeSkillsBreakdown(report.include_skills_breakdown !== false);
         }
       } catch (error) {
         logger.error('Error fetching data:', error);
@@ -116,10 +110,7 @@ const EvidenceReportBuilder = () => {
         title,
         description,
         included_quest_ids: selectedQuestIds,
-        included_course_ids: selectedCourseIds,
-        include_learning_events: includeLearningEvents,
-        include_xp_summary: includeXpSummary,
-        include_skills_breakdown: includeSkillsBreakdown
+        included_course_ids: selectedCourseIds
       };
 
       let response;
@@ -240,49 +231,6 @@ const EvidenceReportBuilder = () => {
                 onSelectAll={handleSelectAll}
                 onClearAll={handleClearAll}
               />
-            </div>
-
-            {/* Options */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Display Options</h2>
-              <div className="space-y-4">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={includeXpSummary}
-                    onChange={(e) => setIncludeXpSummary(e.target.checked)}
-                    className="mt-1 w-4 h-4 text-optio-purple border-gray-300 rounded focus:ring-optio-purple"
-                  />
-                  <div>
-                    <div className="font-medium text-gray-900">Include XP Summary</div>
-                    <div className="text-sm text-gray-500">Show total XP and breakdown by pillar</div>
-                  </div>
-                </label>
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={includeSkillsBreakdown}
-                    onChange={(e) => setIncludeSkillsBreakdown(e.target.checked)}
-                    className="mt-1 w-4 h-4 text-optio-purple border-gray-300 rounded focus:ring-optio-purple"
-                  />
-                  <div>
-                    <div className="font-medium text-gray-900">Include Skills Breakdown</div>
-                    <div className="text-sm text-gray-500">Show skills practiced and frequency</div>
-                  </div>
-                </label>
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={includeLearningEvents}
-                    onChange={(e) => setIncludeLearningEvents(e.target.checked)}
-                    className="mt-1 w-4 h-4 text-optio-purple border-gray-300 rounded focus:ring-optio-purple"
-                  />
-                  <div>
-                    <div className="font-medium text-gray-900">Include Learning Events</div>
-                    <div className="text-sm text-gray-500">Show learning moments captured outside of quests</div>
-                  </div>
-                </label>
-              </div>
             </div>
 
             {/* Actions */}

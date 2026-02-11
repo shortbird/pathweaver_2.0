@@ -29,22 +29,28 @@ const renderEvidenceBlock = (block) => {
 
   switch (blockType) {
     case 'text':
-      return `<p style="margin: 4px 0; font-size: 11px; color: #444;">${content.text || ''}</p>`;
+      // Split text into lines and wrap each to prevent mid-line breaks
+      const lines = (content.text || '').split('\n');
+      return lines.map(line =>
+        line.trim() === ''
+          ? '<div style="height: 8px;"></div>'
+          : `<p style="margin: 2px 0; font-size: 11px; color: #444; page-break-inside: avoid;">${line}</p>`
+      ).join('');
 
     case 'image':
-      return `<div style="margin: 8px 0;"><img src="${content.url || ''}" style="max-width: 200px; max-height: 150px; border: 1px solid #ddd; border-radius: 4px;" /></div>`;
+      return `<div style="margin: 8px 0; page-break-inside: avoid;"><img src="${content.url || ''}" style="max-width: 200px; max-height: 150px; border: 1px solid #ddd; border-radius: 4px;" /></div>`;
 
     case 'link':
-      return `<p style="margin: 4px 0; font-size: 11px;"><a href="${content.url || '#'}" style="color: #6D469B;">${content.title || content.url || 'Link'}</a></p>`;
+      return `<p style="margin: 4px 0; font-size: 11px; page-break-inside: avoid;"><a href="${content.url || '#'}" style="color: #6D469B;">${content.title || content.url || 'Link'}</a></p>`;
 
     case 'video':
-      return `<p style="margin: 4px 0; font-size: 11px;"><a href="${content.url || '#'}" style="color: #6D469B;">[Video] ${content.title || content.url || 'Video link'}</a></p>`;
+      return `<p style="margin: 4px 0; font-size: 11px; page-break-inside: avoid;"><a href="${content.url || '#'}" style="color: #6D469B;">[Video] ${content.title || content.url || 'Video link'}</a></p>`;
 
     case 'document':
-      return `<p style="margin: 4px 0; font-size: 11px;"><a href="${content.url || '#'}" style="color: #6D469B;">[Document] ${content.name || content.filename || 'Download'}</a></p>`;
+      return `<p style="margin: 4px 0; font-size: 11px; page-break-inside: avoid;"><a href="${content.url || '#'}" style="color: #6D469B;">[Document] ${content.name || content.filename || 'Download'}</a></p>`;
 
     default:
-      return `<p style="margin: 4px 0; font-size: 11px; color: #666;">[${blockType}]</p>`;
+      return `<p style="margin: 4px 0; font-size: 11px; color: #666; page-break-inside: avoid;">[${blockType}]</p>`;
   }
 };
 
@@ -69,9 +75,10 @@ const generatePDFContent = (reportData, studentName) => {
   // Quests/Evidence Section
   if (achievements && achievements.length > 0) {
     achievements.forEach((achievement) => {
+      // Quest header - keep together
       html += `
-        <div style="margin-bottom: 25px; page-break-inside: avoid;">
-          <div style="background: #f5f5f5; padding: 10px 15px; border-left: 4px solid #6D469B;">
+        <div style="margin-bottom: 25px;">
+          <div style="background: #f5f5f5; padding: 10px 15px 16px 15px; border-left: 4px solid #6D469B; page-break-inside: avoid;">
             <h2 style="font-size: 16px; margin: 0; color: #333; font-weight: 600;">${achievement.quest?.title || 'Quest'}</h2>
             ${achievement.quest?.description ? `<p style="font-size: 11px; margin: 5px 0 0 0; color: #666;">${achievement.quest.description}</p>` : ''}
             <p style="font-size: 11px; margin: 5px 0 0 0;"><strong>Status:</strong> ${achievement.status === 'completed' ? 'Completed' : 'In Progress'}</p>
@@ -114,6 +121,7 @@ const generatePDFContent = (reportData, studentName) => {
         Object.entries(achievement.task_evidence).forEach(([taskTitle, evidence]) => {
           const blocks = evidence.evidence_blocks || [];
           if (blocks.length > 0) {
+            // Each task's evidence can break across pages
             html += `
               <div style="margin-bottom: 12px; padding-left: 10px; border-left: 2px solid #ddd;">
                 <p style="font-size: 11px; font-weight: 600; color: #555; margin: 0 0 6px 0;">${taskTitle}:</p>
@@ -243,7 +251,7 @@ const PublicEvidenceReport = () => {
           format: 'a4',
           orientation: 'portrait'
         },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+        pagebreak: { mode: 'css' }
       };
 
       // html2pdf can accept HTML string directly
@@ -427,24 +435,39 @@ const PublicEvidenceReport = () => {
                         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
                           Tasks Completed ({Object.keys(achievement.task_evidence).length})
                         </h3>
+
+                        {/* XP Summary Table */}
+                        <div className="overflow-x-auto mb-6">
+                          <table className="w-full text-sm border-collapse">
+                            <thead>
+                              <tr className="bg-gray-100">
+                                <th className="text-left py-2 px-3 font-semibold text-gray-700 border border-gray-200">Task</th>
+                                <th className="text-left py-2 px-3 font-semibold text-gray-700 border border-gray-200 w-28">Category</th>
+                                <th className="text-right py-2 px-3 font-semibold text-gray-700 border border-gray-200 w-20">XP</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Object.entries(achievement.task_evidence).map(([taskTitle, evidence], idx) => (
+                                <tr key={idx} className="hover:bg-gray-50">
+                                  <td className="py-2 px-3 border border-gray-200 text-gray-900">{taskTitle}</td>
+                                  <td className="py-2 px-3 border border-gray-200 text-gray-600 capitalize">
+                                    {formatPillarName(evidence.pillar)}
+                                  </td>
+                                  <td className="py-2 px-3 border border-gray-200 text-right font-medium text-green-600">
+                                    +{evidence.xp_awarded || 0}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Evidence Details */}
+                        <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Evidence</h4>
                         <div className="space-y-6">
                           {Object.entries(achievement.task_evidence).map(([taskTitle, evidence], taskIdx) => (
                             <div key={taskIdx} className="border-l-4 border-optio-purple pl-4">
-                              <div className="flex items-start justify-between mb-3">
-                                <h4 className="font-semibold text-gray-900 text-lg">{taskTitle}</h4>
-                                <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-                                  {evidence.pillar && (
-                                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700 capitalize">
-                                      {getPillarDisplayName ? getPillarDisplayName(evidence.pillar) : evidence.pillar.replace('_', ' ')}
-                                    </span>
-                                  )}
-                                  {evidence.xp_awarded && (
-                                    <span className="px-3 py-1 text-sm font-bold rounded-full bg-green-100 text-green-700">
-                                      +{evidence.xp_awarded} XP
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
+                              <h4 className="font-semibold text-gray-900 text-lg mb-3">{taskTitle}</h4>
                               <UnifiedEvidenceDisplay
                                 evidence={evidence}
                                 displayMode="full"
@@ -457,38 +480,6 @@ const PublicEvidenceReport = () => {
                     )}
                   </div>
                 ))}
-              </div>
-            )}
-
-            {/* XP Summary - Now below evidence */}
-            {xp_summary && xp_summary.total_xp > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Experience Points Summary</h2>
-                <div className="flex flex-wrap items-stretch gap-4">
-                  {/* Total XP */}
-                  <div className="bg-gradient-to-br from-optio-purple to-optio-pink p-6 rounded-xl text-white text-center min-w-[140px]">
-                    <div className="text-4xl font-bold">{xp_summary.total_xp?.toLocaleString() || 0}</div>
-                    <div className="text-sm opacity-90">Total XP</div>
-                  </div>
-                  {/* By Pillar - filter out pillars with 0 XP */}
-                  {xp_summary.by_pillar && Object.keys(xp_summary.by_pillar).length > 0 && (
-                    <div className="flex-1 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                      {Object.entries(xp_summary.by_pillar)
-                        .filter(([, xp]) => xp > 0)
-                        .map(([pillar, xp]) => (
-                          <div
-                            key={pillar}
-                            className="bg-gray-50 rounded-lg p-4 text-center"
-                          >
-                            <div className="text-2xl font-bold text-gray-900">{xp?.toLocaleString() || 0}</div>
-                            <div className="text-sm text-gray-600 capitalize">
-                              {getPillarDisplayName ? getPillarDisplayName(pillar) : pillar.replace('_', ' ')}
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </div>
               </div>
             )}
 
