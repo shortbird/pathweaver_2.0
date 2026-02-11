@@ -439,11 +439,11 @@ const QuestDetail = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-4">
-        {/* Starter Paths Section - show when quest allows customization AND has no required tasks
-            Quests with required tasks (like Khan Academy) skip this and auto-enroll with preset tasks */}
+        {/* Starter Paths Section - show when quest allows customization AND has no template tasks
+            Quests with template tasks show those tasks instead of AI-generated paths */}
         {quest.allow_custom_tasks !== false &&
          !quest.preset_tasks?.length &&
-         !quest.template_tasks?.some(t => t.is_required) && (
+         !quest.template_tasks?.length && (
           <QuestApproachExamples
             questId={quest.id}
             questTitle={quest.title}
