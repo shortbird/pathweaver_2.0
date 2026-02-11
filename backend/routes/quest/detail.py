@@ -166,30 +166,37 @@ def get_quest_detail(user_id: str, quest_id: str):
             quest_data['completed_enrollment'] = None
             quest_data['progress'] = None
 
-        # Add quest type-specific data for non-enrolled users
-        # Import helper functions here to avoid circular import
-        from routes.quest_types import get_sample_tasks_for_quest, get_course_tasks_for_quest
+        # Add template tasks for users who can enroll (not actively enrolled)
+        # This allows frontend to determine whether to show "Choose Your Path" or template tasks
+        from routes.quest_types import get_template_tasks, get_sample_tasks_for_quest, get_course_tasks_for_quest
 
         quest_type = quest_data.get('quest_type', 'optio')
 
-        if not (active_enrollment or completed_enrollment):
-            # User not enrolled - show sample/preset tasks based on quest type
+        # Always include template_tasks when user is not actively enrolled
+        # (includes never enrolled OR completed enrollment - both can re-enroll)
+        if not active_enrollment:
+            # User not actively enrolled - get template tasks from unified table
+            template_tasks = get_template_tasks(quest_id, filter_type='all')
+            quest_data['template_tasks'] = template_tasks
+            logger.info(f"[QUEST DETAIL] Added {len(template_tasks)} template tasks (user not actively enrolled)")
+
+            # Also populate legacy fields for backward compatibility
             if quest_type == 'optio':
-                # Optio quest - show sample tasks as inspiration
                 sample_tasks = get_sample_tasks_for_quest(quest_id, randomize=True)
                 quest_data['sample_tasks'] = sample_tasks
                 quest_data['preset_tasks'] = []
-                logger.info(f"[QUEST DETAIL] Added {len(sample_tasks)} sample tasks for Optio quest")
             elif quest_type == 'course':
-                # Course quest - show preset tasks
                 preset_tasks = get_course_tasks_for_quest(quest_id)
                 quest_data['preset_tasks'] = preset_tasks
                 quest_data['sample_tasks'] = []
-                logger.info(f"[QUEST DETAIL] Added {len(preset_tasks)} preset tasks for Course quest")
+            else:
+                quest_data['sample_tasks'] = []
+                quest_data['preset_tasks'] = []
         else:
-            # User is enrolled - no need for sample/preset tasks
+            # User is actively enrolled - no need for sample/preset/template tasks
             quest_data['sample_tasks'] = []
             quest_data['preset_tasks'] = []
+            quest_data['template_tasks'] = []
 
         # Check if this quest is part of an active course enrollment
         # This is used to disable the "End Quest" button for course quests

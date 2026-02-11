@@ -224,8 +224,8 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 logger.error(f"[QUEST_RESTART] Error copying previous tasks: {str(copy_error)}", exc_info=True)
                 # Continue with normal enrollment flow if copy fails
 
-        # UNIFIED ENROLLMENT: Handle required and optional template tasks
-        # No longer depends on quest_type - any quest can have required + optional tasks
+        # UNIFIED ENROLLMENT: Handle template tasks (both required and optional)
+        # If a quest has ANY template tasks, copy them all and skip the wizard
         from routes.quest_types import get_template_tasks, get_quest_task_summary
 
         task_summary = get_quest_task_summary(quest_id)
@@ -234,15 +234,18 @@ def enroll_in_quest(user_id: str, quest_id: str):
 
         logger.info(f"[UNIFIED_ENROLL] Quest {quest_id[:8]} task summary: {task_summary}")
 
-        # Step 1: Copy all REQUIRED template tasks to user_quest_tasks
-        if task_summary.get('has_required'):
+        has_template_tasks = task_summary.get('total_tasks', 0) > 0
+        allow_custom = quest.get('allow_custom_tasks', True)
+
+        # Step 1: Copy ALL template tasks (required + optional) to user_quest_tasks
+        if has_template_tasks:
             try:
                 admin_client = get_supabase_admin_client()
-                required_tasks = get_template_tasks(quest_id, filter_type='required')
+                all_tasks = get_template_tasks(quest_id, filter_type='all')
 
-                if required_tasks:
+                if all_tasks:
                     tasks_to_insert = []
-                    for task in required_tasks:
+                    for task in all_tasks:
                         tasks_to_insert.append({
                             'user_id': user_id,
                             'quest_id': quest_id,
@@ -252,7 +255,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                             'pillar': task['pillar'],
                             'xp_value': task.get('xp_value', 100),
                             'order_index': task.get('order_index', 0),
-                            'is_required': True,
+                            'is_required': task.get('is_required', False),
                             'is_manual': False,
                             'approval_status': 'approved',
                             'diploma_subjects': task.get('diploma_subjects', ['Electives']),
@@ -264,40 +267,35 @@ def enroll_in_quest(user_id: str, quest_id: str):
                     if tasks_to_insert:
                         admin_client.table('user_quest_tasks').insert(tasks_to_insert).execute()
                         tasks_copied = len(tasks_to_insert)
-                        logger.info(f"[UNIFIED_ENROLL] Copied {tasks_copied} required tasks for user {user_id[:8]}")
+                        logger.info(f"[UNIFIED_ENROLL] Copied {tasks_copied} template tasks for user {user_id[:8]}")
 
             except Exception as task_error:
-                logger.error(f"[UNIFIED_ENROLL] Error copying required tasks: {str(task_error)}", exc_info=True)
+                logger.error(f"[UNIFIED_ENROLL] Error copying template tasks: {str(task_error)}", exc_info=True)
                 # Continue - don't fail enrollment if task copy fails
 
         # Step 2: Determine if wizard should be shown
-        # Skip wizard if: quest has required tasks (preset curriculum - nothing to choose)
-        # Show wizard only if: no required tasks AND (has optional suggestions OR allows custom tasks)
-        allow_custom = quest.get('allow_custom_tasks', True)
-        has_optional = task_summary.get('has_optional', False)
-        has_required = task_summary.get('has_required', False)
-
-        if has_required:
-            # Quest has required tasks (like Khan Academy courses) - skip wizard entirely
-            # Students get the preset curriculum, no customization needed
+        # Skip wizard if: quest has ANY template tasks (they're already copied)
+        # Show wizard only if: no template tasks AND custom tasks are allowed
+        if has_template_tasks:
+            # Quest has template tasks - skip wizard, tasks already copied
             skip_wizard = True
-            logger.info(f"[UNIFIED_ENROLL] Wizard skipped: quest has required tasks (preset curriculum)")
-            # Mark personalization as complete since it's a preset curriculum
+            logger.info(f"[UNIFIED_ENROLL] Wizard skipped: quest has {task_summary.get('total_tasks', 0)} template tasks")
+            # Mark personalization as complete since template tasks are pre-set
             try:
                 admin_client = get_supabase_admin_client()
                 admin_client.table('user_quests')\
                     .update({'personalization_completed': True})\
                     .eq('id', enrollment['id'])\
                     .execute()
-                logger.info(f"[UNIFIED_ENROLL] Personalization auto-completed (preset curriculum)")
+                logger.info(f"[UNIFIED_ENROLL] Personalization auto-completed (template tasks loaded)")
             except Exception as e:
                 logger.warning(f"[UNIFIED_ENROLL] Failed to mark personalization complete: {e}")
-        elif has_optional or allow_custom:
-            # No required tasks, but has optional suggestions or allows custom - show wizard
+        elif allow_custom:
+            # No template tasks but custom tasks allowed - show wizard
             skip_wizard = False
-            logger.info(f"[UNIFIED_ENROLL] Wizard enabled: has_optional={has_optional}, allow_custom={allow_custom}")
+            logger.info(f"[UNIFIED_ENROLL] Wizard enabled: no template tasks, custom tasks allowed")
         else:
-            # No tasks to choose from and custom tasks disabled - skip wizard
+            # No template tasks and custom tasks disabled - skip wizard
             skip_wizard = True
             # Mark personalization as complete since there's nothing to personalize
             try:
@@ -319,7 +317,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
             'enrollment': enrollment,
             'skip_wizard': skip_wizard,
             'tasks_loaded': tasks_copied,
-            'has_optional_tasks': has_optional,
+            'has_template_tasks': has_template_tasks,
             'allow_custom_tasks': allow_custom,
             'quest_type': quest_type  # Legacy field - will be removed after migration
         })

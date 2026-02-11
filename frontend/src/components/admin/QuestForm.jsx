@@ -221,7 +221,7 @@ const SortableTaskRow = ({
                 value={task.xp_value}
                 onChange={(e) => onUpdateTask(index, 'xp_value', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                min="50"
+                min="10"
                 max="500"
               />
             </div>
