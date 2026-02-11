@@ -199,7 +199,7 @@ export default function ObserverAcceptInvitationPage() {
               </div>
             )}
             <h1 className="text-2xl sm:text-3xl font-bold">
-              You've been invited to cheer on {studentName || 'a student'}.
+              You've been invited to cheer on {studentName || 'a student'}!
             </h1>
           </div>
 
