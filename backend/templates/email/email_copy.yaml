@@ -466,3 +466,19 @@ emails:
       url: "{{ dashboard_url }}"
     signature: "support"
     footer_extra: "If you have concerns about this access, please contact us immediately at support@optioeducation.com."
+
+  # Daily Advisor Summary (Morning Briefing)
+  # V2 Enhancement: Now includes cohort summary, milestones, check-in data,
+  # and per-student engagement metrics (rhythm states, streaks, pillar balance)
+  daily_advisor_summary:
+    subject: "{{ subject_prefix }}Morning Briefing: Your Students' Progress - {{ summary_date }}"
+    title: "Morning Briefing"
+    salutation: "Hi {{ advisor_name }},"
+    paragraphs:
+      - "Here's your morning briefing for {{ summary_date }}:"
+    closing_paragraphs:
+      - "{{ students_html }}"
+    cta:
+      text: "View Full Dashboard"
+      url: "{{ dashboard_url }}"
+    signature: "team"
