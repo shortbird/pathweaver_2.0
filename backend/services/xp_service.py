@@ -19,7 +19,24 @@ logger = get_logger(__name__)
 
 class XPService(BaseService):
     """Service for handling XP calculations and awards."""
-    
+
+    def __init__(self, client=None):
+        """Initialize XP service with optional database client."""
+        super().__init__()
+        self._client = client
+        self._supabase = None
+
+    @property
+    def supabase(self):
+        """Lazy-initialize database client on first use."""
+        if self._supabase is None:
+            if self._client:
+                self._supabase = self._client
+            else:
+                from database import get_supabase_admin_client
+                self._supabase = get_supabase_admin_client()
+        return self._supabase
+
     def calculate_task_xp(self,
                          user_id: str,
                          task_id: str,

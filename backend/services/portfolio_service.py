@@ -242,13 +242,24 @@ class PortfolioService:
 
         for task in approved_tasks:
             diploma_subjects = task.get('diploma_subjects')
-            if diploma_subjects and isinstance(diploma_subjects, dict):
-                task_xp = task.get('xp_value', 0) or 0
+            task_xp = task.get('xp_value', 0) or 0
+
+            if not diploma_subjects or not task_xp:
+                continue
+
+            # Handle dict format: {'Math': 75, 'Science': 25}
+            if isinstance(diploma_subjects, dict):
                 for subject, percentage in diploma_subjects.items():
-                    # Normalize subject name
                     normalized = subject.lower().replace(' ', '_').replace('&', 'and')
                     subject_xp = int(task_xp * percentage / 100)
                     subject_xp_map[normalized] = subject_xp_map.get(normalized, 0) + subject_xp
+
+            # Handle array format: ['Electives'] - split XP evenly
+            elif isinstance(diploma_subjects, list) and diploma_subjects:
+                per_subject_xp = task_xp // len(diploma_subjects)
+                for subject in diploma_subjects:
+                    normalized = subject.lower().replace(' ', '_').replace('&', 'and')
+                    subject_xp_map[normalized] = subject_xp_map.get(normalized, 0) + per_subject_xp
 
         return [
             {'school_subject': subject, 'xp_amount': xp}
