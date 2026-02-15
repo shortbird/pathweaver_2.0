@@ -90,26 +90,42 @@ class XPService(BaseService):
         self.validate_one_of('pillar', db_pillar, ['art', 'stem', 'wellness', 'communication', 'civics'])
         
         try:
-            # Use atomic RPC function to prevent race conditions
-            # The increment_user_xp function handles both insert and update atomically
-            result = self.supabase.rpc(
-                'increment_user_xp',
-                {
-                    'p_user_id': user_id,
-                    'p_pillar': db_pillar,
-                    'p_amount': xp_amount
-                }
-            ).execute()
+            # NOTE: For atomic increment, run the migration:
+            #   psql $DATABASE_URL -f backend/migrations/20260215_create_atomic_xp_increment.sql
+            # Then switch to RPC call: self.supabase.rpc('increment_user_xp', {...})
 
-            if result.data:
-                rpc_result = result.data[0] if isinstance(result.data, list) else result.data
-                new_total = rpc_result.get('new_xp_amount', xp_amount)
-                was_created = rpc_result.get('was_created', False)
+            # Current approach: read-modify-write with upsert for new records
+            current_xp = self.supabase.table('user_skill_xp')\
+                .select('id, xp_amount')\
+                .eq('user_id', user_id)\
+                .eq('pillar', db_pillar)\
+                .execute()
 
-                if was_created:
-                    logger.info(f"Created new XP record for {db_pillar} with {xp_amount} XP")
-                else:
-                    logger.info(f"Incremented XP for {db_pillar}: new total = {new_total}")
+            if current_xp.data:
+                existing_record = current_xp.data[0]
+                existing_xp = existing_record.get('xp_amount', 0)
+                new_total = existing_xp + xp_amount
+                record_id = existing_record.get('id')
+
+                logger.info(f"Updating XP: {existing_xp} + {xp_amount} = {new_total}")
+
+                result = self.supabase.table('user_skill_xp')\
+                    .update({
+                        'xp_amount': new_total,
+                        'updated_at': datetime.utcnow().isoformat()
+                    })\
+                    .eq('id', record_id)\
+                    .execute()
+            else:
+                logger.info(f"Creating new XP record for {db_pillar} with {xp_amount} XP")
+                result = self.supabase.table('user_skill_xp')\
+                    .upsert({
+                        'user_id': user_id,
+                        'pillar': db_pillar,
+                        'xp_amount': xp_amount,
+                        'updated_at': datetime.utcnow().isoformat()
+                    }, on_conflict='user_id,pillar')\
+                    .execute()
 
             # Create audit log entry
             self._create_xp_audit_log(user_id, pillar, xp_amount, source)
