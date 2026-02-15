@@ -68,6 +68,22 @@ class DailyAdvisorSummaryJob:
                     'summary_date': summary_date.isoformat()
                 }
 
+            # TESTING MODE: Only send to tannerbowman@gmail.com
+            # TODO: Remove this filter when ready for production rollout
+            TEST_EMAIL_WHITELIST = ['tannerbowman@gmail.com']
+            advisors = [a for a in advisors if a.get('email') in TEST_EMAIL_WHITELIST]
+            if not advisors:
+                logger.info("No whitelisted advisors found, skipping daily summary (testing mode)")
+                return {
+                    'status': 'success',
+                    'advisors_processed': 0,
+                    'emails_sent': 0,
+                    'skipped_no_activity': 0,
+                    'errors': 0,
+                    'summary_date': summary_date.isoformat(),
+                    'note': 'Testing mode - no whitelisted advisors'
+                }
+
             # Process each advisor
             results = {
                 'advisors_processed': 0,
