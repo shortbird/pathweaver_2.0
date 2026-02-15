@@ -64,7 +64,7 @@ class FileUploadService(BaseService):
         # Documents
         'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx',
         # Images
-        'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg',
+        'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'heic', 'heif',
         # Videos
         'mp4', 'mov', 'avi', 'webm',
         # Audio
@@ -74,7 +74,7 @@ class FileUploadService(BaseService):
     }
 
     # Allowed extensions for curriculum images
-    IMAGE_EXTENSIONS: Set[str] = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+    IMAGE_EXTENSIONS: Set[str] = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
 
     # Storage buckets
     ATTACHMENT_BUCKET = 'curriculum'

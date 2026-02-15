@@ -339,7 +339,7 @@ const ParentMomentCaptureModal = ({
           <input
             ref={photoInputRef}
             type="file"
-            accept="image/*"
+            accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif"
             multiple
             onChange={(e) => handleFileSelect(e, 'image')}
             className="hidden"

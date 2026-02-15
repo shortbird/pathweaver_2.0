@@ -862,9 +862,9 @@ def upload_user_avatar(user_id, target_user_id):
         except Exception as e:
             return jsonify({'error': 'Failed to detect file type'}), 400
 
-        ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+        ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'}
         if mime_type not in ALLOWED_IMAGE_TYPES:
-            return jsonify({'error': 'Only image files (JPEG, PNG, GIF, WEBP) are allowed'}), 400
+            return jsonify({'error': 'Only image files (JPEG, PNG, GIF, WEBP, HEIC) are allowed'}), 400
 
         # Sanitize filename
         safe_filename = secure_filename(file.filename)

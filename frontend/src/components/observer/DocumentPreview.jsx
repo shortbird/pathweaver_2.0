@@ -26,7 +26,7 @@ const isPdf = (url, title) => {
  * Determines if a URL/filename points to an image file
  */
 const isImage = (url, title) => {
-  const exts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
+  const exts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.heic', '.heif'];
   const str = (title || url || '').toLowerCase();
   return exts.some(ext => str.includes(ext));
 };

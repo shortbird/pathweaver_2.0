@@ -49,6 +49,8 @@ const FileUploader = ({ questId, attachments, onChange }) => {
     'image/png',
     'image/gif',
     'image/webp',
+    'image/heic',
+    'image/heif',
     'text/plain',
     'application/zip'
   ]

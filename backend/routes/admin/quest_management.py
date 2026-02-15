@@ -636,13 +636,13 @@ def upload_quest_image(user_id, quest_id):
             return jsonify({'success': False, 'error': 'No file selected'}), 400
 
         # Validate file type (images only)
-        allowed_extensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+        allowed_extensions = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
         file_extension = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
 
         if file_extension not in allowed_extensions:
             return jsonify({
                 'success': False,
-                'error': f'Invalid file type. Allowed types: {", ".join(allowed_extensions)}'
+                'error': f'Invalid file type. Allowed types: JPG, PNG, GIF, WebP, HEIC'
             }), 400
 
         # Check file size (5MB max for images)

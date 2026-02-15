@@ -79,10 +79,10 @@ const ImageBlockEditor = ({ block, onChange, questId }) => {
     }
 
     // Check allowed extensions
-    const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif']
     const extension = file.name.split('.').pop()?.toLowerCase()
     if (!extension || !allowedExtensions.includes(extension)) {
-      toast.error('Invalid file type. Allowed: jpg, jpeg, png, gif, webp')
+      toast.error('Invalid file type. Allowed: JPG, PNG, GIF, WebP, HEIC')
       return
     }
 
@@ -177,7 +177,7 @@ const ImageBlockEditor = ({ block, onChange, questId }) => {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif"
             onChange={handleFileInput}
             className="hidden"
             disabled={isUploading}

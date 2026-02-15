@@ -281,7 +281,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     // Create file input element
     const fileInput = document.createElement('input')
     fileInput.type = 'file'
-    fileInput.accept = 'image/jpeg,image/jpg,image/png,image/gif,image/webp'
+    fileInput.accept = '.jpg,.jpeg,.png,.gif,.webp,.heic,.heif'
 
     fileInput.onchange = async (e) => {
       const file = e.target.files[0]

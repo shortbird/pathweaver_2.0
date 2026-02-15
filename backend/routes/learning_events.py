@@ -455,7 +455,7 @@ def upload_event_file(user_id, event_id):
 
         # Determine allowed extensions based on block type
         if block_type == 'image':
-            allowed_extensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+            allowed_extensions = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
             max_file_size = 10 * 1024 * 1024  # 10MB
         elif block_type == 'document':
             allowed_extensions = {'pdf', 'doc', 'docx', 'txt'}

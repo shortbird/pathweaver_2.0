@@ -33,7 +33,7 @@ ALLOWED_EXTENSIONS = {ext.lstrip('.') for ext in ALLOWED_FILE_EXTENSIONS}
 # Allowed MIME types (checked via magic bytes) - file validator specific
 ALLOWED_MIME_TYPES = {
     # Images
-    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
     # Documents
     'application/pdf',
     'application/msword',

@@ -19,9 +19,13 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
   const MAX_DOCUMENT_SIZE = 25 * 1024 * 1024; // 25MB
 
   // Allowed file types
-  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
   const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/ogg'];
   const ALLOWED_DOCUMENT_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+
+  // Human-readable format names for error messages
+  const IMAGE_FORMAT_NAMES = 'JPG, PNG, GIF, WebP, or HEIC';
+  const DOCUMENT_FORMAT_NAMES = 'PDF, DOC, or DOCX';
 
   // Evidence type icons and colors
   const evidenceTypeConfig = {
@@ -191,9 +195,15 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
         return;
     }
 
-    // Validate file type
-    if (!allowedTypes.includes(file.type)) {
-      alert(`Invalid file type. Allowed types: ${allowedTypes.map(t => t.split('/')[1]).join(', ')}`);
+    // Validate file type - also check by extension for better compatibility
+    const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
+    const allowedExtensions = evidenceType === 'image'
+      ? ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif']
+      : ['pdf', 'doc', 'docx'];
+
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
+      const formatNames = evidenceType === 'image' ? IMAGE_FORMAT_NAMES : DOCUMENT_FORMAT_NAMES;
+      alert(`Unsupported file format: .${fileExtension || 'unknown'}\n\nSupported formats: ${formatNames}`);
       return;
     }
 
@@ -468,7 +478,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
               {isDragging ? 'Drop your file here!' : 'Click to upload or drag and drop'}
             </p>
             <p className="text-xs text-gray-500">
-              {evidenceType === 'image' && 'PNG, JPG, GIF up to 10MB'}
+              {evidenceType === 'image' && 'JPG, PNG, GIF, WebP, HEIC up to 10MB'}
               {evidenceType === 'document' && 'PDF, DOC, DOCX up to 25MB'}
             </p>
             
@@ -542,8 +552,8 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
           type="file"
           onChange={handleFileSelect}
           accept={
-            evidenceType === 'image' ? ALLOWED_IMAGE_TYPES.join(',') :
-            evidenceType === 'document' ? ALLOWED_DOCUMENT_TYPES.join(',') : ''
+            evidenceType === 'image' ? '.jpg,.jpeg,.png,.gif,.webp,.heic,.heif' :
+            evidenceType === 'document' ? '.pdf,.doc,.docx' : ''
           }
           className="hidden"
         />
