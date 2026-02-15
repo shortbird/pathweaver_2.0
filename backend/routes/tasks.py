@@ -379,16 +379,26 @@ def complete_task(user_id: str, task_id: str):
 
         # If no subject_xp_distribution, convert diploma_subjects percentages to XP values
         if not subject_xp_distribution:
-            diploma_subjects = task_data.get('diploma_subjects', {})
-            if diploma_subjects and isinstance(diploma_subjects, dict):
+            diploma_subjects = task_data.get('diploma_subjects')
+            if diploma_subjects:
                 logger.info(f"Converting diploma_subjects to subject XP for task {task_id}")
                 logger.info(f"diploma_subjects: {diploma_subjects}, task_xp: {final_xp}")
                 subject_xp_distribution = {}
-                for subject, percentage in diploma_subjects.items():
-                    if isinstance(percentage, (int, float)) and percentage > 0:
-                        subject_xp = int(final_xp * percentage / 100)
-                        if subject_xp > 0:
-                            subject_xp_distribution[subject] = subject_xp
+
+                # Handle dict format: {'Math': 75, 'Science': 25}
+                if isinstance(diploma_subjects, dict):
+                    for subject, percentage in diploma_subjects.items():
+                        if isinstance(percentage, (int, float)) and percentage > 0:
+                            subject_xp = int(final_xp * percentage / 100)
+                            if subject_xp > 0:
+                                subject_xp_distribution[subject] = subject_xp
+
+                # Handle array format: ['Electives'] - split XP evenly
+                elif isinstance(diploma_subjects, list) and diploma_subjects:
+                    per_subject_xp = final_xp // len(diploma_subjects)
+                    for subject in diploma_subjects:
+                        if per_subject_xp > 0:
+                            subject_xp_distribution[subject] = per_subject_xp
 
         if subject_xp_distribution:
             logger.info(f"=== SUBJECT XP TRACKING ===")
@@ -403,7 +413,7 @@ def complete_task(user_id: str, task_id: str):
                 'Physical Education': 'pe', 'Fine Arts': 'fine_arts', 'Arts': 'fine_arts',
                 'CTE': 'cte', 'Career & Technical Education': 'cte',
                 'Digital Literacy': 'digital_literacy', 'Technology': 'digital_literacy',
-                'Business': 'cte', 'Music': 'fine_arts'
+                'Business': 'cte', 'Music': 'fine_arts', 'Communication': 'language_arts'
             }
 
             # Optimize: Fetch all existing subject XP records in a single query
