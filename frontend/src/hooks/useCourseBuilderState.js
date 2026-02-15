@@ -41,6 +41,8 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
   const [showRefineModal, setShowRefineModal] = useState(false)
   const [showAIToolsModal, setShowAIToolsModal] = useState(false)
   const [movingLesson, setMovingLesson] = useState(null)
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false)
+  const [addingTaskToLesson, setAddingTaskToLesson] = useState(null)
 
   // Fetch course and quests
   useEffect(() => {
@@ -640,6 +642,102 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     }
   }, [lessonsMap, selectedItem])
 
+  // Add task to a lesson - opens the task creation modal
+  const handleAddTask = useCallback((lesson) => {
+    if (!lesson) return
+    setAddingTaskToLesson(lesson)
+    setShowAddTaskModal(true)
+  }, [])
+
+  // Create and link a task to a lesson
+  const handleCreateTask = useCallback(async (taskData) => {
+    if (!addingTaskToLesson) return
+
+    const lessonId = addingTaskToLesson.id
+    const projectId = Object.keys(lessonsMap).find(pid =>
+      lessonsMap[pid]?.some(l => l.id === lessonId)
+    )
+    if (!projectId) return
+
+    try {
+      const response = await api.post(`/api/quests/${projectId}/curriculum/lessons/${lessonId}/create-tasks`, {
+        tasks: [taskData],
+        link_to_lesson: true
+      })
+
+      if (response.data.success && response.data.tasks?.length > 0) {
+        const createdTask = response.data.tasks[0]
+
+        // Update tasksMap with the new task
+        setTasksMap(prev => ({
+          ...prev,
+          [lessonId]: [...(prev[lessonId] || []), createdTask]
+        }))
+
+        // Update lesson's linked_task_ids
+        setLessonsMap(prev => ({
+          ...prev,
+          [projectId]: prev[projectId].map(l =>
+            l.id === lessonId
+              ? { ...l, linked_task_ids: [...(l.linked_task_ids || []), createdTask.id] }
+              : l
+          )
+        }))
+
+        toast.success('Task created')
+        setShowAddTaskModal(false)
+        setAddingTaskToLesson(null)
+        return true
+      }
+    } catch (error) {
+      console.error('Failed to create task:', error)
+      toast.error('Failed to create task')
+    }
+    return false
+  }, [addingTaskToLesson, lessonsMap])
+
+  // Unlink a task from a lesson
+  const handleUnlinkTask = useCallback(async (task, lesson) => {
+    if (!task || !lesson) return
+    if (!confirm('Remove this task from the lesson?')) return
+
+    const projectId = Object.keys(lessonsMap).find(pid =>
+      lessonsMap[pid]?.some(l => l.id === lesson.id)
+    )
+    if (!projectId) return
+
+    try {
+      await api.delete(`/api/quests/${projectId}/curriculum/lessons/${lesson.id}/link-task/${task.id}`)
+
+      // Update tasksMap
+      setTasksMap(prev => ({
+        ...prev,
+        [lesson.id]: (prev[lesson.id] || []).filter(t => t.id !== task.id)
+      }))
+
+      // Update lesson's linked_task_ids
+      setLessonsMap(prev => ({
+        ...prev,
+        [projectId]: prev[projectId].map(l =>
+          l.id === lesson.id
+            ? { ...l, linked_task_ids: (l.linked_task_ids || []).filter(id => id !== task.id) }
+            : l
+        )
+      }))
+
+      // Clear selection if this task was selected
+      if (selectedItem?.id === task.id && selectedType === 'task') {
+        setSelectedItem(null)
+        setSelectedType(null)
+      }
+
+      toast.success('Task removed from lesson')
+    } catch (error) {
+      console.error('Failed to unlink task:', error)
+      toast.error('Failed to remove task')
+    }
+  }, [lessonsMap, selectedItem, selectedType])
+
   // Toggle task required status
   const handleToggleTaskRequired = useCallback(async (task) => {
     if (!task) return
@@ -974,6 +1072,10 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     setShowAIToolsModal,
     movingLesson,
     setMovingLesson,
+    showAddTaskModal,
+    setShowAddTaskModal,
+    addingTaskToLesson,
+    setAddingTaskToLesson,
 
     // Handlers
     handleSelectItem,
@@ -992,6 +1094,9 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     handleSaveFromEditor,
     handleAddStep,
     handleDeleteStep,
+    handleAddTask,
+    handleCreateTask,
+    handleUnlinkTask,
     handleToggleTaskRequired,
     handlePublishToggle,
     handleDeleteCourse,

@@ -40,6 +40,9 @@ const OutlineEditor = ({
   onToggleTaskRequired,
   saving,
   questId,
+  onAddTask,
+  onUnlinkTask,
+  isSuperadmin,
 }) => {
   const [formData, setFormData] = useState({})
   const [hasChanges, setHasChanges] = useState(false)
@@ -194,6 +197,9 @@ const OutlineEditor = ({
             onDeleteStep={onDeleteStep}
             onToggleTaskRequired={onToggleTaskRequired}
             canUseTaskGeneration={canUseTaskGeneration}
+            onAddTask={onAddTask}
+            onUnlinkTask={onUnlinkTask}
+            isSuperadmin={isSuperadmin}
           />
         )}
 
@@ -301,6 +307,9 @@ const LessonEditor = ({
   onDeleteStep,
   onToggleTaskRequired,
   canUseTaskGeneration,
+  onAddTask,
+  onUnlinkTask,
+  isSuperadmin,
 }) => {
   const steps = lesson?.content?.steps || []
   const tasks = tasksMap?.[lesson?.id] || []
@@ -383,12 +392,25 @@ const LessonEditor = ({
           <label className="text-sm font-medium text-gray-700">
             Linked Tasks ({tasks.length})
           </label>
+          <button
+            onClick={() => onAddTask?.(lesson)}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-optio-purple border border-optio-purple/30 rounded-lg hover:bg-optio-purple/5 transition-colors"
+          >
+            <PlusIcon className="w-4 h-4" />
+            Add Task
+          </button>
         </div>
 
         {tasks.length === 0 ? (
           <div className="p-6 bg-gray-50 rounded-lg text-center text-gray-500">
             <CheckCircleIcon className="w-8 h-8 mx-auto mb-2 text-gray-300" />
             <p className="text-sm">No tasks linked to this lesson yet.</p>
+            <button
+              onClick={() => onAddTask?.(lesson)}
+              className="mt-2 text-sm text-optio-purple hover:underline"
+            >
+              Add your first task
+            </button>
           </div>
         ) : (
           <div className="space-y-2">
@@ -399,7 +421,8 @@ const LessonEditor = ({
               return (
                 <div
                   key={task.id}
-                  className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+                  className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group cursor-pointer"
+                  onClick={() => onSelectItem?.({ ...task, lessonId: lesson.id }, 'task')}
                 >
                   <span
                     className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded"
@@ -415,8 +438,10 @@ const LessonEditor = ({
                       {pillarData.name} - {task.xp_value || 100} XP
                     </div>
                   </div>
+                  {/* Edit indicator */}
+                  <PencilIcon className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                   {/* Required Toggle */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     <span className={`text-xs font-medium ${isRequired ? 'text-red-600' : 'text-gray-500'}`}>
                       {isRequired ? 'Required' : 'Optional'}
                     </span>
@@ -436,6 +461,17 @@ const LessonEditor = ({
                       />
                     </button>
                   </div>
+                  {/* Unlink button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onUnlinkTask?.(task, lesson)
+                    }}
+                    className="p-1 text-red-500 opacity-0 group-hover:opacity-100 hover:bg-red-50 rounded transition-all flex-shrink-0"
+                    title="Remove from lesson"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
                 </div>
               )
             })}
