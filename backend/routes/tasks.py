@@ -272,6 +272,7 @@ def complete_task(user_id: str, task_id: str):
         final_xp = base_xp
 
         # Create task completion record using repository
+        # Draft feedback system: completions start as 'draft' status
         try:
             completion_data = completion_repo.create_completion({
                 'user_id': effective_user_id,
@@ -281,7 +282,9 @@ def complete_task(user_id: str, task_id: str):
                 'evidence_text': evidence_content if evidence_type == 'text' else None,
                 'evidence_url': evidence_content if evidence_type != 'text' else None,
                 'is_confidential': is_confidential,
-                'xp_awarded': final_xp
+                'xp_awarded': final_xp,
+                'diploma_status': 'draft',  # Iterative feedback system
+                'revision_number': 1
             })
         except ValueError as e:
             return error_response(
@@ -427,15 +430,23 @@ def complete_task(user_id: str, task_id: str):
                 xp_updates[normalized_subject] = subject_xp
 
             try:
+                # Draft feedback system: Store subject XP in pending_xp
+                # XP moves to xp_amount when student finalizes after reviewer approval
                 # Single query to fetch all existing subject XP records
                 existing_records = admin_supabase.table('user_subject_xp')\
-                    .select('school_subject, xp_amount')\
+                    .select('school_subject, xp_amount, pending_xp')\
                     .eq('user_id', effective_user_id)\
                     .in_('school_subject', subject_names)\
                     .execute()
 
                 # Build maps for existing vs new subjects
-                existing_map = {record['school_subject']: record['xp_amount'] for record in existing_records.data}
+                existing_map = {
+                    record['school_subject']: {
+                        'xp_amount': record['xp_amount'],
+                        'pending_xp': record.get('pending_xp', 0) or 0
+                    }
+                    for record in existing_records.data
+                }
 
                 # Prepare batch operations
                 records_to_update = []
@@ -443,35 +454,44 @@ def complete_task(user_id: str, task_id: str):
 
                 for subject, new_xp in xp_updates.items():
                     if subject in existing_map:
-                        # Existing record - will update
-                        current_xp = existing_map[subject]
-                        new_total = current_xp + new_xp
+                        # Existing record - add to pending_xp
+                        current_pending = existing_map[subject]['pending_xp']
+                        new_pending = current_pending + new_xp
                         records_to_update.append({
                             'user_id': effective_user_id,
                             'school_subject': subject,
-                            'xp_amount': new_total,
+                            'pending_xp': new_pending,
                             'updated_at': datetime.utcnow().isoformat()
                         })
-                        logger.info(f"Will update {subject}: {current_xp} + {new_xp} = {new_total} XP")
+                        logger.info(f"Will add {subject} pending XP: {current_pending} + {new_xp} = {new_pending} XP")
                     else:
-                        # New record - will insert
+                        # New record - insert with pending_xp
                         records_to_insert.append({
                             'user_id': effective_user_id,
                             'school_subject': subject,
-                            'xp_amount': new_xp,
+                            'xp_amount': 0,  # Finalized XP starts at 0
+                            'pending_xp': new_xp,  # Draft XP goes to pending
                             'updated_at': datetime.utcnow().isoformat()
                         })
-                        logger.info(f"Will create {subject}: {new_xp} XP")
+                        logger.info(f"Will create {subject}: {new_xp} pending XP")
 
                 # Batch insert new records
                 if records_to_insert:
                     admin_supabase.table('user_subject_xp').insert(records_to_insert).execute()
-                    logger.info(f"Batch inserted {len(records_to_insert)} new subject XP records")
+                    logger.info(f"Batch inserted {len(records_to_insert)} new subject XP records (pending)")
 
-                # Batch upsert updated records (upsert handles conflicts automatically)
+                # Batch upsert updated records
                 if records_to_update:
-                    admin_supabase.table('user_subject_xp').upsert(records_to_update).execute()
-                    logger.info(f"Batch updated {len(records_to_update)} existing subject XP records")
+                    for record in records_to_update:
+                        admin_supabase.table('user_subject_xp')\
+                            .update({
+                                'pending_xp': record['pending_xp'],
+                                'updated_at': record['updated_at']
+                            })\
+                            .eq('user_id', effective_user_id)\
+                            .eq('school_subject', record['school_subject'])\
+                            .execute()
+                    logger.info(f"Updated {len(records_to_update)} existing subject XP records (pending)")
 
             except Exception as e:
                 logger.error(f"Batch operation failed, falling back to individual operations: {e}")
@@ -479,16 +499,16 @@ def complete_task(user_id: str, task_id: str):
                 for subject, subject_xp in xp_updates.items():
                     try:
                         existing_subject_xp = admin_supabase.table('user_subject_xp')\
-                            .select('id, xp_amount')\
+                            .select('id, xp_amount, pending_xp')\
                             .eq('user_id', effective_user_id)\
                             .eq('school_subject', subject)\
                             .execute()
 
                         if existing_subject_xp.data:
-                            current_xp = existing_subject_xp.data[0]['xp_amount']
-                            new_total = current_xp + subject_xp
+                            current_pending = existing_subject_xp.data[0].get('pending_xp', 0) or 0
+                            new_pending = current_pending + subject_xp
                             admin_supabase.table('user_subject_xp')\
-                                .update({'xp_amount': new_total, 'updated_at': datetime.utcnow().isoformat()})\
+                                .update({'pending_xp': new_pending, 'updated_at': datetime.utcnow().isoformat()})\
                                 .eq('user_id', effective_user_id)\
                                 .eq('school_subject', subject)\
                                 .execute()
@@ -497,7 +517,8 @@ def complete_task(user_id: str, task_id: str):
                                 .insert({
                                     'user_id': effective_user_id,
                                     'school_subject': subject,
-                                    'xp_amount': subject_xp,
+                                    'xp_amount': 0,
+                                    'pending_xp': subject_xp,
                                     'updated_at': datetime.utcnow().isoformat()
                                 })\
                                 .execute()
@@ -855,3 +876,235 @@ def drop_task(user_id: str, task_id: str):
             'success': False,
             'error': 'Failed to remove task'
         }), 500
+
+
+@bp.route('/<task_id>/finalize', methods=['POST'])
+@require_auth
+def finalize_task(user_id: str, task_id: str):
+    """
+    Finalize a task that has been marked ready for diploma credit.
+    Moves subject XP from pending to finalized.
+
+    This endpoint is called by students after superadmin suggests the work
+    is ready for diploma credit. It completes the iterative feedback loop.
+
+    Args:
+        user_id: The authenticated user's ID
+        task_id: The ID of the user_quest_tasks record to finalize
+
+    Returns:
+        JSON response with finalization status and XP awarded
+    """
+    try:
+        admin_supabase = get_supabase_admin_client()
+
+        # Get the completion record for this task
+        completion = admin_supabase.table('quest_task_completions')\
+            .select('''
+                id, user_id, diploma_status, xp_awarded,
+                user_quest_task_id,
+                user_quest_tasks!user_quest_task_id(
+                    diploma_subjects, subject_xp_distribution, xp_value, title
+                )
+            ''')\
+            .eq('user_quest_task_id', task_id)\
+            .eq('user_id', user_id)\
+            .single()\
+            .execute()
+
+        if not completion.data:
+            return error_response(
+                code='NOT_FOUND',
+                message='Task completion not found',
+                status=404
+            )
+
+        completion_data = completion.data
+
+        # Verify the task is ready for finalization
+        if completion_data['diploma_status'] != 'ready_for_credit':
+            if completion_data['diploma_status'] == 'finalized':
+                return error_response(
+                    code='ALREADY_FINALIZED',
+                    message='This task has already been finalized',
+                    status=400
+                )
+            return error_response(
+                code='NOT_READY',
+                message='This task is not yet ready for diploma credit. Wait for reviewer feedback.',
+                status=400
+            )
+
+        # Get subject XP distribution
+        task_data = completion_data.get('user_quest_tasks') or {}
+        subject_xp_distribution = task_data.get('subject_xp_distribution', {})
+
+        if not subject_xp_distribution:
+            # Convert diploma_subjects to XP distribution
+            diploma_subjects = task_data.get('diploma_subjects')
+            task_xp = task_data.get('xp_value') or completion_data.get('xp_awarded', 0)
+
+            if diploma_subjects:
+                if isinstance(diploma_subjects, dict):
+                    for subject, percentage in diploma_subjects.items():
+                        if isinstance(percentage, (int, float)) and percentage > 0:
+                            subject_xp = int(task_xp * percentage / 100)
+                            if subject_xp > 0:
+                                subject_xp_distribution[subject] = subject_xp
+                elif isinstance(diploma_subjects, list) and diploma_subjects:
+                    per_subject_xp = task_xp // len(diploma_subjects)
+                    for subject in diploma_subjects:
+                        if per_subject_xp > 0:
+                            subject_xp_distribution[subject] = per_subject_xp
+
+        # Subject name normalization mapping
+        SUBJECT_NORMALIZATION = {
+            'Electives': 'electives', 'Language Arts': 'language_arts', 'Math': 'math',
+            'Mathematics': 'math', 'Science': 'science', 'Social Studies': 'social_studies',
+            'Financial Literacy': 'financial_literacy', 'Health': 'health', 'PE': 'pe',
+            'Physical Education': 'pe', 'Fine Arts': 'fine_arts', 'Arts': 'fine_arts',
+            'CTE': 'cte', 'Career & Technical Education': 'cte',
+            'Digital Literacy': 'digital_literacy', 'Technology': 'digital_literacy',
+            'Business': 'cte', 'Music': 'fine_arts', 'Communication': 'language_arts'
+        }
+
+        now = datetime.utcnow().isoformat()
+        total_xp_finalized = 0
+
+        # Move XP from pending to finalized for each subject
+        for subject, subject_xp in subject_xp_distribution.items():
+            normalized = SUBJECT_NORMALIZATION.get(subject, subject.lower().replace(' ', '_'))
+
+            existing = admin_supabase.table('user_subject_xp')\
+                .select('id, xp_amount, pending_xp')\
+                .eq('user_id', user_id)\
+                .eq('school_subject', normalized)\
+                .execute()
+
+            if existing.data:
+                record = existing.data[0]
+                # Move from pending to actual XP
+                new_xp = record['xp_amount'] + subject_xp
+                new_pending = max(0, (record.get('pending_xp') or 0) - subject_xp)
+
+                admin_supabase.table('user_subject_xp')\
+                    .update({
+                        'xp_amount': new_xp,
+                        'pending_xp': new_pending,
+                        'updated_at': now
+                    })\
+                    .eq('id', record['id'])\
+                    .execute()
+            else:
+                # Create new record with finalized XP
+                admin_supabase.table('user_subject_xp').insert({
+                    'user_id': user_id,
+                    'school_subject': normalized,
+                    'xp_amount': subject_xp,
+                    'pending_xp': 0,
+                    'updated_at': now
+                }).execute()
+
+            total_xp_finalized += subject_xp
+            logger.info(f"Finalized {subject_xp} XP for {normalized} subject for user {user_id[:8]}")
+
+        # Update completion record to finalized
+        admin_supabase.table('quest_task_completions').update({
+            'diploma_status': 'finalized',
+            'finalized_at': now
+        }).eq('id', completion_data['id']).execute()
+
+        # Clear the feedback notification on the task
+        admin_supabase.table('user_quest_tasks').update({
+            'latest_feedback': None,
+            'feedback_at': None
+        }).eq('id', task_id).execute()
+
+        task_title = task_data.get('title', 'Task')
+        logger.info(f"User {user_id[:8]} finalized task {task_id[:8]} for {total_xp_finalized} subject XP")
+
+        return success_response(
+            data={
+                'task_id': task_id,
+                'diploma_status': 'finalized',
+                'subject_xp_finalized': total_xp_finalized,
+                'subjects': list(subject_xp_distribution.keys())
+            },
+            message=f"'{task_title}' finalized! {total_xp_finalized} XP added to your diploma credits."
+        )
+
+    except Exception as e:
+        logger.error(f"Error finalizing task {task_id}: {str(e)}")
+        return error_response(
+            code='FINALIZE_ERROR',
+            message='Failed to finalize task for diploma credit',
+            status=500
+        )
+
+
+@bp.route('/<task_id>/draft-status', methods=['GET'])
+@require_auth
+def get_draft_status(user_id: str, task_id: str):
+    """
+    Get the draft/feedback status for a completed task.
+
+    Returns:
+        diploma_status, feedback history, and finalization eligibility
+    """
+    try:
+        supabase = get_user_client()
+        admin_supabase = get_supabase_admin_client()
+
+        # Get completion record
+        completion = supabase.table('quest_task_completions')\
+            .select('''
+                id, diploma_status, revision_number,
+                reviewed_at, ready_suggested_at, finalized_at
+            ''')\
+            .eq('user_quest_task_id', task_id)\
+            .eq('user_id', user_id)\
+            .single()\
+            .execute()
+
+        if not completion.data:
+            return success_response(data={
+                'has_completion': False,
+                'diploma_status': None
+            })
+
+        completion_data = completion.data
+
+        # Get feedback history
+        feedback = admin_supabase.table('task_feedback')\
+            .select('id, feedback_text, revision_number, created_at')\
+            .eq('completion_id', completion_data['id'])\
+            .order('created_at', desc=False)\
+            .execute()
+
+        # Get latest feedback from task record
+        task_feedback = supabase.table('user_quest_tasks')\
+            .select('latest_feedback, feedback_at')\
+            .eq('id', task_id)\
+            .single()\
+            .execute()
+
+        return success_response(data={
+            'has_completion': True,
+            'diploma_status': completion_data['diploma_status'],
+            'revision_number': completion_data['revision_number'],
+            'reviewed_at': completion_data['reviewed_at'],
+            'ready_suggested_at': completion_data['ready_suggested_at'],
+            'finalized_at': completion_data['finalized_at'],
+            'can_finalize': completion_data['diploma_status'] == 'ready_for_credit',
+            'feedback_history': feedback.data,
+            'latest_feedback': task_feedback.data.get('latest_feedback') if task_feedback.data else None,
+            'feedback_at': task_feedback.data.get('feedback_at') if task_feedback.data else None
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting draft status for task {task_id}: {str(e)}")
+        return error_response(
+            code='FETCH_ERROR',
+            message='Failed to get draft status',
+            status=500
+        )

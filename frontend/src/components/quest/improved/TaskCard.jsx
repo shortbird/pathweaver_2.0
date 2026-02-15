@@ -2,6 +2,7 @@ import React, { useState, memo } from 'react';
 import Button from '../../ui/Button';
 import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings';
 import SubjectBadges from '../../common/SubjectBadges';
+import TaskFeedbackStatus from '../TaskFeedbackStatus';
 
 const TaskCard = memo(({ task, index, isCompleted, isEnrolled, onComplete, hasCollaboration }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -124,7 +125,7 @@ const TaskCard = memo(({ task, index, isCompleted, isEnrolled, onComplete, hasCo
               onClick={() => onComplete(task)}
               className="min-w-[120px] sm:min-w-[100px] !min-h-[44px] touch-manipulation"
             >
-              Complete
+              Submit
             </Button>
           )}
 
@@ -146,6 +147,13 @@ const TaskCard = memo(({ task, index, isCompleted, isEnrolled, onComplete, hasCo
               </svg>
               <span className="font-medium">Required task</span>
             </div>
+          </div>
+        )}
+
+        {/* Feedback Status for Completed Tasks (Draft Feedback System) */}
+        {isCompleted && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <TaskFeedbackStatus taskId={task.id} />
           </div>
         )}
       </div>

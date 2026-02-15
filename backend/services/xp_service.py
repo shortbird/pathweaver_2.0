@@ -433,3 +433,61 @@ class XPService(BaseService):
         except Exception as e:
             logger.error(f"Error validating XP integrity: {str(e)}")
             return False
+
+    def finalize_subject_xp(self,
+                           user_id: str,
+                           school_subject: str,
+                           completion_id: str) -> int:
+        """
+        Finalize pending subject XP for a user.
+        Moves XP from pending_xp to xp_amount when student confirms ready work.
+
+        Args:
+            user_id: User receiving finalized XP
+            school_subject: The school subject (normalized)
+            completion_id: The task completion being finalized
+
+        Returns:
+            New total finalized XP for the subject
+
+        Raises:
+            ValueError: If no pending XP found
+        """
+        try:
+            # Get current XP record
+            record = self.supabase.table('user_subject_xp')\
+                .select('id, xp_amount, pending_xp')\
+                .eq('user_id', user_id)\
+                .eq('school_subject', school_subject)\
+                .single()\
+                .execute()
+
+            if not record.data:
+                raise ValueError(f"No XP record found for user {user_id}, subject {school_subject}")
+
+            current_data = record.data
+            pending_xp = current_data.get('pending_xp', 0) or 0
+
+            if pending_xp <= 0:
+                logger.info(f"No pending XP to finalize for {school_subject}")
+                return current_data.get('xp_amount', 0)
+
+            # Move pending to finalized
+            new_finalized = (current_data.get('xp_amount', 0) or 0) + pending_xp
+
+            self.supabase.table('user_subject_xp')\
+                .update({
+                    'xp_amount': new_finalized,
+                    'pending_xp': 0,
+                    'updated_at': datetime.utcnow().isoformat()
+                })\
+                .eq('id', current_data['id'])\
+                .execute()
+
+            logger.info(f"Finalized {pending_xp} XP for user {user_id}, subject {school_subject}. New total: {new_finalized}")
+
+            return new_finalized
+
+        except Exception as e:
+            logger.error(f"Error finalizing subject XP: {str(e)}")
+            raise

@@ -83,30 +83,25 @@ class CourseService(BaseService):
     @staticmethod
     def publish_course(course_id: str, user_id: str) -> Dict:
         """
-        Publish a course. Auto-creates completion badge and populates badge_quests.
-
-        When a course is published:
-        1. Creates a badge with badge_type='course_completion'
-        2. Calculates min_quests and min_xp from course quests
-        3. Populates badge_quests table with all course quests
+        Publish a course, making it available for student enrollment.
 
         Args:
             course_id: Course ID to publish
             user_id: User ID performing the action
 
         Returns:
-            Published course record with badge_id
+            Published course record
 
         Raises:
             NotFoundError: If course doesn't exist
             PermissionError: If user doesn't have permission
-            ValidationError: If course has no quests
+            ValidationError: If course has no quests or is already published
         """
         supabase = get_supabase_admin_client()
 
         # Get course with quests
         course_result = supabase.table('courses')\
-            .select('*, course_quests(quest_id, quests(id, title, pillar_primary))')\
+            .select('*, course_quests(quest_id)')\
             .eq('id', course_id)\
             .single()\
             .execute()
@@ -115,6 +110,10 @@ class CourseService(BaseService):
             raise NotFoundError(f"Course {course_id} not found")
 
         course = course_result.data
+
+        # Check if already published
+        if course.get('is_published'):
+            raise ValidationError("Course is already published")
 
         # Check permission (user must be creator or admin)
         if course['created_by'] != user_id:
@@ -126,68 +125,17 @@ class CourseService(BaseService):
         if not course_quests:
             raise ValidationError("Course must have at least one quest before publishing")
 
-        # Calculate min_quests and min_xp from course quests
-        min_quests = len(course_quests)
-
-        # Get total XP from all quest tasks
-        quest_ids = [cq['quest_id'] for cq in course_quests]
-        xp_result = supabase.table('user_quest_tasks')\
-            .select('xp_value')\
-            .in_('quest_id', quest_ids)\
-            .execute()
-
-        min_xp = sum(task['xp_value'] or 0 for task in xp_result.data) if xp_result.data else 0
-
-        # Get primary pillar from first quest (or most common pillar)
-        primary_pillar = None
-        if course_quests and course_quests[0].get('quests'):
-            primary_pillar = course_quests[0]['quests'].get('pillar_primary')
-
-        # Create completion badge
-        badge_data = {
-            'name': f"{course['title']} - Completion",
-            'badge_type': 'course_completion',
-            'pillar_primary': primary_pillar or 'knowledge',
-            'min_quests': min_quests,
-            'min_xp': min_xp,
-            'description': f"Complete all quests in {course['title']}",
-            'status': 'active',
-            'organization_id': course['organization_id'],
-            'created_at': datetime.utcnow().isoformat()
-        }
-
         try:
-            badge_result = supabase.table('badges').insert(badge_data).execute()
-            if not badge_result.data:
-                raise ValueError("Failed to create completion badge")
-
-            badge_id = badge_result.data[0]['id']
-
-            # Populate badge_quests junction table
-            badge_quests = [
-                {
-                    'badge_id': badge_id,
-                    'quest_id': cq['quest_id'],
-                    'is_required': True,
-                    'quest_source': 'custom',
-                    'created_at': datetime.utcnow().isoformat()
-                }
-                for cq in course_quests
-            ]
-
-            supabase.table('badge_quests').insert(badge_quests).execute()
-
-            # Update course to published with badge reference
+            # Update course to published
             update_result = supabase.table('courses')\
                 .update({
                     'is_published': True,
-                    'completion_badge_id': badge_id,
                     'updated_at': datetime.utcnow().isoformat()
                 })\
                 .eq('id', course_id)\
                 .execute()
 
-            logger.info(f"Course {course_id} published with badge {badge_id}")
+            logger.info(f"Course {course_id} published by user {user_id}")
             return update_result.data[0] if update_result.data else course
 
         except Exception as e:

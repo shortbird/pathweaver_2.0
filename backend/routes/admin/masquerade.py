@@ -13,6 +13,7 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
 from utils.session_manager import session_manager
 from utils.logger import get_logger
+from middleware.rate_limiter import get_real_ip
 from datetime import datetime, timezone
 
 logger = get_logger(__name__)
@@ -56,8 +57,8 @@ def start_masquerade(admin_id, target_user_id):
             logger.warning(f"[Masquerade] Blocked: admin_role={admin_role} tried to masquerade as {target_user_data.get('role')}")
             return jsonify({'error': 'Only superadmins can masquerade as other admins'}), 403
 
-        # Get request metadata
-        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+        # Get request metadata (use secure IP extraction to prevent spoofing)
+        ip_address = get_real_ip()
         user_agent = request.headers.get('User-Agent', '')
         reason = request.json.get('reason', '') if request.json else ''
 

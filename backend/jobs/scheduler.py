@@ -23,6 +23,7 @@ class JobScheduler:
     JOB_TYPE_METRICS_UPDATE = 'metrics_update'
     JOB_TYPE_MONTHLY_REPORT = 'monthly_report'
     JOB_TYPE_COURSE_GENERATION = 'course_generation'
+    JOB_TYPE_DAILY_ADVISOR_SUMMARY = 'daily_advisor_summary'
 
     # Job status
     STATUS_PENDING = 'pending'
@@ -220,6 +221,10 @@ class JobScheduler:
                 success = job_service.process_job(gen_job_id)
                 result = {'job_id': gen_job_id, 'success': success}
 
+            elif job_type == JobScheduler.JOB_TYPE_DAILY_ADVISOR_SUMMARY:
+                from jobs.daily_advisor_summary import DailyAdvisorSummaryJob
+                result = DailyAdvisorSummaryJob.execute(job_data)
+
             else:
                 raise ValueError(f"Unknown job type: {job_type}")
 
@@ -314,6 +319,19 @@ class JobScheduler:
                 },
                 priority=6
             )
+
+        # Daily advisor summary at 5 AM - recap of previous day's activity
+        # Scheduled for next 5 AM UTC
+        next_5am = datetime.utcnow().replace(hour=5, minute=0, second=0, microsecond=0)
+        if datetime.utcnow().hour >= 5:
+            next_5am += timedelta(days=1)
+
+        JobScheduler.schedule_job(
+            job_type=JobScheduler.JOB_TYPE_DAILY_ADVISOR_SUMMARY,
+            job_data={},
+            scheduled_for=next_5am,
+            priority=7
+        )
 
     @staticmethod
     def get_job_history(

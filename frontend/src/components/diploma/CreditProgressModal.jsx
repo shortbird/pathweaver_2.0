@@ -89,7 +89,7 @@ const CreditProgressModal = ({ isOpen, onClose, subjectXP, pendingSubjectXP = {}
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded bg-amber-400 border-2 border-dashed border-amber-600"></div>
-                  <span className="text-gray-600">Pending Teacher Verification</span>
+                  <span className="text-gray-600">Pending Finalization</span>
                 </div>
               </div>
             </div>
@@ -147,7 +147,7 @@ const CreditProgressModal = ({ isOpen, onClose, subjectXP, pendingSubjectXP = {}
                 <span>{Math.round((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100)}% Complete</span>
                 {hasPendingCredits && (
                   <span className="text-amber-600">
-                    +{totalPendingCredits.toFixed(1)} pending verification
+                    +{totalPendingCredits.toFixed(1)} pending finalization
                   </span>
                 )}
               </div>
@@ -271,7 +271,7 @@ const CreditProgressModal = ({ isOpen, onClose, subjectXP, pendingSubjectXP = {}
 
                   {credit.creditsEarned === 0 && hasPending && (
                     <p className="text-xs text-amber-600 italic text-center">
-                      Credits awaiting teacher verification
+                      Credits awaiting finalization
                     </p>
                   )}
                 </div>
@@ -287,10 +287,13 @@ const CreditProgressModal = ({ isOpen, onClose, subjectXP, pendingSubjectXP = {}
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <div>
-                  <h4 className="font-medium text-amber-800">Pending Verification</h4>
+                  <h4 className="font-medium text-amber-800">Pending Finalization</h4>
                   <p className="text-sm text-amber-700 mt-1">
-                    {isOwner ? 'You have' : `${getStudentFirstName()} has`} {totalPendingCredits.toFixed(1)} credits awaiting teacher verification.
-                    Once verified, these credits will be added to {isOwner ? 'your' : 'their'} diploma progress.
+                    {isOwner ? 'You have' : `${getStudentFirstName()} has`} {totalPendingCredits.toFixed(1)} credits awaiting finalization.
+                    {isOwner
+                      ? ' Once your work is reviewed and you finalize it, these credits will be added to your diploma progress.'
+                      : ` Once ${getStudentFirstName()}'s work is reviewed and finalized, these credits will be added to their diploma progress.`
+                    }
                   </p>
                 </div>
               </div>

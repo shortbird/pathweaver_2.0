@@ -32,20 +32,26 @@ class DashboardService:
     def get_user_subject_xp(self, user_id: str) -> List[Dict[str, Any]]:
         """
         Get user's XP by school subject for diploma credits.
+        Returns both finalized (xp_amount) and pending XP for draft feedback system.
 
         Args:
             user_id: User ID
 
         Returns:
-            List of {school_subject, xp_amount} dicts
+            List of {school_subject, xp_amount, pending_xp} dicts
         """
         # Try user_subject_xp table first
         response = self.client.table('user_subject_xp')\
-            .select('school_subject, xp_amount')\
+            .select('school_subject, xp_amount, pending_xp')\
             .eq('user_id', user_id)\
             .execute()
 
         subject_xp = response.data or []
+
+        # Ensure pending_xp is present (for backward compatibility)
+        for record in subject_xp:
+            if 'pending_xp' not in record:
+                record['pending_xp'] = 0
 
         # If no data, calculate from completed tasks
         if not subject_xp:
