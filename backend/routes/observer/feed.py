@@ -310,7 +310,7 @@ def register_routes(bp):
 
                     if completion.get('evidence_url'):
                         url = completion['evidence_url'].lower()
-                        if any(url.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+                        if any(url.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif']):
                             evidence_type = 'image'
                             evidence_preview = completion['evidence_url']
                         elif 'youtube.com' in url or 'youtu.be' in url or 'vimeo.com' in url:

@@ -20,6 +20,7 @@ const CourseGenerationQueue = lazy(() => import('./admin/CourseGenerationQueue')
 const CourseEnrollmentsPage = lazy(() => import('./admin/CourseEnrollmentsPage'))
 const TransferCreditForm = lazy(() => import('./admin/TransferCreditForm'))
 const CoursePlanMode = lazy(() => import('./admin/CoursePlanMode'))
+const DraftFeedbackPanel = lazy(() => import('../components/admin/DraftFeedbackPanel'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -62,6 +63,7 @@ const AdminPage = () => {
   ]
 
   const superadminTabs = [
+    { path: 'draft-feedback', label: 'Draft Feedback' },
     { path: 'course-enrollments', label: 'Course Enrollments' },
     { path: 'curriculum-upload', label: 'AI Upload' }
   ]
@@ -162,6 +164,7 @@ const AdminPage = () => {
           <Route path="organizations" element={<OrganizationDashboard />} />
           <Route path="organizations/:orgId" element={<OrganizationManagement />} />
           <Route path="parental-consent" element={<ParentalConsentReviewPage />} />
+          <Route path="draft-feedback" element={<DraftFeedbackPanel />} />
           <Route path="curriculum-upload" element={<CurriculumUploadPage />} />
           <Route path="generate-course" element={<CourseGeneratorWizard />} />
           <Route path="generate-course/:courseId" element={<CourseGeneratorWizard />} />

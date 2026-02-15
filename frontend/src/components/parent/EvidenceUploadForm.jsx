@@ -19,6 +19,12 @@ export default function EvidenceUploadForm({ taskId, studentId, onCancel, onSucc
   const [pendingFile, setPendingFile] = useState(null);
   const fileInputRef = useRef(null);
 
+  // Allowed file types
+  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
+  const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'];
+  const ALLOWED_DOCUMENT_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+  const ALLOWED_DOCUMENT_EXTENSIONS = ['pdf', 'doc', 'docx'];
+
   const handleFileSelect = (file, type) => {
     const MAX_FILE_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
@@ -26,9 +32,21 @@ export default function EvidenceUploadForm({ taskId, studentId, onCancel, onSucc
       return;
     }
 
-    if (type === 'image' && !file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
-      return;
+    const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
+
+    if (type === 'image') {
+      // Check both MIME type and extension for better compatibility
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type) && !ALLOWED_IMAGE_EXTENSIONS.includes(fileExtension)) {
+        toast.error(`Unsupported image format (.${fileExtension || 'unknown'}). Please use JPG, PNG, GIF, WebP, or HEIC.`);
+        return;
+      }
+    }
+
+    if (type === 'document') {
+      if (!ALLOWED_DOCUMENT_TYPES.includes(file.type) && !ALLOWED_DOCUMENT_EXTENSIONS.includes(fileExtension)) {
+        toast.error(`Unsupported document format (.${fileExtension || 'unknown'}). Please use PDF, DOC, or DOCX.`);
+        return;
+      }
     }
 
     const previewUrl = URL.createObjectURL(file);
@@ -274,14 +292,14 @@ export default function EvidenceUploadForm({ taskId, studentId, onCancel, onSucc
                       Click to upload {evidenceType}
                     </p>
                     <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      {evidenceType === 'image' ? 'PNG, JPG, GIF up to 10MB' : 'PDF, DOC, DOCX up to 10MB'}
+                      {evidenceType === 'image' ? 'JPG, PNG, GIF, WebP, HEIC up to 10MB' : 'PDF, DOC, DOCX up to 10MB'}
                     </p>
                   </div>
                 )}
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept={evidenceType === 'image' ? 'image/*' : '.pdf,.doc,.docx'}
+                  accept={evidenceType === 'image' ? '.jpg,.jpeg,.png,.gif,.webp,.heic,.heif' : '.pdf,.doc,.docx'}
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];

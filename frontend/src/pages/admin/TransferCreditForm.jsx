@@ -168,9 +168,9 @@ const TransferCreditForm = () => {
       return;
     }
 
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
     if (!allowedTypes.includes(file.type)) {
-      setError('Only PDF and image files (JPEG, PNG, GIF, WEBP) are allowed');
+      setError('Only PDF and image files (JPEG, PNG, GIF, WEBP, HEIC) are allowed');
       return;
     }
 
@@ -534,7 +534,7 @@ const TransferCreditForm = () => {
                       Drag and drop or{' '}
                       <label className="text-optio-purple hover:underline cursor-pointer">
                         browse
-                        <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp" onChange={(e) => handleFileSelect(e.target.files[0])} />
+                        <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" onChange={(e) => handleFileSelect(e.target.files[0])} />
                       </label>
                     </p>
                     <p className="mt-1 text-xs text-gray-500">PDF or images up to 25MB</p>

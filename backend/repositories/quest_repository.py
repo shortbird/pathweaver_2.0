@@ -774,6 +774,373 @@ class QuestRepository(BaseRepository):
             raise DatabaseError("Failed to search similar quests") from e
 
 
+    # ========================================================================
+    # ADMIN QUEST MANAGEMENT METHODS
+    # ========================================================================
+
+    def create_quest(
+        self,
+        data: Dict[str, Any],
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        Create a new quest.
+
+        Args:
+            data: Quest data (title, big_idea, etc.)
+            user_id: Creator user ID
+
+        Returns:
+            Created quest record
+        """
+        from datetime import datetime
+        from database import get_supabase_admin_client
+
+        admin = get_supabase_admin_client()
+
+        try:
+            quest_data = {
+                'title': data['title'].strip(),
+                'big_idea': data.get('big_idea', '').strip() or data.get('description', '').strip(),
+                'description': data.get('big_idea', '').strip() or data.get('description', '').strip(),
+                'is_v3': True,
+                'is_active': data.get('is_active', False),
+                'is_public': data.get('is_public', False),
+                'quest_type': data.get('quest_type', 'optio'),
+                'header_image_url': data.get('header_image_url'),
+                'image_url': data.get('image_url'),
+                'material_link': data.get('material_link', '').strip() if data.get('material_link') else None,
+                'created_by': user_id,
+                'created_at': datetime.utcnow().isoformat(),
+                'organization_id': data.get('organization_id')
+            }
+
+            result = admin.table('quests').insert(quest_data).execute()
+
+            if not result.data:
+                raise DatabaseError("Failed to create quest")
+
+            logger.info(f"Created quest {result.data[0]['id']}: {quest_data['title']}")
+            return result.data[0]
+
+        except APIError as e:
+            logger.error(f"Error creating quest: {e}")
+            raise DatabaseError("Failed to create quest") from e
+
+    def update_quest(
+        self,
+        quest_id: str,
+        data: Dict[str, Any],
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        Update an existing quest.
+
+        Args:
+            quest_id: Quest ID
+            data: Fields to update
+            user_id: User performing the update
+
+        Returns:
+            Updated quest record
+        """
+        from datetime import datetime
+        from database import get_supabase_admin_client
+
+        admin = get_supabase_admin_client()
+
+        try:
+            update_data = {}
+
+            if 'title' in data:
+                update_data['title'] = data['title'].strip()
+            if 'big_idea' in data or 'description' in data:
+                desc = data.get('big_idea', '').strip() or data.get('description', '').strip()
+                update_data['big_idea'] = desc
+                update_data['description'] = desc
+            if 'header_image_url' in data:
+                update_data['header_image_url'] = data['header_image_url']
+            if 'material_link' in data:
+                update_data['material_link'] = data['material_link'].strip() if data['material_link'] else None
+            if 'is_active' in data:
+                update_data['is_active'] = data['is_active']
+            if 'is_public' in data:
+                update_data['is_public'] = data['is_public']
+
+            if update_data:
+                update_data['updated_at'] = datetime.utcnow().isoformat()
+                result = admin.table('quests').update(update_data).eq('id', quest_id).execute()
+
+                if not result.data:
+                    raise NotFoundError(f"Quest {quest_id} not found")
+
+                return result.data[0]
+
+            return self.find_by_id(quest_id)
+
+        except APIError as e:
+            logger.error(f"Error updating quest {quest_id}: {e}")
+            raise DatabaseError("Failed to update quest") from e
+
+    def delete_quest_cascade(self, quest_id: str, user_id: str) -> bool:
+        """
+        Delete a quest and all associated data.
+
+        Args:
+            quest_id: Quest ID
+            user_id: User performing the deletion
+
+        Returns:
+            True if deleted successfully
+        """
+        from database import get_supabase_admin_client
+
+        admin = get_supabase_admin_client()
+
+        try:
+            # Delete in order to respect FK constraints
+            admin.table('quest_task_completions').delete().eq('quest_id', quest_id).execute()
+            admin.table('user_task_evidence_documents').delete().eq('quest_id', quest_id).execute()
+            admin.table('user_quest_tasks').delete().eq('quest_id', quest_id).execute()
+            admin.table('user_quests').delete().eq('quest_id', quest_id).execute()
+            admin.table('quests').delete().eq('id', quest_id).execute()
+
+            logger.info(f"Deleted quest {quest_id} by user {user_id}")
+            return True
+
+        except APIError as e:
+            logger.error(f"Error deleting quest {quest_id}: {e}")
+            raise DatabaseError("Failed to delete quest") from e
+
+    def bulk_delete_quests(
+        self,
+        quest_ids: List[str],
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        Delete multiple quests.
+
+        Args:
+            quest_ids: List of quest IDs
+            user_id: User performing the deletion
+
+        Returns:
+            Dict with deleted count, failed list
+        """
+        deleted_count = 0
+        failed = []
+
+        for quest_id in quest_ids:
+            try:
+                self.delete_quest_cascade(quest_id, user_id)
+                deleted_count += 1
+            except Exception as e:
+                logger.error(f"Error deleting quest {quest_id}: {e}")
+                failed.append({'id': quest_id, 'error': str(e)})
+
+        return {
+            'deleted_count': deleted_count,
+            'failed': failed
+        }
+
+    def bulk_update_quests(
+        self,
+        quest_ids: List[str],
+        updates: Dict[str, Any],
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        Update multiple quests.
+
+        Args:
+            quest_ids: List of quest IDs
+            updates: Fields to update (is_active, is_public)
+            user_id: User performing the update
+
+        Returns:
+            Dict with updated count, failed list
+        """
+        from datetime import datetime
+        from database import get_supabase_admin_client
+
+        admin = get_supabase_admin_client()
+
+        allowed_fields = {'is_active', 'is_public'}
+        update_data = {k: v for k, v in updates.items() if k in allowed_fields}
+
+        if not update_data:
+            return {'updated_count': 0, 'failed': []}
+
+        update_data['updated_at'] = datetime.utcnow().isoformat()
+
+        updated_count = 0
+        failed = []
+
+        for quest_id in quest_ids:
+            try:
+                result = admin.table('quests').update(update_data).eq('id', quest_id).execute()
+                if result.data:
+                    updated_count += 1
+                else:
+                    failed.append({'id': quest_id, 'error': 'Quest not found'})
+            except Exception as e:
+                logger.error(f"Error updating quest {quest_id}: {e}")
+                failed.append({'id': quest_id, 'error': str(e)})
+
+        return {
+            'updated_count': updated_count,
+            'failed': failed
+        }
+
+    def get_admin_quests(
+        self,
+        user_id: str,
+        user_role: str,
+        filters: Optional[Dict[str, Any]] = None,
+        page: int = 1,
+        per_page: int = 1000
+    ) -> Dict[str, Any]:
+        """
+        Get quests for admin/advisor management.
+
+        Args:
+            user_id: User ID
+            user_role: User's role
+            filters: Optional filters (quest_type, is_active, is_public)
+            page: Page number
+            per_page: Items per page
+
+        Returns:
+            Dict with quests list, total, pagination info
+        """
+        from database import get_supabase_admin_client
+
+        admin = get_supabase_admin_client()
+
+        try:
+            offset = (page - 1) * per_page
+            filters = filters or {}
+
+            query = admin.table('quests').select(
+                '*, creator:created_by(id, display_name, first_name, last_name, email)',
+                count='exact'
+            )
+
+            # Advisors see only their own quests
+            if user_role == 'advisor':
+                query = query.eq('created_by', user_id)
+
+            # Apply filters
+            if filters.get('quest_type'):
+                query = query.eq('quest_type', filters['quest_type'])
+            if filters.get('is_active') is not None:
+                query = query.eq('is_active', filters['is_active'])
+            if filters.get('is_public') is not None:
+                query = query.eq('is_public', filters['is_public'])
+
+            query = query.order('created_at', desc=True).range(offset, offset + per_page - 1)
+
+            result = query.execute()
+            quests = result.data or []
+
+            # Get course connections
+            quest_ids = [q['id'] for q in quests]
+            course_connections = {}
+            if quest_ids:
+                course_links = admin.table('course_quests')\
+                    .select('quest_id, course_id, courses(id, title)')\
+                    .in_('quest_id', quest_ids)\
+                    .execute()
+                for link in (course_links.data or []):
+                    quest_id = link.get('quest_id')
+                    if quest_id not in course_connections:
+                        course_connections[quest_id] = []
+                    course_data = link.get('courses')
+                    if course_data:
+                        course_connections[quest_id].append({
+                            'course_id': course_data.get('id'),
+                            'course_title': course_data.get('title')
+                        })
+
+            # Process quests
+            for quest in quests:
+                creator = quest.get('creator')
+                if creator:
+                    quest['creator_name'] = creator.get('display_name') or \
+                        f"{creator.get('first_name', '')} {creator.get('last_name', '')}".strip() or \
+                        creator.get('email', 'Unknown User')
+                else:
+                    quest['creator_name'] = None
+
+                quest['connected_courses'] = course_connections.get(quest['id'], [])
+                quest['is_project'] = len(quest['connected_courses']) > 0
+
+            return {
+                'quests': quests,
+                'total': result.count or 0,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': ((result.count or 0) + per_page - 1) // per_page
+            }
+
+        except APIError as e:
+            logger.error(f"Error getting admin quests: {e}")
+            raise DatabaseError("Failed to fetch admin quests") from e
+
+    def can_user_edit_quest(
+        self,
+        user_id: str,
+        quest_id: str
+    ) -> Dict[str, bool]:
+        """
+        Check if user can edit a quest.
+
+        Args:
+            user_id: User ID
+            quest_id: Quest ID
+
+        Returns:
+            Dict with can_edit and can_toggle_active flags
+        """
+        from database import get_supabase_admin_client
+
+        admin = get_supabase_admin_client()
+
+        try:
+            quest = admin.table('quests').select('*').eq('id', quest_id).single().execute()
+            if not quest.data:
+                return {'can_edit': False, 'can_toggle_active': False}
+
+            user = admin.table('users').select('role, organization_id, org_role').eq('id', user_id).execute()
+            user_data = user.data[0] if user.data else {}
+            user_role = user_data.get('role', 'advisor')
+            user_org_id = user_data.get('organization_id')
+            user_org_role = user_data.get('org_role')
+
+            is_superadmin = user_role == 'superadmin'
+            is_org_admin = user_role == 'org_managed' and user_org_role == 'org_admin'
+            quest_org_id = quest.data.get('organization_id')
+
+            can_edit = False
+            can_toggle_active = False
+
+            if is_superadmin:
+                can_edit = True
+                can_toggle_active = True
+            elif is_org_admin and quest_org_id and quest_org_id == user_org_id:
+                can_edit = True
+                can_toggle_active = True
+            elif user_role == 'advisor' or (user_role == 'org_managed' and user_org_role == 'advisor'):
+                if quest.data.get('created_by') == user_id and not quest.data.get('is_active'):
+                    can_edit = True
+
+            return {'can_edit': can_edit, 'can_toggle_active': can_toggle_active}
+
+        except Exception as e:
+            logger.error(f"Error checking quest edit permissions: {e}")
+            return {'can_edit': False, 'can_toggle_active': False}
+
+
 class QuestTaskRepository(BaseRepository):
     """Repository for quest task database operations"""
 

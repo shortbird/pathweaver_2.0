@@ -10,6 +10,7 @@ import {
   BulkTaskGenerationModal,
   MoveLessonModal,
   AIToolsModal,
+  AddTaskModal,
   OutlineTree,
   OutlineEditor,
   NewCourseForm,
@@ -79,6 +80,7 @@ const CourseBuilder = () => {
         onShowAITools={() => state.setShowAIToolsModal(true)}
         onShowPreview={() => state.setShowPreview(true)}
         onPublishToggle={state.handlePublishToggle}
+        isSuperadmin={isSuperadmin}
       />
 
       {/* Main Content - Outline View */}
@@ -115,9 +117,12 @@ const CourseBuilder = () => {
           tasksMap={state.tasksMap}
           onAddStep={state.handleAddStep}
           onDeleteStep={state.handleDeleteStep}
+          onAddTask={state.handleAddTask}
+          onUnlinkTask={state.handleUnlinkTask}
           onToggleTaskRequired={state.handleToggleTaskRequired}
           saving={state.saving}
           questId={state.selectedItem?.lessonId ? Object.keys(state.lessonsMap).find(pid => state.lessonsMap[pid]?.some(l => l.id === state.selectedItem.lessonId)) : state.selectedItem?.id}
+          isSuperadmin={isSuperadmin}
         />
       </div>
 
@@ -214,6 +219,16 @@ const CourseBuilder = () => {
           onMove={state.handleLessonMoved}
         />
       )}
+
+      <AddTaskModal
+        isOpen={state.showAddTaskModal}
+        onClose={() => {
+          state.setShowAddTaskModal(false)
+          state.setAddingTaskToLesson(null)
+        }}
+        lessonTitle={state.addingTaskToLesson?.title}
+        onSave={state.handleCreateTask}
+      />
     </div>
   )
 }

@@ -842,6 +842,50 @@ class EmailService(BaseService):
             }
         )
 
+    def send_daily_advisor_summary(
+        self,
+        advisor_email: str,
+        advisor_name: str,
+        summary_date: str,
+        active_students: int,
+        total_tasks: int,
+        total_xp: int
+    ) -> bool:
+        """
+        Send daily advisor summary email.
+
+        Note: The full daily advisor summary job uses send_email directly with
+        custom HTML for the detailed student-by-student breakdown. This method
+        is provided for simpler use cases or testing.
+
+        Args:
+            advisor_email: Advisor's email address
+            advisor_name: Advisor's display name
+            summary_date: Formatted date string
+            active_students: Number of students with activity
+            total_tasks: Total tasks completed
+            total_xp: Total XP earned
+
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        frontend_url = os.getenv('FRONTEND_URL', 'https://www.optioeducation.com')
+        dashboard_url = f"{frontend_url}/advisor"
+
+        return self.send_templated_email(
+            to_email=advisor_email,
+            subject=f"Morning Briefing: Your Students' Progress - {summary_date}",
+            template_name='daily_advisor_summary',
+            context={
+                'advisor_name': advisor_name,
+                'summary_date': summary_date,
+                'active_students': active_students,
+                'total_tasks': total_tasks,
+                'total_xp': total_xp,
+                'dashboard_url': dashboard_url
+            }
+        )
+
 
 # Create singleton instance
 email_service = EmailService()

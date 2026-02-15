@@ -60,7 +60,9 @@ ALLOWED_TRANSCRIPT_TYPES = {
     'image/jpeg',
     'image/png',
     'image/gif',
-    'image/webp'
+    'image/webp',
+    'image/heic',
+    'image/heif'
 }
 
 
@@ -320,7 +322,9 @@ def upload_transcript(admin_user_id, user_id):
             'image/jpeg': 'jpg',
             'image/png': 'png',
             'image/gif': 'gif',
-            'image/webp': 'webp'
+            'image/webp': 'webp',
+            'image/heic': 'heic',
+            'image/heif': 'heif'
         }
         file_extension = ext_map.get(mime_type, 'pdf')
 

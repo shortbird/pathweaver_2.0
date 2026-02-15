@@ -183,7 +183,7 @@ class Config:
     # ALLOWED_EXTENSIONS imported from config.constants
     # MAX_FILE_SIZE imported from config.constants (10MB)
     MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', str(10 * 1024 * 1024)))  # 10MB default
-    ALLOWED_UPLOAD_EXTENSIONS = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.mp4', '.mov']
+    ALLOWED_UPLOAD_EXTENSIONS = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.mp4', '.mov', '.heic', '.heif', '.webp', '.gif']
 
     # Quest Settings - imported from centralized constants
     # MIN_QUEST_TITLE_LENGTH, MAX_QUEST_TITLE_LENGTH imported from config.constants

@@ -52,8 +52,8 @@ const errorMessages = {
     suggestion: 'Please upload files under 10MB. Consider compressing images or videos.'
   },
   'upload/invalid-type': {
-    message: 'Invalid file type',
-    suggestion: 'Supported formats: JPG, PNG, GIF, PDF, MP4, and common document types.'
+    message: 'Unsupported file format',
+    suggestion: 'Supported image formats: JPG, PNG, GIF, WebP, HEIC. Document formats: PDF, DOC, DOCX.'
   },
   'upload/failed': {
     message: 'Upload failed',

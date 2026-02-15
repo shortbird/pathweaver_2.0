@@ -331,9 +331,9 @@ def upload_dependent_avatar(user_id, dependent_id):
             raise ValidationError('No file selected')
 
         # Validate file type
-        allowed_types = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+        allowed_types = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'}
         if file.content_type not in allowed_types:
-            raise ValidationError('Invalid file type. Allowed: JPEG, PNG, GIF, WebP')
+            raise ValidationError('Invalid file type. Allowed: JPEG, PNG, GIF, WebP, HEIC')
 
         # Validate file size (5MB max)
         file.seek(0, 2)

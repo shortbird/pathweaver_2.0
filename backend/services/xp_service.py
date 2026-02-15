@@ -19,7 +19,24 @@ logger = get_logger(__name__)
 
 class XPService(BaseService):
     """Service for handling XP calculations and awards."""
-    
+
+    def __init__(self, client=None):
+        """Initialize XP service with optional database client."""
+        super().__init__()
+        self._client = client
+        self._supabase = None
+
+    @property
+    def supabase(self):
+        """Lazy-initialize database client on first use."""
+        if self._supabase is None:
+            if self._client:
+                self._supabase = self._client
+            else:
+                from database import get_supabase_admin_client
+                self._supabase = get_supabase_admin_client()
+        return self._supabase
+
     def calculate_task_xp(self,
                          user_id: str,
                          task_id: str,
@@ -90,69 +107,52 @@ class XPService(BaseService):
         self.validate_one_of('pillar', db_pillar, ['art', 'stem', 'wellness', 'communication', 'civics'])
         
         try:
-            # Check current XP for this pillar
+            # NOTE: For atomic increment, run the migration:
+            #   psql $DATABASE_URL -f backend/migrations/20260215_create_atomic_xp_increment.sql
+            # Then switch to RPC call: self.supabase.rpc('increment_user_xp', {...})
+
+            # Current approach: read-modify-write with upsert for new records
             current_xp = self.supabase.table('user_skill_xp')\
-                .select('*')\
+                .select('id, xp_amount')\
                 .eq('user_id', user_id)\
                 .eq('pillar', db_pillar)\
                 .execute()
-            
-            logger.info(f"Current XP records found: {len(current_xp.data) if current_xp.data else 0}")
+
             if current_xp.data:
-                logger.info(f"Existing record: {current_xp.data[0]}")
-            
-            if current_xp.data:
-                # Update existing XP record - use 'xp_amount' column
                 existing_record = current_xp.data[0]
                 existing_xp = existing_record.get('xp_amount', 0)
                 new_total = existing_xp + xp_amount
-                
-                logger.info(f"Updating XP: {existing_xp} + {xp_amount} = {new_total}")
-                
-                # Use the record ID for a more reliable update
                 record_id = existing_record.get('id')
-                if record_id:
-                    result = self.supabase.table('user_skill_xp')\
-                        .update({
-                            'xp_amount': new_total,
-                            'updated_at': datetime.utcnow().isoformat()
-                        })\
-                        .eq('id', record_id)\
-                        .execute()
-                else:
-                    # Fallback to composite key update
-                    result = self.supabase.table('user_skill_xp')\
-                        .update({
-                            'xp_amount': new_total,
-                            'updated_at': datetime.utcnow().isoformat()
-                        })\
-                        .eq('user_id', user_id)\
-                        .eq('pillar', db_pillar)\
-                        .execute()
-                
-                logger.info(f"Update result: {result.data}")
+
+                logger.info(f"Updating XP: {existing_xp} + {xp_amount} = {new_total}")
+
+                result = self.supabase.table('user_skill_xp')\
+                    .update({
+                        'xp_amount': new_total,
+                        'updated_at': datetime.utcnow().isoformat()
+                    })\
+                    .eq('id', record_id)\
+                    .execute()
             else:
-                # Create new XP record - use 'pillar' and 'xp_amount' columns
                 logger.info(f"Creating new XP record for {db_pillar} with {xp_amount} XP")
                 result = self.supabase.table('user_skill_xp')\
-                    .insert({
+                    .upsert({
                         'user_id': user_id,
                         'pillar': db_pillar,
                         'xp_amount': xp_amount,
                         'updated_at': datetime.utcnow().isoformat()
-                    })\
+                    }, on_conflict='user_id,pillar')\
                     .execute()
-                logger.info(f"Insert result: {result.data}")
-            
+
             # Create audit log entry
             self._create_xp_audit_log(user_id, pillar, xp_amount, source)
-            
+
             # Update user mastery level
             self.update_user_mastery(user_id)
-            
+
             logger.info(f"XP award success: {bool(result.data)}")
             logger.info("===============================")
-            
+
             return bool(result.data)
             
         except Exception as e:
@@ -241,35 +241,41 @@ class XPService(BaseService):
                 all_xp = self.supabase.table('user_skill_xp')\
                     .select('user_id, xp_amount')\
                     .execute()
-                
+
                 if all_xp.data:
                     # Sum XP per user
                     user_totals = {}
                     for record in all_xp.data:
-                        user_id = record['user_id']
-                        if user_id not in user_totals:
-                            user_totals[user_id] = 0
-                        user_totals[user_id] += record['xp_amount']
-                    
+                        uid = record['user_id']
+                        if uid not in user_totals:
+                            user_totals[uid] = 0
+                        user_totals[uid] += record['xp_amount']
+
                     # Sort and limit
                     sorted_users = sorted(user_totals.items(), key=lambda x: x[1], reverse=True)[:limit]
-                    
-                    # Fetch user details
+
+                    # Batch fetch all user details in one query (avoid N+1)
+                    user_ids = [uid for uid, _ in sorted_users]
+                    users_response = self.supabase.table('users')\
+                        .select('id, username, avatar_url')\
+                        .in_('id', user_ids)\
+                        .execute()
+
+                    # Build lookup map
+                    users_by_id = {u['id']: {'username': u.get('username'), 'avatar_url': u.get('avatar_url')}
+                                   for u in (users_response.data or [])}
+
+                    # Assemble leaderboard in sorted order
                     leaderboard_data = []
-                    for user_id, total_xp in sorted_users:
-                        user_info = self.supabase.table('users')\
-                            .select('username, avatar_url')\
-                            .eq('id', user_id)\
-                            .single()\
-                            .execute()
-                        
-                        if user_info.data:
+                    for uid, total_xp in sorted_users:
+                        user_info = users_by_id.get(uid)
+                        if user_info:
                             leaderboard_data.append({
-                                'user_id': user_id,
+                                'user_id': uid,
                                 'xp_amount': total_xp,
-                                'users': user_info.data
+                                'users': user_info
                             })
-                    
+
                     return leaderboard_data
             
             return leaderboard.data if leaderboard.data else []
@@ -427,3 +433,61 @@ class XPService(BaseService):
         except Exception as e:
             logger.error(f"Error validating XP integrity: {str(e)}")
             return False
+
+    def finalize_subject_xp(self,
+                           user_id: str,
+                           school_subject: str,
+                           completion_id: str) -> int:
+        """
+        Finalize pending subject XP for a user.
+        Moves XP from pending_xp to xp_amount when student confirms ready work.
+
+        Args:
+            user_id: User receiving finalized XP
+            school_subject: The school subject (normalized)
+            completion_id: The task completion being finalized
+
+        Returns:
+            New total finalized XP for the subject
+
+        Raises:
+            ValueError: If no pending XP found
+        """
+        try:
+            # Get current XP record
+            record = self.supabase.table('user_subject_xp')\
+                .select('id, xp_amount, pending_xp')\
+                .eq('user_id', user_id)\
+                .eq('school_subject', school_subject)\
+                .single()\
+                .execute()
+
+            if not record.data:
+                raise ValueError(f"No XP record found for user {user_id}, subject {school_subject}")
+
+            current_data = record.data
+            pending_xp = current_data.get('pending_xp', 0) or 0
+
+            if pending_xp <= 0:
+                logger.info(f"No pending XP to finalize for {school_subject}")
+                return current_data.get('xp_amount', 0)
+
+            # Move pending to finalized
+            new_finalized = (current_data.get('xp_amount', 0) or 0) + pending_xp
+
+            self.supabase.table('user_subject_xp')\
+                .update({
+                    'xp_amount': new_finalized,
+                    'pending_xp': 0,
+                    'updated_at': datetime.utcnow().isoformat()
+                })\
+                .eq('id', current_data['id'])\
+                .execute()
+
+            logger.info(f"Finalized {pending_xp} XP for user {user_id}, subject {school_subject}. New total: {new_finalized}")
+
+            return new_finalized
+
+        except Exception as e:
+            logger.error(f"Error finalizing subject XP: {str(e)}")
+            raise

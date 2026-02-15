@@ -47,7 +47,43 @@ def get_user_active_quests(user_id: str):
                 'message': 'No active quests'
             })
 
-        # Process each quest to add progress info
+        # Batch fetch all data upfront to avoid N+1 queries
+        user_quest_ids = [uq['id'] for uq in user_quests.data if uq.get('id')]
+        quest_ids = [uq.get('quests', {}).get('id') for uq in user_quests.data if uq.get('quests', {}).get('id')]
+
+        # Batch query 1: Get all tasks for all user quests
+        all_tasks = {}
+        if user_quest_ids:
+            tasks_response = supabase.table('user_quest_tasks')\
+                .select('id, xp_value, user_quest_id')\
+                .in_('user_quest_id', user_quest_ids)\
+                .eq('approval_status', 'approved')\
+                .execute()
+
+            # Group tasks by user_quest_id
+            for task in (tasks_response.data or []):
+                uq_id = task['user_quest_id']
+                if uq_id not in all_tasks:
+                    all_tasks[uq_id] = []
+                all_tasks[uq_id].append(task)
+
+        # Batch query 2: Get all completions for all quests
+        all_completions = {}
+        if quest_ids:
+            completions_response = supabase.table('quest_task_completions')\
+                .select('task_id, quest_id')\
+                .eq('user_id', user_id)\
+                .in_('quest_id', quest_ids)\
+                .execute()
+
+            # Group completed task IDs by quest_id
+            for tc in (completions_response.data or []):
+                q_id = tc['quest_id']
+                if q_id not in all_completions:
+                    all_completions[q_id] = set()
+                all_completions[q_id].add(tc['task_id'])
+
+        # Process each quest using pre-fetched data
         active_quests = []
         for uq in user_quests.data:
             quest = uq.get('quests')
@@ -55,23 +91,13 @@ def get_user_active_quests(user_id: str):
                 continue
 
             user_quest_id = uq['id']
+            quest_id = quest['id']
 
-            # Get user's personalized tasks for this quest
-            user_tasks = supabase.table('user_quest_tasks')\
-                .select('id, xp_value')\
-                .eq('user_quest_id', user_quest_id)\
-                .eq('approval_status', 'approved')\
-                .execute()
+            # Get tasks from pre-fetched data
+            user_tasks = all_tasks.get(user_quest_id, [])
+            completed_task_ids = all_completions.get(quest_id, set())
 
-            # Get completed tasks for this quest
-            completed_tasks_response = supabase.table('quest_task_completions')\
-                .select('task_id')\
-                .eq('user_id', user_id)\
-                .eq('quest_id', quest['id'])\
-                .execute()
-
-            completed_task_ids = {t['task_id'] for t in (completed_tasks_response.data or [])}
-            total_tasks = len(user_tasks.data) if user_tasks.data else 0
+            total_tasks = len(user_tasks)
             completed_count = len(completed_task_ids)
 
             quest['enrollment_id'] = uq['id']
@@ -84,7 +110,7 @@ def get_user_active_quests(user_id: str):
 
             # Calculate XP earned from completed tasks
             xp_earned = sum(
-                task['xp_value'] for task in (user_tasks.data or [])
+                task['xp_value'] for task in user_tasks
                 if task['id'] in completed_task_ids
             )
             quest['xp_earned'] = xp_earned

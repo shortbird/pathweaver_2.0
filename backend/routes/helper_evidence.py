@@ -1,16 +1,14 @@
 """
-REPOSITORY MIGRATION: PARTIALLY MIGRATED - Needs Completion
-- Already uses UserRepository, TaskRepository, ParentRepository (lines 11-17)
-- BUT: Direct DB call at line 42 for advisor_student_assignments check
-- Mixed pattern creates inconsistency
-- Could create AdvisorRepository with method verify_student_access(advisor_id, student_id)
-- Or move advisor verification logic to AdvisorService
-
-Recommendation: Complete migration by creating AdvisorRepository or delegating to AdvisorService
-
 Helper Evidence Upload Routes - Advisors and Parents uploading evidence for students
+
 Allows advisors and parents to add evidence blocks to student tasks without completing them.
 Students retain full control and can edit/delete helper-uploaded evidence.
+
+REPOSITORY MIGRATION: COMPLETE
+- Uses AdvisorRepository for advisor-student access verification
+- Uses ParentRepository for parent-student access verification
+- Uses EvidenceDocumentRepository for evidence operations
+- Uses UserRepository for user lookups
 """
 
 from flask import Blueprint, request, jsonify
@@ -23,7 +21,8 @@ from repositories import (
     TaskRepository,
     QuestRepository,
     EvidenceDocumentRepository,
-    ParentRepository
+    ParentRepository,
+    AdvisorRepository
 )
 
 from utils.logger import get_logger
@@ -37,6 +36,7 @@ def verify_advisor_access(advisor_user_id, student_user_id):
     """Verify advisor has access to student"""
     # Admin client: Cross-user access verification (ADR-002, Rule 5)
     user_repo = UserRepository()
+    advisor_repo = AdvisorRepository()
 
     # Verify advisor role
     user = user_repo.find_by_id(advisor_user_id)
@@ -47,13 +47,8 @@ def verify_advisor_access(advisor_user_id, student_user_id):
     if user_role not in ['advisor', 'org_admin', 'superadmin']:
         raise AuthorizationError("Only advisors can access this endpoint")
 
-    # Verify advisor-student link (direct DB query for now - no AdvisorRepository exists)
-    supabase = get_supabase_admin_client()
-    link_response = supabase.table('advisor_student_assignments').select('id').eq(
-        'advisor_id', advisor_user_id
-    ).eq('student_id', student_user_id).execute()
-
-    if not link_response.data:
+    # Verify advisor-student link using repository
+    if not advisor_repo.verify_student_access(advisor_user_id, student_user_id):
         raise AuthorizationError("You do not have access to this student's data")
 
     return True

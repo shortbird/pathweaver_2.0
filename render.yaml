@@ -1,3 +1,11 @@
+# Cron Jobs (production only)
+crons:
+  # Daily Advisor Summary - sends morning briefing emails at 7 AM UTC (2 AM EST)
+  - name: daily-advisor-summary
+    schedule: "0 7 * * *"
+    command: "curl -X POST https://optio-backend-prod.onrender.com/api/admin/advisor-summary/trigger -H 'Content-Type: application/json' -H 'X-Cron-Secret: ${CRON_SECRET}'"
+    runtime: curl
+
 services:
   # Production Backend
   - type: web

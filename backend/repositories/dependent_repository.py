@@ -373,6 +373,11 @@ class DependentRepository(BaseRepository):
             from database import get_supabase_admin_client
             admin_client = get_supabase_admin_client()
 
+            # Check if email is already in use (prevents unclear Supabase auth errors)
+            email_check = admin_client.table('users').select('id').eq('email', email).execute()
+            if email_check.data:
+                raise ValidationError("This email is already in use by another account")
+
             auth_response = admin_client.auth.admin.create_user({
                 'email': email,
                 'password': password,

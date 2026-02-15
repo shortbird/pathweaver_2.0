@@ -82,8 +82,8 @@ vi.mock('../components/diploma/EvidenceMasonryGallery', () => ({
 vi.mock('../components/diploma/CompactSidebar', () => ({
   default: ({ totalXP, subjectXP, earnedBadges, totalXPCount, isOwner, studentName, onCreditsClick, onBadgesClick }) => (
     <div data-testid="compact-sidebar">
-      <div data-testid="total-xp">{totalXPCount}</div>
-      <div data-testid="sidebar-badges">Badges: {earnedBadges.length}</div>
+      <div data-testid="total-xp">{totalXPCount || 0}</div>
+      <div data-testid="sidebar-badges">Badges: {earnedBadges?.length || 0}</div>
       <button onClick={onCreditsClick}>View Credits</button>
       <button onClick={onBadgesClick}>View All Badges</button>
     </div>

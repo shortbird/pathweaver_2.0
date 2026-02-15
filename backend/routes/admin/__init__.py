@@ -11,6 +11,7 @@ from .course_quest_management import bp as course_quest_management_bp
 from .observer_audit import bp as observer_audit_bp
 from .ferpa_compliance import bp as ferpa_compliance_bp
 from .xp_reconciliation import bp as xp_reconciliation_bp
+from .task_feedback import bp as task_feedback_bp
 
 __all__ = [
     'user_management_bp',
@@ -21,5 +22,6 @@ __all__ = [
     'course_quest_management_bp',
     'observer_audit_bp',
     'ferpa_compliance_bp',
-    'xp_reconciliation_bp'
+    'xp_reconciliation_bp',
+    'task_feedback_bp'
 ]

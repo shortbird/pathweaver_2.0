@@ -27,7 +27,7 @@ EVIDENCE_RULES = {
         'required_fields': ['url']
     },
     'image': {
-        'allowed_extensions': {'jpg', 'jpeg', 'png', 'gif', 'webp'},
+        'allowed_extensions': {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'},
         'max_size': 10 * 1024 * 1024,  # 10MB
         'required_fields': ['file_url']
     },

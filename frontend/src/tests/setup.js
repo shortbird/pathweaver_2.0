@@ -5,6 +5,12 @@ import * as matchers from '@testing-library/jest-dom/matchers'
 // Extend Vitest's expect with jest-dom matchers
 expect.extend(matchers)
 
+// Mock focus-trap-react globally to avoid focus trap issues in jsdom
+// Focus traps require tabbable elements which jsdom doesn't properly support
+vi.mock('focus-trap-react', () => ({
+  default: ({ children }) => children
+}))
+
 // Cleanup after each test case
 afterEach(() => {
   cleanup()

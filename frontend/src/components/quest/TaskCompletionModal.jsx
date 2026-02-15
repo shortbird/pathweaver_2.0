@@ -71,9 +71,9 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
 
       // Show success message with XP earned
       const xpAwarded = data.xp_awarded || 0;
-      const successMessage = data.has_collaboration_bonus 
-        ? `Task completed! You earned ${xpAwarded} XP (2x collaboration bonus!)`
-        : `Task completed! You earned ${xpAwarded} XP`;
+      const successMessage = data.has_collaboration_bonus
+        ? `Draft submitted! You earned ${xpAwarded} pillar XP (2x collaboration bonus!). Your work will be reviewed for diploma credit.`
+        : `Draft submitted! You earned ${xpAwarded} pillar XP. Your work will be reviewed for diploma credit.`;
 
       // Let the parent handle modal closure via onComplete callback
       onComplete({
@@ -107,7 +107,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-xl">
           <div className="flex justify-between items-start">
             <div>
-              <h2 className="text-2xl font-bold mb-2">Complete Task</h2>
+              <h2 className="text-2xl font-bold mb-2">Submit Draft</h2>
               <p className="text-blue-100">{task.title}</p>
             </div>
             <button
@@ -210,7 +210,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
               disabled={isSubmitting || !evidenceData || Object.keys(evidenceData).length === 0}
               className="min-h-[44px] w-full sm:w-auto px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Submitting...' : 'Complete Task'}
+              {isSubmitting ? 'Submitting...' : 'Submit Draft'}
             </button>
           </div>
         </div>

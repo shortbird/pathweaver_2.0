@@ -45,7 +45,7 @@ export const parseContentToSteps = (content) => {
  */
 export const getFileType = (file) => {
   const name = (file.name || file.url || '').toLowerCase()
-  if (/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(name)) return 'image'
+  if (/\.(jpg|jpeg|png|gif|webp|svg|bmp|heic|heif)$/i.test(name)) return 'image'
   if (/\.pdf$/i.test(name)) return 'pdf'
   if (/\.(mp4|webm|ogg|mov)$/i.test(name)) return 'video'
   if (/\.(mp3|wav|ogg|m4a)$/i.test(name)) return 'audio'

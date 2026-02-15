@@ -876,7 +876,7 @@ def process_spark_submission(data: dict, files=None) -> dict:
 
         # Allowed MIME types
         ALLOWED_TYPES = [
-            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
             'video/mp4', 'video/quicktime', 'video/x-msvideo',
             'application/pdf', 'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

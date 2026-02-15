@@ -157,7 +157,7 @@ const LearningJournalSection = ({
     // Check URL or filename for specific file types first
     const urlOrName = url + fileName;
     if (/\.(pdf)$/i.test(urlOrName)) return 'pdf';
-    if (/\.(jpg|jpeg|png|gif|webp|svg|heic)$/i.test(urlOrName)) return 'image';
+    if (/\.(jpg|jpeg|png|gif|webp|svg|heic|heif)$/i.test(urlOrName)) return 'image';
     if (/\.(mp4|webm|mov|avi|m4v)$/i.test(urlOrName)) return 'video';
     if (/\.(mp3|wav|ogg|m4a)$/i.test(urlOrName)) return 'audio';
     if (/\.(doc|docx)$/i.test(urlOrName)) return 'word';

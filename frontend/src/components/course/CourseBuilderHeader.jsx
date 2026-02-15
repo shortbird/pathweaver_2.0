@@ -24,6 +24,7 @@ function CourseBuilderHeader({
   onShowAITools,
   onShowPreview,
   onPublishToggle,
+  isSuperadmin = false,
 }) {
   const navigate = useNavigate()
 
@@ -94,15 +95,17 @@ function CourseBuilderHeader({
               <span className="hidden sm:inline">Details</span>
             </button>
 
-            <button
-              onClick={onShowAITools}
-              disabled={quests.length === 0}
-              className="flex items-center gap-2 px-3 py-2 text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 rounded-lg transition-opacity text-sm min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="AI Tools"
-            >
-              <SparklesIcon className="w-4 h-4" />
-              <span className="hidden sm:inline font-medium">AI</span>
-            </button>
+            {isSuperadmin && (
+              <button
+                onClick={onShowAITools}
+                disabled={quests.length === 0}
+                className="flex items-center gap-2 px-3 py-2 text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 rounded-lg transition-opacity text-sm min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="AI Tools"
+              >
+                <SparklesIcon className="w-4 h-4" />
+                <span className="hidden sm:inline font-medium">AI</span>
+              </button>
+            )}
 
             <button
               onClick={onShowPreview}

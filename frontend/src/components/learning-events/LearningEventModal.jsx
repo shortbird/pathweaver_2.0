@@ -472,7 +472,7 @@ const LearningEventModal = ({
         <div
           className="border border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-optio-purple hover:bg-purple-50/50 transition-colors"
           onClick={() => {
-            fileInputRef.current.accept = 'image/*';
+            fileInputRef.current.accept = '.jpg,.jpeg,.png,.gif,.webp,.heic,.heif';
             fileInputRef.current.onchange = (e) => {
               const file = e.target.files[0];
               if (file) handleFileUpload(file, block.id, 'image');
@@ -481,7 +481,7 @@ const LearningEventModal = ({
           }}
         >
           <p className="text-sm text-gray-500">Click to upload an image</p>
-          <p className="text-xs text-gray-400 mt-1">JPG, PNG, GIF up to 10MB</p>
+          <p className="text-xs text-gray-400 mt-1">JPG, PNG, GIF, WebP, HEIC up to 10MB</p>
         </div>
       )}
     </div>

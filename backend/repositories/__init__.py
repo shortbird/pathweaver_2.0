@@ -42,6 +42,7 @@ from repositories.task_repository import TaskRepository, TaskCompletionRepositor
 from repositories.evidence_document_repository import EvidenceDocumentRepository
 from repositories.site_settings_repository import SiteSettingsRepository
 from repositories.quest_template_task_repository import QuestTemplateTaskRepository
+from repositories.advisor_repository import AdvisorRepository
 
 __all__ = [
     # Base classes
@@ -68,4 +69,5 @@ __all__ = [
     'EvidenceDocumentRepository',
     'SiteSettingsRepository',
     'QuestTemplateTaskRepository',
+    'AdvisorRepository',
 ]
