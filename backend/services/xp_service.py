@@ -90,69 +90,36 @@ class XPService(BaseService):
         self.validate_one_of('pillar', db_pillar, ['art', 'stem', 'wellness', 'communication', 'civics'])
         
         try:
-            # Check current XP for this pillar
-            current_xp = self.supabase.table('user_skill_xp')\
-                .select('*')\
-                .eq('user_id', user_id)\
-                .eq('pillar', db_pillar)\
-                .execute()
-            
-            logger.info(f"Current XP records found: {len(current_xp.data) if current_xp.data else 0}")
-            if current_xp.data:
-                logger.info(f"Existing record: {current_xp.data[0]}")
-            
-            if current_xp.data:
-                # Update existing XP record - use 'xp_amount' column
-                existing_record = current_xp.data[0]
-                existing_xp = existing_record.get('xp_amount', 0)
-                new_total = existing_xp + xp_amount
-                
-                logger.info(f"Updating XP: {existing_xp} + {xp_amount} = {new_total}")
-                
-                # Use the record ID for a more reliable update
-                record_id = existing_record.get('id')
-                if record_id:
-                    result = self.supabase.table('user_skill_xp')\
-                        .update({
-                            'xp_amount': new_total,
-                            'updated_at': datetime.utcnow().isoformat()
-                        })\
-                        .eq('id', record_id)\
-                        .execute()
+            # Use atomic RPC function to prevent race conditions
+            # The increment_user_xp function handles both insert and update atomically
+            result = self.supabase.rpc(
+                'increment_user_xp',
+                {
+                    'p_user_id': user_id,
+                    'p_pillar': db_pillar,
+                    'p_amount': xp_amount
+                }
+            ).execute()
+
+            if result.data:
+                rpc_result = result.data[0] if isinstance(result.data, list) else result.data
+                new_total = rpc_result.get('new_xp_amount', xp_amount)
+                was_created = rpc_result.get('was_created', False)
+
+                if was_created:
+                    logger.info(f"Created new XP record for {db_pillar} with {xp_amount} XP")
                 else:
-                    # Fallback to composite key update
-                    result = self.supabase.table('user_skill_xp')\
-                        .update({
-                            'xp_amount': new_total,
-                            'updated_at': datetime.utcnow().isoformat()
-                        })\
-                        .eq('user_id', user_id)\
-                        .eq('pillar', db_pillar)\
-                        .execute()
-                
-                logger.info(f"Update result: {result.data}")
-            else:
-                # Create new XP record - use 'pillar' and 'xp_amount' columns
-                logger.info(f"Creating new XP record for {db_pillar} with {xp_amount} XP")
-                result = self.supabase.table('user_skill_xp')\
-                    .insert({
-                        'user_id': user_id,
-                        'pillar': db_pillar,
-                        'xp_amount': xp_amount,
-                        'updated_at': datetime.utcnow().isoformat()
-                    })\
-                    .execute()
-                logger.info(f"Insert result: {result.data}")
-            
+                    logger.info(f"Incremented XP for {db_pillar}: new total = {new_total}")
+
             # Create audit log entry
             self._create_xp_audit_log(user_id, pillar, xp_amount, source)
-            
+
             # Update user mastery level
             self.update_user_mastery(user_id)
-            
+
             logger.info(f"XP award success: {bool(result.data)}")
             logger.info("===============================")
-            
+
             return bool(result.data)
             
         except Exception as e:
@@ -241,35 +208,41 @@ class XPService(BaseService):
                 all_xp = self.supabase.table('user_skill_xp')\
                     .select('user_id, xp_amount')\
                     .execute()
-                
+
                 if all_xp.data:
                     # Sum XP per user
                     user_totals = {}
                     for record in all_xp.data:
-                        user_id = record['user_id']
-                        if user_id not in user_totals:
-                            user_totals[user_id] = 0
-                        user_totals[user_id] += record['xp_amount']
-                    
+                        uid = record['user_id']
+                        if uid not in user_totals:
+                            user_totals[uid] = 0
+                        user_totals[uid] += record['xp_amount']
+
                     # Sort and limit
                     sorted_users = sorted(user_totals.items(), key=lambda x: x[1], reverse=True)[:limit]
-                    
-                    # Fetch user details
+
+                    # Batch fetch all user details in one query (avoid N+1)
+                    user_ids = [uid for uid, _ in sorted_users]
+                    users_response = self.supabase.table('users')\
+                        .select('id, username, avatar_url')\
+                        .in_('id', user_ids)\
+                        .execute()
+
+                    # Build lookup map
+                    users_by_id = {u['id']: {'username': u.get('username'), 'avatar_url': u.get('avatar_url')}
+                                   for u in (users_response.data or [])}
+
+                    # Assemble leaderboard in sorted order
                     leaderboard_data = []
-                    for user_id, total_xp in sorted_users:
-                        user_info = self.supabase.table('users')\
-                            .select('username, avatar_url')\
-                            .eq('id', user_id)\
-                            .single()\
-                            .execute()
-                        
-                        if user_info.data:
+                    for uid, total_xp in sorted_users:
+                        user_info = users_by_id.get(uid)
+                        if user_info:
                             leaderboard_data.append({
-                                'user_id': user_id,
+                                'user_id': uid,
                                 'xp_amount': total_xp,
-                                'users': user_info.data
+                                'users': user_info
                             })
-                    
+
                     return leaderboard_data
             
             return leaderboard.data if leaderboard.data else []

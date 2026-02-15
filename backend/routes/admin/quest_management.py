@@ -1,18 +1,13 @@
 """
-REPOSITORY MIGRATION: PARTIALLY MIGRATED - Needs Completion
-- Already imports QuestRepository (lines 10-20)
-- Uses image_service for quest image generation (line 25)
-- BUT: Many endpoints still use direct database access
-- Mixed pattern creates inconsistency
-- Should consolidate quest CRUD into QuestRepository methods
-- Image management should remain in service layer
-
-Recommendation: Complete migration by using existing QuestRepository for all quest CRUD
-
 Admin Quest Management Routes
 
 Handles CRUD operations for quests including creation, editing, deletion,
 and quest validation functionality.
+
+REPOSITORY MIGRATION: PARTIALLY COMPLETE
+- Uses QuestRepository for search and bulk operations
+- Image management uses service layer (correct pattern)
+- Complex CRUD operations remain in routes for readability
 """
 
 from flask import Blueprint, request, jsonify
@@ -262,8 +257,6 @@ def bulk_delete_quests(user_id):
         "quest_ids": ["id1", "id2", ...]
     }
     """
-    supabase = get_supabase_admin_client()
-
     try:
         data = request.json
         quest_ids = data.get('quest_ids', [])
@@ -275,44 +268,18 @@ def bulk_delete_quests(user_id):
             return jsonify({'success': False, 'error': 'Cannot delete more than 100 quests at once'}), 400
 
         # Verify user is superadmin
-        user = supabase.table('users').select('role').eq('id', user_id).execute()
-        user_role = user.data[0].get('role') if user.data else None
-
-        if user_role != 'superadmin':
+        user_repo = UserRepository()
+        if not user_repo.is_superadmin(user_id):
             return jsonify({'success': False, 'error': 'Only superadmin can bulk delete quests'}), 403
 
-        # Verify all quests exist
-        quests = supabase.table('quests').select('id, title').in_('id', quest_ids).execute()
-        found_ids = {q['id'] for q in quests.data}
-        missing_ids = set(quest_ids) - found_ids
-
-        if missing_ids:
-            return jsonify({
-                'success': False,
-                'error': f'Some quests not found: {list(missing_ids)[:5]}'
-            }), 404
-
-        deleted_count = 0
-        failed = []
-
-        for quest_id in quest_ids:
-            try:
-                # Delete related data in order (same as single delete)
-                supabase.table('quest_task_completions').delete().eq('quest_id', quest_id).execute()
-                supabase.table('user_task_evidence_documents').delete().eq('quest_id', quest_id).execute()
-                supabase.table('user_quest_tasks').delete().eq('quest_id', quest_id).execute()
-                supabase.table('user_quests').delete().eq('quest_id', quest_id).execute()
-                supabase.table('quests').delete().eq('id', quest_id).execute()
-                deleted_count += 1
-            except Exception as e:
-                logger.error(f"Error deleting quest {quest_id}: {str(e)}")
-                failed.append({'id': quest_id, 'error': str(e)})
+        quest_repo = QuestRepository()
+        result = quest_repo.bulk_delete_quests(quest_ids, user_id)
 
         return jsonify({
             'success': True,
-            'message': f'Deleted {deleted_count} quests',
-            'deleted_count': deleted_count,
-            'failed': failed
+            'message': f'Deleted {result["deleted_count"]} quests',
+            'deleted_count': result['deleted_count'],
+            'failed': result['failed']
         })
 
     except Exception as e:
@@ -338,8 +305,6 @@ def bulk_update_quests(user_id):
         }
     }
     """
-    supabase = get_supabase_admin_client()
-
     try:
         data = request.json
         quest_ids = data.get('quest_ids', [])
@@ -355,10 +320,8 @@ def bulk_update_quests(user_id):
             return jsonify({'success': False, 'error': 'Cannot update more than 100 quests at once'}), 400
 
         # Verify user is superadmin
-        user = supabase.table('users').select('role').eq('id', user_id).execute()
-        user_role = user.data[0].get('role') if user.data else None
-
-        if user_role != 'superadmin':
+        user_repo = UserRepository()
+        if not user_repo.is_superadmin(user_id):
             return jsonify({'success': False, 'error': 'Only superadmin can bulk update quests'}), 403
 
         # Validate updates - only allow is_active and is_public
@@ -368,52 +331,14 @@ def bulk_update_quests(user_id):
         if not update_data:
             return jsonify({'success': False, 'error': 'No valid update fields provided'}), 400
 
-        # Add timestamp
-        update_data['updated_at'] = datetime.utcnow().isoformat()
-
-        # Perform bulk update
-        updated_count = 0
-        failed = []
-
-        # If making quests public, we need to generate topics for each
-        generate_topics = update_data.get('is_public') == True
-
-        for quest_id in quest_ids:
-            try:
-                quest_update_data = update_data.copy()
-
-                # Generate topics when making public (if not already set)
-                if generate_topics:
-                    # Fetch current quest to check if it needs topics
-                    quest = supabase.table('quests').select('title, big_idea, description, is_public, topic_primary, topics').eq('id', quest_id).single().execute()
-                    if quest.data and not quest.data.get('is_public') and (not quest.data.get('topic_primary') or not quest.data.get('topics')):
-                        try:
-                            from services.topic_generation_service import get_topic_generation_service
-                            topic_service = get_topic_generation_service()
-                            topic_result = topic_service.generate_topics(
-                                quest.data.get('title', ''),
-                                quest.data.get('big_idea') or quest.data.get('description', '')
-                            )
-                            quest_update_data['topic_primary'] = topic_result['primary']
-                            quest_update_data['topics'] = topic_result['topics']
-                            logger.info(f"Generated topics for quest {quest_id}: {topic_result['primary']} - {topic_result['topics']}")
-                        except Exception as topic_err:
-                            logger.warning(f"Failed to generate topics for quest {quest_id}: {topic_err}")
-
-                result = supabase.table('quests').update(quest_update_data).eq('id', quest_id).execute()
-                if result.data:
-                    updated_count += 1
-                else:
-                    failed.append({'id': quest_id, 'error': 'Quest not found'})
-            except Exception as e:
-                logger.error(f"Error updating quest {quest_id}: {str(e)}")
-                failed.append({'id': quest_id, 'error': str(e)})
+        quest_repo = QuestRepository()
+        result = quest_repo.bulk_update_quests(quest_ids, update_data, user_id)
 
         return jsonify({
             'success': True,
-            'message': f'Updated {updated_count} quests',
-            'updated_count': updated_count,
-            'failed': failed
+            'message': f'Updated {result["updated_count"]} quests',
+            'updated_count': result['updated_count'],
+            'failed': result['failed']
         })
 
     except Exception as e:

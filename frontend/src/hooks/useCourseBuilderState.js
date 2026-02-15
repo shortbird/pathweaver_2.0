@@ -5,44 +5,50 @@ import { arrayMove } from '@dnd-kit/sortable'
 import api from '../services/api'
 import courseService from '../services/courseService'
 
+// Composed hooks
+import { useModalState } from './courseBuilder/useModalState'
+import { useSelectionState } from './courseBuilder/useSelectionState'
+import { useAITools } from './courseBuilder/useAITools'
+
 /**
  * Custom hook that manages all state and handlers for the Course Builder.
- * Extracted from CourseBuilder.jsx to improve maintainability.
+ * Composes smaller hooks for maintainability while providing a unified API.
+ *
+ * Architecture:
+ * - useModalState: Modal visibility (15+ modal states)
+ * - useSelectionState: Selection/navigation in outline
+ * - useAITools: AI generation functionality
+ * - This hook: Core data state, CRUD operations, composition
  */
 export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
   const navigate = useNavigate()
 
-  // Core state
+  // Compose modal state
+  const modalState = useModalState()
+
+  // Compose selection state
+  const selectionState = useSelectionState()
+
+  // Core data state
   const [loading, setLoading] = useState(!isNewCourse)
   const [course, setCourse] = useState(isNewCourse ? { title: '', description: '', status: 'draft' } : null)
   const [quests, setQuests] = useState([])
-  const [lessonsMap, setLessonsMap] = useState({}) // { projectId: lessons[] }
-  const [tasksMap, setTasksMap] = useState({}) // { lessonId: tasks[] }
+  const [lessonsMap, setLessonsMap] = useState({})
+  const [tasksMap, setTasksMap] = useState({})
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState('saved')
 
-  // Selection state for outline view
-  const [selectedItem, setSelectedItem] = useState(null)
-  const [selectedType, setSelectedType] = useState(null) // 'project' | 'lesson' | 'task'
-  const [expandedIds, setExpandedIds] = useState(new Set())
-  const [outlineCollapsed, setOutlineCollapsed] = useState(false)
-
-  // Modal states
-  const [showAddQuestModal, setShowAddQuestModal] = useState(false)
-  const [isPublishing, setIsPublishing] = useState(false)
-  const [isCreating, setIsCreating] = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
-  const [showCourseDetails, setShowCourseDetails] = useState(false)
-  const [editingLesson, setEditingLesson] = useState(null)
-  const [showLessonEditor, setShowLessonEditor] = useState(false)
-  const [previewingLesson, setPreviewingLesson] = useState(null)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [showBulkTaskModal, setShowBulkTaskModal] = useState(false)
-  const [showRefineModal, setShowRefineModal] = useState(false)
-  const [showAIToolsModal, setShowAIToolsModal] = useState(false)
-  const [movingLesson, setMovingLesson] = useState(null)
-  const [showAddTaskModal, setShowAddTaskModal] = useState(false)
-  const [addingTaskToLesson, setAddingTaskToLesson] = useState(null)
+  // Compose AI tools with dependencies
+  const aiTools = useAITools({
+    courseId,
+    quests,
+    lessonsMap,
+    setLessonsMap,
+    setCourse,
+    setQuests,
+    setShowBulkTaskModal: modalState.setShowBulkTaskModal,
+    setShowRefineModal: modalState.setShowRefineModal,
+  })
 
   // Fetch course and quests
   useEffect(() => {
@@ -56,16 +62,13 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
         const fetchedQuests = questsResponse.data.quests || []
         setQuests(fetchedQuests)
 
-        // Start collapsed - only show projects
-        setExpandedIds(new Set())
+        selectionState.collapseAll()
 
-        // Select first project if available
         if (fetchedQuests.length > 0) {
-          setSelectedItem(fetchedQuests[0])
-          setSelectedType('project')
+          selectionState.setSelectedItem(fetchedQuests[0])
+          selectionState.setSelectedType('project')
         }
 
-        // Fetch lessons for all projects
         const lessonsData = {}
         await Promise.all(fetchedQuests.map(async (quest) => {
           try {
@@ -77,8 +80,6 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
           }
         }))
         setLessonsMap(lessonsData)
-
-        // Tasks will be fetched on demand when lessons are selected/expanded
         setTasksMap({})
       } catch (error) {
         console.error('Failed to load course:', error)
@@ -93,7 +94,7 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     }
   }, [courseId, isNewCourse])
 
-  // Fetch tasks for a lesson when expanded
+  // Fetch tasks for a lesson
   const fetchTasksForLesson = useCallback(async (lesson, questId) => {
     const taskIds = lesson?.linked_task_ids || []
     if (taskIds.length === 0) {
@@ -111,12 +112,11 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     }
   }, [])
 
-  // Selection handler
+  // Selection handler that triggers task fetch
   const handleSelectItem = useCallback((item, type) => {
-    setSelectedItem(item)
-    setSelectedType(type)
+    selectionState.setSelectedItem(item)
+    selectionState.setSelectedType(type)
 
-    // If selecting a lesson, fetch its tasks if not already loaded
     if (type === 'lesson' && item) {
       const projectId = Object.keys(lessonsMap).find(pid =>
         lessonsMap[pid]?.some(l => l.id === item.id)
@@ -125,31 +125,22 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
         fetchTasksForLesson(item, projectId)
       }
     }
-  }, [lessonsMap, tasksMap, fetchTasksForLesson])
+  }, [lessonsMap, tasksMap, fetchTasksForLesson, selectionState])
 
-  // Toggle expand for outline tree
+  // Toggle expand with task fetch
   const handleToggleExpand = useCallback((id) => {
-    setExpandedIds(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(id)) {
-        newSet.delete(id)
-      } else {
-        newSet.add(id)
+    selectionState.handleToggleExpand(id, () => {
+      const lesson = Object.values(lessonsMap).flat().find(l => l.id === id)
+      if (lesson && tasksMap[id] === undefined) {
+        const projectId = Object.keys(lessonsMap).find(pid =>
+          lessonsMap[pid]?.some(l => l.id === id)
+        )
+        if (projectId) {
+          fetchTasksForLesson(lesson, projectId)
+        }
       }
-      return newSet
     })
-
-    // Fetch tasks when expanding a lesson
-    const lesson = Object.values(lessonsMap).flat().find(l => l.id === id)
-    if (lesson && tasksMap[id] === undefined) {
-      const projectId = Object.keys(lessonsMap).find(pid =>
-        lessonsMap[pid]?.some(l => l.id === id)
-      )
-      if (projectId) {
-        fetchTasksForLesson(lesson, projectId)
-      }
-    }
-  }, [lessonsMap, tasksMap, fetchTasksForLesson])
+  }, [lessonsMap, tasksMap, fetchTasksForLesson, selectionState])
 
   // Create new course
   const handleCreateCourse = async () => {
@@ -159,7 +150,7 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     }
 
     try {
-      setIsCreating(true)
+      modalState.setIsCreating(true)
       const response = await courseService.createCourse({
         title: course.title,
         description: course.description || ''
@@ -171,7 +162,7 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
       console.error('Failed to create course:', error)
       toast.error('Failed to create course')
     } finally {
-      setIsCreating(false)
+      modalState.setIsCreating(false)
     }
   }
 
@@ -198,7 +189,6 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
       const updatedQuest = { ...quest, order_index: quests.length }
       setQuests([...quests, updatedQuest])
 
-      // Fetch existing lessons for this quest
       try {
         const lessonsResponse = await api.get(`/api/quests/${quest.id}/curriculum/lessons?include_unpublished=true`)
         setLessonsMap(prev => ({ ...prev, [quest.id]: lessonsResponse.data.lessons || [] }))
@@ -207,10 +197,10 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
         setLessonsMap(prev => ({ ...prev, [quest.id]: [] }))
       }
 
-      setExpandedIds(prev => new Set([...prev, quest.id]))
-      setSelectedItem(updatedQuest)
-      setSelectedType('project')
-      setShowAddQuestModal(false)
+      selectionState.expandItem(quest.id)
+      selectionState.setSelectedItem(updatedQuest)
+      selectionState.setSelectedType('project')
+      modalState.setShowAddQuestModal(false)
       toast.success('Project added to course')
     } catch (error) {
       console.error('Failed to add quest:', error)
@@ -252,9 +242,9 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
         return newMap
       })
 
-      if (selectedItem?.id === questId && selectedType === 'project') {
-        setSelectedItem(updatedQuests[0] || null)
-        setSelectedType(updatedQuests[0] ? 'project' : null)
+      if (selectionState.selectedItem?.id === questId && selectionState.selectedType === 'project') {
+        selectionState.setSelectedItem(updatedQuests[0] || null)
+        selectionState.setSelectedType(updatedQuests[0] ? 'project' : null)
       }
 
       if (deleteQuest) {
@@ -299,9 +289,8 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
           [projectId]: prev[projectId].filter(l => l.id !== item.id)
         }))
 
-        if (selectedItem?.id === item.id && selectedType === 'lesson') {
-          setSelectedItem(null)
-          setSelectedType(null)
+        if (selectionState.selectedItem?.id === item.id && selectionState.selectedType === 'lesson') {
+          selectionState.clearSelection()
         }
 
         toast.success('Lesson deleted')
@@ -327,9 +316,8 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
           [lessonId]: prev[lessonId].filter(t => t.id !== item.id)
         }))
 
-        if (selectedItem?.id === item.id && selectedType === 'task') {
-          setSelectedItem(null)
-          setSelectedType(null)
+        if (selectionState.selectedItem?.id === item.id && selectionState.selectedType === 'task') {
+          selectionState.clearSelection()
         }
 
         toast.success('Task removed')
@@ -337,38 +325,35 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
         toast.error('Failed to remove task')
       }
     }
-  }, [lessonsMap, tasksMap, selectedItem, selectedType])
+  }, [lessonsMap, tasksMap, selectionState])
 
   // Edit item - opens appropriate editor
   const handleEditItem = useCallback((item, type) => {
     if (type === 'lesson') {
-      setEditingLesson(item)
-      setShowLessonEditor(true)
+      modalState.openLessonEditor(item)
     }
-  }, [])
+  }, [modalState])
 
   // Add child to item
   const handleAddChild = useCallback((item, type) => {
     if (type === 'project') {
-      setEditingLesson(null)
       const quest = quests.find(q => q.id === item.id)
       if (quest) {
-        setSelectedItem(quest)
-        setSelectedType('project')
-        setShowLessonEditor(true)
+        selectionState.setSelectedItem(quest)
+        selectionState.setSelectedType('project')
+        modalState.openLessonEditor(null)
       }
     } else if (type === 'lesson') {
-      setEditingLesson(item)
-      setShowLessonEditor(true)
+      modalState.openLessonEditor(item)
     }
-  }, [quests])
+  }, [quests, selectionState, modalState])
 
   // Move item
   const handleMoveItem = useCallback((item, type) => {
     if (type === 'lesson') {
-      setMovingLesson(item)
+      modalState.setMovingLesson(item)
     }
-  }, [])
+  }, [modalState])
 
   // Reorder projects
   const handleReorderProjects = useCallback(async (activeId, overId) => {
@@ -450,8 +435,8 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
       )
     }))
 
-    if (selectedItem?.lessonId === lessonId && selectedItem?.stepIndex === oldIndex) {
-      setSelectedItem(prev => ({ ...prev, stepIndex: newIndex }))
+    if (selectionState.selectedItem?.lessonId === lessonId && selectionState.selectedItem?.stepIndex === oldIndex) {
+      selectionState.setSelectedItem(prev => ({ ...prev, stepIndex: newIndex }))
     }
 
     try {
@@ -468,7 +453,7 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
         )
       }))
     }
-  }, [lessonsMap, selectedItem])
+  }, [lessonsMap, selectionState])
 
   // Save from outline editor
   const handleSaveFromEditor = useCallback(async (item, type, formData) => {
@@ -490,7 +475,7 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
         setQuests(quests.map(q =>
           q.id === item.id ? { ...q, ...formData } : q
         ))
-        setSelectedItem(prev => prev?.id === item.id ? { ...prev, ...formData } : prev)
+        selectionState.setSelectedItem(prev => prev?.id === item.id ? { ...prev, ...formData } : prev)
       } else if (type === 'lesson') {
         const projectId = Object.keys(lessonsMap).find(pid =>
           lessonsMap[pid]?.some(l => l.id === item.id)
@@ -507,7 +492,7 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
             l.id === item.id ? { ...l, ...formData } : l
           )
         }))
-        setSelectedItem(prev => prev?.id === item.id ? { ...prev, ...formData } : prev)
+        selectionState.setSelectedItem(prev => prev?.id === item.id ? { ...prev, ...formData } : prev)
       } else if (type === 'step') {
         const { lessonId, stepIndex } = item
         if (!lessonId) return
@@ -537,7 +522,7 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
           )
         }))
 
-        setSelectedItem(prev => prev?.id === item.id ? { ...prev, ...formData } : prev)
+        selectionState.setSelectedItem(prev => prev?.id === item.id ? { ...prev, ...formData } : prev)
       } else if (type === 'task') {
         await api.put(`/api/tasks/${item.id}`, formData)
 
@@ -552,12 +537,12 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
             )
           }))
         }
-        setSelectedItem(prev => prev?.id === item.id ? { ...prev, ...formData } : prev)
+        selectionState.setSelectedItem(prev => prev?.id === item.id ? { ...prev, ...formData } : prev)
       }
     } finally {
       setSaving(false)
     }
-  }, [courseId, quests, lessonsMap, tasksMap])
+  }, [courseId, quests, lessonsMap, tasksMap, selectionState])
 
   // Add a new step to a lesson
   const handleAddStep = useCallback(async (lesson) => {
@@ -592,15 +577,15 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
         )
       }))
 
-      setSelectedItem({ ...newStep, lessonId: lesson.id, stepIndex: updatedSteps.length - 1 })
-      setSelectedType('step')
+      selectionState.setSelectedItem({ ...newStep, lessonId: lesson.id, stepIndex: updatedSteps.length - 1 })
+      selectionState.setSelectedType('step')
 
       toast.success('Step added')
     } catch (error) {
       console.error('Failed to add step:', error)
       toast.error('Failed to add step')
     }
-  }, [lessonsMap])
+  }, [lessonsMap, selectionState])
 
   // Delete a step from a lesson
   const handleDeleteStep = useCallback(async (lesson, stepIndex) => {
@@ -630,9 +615,9 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
         )
       }))
 
-      if (selectedItem?.lessonId === lesson.id && selectedItem?.stepIndex === stepIndex) {
-        setSelectedItem(actualLesson)
-        setSelectedType('lesson')
+      if (selectionState.selectedItem?.lessonId === lesson.id && selectionState.selectedItem?.stepIndex === stepIndex) {
+        selectionState.setSelectedItem(actualLesson)
+        selectionState.setSelectedType('lesson')
       }
 
       toast.success('Step deleted')
@@ -640,20 +625,19 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
       console.error('Failed to delete step:', error)
       toast.error('Failed to delete step')
     }
-  }, [lessonsMap, selectedItem])
+  }, [lessonsMap, selectionState])
 
-  // Add task to a lesson - opens the task creation modal
+  // Add task to a lesson
   const handleAddTask = useCallback((lesson) => {
     if (!lesson) return
-    setAddingTaskToLesson(lesson)
-    setShowAddTaskModal(true)
-  }, [])
+    modalState.openAddTaskModal(lesson)
+  }, [modalState])
 
   // Create and link a task to a lesson
   const handleCreateTask = useCallback(async (taskData) => {
-    if (!addingTaskToLesson) return
+    if (!modalState.addingTaskToLesson) return
 
-    const lessonId = addingTaskToLesson.id
+    const lessonId = modalState.addingTaskToLesson.id
     const projectId = Object.keys(lessonsMap).find(pid =>
       lessonsMap[pid]?.some(l => l.id === lessonId)
     )
@@ -668,13 +652,11 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
       if (response.data.success && response.data.tasks?.length > 0) {
         const createdTask = response.data.tasks[0]
 
-        // Update tasksMap with the new task
         setTasksMap(prev => ({
           ...prev,
           [lessonId]: [...(prev[lessonId] || []), createdTask]
         }))
 
-        // Update lesson's linked_task_ids
         setLessonsMap(prev => ({
           ...prev,
           [projectId]: prev[projectId].map(l =>
@@ -685,8 +667,7 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
         }))
 
         toast.success('Task created')
-        setShowAddTaskModal(false)
-        setAddingTaskToLesson(null)
+        modalState.closeAddTaskModal()
         return true
       }
     } catch (error) {
@@ -694,7 +675,7 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
       toast.error('Failed to create task')
     }
     return false
-  }, [addingTaskToLesson, lessonsMap])
+  }, [modalState, lessonsMap])
 
   // Unlink a task from a lesson
   const handleUnlinkTask = useCallback(async (task, lesson) => {
@@ -709,13 +690,11 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     try {
       await api.delete(`/api/quests/${projectId}/curriculum/lessons/${lesson.id}/link-task/${task.id}`)
 
-      // Update tasksMap
       setTasksMap(prev => ({
         ...prev,
         [lesson.id]: (prev[lesson.id] || []).filter(t => t.id !== task.id)
       }))
 
-      // Update lesson's linked_task_ids
       setLessonsMap(prev => ({
         ...prev,
         [projectId]: prev[projectId].map(l =>
@@ -725,10 +704,8 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
         )
       }))
 
-      // Clear selection if this task was selected
-      if (selectedItem?.id === task.id && selectedType === 'task') {
-        setSelectedItem(null)
-        setSelectedType(null)
+      if (selectionState.selectedItem?.id === task.id && selectionState.selectedType === 'task') {
+        selectionState.clearSelection()
       }
 
       toast.success('Task removed from lesson')
@@ -736,7 +713,7 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
       console.error('Failed to unlink task:', error)
       toast.error('Failed to remove task')
     }
-  }, [lessonsMap, selectedItem, selectedType])
+  }, [lessonsMap, selectionState])
 
   // Toggle task required status
   const handleToggleTaskRequired = useCallback(async (task) => {
@@ -774,7 +751,7 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
       if (!confirm('Are you sure you want to unpublish this course? Students will no longer be able to access it.')) return
 
       try {
-        setIsPublishing(true)
+        modalState.setIsPublishing(true)
         await courseService.unpublishCourse(courseId)
         setCourse(prev => ({ ...prev, status: 'draft' }))
         toast.success('Course unpublished')
@@ -782,13 +759,13 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
         console.error('Failed to unpublish course:', error)
         toast.error('Failed to unpublish course')
       } finally {
-        setIsPublishing(false)
+        modalState.setIsPublishing(false)
       }
     } else {
       if (!confirm('Are you sure you want to publish this course? This will create a badge for course completion.')) return
 
       try {
-        setIsPublishing(true)
+        modalState.setIsPublishing(true)
         await courseService.publishCourse(courseId)
         setCourse(prev => ({ ...prev, status: 'published' }))
         toast.success('Course published! A completion badge has been created.')
@@ -796,7 +773,7 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
         console.error('Failed to publish course:', error)
         toast.error('Failed to publish course')
       } finally {
-        setIsPublishing(false)
+        modalState.setIsPublishing(false)
       }
     }
   }
@@ -804,7 +781,7 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
   // Delete course
   const handleDeleteCourse = async ({ deleteQuests = false } = {}) => {
     try {
-      setIsDeleting(true)
+      modalState.setIsDeleting(true)
       const result = await courseService.deleteCourse(courseId, { deleteQuests })
       toast.success(result.message || 'Course deleted successfully')
       navigate('/courses')
@@ -812,26 +789,26 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
       console.error('Failed to delete course:', error)
       toast.error(error.response?.data?.error || 'Failed to delete course')
     } finally {
-      setIsDeleting(false)
+      modalState.setIsDeleting(false)
     }
   }
 
   // Handle lesson saved from editor
   const handleLessonSaved = (savedLesson) => {
     let projectId = null
-    if (editingLesson) {
+    if (modalState.editingLesson) {
       projectId = Object.keys(lessonsMap).find(pid =>
-        lessonsMap[pid]?.some(l => l.id === editingLesson.id)
+        lessonsMap[pid]?.some(l => l.id === modalState.editingLesson.id)
       )
     }
 
-    if (!projectId && selectedType === 'project' && selectedItem) {
-      projectId = selectedItem.id
+    if (!projectId && selectionState.selectedType === 'project' && selectionState.selectedItem) {
+      projectId = selectionState.selectedItem.id
     }
 
     if (!projectId) return
 
-    if (editingLesson) {
+    if (modalState.editingLesson) {
       setLessonsMap(prev => ({
         ...prev,
         [projectId]: prev[projectId].map(l =>
@@ -845,8 +822,8 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
       }))
     }
 
-    setSelectedItem(savedLesson)
-    setSelectedType('lesson')
+    selectionState.setSelectedItem(savedLesson)
+    selectionState.setSelectedType('lesson')
   }
 
   // Handle lesson moved to another project
@@ -871,136 +848,12 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
       }
     }
 
-    if (selectedItem?.id === lessonId) {
-      setSelectedItem(null)
-      setSelectedType(null)
+    if (selectionState.selectedItem?.id === lessonId) {
+      selectionState.clearSelection()
     }
 
-    setMovingLesson(null)
+    modalState.setMovingLesson(null)
   }
-
-  // Handle AI tool selection
-  const handleAIToolSelect = async (toolId) => {
-    switch (toolId) {
-      case 'generate-tasks':
-        setShowBulkTaskModal(true)
-        break
-      case 'generate-lessons':
-        await handleGenerateLessons()
-        break
-      case 'generate-content':
-        await handleGenerateLessonContent()
-        break
-      case 'ai-refine':
-        setShowRefineModal(true)
-        break
-      default:
-        break
-    }
-  }
-
-  // Generate lessons
-  const handleGenerateLessons = async () => {
-    const toastId = toast.loading('Generating lessons for projects...')
-    try {
-      const response = await api.post(`/api/admin/curriculum/generate/${courseId}/lessons`, {})
-      if (response.data.success) {
-        toast.success('Lessons generated successfully!', { id: toastId })
-        const lessonsData = {}
-        await Promise.all(quests.map(async (quest) => {
-          try {
-            const resp = await api.get(`/api/quests/${quest.id}/curriculum/lessons?include_unpublished=true`)
-            lessonsData[quest.id] = resp.data.lessons || []
-          } catch (error) {
-            lessonsData[quest.id] = lessonsMap[quest.id] || []
-          }
-        }))
-        setLessonsMap(lessonsData)
-      } else {
-        toast.error(response.data.error || 'Failed to generate lessons', { id: toastId })
-      }
-    } catch (error) {
-      console.error('Failed to generate lessons:', error)
-      const errorMsg = error.response?.data?.error
-      const errorText = typeof errorMsg === 'string' ? errorMsg : errorMsg?.message || 'Failed to generate lessons'
-      toast.error(errorText, { id: toastId })
-    }
-  }
-
-  // Generate lesson content
-  const handleGenerateLessonContent = async () => {
-    const toastId = toast.loading('Generating lesson content...')
-    try {
-      const response = await api.post(`/api/admin/curriculum/generate/${courseId}/lesson-content`, {})
-      if (response.data.success) {
-        const count = response.data.generated_count || 0
-        if (count === 0) {
-          toast.success('All lessons already have content', { id: toastId })
-        } else {
-          toast.success(`Generated content for ${count} lesson${count > 1 ? 's' : ''}!`, { id: toastId })
-        }
-        const lessonsData = {}
-        await Promise.all(quests.map(async (quest) => {
-          try {
-            const resp = await api.get(`/api/quests/${quest.id}/curriculum/lessons?include_unpublished=true`)
-            lessonsData[quest.id] = resp.data.lessons || []
-          } catch (error) {
-            lessonsData[quest.id] = lessonsMap[quest.id] || []
-          }
-        }))
-        setLessonsMap(lessonsData)
-      } else {
-        toast.error(response.data.error || 'Failed to generate content', { id: toastId })
-      }
-    } catch (error) {
-      console.error('Failed to generate lesson content:', error)
-      const errorMsg = error.response?.data?.error
-      const errorText = typeof errorMsg === 'string' ? errorMsg : errorMsg?.message || 'Failed to generate content'
-      toast.error(errorText, { id: toastId })
-    }
-  }
-
-  // Handle refine complete
-  const handleRefineComplete = async () => {
-    try {
-      const courseResponse = await courseService.getCourseById(courseId)
-      setCourse(courseResponse.course)
-
-      const questsResponse = await api.get(`/api/courses/${courseId}/quests`)
-      const fetchedQuests = questsResponse.data.quests || []
-      setQuests(fetchedQuests)
-
-      const lessonsData = {}
-      await Promise.all(fetchedQuests.map(async (quest) => {
-        try {
-          const resp = await api.get(`/api/quests/${quest.id}/curriculum/lessons?include_unpublished=true`)
-          lessonsData[quest.id] = resp.data.lessons || []
-        } catch (error) {
-          lessonsData[quest.id] = []
-        }
-      }))
-      setLessonsMap(lessonsData)
-
-      toast.success('Course data refreshed')
-    } catch (error) {
-      console.error('Failed to refresh after refine:', error)
-    }
-  }
-
-  // Refresh lessons for quests (used by BulkTaskGenerationModal)
-  const refreshLessonsForQuests = useCallback(async () => {
-    await Promise.all(quests.map(async (quest) => {
-      try {
-        const resp = await api.get(`/api/quests/${quest.id}/curriculum/lessons?include_unpublished=true`)
-        setLessonsMap(prev => ({
-          ...prev,
-          [quest.id]: resp.data.lessons || []
-        }))
-      } catch (error) {
-        console.error('Failed to refresh lessons:', error)
-      }
-    }))
-  }, [quests])
 
   // Calculate AI tools availability
   const hasLessonsWithoutTasks = quests.length > 0
@@ -1018,19 +871,19 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     return !hasRealContent
   })
 
-  // Find the quest for the currently selected lesson (for LessonEditorModal)
+  // Find the quest for the currently selected lesson
   const selectedQuestForLesson = useMemo(() => {
-    if (editingLesson) {
+    if (modalState.editingLesson) {
       const projectId = Object.keys(lessonsMap).find(pid =>
-        lessonsMap[pid]?.some(l => l.id === editingLesson.id)
+        lessonsMap[pid]?.some(l => l.id === modalState.editingLesson.id)
       )
       return quests.find(q => q.id === projectId)
     }
-    if (selectedType === 'project' && selectedItem) {
-      return selectedItem
+    if (selectionState.selectedType === 'project' && selectionState.selectedItem) {
+      return selectionState.selectedItem
     }
     return quests[0]
-  }, [editingLesson, lessonsMap, quests, selectedType, selectedItem])
+  }, [modalState.editingLesson, lessonsMap, quests, selectionState.selectedType, selectionState.selectedItem])
 
   return {
     // State
@@ -1042,40 +895,40 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     tasksMap,
     saving,
     saveStatus,
-    selectedItem,
-    selectedType,
-    expandedIds,
-    outlineCollapsed,
-    setOutlineCollapsed,
+    selectedItem: selectionState.selectedItem,
+    selectedType: selectionState.selectedType,
+    expandedIds: selectionState.expandedIds,
+    outlineCollapsed: selectionState.outlineCollapsed,
+    setOutlineCollapsed: selectionState.setOutlineCollapsed,
 
-    // Modal states
-    showAddQuestModal,
-    setShowAddQuestModal,
-    isPublishing,
-    isCreating,
-    showPreview,
-    setShowPreview,
-    showCourseDetails,
-    setShowCourseDetails,
-    editingLesson,
-    setEditingLesson,
-    showLessonEditor,
-    setShowLessonEditor,
-    previewingLesson,
-    setPreviewingLesson,
-    isDeleting,
-    showBulkTaskModal,
-    setShowBulkTaskModal,
-    showRefineModal,
-    setShowRefineModal,
-    showAIToolsModal,
-    setShowAIToolsModal,
-    movingLesson,
-    setMovingLesson,
-    showAddTaskModal,
-    setShowAddTaskModal,
-    addingTaskToLesson,
-    setAddingTaskToLesson,
+    // Modal states (from useModalState)
+    showAddQuestModal: modalState.showAddQuestModal,
+    setShowAddQuestModal: modalState.setShowAddQuestModal,
+    isPublishing: modalState.isPublishing,
+    isCreating: modalState.isCreating,
+    showPreview: modalState.showPreview,
+    setShowPreview: modalState.setShowPreview,
+    showCourseDetails: modalState.showCourseDetails,
+    setShowCourseDetails: modalState.setShowCourseDetails,
+    editingLesson: modalState.editingLesson,
+    setEditingLesson: modalState.setEditingLesson,
+    showLessonEditor: modalState.showLessonEditor,
+    setShowLessonEditor: modalState.setShowLessonEditor,
+    previewingLesson: modalState.previewingLesson,
+    setPreviewingLesson: modalState.setPreviewingLesson,
+    isDeleting: modalState.isDeleting,
+    showBulkTaskModal: modalState.showBulkTaskModal,
+    setShowBulkTaskModal: modalState.setShowBulkTaskModal,
+    showRefineModal: modalState.showRefineModal,
+    setShowRefineModal: modalState.setShowRefineModal,
+    showAIToolsModal: modalState.showAIToolsModal,
+    setShowAIToolsModal: modalState.setShowAIToolsModal,
+    movingLesson: modalState.movingLesson,
+    setMovingLesson: modalState.setMovingLesson,
+    showAddTaskModal: modalState.showAddTaskModal,
+    setShowAddTaskModal: modalState.setShowAddTaskModal,
+    addingTaskToLesson: modalState.addingTaskToLesson,
+    setAddingTaskToLesson: modalState.setAddingTaskToLesson,
 
     // Handlers
     handleSelectItem,
@@ -1102,9 +955,9 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     handleDeleteCourse,
     handleLessonSaved,
     handleLessonMoved,
-    handleAIToolSelect,
-    handleRefineComplete,
-    refreshLessonsForQuests,
+    handleAIToolSelect: aiTools.handleAIToolSelect,
+    handleRefineComplete: aiTools.handleRefineComplete,
+    refreshLessonsForQuests: aiTools.refreshLessonsForQuests,
 
     // Computed
     hasLessonsWithoutTasks,

@@ -1,30 +1,30 @@
 """
-REPOSITORY MIGRATION: PARTIALLY MIGRATED - Needs Completion
-- Already imports ParentRepository (line 8)
-- BUT: Direct database calls still used throughout
-- Mixed pattern creates inconsistency
-- Should use ParentRepository methods for all connection operations
-- Parent linking logic exists but not fully utilized
-
-Recommendation: Complete migration by using existing ParentRepository exclusively
-
 Admin routes for managing parent-student connections.
 Handles connection request approval, rejection, and manual linking.
+
+REPOSITORY MIGRATION: COMPLETE
+- Uses ParentRepository exclusively for all data operations
+- Uses UserRepository for user verification
 """
 from flask import Blueprint, request, jsonify
-from datetime import datetime
 from database import get_supabase_admin_client
-from repositories import ParentRepository
+from repositories import ParentRepository, UserRepository
 from utils.auth.decorators import require_auth
 from middleware.error_handler import ValidationError, NotFoundError, AuthorizationError
-import uuid
-import logging
 
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 bp = Blueprint('admin_parent_connections', __name__, url_prefix='/api/admin/parent-connections')
+
+
+def _verify_admin(user_id: str) -> None:
+    """Verify user has admin access. Raises AuthorizationError if not."""
+    user_repo = UserRepository()
+    user = user_repo.find_by_id(user_id)
+    if not user or user.get('role') != 'superadmin':
+        raise AuthorizationError("Admin access required")
 
 
 @bp.route('/requests', methods=['GET'])
@@ -35,81 +35,33 @@ def get_connection_requests(user_id):
     Supports filtering by status, parent_id, student_id, and date range.
     """
     try:
-        supabase = get_supabase_admin_client()
+        _verify_admin(user_id)
 
-        # Verify admin role
-        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        if not user_response.data or user_response.data.get('role') != 'superadmin':
-            raise AuthorizationError("Admin access required")
+        supabase = get_supabase_admin_client()
+        parent_repo = ParentRepository(client=supabase)
 
         # Get filter parameters
-        status = request.args.get('status')  # pending, approved, rejected
-        parent_id = request.args.get('parent_id')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
+        filters = {
+            'status': request.args.get('status'),
+            'parent_id': request.args.get('parent_id'),
+            'start_date': request.args.get('start_date'),
+            'end_date': request.args.get('end_date')
+        }
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 20))
 
-        # Build query
-        query = supabase.table('parent_connection_requests').select('''
-            id,
-            parent_user_id,
-            child_first_name,
-            child_last_name,
-            child_email,
-            matched_student_id,
-            status,
-            admin_notes,
-            reviewed_by_admin_id,
-            reviewed_at,
-            created_at,
-            parent_user:users!parent_connection_requests_parent_user_id_fkey(
-                id,
-                first_name,
-                last_name,
-                email
-            ),
-            matched_student:users!parent_connection_requests_matched_student_id_fkey(
-                id,
-                first_name,
-                last_name,
-                email
-            ),
-            reviewed_by:users!parent_connection_requests_reviewed_by_admin_id_fkey(
-                id,
-                first_name,
-                last_name
-            )
-        ''', count='exact')
+        result = parent_repo.get_all_connection_requests(
+            filters=filters,
+            page=page,
+            limit=limit
+        )
 
-        # Apply filters
-        if status:
-            query = query.eq('status', status)
-        if parent_id:
-            query = query.eq('parent_user_id', parent_id)
-        if start_date:
-            query = query.gte('created_at', start_date)
-        if end_date:
-            query = query.lte('created_at', end_date)
-
-        # Apply pagination
-        offset = (page - 1) * limit
-        query = query.order('created_at', desc=True).range(offset, offset + limit - 1)
-
-        response = query.execute()
-
-        return jsonify({
-            'requests': response.data,
-            'total_count': response.count,
-            'page': page,
-            'limit': limit
-        }), 200
+        return jsonify(result), 200
 
     except AuthorizationError as e:
         return jsonify({'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error getting connection requests: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to get connection requests'}), 500
 
 
@@ -121,31 +73,18 @@ def approve_connection_request(user_id, request_id):
     Creates parent_student_links record and updates request status.
     """
     try:
+        _verify_admin(user_id)
+
         data = request.get_json()
         admin_notes = data.get('admin_notes', '').strip()
 
         supabase = get_supabase_admin_client()
-
-        # Verify admin role
-        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        if not user_response.data or user_response.data.get('role') != 'superadmin':
-            raise AuthorizationError("Admin access required")
+        parent_repo = ParentRepository(client=supabase)
 
         # Get connection request
-        request_response = supabase.table('parent_connection_requests').select('''
-            id,
-            parent_user_id,
-            child_first_name,
-            child_last_name,
-            child_email,
-            matched_student_id,
-            status
-        ''').eq('id', request_id).single().execute()
-
-        if not request_response.data:
+        conn_request = parent_repo.get_connection_request(request_id)
+        if not conn_request:
             raise NotFoundError("Connection request not found")
-
-        conn_request = request_response.data
 
         # Check if already processed
         if conn_request['status'] != 'pending':
@@ -156,44 +95,27 @@ def approve_connection_request(user_id, request_id):
             return jsonify({'error': 'No student matched for this request. Student must create account first.'}), 400
 
         # Check if link already exists
-        existing_link = supabase.table('parent_student_links').select('id').eq(
-            'parent_user_id', conn_request['parent_user_id']
-        ).eq('student_user_id', conn_request['matched_student_id']).execute()
-
-        if existing_link.data:
+        if parent_repo.link_exists(conn_request['parent_user_id'], conn_request['matched_student_id']):
             return jsonify({'error': 'Connection already exists between this parent and student'}), 400
 
-        # Create verified parent-student link using helper function
-        link_response = supabase.rpc('create_verified_parent_link', {
-            'p_parent_id': conn_request['parent_user_id'],
-            'p_student_id': conn_request['matched_student_id'],
-            'p_admin_id': user_id,
-            'p_notes': admin_notes
-        }).execute()
-
-        # Update connection request status
-        supabase.table('parent_connection_requests').update({
-            'status': 'approved',
-            'admin_notes': admin_notes,
-            'reviewed_by_admin_id': user_id,
-            'reviewed_at': datetime.utcnow().isoformat(),
-            'updated_at': datetime.utcnow().isoformat()
-        }).eq('id', request_id).execute()
+        # Approve the request using repository
+        link_id = parent_repo.approve_connection_request(request_id, user_id, admin_notes)
 
         logger.info(f"Admin {user_id} approved connection request {request_id}")
 
         return jsonify({
             'message': 'Connection request approved successfully',
-            'link_id': link_response.data
+            'link_id': link_id
         }), 200
 
     except AuthorizationError as e:
         return jsonify({'error': str(e)}), 403
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error approving connection request: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to approve connection request'}), 500
 
 
@@ -205,6 +127,8 @@ def reject_connection_request(user_id, request_id):
     Updates request status with rejection reason.
     """
     try:
+        _verify_admin(user_id)
+
         data = request.get_json()
         admin_notes = data.get('admin_notes', '').strip()
 
@@ -212,34 +136,10 @@ def reject_connection_request(user_id, request_id):
             raise ValidationError("Admin notes are required when rejecting a request")
 
         supabase = get_supabase_admin_client()
+        parent_repo = ParentRepository(client=supabase)
 
-        # Verify admin role
-        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        if not user_response.data or user_response.data.get('role') != 'superadmin':
-            raise AuthorizationError("Admin access required")
-
-        # Get connection request
-        request_response = supabase.table('parent_connection_requests').select(
-            'id, status'
-        ).eq('id', request_id).single().execute()
-
-        if not request_response.data:
-            raise NotFoundError("Connection request not found")
-
-        conn_request = request_response.data
-
-        # Check if already processed
-        if conn_request['status'] != 'pending':
-            return jsonify({'error': 'This request has already been processed'}), 400
-
-        # Update connection request status
-        supabase.table('parent_connection_requests').update({
-            'status': 'rejected',
-            'admin_notes': admin_notes,
-            'reviewed_by_admin_id': user_id,
-            'reviewed_at': datetime.utcnow().isoformat(),
-            'updated_at': datetime.utcnow().isoformat()
-        }).eq('id', request_id).execute()
+        # Reject the request using repository
+        parent_repo.reject_connection_request(request_id, user_id, admin_notes)
 
         logger.info(f"Admin {user_id} rejected connection request {request_id}")
 
@@ -253,9 +153,10 @@ def reject_connection_request(user_id, request_id):
         return jsonify({'error': str(e)}), 403
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error rejecting connection request: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to reject connection request'}), 500
 
 
@@ -267,75 +168,33 @@ def get_active_links(user_id):
     Supports filtering by parent_id, student_id, admin_verified status.
     """
     try:
-        supabase = get_supabase_admin_client()
+        _verify_admin(user_id)
 
-        # Verify admin role
-        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        if not user_response.data or user_response.data.get('role') != 'superadmin':
-            raise AuthorizationError("Admin access required")
+        supabase = get_supabase_admin_client()
+        parent_repo = ParentRepository(client=supabase)
 
         # Get filter parameters
-        parent_id = request.args.get('parent_id')
-        student_id = request.args.get('student_id')
-        admin_verified = request.args.get('admin_verified')  # true/false
+        admin_verified = request.args.get('admin_verified')
+        filters = {
+            'parent_id': request.args.get('parent_id'),
+            'student_id': request.args.get('student_id'),
+            'admin_verified': admin_verified.lower() == 'true' if admin_verified else None
+        }
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 20))
 
-        # Build query
-        query = supabase.table('parent_student_links').select('''
-            id,
-            parent_user_id,
-            student_user_id,
-            admin_verified,
-            verified_by_admin_id,
-            verified_at,
-            admin_notes,
-            created_at,
-            parent:users!parent_student_links_parent_user_id_fkey(
-                id,
-                first_name,
-                last_name,
-                email
-            ),
-            student:users!parent_student_links_student_user_id_fkey(
-                id,
-                first_name,
-                last_name,
-                email
-            ),
-            verified_by:users!parent_student_links_verified_by_admin_id_fkey(
-                id,
-                first_name,
-                last_name
-            )
-        ''', count='exact')
+        result = parent_repo.get_all_active_links(
+            filters=filters,
+            page=page,
+            limit=limit
+        )
 
-        # Apply filters
-        if parent_id:
-            query = query.eq('parent_user_id', parent_id)
-        if student_id:
-            query = query.eq('student_user_id', student_id)
-        if admin_verified is not None:
-            query = query.eq('admin_verified', admin_verified.lower() == 'true')
-
-        # Apply pagination
-        offset = (page - 1) * limit
-        query = query.order('created_at', desc=True).range(offset, offset + limit - 1)
-
-        response = query.execute()
-
-        return jsonify({
-            'links': response.data,
-            'total_count': response.count,
-            'page': page,
-            'limit': limit
-        }), 200
+        return jsonify(result), 200
 
     except AuthorizationError as e:
         return jsonify({'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error getting active links: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to get active links'}), 500
 
 
@@ -347,21 +206,13 @@ def disconnect_link(user_id, link_id):
     Hard delete from parent_student_links table.
     """
     try:
+        _verify_admin(user_id)
+
         supabase = get_supabase_admin_client()
+        parent_repo = ParentRepository(client=supabase)
 
-        # Verify admin role
-        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        if not user_response.data or user_response.data.get('role') != 'superadmin':
-            raise AuthorizationError("Admin access required")
-
-        # Get link to verify it exists
-        link_response = supabase.table('parent_student_links').select('id').eq('id', link_id).execute()
-
-        if not link_response.data:
-            raise NotFoundError("Connection link not found")
-
-        # Delete the link
-        supabase.table('parent_student_links').delete().eq('id', link_id).execute()
+        # Delete the link using repository
+        parent_repo.delete_link(link_id, user_id)
 
         logger.info(f"Admin {user_id} disconnected parent link {link_id}")
 
@@ -375,7 +226,6 @@ def disconnect_link(user_id, link_id):
         return jsonify({'error': str(e)}), 404
     except Exception as e:
         logger.error(f"Error disconnecting link: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to disconnect link'}), 500
 
 
@@ -387,6 +237,8 @@ def create_manual_link(user_id):
     Bypasses the normal request/approval workflow.
     """
     try:
+        _verify_admin(user_id)
+
         data = request.get_json()
         parent_user_id = data.get('parent_user_id')
         student_user_id = data.get('student_user_id')
@@ -396,47 +248,26 @@ def create_manual_link(user_id):
             raise ValidationError("Both parent_user_id and student_user_id are required")
 
         supabase = get_supabase_admin_client()
-
-        # Verify admin role
-        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        if not user_response.data or user_response.data.get('role') != 'superadmin':
-            raise AuthorizationError("Admin access required")
+        parent_repo = ParentRepository(client=supabase)
 
         # Verify parent user exists and has parent role
-        parent_response = supabase.table('users').select('id, role').eq('id', parent_user_id).execute()
-        if not parent_response.data:
-            raise NotFoundError("Parent user not found")
-        if parent_response.data[0].get('role') != 'parent':
-            raise ValidationError("Specified user is not a parent account")
+        parent_user = parent_repo.verify_user_role(parent_user_id, 'parent')
+        if not parent_user:
+            raise ValidationError("Parent user not found or is not a parent account")
 
         # Verify student user exists and has student role
-        student_response = supabase.table('users').select('id, role').eq('id', student_user_id).execute()
-        if not student_response.data:
-            raise NotFoundError("Student user not found")
-        if student_response.data[0].get('role') != 'student':
-            raise ValidationError("Specified user is not a student account")
+        student_user = parent_repo.verify_user_role(student_user_id, 'student')
+        if not student_user:
+            raise ValidationError("Student user not found or is not a student account")
 
-        # Check if link already exists
-        existing_link = supabase.table('parent_student_links').select('id').eq(
-            'parent_user_id', parent_user_id
-        ).eq('student_user_id', student_user_id).execute()
-
-        if existing_link.data:
-            return jsonify({'error': 'Connection already exists between this parent and student'}), 400
-
-        # Create verified link using helper function
-        link_response = supabase.rpc('create_verified_parent_link', {
-            'p_parent_id': parent_user_id,
-            'p_student_id': student_user_id,
-            'p_admin_id': user_id,
-            'p_notes': admin_notes
-        }).execute()
+        # Create manual link using repository
+        link_id = parent_repo.create_manual_link(parent_user_id, student_user_id, user_id, admin_notes)
 
         logger.info(f"Admin {user_id} manually created link between parent {parent_user_id} and student {student_user_id}")
 
         return jsonify({
             'message': 'Manual connection created successfully',
-            'link_id': link_response.data
+            'link_id': link_id
         }), 201
 
     except ValidationError as e:
@@ -445,7 +276,8 @@ def create_manual_link(user_id):
         return jsonify({'error': str(e)}), 403
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error creating manual link: {str(e)}")
-        import traceback
         return jsonify({'error': 'Failed to create manual link'}), 500

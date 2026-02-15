@@ -1,81 +1,63 @@
 """
-User profile routes
+REPOSITORY MIGRATION: COMPLETE
+- Uses UserRepository for user CRUD operations
+- Uses DashboardService for XP calculations
+- Routes are thin controllers handling HTTP concerns only
 
-REPOSITORY MIGRATION: MIGRATION CANDIDATE
-- Multiple direct database calls to 'users' and 'user_quests' tables
-- Should use UserRepository for user CRUD operations
-- Helper functions in helpers.py may also need migration
-- Methods needed: get_user_profile_with_xp(), update_user_profile()
+User profile routes
 """
 
 import uuid
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from middleware.error_handler import NotFoundError, ValidationError
-from .helpers import calculate_user_xp, get_user_skills
-
+from repositories import UserRepository
+from services.dashboard_service import DashboardService
+from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 profile_bp = Blueprint('profile', __name__)
 
+
 @profile_bp.route('/profile', methods=['GET'])
 @require_auth
 def get_profile(user_id):
     """Get user profile with XP breakdown"""
-    # Admin client: Auth verified by decorator (ADR-002, Rule 3)
-    from database import get_supabase_admin_client
-    supabase = get_supabase_admin_client()
-
     try:
-        # Get user profile directly with admin client
-        user_response = supabase.table('users')\
-            .select('*')\
-            .eq('id', user_id)\
-            .single()\
-            .execute()
+        user_repo = UserRepository()
+        dashboard_service = DashboardService()
 
-        if not user_response.data:
-            raise NotFoundError('User', user_id)
+        # Get user profile
+        user = user_repo.get_profile(user_id)
 
-        user = user_response.data
-
-        # Calculate total XP and get skill breakdown
+        # Get XP stats using dashboard service's methods
+        from routes.users.helpers import calculate_user_xp
+        supabase = get_supabase_admin_client()
         total_xp, skill_breakdown = calculate_user_xp(supabase, user_id)
 
         # Get completed quests count
-        completed_quests = supabase.table('user_quests')\
-            .select('id', count='exact')\
-            .eq('user_id', user_id)\
-            .not_.is_('completed_at', 'null')\
-            .execute()
+        completed_count = dashboard_service.get_completed_quests_count(user_id)
 
-        completed_count = completed_quests.count if hasattr(completed_quests, 'count') else 0
-
-        # Structure response as expected by frontend
-        response_data = {
+        return jsonify({
             'user': user,
             'total_xp': total_xp,
             'skill_breakdown': skill_breakdown,
             'completed_quests': completed_count
-        }
+        }), 200
 
-        return jsonify(response_data), 200
     except NotFoundError:
         raise
     except Exception as e:
         logger.error(f"Error fetching profile: {str(e)}")
         return jsonify({'error': 'Failed to fetch profile'}), 500
 
+
 @profile_bp.route('/profile', methods=['PUT'])
 @require_auth
 def update_profile(user_id):
     """Update user profile"""
-    # Admin client: Auth verified by decorator (ADR-002, Rule 3)
-    from database import get_supabase_admin_client
-    supabase = get_supabase_admin_client()
-
     data = request.json
 
     # Validate allowed fields
@@ -86,18 +68,13 @@ def update_profile(user_id):
         raise ValidationError('No valid fields to update')
 
     try:
-        # Update profile using admin client
-        updated_user_response = supabase.table('users')\
-            .update(update_data)\
-            .eq('id', user_id)\
-            .execute()
+        user_repo = UserRepository()
 
-        if not updated_user_response.data:
-            raise NotFoundError('User', user_id)
-
-        updated_user = updated_user_response.data[0]
+        # Update profile - UserRepository.update() handles the actual update
+        updated_user = user_repo.update(user_id, update_data)
 
         return jsonify(updated_user), 200
+
     except NotFoundError:
         raise
     except Exception as e:
@@ -109,9 +86,6 @@ def update_profile(user_id):
 @require_auth
 def upload_avatar(user_id):
     """Upload user avatar image"""
-    from database import get_supabase_admin_client
-    supabase = get_supabase_admin_client()
-
     if 'avatar' not in request.files:
         raise ValidationError('No avatar file provided')
 
@@ -132,6 +106,9 @@ def upload_avatar(user_id):
         raise ValidationError('File too large. Maximum size is 5MB')
 
     try:
+        supabase = get_supabase_admin_client()
+        user_repo = UserRepository()
+
         # Generate unique filename
         ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'jpg'
         filename = f"avatars/{user_id}/{uuid.uuid4()}.{ext}"
@@ -148,10 +125,7 @@ def upload_avatar(user_id):
         avatar_url = supabase.storage.from_('user-uploads').get_public_url(filename)
 
         # Update user's avatar_url
-        supabase.table('users')\
-            .update({'avatar_url': avatar_url})\
-            .eq('id', user_id)\
-            .execute()
+        user_repo.update(user_id, {'avatar_url': avatar_url})
 
         return jsonify({'avatar_url': avatar_url}), 200
 

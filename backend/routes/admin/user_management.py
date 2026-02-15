@@ -1,17 +1,12 @@
 """
-REPOSITORY MIGRATION: PARTIALLY MIGRATED - Needs Completion
-- Already imports UserRepository (lines 10-20)
-- BUT: Many endpoints still use direct database access
-- Mixed pattern creates inconsistency
-- User role changes, status updates, chat logs - all via direct DB calls
-- Should consolidate user management into UserRepository methods
-
-Recommendation: Complete migration by using existing UserRepository for all user operations
-
 Admin User Management Routes
 
 Handles user CRUD operations, subscription management, role changes,
 user status updates, and chat log viewing for admin interface.
+
+REPOSITORY MIGRATION: COMPLETE
+- Uses UserRepository for all user operations
+- Complex queries remain in routes for readability
 """
 
 from flask import Blueprint, request, jsonify
@@ -40,7 +35,6 @@ logger = get_logger(__name__)
 
 bp = Blueprint('admin_user_management', __name__, url_prefix='/api/admin')
 
-# Using repository pattern for database access
 @bp.route('/users', methods=['GET'])
 @require_advisor
 def get_users(user_id):
@@ -48,115 +42,36 @@ def get_users(user_id):
     Get all users with filtering and pagination for admin dashboard.
     Advisors see only their assigned students; admins see all users.
     """
-    supabase = get_supabase_admin_client()
-
     try:
+        user_repo = UserRepository()
+
         # Get filter parameters
-        subscription_filter = request.args.get('subscription', 'all')
-        role_filter = request.args.get('role', 'all')
-        activity_filter = request.args.get('activity', 'all')
-        organization_filter = request.args.get('organization', 'all')
-        search_term = request.args.get('search', '').strip()
+        filters = {
+            'role': request.args.get('role', 'all'),
+            'activity': request.args.get('activity', 'all'),
+            'organization': request.args.get('organization', 'all'),
+            'search': request.args.get('search', '').strip()
+        }
         sort_by = request.args.get('sortBy', 'created_at')
         sort_order = request.args.get('sortOrder', 'desc')
-
-        # Pagination
         page = int(request.args.get('page', 1))
         per_page = min(int(request.args.get('per_page', 20)), 100)
-        offset = (page - 1) * per_page
 
         # Get assigned students for advisor filtering
-        # Returns None for admins (all students), list of student IDs for advisors
         assigned_student_ids = get_advisor_assigned_students(user_id)
 
-        # Build query
-        query = supabase.table('users').select('*', count='exact')
-
-        # Advisors can only see their assigned students
-        if assigned_student_ids is not None:  # None means admin (all access)
-            if len(assigned_student_ids) == 0:
-                # Advisor with no assigned students - return empty list
-                return jsonify({
-                    'success': True,
-                    'users': [],
-                    'total': 0,
-                    'page': page,
-                    'per_page': per_page,
-                    'total_pages': 0
-                })
-            # Filter to only assigned students
-            query = query.in_('id', assigned_student_ids)
-            # Force role filter to 'student' for advisors
-            query = query.eq('role', 'student')
-
-        # Apply filters (skip role filter if advisor already applied it)
-        # Subscription filter removed - no subscription tiers in Phase 2
-
-        if role_filter != 'all' and assigned_student_ids is None:  # Only admins can filter by role
-            if role_filter == 'org_admin':
-                # Special filter for org admins (users with is_org_admin = true)
-                query = query.eq('is_org_admin', True)
-            else:
-                query = query.eq('role', role_filter)
-
-        # Organization filter
-        if organization_filter != 'all':
-            if organization_filter == 'none':
-                query = query.is_('organization_id', 'null')
-            else:
-                query = query.eq('organization_id', organization_filter)
-
-        if activity_filter == 'active':
-            # Users who logged in within last 30 days
-            cutoff_date = (datetime.utcnow() - timedelta(days=30)).isoformat()
-            query = query.gte('last_login_at', cutoff_date)
-        elif activity_filter == 'inactive':
-            # Users who haven't logged in within last 30 days or never
-            cutoff_date = (datetime.utcnow() - timedelta(days=30)).isoformat()
-            query = query.or_(f'last_login_at.lt.{cutoff_date},last_login_at.is.null')
-
-        # Apply search
-        if search_term:
-            # Search across name and email fields
-            search_query = f'first_name.ilike.%{search_term}%,last_name.ilike.%{search_term}%,email.ilike.%{search_term}%'
-            query = query.or_(search_query)
-
-        # Apply sorting
-        ascending = sort_order == 'asc'
-        query = query.order(sort_by, desc=not ascending)
-
-        # Apply pagination
-        query = query.range(offset, offset + per_page - 1)
-
-        result = query.execute()
-
-        users = result.data if result.data else []
-
-        # Enrich with organization names
-        if users:
-            # Get unique organization IDs
-            org_ids = list(set(u.get('organization_id') for u in users if u.get('organization_id')))
-            org_names = {}
-
-            if org_ids:
-                orgs_response = supabase.table('organizations')\
-                    .select('id, name')\
-                    .in_('id', org_ids)\
-                    .execute()
-                if orgs_response.data:
-                    org_names = {o['id']: o['name'] for o in orgs_response.data}
-
-            # Add organization_name to each user
-            for user in users:
-                user['organization_name'] = org_names.get(user.get('organization_id'))
+        result = user_repo.get_users_paginated(
+            filters=filters,
+            page=page,
+            per_page=per_page,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            assigned_student_ids=assigned_student_ids
+        )
 
         return jsonify({
             'success': True,
-            'users': users,
-            'total': result.count,
-            'page': page,
-            'per_page': per_page,
-            'total_pages': (result.count + per_page - 1) // per_page if result.count else 0
+            **result
         })
 
     except Exception as e:
@@ -170,57 +85,23 @@ def get_users(user_id):
 @require_admin
 def get_user_details(user_id, target_user_id):
     """Get detailed information about a specific user"""
-    print(f"[USER DETAILS] ===== ENDPOINT CALLED for user {target_user_id} =====", flush=True)
-    supabase = get_supabase_admin_client()
-
     try:
-        # Get user with related data
-        user = supabase.table('users').select('*').eq('id', target_user_id).single().execute()
+        user_repo = UserRepository()
 
-        if not user.data:
+        # Get user with stats
+        user_data = user_repo.get_user_with_stats(target_user_id)
+
+        if not user_data:
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
-        # Get user stats
-        stats = {}
-
-        # Get quest completions
-        completions = supabase.table('user_quests')\
-            .select('*', count='exact')\
-            .eq('user_id', target_user_id)\
-            .not_.is_('completed_at', 'null')\
-            .execute()
-        stats['completed_quests'] = completions.count
-
-        # Get active enrollments
-        active = supabase.table('user_quests')\
-            .select('*', count='exact')\
-            .eq('user_id', target_user_id)\
-            .eq('is_active', True)\
-            .execute()
-        stats['active_quests'] = active.count
-
-        # Get total XP
-        xp_data = supabase.table('user_skill_xp')\
-            .select('xp_amount')\
-            .eq('user_id', target_user_id)\
-            .execute()
-        stats['total_xp'] = sum(record['xp_amount'] for record in xp_data.data) if xp_data.data else 0
-
-        user_data = user.data
-
-        # Include organization data if user has an organization
-        print(f"[USER DETAILS] user_data org_id: {user_data.get('organization_id')}", flush=True)
+        # Get organization info if needed
         if user_data.get('organization_id'):
-            org_response = supabase.table('organizations')\
-                .select('id, name, slug')\
-                .eq('id', user_data['organization_id'])\
-                .maybe_single()\
-                .execute()
-            print(f"[USER DETAILS] org_response.data: {org_response.data}", flush=True)
-            if org_response.data:
-                user_data['organization'] = org_response.data
-                user_data['organization_name'] = org_response.data['name']
-        print(f"[USER DETAILS] Final org_name: {user_data.get('organization_name')}", flush=True)
+            user_with_org = user_repo.get_user_with_organization(target_user_id)
+            if user_with_org:
+                user_data['organization'] = user_with_org.get('organization')
+                user_data['organization_name'] = user_with_org.get('organization_name')
+
+        stats = user_data.pop('stats', {})
 
         return jsonify({
             'success': True,
@@ -383,102 +264,24 @@ def update_user_role(user_id, target_user_id):
             'error': f'Failed to update role: {str(e)}'
         }), 500
 
-def cleanup_user_related_records(supabase, target_user_id):
-    """
-    Clean up all records related to a user before deletion.
-    This handles foreign key constraints that would otherwise block deletion.
-    """
-    cleanup_results = []
-
-    # Tables with user_id foreign key
-    tables_with_user_id = [
-        'user_skill_xp',
-        'diplomas',
-        'user_quest_tasks',
-        'quest_task_completions',
-        'user_quests',
-        'notifications',
-        'user_achievements',
-        'course_enrollments',
-        'curriculum_lesson_progress',
-    ]
-
-    for table in tables_with_user_id:
-        try:
-            result = supabase.table(table).delete().eq('user_id', target_user_id).execute()
-            if result.data:
-                cleanup_results.append(f"{table}: {len(result.data)} deleted")
-        except Exception as e:
-            # Table might not exist or have different schema - continue
-            logger.debug(f"Cleanup {table}: {e}")
-
-    # Tables with different column names
-    try:
-        supabase.table('friendships').delete().eq('requester_id', target_user_id).execute()
-        supabase.table('friendships').delete().eq('addressee_id', target_user_id).execute()
-    except Exception as e:
-        logger.debug(f"Cleanup friendships: {e}")
-
-    try:
-        # observer_invitations only has student_id, not observer_id
-        supabase.table('observer_invitations').delete().eq('student_id', target_user_id).execute()
-    except Exception as e:
-        logger.debug(f"Cleanup observer_invitations: {e}")
-
-    try:
-        supabase.table('observer_student_links').delete().eq('student_id', target_user_id).execute()
-        supabase.table('observer_student_links').delete().eq('observer_id', target_user_id).execute()
-    except Exception as e:
-        logger.debug(f"Cleanup observer_student_links: {e}")
-
-    # Clean up org_invitations - delete accepted ones, nullify invited_by for pending
-    try:
-        # Delete invitations that were accepted by this user (already used)
-        supabase.table('org_invitations').delete().eq('accepted_by', target_user_id).execute()
-        # Nullify invited_by for pending invitations (keep the invitation valid)
-        supabase.table('org_invitations').update({'invited_by': None}).eq('invited_by', target_user_id).execute()
-    except Exception as e:
-        logger.debug(f"Cleanup org_invitations: {e}")
-
-    try:
-        supabase.table('quests').update({'created_by': None}).eq('created_by', target_user_id).execute()
-    except Exception as e:
-        logger.debug(f"Cleanup quests.created_by: {e}")
-
-    return cleanup_results
-
-
 @bp.route('/users/<target_user_id>', methods=['DELETE'])
 @require_admin
 def delete_user(user_id, target_user_id):
     """Delete a user account from both auth.users and public.users (admin only)"""
-    supabase = get_supabase_admin_client()
-
     try:
         # Prevent admin from deleting themselves
         if target_user_id == user_id:
             return jsonify({'success': False, 'error': 'Cannot delete your own account'}), 403
 
-        # Check if user exists in public.users
-        user = supabase.table('users').select('*').eq('id', target_user_id).single().execute()
+        user_repo = UserRepository()
 
-        if not user.data:
+        # Check if user exists
+        user = user_repo.find_by_id(target_user_id)
+        if not user:
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
-        # Clean up all related records first to avoid FK constraint errors
-        cleanup_results = cleanup_user_related_records(supabase, target_user_id)
-        logger.info(f"Cleaned up related records for user {target_user_id}: {cleanup_results}")
-
-        # Delete from public.users
-        supabase.table('users').delete().eq('id', target_user_id).execute()
-        logger.info(f"Deleted user {target_user_id} from public.users")
-
-        # Delete from auth.users (Supabase Auth)
-        try:
-            supabase.auth.admin.delete_user(target_user_id)
-            logger.info(f"Deleted user {target_user_id} from auth.users")
-        except Exception as auth_err:
-            logger.warning(f"Could not delete from auth.users (may already be deleted): {auth_err}")
+        # Delete user and all related data using repository
+        user_repo.delete_user_complete(target_user_id, user_id)
 
         return jsonify({
             'success': True,
@@ -497,8 +300,6 @@ def delete_user(user_id, target_user_id):
 @require_admin
 def bulk_delete_users(user_id):
     """Delete multiple user accounts (admin only)"""
-    supabase = get_supabase_admin_client()
-
     try:
         data = request.json
         user_ids = data.get('user_ids', [])
@@ -513,35 +314,12 @@ def bulk_delete_users(user_id):
         if user_id in user_ids:
             return jsonify({'success': False, 'error': 'Cannot delete your own account'}), 403
 
-        deleted = []
-        failed = []
-
-        for target_user_id in user_ids:
-            try:
-                # Clean up related records first
-                cleanup_user_related_records(supabase, target_user_id)
-
-                # Delete from public.users
-                supabase.table('users').delete().eq('id', target_user_id).execute()
-
-                # Delete from auth.users
-                try:
-                    supabase.auth.admin.delete_user(target_user_id)
-                except Exception:
-                    pass  # May already be deleted
-
-                deleted.append(target_user_id)
-                logger.info(f"Bulk delete: Deleted user {target_user_id}")
-            except Exception as e:
-                logger.error(f"Bulk delete: Failed to delete user {target_user_id}: {e}")
-                failed.append({'id': target_user_id, 'error': str(e)[:100]})
+        user_repo = UserRepository()
+        result = user_repo.bulk_delete_users(user_ids, user_id)
 
         return jsonify({
             'success': True,
-            'deleted': len(deleted),
-            'failed': len(failed),
-            'deleted_ids': deleted,
-            'failed_details': failed
+            **result
         })
 
     except Exception as e:
@@ -667,32 +445,14 @@ def admin_verify_email(user_id, target_user_id):
 def get_user_conversations(admin_user_id, user_id):
     """Get all conversations for a specific user (admin only)"""
     try:
-        supabase = get_supabase_admin_client()
+        user_repo = UserRepository()
 
-        # Get query parameters
         limit = min(int(request.args.get('limit', 50)), 100)
         offset = int(request.args.get('offset', 0))
 
-        # Get user's conversations
-        conversations_query = supabase.table('tutor_conversations').select('''
-            id, title, conversation_mode, quest_id, task_id,
-            is_active, message_count, last_message_at, created_at,
-            quests(title)
-        ''').eq('user_id', user_id).order('last_message_at', desc=True).range(offset, offset + limit - 1)
+        result = user_repo.get_user_conversations(user_id, limit, offset)
 
-        conversations_result = conversations_query.execute()
-
-        # Get user info for context
-        user_query = supabase.table('users').select('id, first_name, last_name, email').eq('id', user_id).single()
-        user_result = user_query.execute()
-
-        return success_response({
-            'user': user_result.data,
-            'conversations': conversations_result.data,
-            'total': len(conversations_result.data),
-            'limit': limit,
-            'offset': offset
-        })
+        return success_response(result)
 
     except Exception as e:
         logger.error(f"Error fetching user conversations: {str(e)}")
@@ -748,8 +508,6 @@ def get_user_quest_enrollments(user_id, target_user_id):
     Used by advisors to add tasks to student quests.
     Advisors can only access their assigned students; admins see all.
     """
-    supabase = get_supabase_admin_client()
-
     try:
         # Check if advisor is allowed to access this student
         assigned_student_ids = get_advisor_assigned_students(user_id)
@@ -761,68 +519,12 @@ def get_user_quest_enrollments(user_id, target_user_id):
                 'error': 'Not authorized to access this student'
             }), 403
 
-        # Get all active quests
-        all_quests = supabase.table('quests')\
-            .select('id, title, big_idea, description, quest_type')\
-            .eq('is_active', True)\
-            .order('created_at', desc=True)\
-            .execute()
-
-        # Get student's enrollments
-        enrollments = supabase.table('user_quests')\
-            .select('*, quests(id, title, big_idea, description)')\
-            .eq('user_id', target_user_id)\
-            .eq('is_active', True)\
-            .execute()
-
-        # Get task counts for enrolled quests
-        enrolled_quest_ids = [e['quest_id'] for e in enrollments.data] if enrollments.data else []
-        task_counts = {}
-
-        if enrolled_quest_ids:
-            for quest_id in enrolled_quest_ids:
-                tasks = supabase.table('user_quest_tasks')\
-                    .select('id', count='exact')\
-                    .eq('quest_id', quest_id)\
-                    .eq('user_id', target_user_id)\
-                    .execute()
-                task_counts[quest_id] = tasks.count or 0
-
-        # Build enrolled quests list
-        enrolled_quests = []
-        for enrollment in (enrollments.data or []):
-            quest = enrollment.get('quests', {})
-            enrolled_quests.append({
-                'quest_id': enrollment['quest_id'],
-                'user_quest_id': enrollment['id'],
-                'title': quest.get('title', 'Unknown Quest'),
-                'big_idea': quest.get('big_idea', ''),
-                'description': quest.get('description', ''),
-                'task_count': task_counts.get(enrollment['quest_id'], 0),
-                'started_at': enrollment.get('started_at'),
-                'completed_at': enrollment.get('completed_at'),
-                'is_enrolled': True
-            })
-
-        # Build available quests list (not enrolled)
-        available_quests = []
-        for quest in (all_quests.data or []):
-            if quest['id'] not in enrolled_quest_ids:
-                available_quests.append({
-                    'quest_id': quest['id'],
-                    'title': quest['title'],
-                    'big_idea': quest.get('big_idea', ''),
-                    'description': quest.get('description', ''),
-                    'source': quest.get('source', 'optio'),
-                    'is_enrolled': False
-                })
+        user_repo = UserRepository()
+        result = user_repo.get_user_quest_enrollments(target_user_id)
 
         return jsonify({
             'success': True,
-            'enrolled_quests': enrolled_quests,
-            'available_quests': available_quests,
-            'total_enrolled': len(enrolled_quests),
-            'total_available': len(available_quests)
+            **result
         })
 
     except Exception as e:
@@ -930,113 +632,43 @@ def assign_user_to_organization(admin_user_id, user_id):
         data = request.json
         organization_id = data.get('organization_id')
 
-        print(f"[ORG UPDATE] Updating user {user_id} organization to: {organization_id}", flush=True)
+        user_repo = UserRepository()
 
-        from database import get_supabase_admin_client
-        admin_client = get_supabase_admin_client()
+        # Verify organization exists if assigning
+        if organization_id is not None:
+            from repositories.organization_repository import OrganizationRepository
+            org_repo = OrganizationRepository()
+            org = org_repo.find_by_id(organization_id)
+            if not org:
+                return jsonify({
+                    'success': False,
+                    'error': 'Organization not found'
+                }), 404
 
-        # If null, remove from organization
+        try:
+            user_repo.update_user_organization(user_id, organization_id, admin_user_id)
+        except Exception as e:
+            error_msg = str(e)
+            if 'superadmin' in error_msg.lower():
+                return jsonify({'success': False, 'error': 'Cannot add superadmin to organization'}), 400
+            raise
+
         if organization_id is None:
-            # Get current user data to restore their role
-            user_data = admin_client.table('users')\
-                .select('role, org_role')\
-                .eq('id', user_id)\
-                .single()\
-                .execute()
-
-            current_role = user_data.data.get('role', 'student') if user_data.data else 'student'
-            org_role = user_data.data.get('org_role') if user_data.data else None
-
-            # Restore role from org_role when removing from organization
-            # If they were org_managed, restore their org_role as their platform role
-            if current_role == 'org_managed' and org_role:
-                restore_role = org_role
-            else:
-                restore_role = current_role if current_role != 'org_managed' else 'student'
-
-            admin_client.table('users')\
-                .update({
-                    'organization_id': None,
-                    'role': restore_role,
-                    'org_role': None
-                })\
-                .eq('id', user_id)\
-                .execute()
-
-            logger.info(f"[ADMIN] User {user_id} removed from organization by admin {admin_user_id}, role restored to {restore_role}")
-
             return jsonify({
                 'success': True,
                 'message': 'User removed from organization',
                 'organization': None
             }), 200
-
-        # Use organization repository to validate and assign
-        from repositories.organization_repository import OrganizationRepository
-        org_repo = OrganizationRepository()
-
-        # Verify organization exists
-        org = org_repo.find_by_id(organization_id)
-        if not org:
-            return jsonify({
-                'success': False,
-                'error': 'Organization not found'
-            }), 404
-
-        # Get current user data to properly transition role
-        user_data = admin_client.table('users')\
-            .select('role, org_role')\
-            .eq('id', user_id)\
-            .single()\
-            .execute()
-
-        current_role = user_data.data.get('role', 'student') if user_data.data else 'student'
-
-        # Don't allow adding superadmin to organization
-        if current_role == 'superadmin':
-            return jsonify({
-                'success': False,
-                'error': 'Cannot add superadmin to organization'
-            }), 400
-
-        # If already org_managed, just update org_id (they keep their org_role)
-        if current_role == 'org_managed':
-            update_result = admin_client.table('users')\
-                .update({'organization_id': organization_id})\
-                .eq('id', user_id)\
-                .execute()
         else:
-            # Convert platform user to org user
-            # Use their current role as org_role, default to 'student' if invalid
-            valid_org_roles = ['student', 'parent', 'advisor', 'observer']
-            org_role = current_role if current_role in valid_org_roles else 'student'
-
-            update_result = admin_client.table('users')\
-                .update({
-                    'organization_id': organization_id,
-                    'role': 'org_managed',
-                    'org_role': org_role
-                })\
-                .eq('id', user_id)\
-                .execute()
-
-        print(f"[ORG UPDATE] Update result: {update_result.data}", flush=True)
-
-        # Verify the update worked
-        verify = admin_client.table('users').select('organization_id, role, org_role').eq('id', user_id).single().execute()
-        print(f"[ORG UPDATE] After update: org_id={verify.data.get('organization_id')}, role={verify.data.get('role')}, org_role={verify.data.get('org_role')}" if verify.data else "[ORG UPDATE] User NOT FOUND", flush=True)
-
-        logger.info(f"[ADMIN] User {user_id} assigned to organization {organization_id} by admin {admin_user_id}")
-
-        return jsonify({
-            'success': True,
-            'message': f'User assigned to {org["name"]} successfully',
-            'organization': {
-                'id': org['id'],
-                'name': org['name'],
-                'slug': org['slug']
-            }
-        }), 200
+            return jsonify({
+                'success': True,
+                'message': f'User assigned to {org["name"]} successfully',
+                'organization': {
+                    'id': org['id'],
+                    'name': org['name'],
+                    'slug': org['slug']
+                }
+            }), 200
 
     except Exception as e:
         logger.error(f"Error assigning user to organization: {str(e)}")

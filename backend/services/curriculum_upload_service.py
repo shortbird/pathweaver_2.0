@@ -17,89 +17,34 @@ Features:
 - Smart content chunking (parallel processing for large courses)
 - Review gate (pause after Stage 2 for human verification)
 
-REFACTORING ANALYSIS (1870 lines)
-==================================
-
-This file could be split into multiple service classes:
-
-1. **CurriculumProgressService** (lines 88-228)
-   - _save_checkpoint, _update_progress, _get_upload
-   - resume_upload, _mark_error
-   - Database tracking and progress management
-
-2. **CurriculumChunkingService** (lines 234-433)
-   - _chunk_content, _detect_structure_chunk
-   - detect_structure_chunked, _merge_structure_results
-   - Smart chunking and parallel processing for large files
-
-3. **CurriculumReviewService** (lines 439-625)
-   - process_upload_to_review, approve_structure
-   - _apply_structure_edits
-   - Human review workflow and structure editing
-
-4. **CurriculumParsingService** (lines 989-1072)
-   - parse_source, _filter_imscc_content
-   - _imscc_to_text, _imscc_to_sections
-   - Source parsing and IMSCC conversion (delegates to existing parsers)
-
-5. **CurriculumAIService** (lines 1074-1355)
-   - detect_structure, align_philosophy, generate_course_content
-   - The core AI transformation methods
-
-6. **CurriculumContentProcessor** (lines 1451-1718)
-   - _validate_philosophy_alignment
-   - _process_course, _process_projects, _process_lessons
-   - _clean_course_description, _clean_quest_description
-   - Data validation, cleaning, and processing
-
-7. **CurriculumGeneratorService** (lines 1724-1870)
-   - process_generation (from-scratch course generation)
-
-Main service (this class) would become an orchestrator that:
-- Composes these services
-- Executes pipeline stages via process_upload_with_tracking
-- Handles high-level error cases
-
-Benefits:
-- Easier testing (test each service independently)
-- Better separation of concerns
-- Reduced file size (each service ~200-300 lines)
-- Clearer dependencies (each service has specific role)
-
-Next Steps:
-1. Create new service classes with extracted methods
-2. Update main service to compose them
-3. Verify all tests pass
-4. Update imports in routes
+Architecture:
+- This file is the orchestrator (~600 lines)
+- AI methods delegated to: services/curriculum/ai.py
+- Review workflow delegated to: services/curriculum/review.py
+- Progress tracking: services/curriculum/progress.py
+- Content processing: services/curriculum/content.py
+- Chunking: services/curriculum/chunking.py
+- Parsing: services/curriculum/parsing.py
 """
 
-import uuid
-import json
 import gc
+import json
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from services.base_ai_service import BaseAIService, AIGenerationError
+
 from services.document_parser_service import DocumentParserService
 from services.imscc_parser_service import IMSCCParserService
 from database import get_supabase_admin_client
 
-# Import helpers from curriculum submodule
+# Import from curriculum submodule
 from services.curriculum import (
+    CurriculumAIService,
+    CurriculumReviewService,
     ProgressTracker,
-    chunk_content,
-    merge_structure_results,
     filter_imscc_content,
     imscc_to_text,
     imscc_to_sections,
-    build_content_summary,
-    validate_philosophy_alignment,
-    clean_course_description,
-    clean_quest_description,
-    process_course,
-    process_projects,
-    process_lessons,
-    build_preview,
 )
 
 from utils.logger import get_logger
@@ -120,7 +65,7 @@ class CurriculumUploadError(Exception):
     pass
 
 
-class CurriculumUploadService(BaseAIService):
+class CurriculumUploadService:
     """
     Orchestrates the multi-stage AI curriculum upload pipeline.
 
@@ -132,20 +77,27 @@ class CurriculumUploadService(BaseAIService):
 
     Output is auto-saved as draft course for editing in CourseBuilder.
 
-    Uses gemini-2.5-pro for better reasoning on complex curriculum tasks.
+    Uses composition to delegate to specialized services:
+    - CurriculumAIService: AI transformation methods
+    - CurriculumReviewService: Human review workflow
+    - ProgressTracker: Checkpoint and progress management
     """
 
-    # Use more capable model for curriculum processing
-    CURRICULUM_MODEL = 'gemini-2.5-pro'
-
     def __init__(self):
-        """Initialize with document parsers and advanced AI model."""
-        # Use gemini-1.5-pro for curriculum processing (better reasoning)
-        super().__init__(model_override=self.CURRICULUM_MODEL)
+        """Initialize with composed services."""
+        # Composed services
+        self.ai_service = CurriculumAIService()
+        self.review_service = CurriculumReviewService()
+        self.progress_tracker = ProgressTracker()
+
+        # Parsers
         self.document_parser = DocumentParserService()
         self.imscc_parser = IMSCCParserService()
+
+        # Lazy-loaded admin client
         self._admin_client = None
-        logger.info(f"CurriculumUploadService using model: {self.model_name}")
+
+        logger.info("CurriculumUploadService initialized with composed services")
 
     @property
     def admin_client(self):
@@ -155,7 +107,7 @@ class CurriculumUploadService(BaseAIService):
         return self._admin_client
 
     # =========================================================================
-    # Checkpoint & Progress Methods
+    # Checkpoint & Progress Methods (delegate to ProgressTracker)
     # =========================================================================
 
     def _sanitize_for_db(self, data):
@@ -163,24 +115,14 @@ class CurriculumUploadService(BaseAIService):
         Remove null characters and other problematic content before DB save.
         PostgreSQL cannot store \\u0000 in text/jsonb fields.
         """
-        import json
         if data is None:
             return None
-        # Convert to JSON string, remove null chars, convert back
         json_str = json.dumps(data, ensure_ascii=False)
-        # Remove null characters that PostgreSQL rejects
         json_str = json_str.replace('\\u0000', '').replace('\x00', '')
         return json.loads(json_str)
 
     def _save_checkpoint(self, upload_id: str, stage: int, output: dict) -> None:
-        """
-        Save stage output and mark checkpoint for resume capability.
-
-        Args:
-            upload_id: The upload record ID
-            stage: Stage number (1-4)
-            output: The stage output to save
-        """
+        """Save stage output and mark checkpoint for resume capability."""
         column_map = {
             1: 'raw_content',
             2: 'structured_content',
@@ -190,9 +132,7 @@ class CurriculumUploadService(BaseAIService):
         timestamp_col = f'stage_{stage}_completed_at'
 
         try:
-            # Sanitize output to remove null characters that PostgreSQL rejects
             sanitized_output = self._sanitize_for_db(output)
-
             self.admin_client.table('curriculum_uploads').update({
                 column_map[stage]: sanitized_output,
                 timestamp_col: datetime.utcnow().isoformat(),
@@ -200,7 +140,6 @@ class CurriculumUploadService(BaseAIService):
                 'can_resume': True,
                 'resume_from_stage': stage + 1 if stage < 4 else None
             }).eq('id', upload_id).execute()
-
             logger.info(f"Checkpoint saved for upload {upload_id}, stage {stage}")
         except Exception as e:
             logger.error(f"Failed to save checkpoint: {str(e)}")
@@ -212,17 +151,8 @@ class CurriculumUploadService(BaseAIService):
         percent: int,
         item: str = None
     ) -> None:
-        """
-        Update progress information for real-time status polling.
-
-        Args:
-            upload_id: The upload record ID
-            stage: Current stage number (1-4)
-            percent: Progress within current stage (0-100)
-            item: Current item being processed (e.g., "Module 3 of 5")
-        """
-        # Calculate overall progress: each stage is 25%
-        overall_progress = (stage - 1) * 25 + (percent * 25 // 100)
+        """Update progress information for real-time status polling."""
+        overall_progress = (stage - 1) * 25 + (percent * 25 // 100) if percent else (stage - 1) * 25
 
         try:
             update_data = {
@@ -230,50 +160,40 @@ class CurriculumUploadService(BaseAIService):
                 'current_stage_name': STAGE_NAMES.get(stage, f'Stage {stage}'),
                 'current_item': item
             }
-
             self.admin_client.table('curriculum_uploads').update(
                 update_data
             ).eq('id', upload_id).execute()
-
         except Exception as e:
-            # Don't fail the pipeline for progress update errors
             logger.warning(f"Failed to update progress: {str(e)}")
 
     def _get_upload(self, upload_id: str) -> Optional[Dict]:
-        """
-        Fetch upload record from database.
-
-        Args:
-            upload_id: The upload record ID
-
-        Returns:
-            Upload record dict or None if not found
-        """
+        """Fetch upload record from database."""
         try:
             result = self.admin_client.table('curriculum_uploads').select(
                 '*'
             ).eq('id', upload_id).execute()
-
             return result.data[0] if result.data else None
         except Exception as e:
             logger.error(f"Failed to get upload: {str(e)}")
             return None
+
+    def _mark_error(self, upload_id: str, error_message: str) -> None:
+        """Mark upload as failed with error message."""
+        try:
+            self.admin_client.table('curriculum_uploads').update({
+                'status': 'error',
+                'error_message': error_message,
+                'can_resume': True
+            }).eq('id', upload_id).execute()
+        except Exception as e:
+            logger.error(f"Failed to mark error: {str(e)}")
 
     def resume_upload(
         self,
         upload_id: str,
         options: Optional[Dict] = None
     ) -> Dict[str, Any]:
-        """
-        Resume a failed upload from the last successful stage.
-
-        Args:
-            upload_id: The upload record ID
-            options: Pipeline options (transformation_level, preserve_structure)
-
-        Returns:
-            Result dict from process_upload_with_tracking
-        """
+        """Resume a failed upload from the last successful stage."""
         upload = self._get_upload(upload_id)
 
         if not upload:
@@ -285,7 +205,6 @@ class CurriculumUploadService(BaseAIService):
         resume_from = upload.get('resume_from_stage', 1)
         logger.info(f"Resuming upload {upload_id} from stage {resume_from}")
 
-        # Update status back to processing
         self.admin_client.table('curriculum_uploads').update({
             'status': 'processing',
             'error_message': None
@@ -294,7 +213,7 @@ class CurriculumUploadService(BaseAIService):
         return self.process_upload_with_tracking(
             upload_id=upload_id,
             source_type=upload.get('source_type', 'text'),
-            content=None,  # Content comes from saved stages
+            content=None,
             filename=upload.get('original_filename'),
             options=options or {},
             resume_from=resume_from
@@ -305,18 +224,7 @@ class CurriculumUploadService(BaseAIService):
     # =========================================================================
 
     def _chunk_content(self, raw_content: dict, max_chars: int = 12000) -> List[Dict]:
-        """
-        Split content into processable chunks by module boundaries.
-
-        For large courses, this enables parallel processing of modules.
-
-        Args:
-            raw_content: Parsed content with sections
-            max_chars: Max characters per chunk before splitting
-
-        Returns:
-            List of content chunks
-        """
+        """Split content into processable chunks by module boundaries."""
         sections = raw_content.get('sections', [])
 
         if not sections:
@@ -329,7 +237,6 @@ class CurriculumUploadService(BaseAIService):
             section_content = section.get('content', '')
             section_size = len(section_content)
 
-            # Start new chunk at module boundaries if current is large enough
             if (section.get('type') == 'module' and
                     current_chunk['char_count'] > max_chars // 2 and
                     current_chunk['sections']):
@@ -352,49 +259,28 @@ class CurriculumUploadService(BaseAIService):
         chunk_idx: int,
         total_chunks: int
     ) -> Dict:
-        """
-        Detect structure for a single content chunk.
-
-        Args:
-            chunk: Content chunk with sections
-            chunk_idx: Index of this chunk
-            total_chunks: Total number of chunks
-
-        Returns:
-            Structure detection result for this chunk
-        """
-        # Build a mini parse result for this chunk
+        """Detect structure for a single content chunk."""
         chunk_parse_result = {
             'success': True,
             'raw_text': chunk.get('raw_text', ''),
             'sections': chunk.get('sections', []),
             'metadata': {'chunk_index': chunk_idx, 'total_chunks': total_chunks}
         }
-
-        return self.detect_structure(chunk_parse_result)
+        return self.ai_service.detect_structure(chunk_parse_result)
 
     def detect_structure_chunked(
         self,
         raw_content: dict,
         upload_id: str = None
     ) -> Dict[str, Any]:
-        """
-        Detect structure with parallel processing for large content.
-
-        Args:
-            raw_content: Parsed content
-            upload_id: Optional upload ID for progress tracking
-
-        Returns:
-            Merged structure detection result
-        """
+        """Detect structure with parallel processing for large content."""
         chunks = self._chunk_content(raw_content)
 
         # Small content - process normally
         if len(chunks) == 1:
             if upload_id:
                 self._update_progress(upload_id, 2, 0, "Analyzing content structure")
-            result = self.detect_structure(raw_content)
+            result = self.ai_service.detect_structure(raw_content)
             if upload_id:
                 self._update_progress(upload_id, 2, 100, "Structure detection complete")
             return result
@@ -402,8 +288,6 @@ class CurriculumUploadService(BaseAIService):
         # Large content - process chunks in parallel
         logger.info(f"Processing {len(chunks)} chunks in parallel")
         results = []
-
-        # Timeout per chunk (150 seconds) - allows for API retries
         CHUNK_TIMEOUT = 150
 
         with ThreadPoolExecutor(max_workers=3) as executor:
@@ -417,7 +301,6 @@ class CurriculumUploadService(BaseAIService):
             for future in as_completed(futures):
                 chunk_idx = futures[future]
                 try:
-                    # Add timeout to prevent indefinite hangs
                     result = future.result(timeout=CHUNK_TIMEOUT)
                     results.append((chunk_idx, result))
 
@@ -428,35 +311,24 @@ class CurriculumUploadService(BaseAIService):
                             f"Processed chunk {len(results)} of {len(chunks)}"
                         )
                 except TimeoutError:
-                    logger.error(f"Chunk {chunk_idx} timed out after {CHUNK_TIMEOUT}s")
-                    results.append((chunk_idx, {'success': False, 'error': f'Chunk processing timed out after {CHUNK_TIMEOUT}s'}))
+                    logger.error(f"Chunk {chunk_idx} timed out")
+                    results.append((chunk_idx, {'success': False, 'error': 'Chunk timed out'}))
                 except Exception as e:
                     logger.error(f"Chunk {chunk_idx} failed: {str(e)}")
                     results.append((chunk_idx, {'success': False, 'error': str(e)}))
 
-        # Sort by chunk index and merge
         results.sort(key=lambda x: x[0])
         return self._merge_structure_results(results)
 
     def _merge_structure_results(self, results: List[tuple]) -> Dict:
-        """
-        Combine chunked structure detection results.
-
-        Args:
-            results: List of (chunk_idx, result) tuples
-
-        Returns:
-            Merged structure result
-        """
+        """Combine chunked structure detection results."""
         if not results:
             return {'success': False, 'error': 'No results to merge'}
 
-        # Check for any failures
         failures = [r for _, r in results if not r.get('success')]
         if len(failures) == len(results):
             return {'success': False, 'error': 'All chunks failed to process'}
 
-        # Take course info from first successful result
         merged = {
             'success': True,
             'course': {},
@@ -474,18 +346,15 @@ class CurriculumUploadService(BaseAIService):
             if not result.get('success'):
                 continue
 
-            # Use course info from first chunk
             if not merged['course'] and result.get('course'):
                 merged['course'] = result['course']
 
-            # Re-index and merge modules
             for module in result.get('modules', []):
                 new_module = dict(module)
                 old_id = new_module.get('id', f'module_{chunk_idx}')
                 new_module['id'] = f'module_{module_id_offset + 1}'
                 new_module['order'] = module_id_offset
 
-                # Update lesson parent references
                 for lesson in result.get('lessons', []):
                     if lesson.get('parent_module') == old_id:
                         lesson['parent_module'] = new_module['id']
@@ -493,14 +362,12 @@ class CurriculumUploadService(BaseAIService):
                 merged['modules'].append(new_module)
                 module_id_offset += 1
 
-            # Merge lessons with re-indexed IDs
             for lesson in result.get('lessons', []):
                 new_lesson = dict(lesson)
                 new_lesson['id'] = f'lesson_{lesson_id_offset + 1}'
                 merged['lessons'].append(new_lesson)
                 lesson_id_offset += 1
 
-            # Merge tasks with re-indexed IDs
             for task in result.get('tasks', []):
                 new_task = dict(task)
                 new_task['id'] = f'task_{task_id_offset + 1}'
@@ -513,7 +380,7 @@ class CurriculumUploadService(BaseAIService):
         return merged
 
     # =========================================================================
-    # Review Gate Methods
+    # Review Gate Methods (delegate to CurriculumReviewService)
     # =========================================================================
 
     def process_upload_to_review(
@@ -524,22 +391,7 @@ class CurriculumUploadService(BaseAIService):
         filename: Optional[str] = None,
         options: Optional[Dict] = None
     ) -> Dict[str, Any]:
-        """
-        Process upload through Stage 2 only, then pause for human review.
-
-        This allows users to verify/correct the detected structure before
-        AI philosophy alignment and content generation.
-
-        Args:
-            upload_id: The upload record ID
-            source_type: Type of content ('imscc', 'pdf', 'docx', 'text')
-            content: Raw bytes of the uploaded file
-            filename: Original filename
-            options: Pipeline options
-
-        Returns:
-            Dict with structured_content for review
-        """
+        """Process upload through Stage 2 only, then pause for human review."""
         options = options or {}
         content_types = options.get('content_types')
 
@@ -555,7 +407,7 @@ class CurriculumUploadService(BaseAIService):
             self._save_checkpoint(upload_id, 1, parse_result)
             self._update_progress(upload_id, 1, 100, "Document parsed")
 
-            # Stage 2: Detect structure (with chunking for large content)
+            # Stage 2: Detect structure
             self._update_progress(upload_id, 2, 0, "Detecting curriculum structure")
             structure_result = self.detect_structure_chunked(parse_result, upload_id)
 
@@ -565,23 +417,10 @@ class CurriculumUploadService(BaseAIService):
 
             self._save_checkpoint(upload_id, 2, structure_result)
 
-            # Set status to ready_for_review instead of continuing
-            self.admin_client.table('curriculum_uploads').update({
-                'status': 'ready_for_review',
-                'progress_percent': 50,
-                'current_stage_name': 'Ready for review',
-                'current_item': 'Waiting for structure approval',
-                'can_resume': True,
-                'resume_from_stage': 3
-            }).eq('id', upload_id).execute()
-
-            logger.info(f"Upload {upload_id} paused for structure review")
-
-            return {
-                'success': True,
-                'status': 'ready_for_review',
-                'structure': structure_result
-            }
+            # Delegate to review service
+            return self.review_service.process_to_review(
+                upload_id, parse_result, structure_result
+            )
 
         except Exception as e:
             logger.error(f"Process to review failed: {str(e)}")
@@ -594,47 +433,15 @@ class CurriculumUploadService(BaseAIService):
         edits: Optional[Dict] = None,
         options: Optional[Dict] = None
     ) -> Dict[str, Any]:
-        """
-        Approve structure (with optional edits) and continue processing.
+        """Approve structure (with optional edits) and continue processing."""
+        approval_result = self.review_service.approve_structure(upload_id, edits)
 
-        Called after user reviews Stage 2 output and approves/edits it.
+        if not approval_result.get('success'):
+            return approval_result
 
-        Args:
-            upload_id: The upload record ID
-            edits: Optional structure corrections from user
-            options: Pipeline options (transformation_level, preserve_structure)
-
-        Returns:
-            Full pipeline result
-        """
         upload = self._get_upload(upload_id)
-
         if not upload:
             return {'success': False, 'error': 'Upload not found'}
-
-        if upload.get('status') != 'ready_for_review':
-            return {'success': False, 'error': 'Upload not ready for approval'}
-
-        # Apply any edits to structured_content
-        structured = upload.get('structured_content', {})
-
-        if edits:
-            structured = self._apply_structure_edits(structured, edits)
-
-            # Save edited structure and record the edits
-            self.admin_client.table('curriculum_uploads').update({
-                'structured_content': structured,
-                'human_structure_edits': edits
-            }).eq('id', upload_id).execute()
-
-            logger.info(f"Applied {len(edits)} structure edits to upload {upload_id}")
-
-        # Update status and continue from Stage 3
-        self.admin_client.table('curriculum_uploads').update({
-            'status': 'processing',
-            'current_stage_name': 'Continuing processing',
-            'current_item': 'Structure approved'
-        }).eq('id', upload_id).execute()
 
         return self.process_upload_with_tracking(
             upload_id=upload_id,
@@ -644,64 +451,6 @@ class CurriculumUploadService(BaseAIService):
             options=options or {},
             resume_from=3
         )
-
-    def _apply_structure_edits(self, structure: Dict, edits: Dict) -> Dict:
-        """
-        Apply user edits to detected structure.
-
-        Edits format:
-        {
-            'module_1': {'title': 'New Title', 'description': '...'},
-            'lesson_2': {'title': 'New Lesson Title', 'parent_module': 'module_1'},
-            ...
-        }
-
-        Args:
-            structure: Original structured_content
-            edits: Dict of element_id -> field edits
-
-        Returns:
-            Updated structure
-        """
-        if not edits:
-            return structure
-
-        updated = dict(structure)
-
-        # Apply course edits
-        if 'course' in edits:
-            updated['course'] = {**updated.get('course', {}), **edits['course']}
-
-        # Apply module edits
-        for i, module in enumerate(updated.get('modules', [])):
-            module_id = module.get('id', f'module_{i+1}')
-            if module_id in edits:
-                updated['modules'][i] = {**module, **edits[module_id]}
-
-        # Apply lesson edits
-        for i, lesson in enumerate(updated.get('lessons', [])):
-            lesson_id = lesson.get('id', f'lesson_{i+1}')
-            if lesson_id in edits:
-                updated['lessons'][i] = {**lesson, **edits[lesson_id]}
-
-        # Apply task edits
-        for i, task in enumerate(updated.get('tasks', [])):
-            task_id = task.get('id', f'task_{i+1}')
-            if task_id in edits:
-                updated['tasks'][i] = {**task, **edits[task_id]}
-
-        return updated
-
-    def _mark_error(self, upload_id: str, error_message: str) -> None:
-        """Mark upload as failed with error message."""
-        try:
-            self.admin_client.table('curriculum_uploads').update({
-                'status': 'error',
-                'error_message': error_message,
-                'can_resume': True  # Allow retry from last checkpoint
-            }).eq('id', upload_id).execute()
-        except Exception as e:
-            logger.error(f"Failed to mark error: {str(e)}")
 
     # =========================================================================
     # Main Pipeline Methods (with tracking)
@@ -718,20 +467,6 @@ class CurriculumUploadService(BaseAIService):
     ) -> Dict[str, Any]:
         """
         Execute the curriculum upload pipeline with checkpoint saves and progress tracking.
-
-        This is the enhanced version of process_upload that integrates with the
-        database for progress streaming and checkpoint/resume capability.
-
-        Args:
-            upload_id: The upload record ID for tracking
-            source_type: Type of content ('imscc', 'pdf', 'docx', 'text')
-            content: Raw bytes of the uploaded file (None if resuming)
-            filename: Original filename for metadata
-            options: Pipeline configuration
-            resume_from: Stage to resume from (1-4), default 1
-
-        Returns:
-            Dict with all pipeline outputs
         """
         options = options or {}
         transformation_level = options.get('transformation_level', 'moderate')
@@ -739,7 +474,6 @@ class CurriculumUploadService(BaseAIService):
         content_types = options.get('content_types')
         learning_objectives = options.get('learning_objectives')
 
-        # Initialize metadata counters (updated as stages complete)
         parse_sections_count = 0
         detected_modules_count = 0
 
@@ -764,18 +498,14 @@ class CurriculumUploadService(BaseAIService):
                 self._save_checkpoint(upload_id, 1, parse_result)
                 self._update_progress(upload_id, 1, 100, "Document parsed successfully")
 
-                # Memory optimization: release original file content after checkpoint
-                # The parse_result is now stored in DB, we only need extracted data
                 del content
                 gc.collect()
-                logger.debug(f"Released file content memory for upload {upload_id}")
             else:
-                # Load from checkpoint
                 upload = self._get_upload(upload_id)
                 parse_result = upload.get('raw_content', {})
                 if not parse_result:
                     return {'success': False, 'error': 'No parsed content found for resume'}
-                logger.info(f"Stage 1: Loaded from checkpoint")
+                logger.info("Stage 1: Loaded from checkpoint")
 
             # Stage 2: Detect curriculum structure
             if resume_from <= 2:
@@ -783,7 +513,6 @@ class CurriculumUploadService(BaseAIService):
                 logger.info("Stage 2: Detecting curriculum structure")
 
                 self._update_progress(upload_id, 2, 30, "AI analyzing curriculum...")
-                # Use chunked processing for potentially large content
                 structure_result = self.detect_structure_chunked(parse_result, upload_id)
 
                 if not structure_result.get('success'):
@@ -791,38 +520,29 @@ class CurriculumUploadService(BaseAIService):
                     return {
                         'success': False,
                         'error': structure_result.get('error', 'Failed to detect structure'),
-                        'stages': {
-                            'parse': parse_result,
-                            'structure': structure_result
-                        }
+                        'stages': {'parse': parse_result, 'structure': structure_result}
                     }
 
-                self._update_progress(upload_id, 2, 85, "Saving structure...")
+                self._update_progress(upload_id, 2, 90, "Saving structure...")
                 self._save_checkpoint(upload_id, 2, structure_result)
-                self._update_progress(upload_id, 2, 100, "Structure detected")
-
-                # Memory optimization: release parse_result after structure is detected
-                # Extract only summary data needed for final metadata
-                parse_sections_count = len(parse_result.get('sections', []))
-                del parse_result
-                gc.collect()
-                logger.debug(f"Released parse_result memory for upload {upload_id}")
+                self._update_progress(upload_id, 2, 100, "Structure detected successfully")
             else:
-                # Load from checkpoint
                 upload = self._get_upload(upload_id)
                 structure_result = upload.get('structured_content', {})
-                parse_sections_count = 0  # Not available when resuming
                 if not structure_result:
                     return {'success': False, 'error': 'No structured content found for resume'}
-                logger.info(f"Stage 2: Loaded from checkpoint")
+                logger.info("Stage 2: Loaded from checkpoint")
+
+            parse_sections_count = len(parse_result.get('sections', []))
+            detected_modules_count = len(structure_result.get('modules', []))
 
             # Stage 3: Align to Optio philosophy
             if resume_from <= 3:
-                self._update_progress(upload_id, 3, 10, "Preparing content transformation...")
-                logger.info(f"Stage 3: Aligning to Optio philosophy (level={transformation_level}, preserve={preserve_structure})")
+                self._update_progress(upload_id, 3, 10, "Preparing philosophy alignment...")
+                logger.info(f"Stage 3: Aligning to Optio philosophy (level={transformation_level})")
 
                 self._update_progress(upload_id, 3, 30, "AI transforming content...")
-                alignment_result = self.align_philosophy(
+                alignment_result = self.ai_service.align_philosophy(
                     structure_result,
                     transformation_level=transformation_level,
                     preserve_structure=preserve_structure
@@ -830,79 +550,72 @@ class CurriculumUploadService(BaseAIService):
 
                 if not alignment_result.get('success'):
                     self._mark_error(upload_id, alignment_result.get('error', 'Failed to align philosophy'))
-                    # Note: Previous stage data is checkpointed in DB, not included here to prevent memory issues
                     return {
                         'success': False,
                         'error': alignment_result.get('error', 'Failed to align philosophy'),
-                        'stage': 3
+                        'stages': {
+                            'parse': parse_result,
+                            'structure': structure_result,
+                            'alignment': alignment_result
+                        }
                     }
 
-                self._update_progress(upload_id, 3, 85, "Saving aligned content...")
+                self._update_progress(upload_id, 3, 90, "Saving aligned content...")
                 self._save_checkpoint(upload_id, 3, alignment_result)
-                self._update_progress(upload_id, 3, 100, "Philosophy aligned")
-
-                # Memory optimization: release structure_result after alignment
-                # Extract only summary data needed for final metadata
-                detected_modules_count = len(structure_result.get('modules', []))
-                del structure_result
-                gc.collect()
-                logger.debug(f"Released structure_result memory for upload {upload_id}")
+                self._update_progress(upload_id, 3, 100, "Philosophy alignment complete")
             else:
-                # Load from checkpoint
                 upload = self._get_upload(upload_id)
                 alignment_result = upload.get('aligned_content', {})
-                detected_modules_count = 0  # Not available when resuming
                 if not alignment_result:
                     return {'success': False, 'error': 'No aligned content found for resume'}
-                logger.info(f"Stage 3: Loaded from checkpoint")
+                logger.info("Stage 3: Loaded from checkpoint")
 
             # Stage 4: Generate course content
-            self._update_progress(upload_id, 4, 10, "Preparing to generate projects...")
-            logger.info(f"Stage 4: Generating course content (learning_objectives: {len(learning_objectives) if learning_objectives else 0})")
+            self._update_progress(upload_id, 4, 10, "Preparing content generation...")
+            logger.info(f"Stage 4: Generating course content (objectives: {len(learning_objectives) if learning_objectives else 0})")
 
-            self._update_progress(upload_id, 4, 30, "AI generating projects and lessons...")
-            content_result = self.generate_course_content(alignment_result, learning_objectives)
+            self._update_progress(upload_id, 4, 30, "AI generating lessons...")
+            content_result = self.ai_service.generate_course_content(alignment_result, learning_objectives)
 
             if not content_result.get('success'):
                 self._mark_error(upload_id, content_result.get('error', 'Failed to generate content'))
-                # Note: Previous stage data is checkpointed in DB, not included here to prevent memory issues
                 return {
                     'success': False,
                     'error': content_result.get('error', 'Failed to generate content'),
-                    'stage': 4
+                    'stages': {
+                        'parse': parse_result,
+                        'structure': structure_result,
+                        'alignment': alignment_result,
+                        'content': content_result
+                    }
                 }
 
+            self._update_progress(upload_id, 4, 80, "Saving generated content...")
             self._save_checkpoint(upload_id, 4, content_result)
-            self._update_progress(upload_id, 4, 100, "Content generated")
+            self._update_progress(upload_id, 4, 100, "Content generation complete!")
 
-            # Memory optimization: release alignment_result after content is generated
-            del alignment_result
-            gc.collect()
-            logger.debug(f"Released alignment_result memory for upload {upload_id}")
+            # Build preview
+            preview = {
+                'course': content_result.get('course', {}),
+                'projects': content_result.get('projects', [])
+            }
 
-            # Build final preview
-            preview = self._build_preview(content_result)
-
-            # Count total lessons across all projects
+            generated_projects_count = len(content_result.get('projects', []))
             total_lessons = sum(
                 len(project.get('lessons', []))
                 for project in content_result.get('projects', [])
             )
-            generated_projects_count = len(content_result.get('projects', []))
-
-            # Memory optimization: release content_result after extracting preview and counts
-            del content_result
-            gc.collect()
-            logger.debug(f"Released content_result memory for upload {upload_id}")
 
             # Mark as complete
             self.admin_client.table('curriculum_uploads').update({
+                'status': 'complete',
+                'progress_percent': 100,
+                'current_stage_name': 'Complete',
+                'current_item': f'{generated_projects_count} projects with {total_lessons} lessons',
                 'can_resume': False,
                 'resume_from_stage': None
             }).eq('id', upload_id).execute()
 
-            # Return only preview and metadata - full stage data is saved in DB checkpoints
-            # This prevents returning 100+ MB of data that would be held in memory
             return {
                 'success': True,
                 'preview': preview,
@@ -934,42 +647,18 @@ class CurriculumUploadService(BaseAIService):
         options: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
-        Execute the full curriculum upload pipeline.
+        Execute the full curriculum upload pipeline (without DB tracking).
 
-        Args:
-            source_type: Type of content ('imscc', 'pdf', 'docx', 'text')
-            content: Raw bytes of the uploaded file (or text string)
-            filename: Original filename for metadata
-            options: Optional configuration for the pipeline:
-                - transformation_level: 'light', 'moderate', 'full' (default: 'moderate')
-                - preserve_structure: True/False (default: True)
-
-        Returns:
-            Dict with all pipeline outputs:
-            {
-                'success': bool,
-                'error': str (if failed),
-                'stages': {
-                    'parse': {...},
-                    'structure': {...},
-                    'alignment': {...},
-                    'content': {...}
-                },
-                'preview': {
-                    'course': {...},
-                    'lessons': [...]
-                },
-                'metadata': {...}
-            }
+        For simple/testing use cases. Use process_upload_with_tracking for production.
         """
         options = options or {}
         transformation_level = options.get('transformation_level', 'moderate')
         preserve_structure = options.get('preserve_structure', True)
         content_types = options.get('content_types')
-        learning_objectives = options.get('learning_objectives')  # For IMSCC: which content to include
+        learning_objectives = options.get('learning_objectives')
 
         try:
-            # Stage 1: Parse source content
+            # Stage 1: Parse
             logger.info(f"Stage 1: Parsing {source_type} content")
             parse_result = self.parse_source(source_type, content, filename, content_types)
 
@@ -980,23 +669,20 @@ class CurriculumUploadService(BaseAIService):
                     'stages': {'parse': parse_result}
                 }
 
-            # Stage 2: Detect curriculum structure
+            # Stage 2: Detect structure
             logger.info("Stage 2: Detecting curriculum structure")
-            structure_result = self.detect_structure(parse_result)
+            structure_result = self.ai_service.detect_structure(parse_result)
 
             if not structure_result.get('success'):
                 return {
                     'success': False,
                     'error': structure_result.get('error', 'Failed to detect structure'),
-                    'stages': {
-                        'parse': parse_result,
-                        'structure': structure_result
-                    }
+                    'stages': {'parse': parse_result, 'structure': structure_result}
                 }
 
-            # Stage 3: Align to Optio philosophy
-            logger.info(f"Stage 3: Aligning to Optio philosophy (level={transformation_level}, preserve={preserve_structure})")
-            alignment_result = self.align_philosophy(
+            # Stage 3: Align philosophy
+            logger.info(f"Stage 3: Aligning to Optio philosophy")
+            alignment_result = self.ai_service.align_philosophy(
                 structure_result,
                 transformation_level=transformation_level,
                 preserve_structure=preserve_structure
@@ -1013,9 +699,9 @@ class CurriculumUploadService(BaseAIService):
                     }
                 }
 
-            # Stage 4: Generate course content
-            logger.info(f"Stage 4: Generating course content (learning_objectives: {len(learning_objectives) if learning_objectives else 0})")
-            content_result = self.generate_course_content(alignment_result, learning_objectives)
+            # Stage 4: Generate content
+            logger.info("Stage 4: Generating course content")
+            content_result = self.ai_service.generate_course_content(alignment_result, learning_objectives)
 
             if not content_result.get('success'):
                 return {
@@ -1029,10 +715,11 @@ class CurriculumUploadService(BaseAIService):
                     }
                 }
 
-            # Build final preview
-            preview = self._build_preview(content_result)
+            preview = {
+                'course': content_result.get('course', {}),
+                'projects': content_result.get('projects', [])
+            }
 
-            # Count total lessons across all projects
             total_lessons = sum(
                 len(project.get('lessons', []))
                 for project in content_result.get('projects', [])
@@ -1066,6 +753,10 @@ class CurriculumUploadService(BaseAIService):
                 'error': f'Pipeline failed: {str(e)}'
             }
 
+    # =========================================================================
+    # Source Parsing
+    # =========================================================================
+
     def parse_source(
         self,
         source_type: str,
@@ -1078,39 +769,24 @@ class CurriculumUploadService(BaseAIService):
         Stage 1: Parse source content into raw text and sections.
 
         Delegates to appropriate parser based on source type.
-
-        Args:
-            source_type: Type of content
-            content: Raw bytes or text
-            filename: Original filename
-            content_types: Optional dict of content types to include (for IMSCC)
-                e.g., {'assignments': True, 'pages': True, 'discussions': False}
-            upload_id: Optional upload ID for progress tracking
-
-        Returns:
-            Dict with raw_text, sections, metadata
         """
-        # Create progress callback if upload_id is provided
         progress_callback = None
         if upload_id:
             def progress_callback(message: str):
                 try:
                     self._update_progress(upload_id, 1, None, message)
                 except Exception:
-                    pass  # Don't let progress updates break parsing
+                    pass
 
         if source_type == 'imscc':
-            # Use IMSCC parser for Canvas exports
             result = self.imscc_parser.parse_imscc_file(content)
 
             if not result.get('success'):
                 return result
 
-            # Filter content based on user selection
             if content_types:
                 result = self._filter_imscc_content(result, content_types)
 
-            # Convert IMSCC output to our standard format
             return {
                 'success': True,
                 'raw_text': self._imscc_to_text(result),
@@ -1124,328 +800,32 @@ class CurriculumUploadService(BaseAIService):
                     'total_modules': result.get('stats', {}).get('total_modules', 0),
                     'content_types_included': content_types
                 },
-                'original_data': result  # Keep for reference
+                'original_data': result
             }
         else:
-            # Use document parser for PDF, DOCX, text
             return self.document_parser.parse_document(
                 content, source_type, filename, progress_callback
             )
 
     def _filter_imscc_content(self, result: Dict, content_types: Dict) -> Dict:
-        """
-        Filter IMSCC parse result based on user-selected content types.
+        """Filter IMSCC parse result based on user-selected content types."""
+        filtered = dict(result)
 
-        Args:
-            result: Full IMSCC parse result
-            content_types: Dict like {'assignments': True, 'pages': False, ...}
-
-        Returns:
-            Filtered result with only selected content types
-        """
-        filtered = dict(result)  # Shallow copy
-
-        # Filter tasks (assignments)
         if not content_types.get('assignments', True):
             filtered['tasks_preview'] = []
             if 'stats' in filtered:
                 filtered['stats']['total_assignments'] = 0
 
-        # Filter pages
         if not content_types.get('pages', True):
             filtered['pages_preview'] = []
             if 'stats' in filtered:
                 filtered['stats']['total_pages'] = 0
 
-        # Log what was filtered
         included = [k for k, v in content_types.items() if v]
         excluded = [k for k, v in content_types.items() if not v]
         logger.info(f"IMSCC content filter - included: {included}, excluded: {excluded}")
 
         return filtered
-
-    def detect_structure(self, parse_result: Dict) -> Dict[str, Any]:
-        """
-        Stage 2: Use AI to identify curriculum structure.
-
-        Analyzes parsed content to identify:
-        - Course metadata (title, description, objectives)
-        - Modules/units
-        - Lessons
-        - Tasks/assignments
-
-        Args:
-            parse_result: Output from parse_source()
-
-        Returns:
-            Dict with detected curriculum structure
-        """
-        from prompts.components import (
-            PILLAR_DEFINITIONS_DETAILED,
-            JSON_OUTPUT_INSTRUCTIONS_STRICT
-        )
-        from prompts.curriculum_upload import CURRICULUM_STRUCTURE_DETECTION
-
-        # Prepare content for AI (truncate if too long)
-        raw_text = parse_result.get('raw_text', '')
-        sections = parse_result.get('sections', [])
-
-        # Build structured input for AI
-        content_summary = self._build_content_summary(raw_text, sections)
-
-        prompt = f"""
-{CURRICULUM_STRUCTURE_DETECTION}
-
-{PILLAR_DEFINITIONS_DETAILED}
-
-CONTENT TO ANALYZE:
-{content_summary}
-
-{JSON_OUTPUT_INSTRUCTIONS_STRICT}
-"""
-
-        try:
-            result = self.generate_json(prompt, strict=True)
-
-            # Validate structure
-            if not isinstance(result, dict):
-                return {
-                    'success': False,
-                    'error': 'AI returned invalid structure format'
-                }
-
-            return {
-                'success': True,
-                'course': result.get('course', {}),
-                'modules': result.get('modules', []),
-                'lessons': result.get('lessons', []),
-                'tasks': result.get('tasks', []),
-                'curriculum_type': result.get('curriculum_type', 'unknown'),
-                'raw_result': result
-            }
-
-        except AIGenerationError as e:
-            logger.error(f"Structure detection failed: {str(e)}")
-            return {
-                'success': False,
-                'error': f'AI structure detection failed: {str(e)}'
-            }
-
-    def align_philosophy(
-        self,
-        structure_result: Dict,
-        transformation_level: str = 'moderate',
-        preserve_structure: bool = True
-    ) -> Dict[str, Any]:
-        """
-        Stage 3: Transform content to align with Optio philosophy.
-
-        Transforms:
-        - Language (prove→explore, demonstrate→share, etc.)
-        - Task descriptions (flexible, discovery-focused)
-        - Assessment framing (reflection, not testing)
-        - Removes grade/future-focused language
-
-        Args:
-            structure_result: Output from detect_structure()
-            transformation_level: 'light', 'moderate', or 'full'
-            preserve_structure: True to keep original structure
-
-        Returns:
-            Dict with philosophy-aligned content
-        """
-        from prompts.components import (
-            CORE_PHILOSOPHY,
-            LANGUAGE_GUIDELINES,
-            JSON_OUTPUT_INSTRUCTIONS_STRICT
-        )
-        from prompts.curriculum_upload import get_alignment_prompt
-
-        # Build input from detected structure
-        structure_json = {
-            'course': structure_result.get('course', {}),
-            'modules': structure_result.get('modules', []),
-            'lessons': structure_result.get('lessons', []),
-            'tasks': structure_result.get('tasks', [])
-        }
-
-        import json
-        structure_str = json.dumps(structure_json, indent=2)
-
-        # Get the alignment prompt with specified options
-        alignment_prompt = get_alignment_prompt(transformation_level, preserve_structure)
-
-        prompt = f"""
-{alignment_prompt}
-
-{CORE_PHILOSOPHY}
-
-{LANGUAGE_GUIDELINES}
-
-CONTENT TO TRANSFORM:
-```json
-{structure_str}
-```
-
-{JSON_OUTPUT_INSTRUCTIONS_STRICT}
-"""
-
-        try:
-            result = self.generate_json(prompt, strict=True)
-
-            if not isinstance(result, dict):
-                return {
-                    'success': False,
-                    'error': 'AI returned invalid alignment format'
-                }
-
-            # Validate content against philosophy
-            validation = self._validate_philosophy_alignment(result)
-
-            return {
-                'success': True,
-                'course': result.get('course', {}),
-                'modules': result.get('modules', []),
-                'lessons': result.get('lessons', []),
-                'tasks': result.get('tasks', []),
-                'transformation_notes': result.get('transformation_notes', []),
-                'validation': validation,
-                'raw_result': result
-            }
-
-        except AIGenerationError as e:
-            logger.error(f"Philosophy alignment failed: {str(e)}")
-            return {
-                'success': False,
-                'error': f'AI philosophy alignment failed: {str(e)}'
-            }
-
-    def generate_course_content(self, alignment_result: Dict, learning_objectives: List[str] = None) -> Dict[str, Any]:
-        """
-        Stage 4: Generate final course content in Optio format.
-
-        Creates:
-        - Course metadata (title, description)
-        - Projects (standalone Quests) - one per learning objective if provided
-        - Step-based lessons for each Project (version 2 format)
-
-        Note: Tasks are NOT generated - educators add tasks in CourseBuilder.
-
-        Args:
-            alignment_result: Output from align_philosophy()
-            learning_objectives: Optional list of user-provided learning objectives.
-                                 If provided, creates one project per objective.
-
-        Returns:
-            Dict with course and projects ready for CourseBuilder
-        """
-        from prompts.components import (
-            PILLAR_DEFINITIONS_DETAILED,
-            SCHOOL_SUBJECTS,
-            JSON_OUTPUT_INSTRUCTIONS_STRICT
-        )
-        from prompts.curriculum_upload import STEP_GENERATION_PROMPT
-
-        import json
-        aligned_content = json.dumps({
-            'course': alignment_result.get('course', {}),
-            'modules': alignment_result.get('modules', []),
-            'lessons': alignment_result.get('lessons', []),
-            'tasks': alignment_result.get('tasks', [])
-        }, indent=2)
-
-        # Build learning objectives section if provided by user
-        objectives_section = ""
-        if learning_objectives and len(learning_objectives) > 0:
-            objectives_list = "\n".join([f"  {i+1}. {obj}" for i, obj in enumerate(learning_objectives)])
-            objectives_section = f"""
-USER-PROVIDED LEARNING OBJECTIVES:
-==================================
-The user has specified exactly {len(learning_objectives)} learning objectives.
-Create EXACTLY {len(learning_objectives)} projects - one for each objective below:
-
-{objectives_list}
-
-CRITICAL REQUIREMENTS:
-1. You MUST create exactly {len(learning_objectives)} projects (one per objective)
-2. Each project's source_objective field should contain the corresponding objective text
-3. Transform each objective into an Optio-style quest title that EMBODIES its intent:
-   - Identify the core action/skill in the objective
-   - Convert to action verb + specific, tangible outcome
-   - The quest title should capture the objective's INTENT (not just rephrase it)
-4. Completing each project should demonstrate mastery of that learning objective
-"""
-        else:
-            objectives_section = """
-NO LEARNING OBJECTIVES PROVIDED:
-================================
-Create 4-8 projects based on Optio's instructional design philosophy.
-
-Apply "The Process Is The Goal" approach:
-- Analyze content for natural project boundaries based on skills/knowledge areas
-- Each project should result in a tangible creation (artifact, performance, deliverable)
-- Name projects with action verbs + specific outcomes that make students WANT to start
-- Projects should work as standalone quests in the public library
-- Do NOT create projects named after modules (e.g., "Module 1: Basics")
-
-Leave source_objective as null for all projects.
-"""
-
-        prompt = f"""
-{STEP_GENERATION_PROMPT}
-
-{objectives_section}
-
-{PILLAR_DEFINITIONS_DETAILED}
-
-SCHOOL SUBJECTS FOR DIPLOMA MAPPING: {', '.join(SCHOOL_SUBJECTS)}
-
-ALIGNED CONTENT TO FORMAT:
-```json
-{aligned_content}
-```
-
-{JSON_OUTPUT_INSTRUCTIONS_STRICT}
-"""
-
-        try:
-            result = self.generate_json(prompt, strict=True)
-
-            if not isinstance(result, dict):
-                return {
-                    'success': False,
-                    'error': 'AI returned invalid content format'
-                }
-
-            # Debug: log raw AI response structure (using WARNING to ensure visibility)
-            logger.warning(f"[DEBUG] AI response keys: {list(result.keys())}")
-            raw_projects = result.get('projects', [])
-            logger.warning(f"[DEBUG] AI returned {len(raw_projects)} projects")
-            for i, p in enumerate(raw_projects):
-                raw_lessons = p.get('lessons', [])
-                logger.warning(f"[DEBUG]   Raw project {i}: '{p.get('title', 'N/A')}' has {len(raw_lessons)} lessons")
-
-            # Process course and projects
-            course = self._process_course(result.get('course', {}))
-            projects = self._process_projects(result.get('projects', []))
-
-            logger.warning(f"[DEBUG] After processing: {len(projects)} projects")
-            for i, p in enumerate(projects):
-                logger.warning(f"[DEBUG]   Processed project {i}: '{p.get('title', 'N/A')}' has {len(p.get('lessons', []))} lessons")
-
-            return {
-                'success': True,
-                'course': course,
-                'projects': projects,
-                'raw_result': result
-            }
-
-        except AIGenerationError as e:
-            logger.error(f"Content generation failed: {str(e)}")
-            return {
-                'success': False,
-                'error': f'AI content generation failed: {str(e)}'
-            }
 
     def _imscc_to_text(self, imscc_result: Dict) -> str:
         """Convert IMSCC parse result to plain text."""
@@ -1457,16 +837,12 @@ ALIGNED CONTENT TO FORMAT:
         if course.get('description'):
             parts.append(f"Description: {course['description']}")
 
-        # Include page content (instructional material)
-        pages = imscc_result.get('pages_preview', [])
-        for page in pages:
+        for page in imscc_result.get('pages_preview', []):
             parts.append(f"\nPage: {page.get('title', '')}")
             if page.get('content'):
                 parts.append(page['content'])
 
-        # Include assignments
-        tasks = imscc_result.get('tasks_preview', [])
-        for task in tasks:
+        for task in imscc_result.get('tasks_preview', []):
             parts.append(f"\nAssignment: {task.get('title', '')}")
             if task.get('description'):
                 parts.append(task['description'])
@@ -1494,7 +870,6 @@ ALIGNED CONTENT TO FORMAT:
                 'level': 1
             })
 
-        # Include pages (instructional content)
         for page in imscc_result.get('pages_preview', []):
             sections.append({
                 'title': page.get('title', 'Page'),
@@ -1514,302 +889,6 @@ ALIGNED CONTENT TO FORMAT:
 
         return sections
 
-    def _build_content_summary(self, raw_text: str, sections: List[Dict]) -> str:
-        """Build a content summary for AI analysis, with length limits."""
-        MAX_CHARS = 15000  # Reasonable limit for AI processing
-
-        parts = []
-
-        # Include section structure
-        if sections:
-            parts.append("DOCUMENT STRUCTURE:")
-            for i, section in enumerate(sections[:30]):  # Limit sections
-                indent = "  " * (section.get('level', 1) - 1)
-                section_type = section.get('type', 'section')
-                title = section.get('title', f'Section {i+1}')
-                parts.append(f"{indent}- [{section_type}] {title}")
-
-            parts.append("")
-
-        # Include raw text (truncated)
-        parts.append("DOCUMENT CONTENT:")
-        if len(raw_text) > MAX_CHARS:
-            parts.append(raw_text[:MAX_CHARS])
-            parts.append(f"\n... [Truncated, {len(raw_text) - MAX_CHARS} more characters]")
-        else:
-            parts.append(raw_text)
-
-        return '\n'.join(parts)
-
-    def _validate_philosophy_alignment(self, result: Dict) -> Dict:
-        """
-        Score content based on Optio philosophy alignment.
-
-        This is informational only - all content is valid.
-        Content creators have freedom in their word choices.
-        """
-        from prompts.components import ENCOURAGED_WORDS
-
-        notes = []
-        score = 100  # Start at 100, this is a quality indicator not a pass/fail
-
-        # Collect all text content
-        def collect_text(obj):
-            texts = []
-            if isinstance(obj, dict):
-                for v in obj.values():
-                    texts.extend(collect_text(v))
-            elif isinstance(obj, list):
-                for item in obj:
-                    texts.extend(collect_text(item))
-            elif isinstance(obj, str):
-                texts.append(obj)
-            return texts
-
-        all_text = ' '.join(collect_text(result)).lower()
-
-        # Check for Optio-aligned language (bonus, not requirement)
-        encouraged_count = sum(1 for word in ENCOURAGED_WORDS if word in all_text)
-
-        if encouraged_count >= 5:
-            notes.append("Strong use of process-focused, discovery language")
-            score = 100
-        elif encouraged_count >= 3:
-            notes.append("Good use of Optio-aligned language")
-            score = 90
-        elif encouraged_count >= 1:
-            notes.append("Some Optio-aligned language present")
-            score = 80
-        else:
-            notes.append("Original voice preserved (no Optio language added)")
-            score = 70  # Still valid, just indicates light transformation
-
-        # Check for big_idea presence
-        if result.get('course', {}).get('big_idea'):
-            notes.append("Includes 'big idea' hook for student relevance")
-
-        return {
-            'score': score,
-            'is_valid': True,  # All content is valid - creator freedom
-            'notes': notes
-        }
-
-    def _process_course(self, course_data: Dict) -> Dict:
-        """Process and validate course data."""
-        # Clean the description to remove teacher-voice content
-        description = self._clean_course_description(course_data.get('description', ''))
-
-        return {
-            'title': course_data.get('title', 'Untitled Course'),
-            'description': description,
-            'status': 'draft',
-            'visibility': 'organization',
-            'navigation_mode': 'sequential'
-        }
-
-    def _clean_course_description(self, description: str) -> str:
-        """
-        Auto-clean course descriptions to remove teacher-voice content.
-
-        Removes:
-        - Greetings and welcomes ("Welcome to...", "Hello students...")
-        - First-person teacher language ("I'm excited to...", "I will...")
-        - Instructor-focused content
-
-        Converts to neutral 3rd-party description of course content.
-
-        Args:
-            description: The raw course description
-
-        Returns:
-            Cleaned description in 3rd-party perspective
-        """
-        import re
-
-        if not description:
-            return description
-
-        original = description
-
-        # Remove common greeting patterns at the start
-        greeting_patterns = [
-            r'^Welcome\s+to\s+[^.!]*[.!]\s*',  # "Welcome to [course name]!"
-            r'^Hello\s+(students|class|everyone)[^.!]*[.!]\s*',  # "Hello students!"
-            r'^Hi\s+(there|everyone|class)[^.!]*[.!]\s*',  # "Hi there!"
-            r'^Greetings[^.!]*[.!]\s*',  # "Greetings!"
-            r'^Hey\s+(there|everyone)[^.!]*[.!]\s*',  # "Hey there!"
-        ]
-
-        for pattern in greeting_patterns:
-            description = re.sub(pattern, '', description, flags=re.IGNORECASE)
-
-        # Remove sentences with first-person instructor voice
-        # These patterns match full sentences ending in period, exclamation, or question mark
-        teacher_sentence_patterns = [
-            r"I'm\s+(so\s+)?excited\s+to\s+(be\s+)?teach(ing)?\s+[^.!?]*[.!?]\s*",  # "I'm excited to teach..."
-            r"I\s+can't\s+wait\s+to\s+[^.!?]*[.!?]\s*",  # "I can't wait to..."
-            r"I\s+look\s+forward\s+to\s+[^.!?]*[.!?]\s*",  # "I look forward to..."
-            r"I\s+hope\s+you\s+(will\s+)?[^.!?]*[.!?]\s*",  # "I hope you will..."
-            r"I\s+will\s+be\s+your\s+[^.!?]*[.!?]\s*",  # "I will be your instructor..."
-            r"I\s+am\s+your\s+[^.!?]*[.!?]\s*",  # "I am your teacher..."
-            r"I\s+have\s+been\s+teaching\s+[^.!?]*[.!?]\s*",  # "I have been teaching..."
-            r"I\s+expect\s+(you|students)\s+[^.!?]*[.!?]\s*",  # "I expect you to..."
-        ]
-
-        for pattern in teacher_sentence_patterns:
-            description = re.sub(pattern, '', description, flags=re.IGNORECASE)
-
-        # Remove remaining first-person references within sentences (less aggressive)
-        # Only remove at sentence start
-        description = re.sub(r'\.\s+I\s+will\s+', '. The course will ', description, flags=re.IGNORECASE)
-        description = re.sub(r'\.\s+I\s+am\s+', '. This course is ', description, flags=re.IGNORECASE)
-
-        # Clean up double spaces, multiple periods, and trim
-        description = re.sub(r'\s+', ' ', description)
-        description = re.sub(r'\.+', '.', description)
-        description = description.strip()
-
-        # Ensure first character is capitalized
-        if description and description[0].islower():
-            description = description[0].upper() + description[1:]
-
-        if description != original:
-            logger.info("Auto-cleaned course description: removed teacher-voice content")
-
-        return description
-
-    def _clean_quest_description(self, description: str) -> str:
-        """
-        Auto-clean quest descriptions to remove project/course references.
-        Quests must work standalone in the public library without course context.
-
-        Cleans:
-        - "project" references (replaced with nothing or reworded)
-        - "course" references (removed entirely)
-        - Leftover awkward phrasing from removals
-
-        Args:
-            description: The raw description text
-
-        Returns:
-            Cleaned description suitable for standalone quest
-        """
-        import re
-
-        if not description:
-            return description
-
-        original = description
-
-        # Remove "In this project, " or "In this project " at start
-        description = re.sub(r'^In this project,?\s*', '', description, flags=re.IGNORECASE)
-
-        # Remove "This project " at start of sentences
-        description = re.sub(r'(^|\.\s*)This project\s+', r'\1', description, flags=re.IGNORECASE)
-
-        # Replace remaining "this project" with "this quest" or remove
-        description = re.sub(r'\bthis project\b', 'this quest', description, flags=re.IGNORECASE)
-
-        # Remove course references
-        description = re.sub(r'\b(in|for|as part of|throughout) this course\b', '', description, flags=re.IGNORECASE)
-        description = re.sub(r'\bthis course\b', '', description, flags=re.IGNORECASE)
-        description = re.sub(r'\bthe course\b', '', description, flags=re.IGNORECASE)
-
-        # Clean up double spaces and trim
-        description = re.sub(r'\s+', ' ', description).strip()
-
-        # Clean up sentences that start with lowercase after our removals
-        description = re.sub(r'^\s*([a-z])', lambda m: m.group(1).upper(), description)
-
-        if description != original:
-            logger.info(f"Auto-cleaned quest description: removed project/course references")
-
-        return description
-
-    def _process_projects(self, projects_data: List) -> List[Dict]:
-        """Process and validate projects (quests) with their lessons."""
-        processed = []
-
-        for i, project in enumerate(projects_data):
-            # Process lessons for this project
-            lessons = self._process_lessons(project.get('lessons', []))
-
-            # Auto-clean descriptions to remove project/course references
-            # (quests must work standalone in the public library)
-            cleaned_description = self._clean_quest_description(project.get('description', ''))
-            cleaned_big_idea = self._clean_quest_description(project.get('big_idea', ''))
-
-            # Use the same value for both description and big_idea
-            # This ensures what users SEE (big_idea) matches what they EDIT (description)
-            # Prefer the more substantive description, fall back to big_idea
-            unified_description = cleaned_description or cleaned_big_idea
-
-            processed.append({
-                'title': project.get('title', f'Project {i+1}'),
-                'description': unified_description,
-                'big_idea': unified_description,  # Same as description for consistency
-                'order': project.get('order', i),
-                'quest_type': 'optio',
-                'is_active': False,  # Start as draft
-                'is_public': False,
-                'lessons': lessons
-            })
-
-        return processed
-
-    def _process_lessons(self, lessons_data: List) -> List[Dict]:
-        """Process and validate lessons with step-based content."""
-        processed = []
-
-        for i, lesson in enumerate(lessons_data):
-            # Ensure steps are in version 2 format
-            steps = lesson.get('steps', lesson.get('content', []))
-            if isinstance(steps, str):
-                # Convert string content to single step
-                steps = [{
-                    'id': f'step_{uuid.uuid4().hex[:8]}',
-                    'type': 'text',
-                    'title': 'Content',
-                    'content': steps,
-                    'order': 0
-                }]
-            elif isinstance(steps, list):
-                # Ensure each step has required fields
-                processed_steps = []
-                for j, step in enumerate(steps):
-                    if isinstance(step, str):
-                        step = {'content': step}
-
-                    processed_steps.append({
-                        'id': step.get('id', f'step_{uuid.uuid4().hex[:8]}'),
-                        'type': step.get('type', 'text'),
-                        'title': step.get('title', f'Step {j+1}'),
-                        'content': step.get('content', ''),
-                        'order': step.get('order', j),
-                        'video_url': step.get('video_url', ''),
-                        'files': step.get('files', [])
-                    })
-                steps = processed_steps
-
-            processed.append({
-                'title': lesson.get('title', f'Lesson {i+1}'),
-                'description': lesson.get('description', ''),
-                'order_index': lesson.get('order', i),
-                'curriculum_content': {
-                    'version': 2,
-                    'steps': steps
-                }
-            })
-
-        return processed
-
-    def _build_preview(self, content_result: Dict) -> Dict:
-        """Build the final preview structure for CourseBuilder."""
-        return {
-            'course': content_result.get('course', {}),
-            'projects': content_result.get('projects', [])
-        }
-
     # =========================================================================
     # From-Scratch Course Generation
     # =========================================================================
@@ -1827,89 +906,27 @@ ALIGNED CONTENT TO FORMAT:
 
         This bypasses the normal 4-stage pipeline since there's no source curriculum
         to parse, structure, or align. It goes directly to content generation.
-
-        Args:
-            upload_id: The upload record ID for tracking
-            topic: The course topic/name
-            learning_objectives: Optional list of learning objectives
-            user_id: The user creating the course
-            organization_id: The organization for the course
-
-        Returns:
-            Dict with success status and course_id if successful
         """
-        from prompts.components import (
-            PILLAR_DEFINITIONS_DETAILED,
-            SCHOOL_SUBJECTS,
-            JSON_OUTPUT_INSTRUCTIONS_STRICT
-        )
-        from prompts.curriculum_upload import COURSE_GENERATION_PROMPT
-
         try:
-            # Update progress: Starting
             self._update_progress(upload_id, 1, 10, "Preparing to generate course...")
-            logger.info(f"Generating course from topic: {topic} (objectives: {len(learning_objectives) if learning_objectives else 0})")
+            logger.info(f"Generating course from topic: {topic}")
 
-            # Build the prompt
-            objectives_section = ""
-            if learning_objectives and len(learning_objectives) > 0:
-                objectives_list = "\n".join([f"  {i+1}. {obj}" for i, obj in enumerate(learning_objectives)])
-                objectives_section = f"""
-USER-PROVIDED LEARNING OBJECTIVES:
-==================================
-The user has specified exactly {len(learning_objectives)} learning objectives.
-Create EXACTLY {len(learning_objectives)} projects - one for each objective below:
-
-{objectives_list}
-
-CRITICAL: You MUST create exactly {len(learning_objectives)} projects, no more, no less.
-"""
-            else:
-                objectives_section = """
-NO LEARNING OBJECTIVES PROVIDED:
-================================
-Generate 4-6 appropriate learning objectives for this topic.
-Create ONE project per generated objective.
-Include the generated objectives in the "generated_objectives" field.
-"""
-
-            # Update progress: AI working
             self._update_progress(upload_id, 2, 30, "AI generating course structure...")
 
-            prompt = f"""
-{COURSE_GENERATION_PROMPT}
+            # Use AI service for generation
+            result = self.ai_service.generate_from_topic(topic, learning_objectives)
 
-COURSE TOPIC: {topic}
+            if not result.get('success'):
+                self._mark_error(upload_id, result.get('error', 'AI generation failed'))
+                return result
 
-{objectives_section}
-
-{PILLAR_DEFINITIONS_DETAILED}
-
-SCHOOL SUBJECTS FOR DIPLOMA MAPPING: {', '.join(SCHOOL_SUBJECTS)}
-
-{JSON_OUTPUT_INSTRUCTIONS_STRICT}
-"""
-
-            # Generate the course content
-            result = self.generate_json(prompt, strict=True)
-
-            if not isinstance(result, dict):
-                self._mark_error(upload_id, 'AI returned invalid format')
-                return {
-                    'success': False,
-                    'error': 'AI returned invalid content format'
-                }
-
-            # Update progress: Processing results
             self._update_progress(upload_id, 3, 60, "Processing generated content...")
 
-            # Process course and projects
-            course = self._process_course(result.get('course', {'title': topic, 'description': f'A course about {topic}'}))
-            projects = self._process_projects(result.get('projects', []))
+            course = result.get('course', {})
+            projects = result.get('projects', [])
 
             logger.info(f"Generated {len(projects)} projects for topic: {topic}")
 
-            # Update progress: Creating course
             self._update_progress(upload_id, 4, 80, "Creating course in database...")
 
             content_result = {
@@ -1918,10 +935,12 @@ SCHOOL SUBJECTS FOR DIPLOMA MAPPING: {', '.join(SCHOOL_SUBJECTS)}
                 'projects': projects
             }
 
-            # Build preview in same format as transformation pipeline
-            preview = self._build_preview(content_result)
+            preview = {
+                'course': course,
+                'projects': projects
+            }
 
-            # Finalize by creating the course (reuse existing finalize logic)
+            # Finalize by creating the course
             from routes.admin.curriculum_upload import _finalize_curriculum_upload
 
             finalize_result = {
@@ -1937,8 +956,10 @@ SCHOOL SUBJECTS FOR DIPLOMA MAPPING: {', '.join(SCHOOL_SUBJECTS)}
 
             _finalize_curriculum_upload(upload_id, user_id, organization_id, finalize_result)
 
-            # Get the created course ID from the upload record
-            upload_result = self.admin_client.table('curriculum_uploads').select('created_quest_id').eq('id', upload_id).execute()
+            # Get the created course ID
+            upload_result = self.admin_client.table('curriculum_uploads').select(
+                'created_quest_id'
+            ).eq('id', upload_id).execute()
             created_quest_id = upload_result.data[0]['created_quest_id'] if upload_result.data else None
 
             return {
@@ -1947,13 +968,6 @@ SCHOOL SUBJECTS FOR DIPLOMA MAPPING: {', '.join(SCHOOL_SUBJECTS)}
                 'projects_count': len(projects)
             }
 
-        except AIGenerationError as e:
-            logger.error(f"Course generation failed: {str(e)}")
-            self._mark_error(upload_id, f'AI generation failed: {str(e)}')
-            return {
-                'success': False,
-                'error': f'AI generation failed: {str(e)}'
-            }
         except Exception as e:
             logger.error(f"Course generation error: {str(e)}")
             self._mark_error(upload_id, f'Generation failed: {str(e)}')
@@ -1961,3 +975,30 @@ SCHOOL SUBJECTS FOR DIPLOMA MAPPING: {', '.join(SCHOOL_SUBJECTS)}
                 'success': False,
                 'error': f'Generation failed: {str(e)}'
             }
+
+    # =========================================================================
+    # Backward Compatibility - Delegate to AI Service
+    # =========================================================================
+
+    def detect_structure(self, parse_result: Dict) -> Dict[str, Any]:
+        """Stage 2: Detect curriculum structure. Delegates to AI service."""
+        return self.ai_service.detect_structure(parse_result)
+
+    def align_philosophy(
+        self,
+        structure_result: Dict,
+        transformation_level: str = 'moderate',
+        preserve_structure: bool = True
+    ) -> Dict[str, Any]:
+        """Stage 3: Align to Optio philosophy. Delegates to AI service."""
+        return self.ai_service.align_philosophy(
+            structure_result, transformation_level, preserve_structure
+        )
+
+    def generate_course_content(
+        self,
+        alignment_result: Dict,
+        learning_objectives: List[str] = None
+    ) -> Dict[str, Any]:
+        """Stage 4: Generate course content. Delegates to AI service."""
+        return self.ai_service.generate_course_content(alignment_result, learning_objectives)

@@ -526,20 +526,37 @@ class ParentRepository(BaseRepository):
             logger.error(f"Error rejecting connection request {request_id}: {e}")
             raise
 
-    def get_all_connection_requests(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def get_all_connection_requests(
+        self,
+        filters: Optional[Dict[str, Any]] = None,
+        page: int = 1,
+        limit: int = 20
+    ) -> Dict[str, Any]:
         """
-        Admin gets all connection requests with optional filters.
+        Admin gets all connection requests with optional filters and pagination.
 
         Args:
             filters: Optional dict with keys: status, parent_id, start_date, end_date
+            page: Page number (1-indexed)
+            limit: Results per page
 
         Returns:
-            List of connection requests with parent and student details
+            Dict with requests list, total_count, page, and limit
         """
         try:
             query = self.client.table('parent_connection_requests')\
                 .select('''
-                    *,
+                    id,
+                    parent_user_id,
+                    child_first_name,
+                    child_last_name,
+                    child_email,
+                    matched_student_id,
+                    status,
+                    admin_notes,
+                    reviewed_by_admin_id,
+                    reviewed_at,
+                    created_at,
                     parent_user:users!parent_connection_requests_parent_user_id_fkey(
                         id, first_name, last_name, email
                     ),
@@ -549,39 +566,62 @@ class ParentRepository(BaseRepository):
                     reviewed_by:users!parent_connection_requests_reviewed_by_admin_id_fkey(
                         id, first_name, last_name
                     )
-                ''')
+                ''', count='exact')
 
             if filters:
-                if 'status' in filters:
+                if 'status' in filters and filters['status']:
                     query = query.eq('status', filters['status'])
-                if 'parent_id' in filters:
+                if 'parent_id' in filters and filters['parent_id']:
                     query = query.eq('parent_user_id', filters['parent_id'])
-                if 'start_date' in filters:
+                if 'start_date' in filters and filters['start_date']:
                     query = query.gte('created_at', filters['start_date'])
-                if 'end_date' in filters:
+                if 'end_date' in filters and filters['end_date']:
                     query = query.lte('created_at', filters['end_date'])
 
-            result = query.order('created_at', desc=True).execute()
+            # Apply pagination
+            offset = (page - 1) * limit
+            query = query.order('created_at', desc=True).range(offset, offset + limit - 1)
 
-            return result.data or []
+            result = query.execute()
+
+            return {
+                'requests': result.data or [],
+                'total_count': result.count or 0,
+                'page': page,
+                'limit': limit
+            }
         except Exception as e:
             logger.error(f"Error fetching all connection requests: {e}")
-            return []
+            return {'requests': [], 'total_count': 0, 'page': page, 'limit': limit}
 
-    def get_all_active_links(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def get_all_active_links(
+        self,
+        filters: Optional[Dict[str, Any]] = None,
+        page: int = 1,
+        limit: int = 20
+    ) -> Dict[str, Any]:
         """
-        Admin gets all active parent-student links with optional filters.
+        Admin gets all active parent-student links with optional filters and pagination.
 
         Args:
             filters: Optional dict with keys: parent_id, student_id, admin_verified
+            page: Page number (1-indexed)
+            limit: Results per page
 
         Returns:
-            List of parent-student links with parent and student details
+            Dict with links list, total_count, page, and limit
         """
         try:
             query = self.client.table(self.table_name)\
                 .select('''
-                    *,
+                    id,
+                    parent_user_id,
+                    student_user_id,
+                    admin_verified,
+                    verified_by_admin_id,
+                    verified_at,
+                    admin_notes,
+                    created_at,
                     parent:users!parent_student_links_parent_user_id_fkey(
                         id, first_name, last_name, email
                     ),
@@ -591,22 +631,31 @@ class ParentRepository(BaseRepository):
                     verified_by:users!parent_student_links_verified_by_admin_id_fkey(
                         id, first_name, last_name
                     )
-                ''')
+                ''', count='exact')
 
             if filters:
-                if 'parent_id' in filters:
+                if 'parent_id' in filters and filters['parent_id']:
                     query = query.eq('parent_user_id', filters['parent_id'])
-                if 'student_id' in filters:
+                if 'student_id' in filters and filters['student_id']:
                     query = query.eq('student_user_id', filters['student_id'])
-                if 'admin_verified' in filters:
+                if 'admin_verified' in filters and filters['admin_verified'] is not None:
                     query = query.eq('admin_verified', filters['admin_verified'])
 
-            result = query.order('created_at', desc=True).execute()
+            # Apply pagination
+            offset = (page - 1) * limit
+            query = query.order('created_at', desc=True).range(offset, offset + limit - 1)
 
-            return result.data or []
+            result = query.execute()
+
+            return {
+                'links': result.data or [],
+                'total_count': result.count or 0,
+                'page': page,
+                'limit': limit
+            }
         except Exception as e:
             logger.error(f"Error fetching all active links: {e}")
-            return []
+            return {'links': [], 'total_count': 0, 'page': page, 'limit': limit}
 
     def delete_link(self, link_id: str, admin_id: str) -> bool:
         """
@@ -686,3 +735,85 @@ class ParentRepository(BaseRepository):
         except Exception as e:
             logger.error(f"Error creating manual link: {e}")
             raise
+
+    def verify_user_role(self, user_id: str, expected_role: str) -> Optional[Dict[str, Any]]:
+        """
+        Verify a user exists and has the expected role.
+
+        Args:
+            user_id: User ID
+            expected_role: Expected role (e.g., 'parent', 'student')
+
+        Returns:
+            User record if valid, None otherwise
+        """
+        try:
+            result = self.client.table('users')\
+                .select('id, role')\
+                .eq('id', user_id)\
+                .execute()
+
+            if not result.data:
+                return None
+
+            user = result.data[0]
+            if user.get('role') != expected_role:
+                return None
+
+            return user
+        except Exception as e:
+            logger.error(f"Error verifying user role: {e}")
+            return None
+
+    def get_connection_request(self, request_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a single connection request by ID.
+
+        Args:
+            request_id: Connection request ID
+
+        Returns:
+            Request record or None
+        """
+        try:
+            result = self.client.table('parent_connection_requests')\
+                .select('''
+                    id,
+                    parent_user_id,
+                    child_first_name,
+                    child_last_name,
+                    child_email,
+                    matched_student_id,
+                    status
+                ''')\
+                .eq('id', request_id)\
+                .single()\
+                .execute()
+
+            return result.data
+        except Exception as e:
+            logger.error(f"Error fetching connection request {request_id}: {e}")
+            return None
+
+    def link_exists(self, parent_id: str, student_id: str) -> bool:
+        """
+        Check if a parent-student link already exists.
+
+        Args:
+            parent_id: Parent user ID
+            student_id: Student user ID
+
+        Returns:
+            True if link exists
+        """
+        try:
+            result = self.client.table(self.table_name)\
+                .select('id')\
+                .eq('parent_user_id', parent_id)\
+                .eq('student_user_id', student_id)\
+                .execute()
+
+            return bool(result.data)
+        except Exception as e:
+            logger.error(f"Error checking link existence: {e}")
+            return False
