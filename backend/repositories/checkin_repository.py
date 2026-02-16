@@ -173,6 +173,7 @@ class CheckinRepository:
     def get_checkin_analytics(self, advisor_id: Optional[str] = None) -> Dict:
         """
         Get simple analytics for check-ins.
+        Optimized: 3 DB queries (checkins, assignments, users) instead of 8.
 
         Args:
             advisor_id: Optional UUID of advisor (filters to their check-ins only)
@@ -182,118 +183,100 @@ class CheckinRepository:
         """
         now = datetime.now(timezone.utc)
         month_ago = now - timedelta(days=30)
+
+        # Query 1: Fetch ALL checkins for this advisor (typically small dataset)
+        # Single query replaces 3 separate count/filter queries
+        checkins_query = self.supabase.table('advisor_checkins')\
+            .select('student_id, checkin_date')
+        if advisor_id:
+            checkins_query = checkins_query.eq('advisor_id', advisor_id)
+        checkins_response = checkins_query.execute()
+        all_checkins = checkins_response.data or []
+
+        # Derive counts in-memory
+        total_checkins = len(all_checkins)
+        month_checkins = sum(1 for c in all_checkins if c['checkin_date'] >= month_ago.isoformat())
+
+        # Build per-student latest checkin map and recent student IDs
         week_ago = now - timedelta(days=7)
+        week_ago_iso = week_ago.isoformat()
+        last_checkin_map = {}  # student_id -> datetime
+        recent_student_ids = set()
 
-        # Total check-ins - Build fresh query for each metric
-        total_query = self.supabase.table('advisor_checkins').select('id', count='exact')
+        for checkin in all_checkins:
+            sid = checkin['student_id']
+            date_str = checkin['checkin_date']
+
+            # Track most recent checkin per student
+            parsed = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            if sid not in last_checkin_map or parsed > last_checkin_map[sid]:
+                last_checkin_map[sid] = parsed
+
+            # Track students with recent checkins
+            if date_str >= week_ago_iso:
+                recent_student_ids.add(sid)
+
+        # Query 2: Get assigned student IDs (only if advisor)
+        assigned_student_ids = []
+        advisor_org_id = None
+        is_superadmin = False
+
         if advisor_id:
-            total_query = total_query.eq('advisor_id', advisor_id)
-        total_response = total_query.execute()
-        total_checkins = total_response.count if hasattr(total_response, 'count') else 0
-
-        # Check-ins this month - Build fresh query
-        month_query = self.supabase.table('advisor_checkins')\
-            .select('id', count='exact')\
-            .gte('checkin_date', month_ago.isoformat())
-        if advisor_id:
-            month_query = month_query.eq('advisor_id', advisor_id)
-        month_response = month_query.execute()
-        month_checkins = month_response.count if hasattr(month_response, 'count') else 0
-
-        # Recent check-ins (last 7 days) with student names - Build fresh query
-        recent_query = self.supabase.table('advisor_checkins')\
-            .select('student_id, users!student_id(display_name, first_name, last_name)')\
-            .gte('checkin_date', week_ago.isoformat())
-        if advisor_id:
-            recent_query = recent_query.eq('advisor_id', advisor_id)
-        recent_response = recent_query.execute()
-        recent_students = []
-        if recent_response.data:
-            seen = set()
-            for record in recent_response.data:
-                if record['student_id'] not in seen:
-                    seen.add(record['student_id'])
-                    recent_students.append({
-                        'student_id': record['student_id'],
-                        'name': record.get('users', {}).get('display_name', 'Unknown')
-                    })
-
-        # Students needing check-in (no check-in in 30+ days)
-        # Get all students assigned to advisor with organization filtering
-        if advisor_id:
-            # Check if advisor is superadmin (cross-org access)
-            user_role = self.get_user_role(advisor_id)
-            is_superadmin = user_role == 'superadmin'
-
-            # Get advisor's organization_id (only needed for non-superadmin)
-            advisor_org_id = None
-            if not is_superadmin:
-                advisor_result = self.supabase.table('users')\
-                    .select('organization_id')\
-                    .eq('id', advisor_id)\
-                    .single()\
-                    .execute()
-                advisor_org_id = advisor_result.data.get('organization_id') if advisor_result.data else None
-
             assignments_response = self.supabase.table('advisor_student_assignments')\
-                .select('student_id, users!student_id(display_name, first_name, last_name, organization_id)')\
+                .select('student_id')\
                 .eq('advisor_id', advisor_id)\
                 .eq('is_active', True)\
                 .execute()
+            assigned_student_ids = [a['student_id'] for a in (assignments_response.data or [])]
 
-            # ORGANIZATION ISOLATION: Filter to only students in same org (unless superadmin)
-            all_students = []
-            if assignments_response.data:
-                for assignment in assignments_response.data:
-                    student_data = assignment.get('users', {})
-                    # Superadmins can see students from all organizations
-                    if not is_superadmin and advisor_org_id is not None and student_data.get('organization_id') != advisor_org_id:
-                        continue
-                    all_students.append(assignment)
+        # Query 3: Single bulk user fetch for all student IDs we need
+        # Combines: recent student names + assigned student details + advisor role/org
+        all_needed_ids = list(set(list(recent_student_ids) + assigned_student_ids))
+        if advisor_id:
+            all_needed_ids.append(advisor_id)
 
-            if all_students:
-                # OPTIMIZATION: Bulk fetch last check-in dates for all students (eliminates N+1 query)
-                student_ids = [a['student_id'] for a in all_students]
+        user_map = {}
+        if all_needed_ids:
+            users_response = self.supabase.table('users')\
+                .select('id, display_name, first_name, last_name, organization_id, role')\
+                .in_('id', all_needed_ids)\
+                .execute()
+            for u in (users_response.data or []):
+                user_map[u['id']] = u
 
-                last_checkins_query = self.supabase.table('advisor_checkins')\
-                    .select('student_id, checkin_date')\
-                    .in_('student_id', student_ids)\
-                    .eq('advisor_id', advisor_id)\
-                    .order('checkin_date', desc=True)\
-                    .execute()
+        # Extract advisor info from the shared user lookup
+        if advisor_id and advisor_id in user_map:
+            advisor_data = user_map[advisor_id]
+            is_superadmin = advisor_data.get('role') == 'superadmin'
+            advisor_org_id = advisor_data.get('organization_id')
 
-                # Build lookup: student_id -> last_checkin_date (only keep most recent per student)
-                last_checkin_map = {}
-                for checkin in (last_checkins_query.data or []):
-                    sid = checkin['student_id']
-                    if sid not in last_checkin_map:
-                        date_str = checkin['checkin_date']
-                        last_checkin_map[sid] = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        # Helper to get display name
+        def get_name(uid):
+            u = user_map.get(uid, {})
+            return u.get('display_name') or \
+                f"{u.get('first_name', '')} {u.get('last_name', '')}".strip() or 'Unknown'
 
-                # Check each student using pre-fetched data (no additional queries)
-                needs_checkin = []
-                for assignment in all_students:
-                    student_id = assignment['student_id']
-                    last_checkin = last_checkin_map.get(student_id)
+        # Build recent students list
+        recent_students = [{'student_id': sid, 'name': get_name(sid)} for sid in recent_student_ids]
 
-                    if last_checkin is None or (now - last_checkin).days >= 7:
-                        # Get user data and construct name with fallback
-                        user_data = assignment.get('users', {})
-                        display_name = user_data.get('display_name')
-                        if not display_name:
-                            first_name = user_data.get('first_name', '')
-                            last_name = user_data.get('last_name', '')
-                            display_name = f"{first_name} {last_name}".strip() or 'Unknown'
+        # Build needs-checkin list from assigned students
+        needs_checkin = []
+        if advisor_id:
+            for sid in assigned_student_ids:
+                student = user_map.get(sid)
+                if not student:
+                    continue
+                # ORGANIZATION ISOLATION
+                if not is_superadmin and advisor_org_id is not None and student.get('organization_id') != advisor_org_id:
+                    continue
 
-                        needs_checkin.append({
-                            'student_id': student_id,
-                            'name': display_name,
-                            'days_since_checkin': (now - last_checkin).days if last_checkin else 999
-                        })
-            else:
-                needs_checkin = []
-        else:
-            needs_checkin = []
+                last_checkin = last_checkin_map.get(sid)
+                if last_checkin is None or (now - last_checkin).days >= 7:
+                    needs_checkin.append({
+                        'student_id': sid,
+                        'name': get_name(sid),
+                        'days_since_checkin': (now - last_checkin).days if last_checkin else 999
+                    })
 
         return {
             'total_checkins': total_checkins,

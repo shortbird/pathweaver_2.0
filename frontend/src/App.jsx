@@ -101,6 +101,10 @@ const PublicCoursePage = lazy(() => import('./pages/courses/PublicCoursePage'))
 const PublicCatalogPage = lazy(() => import('./pages/courses/PublicCatalogPage'))
 // Platform explainer page
 const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage'))
+// Help Center / Docs pages (February 2026)
+const DocsLandingPage = lazy(() => import('./pages/docs/DocsLandingPage'))
+const DocsCategoryPage = lazy(() => import('./pages/docs/DocsCategoryPage'))
+const DocsArticlePage = lazy(() => import('./pages/docs/DocsArticlePage'))
 const CoursePlanMode = lazy(() => import('./pages/admin/CoursePlanMode'))
 const MyInvitations = lazy(() => import('./pages/student/MyInvitations'))
 const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
@@ -392,6 +396,7 @@ function App() {
                 <Route path="catalog" element={<PublicCatalogPage />} />
                 <Route path="course/:slug" element={<PublicCoursePage />} />
                 <Route path="how-it-works" element={<HowItWorksPage />} />
+                {/* Docs routes moved outside Layout for standalone full-screen experience */}
 
               <Route element={<PrivateRoute />}>
                 <Route path="dashboard" element={<DashboardPage />} />
@@ -476,6 +481,11 @@ function App() {
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
+
+            {/* Help Center / Docs (public, no auth, standalone layout) */}
+            <Route path="docs" element={<DocsLandingPage />} />
+            <Route path="docs/:categorySlug" element={<DocsCategoryPage />} />
+            <Route path="docs/:categorySlug/:articleSlug" element={<DocsArticlePage />} />
 
             {/* Full-screen diploma routes (no Layout wrapper) */}
             <Route path="diploma" element={<DiplomaPage />} />

@@ -256,8 +256,8 @@ const LearningSnapshot = ({
 
   const content = (
     <div className="space-y-6">
-      {/* Headers row - matches grid below */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Headers row - desktop only, matches grid below */}
+      <div className="hidden md:grid md:grid-cols-2 gap-4">
         <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider hidden md:block">
           Active Quests
         </h3>
@@ -276,7 +276,7 @@ const LearningSnapshot = ({
       {/* Content: Stacked on mobile, 2-column on md+ */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* First 2 quests */}
-        <div className="space-y-3">
+        <div className="space-y-3 order-2 md:order-1">
           <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider md:hidden">
             Active Quests
           </h3>
@@ -305,7 +305,7 @@ const LearningSnapshot = ({
         </div>
 
         {/* Calendar */}
-        <div className="self-start">
+        <div className="self-start order-1 md:order-2">
           <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider md:hidden mb-4">
             Activity Calendar
             {summary && (
@@ -319,7 +319,7 @@ const LearningSnapshot = ({
 
         {/* Remaining quests */}
         {activeQuests.length > 2 && (
-          <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 order-3 md:order-3">
             {activeQuests.slice(2).map((quest, idx) => (
               <ActiveQuestCard
                 key={quest.quests?.id || `extra-${idx}`}

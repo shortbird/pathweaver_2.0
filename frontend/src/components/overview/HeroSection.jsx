@@ -25,7 +25,7 @@ const HeroSection = ({
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
           {/* Avatar Circle with Image or Initials */}
-          <div className="w-20 sm:w-24 h-20 sm:h-24 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-2 border-white/30 shadow-lg flex-shrink-0 overflow-hidden">
+          <div className={`w-20 sm:w-24 h-20 sm:h-24 rounded-full flex items-center justify-center border-2 shadow-lg flex-shrink-0 overflow-hidden ${user?.avatar_url ? 'border-white/30' : 'bg-purple-200/60 border-white/30'}`}>
             {user?.avatar_url ? (
               <img
                 src={user.avatar_url}
@@ -33,7 +33,7 @@ const HeroSection = ({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="text-3xl sm:text-4xl font-bold" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              <span className="text-3xl sm:text-4xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                 {initials || '?'}
               </span>
             )}

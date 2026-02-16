@@ -64,8 +64,8 @@ def enroll_in_quest(user_id: str, quest_id: str):
             .execute()
 
         # Check if there's an active (in-progress) enrollment
+        has_completed_enrollment = False
         if existing.data:
-            has_completed_enrollment = False
             most_recent_completed_enrollment = None
 
             for enrollment in existing.data:
@@ -106,6 +106,62 @@ def enroll_in_quest(user_id: str, quest_id: str):
 
         # Create enrollment using repository
         enrollment = quest_repo.enroll_user(user_id, quest_id)
+
+        # START FRESH: Clean up when user chose "Start Fresh" on a completed quest
+        # Keep completed tasks (with evidence), only delete incomplete ones,
+        # and reset enrollment metadata so the quest shows as in-progress
+        if force_new and not load_previous_tasks and has_completed_enrollment:
+            logger.info(f"[START_FRESH] Cleaning up for user {user_id[:8]}, quest {quest_id[:8]}, enrollment {enrollment['id'][:8]}")
+            admin_client = get_supabase_admin_client()
+
+            # Get all existing tasks for this enrollment
+            existing_tasks = admin_client.table('user_quest_tasks')\
+                .select('id, source_template_task_id')\
+                .eq('user_quest_id', enrollment['id'])\
+                .is_('completed_at', 'null')\
+                .execute()
+
+            # Delete only INCOMPLETE tasks -- completed tasks keep their evidence
+            # FK cascades handle child records for deleted tasks
+            if existing_tasks.data:
+                incomplete_ids = [t['id'] for t in existing_tasks.data]
+                admin_client.table('user_quest_tasks')\
+                    .delete()\
+                    .in_('id', incomplete_ids)\
+                    .execute()
+                logger.info(f"[START_FRESH] Deleted {len(incomplete_ids)} incomplete tasks, keeping completed ones")
+            else:
+                logger.info(f"[START_FRESH] No incomplete tasks to delete")
+
+            # Build set of template task IDs that are already completed (to skip during re-insert)
+            completed_tasks = admin_client.table('user_quest_tasks')\
+                .select('source_template_task_id')\
+                .eq('user_quest_id', enrollment['id'])\
+                .not_.is_('completed_at', 'null')\
+                .execute()
+            completed_template_ids = {
+                t['source_template_task_id'] for t in (completed_tasks.data or [])
+                if t.get('source_template_task_id')
+            }
+            if completed_template_ids:
+                logger.info(f"[START_FRESH] Preserving {len(completed_template_ids)} completed tasks")
+
+            # Store on enrollment object so template insertion can skip duplicates
+            enrollment['_completed_template_ids'] = completed_template_ids
+
+            # Reset enrollment to in-progress state
+            admin_client.table('user_quests')\
+                .update({
+                    'completed_at': None,
+                    'personalization_completed': False,
+                    'last_picked_up_at': datetime.now(timezone.utc).isoformat(),
+                    'status': 'picked_up',
+                    'times_picked_up': (enrollment.get('times_picked_up') or 0) + 1,
+                })\
+                .eq('id', enrollment['id'])\
+                .execute()
+
+            logger.info(f"[START_FRESH] Reset enrollment metadata")
 
         # Check if we should load tasks from previous enrollment
         if load_previous_tasks and existing.data:
@@ -244,8 +300,14 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 all_tasks = get_template_tasks(quest_id, filter_type='all')
 
                 if all_tasks:
+                    # Skip template tasks that are already completed (Start Fresh preserves these)
+                    completed_template_ids = enrollment.get('_completed_template_ids', set())
+
                     tasks_to_insert = []
                     for task in all_tasks:
+                        if task.get('id') in completed_template_ids:
+                            logger.info(f"[UNIFIED_ENROLL] Skipping already-completed template task: {task.get('title', '')[:30]}")
+                            continue
                         tasks_to_insert.append({
                             'user_id': user_id,
                             'quest_id': quest_id,

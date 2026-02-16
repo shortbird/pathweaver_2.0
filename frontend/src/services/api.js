@@ -280,8 +280,9 @@ api.interceptors.response.use(
         const isObserverAcceptPage = currentPath.startsWith('/observer/accept/')
         const isPublicReportPage = currentPath.startsWith('/report/')
         const isInvitationPage = currentPath.startsWith('/invitation/')
+        const isDocsPage = currentPath.startsWith('/docs')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isPromoPage && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isInvitationPage) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isPromoPage && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isInvitationPage && !isDocsPage) {
           window.location.href = '/login'
         }
 
@@ -626,6 +627,30 @@ export const checkinAPI = {
   // Admin endpoints
   getAllCheckins: (page = 1, limit = 50) => api.get('/api/admin/checkins', { params: { page, limit } }),
   getAdminAnalytics: () => api.get('/api/admin/checkins/analytics'),
+}
+
+// Advisor Dashboard API
+export const advisorAPI = {
+  // Get caseload engagement summary with per-student rhythm
+  getCaseloadSummary: () => api.get('/api/advisor/caseload-summary'),
+
+  // Learning moments
+  createLearningMoment: (studentId, data) =>
+    api.post(`/api/advisor/students/${studentId}/learning-moments`, data),
+
+  uploadMomentMedia: (studentId, formData) =>
+    api.post(`/api/advisor/students/${studentId}/learning-moments/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+
+  getStudentLearningMoments: (studentId, params = {}) =>
+    api.get(`/api/advisor/students/${studentId}/learning-moments`, { params }),
+
+  updateLearningMoment: (studentId, momentId, data) =>
+    api.put(`/api/advisor/students/${studentId}/learning-moments/${momentId}`, data),
+
+  deleteLearningMoment: (studentId, momentId) =>
+    api.delete(`/api/advisor/students/${studentId}/learning-moments/${momentId}`),
 }
 
 // Helper Evidence API (Advisors/Parents uploading evidence for students)

@@ -21,6 +21,7 @@ const CourseEnrollmentsPage = lazy(() => import('./admin/CourseEnrollmentsPage')
 const TransferCreditForm = lazy(() => import('./admin/TransferCreditForm'))
 const CoursePlanMode = lazy(() => import('./admin/CoursePlanMode'))
 const DraftFeedbackPanel = lazy(() => import('../components/admin/DraftFeedbackPanel'))
+const DocsManager = lazy(() => import('../components/admin/DocsManager'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -65,7 +66,8 @@ const AdminPage = () => {
   const superadminTabs = [
     { path: 'draft-feedback', label: 'Draft Feedback' },
     { path: 'course-enrollments', label: 'Course Enrollments' },
-    { path: 'curriculum-upload', label: 'AI Upload' }
+    { path: 'curriculum-upload', label: 'AI Upload' },
+    { path: 'docs', label: 'Docs' }
   ]
 
   const getTabIsActive = (tab) => {
@@ -172,6 +174,7 @@ const AdminPage = () => {
           <Route path="course-enrollments" element={<CourseEnrollmentsPage />} />
           <Route path="course-plan" element={<CoursePlanMode />} />
           <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
+          <Route path="docs" element={<DocsManager />} />
         </Routes>
       </Suspense>
     </div>

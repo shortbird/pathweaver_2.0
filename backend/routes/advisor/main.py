@@ -757,3 +757,124 @@ def enroll_students_in_course(user_id):
             'success': False,
             'error': 'Failed to enroll students'
         }), 500
+
+
+# ==================== Caseload Engagement Summary ====================
+
+@advisor_bp.route('/caseload-summary', methods=['GET'])
+@require_advisor
+def get_caseload_summary(user_id):
+    """
+    Get engagement summary for advisor's entire caseload.
+    Returns rhythm states for all students and identifies those needing attention.
+    """
+    try:
+        from database import get_supabase_admin_client
+        from routes.users.engagement import calculate_rhythm_state
+        from datetime import datetime, timedelta
+
+        advisor_service = AdvisorService()
+        students = advisor_service.get_advisor_students(user_id)
+
+        if not students:
+            return jsonify({
+                'success': True,
+                'summary': {
+                    'total_students': 0,
+                    'rhythm_counts': {},
+                    'students_needing_attention': [],
+                    'per_student_rhythm': {}
+                }
+            }), 200
+
+        admin = get_supabase_admin_client()
+        today = datetime.now().date()
+        twelve_weeks_ago = today - timedelta(weeks=12)
+
+        student_ids = [s['id'] for s in students]
+
+        # Batch-query completions for all students
+        completions_response = admin.table('quest_task_completions') \
+            .select('user_id, completed_at') \
+            .in_('user_id', student_ids) \
+            .gte('completed_at', twelve_weeks_ago.isoformat()) \
+            .execute()
+
+        # Group completions by student
+        student_activities = {}
+        for completion in (completions_response.data or []):
+            uid = completion['user_id']
+            completed_at = completion.get('completed_at')
+            if completed_at:
+                if uid not in student_activities:
+                    student_activities[uid] = []
+                date_str = completed_at[:10]
+                student_activities[uid].append(date_str)
+
+        # Calculate rhythm for each student
+        per_student_rhythm = {}
+        rhythm_counts = {}
+        students_needing_attention = []
+
+        student_name_map = {}
+        for s in students:
+            name = s.get('display_name') or \
+                   f"{s.get('first_name', '')} {s.get('last_name', '')}".strip() or \
+                   'Student'
+            student_name_map[s['id']] = name
+
+        for student_id in student_ids:
+            activity_dates = student_activities.get(student_id, [])
+
+            # Convert strings to date objects
+            date_objects = []
+            for d in activity_dates:
+                try:
+                    date_objects.append(datetime.strptime(d, '%Y-%m-%d').date())
+                except (ValueError, TypeError):
+                    pass
+
+            # Deduplicate dates
+            date_objects = list(set(date_objects))
+
+            rhythm = calculate_rhythm_state(date_objects, today)
+            state = rhythm['state']
+            per_student_rhythm[student_id] = state
+
+            rhythm_counts[state] = rhythm_counts.get(state, 0) + 1
+
+            # Flag students who may need attention
+            if state in ('resting', 'ready_when_you_are', 'ready_to_begin'):
+                days_since = 0
+                if date_objects:
+                    most_recent = max(date_objects)
+                    days_since = (today - most_recent).days
+                else:
+                    days_since = 999
+
+                students_needing_attention.append({
+                    'id': student_id,
+                    'name': student_name_map.get(student_id, 'Student'),
+                    'rhythm': state,
+                    'days_since_activity': days_since
+                })
+
+        # Sort needing-attention by days since activity (most urgent first)
+        students_needing_attention.sort(key=lambda x: x['days_since_activity'], reverse=True)
+
+        return jsonify({
+            'success': True,
+            'summary': {
+                'total_students': len(students),
+                'rhythm_counts': rhythm_counts,
+                'students_needing_attention': students_needing_attention,
+                'per_student_rhythm': per_student_rhythm
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching caseload summary: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch caseload summary'
+        }), 500
