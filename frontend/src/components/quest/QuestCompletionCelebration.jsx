@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpenIcon, CheckCircleIcon, HomeIcon, PlusIcon, TrophyIcon } from '@heroicons/react/24/outline';
+import { BookOpenIcon, CheckCircleIcon, PlusIcon, TrophyIcon } from '@heroicons/react/24/outline';
 import confetti from 'canvas-confetti';
 
 const QuestCompletionCelebration = ({
@@ -169,8 +169,8 @@ const QuestCompletionCelebration = ({
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
             <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center mx-auto mb-4">
-                <HomeIcon className="w-8 h-8 text-white" />
+              <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <img src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg" alt="Optio" className="w-16 h-16" />
               </div>
               <h3 className="text-2xl font-bold text-gray-800 mb-2" style={{ fontFamily: 'Poppins' }}>
                 Finish This Quest?

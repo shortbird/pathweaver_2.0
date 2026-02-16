@@ -20,7 +20,7 @@ checkins_bp = Blueprint('advisor_checkins', __name__)
 
 
 @checkins_bp.route('/api/advisor/checkins', methods=['POST', 'OPTIONS'])
-@require_role('advisor', 'admin')
+@require_role('advisor', 'superadmin')
 def create_checkin(user_id):
     """
     Create a new advisor check-in.
@@ -80,7 +80,7 @@ def create_checkin(user_id):
 
 
 @checkins_bp.route('/api/advisor/checkins', methods=['GET', 'OPTIONS'])
-@require_role('advisor', 'admin')
+@require_role('advisor', 'superadmin')
 def get_advisor_checkins(user_id):
     """
     Get all check-ins created by the current advisor.
@@ -102,7 +102,7 @@ def get_advisor_checkins(user_id):
 
 
 @checkins_bp.route('/api/advisor/students/<student_id>/checkins', methods=['GET', 'OPTIONS'])
-@require_role('advisor', 'admin')
+@require_role('advisor', 'superadmin')
 def get_student_checkins(user_id, student_id):
     """
     Get all check-ins for a specific student.
@@ -140,7 +140,7 @@ def get_student_checkins(user_id, student_id):
 
 
 @checkins_bp.route('/api/advisor/students/<student_id>/checkin-data', methods=['GET', 'OPTIONS'])
-@require_role('advisor', 'admin')
+@require_role('advisor', 'superadmin')
 def get_checkin_data(user_id, student_id):
     """
     Get pre-populated data for check-in form (active quests, etc.).
@@ -183,7 +183,7 @@ def get_checkin_data(user_id, student_id):
 
 
 @checkins_bp.route('/api/advisor/checkins/<checkin_id>', methods=['GET', 'OPTIONS'])
-@require_role('advisor', 'admin')
+@require_role('advisor', 'superadmin')
 def get_checkin_by_id(user_id, checkin_id):
     """
     Get a specific check-in by ID.
@@ -207,7 +207,7 @@ def get_checkin_by_id(user_id, checkin_id):
 
 
 @checkins_bp.route('/api/advisor/checkins/analytics', methods=['GET', 'OPTIONS'])
-@require_role('advisor', 'admin')
+@require_role('advisor', 'superadmin')
 def get_checkin_analytics(user_id):
     """
     Get analytics for advisor's check-ins.

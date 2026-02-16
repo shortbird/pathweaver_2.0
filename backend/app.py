@@ -114,6 +114,16 @@ app.register_blueprint(organizations_bp, url_prefix='/api/organizations')  # /ap
 app.register_blueprint(courses_bp)  # /api/courses (course management, quest sequencing, enrollments)
 app.register_blueprint(public_bp)  # /api/public (public course pages, no auth required)
 
+# Register Docs blueprint (public help center + admin docs management)
+try:
+    from routes.docs import public_docs_bp, admin_docs_bp
+    app.register_blueprint(public_docs_bp)  # /api/public/docs (public docs, no auth required)
+    app.register_blueprint(admin_docs_bp)  # /api/admin/docs (superadmin docs management)
+except ImportError as e:
+    logger.warning(f"Warning: Docs module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Docs routes: {e}", exc_info=True)
+
 # Register homepage images route (January 2025 - Homepage redesign)
 from routes.homepage_images import bp as homepage_images_bp
 app.register_blueprint(homepage_images_bp)  # /api/homepage (blueprint has url_prefix in route definitions)

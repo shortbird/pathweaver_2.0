@@ -2,6 +2,7 @@ import React, { useState, useEffect, memo } from 'react'
 import api, { adminParentConnectionsAPI } from '../../services/api'
 import toast from 'react-hot-toast'
 import { MagnifyingGlassIcon, TrashIcon, UserPlusIcon, XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
+import ModalOverlay from '../ui/ModalOverlay'
 
 /**
  * AdminConnections - Unified view for managing advisor-student and parent-student connections
@@ -464,7 +465,7 @@ const AdminConnections = () => {
 
       {/* Add Connection Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <ModalOverlay onClose={() => { setShowAddModal(false); resetAddModal() }}>
           <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b flex justify-between items-center">
               <h3 className="text-lg font-semibold text-gray-900">Add Connection</h3>
@@ -647,12 +648,12 @@ const AdminConnections = () => {
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Disconnect Confirmation Modal */}
       {showDisconnectModal && selectedConnection && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <ModalOverlay onClose={() => { setShowDisconnectModal(false); setSelectedConnection(null) }}>
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Remove Connection</h3>
             <p className="text-gray-700 mb-2">
@@ -683,7 +684,7 @@ const AdminConnections = () => {
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
     </div>
   )
