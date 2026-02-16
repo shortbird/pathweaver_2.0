@@ -241,11 +241,10 @@ powershell.exe -Command "Get-Process -Name python -ErrorAction SilentlyContinue 
 
 ### Git Configuration
 
-**SSH Authentication:** Configured for Claude Code to push/pull without manual authentication.
+**HTTPS + Git Credential Manager:** Configured for Claude Code to push/pull without manual authentication.
 
-- Remote: `git@github.com:shortbird/pathweaver_2.0.git` (SSH)
-- SSH Key: `~/.ssh/id_rsa` (RSA 4096-bit)
-- Public key added to GitHub: https://github.com/settings/keys
+- Remote: `https://github.com/shortbird/pathweaver_2.0.git` (HTTPS)
+- Auth: Git Credential Manager (`credential.helper = manager`)
 
 **Workflow:**
 ```bash
@@ -255,11 +254,6 @@ git push origin main       # Push to prod (auto-deploys to Render prod)
 
 # Merge develop to main:
 git checkout main && git merge develop && git push origin main && git checkout develop
-```
-
-**If SSH agent not running:**
-```bash
-eval "$(ssh-agent -s)" && ssh-add ~/.ssh/id_rsa
 ```
 
 ---

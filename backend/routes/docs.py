@@ -18,6 +18,14 @@ Admin endpoints (superadmin only):
 - PUT    /api/admin/docs/articles/:id     - update article
 - DELETE /api/admin/docs/articles/:id     - delete article
 - GET    /api/admin/docs/analytics        - view counts, popular articles
+
+AI endpoints (superadmin only):
+- POST   /api/admin/docs/ai/generate-article       - generate article from topic
+- POST   /api/admin/docs/ai/suggest-missing         - gap analysis
+- POST   /api/admin/docs/ai/suggest-updates/:id     - check article freshness
+- POST   /api/admin/docs/ai/scaffold-structure       - generate full docs structure
+- POST   /api/admin/docs/ai/reindex                 - force codebase reindex
+- GET    /api/admin/docs/ai/search-misses           - get top search misses
 """
 
 from flask import Blueprint, request, jsonify
@@ -173,6 +181,16 @@ def search_docs():
             ).limit(20).execute()
 
         results = result.data or []
+
+        # Track search misses (queries with 0 results)
+        if len(results) == 0 and len(q) >= 3:
+            try:
+                client.rpc('upsert_search_miss', {
+                    'p_query': q,
+                    'p_normalized': q.lower().strip()
+                }).execute()
+            except Exception:
+                pass  # Non-critical
 
         # Enrich with category info
         if results:
@@ -389,7 +407,7 @@ def admin_create_article(user_id):
             'slug': slug,
             'content': content,
             'summary': data.get('summary', ''),
-            'category_id': data.get('category_id'),
+            'category_id': data.get('category_id') or None,
             'target_roles': data.get('target_roles', []),
             'sort_order': data.get('sort_order', 0),
             'is_published': data.get('is_published', True),
@@ -522,3 +540,146 @@ def admin_docs_analytics(user_id):
     except Exception as e:
         logger.error(f"Error getting docs analytics: {str(e)}")
         return jsonify({'error': 'Failed to load analytics'}), 500
+
+
+# ============================================================
+# AI ENDPOINTS (superadmin only)
+# ============================================================
+
+@admin_docs_bp.route('/ai/generate-article', methods=['POST'])
+@require_superadmin
+def ai_generate_article(user_id):
+    """Generate a help article from a topic using AI + codebase context."""
+    try:
+        data = request.get_json() or {}
+        topic = data.get('topic', '').strip()
+        if not topic:
+            return jsonify({'error': 'Topic is required'}), 400
+
+        target_roles = data.get('target_roles', [])
+        context_hints = data.get('context_hints', [])
+
+        from services.docs_ai_service import DocsAIService
+        docs_ai = DocsAIService()
+        result = docs_ai.generate_article(topic, target_roles, context_hints)
+
+        if not result.get('success'):
+            return jsonify({'error': result.get('error', 'Generation failed')}), 500
+
+        return jsonify({'success': True, 'article': result['article']}), 200
+
+    except Exception as e:
+        logger.error(f"Error generating AI article: {str(e)}")
+        return jsonify({'error': 'Failed to generate article'}), 500
+
+
+@admin_docs_bp.route('/ai/suggest-missing', methods=['POST'])
+@require_superadmin
+def ai_suggest_missing(user_id):
+    """Run gap analysis: compare codebase features vs existing docs."""
+    try:
+        from services.docs_ai_service import DocsAIService
+        docs_ai = DocsAIService()
+        result = docs_ai.suggest_missing_docs()
+
+        if not result.get('success'):
+            return jsonify({'error': result.get('error', 'Analysis failed')}), 500
+
+        return jsonify({
+            'success': True,
+            'gaps': result.get('gaps', []),
+            'coverage_score': result.get('coverage_score', 0),
+            'summary': result.get('summary', '')
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error running gap analysis: {str(e)}")
+        return jsonify({'error': 'Failed to run gap analysis'}), 500
+
+
+@admin_docs_bp.route('/ai/suggest-updates/<article_id>', methods=['POST'])
+@require_superadmin
+def ai_suggest_updates(user_id, article_id):
+    """Check if an article is up-to-date with current codebase."""
+    try:
+        from services.docs_ai_service import DocsAIService
+        docs_ai = DocsAIService()
+        result = docs_ai.suggest_article_updates(article_id)
+
+        if not result.get('success'):
+            return jsonify({'error': result.get('error', 'Check failed')}), 500
+
+        return jsonify({
+            'success': True,
+            'needs_update': result.get('needs_update', False),
+            'confidence': result.get('confidence', 0),
+            'issues': result.get('issues', []),
+            'summary': result.get('summary', '')
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error checking article updates: {str(e)}")
+        return jsonify({'error': 'Failed to check for updates'}), 500
+
+
+@admin_docs_bp.route('/ai/scaffold-structure', methods=['POST'])
+@require_superadmin
+def ai_scaffold_structure(user_id):
+    """Generate a complete docs category + article structure."""
+    try:
+        from services.docs_ai_service import DocsAIService
+        docs_ai = DocsAIService()
+        result = docs_ai.generate_category_structure()
+
+        if not result.get('success'):
+            return jsonify({'error': result.get('error', 'Scaffolding failed')}), 500
+
+        return jsonify({
+            'success': True,
+            'categories': result.get('categories', [])
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error scaffolding docs structure: {str(e)}")
+        return jsonify({'error': 'Failed to scaffold structure'}), 500
+
+
+@admin_docs_bp.route('/ai/reindex', methods=['POST'])
+@require_superadmin
+def ai_reindex(user_id):
+    """Force rebuild of the codebase index."""
+    try:
+        from services.docs_ai_service import get_indexer
+        indexer = get_indexer()
+        count = indexer.build_index()
+
+        return jsonify({
+            'success': True,
+            'message': f'Codebase index rebuilt with {count} entries',
+            'entry_count': count
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error reindexing codebase: {str(e)}")
+        return jsonify({'error': 'Failed to reindex codebase'}), 500
+
+
+@admin_docs_bp.route('/ai/search-misses', methods=['GET'])
+@require_superadmin
+def ai_search_misses(user_id):
+    """Get top search queries that returned 0 results."""
+    try:
+        client = get_supabase_admin_client()
+
+        result = client.table('docs_search_misses').select(
+            'id, query, normalized_query, miss_count, '
+            'first_searched_at, last_searched_at, generated_article_id'
+        ).order('miss_count', desc=True).limit(50).execute()
+
+        misses = result.data or []
+
+        return jsonify({'success': True, 'misses': misses}), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching search misses: {str(e)}")
+        return jsonify({'error': 'Failed to load search misses'}), 500
