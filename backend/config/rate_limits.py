@@ -94,6 +94,28 @@ RATE_LIMITS = {
         'production': {'requests': 50, 'window': 60},  # 50 per minute
         'development': {'requests': 100, 'window': 60},  # 100 per minute
     },
+
+    # Docs AI endpoints - token-intensive operations
+    'docs_ai_generate': {
+        'production': {'requests': 10, 'window': 3600},  # 10 per hour
+        'development': {'requests': 20, 'window': 3600},  # 20 per hour
+    },
+    'docs_ai_suggest_missing': {
+        'production': {'requests': 5, 'window': 3600},  # 5 per hour
+        'development': {'requests': 10, 'window': 3600},  # 10 per hour
+    },
+    'docs_ai_suggest_updates': {
+        'production': {'requests': 20, 'window': 3600},  # 20 per hour
+        'development': {'requests': 40, 'window': 3600},  # 40 per hour
+    },
+    'docs_ai_scaffold': {
+        'production': {'requests': 3, 'window': 3600},  # 3 per hour
+        'development': {'requests': 10, 'window': 3600},  # 10 per hour
+    },
+    'docs_ai_reindex': {
+        'production': {'requests': 2, 'window': 3600},  # 2 per hour
+        'development': {'requests': 10, 'window': 3600},  # 10 per hour
+    },
 }
 
 # Account lockout configuration

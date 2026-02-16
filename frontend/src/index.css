@@ -284,3 +284,31 @@
 .prose ul ul ul {
   list-style-type: square !important;
 }
+
+/* Docs article prose spacing overrides */
+.docs-prose h2 {
+  margin-top: 2.5rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.docs-prose h3 {
+  margin-top: 2rem !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.docs-prose p {
+  margin-bottom: 1rem !important;
+  margin-top: 0.5rem !important;
+}
+
+.docs-prose h4 {
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  color: #003f5c !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.docs-prose > *:first-child {
+  margin-top: 0 !important;
+}

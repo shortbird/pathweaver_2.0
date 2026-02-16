@@ -14,12 +14,23 @@ const DocsSidebar = () => {
     loadCategories()
   }, [])
 
-  // Auto-expand the active category
+  // Auto-expand the active category and load its articles
   useEffect(() => {
-    if (categorySlug) {
+    if (categorySlug && categories.length > 0) {
       setExpanded(prev => ({ ...prev, [categorySlug]: true }))
+      const cat = categories.find(c => c.slug === categorySlug)
+      if (cat && !articlesByCategory[cat.id]) {
+        api.get(`/api/public/docs/categories/${categorySlug}`)
+          .then(res => {
+            setArticlesByCategory(prev => ({
+              ...prev,
+              [cat.id]: res.data.category?.articles || []
+            }))
+          })
+          .catch(() => {})
+      }
     }
-  }, [categorySlug])
+  }, [categorySlug, categories])
 
   const loadCategories = async () => {
     try {

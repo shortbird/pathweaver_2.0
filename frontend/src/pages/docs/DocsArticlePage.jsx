@@ -1,19 +1,67 @@
-import React, { useState, useEffect, memo } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import React, { useState, useEffect, useCallback, memo } from 'react'
+import { Link, useParams, useLocation } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import ReactMarkdown from 'react-markdown'
-import { ClockIcon } from '@heroicons/react/24/outline'
+import { ClockIcon, LinkIcon } from '@heroicons/react/24/outline'
+import { CheckIcon } from '@heroicons/react/24/solid'
+import toast from 'react-hot-toast'
 import DocsLayout from '../../components/docs/DocsLayout'
 import DocsBreadcrumbs from '../../components/docs/DocsBreadcrumbs'
 import api from '../../services/api'
 
+const slugify = (text) =>
+  text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').trim()
+
+const HeadingWithAnchor = ({ level, children, activeHash }) => {
+  const [copied, setCopied] = useState(false)
+  const text = typeof children === 'string'
+    ? children
+    : Array.isArray(children)
+      ? children.map(c => (typeof c === 'string' ? c : c?.props?.children || '')).join('')
+      : ''
+  const id = slugify(text)
+  const Tag = `h${level}`
+  const isActive = activeHash === id
+
+  const handleCopy = (e) => {
+    e.preventDefault()
+    const url = `${window.location.origin}${window.location.pathname}#${id}`
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true)
+      toast.success('Link copied')
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <Tag
+      id={id}
+      className={`group scroll-mt-24 transition-colors duration-700 rounded-r-md ${
+        isActive ? 'bg-optio-purple/10 -ml-3 pl-3 -mr-3 pr-3' : ''
+      }`}
+    >
+      {children}
+      <button
+        onClick={handleCopy}
+        className="inline-flex items-center ml-2 opacity-0 group-hover:opacity-100 transition-opacity align-middle"
+        aria-label={`Copy link to ${text}`}
+      >
+        {copied
+          ? <CheckIcon className="w-4 h-4 text-green-500" />
+          : <LinkIcon className="w-4 h-4 text-gray-400 hover:text-optio-purple" />
+        }
+      </button>
+    </Tag>
+  )
+}
+
 const proseClasses = `
-  prose prose-lg max-w-none
+  prose prose-lg max-w-none docs-prose
   prose-headings:font-bold prose-headings:text-gray-900
-  prose-h1:text-4xl prose-h1:mb-6 prose-h1:mt-8
-  prose-h2:text-2xl prose-h2:mb-4 prose-h2:mt-6 prose-h2:text-optio-purple prose-h2:border-l-4 prose-h2:border-optio-purple prose-h2:pl-4
-  prose-h3:text-xl prose-h3:mb-3 prose-h3:mt-5
-  prose-p:text-gray-700 prose-p:leading-relaxed prose-p:my-3
+  prose-h1:text-4xl
+  prose-h2:text-2xl prose-h2:text-optio-purple prose-h2:border-l-4 prose-h2:border-optio-purple prose-h2:pl-4
+  prose-h3:text-xl
+  prose-p:text-gray-700 prose-p:leading-relaxed
   prose-a:text-optio-purple prose-a:font-medium prose-a:no-underline hover:prose-a:underline prose-a:underline-offset-4 prose-a:decoration-2 prose-a:transition-all
   prose-strong:text-gray-900 prose-strong:font-semibold
   prose-em:italic prose-em:text-gray-600
@@ -27,13 +75,37 @@ const proseClasses = `
 
 const DocsArticlePage = () => {
   const { categorySlug, articleSlug } = useParams()
+  const location = useLocation()
   const [article, setArticle] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [activeHash, setActiveHash] = useState('')
 
   useEffect(() => {
     loadArticle()
   }, [articleSlug])
+
+  // Scroll to hash anchor after article loads and highlight it
+  useEffect(() => {
+    if (!loading && article && location.hash) {
+      const id = location.hash.slice(1)
+      setActiveHash(id)
+      setTimeout(() => {
+        const el = document.getElementById(id)
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+      // Fade out highlight after 3 seconds
+      const timer = setTimeout(() => setActiveHash(''), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [loading, article, location.hash])
+
+  const markdownComponents = {
+    h1: ({ children }) => <HeadingWithAnchor level={1} activeHash={activeHash}>{children}</HeadingWithAnchor>,
+    h2: ({ children }) => <HeadingWithAnchor level={2} activeHash={activeHash}>{children}</HeadingWithAnchor>,
+    h3: ({ children }) => <HeadingWithAnchor level={3} activeHash={activeHash}>{children}</HeadingWithAnchor>,
+    h4: ({ children }) => <HeadingWithAnchor level={4} activeHash={activeHash}>{children}</HeadingWithAnchor>,
+  }
 
   const loadArticle = async () => {
     setLoading(true)
@@ -122,7 +194,7 @@ const DocsArticlePage = () => {
           </header>
 
           <div className={proseClasses}>
-            <ReactMarkdown>{article.content}</ReactMarkdown>
+            <ReactMarkdown components={markdownComponents}>{article.content}</ReactMarkdown>
           </div>
         </article>
 

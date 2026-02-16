@@ -2,7 +2,11 @@ import React, { useState, useEffect, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import toast from 'react-hot-toast'
-import { ArrowLeftIcon, EyeIcon, PencilIcon } from '@heroicons/react/24/outline'
+import {
+  ArrowLeftIcon, EyeIcon, PencilIcon, SparklesIcon,
+  ArrowPathIcon, ExclamationTriangleIcon, CheckCircleIcon,
+  XMarkIcon
+} from '@heroicons/react/24/outline'
 import MarkdownEditor from '../curriculum/MarkdownEditor'
 import api from '../../services/api'
 
@@ -25,7 +29,13 @@ const proseClasses = `
 
 const ROLE_OPTIONS = ['student', 'parent', 'advisor', 'org_admin', 'observer']
 
-const DocsArticleEditor = ({ articleId, onBack }) => {
+const SEVERITY_COLORS = {
+  high: 'bg-red-100 text-red-700',
+  medium: 'bg-yellow-100 text-yellow-700',
+  low: 'bg-blue-100 text-blue-600'
+}
+
+const DocsArticleEditor = ({ articleId, onBack, initialTopic }) => {
   const isEditing = !!articleId
   const [categories, setCategories] = useState([])
   const [tab, setTab] = useState('edit') // 'edit' | 'preview'
@@ -41,6 +51,16 @@ const DocsArticleEditor = ({ articleId, onBack }) => {
     sort_order: 0,
     is_published: true
   })
+
+  // AI generation state
+  const [aiTopic, setAiTopic] = useState(initialTopic || '')
+  const [aiHints, setAiHints] = useState('')
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiBanner, setAiBanner] = useState(false)
+
+  // Freshness check state
+  const [checkingUpdates, setCheckingUpdates] = useState(false)
+  const [updateResults, setUpdateResults] = useState(null)
 
   useEffect(() => {
     loadCategories()
@@ -123,6 +143,91 @@ const DocsArticleEditor = ({ articleId, onBack }) => {
     }
   }
 
+  // AI: Generate article
+  const handleAiGenerate = async () => {
+    if (!aiTopic.trim()) {
+      toast.error('Enter a topic for AI generation')
+      return
+    }
+
+    setAiGenerating(true)
+    try {
+      const res = await api.post('/api/admin/docs/ai/generate-article', {
+        topic: aiTopic.trim(),
+        target_roles: form.target_roles,
+        context_hints: aiHints.trim() ? aiHints.split(',').map(h => h.trim()) : []
+      })
+
+      if (res.data.success && res.data.article) {
+        const a = res.data.article
+        // Match suggested_category to an actual category ID
+        let categoryId = form.category_id
+        if (a.suggested_category) {
+          const match = categories.find(c =>
+            c.title.toLowerCase().includes(a.suggested_category.toLowerCase()) ||
+            a.suggested_category.toLowerCase().includes(c.title.toLowerCase())
+          )
+          if (match) categoryId = match.id
+        }
+
+        setForm(prev => ({
+          ...prev,
+          title: a.title || prev.title,
+          slug: a.slug || prev.slug,
+          summary: a.summary || prev.summary,
+          content: a.content || prev.content,
+          target_roles: a.target_roles?.length ? a.target_roles : prev.target_roles,
+          category_id: categoryId
+        }))
+        setAiBanner(true)
+        toast.success('Article generated')
+      } else {
+        toast.error(res.data.error || 'Generation failed')
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to generate article')
+    } finally {
+      setAiGenerating(false)
+    }
+  }
+
+  // AI: Check for updates
+  const handleCheckUpdates = async () => {
+    if (!articleId) return
+
+    setCheckingUpdates(true)
+    setUpdateResults(null)
+    try {
+      const res = await api.post(`/api/admin/docs/ai/suggest-updates/${articleId}`, {})
+      if (res.data.success) {
+        setUpdateResults({
+          needs_update: res.data.needs_update,
+          confidence: res.data.confidence,
+          issues: res.data.issues || [],
+          summary: res.data.summary || ''
+        })
+      } else {
+        toast.error(res.data.error || 'Check failed')
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to check for updates')
+    } finally {
+      setCheckingUpdates(false)
+    }
+  }
+
+  // AI: Apply a suggested fix to content
+  const handleApplyFix = (issue) => {
+    if (issue.suggested_fix) {
+      // Append fix note to content as a placeholder
+      setForm(prev => ({
+        ...prev,
+        content: prev.content + `\n\n<!-- AI FIX (${issue.type}): ${issue.suggested_fix} -->\n`
+      }))
+      toast.success('Fix note added to content. Review and edit manually.')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -143,6 +248,20 @@ const DocsArticleEditor = ({ articleId, onBack }) => {
           Back to Docs
         </button>
         <div className="flex gap-2">
+          {isEditing && (
+            <button
+              onClick={handleCheckUpdates}
+              disabled={checkingUpdates}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-optio-purple border border-optio-purple hover:bg-optio-purple hover:text-white transition-colors disabled:opacity-50"
+            >
+              {checkingUpdates ? (
+                <ArrowPathIcon className="w-4 h-4 animate-spin" />
+              ) : (
+                <SparklesIcon className="w-4 h-4" />
+              )}
+              Check for Updates
+            </button>
+          )}
           <button
             onClick={() => setTab('edit')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
@@ -161,6 +280,131 @@ const DocsArticleEditor = ({ articleId, onBack }) => {
           </button>
         </div>
       </div>
+
+      {/* AI-generated banner */}
+      {aiBanner && (
+        <div className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-lg px-4 py-3">
+          <div className="flex items-center gap-2">
+            <SparklesIcon className="w-5 h-5 text-optio-purple" />
+            <span className="text-sm text-purple-800">AI-generated content -- please review before publishing</span>
+          </div>
+          <button onClick={() => setAiBanner(false)} className="p-1 text-purple-400 hover:text-purple-600">
+            <XMarkIcon className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Freshness check results */}
+      {updateResults && (
+        <div className={`rounded-lg border p-4 ${updateResults.needs_update ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'}`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              {updateResults.needs_update ? (
+                <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600" />
+              ) : (
+                <CheckCircleIcon className="w-5 h-5 text-green-600" />
+              )}
+              <span className={`font-medium ${updateResults.needs_update ? 'text-yellow-800' : 'text-green-800'}`}>
+                {updateResults.needs_update ? 'Updates Recommended' : 'Article is Up-to-Date'}
+              </span>
+              {updateResults.confidence !== undefined && (
+                <span className="text-xs text-gray-500">
+                  Confidence: {Math.round(updateResults.confidence * 100)}%
+                </span>
+              )}
+            </div>
+            <button onClick={() => setUpdateResults(null)} className="p-1 text-gray-400 hover:text-gray-600">
+              <XMarkIcon className="w-4 h-4" />
+            </button>
+          </div>
+          {updateResults.summary && (
+            <p className="text-sm text-gray-600 mb-3">{updateResults.summary}</p>
+          )}
+          {updateResults.issues?.length > 0 && (
+            <div className="space-y-2">
+              {updateResults.issues.map((issue, i) => (
+                <div key={i} className="bg-white rounded-lg border border-gray-200 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${SEVERITY_COLORS[issue.severity] || SEVERITY_COLORS.medium}`}>
+                          {issue.severity}
+                        </span>
+                        <span className="text-xs text-gray-400 capitalize">{issue.type}</span>
+                      </div>
+                      <p className="text-sm text-gray-900">{issue.description}</p>
+                      {issue.suggested_fix && (
+                        <p className="text-sm text-gray-500 mt-1">
+                          <span className="font-medium">Fix:</span> {issue.suggested_fix}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleApplyFix(issue)}
+                      className="flex-shrink-0 px-2.5 py-1 text-xs font-medium text-optio-purple border border-optio-purple rounded hover:bg-optio-purple hover:text-white transition-colors"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* AI Generation section (new articles only) */}
+      {!isEditing && tab === 'edit' && (
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <SparklesIcon className="w-5 h-5 text-optio-purple" />
+            <h3 className="font-semibold text-gray-900">Generate with AI</h3>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                What should this article be about?
+              </label>
+              <input
+                type="text"
+                value={aiTopic}
+                onChange={e => setAiTopic(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
+                placeholder="e.g., How to create and manage quests"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Context hints <span className="text-gray-400 font-normal">(optional, comma-separated)</span>
+              </label>
+              <input
+                type="text"
+                value={aiHints}
+                onChange={e => setAiHints(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
+                placeholder="e.g., quest creation, student enrollment, XP tracking"
+              />
+            </div>
+            <button
+              onClick={handleAiGenerate}
+              disabled={aiGenerating || !aiTopic.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium text-sm disabled:opacity-50"
+            >
+              {aiGenerating ? (
+                <>
+                  <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <SparklesIcon className="w-4 h-4" />
+                  Generate with AI
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       {tab === 'edit' ? (
         <div className="space-y-4">
