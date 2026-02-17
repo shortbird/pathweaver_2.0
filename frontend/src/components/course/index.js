@@ -9,6 +9,7 @@ export { default as BulkTaskGenerationModal } from './BulkTaskGenerationModal'
 export { default as MoveLessonModal } from './MoveLessonModal'
 export { default as AIToolsModal } from './AIToolsModal'
 export { default as AddTaskModal } from './AddTaskModal'
+export { default as AllTasksModal } from './AllTasksModal'
 export { default as NewCourseForm } from './NewCourseForm'
 export { default as CourseBuilderHeader } from './CourseBuilderHeader'
 

@@ -8,6 +8,7 @@ import {
   EyeIcon,
   Cog6ToothIcon,
   SparklesIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline'
 
 /**
@@ -22,6 +23,7 @@ function CourseBuilderHeader({
   isPublishing,
   onShowCourseDetails,
   onShowAITools,
+  onShowAllTasks,
   onShowPreview,
   onPublishToggle,
   isSuperadmin = false,
@@ -115,6 +117,16 @@ function CourseBuilderHeader({
             >
               <EyeIcon className="w-4 h-4" />
               <span className="hidden sm:inline">Preview</span>
+            </button>
+
+            <button
+              onClick={onShowAllTasks}
+              disabled={!course || quests.length === 0}
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium min-h-[40px]"
+              aria-label="View all tasks"
+            >
+              <ClipboardDocumentListIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">Tasks</span>
             </button>
 
             <button

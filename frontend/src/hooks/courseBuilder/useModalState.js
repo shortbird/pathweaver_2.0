@@ -14,6 +14,7 @@ export function useModalState() {
   const [showRefineModal, setShowRefineModal] = useState(false)
   const [showAIToolsModal, setShowAIToolsModal] = useState(false)
   const [showAddTaskModal, setShowAddTaskModal] = useState(false)
+  const [showAllTasks, setShowAllTasks] = useState(false)
 
   // Modal content states
   const [editingLesson, setEditingLesson] = useState(null)
@@ -36,6 +37,7 @@ export function useModalState() {
     setShowRefineModal(false)
     setShowAIToolsModal(false)
     setShowAddTaskModal(false)
+    setShowAllTasks(false)
     setEditingLesson(null)
     setPreviewingLesson(null)
     setMovingLesson(null)
@@ -84,6 +86,8 @@ export function useModalState() {
     setShowAIToolsModal,
     showAddTaskModal,
     setShowAddTaskModal,
+    showAllTasks,
+    setShowAllTasks,
 
     // Modal content
     editingLesson,
