@@ -157,13 +157,13 @@ const PricingOverviewSection = forwardRef(({ isVisible = true }, ref) => {
               className="text-4xl font-bold text-optio-purple mb-1"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
-              $39<span className="text-lg text-gray-500 font-normal">/month per kid</span>
+              $100<span className="text-lg text-gray-500 font-normal">/month per kid</span>
             </p>
             <p
               className="text-sm text-gray-500 mb-6"
               style={{ fontFamily: 'Poppins', fontWeight: 500 }}
             >
-              or $100/month family (unlimited kids)
+              or $250/month family (unlimited kids)
             </p>
             <ul className="space-y-3 flex-grow">
               {parentPlanFeatures.map((feature, index) => (
