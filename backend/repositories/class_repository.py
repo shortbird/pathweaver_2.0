@@ -337,9 +337,9 @@ class ClassRepository(BaseRepository):
         if not quest_ids:
             return 0
 
-        # Sum XP from completions for these quests
+        # Sum XP from completions for these quests (join to user_quest_tasks for xp_value)
         response = self.admin_client.table('quest_task_completions')\
-            .select('xp_awarded')\
+            .select('user_quest_task_id, user_quest_tasks(xp_value)')\
             .eq('user_id', student_id)\
             .in_('quest_id', quest_ids)\
             .execute()
@@ -347,7 +347,7 @@ class ClassRepository(BaseRepository):
         if not response.data:
             return 0
 
-        return sum(c.get('xp_awarded', 0) or 0 for c in response.data)
+        return sum((c.get('user_quest_tasks', {}) or {}).get('xp_value', 0) or 0 for c in response.data)
 
     def get_class_progress_bulk(self, class_id: str) -> List[Dict[str, Any]]:
         """Get progress for all students in a class"""
@@ -375,12 +375,12 @@ class ClassRepository(BaseRepository):
             earned_xp = 0
             if quest_ids:
                 response = self.admin_client.table('quest_task_completions')\
-                    .select('xp_awarded')\
+                    .select('user_quest_task_id, user_quest_tasks(xp_value)')\
                     .eq('user_id', student_id)\
                     .in_('quest_id', quest_ids)\
                     .execute()
                 if response.data:
-                    earned_xp = sum(c.get('xp_awarded', 0) or 0 for c in response.data)
+                    earned_xp = sum((c.get('user_quest_tasks', {}) or {}).get('xp_value', 0) or 0 for c in response.data)
 
             percentage = min(100, int((earned_xp / xp_threshold) * 100)) if xp_threshold > 0 else 0
             is_complete = earned_xp >= xp_threshold
