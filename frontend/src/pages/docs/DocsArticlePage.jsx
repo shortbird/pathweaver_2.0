@@ -62,7 +62,7 @@ const proseClasses = `
   prose-h2:text-2xl prose-h2:text-optio-purple prose-h2:border-l-4 prose-h2:border-optio-purple prose-h2:pl-4
   prose-h3:text-xl
   prose-p:text-gray-700 prose-p:leading-relaxed
-  prose-a:text-optio-purple prose-a:font-medium prose-a:no-underline hover:prose-a:underline prose-a:underline-offset-4 prose-a:decoration-2 prose-a:transition-all
+  prose-a:text-optio-purple-light prose-a:font-medium prose-a:no-underline hover:prose-a:underline prose-a:underline-offset-4 prose-a:decoration-2 prose-a:transition-all
   prose-strong:text-gray-900 prose-strong:font-semibold
   prose-em:italic prose-em:text-gray-600
   prose-ul:text-gray-700 prose-ul:my-4
@@ -105,6 +105,11 @@ const DocsArticlePage = () => {
     h2: ({ children }) => <HeadingWithAnchor level={2} activeHash={activeHash}>{children}</HeadingWithAnchor>,
     h3: ({ children }) => <HeadingWithAnchor level={3} activeHash={activeHash}>{children}</HeadingWithAnchor>,
     h4: ({ children }) => <HeadingWithAnchor level={4} activeHash={activeHash}>{children}</HeadingWithAnchor>,
+    a: ({ href, children }) => (
+      <Link to={href} className="text-optio-purple-light font-medium no-underline hover:underline underline-offset-4 decoration-2 transition-all">
+        {children}
+      </Link>
+    ),
   }
 
   const loadArticle = async () => {
