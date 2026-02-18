@@ -104,15 +104,6 @@ const DocsCategoryPage = () => {
                 {article.summary && (
                   <p className="text-sm text-gray-500 line-clamp-2">{article.summary}</p>
                 )}
-                {article.target_roles?.length > 0 && (
-                  <div className="flex gap-1.5 mt-2">
-                    {article.target_roles.map(role => (
-                      <span key={role} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
-                        {role}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </Link>
             ))}
           </div>

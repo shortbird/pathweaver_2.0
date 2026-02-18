@@ -360,8 +360,7 @@ const BulkTaskGenerationModal = ({
             title: t.title,
             description: t.description,
             pillar: t.pillar,
-            xp_value: t.xp_value,
-            evidence_prompt: t.evidence_prompt || ''
+            xp_value: t.xp_value
           }))
 
           await api.post(`/api/quests/${lessonData.questId}/curriculum/lessons/${lessonId}/create-tasks`, {

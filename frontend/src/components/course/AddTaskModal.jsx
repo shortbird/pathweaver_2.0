@@ -11,7 +11,6 @@ const AddTaskModal = ({ isOpen, onClose, lessonTitle, onSave }) => {
     description: '',
     pillar: 'stem',
     xp_value: 100,
-    evidence_prompt: '',
     is_required: false
   })
   const [saving, setSaving] = useState(false)
@@ -31,7 +30,6 @@ const AddTaskModal = ({ isOpen, onClose, lessonTitle, onSave }) => {
           description: '',
           pillar: 'stem',
           xp_value: 100,
-          evidence_prompt: '',
           is_required: false
         })
       }
@@ -134,20 +132,6 @@ const AddTaskModal = ({ isOpen, onClose, lessonTitle, onSave }) => {
                 <TrophyIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               </div>
             </div>
-          </div>
-
-          {/* Evidence Prompt */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Evidence Prompt (optional)
-            </label>
-            <input
-              type="text"
-              value={task.evidence_prompt}
-              onChange={(e) => setTask({ ...task, evidence_prompt: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-              placeholder="How should students show their work?"
-            />
           </div>
 
           {/* Required Toggle */}

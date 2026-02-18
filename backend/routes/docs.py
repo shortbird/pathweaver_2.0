@@ -66,20 +66,25 @@ def list_public_categories():
 
         categories = result.data or []
 
-        # Get article counts per category (only published articles)
+        # Get published articles per category (with titles for landing page)
         if categories:
             cat_ids = [c['id'] for c in categories]
             articles_result = client.table('docs_articles').select(
-                'category_id'
-            ).in_('category_id', cat_ids).eq('is_published', True).execute()
+                'id, title, slug, summary, category_id, sort_order'
+            ).in_('category_id', cat_ids).eq('is_published', True).order('sort_order').execute()
 
+            articles_by_cat = {}
             count_map = {}
             for a in (articles_result.data or []):
                 cid = a['category_id']
                 count_map[cid] = count_map.get(cid, 0) + 1
+                if cid not in articles_by_cat:
+                    articles_by_cat[cid] = []
+                articles_by_cat[cid].append(a)
 
             for cat in categories:
                 cat['article_count'] = count_map.get(cat['id'], 0)
+                cat['articles'] = articles_by_cat.get(cat['id'], [])
 
         return jsonify({'success': True, 'categories': categories}), 200
 
