@@ -3,6 +3,16 @@ import { XMarkIcon, PlusIcon, CheckCircleIcon } from '@heroicons/react/24/outlin
 import { helperEvidenceAPI } from '../../services/api';
 import { evidenceDocumentService } from '../../services/evidenceDocumentService';
 import toast from 'react-hot-toast';
+import {
+  ALLOWED_IMAGE_EXTENSIONS as IMG_EXTS,
+  ALLOWED_IMAGE_MIME_TYPES as IMG_MIMES,
+  ALLOWED_DOCUMENT_EXTENSIONS as DOC_EXTS,
+  ALLOWED_DOCUMENT_MIME_TYPES as DOC_MIMES,
+  IMAGE_ACCEPT_STRING,
+  DOCUMENT_ACCEPT_STRING,
+  IMAGE_FORMAT_LABEL,
+  DOCUMENT_FORMAT_LABEL
+} from '../evidence/EvidenceMediaHandlers';
 
 const BLOCK_TYPES = [
   { value: 'text', label: 'Text', icon: '📝', description: 'Written explanation or reflection' },
@@ -53,18 +63,12 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
     setSelectedTask(task);
   };
 
-  // Allowed file types
-  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
-  const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'];
-  const ALLOWED_DOCUMENT_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-  const ALLOWED_DOCUMENT_EXTENSIONS = ['pdf', 'doc', 'docx'];
-
   const handleFileSelect = (file, type) => {
     // Validate file size (10MB limit)
     const MAX_FILE_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
       const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-      toast.error(`File is too large (${fileSizeMB}MB). Maximum size is 10MB.`);
+      toast.error(`File "${file.name}" is too large (${fileSizeMB}MB). Maximum size is 10MB.`);
       return;
     }
 
@@ -72,14 +76,14 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
 
     // Validate file type - check both MIME type and extension for better compatibility
     if (type === 'image') {
-      if (!ALLOWED_IMAGE_TYPES.includes(file.type) && !ALLOWED_IMAGE_EXTENSIONS.includes(fileExtension)) {
-        toast.error(`Unsupported image format (.${fileExtension || 'unknown'}). Please use JPG, PNG, GIF, WebP, or HEIC.`);
+      if (!IMG_MIMES.includes(file.type) && !IMG_EXTS.includes(fileExtension)) {
+        toast.error(`"${file.name}" is not a supported image format. Supported: ${IMAGE_FORMAT_LABEL}.`);
         return;
       }
     }
     if (type === 'document') {
-      if (!ALLOWED_DOCUMENT_TYPES.includes(file.type) && !ALLOWED_DOCUMENT_EXTENSIONS.includes(fileExtension)) {
-        toast.error(`Unsupported document format (.${fileExtension || 'unknown'}). Please use PDF, DOC, or DOCX.`);
+      if (!DOC_MIMES.includes(file.type) && !DOC_EXTS.includes(fileExtension)) {
+        toast.error(`"${file.name}" is not a supported document format. Supported: ${DOCUMENT_FORMAT_LABEL}.`);
         return;
       }
     }
@@ -302,13 +306,13 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
                   >
                     <div className="text-4xl mb-2">📸</div>
                     <p className="text-sm font-medium text-gray-900">Click to upload image</p>
-                    <p className="text-xs text-gray-500 mt-1">JPG, PNG, GIF, WebP, HEIC up to 10MB</p>
+                    <p className="text-xs text-gray-500 mt-1">{IMAGE_FORMAT_LABEL} up to 10MB</p>
                   </div>
                 )}
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif"
+                  accept={`image/*,${IMAGE_ACCEPT_STRING}`}
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -417,13 +421,13 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
                   >
                     <div className="text-4xl mb-2">📄</div>
                     <p className="text-sm font-medium text-gray-900">Click to upload document</p>
-                    <p className="text-xs text-gray-500 mt-1">PDF, DOC, DOCX up to 10MB</p>
+                    <p className="text-xs text-gray-500 mt-1">{DOCUMENT_FORMAT_LABEL} up to 10MB</p>
                   </div>
                 )}
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.doc,.docx"
+                  accept={DOCUMENT_ACCEPT_STRING}
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];

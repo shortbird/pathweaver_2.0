@@ -1,5 +1,15 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Button from '../ui/Button';
+import {
+  ALLOWED_IMAGE_EXTENSIONS,
+  ALLOWED_IMAGE_MIME_TYPES,
+  ALLOWED_DOCUMENT_EXTENSIONS,
+  ALLOWED_DOCUMENT_MIME_TYPES,
+  IMAGE_ACCEPT_STRING,
+  DOCUMENT_ACCEPT_STRING,
+  IMAGE_FORMAT_LABEL,
+  DOCUMENT_FORMAT_LABEL
+} from './EvidenceMediaHandlers';
 
 const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescription = '', onTypeChange }) => {
   const [textContent, setTextContent] = useState('');
@@ -17,15 +27,6 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
   const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
   const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
   const MAX_DOCUMENT_SIZE = 25 * 1024 * 1024; // 25MB
-
-  // Allowed file types
-  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
-  const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/ogg'];
-  const ALLOWED_DOCUMENT_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-
-  // Human-readable format names for error messages
-  const IMAGE_FORMAT_NAMES = 'JPG, PNG, GIF, WebP, or HEIC';
-  const DOCUMENT_FORMAT_NAMES = 'PDF, DOC, or DOCX';
 
   // Evidence type icons and colors
   const evidenceTypeConfig = {
@@ -179,31 +180,33 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
     const file = e.target.files[0];
     if (!file) return;
 
-    let allowedTypes = [];
+    let allowedMimeTypes = [];
+    let allowedExts = [];
     let maxSize = 0;
+    let formatLabel = '';
 
     switch (evidenceType) {
       case 'image':
-        allowedTypes = ALLOWED_IMAGE_TYPES;
+        allowedMimeTypes = ALLOWED_IMAGE_MIME_TYPES;
+        allowedExts = ALLOWED_IMAGE_EXTENSIONS;
         maxSize = MAX_IMAGE_SIZE;
+        formatLabel = IMAGE_FORMAT_LABEL;
         break;
       case 'document':
-        allowedTypes = ALLOWED_DOCUMENT_TYPES;
+        allowedMimeTypes = ALLOWED_DOCUMENT_MIME_TYPES;
+        allowedExts = ALLOWED_DOCUMENT_EXTENSIONS;
         maxSize = MAX_DOCUMENT_SIZE;
+        formatLabel = DOCUMENT_FORMAT_LABEL;
         break;
       default:
         return;
     }
 
-    // Validate file type - also check by extension for better compatibility
+    // Validate file type - check both MIME type and extension for better compatibility
     const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
-    const allowedExtensions = evidenceType === 'image'
-      ? ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif']
-      : ['pdf', 'doc', 'docx'];
 
-    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
-      const formatNames = evidenceType === 'image' ? IMAGE_FORMAT_NAMES : DOCUMENT_FORMAT_NAMES;
-      alert(`Unsupported file format: .${fileExtension || 'unknown'}\n\nSupported formats: ${formatNames}`);
+    if (!allowedMimeTypes.includes(file.type) && !allowedExts.includes(fileExtension)) {
+      alert(`"${file.name}" is not a supported ${evidenceType} format.\n\nSupported formats: ${formatLabel}.\n\nIf your file is in a different format, try converting it first.`);
       return;
     }
 
@@ -478,8 +481,8 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
               {isDragging ? 'Drop your file here!' : 'Click to upload or drag and drop'}
             </p>
             <p className="text-xs text-gray-500">
-              {evidenceType === 'image' && 'JPG, PNG, GIF, WebP, HEIC up to 10MB'}
-              {evidenceType === 'document' && 'PDF, DOC, DOCX up to 25MB'}
+              {evidenceType === 'image' && `${IMAGE_FORMAT_LABEL} up to 10MB`}
+              {evidenceType === 'document' && `${DOCUMENT_FORMAT_LABEL} up to 25MB`}
             </p>
             
             {isDragging && (
@@ -552,8 +555,8 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
           type="file"
           onChange={handleFileSelect}
           accept={
-            evidenceType === 'image' ? '.jpg,.jpeg,.png,.gif,.webp,.heic,.heif' :
-            evidenceType === 'document' ? '.pdf,.doc,.docx' : ''
+            evidenceType === 'image' ? `image/*,${IMAGE_ACCEPT_STRING}` :
+            evidenceType === 'document' ? DOCUMENT_ACCEPT_STRING : ''
           }
           className="hidden"
         />

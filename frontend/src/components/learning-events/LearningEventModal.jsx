@@ -54,33 +54,23 @@ const LearningEventModal = ({
   const [evidenceBlocks, setEvidenceBlocks] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(!quickMode);
+  const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0]);
 
   // AI suggestions state
   const [aiSuggestions, setAiSuggestions] = useState(null);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [aiDismissed, setAiDismissed] = useState(false);
 
-  // Track/quest topic and thread state
-  // topic can be { type: 'track'|'quest', id: string } or legacy string (track_id)
-  const [topic, setTopic] = useState(initialTrackId ? { type: 'track', id: initialTrackId } : null);
+  // Topics array state (multi-select)
+  const [topics, setTopics] = useState(initialTrackId ? [{ type: 'topic', id: initialTrackId }] : []);
   const [parentMomentId, setParentMomentId] = useState(initialParentMomentId);
 
-  // Helper to get legacy trackId for display and backwards compatibility
-  const getTrackId = () => {
-    if (!topic) return null;
-    if (typeof topic === 'string') return topic;
-    return topic.type === 'track' ? topic.id : null;
-  };
-
-  // Helper to handle topic selection from TrackSelector
-  const handleTopicChange = (newTopic) => {
-    // Handle both formats: { type, id } or legacy string
-    if (!newTopic || (!newTopic.id && typeof newTopic !== 'string')) {
-      setTopic(null);
-    } else if (typeof newTopic === 'string') {
-      setTopic({ type: 'track', id: newTopic });
+  // Handler for TrackSelector multi-select onChange (receives array)
+  const handleTopicsChange = (newTopics) => {
+    if (!newTopics || !Array.isArray(newTopics)) {
+      setTopics([]);
     } else {
-      setTopic(newTopic);
+      setTopics(newTopics);
     }
   };
 
@@ -111,6 +101,7 @@ const LearningEventModal = ({
         setDescription(editEvent.description || '');
         setTitle(editEvent.title || '');
         setSelectedPillars(editEvent.pillars || []);
+        setEventDate(editEvent.event_date || (editEvent.created_at ? editEvent.created_at.split('T')[0] : new Date().toISOString().split('T')[0]));
         setEvidenceBlocks(
           (editEvent.evidence_blocks || editEvent.learning_event_evidence_blocks || []).map((block, index) => ({
             id: block.id || `block_${Date.now()}_${index}`,
@@ -119,13 +110,14 @@ const LearningEventModal = ({
             order_index: block.order_index ?? index
           }))
         );
-        // Handle both track_id and quest_id from edit event
-        if (editEvent.quest_id) {
-          setTopic({ type: 'quest', id: editEvent.quest_id });
-        } else if (editEvent.track_id) {
-          setTopic({ type: 'track', id: editEvent.track_id });
+        // Populate topics from new API field, fallback to legacy columns
+        if (editEvent.topics && Array.isArray(editEvent.topics) && editEvent.topics.length > 0) {
+          setTopics(editEvent.topics);
         } else {
-          setTopic(null);
+          const legacyTopics = [];
+          if (editEvent.track_id) legacyTopics.push({ type: 'topic', id: editEvent.track_id });
+          if (editEvent.quest_id) legacyTopics.push({ type: 'quest', id: editEvent.quest_id });
+          setTopics(legacyTopics);
         }
         setParentMomentId(editEvent.parent_moment_id || null);
         setShowAdvanced(true); // Always show advanced in edit mode
@@ -136,11 +128,12 @@ const LearningEventModal = ({
         setDescription('');
         setTitle('');
         setSelectedPillars([]);
+        setEventDate(new Date().toISOString().split('T')[0]);
         setEvidenceBlocks([]);
         setAiSuggestions(null);
         setAiDismissed(false);
         setShowAdvanced(!quickMode);
-        setTopic(initialTrackId ? { type: 'track', id: initialTrackId } : null);
+        setTopics(initialTrackId ? [{ type: 'topic', id: initialTrackId }] : []);
         setParentMomentId(initialParentMomentId);
       }
     }
@@ -331,14 +324,19 @@ const LearningEventModal = ({
       if (title.trim()) payload.title = title.trim();
       if (selectedPillars.length > 0) payload.pillars = selectedPillars;
       if (parentMomentId) payload.parent_moment_id = parentMomentId;
+      if (eventDate) payload.event_date = eventDate;
 
-      // Handle topic assignment (track, quest, or project)
-      // Note: 'project' type is a quest that belongs to a course
-      if (topic && topic.id) {
-        if (topic.type === 'quest' || topic.type === 'project') {
-          payload.quest_id = topic.id;
-        } else {
-          payload.track_id = topic.id;
+      // Send topics array for multi-topic assignment
+      // Map 'track' type back to 'topic' for the API (tracks are stored as type 'topic')
+      if (topics.length > 0) {
+        payload.topics = topics.map(t => ({
+          type: t.type === 'track' ? 'topic' : t.type,
+          id: t.id
+        }));
+      } else {
+        // Explicitly send empty array to clear topics on edit
+        if (isEditMode) {
+          payload.topics = [];
         }
       }
 
@@ -437,6 +435,8 @@ const LearningEventModal = ({
     setTitle('');
     setSelectedPillars([]);
     setEvidenceBlocks([]);
+    setTopics([]);
+    setEventDate(new Date().toISOString().split('T')[0]);
     setAiSuggestions(null);
     setAiDismissed(false);
     onClose();
@@ -721,15 +721,29 @@ const LearningEventModal = ({
                 />
               </div>
 
+              {/* Event Date Field */}
+              <div className="mb-6">
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                  When did this happen?
+                </label>
+                <input
+                  type="date"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent text-base bg-white"
+                />
+              </div>
+
               {/* Topic of Interest Selection */}
               <div className="mb-6">
                 <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
                   Topic of Interest
                 </label>
                 <TrackSelector
-                  value={topic}
-                  onChange={handleTopicChange}
-                  placeholder="Select or create a topic"
+                  value={topics}
+                  onChange={handleTopicsChange}
+                  placeholder="Select or create topics"
                   showAISuggestion={description.length >= 30}
                   momentDescription={description}
                   studentId={studentId}

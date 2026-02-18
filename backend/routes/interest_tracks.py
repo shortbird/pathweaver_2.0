@@ -502,7 +502,7 @@ def get_unified_topics(user_id):
 @interest_tracks_bp.route('/api/learning-events/<moment_id>/assign-topic', methods=['POST'])
 @require_auth
 def assign_moment_to_topic(user_id, moment_id):
-    """Assign a learning moment to a track or quest topic."""
+    """Add or remove a topic assignment for a learning moment."""
     try:
         data = request.get_json()
 
@@ -510,17 +510,22 @@ def assign_moment_to_topic(user_id, moment_id):
             return jsonify({'error': 'Request body is required'}), 400
 
         topic_type = data.get('type')  # 'track' or 'quest'
-        topic_id = data.get('topic_id')  # Can be None to unassign
+        topic_id = data.get('topic_id')  # Can be None to unassign all of this type
+        action = data.get('action', 'add')  # 'add' or 'remove'
 
         # Validate topic_type if topic_id is provided
         if topic_id and topic_type not in ['track', 'quest']:
             return jsonify({'error': 'Type must be "track" or "quest"'}), 400
 
+        if action not in ['add', 'remove']:
+            return jsonify({'error': 'Action must be "add" or "remove"'}), 400
+
         result = InterestTracksService.assign_moment_to_topic(
             user_id=user_id,
             moment_id=moment_id,
             topic_type=topic_type or 'track',
-            topic_id=topic_id
+            topic_id=topic_id,
+            action=action
         )
 
         if result['success']:

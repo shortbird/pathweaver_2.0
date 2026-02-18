@@ -17,6 +17,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 
 const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, studentId = null }) => {
+  const [localEvent, setLocalEvent] = useState(event);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showTopicDropdown, setShowTopicDropdown] = useState(false);
   const [topics, setTopics] = useState({ tracks: [], quests: [], courses: [] });
@@ -29,6 +30,20 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
   const inputRef = useRef(null);
 
   const isParentView = !!studentId;
+
+  // Sync local event with prop when parent provides new data
+  useEffect(() => {
+    setLocalEvent(event);
+  }, [event]);
+
+  // Handle event updates from edit modal
+  const handleEventUpdate = (updatedEvent) => {
+    if (updatedEvent) {
+      setLocalEvent(updatedEvent);
+    }
+    if (onUpdate) onUpdate(updatedEvent);
+    else if (onTrackAssigned) onTrackAssigned(updatedEvent);
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -59,12 +74,12 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
     });
   };
 
-  const hasEvidence = event.evidence_blocks && event.evidence_blocks.length > 0;
+  const displayDate = localEvent.event_date || localEvent.created_at;
 
-  // Fetch topics when dropdown opens
+  const hasEvidence = localEvent.evidence_blocks && localEvent.evidence_blocks.length > 0;
+
+  // Fetch topics when dropdown opens (always refresh)
   const fetchTopics = async () => {
-    if (topics.tracks.length > 0 || topics.quests.length > 0 || topics.courses.length > 0) return;
-
     try {
       setIsLoadingTopics(true);
       const endpoint = isParentView
@@ -104,17 +119,18 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
     try {
       setIsAssigning(true);
 
+      // Use the assign-topic endpoint with action:'add' for additive assignment
       const endpoint = isParentView
-        ? `/api/parent/children/${studentId}/learning-events/${event.id}/assign-topic`
-        : `/api/learning-events/${event.id}`;
+        ? `/api/parent/children/${studentId}/learning-events/${localEvent.id}/assign-topic`
+        : `/api/learning-events/${localEvent.id}/assign-topic`;
 
-      const payload = isParentView
-        ? { type: type || 'track', topic_id: topicId }
-        : { track_id: type === 'track' ? topicId : null, quest_id: (type === 'quest' || type === 'project') ? topicId : null };
+      const payload = {
+        type: type === 'project' ? 'quest' : type,
+        topic_id: topicId,
+        action: 'add'
+      };
 
-      const response = isParentView
-        ? await api.post(endpoint, payload)
-        : await api.patch(endpoint, payload);
+      const response = await api.post(endpoint, payload);
 
       if (response.data.success) {
         toast.success('Moment assigned to topic');
@@ -142,7 +158,7 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
 
       const response = await api.post(endpoint, {
         name: newTrackName.trim(),
-        moment_ids: [event.id]
+        moment_ids: [localEvent.id]
       });
 
       if (response.data.success) {
@@ -153,7 +169,7 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
         // Clear cached topics so next fetch gets fresh data
         setTopics({ tracks: [], quests: [], courses: [] });
         if (onTrackAssigned) {
-          onTrackAssigned(response.data.track || event);
+          onTrackAssigned(response.data.track || localEvent);
         }
       }
     } catch (error) {
@@ -179,9 +195,9 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
   const renderEvidencePreview = () => {
     if (!hasEvidence) return null;
 
-    const images = event.evidence_blocks.filter(b => b.block_type === 'image' && b.content?.url);
-    const links = event.evidence_blocks.filter(b => b.block_type === 'link' && b.content?.url);
-    const documents = event.evidence_blocks.filter(b => b.block_type === 'document');
+    const images = localEvent.evidence_blocks.filter(b => b.block_type === 'image' && b.content?.url);
+    const links = localEvent.evidence_blocks.filter(b => b.block_type === 'link' && b.content?.url);
+    const documents = localEvent.evidence_blocks.filter(b => b.block_type === 'document');
 
     return (
       <div className="space-y-2">
@@ -244,7 +260,7 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
 
   return (
     <>
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-200">
+      <div className="bg-white rounded-xl border border-gray-200 hover:shadow-md transition-all duration-200">
         {/* Clickable content area */}
         <div onClick={() => setShowDetailModal(true)} className="cursor-pointer">
           {/* Evidence Preview - at top, full width */}
@@ -260,11 +276,11 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
             <div className="flex items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-1.5 text-gray-400 text-xs">
                 <CalendarIcon className="w-3.5 h-3.5" />
-                <span>{formatDate(event.created_at)}</span>
+                <span>{formatDate(displayDate)}</span>
               </div>
-              {event.pillars && event.pillars.length > 0 && (
+              {localEvent.pillars && localEvent.pillars.length > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  {event.pillars.slice(0, 2).map((pillar) => {
+                  {localEvent.pillars.slice(0, 2).map((pillar) => {
                     const pillarData = getPillarData(pillar);
                     if (!pillarData) return null;
                     return (
@@ -276,16 +292,38 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
                       </div>
                     );
                   })}
-                  {event.pillars.length > 2 && (
-                    <span className="text-xs text-gray-400">+{event.pillars.length - 2}</span>
+                  {localEvent.pillars.length > 2 && (
+                    <span className="text-xs text-gray-400">+{localEvent.pillars.length - 2}</span>
                   )}
                 </div>
               )}
             </div>
 
+            {/* Topic chips */}
+            {localEvent.topics && localEvent.topics.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-1.5">
+                {localEvent.topics.map((t) => (
+                  <span
+                    key={`${t.type}-${t.id}`}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600"
+                  >
+                    {t.type === 'quest' ? (
+                      <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex-shrink-0" />
+                    ) : (
+                      <span
+                        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: t.color || '#9333ea' }}
+                      />
+                    )}
+                    <span className="truncate max-w-[100px]">{t.name || (t.type === 'quest' ? 'Quest' : 'Topic')}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+
             {/* Description */}
             <p className="text-gray-800 text-sm leading-relaxed line-clamp-2">
-              {event.description}
+              {localEvent.description}
             </p>
           </div>
         </div>
@@ -304,7 +342,7 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
 
             {/* Topic Dropdown */}
             {showTopicDropdown && (
-              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-auto z-50">
+              <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-y-auto" style={{ zIndex: 100 }}>
                 {isLoadingTopics ? (
                   <div className="p-3 text-center text-sm text-gray-500">Loading...</div>
                 ) : (
@@ -459,10 +497,10 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
       </div>
 
       <LearningEventDetailModal
-        event={event}
+        event={localEvent}
         isOpen={showDetailModal}
         onClose={() => setShowDetailModal(false)}
-        onUpdate={onUpdate || onTrackAssigned}
+        onUpdate={handleEventUpdate}
         studentId={studentId}
       />
     </>

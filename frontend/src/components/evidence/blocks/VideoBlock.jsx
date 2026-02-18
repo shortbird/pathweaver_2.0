@@ -5,37 +5,13 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
+import { getVideoEmbedUrl } from '../../../utils/videoUtils';
 
 const VideoBlock = ({ block, displayMode }) => {
   const { content } = block;
 
   // Handle both old format (content.url) and new format (content.items)
   const items = content?.items || (content?.url ? [{ url: content.url, title: content.title, platform: content.platform }] : []);
-
-  // Extract video ID for embeds
-  const getYouTubeEmbedUrl = (url) => {
-    if (!url) return null;
-    const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/;
-    const match = url.match(regex);
-    return match ? `https://www.youtube.com/embed/${match[1]}` : null;
-  };
-
-  const getVimeoEmbedUrl = (url) => {
-    if (!url) return null;
-    const regex = /vimeo\.com\/(\d+)/;
-    const match = url.match(regex);
-    return match ? `https://player.vimeo.com/video/${match[1]}` : null;
-  };
-
-  const getEmbedUrl = (url, platform) => {
-    if (!url) return null;
-    if (platform === 'youtube' || url.includes('youtube.com') || url.includes('youtu.be')) {
-      return getYouTubeEmbedUrl(url);
-    } else if (platform === 'vimeo' || url.includes('vimeo.com')) {
-      return getVimeoEmbedUrl(url);
-    }
-    return null;
-  };
 
   // Handle empty items
   if (items.length === 0) {
@@ -54,7 +30,7 @@ const VideoBlock = ({ block, displayMode }) => {
       return null;
     }
 
-    const embedUrl = getEmbedUrl(url, platform);
+    const embedUrl = getVideoEmbedUrl(url);
 
     if (embedUrl) {
       // Render embedded video

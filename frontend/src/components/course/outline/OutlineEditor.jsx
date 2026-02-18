@@ -15,6 +15,7 @@ import {
   Bars3BottomLeftIcon,
   ArrowUpTrayIcon,
   XMarkIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline'
 import { getPillarData, PILLAR_KEYS } from '../../../utils/pillarMappings'
 import { useAIAccess } from '../../../contexts/AIAccessContext'
@@ -217,6 +218,8 @@ const OutlineEditor = ({
           <TaskEditor
             formData={formData}
             onChange={handleChange}
+            selectedItem={selectedItem}
+            onSelectItem={onSelectItem}
           />
         )}
       </div>
@@ -422,7 +425,7 @@ const LessonEditor = ({
                 <div
                   key={task.id}
                   className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group cursor-pointer"
-                  onClick={() => onSelectItem?.({ ...task, lessonId: lesson.id }, 'task')}
+                  onClick={() => onSelectItem?.({ ...task, lessonId: lesson.id, _parentLesson: lesson }, 'task')}
                 >
                   <span
                     className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded"
@@ -434,6 +437,11 @@ const LessonEditor = ({
                     <div className="text-sm font-medium text-gray-900 truncate">
                       {task.title}
                     </div>
+                    {task.description && (
+                      <div className="text-xs text-gray-400 truncate mt-0.5">
+                        {task.description}
+                      </div>
+                    )}
                     <div className="text-xs text-gray-500">
                       {pillarData.name} - {task.xp_value || 100} XP
                     </div>
@@ -748,11 +756,29 @@ const StepEditor = ({ formData, onChange, questId, onDeleteStep, selectedItem })
 /**
  * Task Editor - Title, description, pillar, XP, required toggle
  */
-const TaskEditor = ({ formData, onChange }) => {
+const TaskEditor = ({ formData, onChange, selectedItem, onSelectItem }) => {
   const pillarData = getPillarData(formData.pillar || 'stem')
+  const parentLesson = selectedItem?._parentLesson
+
+  const handleBackToLesson = () => {
+    if (parentLesson && onSelectItem) {
+      onSelectItem(parentLesson, 'lesson')
+    }
+  }
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      {/* Back to Lesson */}
+      {parentLesson && (
+        <button
+          onClick={handleBackToLesson}
+          className="flex items-center gap-2 text-sm text-gray-600 hover:text-optio-purple transition-colors group"
+        >
+          <ArrowLeftIcon className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+          Back to <span className="font-medium">{parentLesson.title || 'Lesson'}</span>
+        </button>
+      )}
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Task Title
@@ -773,8 +799,8 @@ const TaskEditor = ({ formData, onChange }) => {
         <textarea
           value={formData.description || ''}
           onChange={(e) => onChange('description', e.target.value)}
-          rows={3}
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none"
+          rows={8}
+          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-y"
           placeholder="Describe what students should do..."
         />
       </div>

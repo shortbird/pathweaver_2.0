@@ -2,6 +2,16 @@ import { useState, useRef } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { parentAPI } from '../../services/api';
 import toast from 'react-hot-toast';
+import {
+  ALLOWED_IMAGE_EXTENSIONS,
+  ALLOWED_IMAGE_MIME_TYPES,
+  ALLOWED_DOCUMENT_EXTENSIONS,
+  ALLOWED_DOCUMENT_MIME_TYPES,
+  IMAGE_ACCEPT_STRING,
+  DOCUMENT_ACCEPT_STRING,
+  IMAGE_FORMAT_LABEL,
+  DOCUMENT_FORMAT_LABEL
+} from '../evidence/EvidenceMediaHandlers';
 
 const EVIDENCE_TYPES = [
   { value: 'text', label: 'Text', icon: '📝', description: 'Written explanation' },
@@ -19,32 +29,25 @@ export default function EvidenceUploadForm({ taskId, studentId, onCancel, onSucc
   const [pendingFile, setPendingFile] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Allowed file types
-  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
-  const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'];
-  const ALLOWED_DOCUMENT_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-  const ALLOWED_DOCUMENT_EXTENSIONS = ['pdf', 'doc', 'docx'];
-
   const handleFileSelect = (file, type) => {
     const MAX_FILE_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
-      toast.error(`File too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Max 10MB.`);
+      toast.error(`File "${file.name}" is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum size is 10MB.`);
       return;
     }
 
     const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
 
     if (type === 'image') {
-      // Check both MIME type and extension for better compatibility
-      if (!ALLOWED_IMAGE_TYPES.includes(file.type) && !ALLOWED_IMAGE_EXTENSIONS.includes(fileExtension)) {
-        toast.error(`Unsupported image format (.${fileExtension || 'unknown'}). Please use JPG, PNG, GIF, WebP, or HEIC.`);
+      if (!ALLOWED_IMAGE_MIME_TYPES.includes(file.type) && !ALLOWED_IMAGE_EXTENSIONS.includes(fileExtension)) {
+        toast.error(`"${file.name}" is not a supported image format. Supported: ${IMAGE_FORMAT_LABEL}.`);
         return;
       }
     }
 
     if (type === 'document') {
-      if (!ALLOWED_DOCUMENT_TYPES.includes(file.type) && !ALLOWED_DOCUMENT_EXTENSIONS.includes(fileExtension)) {
-        toast.error(`Unsupported document format (.${fileExtension || 'unknown'}). Please use PDF, DOC, or DOCX.`);
+      if (!ALLOWED_DOCUMENT_MIME_TYPES.includes(file.type) && !ALLOWED_DOCUMENT_EXTENSIONS.includes(fileExtension)) {
+        toast.error(`"${file.name}" is not a supported document format. Supported: ${DOCUMENT_FORMAT_LABEL}.`);
         return;
       }
     }
@@ -292,14 +295,14 @@ export default function EvidenceUploadForm({ taskId, studentId, onCancel, onSucc
                       Click to upload {evidenceType}
                     </p>
                     <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      {evidenceType === 'image' ? 'JPG, PNG, GIF, WebP, HEIC up to 10MB' : 'PDF, DOC, DOCX up to 10MB'}
+                      {evidenceType === 'image' ? `${IMAGE_FORMAT_LABEL} up to 10MB` : `${DOCUMENT_FORMAT_LABEL} up to 10MB`}
                     </p>
                   </div>
                 )}
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept={evidenceType === 'image' ? '.jpg,.jpeg,.png,.gif,.webp,.heic,.heif' : '.pdf,.doc,.docx'}
+                  accept={evidenceType === 'image' ? `image/*,${IMAGE_ACCEPT_STRING}` : DOCUMENT_ACCEPT_STRING}
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];

@@ -58,18 +58,27 @@ def create_learning_event(user_id):
                     'error': f'Invalid pillars: {", ".join(invalid_pillars)}'
                 }), 400
 
-        # New optional fields for Learning Moments 2.0
-        track_id = data.get('track_id')
-        quest_id = data.get('quest_id')  # Mutually exclusive with track_id
+        # Topic assignment - new multi-topic API or legacy single fields
+        topics = data.get('topics')  # New: [{type: 'topic'|'quest', id: uuid}, ...]
+        track_id = data.get('track_id')  # Legacy
+        quest_id = data.get('quest_id')  # Legacy
+
+        # Validate topics if provided
+        if topics is not None:
+            if not isinstance(topics, list):
+                return jsonify({'error': 'topics must be an array'}), 400
+            for t in topics:
+                if not isinstance(t, dict) or 'type' not in t or 'id' not in t:
+                    return jsonify({'error': 'Each topic must have type and id'}), 400
+                if t['type'] not in ('topic', 'quest'):
+                    return jsonify({'error': 'Topic type must be "topic" or "quest"'}), 400
+
         parent_moment_id = data.get('parent_moment_id')
         source_type = data.get('source_type', 'realtime')
         estimated_duration_minutes = data.get('estimated_duration_minutes')
         ai_generated_title = data.get('ai_generated_title')
         ai_suggested_pillars = data.get('ai_suggested_pillars')
-
-        # Validate: track_id and quest_id are mutually exclusive
-        if track_id and quest_id:
-            return jsonify({'error': 'Cannot assign to both track and quest'}), 400
+        event_date = data.get('event_date')
 
         # Validate source_type
         if source_type not in ['realtime', 'retroactive']:
@@ -91,11 +100,13 @@ def create_learning_event(user_id):
             pillars=pillars,
             track_id=track_id,
             quest_id=quest_id,
+            topics=topics,
             parent_moment_id=parent_moment_id,
             source_type=source_type,
             estimated_duration_minutes=estimated_duration_minutes,
             ai_generated_title=ai_generated_title,
-            ai_suggested_pillars=ai_suggested_pillars
+            ai_suggested_pillars=ai_suggested_pillars,
+            event_date=event_date
         )
 
         if result['success']:
@@ -129,20 +140,20 @@ def create_quick_learning_event(user_id):
         if not description or not description.strip():
             return jsonify({'error': 'Description is required'}), 400
 
-        track_id = data.get('track_id')
-        quest_id = data.get('quest_id')  # Mutually exclusive with track_id
+        topics = data.get('topics')  # New multi-topic API
+        track_id = data.get('track_id')  # Legacy
+        quest_id = data.get('quest_id')  # Legacy
         parent_moment_id = data.get('parent_moment_id')
-
-        # Validate: track_id and quest_id are mutually exclusive
-        if track_id and quest_id:
-            return jsonify({'error': 'Cannot assign to both track and quest'}), 400
+        event_date = data.get('event_date')
 
         result = LearningEventsService.create_quick_moment(
             user_id=user_id,
             description=description.strip(),
             track_id=track_id,
             quest_id=quest_id,
-            parent_moment_id=parent_moment_id
+            topics=topics,
+            parent_moment_id=parent_moment_id,
+            event_date=event_date
         )
 
         if result['success']:
@@ -279,7 +290,9 @@ def update_learning_event(user_id, event_id):
         description = data.get('description')
         title = data.get('title')
         pillars = data.get('pillars')
-        track_id = data.get('track_id')  # Can be None to unassign, or omitted to leave unchanged
+        topics = data.get('topics')  # New multi-topic API: [{type, id}, ...] or None
+        track_id = data.get('track_id')  # Legacy: can be None to unassign, or omitted
+        event_date = data.get('event_date')
 
         # Validate pillars if provided
         if pillars is not None:
@@ -299,13 +312,25 @@ def update_learning_event(user_id, event_id):
                     'error': f'Invalid pillars: {", ".join(invalid_pillars)}'
                 }), 400
 
+        # Validate topics if provided
+        if topics is not None:
+            if not isinstance(topics, list):
+                return jsonify({'error': 'topics must be an array'}), 400
+            for t in topics:
+                if not isinstance(t, dict) or 'type' not in t or 'id' not in t:
+                    return jsonify({'error': 'Each topic must have type and id'}), 400
+                if t['type'] not in ('topic', 'quest'):
+                    return jsonify({'error': 'Topic type must be "topic" or "quest"'}), 400
+
         result = LearningEventsService.update_learning_event(
             user_id=user_id,
             event_id=event_id,
             description=description,
             title=title,
             pillars=pillars,
-            track_id=track_id
+            track_id=track_id,
+            topics=topics,
+            event_date=event_date
         )
 
         if result['success']:

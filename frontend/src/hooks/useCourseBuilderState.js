@@ -715,6 +715,94 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     }
   }, [lessonsMap, selectionState])
 
+  // Fetch all tasks across all lessons (for AllTasksModal)
+  // Batches results into a single state update to avoid cascading re-renders
+  const fetchAllTasks = useCallback(async () => {
+    // Group lessons by quest to minimize API calls (one per quest, not per lesson)
+    const lessonsByQuest = {}
+    for (const [questId, lessons] of Object.entries(lessonsMap)) {
+      for (const lesson of lessons) {
+        if (!lessonsByQuest[questId]) lessonsByQuest[questId] = []
+        lessonsByQuest[questId].push(lesson)
+      }
+    }
+
+    if (Object.keys(lessonsByQuest).length === 0) return
+
+    const results = {}
+    await Promise.all(Object.entries(lessonsByQuest).map(async ([questId, lessons]) => {
+      try {
+        const response = await api.get(`/api/quests/${questId}/tasks`)
+        const allTasks = response.data.tasks || []
+
+        for (const lesson of lessons) {
+          const taskIds = lesson?.linked_task_ids || []
+          results[lesson.id] = taskIds.length > 0
+            ? allTasks.filter(t => taskIds.includes(t.id))
+            : []
+        }
+      } catch (error) {
+        console.error(`Failed to fetch tasks for quest ${questId}:`, error)
+        for (const lesson of lessons) {
+          results[lesson.id] = []
+        }
+      }
+    }))
+
+    // Single batch update — one re-render instead of one per lesson
+    setTasksMap(prev => ({ ...prev, ...results }))
+  }, [lessonsMap])
+
+  // Move a task from one lesson to another
+  const handleMoveTask = useCallback(async (task, sourceLessonId, targetLessonId) => {
+    // Find source and target project IDs
+    const sourceProjectId = Object.keys(lessonsMap).find(pid =>
+      lessonsMap[pid]?.some(l => l.id === sourceLessonId)
+    )
+    const targetProjectId = Object.keys(lessonsMap).find(pid =>
+      lessonsMap[pid]?.some(l => l.id === targetLessonId)
+    )
+    if (!sourceProjectId || !targetProjectId) return
+
+    try {
+      // Unlink from source
+      await api.delete(`/api/quests/${sourceProjectId}/curriculum/lessons/${sourceLessonId}/link-task/${task.id}`)
+      // Link to target
+      await api.post(`/api/quests/${targetProjectId}/curriculum/lessons/${targetLessonId}/link-task`, { task_id: task.id })
+
+      // Update tasksMap
+      setTasksMap(prev => {
+        const updated = { ...prev }
+        updated[sourceLessonId] = (updated[sourceLessonId] || []).filter(t => t.id !== task.id)
+        updated[targetLessonId] = [...(updated[targetLessonId] || []), task]
+        return updated
+      })
+
+      // Update lessonsMap linked_task_ids
+      setLessonsMap(prev => {
+        const updated = { ...prev }
+        // Remove from source lesson
+        updated[sourceProjectId] = updated[sourceProjectId].map(l =>
+          l.id === sourceLessonId
+            ? { ...l, linked_task_ids: (l.linked_task_ids || []).filter(id => id !== task.id) }
+            : l
+        )
+        // Add to target lesson
+        updated[targetProjectId] = updated[targetProjectId].map(l =>
+          l.id === targetLessonId
+            ? { ...l, linked_task_ids: [...(l.linked_task_ids || []), task.id] }
+            : l
+        )
+        return updated
+      })
+
+      toast.success('Task moved successfully')
+    } catch (error) {
+      console.error('Failed to move task:', error)
+      toast.error('Failed to move task')
+    }
+  }, [lessonsMap])
+
   // Toggle task required status
   const handleToggleTaskRequired = useCallback(async (task) => {
     if (!task) return
@@ -929,6 +1017,8 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     setShowAddTaskModal: modalState.setShowAddTaskModal,
     addingTaskToLesson: modalState.addingTaskToLesson,
     setAddingTaskToLesson: modalState.setAddingTaskToLesson,
+    showAllTasks: modalState.showAllTasks,
+    setShowAllTasks: modalState.setShowAllTasks,
 
     // Handlers
     handleSelectItem,
@@ -950,6 +1040,8 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     handleAddTask,
     handleCreateTask,
     handleUnlinkTask,
+    handleMoveTask,
+    fetchAllTasks,
     handleToggleTaskRequired,
     handlePublishToggle,
     handleDeleteCourse,

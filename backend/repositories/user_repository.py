@@ -671,7 +671,6 @@ class UserRepository(BaseRepository):
             'quest_task_completions',
             'user_quests',
             'notifications',
-            'user_achievements',
             'course_enrollments',
             'curriculum_lesson_progress',
         ]

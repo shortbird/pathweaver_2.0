@@ -54,40 +54,9 @@ export const getFileType = (file) => {
 
 /**
  * Get video embed URL from various providers
+ * Re-exported from shared utility for backwards compatibility.
  */
-export const getVideoEmbedUrl = (url) => {
-  if (!url) return null
-
-  // YouTube
-  const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
-  const youtubeMatch = url.match(youtubeRegex)
-  if (youtubeMatch) {
-    return `https://www.youtube-nocookie.com/embed/${youtubeMatch[1]}?rel=0&modestbranding=1`
-  }
-
-  // Vimeo
-  const vimeoRegex = /vimeo\.com\/(?:video\/)?(\d+)/
-  const vimeoMatch = url.match(vimeoRegex)
-  if (vimeoMatch) {
-    return `https://player.vimeo.com/video/${vimeoMatch[1]}`
-  }
-
-  // Google Drive
-  const driveRegex = /drive\.google\.com\/(?:file\/d\/|open\?id=)([a-zA-Z0-9_-]+)/
-  const driveMatch = url.match(driveRegex)
-  if (driveMatch) {
-    return `https://drive.google.com/file/d/${driveMatch[1]}/preview`
-  }
-
-  // Loom
-  const loomRegex = /loom\.com\/share\/([a-zA-Z0-9]+)/
-  const loomMatch = url.match(loomRegex)
-  if (loomMatch) {
-    return `https://www.loom.com/embed/${loomMatch[1]}`
-  }
-
-  return null
-}
+export { getVideoEmbedUrl, isEmbeddableVideoUrl } from '../../../utils/videoUtils'
 
 /**
  * Helper to extract HTML content from lesson content structure

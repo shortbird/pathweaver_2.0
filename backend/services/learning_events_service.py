@@ -26,11 +26,13 @@ class LearningEventsService(BaseService):
         pillars: Optional[List[str]] = None,
         track_id: Optional[str] = None,
         quest_id: Optional[str] = None,
+        topics: Optional[List[Dict[str, str]]] = None,
         parent_moment_id: Optional[str] = None,
         source_type: str = 'realtime',
         estimated_duration_minutes: Optional[int] = None,
         ai_generated_title: Optional[str] = None,
-        ai_suggested_pillars: Optional[List[str]] = None
+        ai_suggested_pillars: Optional[List[str]] = None,
+        event_date: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Create a new learning event
@@ -40,8 +42,9 @@ class LearningEventsService(BaseService):
             description: What the user learned/discovered
             title: Optional short title
             pillars: Optional list of pillar tags
-            track_id: Optional interest track ID (mutually exclusive with quest_id)
-            quest_id: Optional quest ID to link moment to (mutually exclusive with track_id)
+            track_id: Optional interest track ID (legacy, use topics instead)
+            quest_id: Optional quest ID (legacy, use topics instead)
+            topics: Optional list of {type: 'topic'|'quest', id: uuid} for multi-topic assignment
             parent_moment_id: Optional parent moment for threading
             source_type: 'realtime' or 'retroactive'
             estimated_duration_minutes: Estimated time spent
@@ -52,8 +55,10 @@ class LearningEventsService(BaseService):
             Dictionary with success status and event data
         """
         try:
-            # Admin client: Auth verified by decorator (ADR-002, Rule 3)
             supabase = get_supabase_admin_client()
+
+            # Normalize topics: convert legacy track_id/quest_id to topics array
+            resolved_topics = LearningEventsService._resolve_topics(topics, track_id, quest_id)
 
             event_data = {
                 'user_id': user_id,
@@ -62,12 +67,14 @@ class LearningEventsService(BaseService):
                 'pillars': pillars or []
             }
 
-            # Add optional fields if provided
-            # Note: track_id and quest_id are mutually exclusive (enforced by DB constraint)
-            if track_id:
-                event_data['track_id'] = track_id
-            if quest_id:
-                event_data['quest_id'] = quest_id
+            # Dual-write: set legacy columns from first topic/quest for backward compat
+            first_topic = next((t for t in resolved_topics if t['type'] == 'topic'), None)
+            first_quest = next((t for t in resolved_topics if t['type'] == 'quest'), None)
+            if first_topic:
+                event_data['track_id'] = first_topic['id']
+            if first_quest:
+                event_data['quest_id'] = first_quest['id']
+
             if parent_moment_id:
                 event_data['parent_moment_id'] = parent_moment_id
             if source_type in ['realtime', 'retroactive']:
@@ -78,15 +85,25 @@ class LearningEventsService(BaseService):
                 event_data['ai_generated_title'] = ai_generated_title
             if ai_suggested_pillars:
                 event_data['ai_suggested_pillars'] = ai_suggested_pillars
+            if event_date:
+                event_data['event_date'] = event_date
 
             response = supabase.table('learning_events').insert(event_data).execute()
 
             if response.data and len(response.data) > 0:
                 event = response.data[0]
 
-                # Update track moment count if track assigned
-                if track_id:
-                    LearningEventsService._increment_track_moment_count(track_id)
+                # Insert junction table rows
+                if resolved_topics:
+                    LearningEventsService._insert_junction_rows(supabase, event['id'], resolved_topics)
+
+                # Update moment_count for each topic
+                for t in resolved_topics:
+                    if t['type'] == 'topic':
+                        LearningEventsService._recalculate_track_moment_count(supabase, t['id'])
+
+                # Attach topics to response
+                event['topics'] = resolved_topics
 
                 return {
                     'success': True,
@@ -106,13 +123,108 @@ class LearningEventsService(BaseService):
             }
 
     @staticmethod
-    def _increment_track_moment_count(track_id: str):
-        """Increment the moment_count for a track."""
+    def _resolve_topics(
+        topics: Optional[List[Dict[str, str]]],
+        track_id: Optional[str] = None,
+        quest_id: Optional[str] = None
+    ) -> List[Dict[str, str]]:
+        """Convert legacy track_id/quest_id params to a topics list, or return topics as-is."""
+        if topics:
+            return [{'type': t['type'], 'id': t['id']} for t in topics if t.get('id')]
+        result = []
+        if track_id:
+            result.append({'type': 'topic', 'id': track_id})
+        if quest_id:
+            result.append({'type': 'quest', 'id': quest_id})
+        return result
+
+    @staticmethod
+    def _insert_junction_rows(supabase, event_id: str, topics: List[Dict[str, str]]):
+        """Insert rows into learning_event_topics junction table."""
+        rows = [
+            {
+                'learning_event_id': event_id,
+                'topic_type': t['type'],
+                'topic_id': t['id']
+            }
+            for t in topics if t.get('id')
+        ]
+        if rows:
+            supabase.table('learning_event_topics').insert(rows).execute()
+
+    @staticmethod
+    def _recalculate_track_moment_count(supabase, track_id: str):
+        """Recalculate moment_count for a topic track using junction table."""
         try:
-            supabase = get_supabase_admin_client()
-            supabase.rpc('increment_track_moment_count', {'track_id': track_id}).execute()
+            supabase.rpc('recalculate_track_moment_count', {'p_track_id': track_id}).execute()
         except Exception as e:
-            logger.warning(f"Failed to increment track moment count: {e}")
+            logger.warning(f"Failed to recalculate track moment count: {e}")
+
+    @staticmethod
+    def _enrich_events_with_topics(supabase, events: List[Dict]) -> List[Dict]:
+        """Attach topics array with names from junction table to each event."""
+        if not events:
+            return events
+        event_ids = [e['id'] for e in events]
+        try:
+            response = supabase.table('learning_event_topics') \
+                .select('learning_event_id, topic_type, topic_id') \
+                .in_('learning_event_id', event_ids) \
+                .execute()
+
+            rows = response.data or []
+            if not rows:
+                for event in events:
+                    event['topics'] = []
+                return events
+
+            # Collect unique topic/quest IDs for name lookup
+            track_ids = list({r['topic_id'] for r in rows if r['topic_type'] == 'topic'})
+            quest_ids = list({r['topic_id'] for r in rows if r['topic_type'] == 'quest'})
+
+            # Batch fetch names
+            track_names = {}
+            if track_ids:
+                tracks_resp = supabase.table('interest_tracks') \
+                    .select('id, name, color') \
+                    .in_('id', track_ids) \
+                    .execute()
+                for t in (tracks_resp.data or []):
+                    track_names[t['id']] = {'name': t['name'], 'color': t.get('color')}
+
+            quest_names = {}
+            if quest_ids:
+                quests_resp = supabase.table('quests') \
+                    .select('id, title') \
+                    .in_('id', quest_ids) \
+                    .execute()
+                for q in (quests_resp.data or []):
+                    quest_names[q['id']] = q['title']
+
+            # Group by event with names
+            topic_map = {}
+            for row in rows:
+                eid = row['learning_event_id']
+                if eid not in topic_map:
+                    topic_map[eid] = []
+                entry = {
+                    'type': row['topic_type'],
+                    'id': row['topic_id']
+                }
+                if row['topic_type'] == 'topic' and row['topic_id'] in track_names:
+                    entry['name'] = track_names[row['topic_id']]['name']
+                    entry['color'] = track_names[row['topic_id']].get('color')
+                elif row['topic_type'] == 'quest' and row['topic_id'] in quest_names:
+                    entry['name'] = quest_names[row['topic_id']]
+                topic_map[eid].append(entry)
+
+            for event in events:
+                event['topics'] = topic_map.get(event['id'], [])
+        except Exception as e:
+            logger.warning(f"Failed to enrich events with topics: {e}")
+            for event in events:
+                event['topics'] = []
+        return events
 
     @staticmethod
     def create_quick_moment(
@@ -120,7 +232,9 @@ class LearningEventsService(BaseService):
         description: str,
         track_id: Optional[str] = None,
         quest_id: Optional[str] = None,
-        parent_moment_id: Optional[str] = None
+        topics: Optional[List[Dict[str, str]]] = None,
+        parent_moment_id: Optional[str] = None,
+        event_date: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Create a quick learning moment with minimal fields.
@@ -129,9 +243,11 @@ class LearningEventsService(BaseService):
         Args:
             user_id: The user creating the event
             description: What the user learned/discovered
-            track_id: Optional interest track ID (mutually exclusive with quest_id)
-            quest_id: Optional quest ID (mutually exclusive with track_id)
+            track_id: Optional interest track ID (legacy, use topics instead)
+            quest_id: Optional quest ID (legacy, use topics instead)
+            topics: Optional list of {type, id} for multi-topic assignment
             parent_moment_id: Optional parent moment for threading
+            event_date: Optional date when the event occurred (YYYY-MM-DD)
 
         Returns:
             Dictionary with success status and event data
@@ -141,8 +257,10 @@ class LearningEventsService(BaseService):
             description=description,
             track_id=track_id,
             quest_id=quest_id,
+            topics=topics,
             parent_moment_id=parent_moment_id,
-            source_type='realtime'
+            source_type='realtime',
+            event_date=event_date
         )
 
     @staticmethod
@@ -186,6 +304,9 @@ class LearningEventsService(BaseService):
                     .execute()
 
                 event['evidence_blocks'] = blocks_response.data or []
+
+            # Enrich with topics from junction table
+            events = LearningEventsService._enrich_events_with_topics(supabase, events)
 
             return {
                 'success': True,
@@ -243,6 +364,9 @@ class LearningEventsService(BaseService):
             event_data = event_response.data
             event_data['evidence_blocks'] = blocks_response.data or []
 
+            # Enrich with topics from junction table
+            LearningEventsService._enrich_events_with_topics(supabase, [event_data])
+
             return {
                 'success': True,
                 'event': event_data
@@ -262,7 +386,9 @@ class LearningEventsService(BaseService):
         description: Optional[str] = None,
         title: Optional[str] = None,
         pillars: Optional[List[str]] = None,
-        track_id: Optional[str] = None
+        track_id: Optional[str] = None,
+        topics: Optional[List[Dict[str, str]]] = None,
+        event_date: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Update a learning event
@@ -273,7 +399,8 @@ class LearningEventsService(BaseService):
             description: Updated description
             title: Updated title
             pillars: Updated pillar tags
-            track_id: Updated track assignment (use empty string to unassign)
+            track_id: Updated track assignment (legacy, use topics instead)
+            topics: Full replacement list of {type: 'topic'|'quest', id} or None to leave unchanged
 
         Returns:
             Dictionary with success status and updated event data
@@ -289,35 +416,53 @@ class LearningEventsService(BaseService):
                 update_data['title'] = title
             if pillars is not None:
                 update_data['pillars'] = pillars
+            if event_date is not None:
+                update_data['event_date'] = event_date
 
-            # Handle track_id assignment
-            # track_id can be: None (no change), empty string (unassign), or a UUID (assign)
-            track_changed = False
-            old_track_id = None
-            new_track_id = None
+            # Determine if topics are being changed
+            topics_changed = False
+            new_topics = None
 
-            if track_id is not None:
-                # Get current track assignment to update counts
-                current_response = supabase.table('learning_events') \
-                    .select('track_id') \
-                    .eq('id', event_id) \
-                    .eq('user_id', user_id) \
-                    .single() \
-                    .execute()
+            if topics is not None:
+                # New multi-topic API: full replacement
+                topics_changed = True
+                new_topics = [{'type': t['type'], 'id': t['id']} for t in topics if t.get('id')]
+            elif track_id is not None:
+                # Legacy single-topic API: convert to topics array
+                topics_changed = True
+                if track_id:
+                    new_topics = [{'type': 'topic', 'id': track_id}]
+                else:
+                    new_topics = []  # Unassign all
 
-                if current_response.data:
-                    old_track_id = current_response.data.get('track_id')
-                    # Empty string or explicit None means unassign
-                    new_track_id = track_id if track_id else None
-                    if old_track_id != new_track_id:
-                        track_changed = True
-                        update_data['track_id'] = new_track_id
+            if topics_changed:
+                # Dual-write legacy columns
+                first_topic = next((t for t in (new_topics or []) if t['type'] == 'topic'), None)
+                first_quest = next((t for t in (new_topics or []) if t['type'] == 'quest'), None)
+                update_data['track_id'] = first_topic['id'] if first_topic else None
+                update_data['quest_id'] = first_quest['id'] if first_quest else None
 
-            if not update_data:
+            if not update_data and not topics_changed:
                 return {
                     'success': False,
                     'error': 'No fields to update'
                 }
+
+            # Get old topics for moment_count recalculation
+            old_topic_track_ids = set()
+            if topics_changed:
+                old_junction = supabase.table('learning_event_topics') \
+                    .select('topic_type, topic_id') \
+                    .eq('learning_event_id', event_id) \
+                    .execute()
+                old_topic_track_ids = {
+                    row['topic_id'] for row in (old_junction.data or [])
+                    if row['topic_type'] == 'topic'
+                }
+
+            # Update the event row (always update something to confirm ownership)
+            if not update_data:
+                update_data['updated_at'] = datetime.utcnow().isoformat()
 
             response = supabase.table('learning_events') \
                 .update(update_data) \
@@ -326,22 +471,31 @@ class LearningEventsService(BaseService):
                 .execute()
 
             if response.data and len(response.data) > 0:
-                # Update track moment counts if track changed
-                if track_changed:
-                    if old_track_id:
-                        try:
-                            supabase.rpc('decrement_track_moment_count', {'track_id': old_track_id}).execute()
-                        except Exception as e:
-                            logger.warning(f"Failed to decrement old track count: {e}")
-                    if new_track_id:
-                        try:
-                            supabase.rpc('increment_track_moment_count', {'track_id': new_track_id}).execute()
-                        except Exception as e:
-                            logger.warning(f"Failed to increment new track count: {e}")
+                if topics_changed and new_topics is not None:
+                    # Replace junction rows: delete old, insert new
+                    supabase.table('learning_event_topics') \
+                        .delete() \
+                        .eq('learning_event_id', event_id) \
+                        .execute()
+
+                    if new_topics:
+                        LearningEventsService._insert_junction_rows(supabase, event_id, new_topics)
+
+                    # Recalculate moment_count for affected topic tracks
+                    new_topic_track_ids = {t['id'] for t in new_topics if t['type'] == 'topic'}
+                    all_affected = old_topic_track_ids | new_topic_track_ids
+                    for tid in all_affected:
+                        LearningEventsService._recalculate_track_moment_count(supabase, tid)
+
+                event = response.data[0]
+                event['topics'] = new_topics if topics_changed else []
+                # Re-enrich if topics weren't changed (so caller gets current state)
+                if not topics_changed:
+                    LearningEventsService._enrich_events_with_topics(supabase, [event])
 
                 return {
                     'success': True,
-                    'event': response.data[0]
+                    'event': event
                 }
             else:
                 return {
@@ -388,12 +542,30 @@ class LearningEventsService(BaseService):
                     'error': 'Event not found or access denied'
                 }
 
-            # Delete event (cascade will handle evidence blocks)
+            # Get topic track IDs before delete so we can recalculate counts
+            affected_track_ids = []
+            try:
+                junction_response = supabase.table('learning_event_topics') \
+                    .select('topic_type, topic_id') \
+                    .eq('learning_event_id', event_id) \
+                    .execute()
+                affected_track_ids = [
+                    row['topic_id'] for row in (junction_response.data or [])
+                    if row['topic_type'] == 'topic'
+                ]
+            except Exception as e:
+                logger.warning(f"Failed to fetch junction rows before delete: {e}")
+
+            # Delete event (cascade will handle evidence blocks and junction rows)
             response = supabase.table('learning_events') \
                 .delete() \
                 .eq('id', event_id) \
                 .eq('user_id', user_id) \
                 .execute()
+
+            # Recalculate moment_count for affected tracks
+            for tid in affected_track_ids:
+                LearningEventsService._recalculate_track_moment_count(supabase, tid)
 
             return {
                 'success': True,
@@ -515,6 +687,9 @@ class LearningEventsService(BaseService):
                     .execute()
 
                 event['evidence_blocks'] = blocks_response.data or []
+
+            # Enrich with topics from junction table
+            events = LearningEventsService._enrich_events_with_topics(supabase, events)
 
             return {
                 'success': True,

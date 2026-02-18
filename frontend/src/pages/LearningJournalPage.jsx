@@ -67,8 +67,14 @@ const LearningJournalPage = () => {
 
       if (isParentView) {
         // Parent API returns all moments, filter unassigned ones
+        // Use topics array from junction table (preferred), fall back to legacy columns
         const moments = response.data.moments || [];
-        const unassigned = moments.filter(m => !m.track_id && !m.quest_id);
+        const unassigned = moments.filter(m => {
+          if (m.topics && Array.isArray(m.topics)) {
+            return m.topics.length === 0;
+          }
+          return !m.track_id && !m.quest_id;
+        });
         setUnassignedMoments(unassigned);
       } else if (response.data.success) {
         setUnassignedMoments(response.data.moments);

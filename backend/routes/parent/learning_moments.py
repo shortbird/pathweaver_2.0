@@ -10,6 +10,7 @@ from middleware.error_handler import AuthorizationError, ValidationError
 from routes.parent.dashboard_overview import verify_parent_access
 from services.file_upload_service import FileUploadService
 from services.interest_tracks_service import InterestTracksService
+from services.learning_events_service import LearningEventsService
 from utils.logger import get_logger
 import uuid
 
@@ -66,6 +67,8 @@ def create_child_learning_moment(user_id, child_id):
         if not description and not media:
             raise ValidationError("Please provide a description, attach a file, or include a link")
 
+        event_date = data.get('event_date')
+
         # Create the learning event for the child
         event_data = {
             'user_id': child_id,  # The moment belongs to the child
@@ -74,6 +77,9 @@ def create_child_learning_moment(user_id, child_id):
             'source_type': 'parent_captured',
             'pillars': []  # No pillar selection for quick capture
         }
+
+        if event_date:
+            event_data['event_date'] = event_date
 
         event_response = supabase.table('learning_events').insert(event_data).execute()
 
@@ -302,6 +308,9 @@ def get_child_learning_moments(user_id, child_id):
             captured_by_id = moment.get('captured_by_user_id')
             if captured_by_id:
                 moment['captured_by_name'] = captured_by_names.get(captured_by_id, 'Parent')
+
+        # Enrich moments with topics from junction table
+        moments = LearningEventsService._enrich_events_with_topics(supabase, moments)
 
         return jsonify({
             'success': True,
@@ -556,7 +565,8 @@ def assign_child_moment_to_topic(user_id, child_id, moment_id):
     Request body:
     {
         "type": "track" | "quest",
-        "topic_id": "uuid" (null to unassign)
+        "topic_id": "uuid" (null to unassign),
+        "action": "add" | "remove" (default "add")
     }
 
     Returns:
@@ -577,17 +587,22 @@ def assign_child_moment_to_topic(user_id, child_id, moment_id):
 
         topic_type = data.get('type')
         topic_id = data.get('topic_id')
+        action = data.get('action', 'add')
 
         # Validate topic_type if topic_id is provided
         if topic_id and topic_type not in ['track', 'quest']:
             raise ValidationError('Type must be "track" or "quest"')
+
+        if action not in ['add', 'remove']:
+            raise ValidationError('Action must be "add" or "remove"')
 
         # Use child_id for the service call
         result = InterestTracksService.assign_moment_to_topic(
             user_id=child_id,
             moment_id=moment_id,
             topic_type=topic_type or 'track',
-            topic_id=topic_id
+            topic_id=topic_id,
+            action=action
         )
 
         if result['success']:
@@ -623,8 +638,9 @@ def update_child_learning_moment(user_id, child_id, moment_id):
     {
         "description": "string (optional)",
         "title": "string (optional)",
-        "track_id": "uuid or null (optional)",
-        "quest_id": "uuid or null (optional)"
+        "topics": [{"type": "topic"|"quest", "id": "uuid"}] (optional, replaces all topics),
+        "track_id": "uuid or null (optional, legacy)",
+        "quest_id": "uuid or null (optional, legacy)"
     }
 
     Returns:
@@ -658,7 +674,7 @@ def update_child_learning_moment(user_id, child_id, moment_id):
 
         data = request.get_json() or {}
 
-        # Build update data
+        # Build update data for basic fields
         update_data = {}
         if 'description' in data:
             description = data.get('description', '').strip()
@@ -668,34 +684,98 @@ def update_child_learning_moment(user_id, child_id, moment_id):
         if 'title' in data:
             update_data['title'] = data.get('title', '').strip() or None
 
-        # Handle track/quest assignment
-        if 'track_id' in data:
-            update_data['track_id'] = data.get('track_id') or None
-            # Clear quest_id if assigning to a track
-            if update_data.get('track_id'):
-                update_data['quest_id'] = None
+        if 'event_date' in data:
+            update_data['event_date'] = data.get('event_date') or None
 
-        if 'quest_id' in data:
-            update_data['quest_id'] = data.get('quest_id') or None
-            # Clear track_id if assigning to a quest
-            if update_data.get('quest_id'):
-                update_data['track_id'] = None
+        # Handle topics via junction table (multi-topic support)
+        topics_to_set = data.get('topics')
+        has_topic_change = topics_to_set is not None or 'track_id' in data or 'quest_id' in data
 
-        if not update_data:
+        if not update_data and not has_topic_change:
             return jsonify({
                 'success': True,
                 'moment': moment,
                 'message': 'No changes to update'
             }), 200
 
-        # Perform update
+        # Update basic fields if any
+        if update_data:
+            supabase.table('learning_events') \
+                .update(update_data) \
+                .eq('id', moment_id) \
+                .execute()
+
+        # Handle topic changes via junction table
+        if has_topic_change:
+            # Normalize: convert legacy track_id/quest_id to topics array
+            if topics_to_set is None:
+                topics_to_set = []
+                if 'track_id' in data and data.get('track_id'):
+                    topics_to_set.append({'type': 'topic', 'id': data['track_id']})
+                if 'quest_id' in data and data.get('quest_id'):
+                    topics_to_set.append({'type': 'quest', 'id': data['quest_id']})
+
+            # Get old junction rows for moment count recalculation
+            old_junction = supabase.table('learning_event_topics') \
+                .select('topic_type, topic_id') \
+                .eq('learning_event_id', moment_id) \
+                .execute()
+            old_track_ids = [r['topic_id'] for r in (old_junction.data or []) if r['topic_type'] == 'topic']
+
+            # Delete existing junction rows
+            supabase.table('learning_event_topics') \
+                .delete() \
+                .eq('learning_event_id', moment_id) \
+                .execute()
+
+            # Insert new junction rows
+            new_track_ids = []
+            for topic in topics_to_set:
+                t_type = topic.get('type', 'topic')
+                t_id = topic.get('id')
+                if not t_id:
+                    continue
+                junction_type = 'topic' if t_type in ('topic', 'track') else 'quest'
+                try:
+                    supabase.table('learning_event_topics').insert({
+                        'learning_event_id': moment_id,
+                        'topic_type': junction_type,
+                        'topic_id': t_id
+                    }).execute()
+                    if junction_type == 'topic':
+                        new_track_ids.append(t_id)
+                except Exception:
+                    pass  # Duplicate
+
+            # Dual-write legacy columns
+            first_topic = next((t for t in topics_to_set if t.get('type') in ('topic', 'track')), None)
+            first_quest = next((t for t in topics_to_set if t.get('type') == 'quest'), None)
+            legacy_update = {
+                'track_id': first_topic['id'] if first_topic else None,
+                'quest_id': first_quest['id'] if first_quest else None
+            }
+            supabase.table('learning_events') \
+                .update(legacy_update) \
+                .eq('id', moment_id) \
+                .execute()
+
+            # Recalculate moment counts for affected tracks
+            all_track_ids = set(old_track_ids + new_track_ids)
+            for tid in all_track_ids:
+                LearningEventsService._recalculate_track_moment_count(supabase, tid)
+
+        # Fetch updated moment
         update_response = supabase.table('learning_events') \
-            .update(update_data) \
+            .select('*') \
             .eq('id', moment_id) \
+            .single() \
             .execute()
 
         if update_response.data:
-            updated_moment = update_response.data[0]
+            updated_moment = update_response.data
+            # Enrich with topics
+            enriched = LearningEventsService._enrich_events_with_topics(supabase, [updated_moment])
+            updated_moment = enriched[0] if enriched else updated_moment
             logger.info(f"Parent {user_id} updated moment {moment_id} for child {child_id}")
             return jsonify({
                 'success': True,
@@ -749,17 +829,28 @@ def delete_child_learning_moment(user_id, child_id, moment_id):
         if moment.get('captured_by_user_id') != user_id:
             raise AuthorizationError('You can only delete moments you captured')
 
+        # Get affected track IDs before deletion for moment count recalculation
+        junction_response = supabase.table('learning_event_topics') \
+            .select('topic_type, topic_id') \
+            .eq('learning_event_id', moment_id) \
+            .execute()
+        affected_track_ids = [r['topic_id'] for r in (junction_response.data or []) if r['topic_type'] == 'topic']
+
         # Delete evidence blocks first
         supabase.table('learning_event_evidence_blocks') \
             .delete() \
             .eq('learning_event_id', moment_id) \
             .execute()
 
-        # Delete the moment
+        # Delete the moment (junction rows cascade-delete)
         delete_response = supabase.table('learning_events') \
             .delete() \
             .eq('id', moment_id) \
             .execute()
+
+        # Recalculate moment counts for affected tracks
+        for tid in affected_track_ids:
+            LearningEventsService._recalculate_track_moment_count(supabase, tid)
 
         logger.info(f"Parent {user_id} deleted moment {moment_id} for child {child_id}")
 

@@ -12,6 +12,7 @@ import {
   CheckIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, IMAGE_FORMAT_LABEL, DOCUMENT_FORMAT_LABEL } from './EvidenceMediaHandlers';
 
 const EVIDENCE_TYPES = [
   { id: 'text', label: 'Text', Icon: DocumentTextIcon, description: 'Write notes or reflections' },
@@ -298,13 +299,13 @@ const AddEvidenceModal = ({ isOpen, onClose, onSave, onUpdate, editingBlock = nu
         <p className="font-medium text-gray-700" style={{ fontFamily: 'Poppins' }}>
           Click to upload images
         </p>
-        <p className="text-sm text-gray-500 mt-1">Select multiple files at once</p>
+        <p className="text-sm text-gray-500 mt-1">{IMAGE_FORMAT_LABEL} up to 10MB</p>
       </div>
 
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept={`image/*,${IMAGE_ACCEPT_STRING}`}
         multiple
         onChange={handleFileUpload}
         className="hidden"
@@ -444,13 +445,13 @@ const AddEvidenceModal = ({ isOpen, onClose, onSave, onUpdate, editingBlock = nu
         <p className="font-medium text-gray-700" style={{ fontFamily: 'Poppins' }}>
           Click to upload documents
         </p>
-        <p className="text-sm text-gray-500 mt-1">PDF, DOC, DOCX</p>
+        <p className="text-sm text-gray-500 mt-1">{DOCUMENT_FORMAT_LABEL} up to 10MB</p>
       </div>
 
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,.doc,.docx"
+        accept={DOCUMENT_ACCEPT_STRING}
         multiple
         onChange={handleFileUpload}
         className="hidden"

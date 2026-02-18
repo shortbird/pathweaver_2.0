@@ -269,8 +269,7 @@ def register_routes(bp):
                             evidence_title = content.get('title')
                         elif block['block_type'] == 'text':
                             evidence_type = 'text'
-                            text = content.get('text', '')
-                            evidence_preview = text[:200] + '...' if len(text) > 200 else text
+                            evidence_preview = content.get('text', '')
                         elif block['block_type'] == 'document':
                             evidence_type = 'document'
                             evidence_preview = get_content_url(content)
@@ -313,7 +312,7 @@ def register_routes(bp):
                         if any(url.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif']):
                             evidence_type = 'image'
                             evidence_preview = completion['evidence_url']
-                        elif 'youtube.com' in url or 'youtu.be' in url or 'vimeo.com' in url:
+                        elif any(domain in url for domain in ['youtube.com', 'youtu.be', 'vimeo.com', 'loom.com/share', 'drive.google.com/file']):
                             evidence_type = 'video'
                             evidence_preview = completion['evidence_url']
                         else:
@@ -321,7 +320,7 @@ def register_routes(bp):
                             evidence_preview = completion['evidence_url']
                     elif evidence_text:
                         evidence_type = 'text'
-                        evidence_preview = evidence_text[:200] + '...' if len(evidence_text) > 200 else evidence_text
+                        evidence_preview = evidence_text
 
                     if evidence_type:
                         student_name = student_info.get('display_name') or \
@@ -424,7 +423,7 @@ def register_routes(bp):
                         'captured_by_user_id': event.get('captured_by_user_id'),
                         # Primary evidence for backwards compatibility
                         'evidence_type': primary_evidence['type'] if primary_evidence else ('text' if description else None),
-                        'evidence_preview': primary_evidence['preview'] if primary_evidence else (description[:200] + '...' if len(description) > 200 else description),
+                        'evidence_preview': primary_evidence['preview'] if primary_evidence else description,
                         'evidence_title': primary_evidence.get('title') if primary_evidence else None,
                         # All media items for carousel display
                         'media_items': media_items,

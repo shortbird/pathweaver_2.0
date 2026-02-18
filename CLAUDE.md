@@ -229,9 +229,14 @@ sleep 10
 
 **Stop servers:**
 ```bash
-powershell.exe -Command "Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force"
-powershell.exe -Command "Get-Process -Name python -ErrorAction SilentlyContinue | Where-Object { \$_.Path -like '*pw_v2*' } | Stop-Process -Force"
+# Stop frontend (port 3000) - targets only the Vite dev server, NOT Claude Code's node process
+powershell.exe -Command "Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id \$_ -Force -ErrorAction SilentlyContinue }"
+
+# Stop backend (port 5001)
+powershell.exe -Command "Get-NetTCPConnection -LocalPort 5001 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id \$_ -Force -ErrorAction SilentlyContinue }"
 ```
+
+**WARNING:** Never use `Get-Process -Name node | Stop-Process` - this kills Claude Code itself (which runs on Node.js).
 
 **Note:** WSL2 cannot directly access Windows localhost. Use `powershell.exe` commands to interact with local servers.
 

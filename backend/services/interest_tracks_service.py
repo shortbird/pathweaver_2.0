@@ -185,21 +185,38 @@ class InterestTracksService(BaseService):
 
             track = track_response.data
 
-            # Get moments in this track
-            moments_response = supabase.table('learning_events') \
-                .select('*, learning_event_evidence_blocks(*)') \
-                .eq('track_id', track_id) \
-                .eq('user_id', user_id) \
-                .order('created_at', desc=True) \
-                .limit(limit) \
-                .offset(offset) \
-                .execute()
+            # Get moments in this track via junction table RPC
+            moments_response = supabase.rpc('get_moments_for_topic', {
+                'p_user_id': user_id,
+                'p_topic_type': 'topic',
+                'p_topic_id': track_id,
+                'p_limit': limit,
+                'p_offset': offset
+            }).execute()
 
-            # Rename learning_event_evidence_blocks to evidence_blocks for frontend
             moments = moments_response.data or []
-            for moment in moments:
-                if 'learning_event_evidence_blocks' in moment:
-                    moment['evidence_blocks'] = moment.pop('learning_event_evidence_blocks')
+
+            # Fetch evidence blocks for each moment
+            if moments:
+                moment_ids = [m['id'] for m in moments]
+                blocks_response = supabase.table('learning_event_evidence_blocks') \
+                    .select('*') \
+                    .in_('learning_event_id', moment_ids) \
+                    .order('order_index') \
+                    .execute()
+                # Group blocks by event
+                blocks_map = {}
+                for block in (blocks_response.data or []):
+                    eid = block['learning_event_id']
+                    if eid not in blocks_map:
+                        blocks_map[eid] = []
+                    blocks_map[eid].append(block)
+                for moment in moments:
+                    moment['evidence_blocks'] = blocks_map.get(moment['id'], [])
+
+                # Enrich with topics
+                from services.learning_events_service import LearningEventsService
+                LearningEventsService._enrich_events_with_topics(supabase, moments)
 
             track['moments'] = moments
 
@@ -244,12 +261,14 @@ class InterestTracksService(BaseService):
                     'error': 'Track not found'
                 }
 
-            # Get pillar distribution
-            moments_response = supabase.table('learning_events') \
-                .select('pillars, created_at') \
-                .eq('track_id', track_id) \
-                .eq('user_id', user_id) \
-                .execute()
+            # Get pillar distribution via junction table
+            moments_response = supabase.rpc('get_moments_for_topic', {
+                'p_user_id': user_id,
+                'p_topic_type': 'topic',
+                'p_topic_id': track_id,
+                'p_limit': 1000,
+                'p_offset': 0
+            }).execute()
 
             moments = moments_response.data or []
 
@@ -358,7 +377,8 @@ class InterestTracksService(BaseService):
     @staticmethod
     def delete_track(user_id: str, track_id: str) -> Dict[str, Any]:
         """
-        Delete an interest track. Moments become unassigned (track_id = null).
+        Delete an interest track. Junction rows for this topic are deleted.
+        Moments that had other topics remain assigned to those topics.
 
         Args:
             user_id: The requesting user
@@ -370,7 +390,21 @@ class InterestTracksService(BaseService):
         try:
             supabase = get_supabase_admin_client()
 
-            # Delete track (moments will have track_id set to NULL due to ON DELETE SET NULL)
+            # Delete junction rows for this topic
+            supabase.table('learning_event_topics') \
+                .delete() \
+                .eq('topic_type', 'topic') \
+                .eq('topic_id', track_id) \
+                .execute()
+
+            # Clear legacy track_id on learning_events that referenced this track
+            supabase.table('learning_events') \
+                .update({'track_id': None}) \
+                .eq('track_id', track_id) \
+                .eq('user_id', user_id) \
+                .execute()
+
+            # Delete track
             response = supabase.table('interest_tracks') \
                 .delete() \
                 .eq('id', track_id) \
@@ -396,7 +430,8 @@ class InterestTracksService(BaseService):
         offset: int = 0
     ) -> Dict[str, Any]:
         """
-        Get learning moments that are not assigned to any track or quest.
+        Get learning moments that are not assigned to any topic or quest
+        (no rows in junction table).
 
         Args:
             user_id: The user whose moments to fetch
@@ -409,22 +444,32 @@ class InterestTracksService(BaseService):
         try:
             supabase = get_supabase_admin_client()
 
-            # Get moments with no track_id AND no quest_id
-            response = supabase.table('learning_events') \
-                .select('*, learning_event_evidence_blocks(*)') \
-                .eq('user_id', user_id) \
-                .is_('track_id', 'null') \
-                .is_('quest_id', 'null') \
-                .order('created_at', desc=True) \
-                .limit(limit) \
-                .offset(offset) \
-                .execute()
+            # Use RPC that checks junction table for unassigned moments
+            response = supabase.rpc('get_unassigned_moments', {
+                'p_user_id': user_id,
+                'p_limit': limit,
+                'p_offset': offset
+            }).execute()
 
-            # Rename learning_event_evidence_blocks to evidence_blocks for frontend
             moments = response.data or []
-            for moment in moments:
-                if 'learning_event_evidence_blocks' in moment:
-                    moment['evidence_blocks'] = moment.pop('learning_event_evidence_blocks')
+
+            # Fetch evidence blocks for these moments
+            if moments:
+                moment_ids = [m['id'] for m in moments]
+                blocks_response = supabase.table('learning_event_evidence_blocks') \
+                    .select('*') \
+                    .in_('learning_event_id', moment_ids) \
+                    .order('order_index') \
+                    .execute()
+                blocks_map = {}
+                for block in (blocks_response.data or []):
+                    eid = block['learning_event_id']
+                    if eid not in blocks_map:
+                        blocks_map[eid] = []
+                    blocks_map[eid].append(block)
+                for moment in moments:
+                    moment['evidence_blocks'] = blocks_map.get(moment['id'], [])
+                    moment['topics'] = []  # Unassigned = no topics
 
             return {
                 'success': True,
@@ -446,12 +491,13 @@ class InterestTracksService(BaseService):
         track_id: Optional[str]
     ) -> Dict[str, Any]:
         """
-        Assign a learning moment to a track (or remove from track if track_id is None).
+        Assign a learning moment to a track additively (via junction table).
+        If track_id is None, removes all track assignments.
 
         Args:
             user_id: The requesting user
             moment_id: The moment to assign
-            track_id: The track ID (or None to unassign)
+            track_id: The track ID (or None to unassign all tracks)
 
         Returns:
             Dictionary with success status
@@ -459,9 +505,9 @@ class InterestTracksService(BaseService):
         try:
             supabase = get_supabase_admin_client()
 
-            # Get current track assignment to update counts
+            # Verify moment ownership
             current_response = supabase.table('learning_events') \
-                .select('track_id') \
+                .select('id') \
                 .eq('id', moment_id) \
                 .eq('user_id', user_id) \
                 .single() \
@@ -473,10 +519,8 @@ class InterestTracksService(BaseService):
                     'error': 'Moment not found'
                 }
 
-            old_track_id = current_response.data.get('track_id')
-
-            # Verify new track ownership if assigning
             if track_id:
+                # Verify track ownership
                 track_response = supabase.table('interest_tracks') \
                     .select('id') \
                     .eq('id', track_id) \
@@ -490,30 +534,64 @@ class InterestTracksService(BaseService):
                         'error': 'Track not found'
                     }
 
-            # Update moment
-            response = supabase.table('learning_events') \
-                .update({'track_id': track_id}) \
+                # Add junction row (upsert via insert with on_conflict ignore)
+                try:
+                    supabase.table('learning_event_topics').insert({
+                        'learning_event_id': moment_id,
+                        'topic_type': 'topic',
+                        'topic_id': track_id
+                    }).execute()
+                except Exception:
+                    pass  # Already exists (unique constraint), that's fine
+
+                # Dual-write legacy column (set to first/this track)
+                supabase.table('learning_events') \
+                    .update({'track_id': track_id}) \
+                    .eq('id', moment_id) \
+                    .eq('user_id', user_id) \
+                    .execute()
+
+                # Recalculate moment count
+                from services.learning_events_service import LearningEventsService
+                LearningEventsService._recalculate_track_moment_count(supabase, track_id)
+            else:
+                # Remove all track assignments from junction table
+                old_junction = supabase.table('learning_event_topics') \
+                    .select('topic_id') \
+                    .eq('learning_event_id', moment_id) \
+                    .eq('topic_type', 'topic') \
+                    .execute()
+                old_track_ids = [r['topic_id'] for r in (old_junction.data or [])]
+
+                supabase.table('learning_event_topics') \
+                    .delete() \
+                    .eq('learning_event_id', moment_id) \
+                    .eq('topic_type', 'topic') \
+                    .execute()
+
+                # Clear legacy column
+                supabase.table('learning_events') \
+                    .update({'track_id': None}) \
+                    .eq('id', moment_id) \
+                    .eq('user_id', user_id) \
+                    .execute()
+
+                # Recalculate moment count for old tracks
+                from services.learning_events_service import LearningEventsService
+                for tid in old_track_ids:
+                    LearningEventsService._recalculate_track_moment_count(supabase, tid)
+
+            # Return updated moment
+            moment_response = supabase.table('learning_events') \
+                .select('*') \
                 .eq('id', moment_id) \
-                .eq('user_id', user_id) \
+                .single() \
                 .execute()
 
-            if response.data and len(response.data) > 0:
-                # Update track moment counts
-                if old_track_id and old_track_id != track_id:
-                    supabase.rpc('decrement_track_moment_count', {'track_id': old_track_id}).execute()
-
-                if track_id and track_id != old_track_id:
-                    supabase.rpc('increment_track_moment_count', {'track_id': track_id}).execute()
-
-                return {
-                    'success': True,
-                    'moment': response.data[0]
-                }
-            else:
-                return {
-                    'success': False,
-                    'error': 'Failed to assign moment to track'
-                }
+            return {
+                'success': True,
+                'moment': moment_response.data if moment_response.data else {}
+            }
 
         except Exception as e:
             logger.error(f"Error assigning moment to track: {str(e)}")
@@ -529,7 +607,7 @@ class InterestTracksService(BaseService):
         moment_ids: List[str]
     ) -> Dict[str, Any]:
         """
-        Bulk assign multiple learning moments to a track.
+        Bulk assign multiple learning moments to a track via junction table.
 
         Args:
             user_id: The requesting user
@@ -562,32 +640,48 @@ class InterestTracksService(BaseService):
                     'error': 'Track not found'
                 }
 
-            # Update all moments at once
-            logger.info(f"Attempting to assign moments {moment_ids} to track {track_id} for user {user_id}")
-            response = supabase.table('learning_events') \
-                .update({'track_id': track_id}) \
+            # Verify moment ownership
+            moments_response = supabase.table('learning_events') \
+                .select('id') \
                 .eq('user_id', user_id) \
-                .is_('track_id', 'null') \
                 .in_('id', moment_ids) \
                 .execute()
+            valid_ids = [m['id'] for m in (moments_response.data or [])]
 
-            logger.info(f"Bulk assign response: {response.data}")
-            assigned_count = len(response.data) if response.data else 0
+            if not valid_ids:
+                return {
+                    'success': True,
+                    'assigned_count': 0
+                }
 
-            # Update track moment count
+            # Insert junction rows (ignore duplicates)
+            rows = [
+                {
+                    'learning_event_id': mid,
+                    'topic_type': 'topic',
+                    'topic_id': track_id
+                }
+                for mid in valid_ids
+            ]
+
+            assigned_count = 0
+            for row in rows:
+                try:
+                    supabase.table('learning_event_topics').insert(row).execute()
+                    assigned_count += 1
+
+                    # Dual-write legacy column
+                    supabase.table('learning_events') \
+                        .update({'track_id': track_id}) \
+                        .eq('id', row['learning_event_id']) \
+                        .execute()
+                except Exception:
+                    pass  # Already exists (unique constraint)
+
+            # Recalculate moment count
             if assigned_count > 0:
-                # Get current count and update
-                count_response = supabase.table('interest_tracks') \
-                    .select('moment_count') \
-                    .eq('id', track_id) \
-                    .single() \
-                    .execute()
-
-                current_count = count_response.data.get('moment_count', 0) if count_response.data else 0
-                supabase.table('interest_tracks') \
-                    .update({'moment_count': current_count + assigned_count}) \
-                    .eq('id', track_id) \
-                    .execute()
+                from services.learning_events_service import LearningEventsService
+                LearningEventsService._recalculate_track_moment_count(supabase, track_id)
 
             logger.info(f"Bulk assigned {assigned_count} moments to track {track_id}")
 
@@ -641,13 +735,14 @@ class InterestTracksService(BaseService):
 
             track = track_response.data
 
-            # 2. Get moments in this track
-            moments_response = supabase.table('learning_events') \
-                .select('id, title, description, pillars, ai_generated_title, created_at') \
-                .eq('track_id', track_id) \
-                .eq('user_id', user_id) \
-                .order('created_at', desc=False) \
-                .execute()
+            # 2. Get moments in this track via junction table
+            moments_response = supabase.rpc('get_moments_for_topic', {
+                'p_user_id': user_id,
+                'p_topic_type': 'topic',
+                'p_topic_id': track_id,
+                'p_limit': 1000,
+                'p_offset': 0
+            }).execute()
 
             moments = moments_response.data or []
 
@@ -739,13 +834,14 @@ class InterestTracksService(BaseService):
 
             track = track_response.data
 
-            # 2. Get moments to verify count
-            moments_response = supabase.table('learning_events') \
-                .select('id, title, description, pillars, ai_generated_title, created_at') \
-                .eq('track_id', track_id) \
-                .eq('user_id', user_id) \
-                .order('created_at', desc=False) \
-                .execute()
+            # 2. Get moments to verify count via junction table
+            moments_response = supabase.rpc('get_moments_for_topic', {
+                'p_user_id': user_id,
+                'p_topic_type': 'topic',
+                'p_topic_id': track_id,
+                'p_limit': 1000,
+                'p_offset': 0
+            }).execute()
 
             moments = moments_response.data or []
 
@@ -1042,17 +1138,27 @@ class InterestTracksService(BaseService):
 
             quest_ids = list(quest_data.keys())
 
-            # OPTIMIZATION: Batch fetch all moment counts in ONE query
+            # OPTIMIZATION: Use count_moments_by_topic RPC for quest moment counts
             moment_counts = {}
-            moments_response = supabase.table('learning_events') \
-                .select('quest_id') \
-                .eq('user_id', user_id) \
-                .in_('quest_id', quest_ids) \
-                .execute()
-            for moment in (moments_response.data or []):
-                qid = moment.get('quest_id')
-                if qid:
-                    moment_counts[qid] = moment_counts.get(qid, 0) + 1
+            try:
+                counts_response = supabase.rpc('count_moments_by_topic', {
+                    'p_user_id': user_id,
+                    'p_topic_type': 'quest'
+                }).execute()
+                for row in (counts_response.data or []):
+                    if row['topic_id'] in quest_data:
+                        moment_counts[row['topic_id']] = row['moment_count']
+            except Exception as e:
+                logger.warning(f"count_moments_by_topic RPC failed, falling back: {e}")
+                moments_response = supabase.table('learning_events') \
+                    .select('quest_id') \
+                    .eq('user_id', user_id) \
+                    .in_('quest_id', quest_ids) \
+                    .execute()
+                for moment in (moments_response.data or []):
+                    qid = moment.get('quest_id')
+                    if qid:
+                        moment_counts[qid] = moment_counts.get(qid, 0) + 1
 
             # Also count completed tasks for each quest
             completed_task_counts = {}
@@ -1195,20 +1301,28 @@ class InterestTracksService(BaseService):
             quest_topics = quests_result.get('quest_topics', []) if quests_result.get('success') else []
             course_topics = quests_result.get('course_topics', []) if quests_result.get('success') else []
 
-            # Calculate actual moment counts for tracks from learning_events table
-            # This ensures accurate counts even if the denormalized moment_count is stale
-            track_ids = [t['id'] for t in tracks]
+            # Calculate actual moment counts for tracks from junction table
             track_moment_counts = {}
-            if track_ids:
-                moments_response = supabase.table('learning_events') \
-                    .select('track_id') \
-                    .eq('user_id', user_id) \
-                    .in_('track_id', track_ids) \
-                    .execute()
-                for moment in (moments_response.data or []):
-                    tid = moment.get('track_id')
-                    if tid:
-                        track_moment_counts[tid] = track_moment_counts.get(tid, 0) + 1
+            if tracks:
+                try:
+                    counts_response = supabase.rpc('count_moments_by_topic', {
+                        'p_user_id': user_id,
+                        'p_topic_type': 'topic'
+                    }).execute()
+                    for row in (counts_response.data or []):
+                        track_moment_counts[row['topic_id']] = row['moment_count']
+                except Exception as e:
+                    logger.warning(f"count_moments_by_topic RPC failed for tracks: {e}")
+                    track_ids = [t['id'] for t in tracks]
+                    moments_response = supabase.table('learning_events') \
+                        .select('track_id') \
+                        .eq('user_id', user_id) \
+                        .in_('track_id', track_ids) \
+                        .execute()
+                    for moment in (moments_response.data or []):
+                        tid = moment.get('track_id')
+                        if tid:
+                            track_moment_counts[tid] = track_moment_counts.get(tid, 0) + 1
 
             # Format tracks as topics with accurate moment counts
             formatted_tracks = []
@@ -1250,16 +1364,18 @@ class InterestTracksService(BaseService):
         user_id: str,
         moment_id: str,
         topic_type: str,
-        topic_id: Optional[str]
+        topic_id: Optional[str],
+        action: str = 'add'
     ) -> Dict[str, Any]:
         """
-        Assign a learning moment to a track or quest topic.
+        Add or remove a topic assignment for a learning moment.
 
         Args:
             user_id: The requesting user
             moment_id: The moment to assign
             topic_type: 'track' or 'quest'
-            topic_id: The topic ID (or None to unassign)
+            topic_id: The topic ID (or None to unassign all of this type)
+            action: 'add' to add topic, 'remove' to remove topic
 
         Returns:
             Dictionary with success status
@@ -1267,9 +1383,9 @@ class InterestTracksService(BaseService):
         try:
             supabase = get_supabase_admin_client()
 
-            # Get current moment assignment
+            # Verify moment ownership
             current_response = supabase.table('learning_events') \
-                .select('track_id, quest_id') \
+                .select('id') \
                 .eq('id', moment_id) \
                 .eq('user_id', user_id) \
                 .single() \
@@ -1281,79 +1397,120 @@ class InterestTracksService(BaseService):
                     'error': 'Moment not found'
                 }
 
-            old_track_id = current_response.data.get('track_id')
-            old_quest_id = current_response.data.get('quest_id')
+            # Map topic_type to junction table type
+            junction_type = 'topic' if topic_type == 'track' else 'quest'
 
-            # Prepare update data
-            update_data = {
-                'track_id': None,
-                'quest_id': None
-            }
+            if not topic_id:
+                # Remove all assignments of this type
+                supabase.table('learning_event_topics') \
+                    .delete() \
+                    .eq('learning_event_id', moment_id) \
+                    .eq('topic_type', junction_type) \
+                    .execute()
 
-            if topic_id:
+                # Clear legacy column
                 if topic_type == 'track':
-                    # Verify track ownership
+                    supabase.table('learning_events') \
+                        .update({'track_id': None}) \
+                        .eq('id', moment_id) \
+                        .execute()
+                else:
+                    supabase.table('learning_events') \
+                        .update({'quest_id': None}) \
+                        .eq('id', moment_id) \
+                        .execute()
+
+            elif action == 'remove':
+                # Remove specific topic assignment
+                supabase.table('learning_event_topics') \
+                    .delete() \
+                    .eq('learning_event_id', moment_id) \
+                    .eq('topic_type', junction_type) \
+                    .eq('topic_id', topic_id) \
+                    .execute()
+
+                # Update legacy column: set to another topic of same type, or None
+                remaining = supabase.table('learning_event_topics') \
+                    .select('topic_id') \
+                    .eq('learning_event_id', moment_id) \
+                    .eq('topic_type', junction_type) \
+                    .limit(1) \
+                    .execute()
+                new_legacy = remaining.data[0]['topic_id'] if remaining.data else None
+                if topic_type == 'track':
+                    supabase.table('learning_events') \
+                        .update({'track_id': new_legacy}) \
+                        .eq('id', moment_id) \
+                        .execute()
+                else:
+                    supabase.table('learning_events') \
+                        .update({'quest_id': new_legacy}) \
+                        .eq('id', moment_id) \
+                        .execute()
+
+            else:
+                # Add topic assignment
+                if topic_type == 'track':
                     track_response = supabase.table('interest_tracks') \
                         .select('id') \
                         .eq('id', topic_id) \
                         .eq('user_id', user_id) \
                         .single() \
                         .execute()
-
                     if not track_response.data:
-                        return {
-                            'success': False,
-                            'error': 'Track not found'
-                        }
-                    update_data['track_id'] = topic_id
-
+                        return {'success': False, 'error': 'Track not found'}
                 elif topic_type == 'quest':
-                    # Verify quest enrollment (is_active=true AND status='picked_up')
                     enrollment_response = supabase.table('user_quests') \
                         .select('id') \
                         .eq('user_id', user_id) \
                         .eq('quest_id', topic_id) \
                         .eq('is_active', True) \
                         .eq('status', 'picked_up') \
-                        .single() \
+                        .limit(1) \
+                        .execute()
+                    if not enrollment_response.data:
+                        return {'success': False, 'error': 'Quest not found or not enrolled'}
+                else:
+                    return {'success': False, 'error': 'Invalid topic type'}
+
+                # Insert junction row
+                try:
+                    supabase.table('learning_event_topics').insert({
+                        'learning_event_id': moment_id,
+                        'topic_type': junction_type,
+                        'topic_id': topic_id
+                    }).execute()
+                except Exception:
+                    pass  # Already exists
+
+                # Dual-write legacy column
+                if topic_type == 'track':
+                    supabase.table('learning_events') \
+                        .update({'track_id': topic_id}) \
+                        .eq('id', moment_id) \
+                        .execute()
+                else:
+                    supabase.table('learning_events') \
+                        .update({'quest_id': topic_id}) \
+                        .eq('id', moment_id) \
                         .execute()
 
-                    if not enrollment_response.data:
-                        return {
-                            'success': False,
-                            'error': 'Quest not found or not enrolled'
-                        }
-                    update_data['quest_id'] = topic_id
-                else:
-                    return {
-                        'success': False,
-                        'error': 'Invalid topic type'
-                    }
+            # Recalculate moment count if it's a topic track
+            if junction_type == 'topic' and topic_id:
+                from services.learning_events_service import LearningEventsService
+                LearningEventsService._recalculate_track_moment_count(supabase, topic_id)
 
-            # Update moment
-            response = supabase.table('learning_events') \
-                .update(update_data) \
+            # Return updated moment
+            moment_response = supabase.table('learning_events') \
+                .select('*') \
                 .eq('id', moment_id) \
-                .eq('user_id', user_id) \
+                .single() \
                 .execute()
 
-            if response.data and len(response.data) > 0:
-                # Update track moment counts if track assignment changed
-                if old_track_id and old_track_id != update_data.get('track_id'):
-                    supabase.rpc('decrement_track_moment_count', {'track_id': old_track_id}).execute()
-
-                if update_data.get('track_id') and update_data['track_id'] != old_track_id:
-                    supabase.rpc('increment_track_moment_count', {'track_id': update_data['track_id']}).execute()
-
-                return {
-                    'success': True,
-                    'moment': response.data[0]
-                }
-            else:
-                return {
-                    'success': False,
-                    'error': 'Failed to assign moment'
-                }
+            return {
+                'success': True,
+                'moment': moment_response.data if moment_response.data else {}
+            }
 
         except Exception as e:
             logger.error(f"Error assigning moment to topic: {str(e)}")
@@ -1405,23 +1562,41 @@ class InterestTracksService(BaseService):
             quest = enrollment_response.data[0].get('quests')
             user_quest_id = enrollment_response.data[0]['id']
 
-            # Get moments assigned to this quest
-            moments_response = supabase.table('learning_events') \
-                .select('*, learning_event_evidence_blocks(*)') \
-                .eq('quest_id', quest_id) \
-                .eq('user_id', user_id) \
-                .order('created_at', desc=True) \
-                .limit(limit) \
-                .offset(offset) \
-                .execute()
+            # Get moments assigned to this quest via junction table RPC
+            moments_response = supabase.rpc('get_moments_for_topic', {
+                'p_user_id': user_id,
+                'p_topic_type': 'quest',
+                'p_topic_id': quest_id,
+                'p_limit': limit,
+                'p_offset': offset
+            }).execute()
 
             logger.info(f"Moments query returned {len(moments_response.data or [])} items")
 
-            # Rename evidence blocks for frontend
             moments = moments_response.data or []
+
+            # Fetch evidence blocks for moments
+            if moments:
+                moment_ids = [m['id'] for m in moments]
+                blocks_response = supabase.table('learning_event_evidence_blocks') \
+                    .select('*') \
+                    .in_('learning_event_id', moment_ids) \
+                    .order('order_index') \
+                    .execute()
+                blocks_map = {}
+                for block in (blocks_response.data or []):
+                    eid = block['learning_event_id']
+                    if eid not in blocks_map:
+                        blocks_map[eid] = []
+                    blocks_map[eid].append(block)
+                for moment in moments:
+                    moment['evidence_blocks'] = blocks_map.get(moment['id'], [])
+
+                # Enrich with topics
+                from services.learning_events_service import LearningEventsService
+                LearningEventsService._enrich_events_with_topics(supabase, moments)
+
             for moment in moments:
-                if 'learning_event_evidence_blocks' in moment:
-                    moment['evidence_blocks'] = moment.pop('learning_event_evidence_blocks')
                 moment['item_type'] = 'moment'
 
             # Get completed tasks for this quest

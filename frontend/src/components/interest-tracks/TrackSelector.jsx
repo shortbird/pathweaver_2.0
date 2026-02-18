@@ -5,7 +5,8 @@ import {
   PlusIcon,
   XMarkIcon,
   FlagIcon,
-  AcademicCapIcon
+  AcademicCapIcon,
+  CheckIcon
 } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -13,7 +14,7 @@ import toast from 'react-hot-toast';
 const TrackSelector = ({
   value,
   onChange,
-  placeholder = 'Select or create a topic of interest',
+  placeholder = 'Select or create topics of interest',
   showAISuggestion = false,
   momentDescription = '',
   className = '',
@@ -58,22 +59,18 @@ const TrackSelector = ({
   const fetchTopics = async () => {
     try {
       setIsLoading(true);
-      // Use parent API when viewing child's topics
       const endpoint = isParentView
         ? `/api/parent/children/${studentId}/topics`
         : '/api/topics/unified';
       const response = await api.get(endpoint);
       if (response.data.success) {
         const topics = response.data.topics || [];
-        // Separate quests and tracks
         setQuestTopics(topics.filter(t => t.type === 'quest'));
         setTracks(topics.filter(t => t.type === 'track'));
-        // Course topics with nested projects
         setCourseTopics(response.data.course_topics || []);
       }
     } catch (error) {
       console.error('Failed to fetch topics:', error);
-      // Fallback to old endpoint if unified not available (only for non-parent view)
       if (!isParentView) {
         try {
           const fallbackResponse = await api.get('/api/interest-tracks');
@@ -99,22 +96,50 @@ const TrackSelector = ({
     }));
   };
 
-  // Parse value - can be string (track_id), null, or object { type, id }
-  const parseValue = () => {
-    if (!value) return { type: null, id: null };
-    if (typeof value === 'object') return value;
-    // Legacy: assume string is track_id
-    return { type: 'track', id: value };
+  // Normalize value to always be an array of { type, id }
+  const normalizeValue = () => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.filter(v => v && v.id);
+    // Legacy: single object { type, id }
+    if (typeof value === 'object' && value.id) return [value];
+    // Legacy: string (track_id)
+    if (typeof value === 'string') return [{ type: 'track', id: value }];
+    return [];
   };
 
-  const currentValue = parseValue();
+  const selectedTopics = normalizeValue();
 
-  const handleSelect = (type, id) => {
-    // Return object format for new code
-    onChange({ type, id });
+  const isSelected = (type, id) => {
+    return selectedTopics.some(t => t.id === id && (t.type === type || (type === 'project' && t.type === 'quest')));
+  };
+
+  const handleToggle = (type, id) => {
+    // Map 'project' to 'quest' for storage (projects are quests in a course)
+    const storeType = type === 'project' ? 'quest' : (type === 'quest' ? 'quest' : 'topic');
+
+    if (isSelected(type, id)) {
+      // Remove
+      const newTopics = selectedTopics.filter(t => t.id !== id);
+      onChange(newTopics);
+    } else {
+      // Add
+      const newTopics = [...selectedTopics, { type: storeType, id }];
+      onChange(newTopics);
+    }
+    // Keep dropdown open for multi-select
+  };
+
+  const handleClearAll = () => {
+    onChange([]);
     setIsOpen(false);
     setIsCreating(false);
     setNewTrackName('');
+  };
+
+  const handleRemoveChip = (e, id) => {
+    e.stopPropagation();
+    const newTopics = selectedTopics.filter(t => t.id !== id);
+    onChange(newTopics);
   };
 
   const handleCreateTrack = async () => {
@@ -122,7 +147,6 @@ const TrackSelector = ({
 
     try {
       setIsSubmitting(true);
-      // Use parent API when viewing child's topics
       const endpoint = isParentView
         ? `/api/parent/children/${studentId}/topics`
         : '/api/interest-tracks';
@@ -133,8 +157,9 @@ const TrackSelector = ({
       if (response.data.success) {
         const newTrack = response.data.track;
         setTracks([...tracks, newTrack]);
-        onChange({ type: 'track', id: newTrack.id });
-        setIsOpen(false);
+        // Add to selection immediately
+        const newTopics = [...selectedTopics, { type: 'topic', id: newTrack.id }];
+        onChange(newTopics);
         setIsCreating(false);
         setNewTrackName('');
         toast.success(`Created "${newTrack.name}"`);
@@ -157,63 +182,66 @@ const TrackSelector = ({
     }
   };
 
-  // Find selected topic
-  const getSelectedTopic = () => {
-    if (!currentValue.id) return null;
-    if (currentValue.type === 'quest' || currentValue.type === 'project') {
-      // Check standalone quests
-      const standaloneQuest = questTopics.find(q => q.id === currentValue.id);
-      if (standaloneQuest) return standaloneQuest;
+  // Find topic metadata by type+id for display
+  const getTopicInfo = (type, id) => {
+    if (type === 'quest') {
+      const quest = questTopics.find(q => q.id === id);
+      if (quest) return { name: quest.name, color: null, isQuest: true };
       // Check course projects
       for (const course of courseTopics) {
-        const project = course.projects?.find(p => p.id === currentValue.id);
-        if (project) {
-          return { ...project, courseName: course.name };
-        }
+        const project = course.projects?.find(p => p.id === id);
+        if (project) return { name: project.name, color: null, isQuest: true, courseName: course.name };
       }
-      return null;
     }
-    return tracks.find(t => t.id === currentValue.id);
+    if (type === 'topic') {
+      const track = tracks.find(t => t.id === id);
+      if (track) return { name: track.name, color: track.color || '#9333ea', isQuest: false };
+    }
+    return null;
   };
-
-  const selectedTopic = getSelectedTopic();
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
-      {/* Main Button */}
+      {/* Main Button / Chips Area */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between gap-2 px-4 py-3 border border-gray-300 rounded-lg bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent transition-colors text-left"
+        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 border border-gray-300 rounded-lg bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent transition-colors text-left min-h-[44px]"
       >
-        {selectedTopic ? (
-          <div className="flex items-center gap-2">
-            {selectedTopic.type === 'quest' || selectedTopic.type === 'project' ? (
-              <div className="w-3 h-3 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink" />
-            ) : (
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: selectedTopic.color || '#9333ea' }}
-              />
-            )}
-            <span className="text-sm font-medium text-gray-900 truncate">
-              {selectedTopic.courseName ? `${selectedTopic.courseName}: ` : ''}{selectedTopic.name}
-            </span>
-            {selectedTopic.type === 'quest' && (
-              <span className="text-xs px-1.5 py-0.5 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded flex-shrink-0">
-                Quest
-              </span>
-            )}
-            {selectedTopic.type === 'project' && (
-              <span className="text-xs px-1.5 py-0.5 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded flex-shrink-0">
-                Project
-              </span>
-            )}
-          </div>
-        ) : (
-          <span className="text-sm text-gray-500">{placeholder}</span>
-        )}
-        <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <div className="flex-1 flex flex-wrap gap-1.5 min-w-0">
+          {selectedTopics.length > 0 ? (
+            selectedTopics.map(t => {
+              const info = getTopicInfo(t.type, t.id);
+              if (!info) return null;
+              return (
+                <span
+                  key={t.id}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 max-w-[180px]"
+                >
+                  {info.isQuest ? (
+                    <span className="w-2 h-2 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex-shrink-0" />
+                  ) : (
+                    <span
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: info.color }}
+                    />
+                  )}
+                  <span className="truncate">{info.name}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => handleRemoveChip(e, t.id)}
+                    className="flex-shrink-0 hover:text-red-600 transition-colors"
+                  >
+                    <XMarkIcon className="w-3 h-3" />
+                  </button>
+                </span>
+              );
+            })
+          ) : (
+            <span className="text-sm text-gray-500">{placeholder}</span>
+          )}
+        </div>
+        <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown */}
@@ -268,14 +296,17 @@ const TrackSelector = ({
                 </button>
               )}
 
-              {/* Unassigned option */}
+              {/* No topic option (clear all) */}
               <button
                 type="button"
-                onClick={() => handleSelect(null, null)}
-                className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors ${!currentValue.id ? 'bg-gray-50' : ''}`}
+                onClick={handleClearAll}
+                className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors ${selectedTopics.length === 0 ? 'bg-gray-50' : ''}`}
               >
                 <div className="w-3 h-3 rounded-full bg-gray-300" />
                 <span className="text-sm text-gray-600">No topic</span>
+                {selectedTopics.length === 0 && (
+                  <CheckIcon className="w-4 h-4 text-optio-purple ml-auto" />
+                )}
               </button>
 
               {/* Courses Section */}
@@ -286,7 +317,7 @@ const TrackSelector = ({
                   </div>
                   {courseTopics.map(course => {
                     const isExpanded = expandedCourses[course.id];
-                    const hasSelectedProject = course.projects?.some(p => p.id === currentValue.id);
+                    const hasSelectedProject = course.projects?.some(p => isSelected('project', p.id));
 
                     return (
                       <div key={course.id}>
@@ -306,20 +337,24 @@ const TrackSelector = ({
                           </div>
                           <span className="text-xs text-gray-400">{course.projects?.length || 0}</span>
                         </button>
-                        {isExpanded && course.projects?.map(project => (
-                          <button
-                            key={project.id}
-                            type="button"
-                            onClick={() => handleSelect('project', project.id)}
-                            className={`w-full flex items-center gap-2 pl-8 pr-3 py-2 text-left hover:bg-purple-50 transition-colors ${currentValue.id === project.id ? 'bg-purple-100' : ''}`}
-                          >
-                            <FlagIcon className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm text-gray-700 truncate">{project.name}</p>
-                            </div>
-                            <span className="text-xs text-gray-400">{project.moment_count || 0}</span>
-                          </button>
-                        ))}
+                        {isExpanded && course.projects?.map(project => {
+                          const selected = isSelected('project', project.id);
+                          return (
+                            <button
+                              key={project.id}
+                              type="button"
+                              onClick={() => handleToggle('project', project.id)}
+                              className={`w-full flex items-center gap-2 pl-8 pr-3 py-2 text-left hover:bg-purple-50 transition-colors ${selected ? 'bg-purple-100' : ''}`}
+                            >
+                              <FlagIcon className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-gray-700 truncate">{project.name}</p>
+                              </div>
+                              {selected && <CheckIcon className="w-4 h-4 text-optio-purple flex-shrink-0" />}
+                              <span className="text-xs text-gray-400">{project.moment_count || 0}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     );
                   })}
@@ -332,21 +367,25 @@ const TrackSelector = ({
                   <div className="px-3 py-2 bg-gradient-to-r from-purple-50 to-pink-50 border-y border-purple-100">
                     <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Standalone Quests</span>
                   </div>
-                  {questTopics.map(quest => (
-                    <button
-                      key={quest.id}
-                      type="button"
-                      onClick={() => handleSelect('quest', quest.id)}
-                      className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-purple-50 transition-colors ${currentValue.type === 'quest' && currentValue.id === quest.id ? 'bg-purple-50' : ''}`}
-                    >
-                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{quest.name}</p>
-                      </div>
-                      <FlagIcon className="w-3.5 h-3.5 text-purple-500" />
-                      <span className="text-xs text-gray-400">{quest.moment_count || 0}</span>
-                    </button>
-                  ))}
+                  {questTopics.map(quest => {
+                    const selected = isSelected('quest', quest.id);
+                    return (
+                      <button
+                        key={quest.id}
+                        type="button"
+                        onClick={() => handleToggle('quest', quest.id)}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-purple-50 transition-colors ${selected ? 'bg-purple-50' : ''}`}
+                      >
+                        <div className="w-3 h-3 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{quest.name}</p>
+                        </div>
+                        {selected && <CheckIcon className="w-4 h-4 text-optio-purple flex-shrink-0" />}
+                        <FlagIcon className="w-3.5 h-3.5 text-purple-500" />
+                        <span className="text-xs text-gray-400">{quest.moment_count || 0}</span>
+                      </button>
+                    );
+                  })}
                 </>
               )}
 
@@ -356,23 +395,27 @@ const TrackSelector = ({
                   <div className="px-3 py-2 bg-gray-50 border-y border-gray-100">
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Topics of Interest</span>
                   </div>
-                  {tracks.map(track => (
-                    <button
-                      key={track.id}
-                      type="button"
-                      onClick={() => handleSelect('track', track.id)}
-                      className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors ${currentValue.type === 'track' && currentValue.id === track.id ? 'bg-gray-50' : ''}`}
-                    >
-                      <div
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: track.color || '#9333ea' }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{track.name}</p>
-                      </div>
-                      <span className="text-xs text-gray-400">{track.moment_count || 0}</span>
-                    </button>
-                  ))}
+                  {tracks.map(track => {
+                    const selected = isSelected('track', track.id);
+                    return (
+                      <button
+                        key={track.id}
+                        type="button"
+                        onClick={() => handleToggle('track', track.id)}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors ${selected ? 'bg-gray-100' : ''}`}
+                      >
+                        <div
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: track.color || '#9333ea' }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{track.name}</p>
+                        </div>
+                        {selected && <CheckIcon className="w-4 h-4 text-optio-purple flex-shrink-0" />}
+                        <span className="text-xs text-gray-400">{track.moment_count || 0}</span>
+                      </button>
+                    );
+                  })}
                 </>
               )}
 
