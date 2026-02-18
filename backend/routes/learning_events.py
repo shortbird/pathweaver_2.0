@@ -470,9 +470,8 @@ def upload_event_file(user_id, event_id):
                 'error': 'No file selected'
             }), 400
 
-        # Get block information
+        # Get block type for file validation
         block_type = request.form.get('block_type', 'document')
-        order_index = request.form.get('order_index', 0)
 
         # Validate file
         filename = secure_filename(file.filename)
@@ -526,47 +525,16 @@ def upload_event_file(user_id, event_id):
 
             public_url = admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename)
 
-            # Find the evidence block to update (use admin client for RLS bypass)
-            blocks_response = admin_supabase.table('learning_event_evidence_blocks') \
-                .select('*') \
-                .eq('learning_event_id', event_id) \
-                .eq('order_index', int(order_index)) \
-                .execute()
-
-            if blocks_response.data and len(blocks_response.data) > 0:
-                block = blocks_response.data[0]
-                block_id = block['id']
-
-                # Update block content with file information
-                current_content = block.get('content', {}) or {}
-                current_content.update({
-                    'url': public_url,
-                    'filename': filename,
-                    'file_size': file_size,
-                    'content_type': content_type
-                })
-
-                if block_type == 'image' and not current_content.get('alt'):
-                    current_content['alt'] = filename
-
-                admin_supabase.table('learning_event_evidence_blocks') \
-                    .update({'content': current_content}) \
-                    .eq('id', block_id) \
-                    .execute()
-
-                return jsonify({
-                    'success': True,
-                    'message': 'File uploaded successfully',
-                    'file_url': public_url,
-                    'block_id': block_id,
-                    'filename': filename,
-                    'file_size': file_size
-                })
-            else:
-                return jsonify({
-                    'success': False,
-                    'error': 'Evidence block not found'
-                }), 404
+            # Return the URL only -- evidence blocks are saved via
+            # the /evidence endpoint (which uses the service layer)
+            return jsonify({
+                'success': True,
+                'message': 'File uploaded successfully',
+                'file_url': public_url,
+                'filename': filename,
+                'file_size': file_size,
+                'content_type': content_type
+            })
 
         except Exception as upload_error:
             logger.error(f"Error uploading file: {str(upload_error)}")

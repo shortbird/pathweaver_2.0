@@ -280,7 +280,6 @@ const LearningEventModal = ({
           const formData = new FormData();
           formData.append('file', file);
           formData.append('block_type', block.block_type);
-          formData.append('order_index', index);
 
           // Use parent API when studentId is provided
           const uploadEndpoint = studentId
@@ -294,14 +293,14 @@ const LearningEventModal = ({
           });
 
           if (response.data.success) {
-            return { success: true, block_id: response.data.block_id, file_url: response.data.file_url };
+            return { success: true, index, file_url: response.data.file_url, filename: response.data.filename };
           }
         } catch (error) {
           console.error(`Failed to upload ${file.name}:`, error);
-          return { success: false, filename: file.name };
+          return { success: false, index, filename: file.name };
         }
       }
-      return { success: true };
+      return { success: true, index };
     });
 
     return await Promise.all(uploadPromises);
@@ -372,12 +371,28 @@ const LearningEventModal = ({
       if (response.data.success) {
         // Save evidence blocks if any
         if (evidenceBlocks.length > 0) {
-          const cleanedBlocks = evidenceBlocks.map((block, index) => {
+          // Step 1: Upload files to storage (returns URLs only, no DB writes)
+          const uploadResults = await uploadBlockFiles(eventId);
+          const failedUploads = uploadResults.filter(r => !r.success && r.filename);
+
+          if (failedUploads.length > 0) {
+            toast.error(`Some files failed to upload: ${failedUploads.map(f => f.filename).join(', ')}`);
+          }
+
+          // Step 2: Build final blocks with uploaded file URLs filled in
+          const finalBlocks = evidenceBlocks.map((block, index) => {
             const cleanContent = { ...block.content };
+            delete cleanContent._fileToUpload;
             if (cleanContent.url?.startsWith('blob:')) {
               delete cleanContent.url;
             }
-            delete cleanContent._fileToUpload;
+
+            // Fill in the uploaded file URL if available
+            const uploadResult = uploadResults.find(r => r.index === index && r.success && r.file_url);
+            if (uploadResult) {
+              cleanContent.url = uploadResult.file_url;
+              cleanContent.filename = uploadResult.filename;
+            }
 
             return {
               block_type: block.block_type,
@@ -386,21 +401,14 @@ const LearningEventModal = ({
             };
           });
 
-          // Use parent API when studentId is provided
+          // Step 3: Save all evidence blocks via the evidence endpoint (single source of truth)
           const evidenceEndpoint = studentId
             ? `/api/parent/children/${studentId}/learning-moments/${eventId}/evidence`
             : `/api/learning-events/${eventId}/evidence`;
 
           await api.post(evidenceEndpoint, {
-            blocks: cleanedBlocks
+            blocks: finalBlocks
           });
-
-          const uploadResults = await uploadBlockFiles(eventId);
-          const failedUploads = uploadResults.filter(r => !r.success);
-
-          if (failedUploads.length > 0) {
-            toast.error(`Some files failed to upload: ${failedUploads.map(f => f.filename).join(', ')}`);
-          }
         }
 
         const successMessage = isEditMode
