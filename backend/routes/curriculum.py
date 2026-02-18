@@ -1171,7 +1171,7 @@ def create_curriculum_tasks(user_id: str, quest_id: str, lesson_id: str):
     Create tasks from AI-generated suggestions and optionally link them to the lesson.
 
     Body:
-        tasks (list): Array of task objects with title, description, pillar, xp_value, evidence_prompt
+        tasks (list): Array of task objects with title, description, pillar, xp_value
         link_to_lesson (bool, optional): Whether to link created tasks to the lesson (default True)
 
     Returns:

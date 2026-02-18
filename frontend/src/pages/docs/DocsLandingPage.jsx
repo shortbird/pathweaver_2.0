@@ -4,7 +4,8 @@ import { Helmet } from 'react-helmet-async'
 import {
   BookOpenIcon, AcademicCapIcon, UserGroupIcon,
   BuildingOfficeIcon, Cog6ToothIcon, EyeIcon,
-  RocketLaunchIcon
+  RocketLaunchIcon, ChevronRightIcon, MapIcon,
+  HomeIcon, LightBulbIcon, BuildingLibraryIcon
 } from '@heroicons/react/24/outline'
 import DocsSearch from '../../components/docs/DocsSearch'
 import api from '../../services/api'
@@ -17,6 +18,10 @@ const iconMap = {
   'cog-6-tooth': Cog6ToothIcon,
   'eye': EyeIcon,
   'rocket-launch': RocketLaunchIcon,
+  'map': MapIcon,
+  'home': HomeIcon,
+  'light-bulb': LightBulbIcon,
+  'building-library': BuildingLibraryIcon,
 }
 
 const DocsLandingPage = () => {
@@ -39,8 +44,7 @@ const DocsLandingPage = () => {
   }
 
   const getIcon = (iconName) => {
-    const Icon = iconMap[iconName] || BookOpenIcon
-    return Icon
+    return iconMap[iconName] || BookOpenIcon
   }
 
   return (
@@ -71,15 +75,17 @@ const DocsLandingPage = () => {
           </div>
         </div>
 
-        {/* Category grid */}
+        {/* Category sections with articles */}
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="bg-white rounded-xl border border-gray-200 p-6 animate-pulse">
-                <div className="w-10 h-10 bg-gray-100 rounded-lg mb-4" />
-                <div className="h-5 bg-gray-100 rounded w-3/4 mb-2" />
-                <div className="h-4 bg-gray-50 rounded w-full mb-1" />
-                <div className="h-4 bg-gray-50 rounded w-2/3" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="animate-pulse">
+                <div className="h-6 bg-gray-100 rounded w-48 mb-4" />
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-50 rounded w-full" />
+                  <div className="h-4 bg-gray-50 rounded w-5/6" />
+                  <div className="h-4 bg-gray-50 rounded w-3/4" />
+                </div>
               </div>
             ))}
           </div>
@@ -90,28 +96,49 @@ const DocsLandingPage = () => {
             <p className="text-gray-500">We are building out our help center. Check back shortly.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
             {categories.map(cat => {
               const Icon = getIcon(cat.icon)
+              const articles = cat.articles || []
+
               return (
-                <Link
-                  key={cat.id}
-                  to={`/docs/${cat.slug}`}
-                  className="group bg-white rounded-xl border border-gray-200 p-6 hover:border-optio-purple/30 hover:shadow-md transition-all"
-                >
-                  <div className="w-10 h-10 bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 rounded-lg flex items-center justify-center mb-4 group-hover:from-optio-purple/20 group-hover:to-optio-pink/20 transition-colors">
-                    <Icon className="w-5 h-5 text-optio-purple" />
+                <section key={cat.id}>
+                  {/* Category header */}
+                  <div className="flex items-center gap-3 mb-1">
+                    <div className="w-8 h-8 bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Icon className="w-4 h-4 text-optio-purple" />
+                    </div>
+                    <Link
+                      to={`/docs/${cat.slug}`}
+                      className="text-lg font-semibold text-gray-900 hover:text-optio-purple transition-colors"
+                    >
+                      {cat.title}
+                    </Link>
                   </div>
-                  <h3 className="font-semibold text-gray-900 mb-1 group-hover:text-optio-purple transition-colors">
-                    {cat.title}
-                  </h3>
                   {cat.description && (
-                    <p className="text-sm text-gray-500 mb-3 line-clamp-2">{cat.description}</p>
+                    <p className="text-sm text-gray-500 mb-3 ml-11">{cat.description}</p>
                   )}
-                  <span className="text-xs text-gray-400">
-                    {cat.article_count || 0} {cat.article_count === 1 ? 'article' : 'articles'}
-                  </span>
-                </Link>
+
+                  {/* Article list */}
+                  {articles.length > 0 ? (
+                    <div className="ml-11 border-l border-gray-200">
+                      {articles.map(article => (
+                        <Link
+                          key={article.id}
+                          to={`/docs/${cat.slug}/${article.slug}`}
+                          className="group flex items-center gap-2 pl-4 py-1.5 -ml-px border-l-2 border-transparent hover:border-optio-purple transition-colors"
+                        >
+                          <span className="text-sm text-gray-700 group-hover:text-optio-purple transition-colors">
+                            {article.title}
+                          </span>
+                          <ChevronRightIcon className="w-3 h-3 text-gray-300 group-hover:text-optio-purple transition-colors flex-shrink-0" />
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 ml-11 italic">No articles yet</p>
+                  )}
+                </section>
               )
             })}
           </div>

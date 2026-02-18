@@ -574,8 +574,6 @@ For each task, provide these fields:
 - description: 2-3 sentences describing IDEAS for how to approach this task - not directions
 - pillar: One of: stem, wellness, communication, civics, art
 - xp_value: XP points (50-200) based on complexity
-- evidence_prompt: Flexible ways to show completion: "Show your work through a written summary, video, diagram, project, or format of your choice"
-
 STYLE GUIDELINES:
 - Use simple, direct language
 - No motivational hype or flowery language
@@ -606,8 +604,7 @@ Return ONLY a valid JSON array with these exact field names. No markdown, no cod
                     'title': task.get('title', 'Complete Task'),
                     'description': task.get('description', ''),
                     'pillar': pillar,
-                    'xp_value': xp,
-                    'evidence_prompt': task.get('evidence_prompt', 'Show your work through writing, video, or another format of your choice.')
+                    'xp_value': xp
                 })
 
             # Enforce unique pillars - reassign to ensure variety
