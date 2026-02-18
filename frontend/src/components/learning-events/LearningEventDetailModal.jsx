@@ -177,7 +177,7 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate, studentId 
                 <h2 className="text-xl font-bold mb-1">Learning Moment</h2>
                 <div className="flex items-center gap-2 text-white/80 text-sm">
                   <CalendarIcon className="w-4 h-4" />
-                  <span>{formatDate(event.created_at)}</span>
+                  <span>{formatDate(event.event_date || event.created_at)}</span>
                 </div>
               </div>
               <button
@@ -196,6 +196,31 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate, studentId 
               <div className="mb-4">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Title</p>
                 <p className="text-lg font-semibold text-gray-900">{event.title}</p>
+              </div>
+            )}
+
+            {/* Topics */}
+            {event.topics && event.topics.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Topics</p>
+                <div className="flex flex-wrap gap-2">
+                  {event.topics.map((t) => (
+                    <span
+                      key={`${t.type}-${t.id}`}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
+                    >
+                      {t.type === 'quest' ? (
+                        <span className="w-2 h-2 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex-shrink-0" />
+                      ) : (
+                        <span
+                          className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: t.color || '#9333ea' }}
+                        />
+                      )}
+                      {t.name || (t.type === 'quest' ? 'Quest' : 'Topic')}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
 

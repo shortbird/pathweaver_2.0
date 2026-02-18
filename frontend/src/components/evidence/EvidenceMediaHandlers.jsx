@@ -1,6 +1,56 @@
 import { evidenceDocumentService } from '../../services/evidenceDocumentService';
 import logger from '../../utils/logger';
 
+// Centralized allowed file types for evidence uploads
+export const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'tiff', 'tif', 'bmp', 'avif', 'jfif'];
+export const ALLOWED_IMAGE_MIME_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'image/heic', 'image/heif', 'image/tiff', 'image/bmp',
+  'image/avif'
+];
+export const ALLOWED_DOCUMENT_EXTENSIONS = ['pdf', 'doc', 'docx', 'txt'];
+export const ALLOWED_DOCUMENT_MIME_TYPES = [
+  'application/pdf', 'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain'
+];
+
+export const IMAGE_ACCEPT_STRING = '.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.tiff,.tif,.bmp,.avif,.jfif';
+export const DOCUMENT_ACCEPT_STRING = '.pdf,.doc,.docx,.txt';
+export const IMAGE_FORMAT_LABEL = 'JPG, JPEG, PNG, GIF, WebP, HEIC, TIFF, BMP, or AVIF';
+export const DOCUMENT_FORMAT_LABEL = 'PDF, DOC, DOCX, or TXT';
+
+/**
+ * Validates a file's type against allowed extensions and MIME types.
+ * Returns { valid: true } or { valid: false, message: string }
+ */
+export function validateFileType(file, blockType) {
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  const mime = file.type || '';
+
+  if (blockType === 'image') {
+    if (ALLOWED_IMAGE_MIME_TYPES.includes(mime) || ALLOWED_IMAGE_EXTENSIONS.includes(ext)) {
+      return { valid: true };
+    }
+    return {
+      valid: false,
+      message: `"${file.name}" is not a supported image format.\n\nSupported formats: ${IMAGE_FORMAT_LABEL}.\n\nIf your image is in a different format, try converting it to JPG or PNG first.`
+    };
+  }
+
+  if (blockType === 'document') {
+    if (ALLOWED_DOCUMENT_MIME_TYPES.includes(mime) || ALLOWED_DOCUMENT_EXTENSIONS.includes(ext)) {
+      return { valid: true };
+    }
+    return {
+      valid: false,
+      message: `"${file.name}" is not a supported document format.\n\nSupported formats: ${DOCUMENT_FORMAT_LABEL}.`
+    };
+  }
+
+  return { valid: true };
+}
+
 /**
  * Handles file upload validation, preview creation, and Supabase storage
  */
@@ -117,6 +167,15 @@ export class EvidenceMediaHandlers {
 
   async handleFileUpload(file, blockId, blockType) {
     try {
+      // Validate file type
+      const typeCheck = validateFileType(file, blockType);
+      if (!typeCheck.valid) {
+        if (this.onError) {
+          this.onError(typeCheck.message);
+        }
+        throw new Error(typeCheck.message);
+      }
+
       // Validate file size (10MB limit)
       const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
       if (file.size > MAX_FILE_SIZE) {

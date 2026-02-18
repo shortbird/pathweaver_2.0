@@ -281,6 +281,10 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Error registering Observer role routes: {e}", exc_info=True)
 
+# Register Link Preview blueprint (February 2026 - Rich link previews in feed)
+from routes.link_preview import bp as link_preview_bp
+app.register_blueprint(link_preview_bp)  # /api/utils/link-preview
+
 
 # Badge system removed (January 2026 - Microschool client feedback)
 # Register Credits blueprint only (credits are still used for diploma)

@@ -6,7 +6,7 @@
  */
 
 import { PlayIcon } from '@heroicons/react/24/outline'
-import { getVideoEmbedUrl } from '../utils/contentUtils'
+import { getVideoEmbedUrl } from '../../../utils/videoUtils'
 import TextStepContent from './TextStepContent'
 
 export const VideoStepContent = ({ step, lessonTitle }) => {

@@ -1,4 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
+import {
+  ALLOWED_IMAGE_EXTENSIONS,
+  ALLOWED_IMAGE_MIME_TYPES,
+  IMAGE_ACCEPT_STRING,
+  IMAGE_FORMAT_LABEL
+} from './EvidenceMediaHandlers';
 
 const EvidenceUploader = ({ evidenceType, onChange, error }) => {
   const [textContent, setTextContent] = useState('');
@@ -11,10 +17,6 @@ const EvidenceUploader = ({ evidenceType, onChange, error }) => {
 
   // File size limits
   const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-
-  // Allowed file types
-  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
-  const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'];
 
   useEffect(() => {
     // Reset state when evidence type changes
@@ -48,8 +50,8 @@ const EvidenceUploader = ({ evidenceType, onChange, error }) => {
 
     // Validate file type - check both MIME type and extension for better compatibility
     const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type) && !ALLOWED_IMAGE_EXTENSIONS.includes(fileExtension)) {
-      alert(`Unsupported image format (.${fileExtension || 'unknown'}). Please use JPG, PNG, GIF, WebP, or HEIC.`);
+    if (!ALLOWED_IMAGE_MIME_TYPES.includes(file.type) && !ALLOWED_IMAGE_EXTENSIONS.includes(fileExtension)) {
+      alert(`"${file.name}" is not a supported image format.\n\nSupported formats: ${IMAGE_FORMAT_LABEL}.\n\nIf your image is in a different format, try converting it to JPG or PNG first.`);
       return;
     }
 
@@ -148,7 +150,7 @@ const EvidenceUploader = ({ evidenceType, onChange, error }) => {
             Click to upload or drag and drop
           </p>
           <p className="text-xs text-gray-500 mt-1">
-            JPG, PNG, GIF, WebP, HEIC up to 10MB
+            {IMAGE_FORMAT_LABEL} up to 10MB
           </p>
         </div>
       ) : (
@@ -183,7 +185,7 @@ const EvidenceUploader = ({ evidenceType, onChange, error }) => {
         ref={fileInputRef}
         type="file"
         onChange={handleFileSelect}
-        accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif"
+        accept={`image/*,${IMAGE_ACCEPT_STRING}`}
         className="hidden"
       />
     </div>

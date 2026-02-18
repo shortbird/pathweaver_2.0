@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { ChevronLeftIcon, ChevronRightIcon, LinkIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
 import DocumentPreview from './DocumentPreview';
+import LinkPreviewCard from './LinkPreviewCard';
+import { getVideoEmbedUrl, getVideoAspectClass } from '../../utils/videoUtils';
 
 /**
  * Instagram-style media carousel for displaying multiple images/media items.
@@ -169,52 +171,53 @@ const MediaCarousel = ({ media = [] }) => {
       {/* Non-image media items (videos, links, documents) */}
       {otherItems.map((item, index) => (
         <div key={`other-${index}`} className="bg-gray-100">
-          {item.type === 'video' && (
-            <div className="aspect-video bg-gray-900">
-              {item.url.includes('youtube.com') || item.url.includes('youtu.be') ? (
-                <iframe
-                  src={item.url.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')}
-                  className="w-full h-full"
-                  allowFullScreen
-                  title="Video evidence"
-                />
-              ) : (
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center h-full text-white hover:text-gray-300 min-h-[200px]"
-                >
-                  <VideoCameraIcon className="w-12 h-12" />
-                  <span className="ml-2">Watch Video</span>
-                </a>
-              )}
-            </div>
-          )}
-          {item.type === 'link' && (
-            <a
-              href={item.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <LinkIcon className="w-6 h-6 shrink-0 text-blue-600" />
-                <div className="min-w-0">
-                  <span className="text-base font-medium text-blue-600 block truncate">
-                    {item.title || (() => {
-                      try {
-                        return new URL(item.url).hostname.replace('www.', '');
-                      } catch {
-                        return 'View Link';
-                      }
-                    })()}
-                  </span>
-                  <p className="text-sm text-gray-500 truncate">{item.url}</p>
-                </div>
+          {item.type === 'video' && (() => {
+            const embedUrl = getVideoEmbedUrl(item.url);
+            const aspectClass = getVideoAspectClass(item.url);
+            return (
+              <div className={`${aspectClass} bg-black overflow-hidden`}>
+                {embedUrl ? (
+                  <iframe
+                    src={embedUrl}
+                    className="w-full h-full border-0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    title="Video evidence"
+                  />
+                ) : (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center h-full text-white hover:text-gray-300 min-h-[200px]"
+                  >
+                    <VideoCameraIcon className="w-12 h-12" />
+                    <span className="ml-2">Watch Video</span>
+                  </a>
+                )}
               </div>
-            </a>
-          )}
+            );
+          })()}
+          {item.type === 'link' && (() => {
+            const linkEmbedUrl = getVideoEmbedUrl(item.url);
+            if (linkEmbedUrl) {
+              const linkAspectClass = getVideoAspectClass(item.url);
+              return (
+                <div className={`${linkAspectClass} bg-black overflow-hidden`}>
+                  <iframe
+                    src={linkEmbedUrl}
+                    className="w-full h-full border-0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    title="Video evidence"
+                  />
+                </div>
+              );
+            }
+            return (
+              <LinkPreviewCard url={item.url} title={item.title} />
+            );
+          })()}
           {item.type === 'document' && (
             <DocumentPreview url={item.url} title={item.title} />
           )}

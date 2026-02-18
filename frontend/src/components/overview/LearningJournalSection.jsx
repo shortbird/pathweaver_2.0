@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRightIcon, SparklesIcon, PhotoIcon, DocumentIcon, VideoCameraIcon, MusicalNoteIcon } from '@heroicons/react/24/outline';
 import { Document, Page, pdfjs } from 'react-pdf';
 import api from '../../services/api';
+import { getVideoEmbedUrl } from '../../utils/videoUtils';
 
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
@@ -273,29 +274,65 @@ const LearningJournalSection = ({
     }
 
     // Video preview - show poster frame or icon
-    if (fileType === 'video' && fileUrl) {
-      return (
-        <div className="w-full h-full relative bg-purple-50">
-          <video
-            src={fileUrl}
-            className="w-full h-full object-cover"
-            muted
-            preload="metadata"
-            onLoadedMetadata={(e) => {
-              // Seek to 1 second for a better thumbnail
-              e.target.currentTime = 1;
-            }}
-          />
-          {/* Play icon overlay */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+    if ((fileType === 'video' || fileType === 'link') && fileUrl) {
+      // Check if this is an embeddable video URL (YouTube, Vimeo, Loom, Google Drive)
+      const embedUrl = getVideoEmbedUrl(fileUrl);
+      if (embedUrl) {
+        // For YouTube, we can show a real thumbnail
+        const ytMatch = fileUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+        if (ytMatch) {
+          return (
+            <div className="w-full h-full relative bg-black">
+              <img
+                src={`https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M6.3 2.841A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        // For other embeddable videos (Vimeo, Loom, Google Drive), show play icon
+        return (
+          <div className="w-full h-full relative bg-purple-50 flex items-center justify-center">
             <div className="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center">
               <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M6.3 2.841A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
               </svg>
             </div>
           </div>
-        </div>
-      );
+        );
+      }
+
+      // Direct video file - use video tag for poster frame
+      if (fileType === 'video') {
+        return (
+          <div className="w-full h-full relative bg-purple-50">
+            <video
+              src={fileUrl}
+              className="w-full h-full object-cover"
+              muted
+              preload="metadata"
+              onLoadedMetadata={(e) => {
+                e.target.currentTime = 1;
+              }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M6.3 2.841A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        );
+      }
     }
 
     return <FallbackIcon type={fileType} />;

@@ -49,7 +49,9 @@ from config.constants import (
     MAX_IMAGE_SIZE,
     MAX_DOCUMENT_SIZE,
     ALLOWED_IMAGE_EXTENSIONS,
-    ALLOWED_DOCUMENT_EXTENSIONS
+    ALLOWED_DOCUMENT_EXTENSIONS,
+    IMAGE_FORMAT_LABEL,
+    DOCUMENT_FORMAT_LABEL
 )
 
 # File upload configuration
@@ -413,9 +415,10 @@ def upload_task_file(user_id: str, task_id: str):
         max_file_size = max(MAX_IMAGE_SIZE, MAX_DOCUMENT_SIZE)
 
         if ext not in allowed_extensions:
+            format_label = f'{IMAGE_FORMAT_LABEL}, {DOCUMENT_FORMAT_LABEL}'
             return jsonify({
                 'success': False,
-                'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'
+                'error': f'File type ".{ext}" is not supported. Supported formats: {format_label}.'
             }), 400
 
         # Check file size
@@ -425,9 +428,10 @@ def upload_task_file(user_id: str, task_id: str):
 
         if file_size > max_file_size:
             max_size_mb = max_file_size // (1024*1024)
+            file_size_mb = file_size / (1024*1024)
             return jsonify({
                 'success': False,
-                'error': f'File too large ({file_size // (1024*1024)}MB). Maximum: {max_size_mb}MB.'
+                'error': f'File is too large ({file_size_mb:.1f}MB). Maximum allowed size is {max_size_mb}MB. Try compressing the file or use a link instead.'
             }), 413
 
         # Upload to Supabase storage
@@ -535,9 +539,10 @@ def upload_block_file(user_id: str, block_id: str):
             max_file_size = MAX_DOCUMENT_SIZE
 
         if ext not in allowed_extensions:
+            format_label = IMAGE_FORMAT_LABEL if block_type == 'image' else DOCUMENT_FORMAT_LABEL
             return jsonify({
                 'success': False,
-                'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'
+                'error': f'File type ".{ext}" is not supported for {block_type} uploads. Supported formats: {format_label}.'
             }), 400
 
         # Check file size
@@ -547,9 +552,10 @@ def upload_block_file(user_id: str, block_id: str):
 
         if file_size > max_file_size:
             max_size_mb = max_file_size // (1024*1024)
+            file_size_mb = file_size / (1024*1024)
             return jsonify({
                 'success': False,
-                'error': f'File too large ({file_size // (1024*1024)}MB). Maximum: {max_size_mb}MB. For larger files, upload to Google Drive or Dropbox and use a link instead.',
+                'error': f'File is too large ({file_size_mb:.1f}MB). Maximum allowed size is {max_size_mb}MB. For larger files, upload to Google Drive or Dropbox and use a link instead.',
                 'file_size': file_size,
                 'max_size': max_file_size
             }), 413

@@ -10,6 +10,7 @@ import {
   DocumentIcon
 } from '@heroicons/react/24/outline';
 import { useEvidenceEditor } from './EvidenceEditorContext';
+import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, IMAGE_FORMAT_LABEL, DOCUMENT_FORMAT_LABEL } from './EvidenceMediaHandlers';
 import { TouchActionGroup } from '../ui/mobile/TouchActionButton';
 import { ResponsiveGrid } from '../ui/mobile/ResponsiveGrid';
 import { useIsMobile } from '../../hooks/useSwipeGesture';
@@ -281,13 +282,13 @@ export const EvidenceBlockRenderer = ({
           <p className="text-sm font-medium text-gray-700">
             {items.length > 0 ? 'Add more images' : 'Click to upload images'}
           </p>
-          <p className="text-xs text-gray-500 mt-1">Select multiple files at once</p>
+          <p className="text-xs text-gray-500 mt-1">{IMAGE_FORMAT_LABEL} up to 10MB</p>
         </div>
 
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept={`image/*,${IMAGE_ACCEPT_STRING}`}
           multiple
           onChange={handleFileSelect}
           className="hidden"
@@ -494,13 +495,13 @@ export const EvidenceBlockRenderer = ({
           <p className="text-sm font-medium text-gray-700">
             {items.length > 0 ? 'Add more documents' : 'Click to upload documents'}
           </p>
-          <p className="text-xs text-gray-500 mt-1">PDF, DOC, DOCX - Select multiple files</p>
+          <p className="text-xs text-gray-500 mt-1">{DOCUMENT_FORMAT_LABEL} up to 10MB</p>
         </div>
 
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.doc,.docx"
+          accept={DOCUMENT_ACCEPT_STRING}
           multiple
           onChange={handleFileSelect}
           className="hidden"
