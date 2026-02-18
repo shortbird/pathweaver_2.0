@@ -225,6 +225,7 @@ class QuestRepository(BaseRepository):
                         admin_client.table('user_quests')
                         .update({
                             'is_active': True,
+                            'completed_at': None,
                             'last_picked_up_at': datetime.now(timezone.utc).isoformat()
                         })
                         .eq('user_id', user_id)

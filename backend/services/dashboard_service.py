@@ -318,7 +318,8 @@ class DashboardService:
             query = self.client.table('user_quests')\
                 .select('*, quests(*)')\
                 .eq('user_id', user_id)\
-                .eq('is_active', True)
+                .eq('is_active', True)\
+                .is_('completed_at', 'null')
 
             active_quests = query.execute()
 
@@ -460,7 +461,8 @@ class DashboardService:
             query = self.client.table('user_quests')\
                 .select('*')\
                 .eq('user_id', user_id)\
-                .eq('is_active', True)
+                .eq('is_active', True)\
+                .is_('completed_at', 'null')
 
             if exclude_quest_ids:
                 query = query.not_.in_('quest_id', list(exclude_quest_ids))

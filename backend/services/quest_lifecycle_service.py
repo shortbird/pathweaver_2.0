@@ -90,6 +90,7 @@ class QuestLifecycleService:
             .update({
                 'status': 'picked_up',
                 'is_active': True,
+                'completed_at': None,
                 'last_picked_up_at': datetime.utcnow().isoformat(),
                 'times_picked_up': times_picked_up
             })\
