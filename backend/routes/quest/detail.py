@@ -172,13 +172,16 @@ def get_quest_detail(user_id: str, quest_id: str):
 
         quest_type = quest_data.get('quest_type', 'optio')
 
+        # Check if quest has template tasks (persists regardless of enrollment)
+        all_template_tasks = get_template_tasks(quest_id, filter_type='all')
+        quest_data['has_template_tasks'] = len(all_template_tasks) > 0
+
         # Always include template_tasks when user is not actively enrolled
         # (includes never enrolled OR completed enrollment - both can re-enroll)
         if not active_enrollment:
-            # User not actively enrolled - get template tasks from unified table
-            template_tasks = get_template_tasks(quest_id, filter_type='all')
-            quest_data['template_tasks'] = template_tasks
-            logger.info(f"[QUEST DETAIL] Added {len(template_tasks)} template tasks (user not actively enrolled)")
+            # Reuse already-fetched template tasks
+            quest_data['template_tasks'] = all_template_tasks
+            logger.info(f"[QUEST DETAIL] Added {len(all_template_tasks)} template tasks (user not actively enrolled)")
 
             # Also populate legacy fields for backward compatibility
             if quest_type == 'optio':

@@ -84,6 +84,9 @@ const QuestDetail = () => {
     queryClient
   } = useQuestDetailData(id);
 
+  // Enrollment transition loading state (stays true from click through refetch)
+  const [isEnrollmentLoading, setIsEnrollmentLoading] = React.useState(false);
+
   // Local state for modals and UI
   const [showTaskModal, setShowTaskModal] = React.useState(false);
   const [showTaskDetailModal, setShowTaskDetailModal] = React.useState(false);
@@ -122,14 +125,19 @@ const QuestDetail = () => {
       return;
     }
 
+    setIsEnrollmentLoading(true);
+
     enrollMutation.mutate({ questId: id, options }, {
       onSuccess: async (data) => {
         queryClient.invalidateQueries(queryKeys.quests.detail(id));
         await refetchQuest();
 
-        const skipWizard = data?.enrollment?.skip_wizard || data?.skip_wizard || data?.tasks_loaded || false;
+        setIsEnrollmentLoading(false);
 
-        if (skipWizard) {
+        const skipWizard = data?.enrollment?.skip_wizard || data?.skip_wizard || data?.tasks_loaded || false;
+        const hasTemplateTasks = data?.has_template_tasks || false;
+
+        if (skipWizard || hasTemplateTasks) {
           if (data?.tasks_loaded) {
             toast.success(`Restarted quest with ${data.tasks_loaded} previous tasks!`);
           } else {
@@ -142,6 +150,7 @@ const QuestDetail = () => {
         }
       },
       onError: (error) => {
+        setIsEnrollmentLoading(false);
         if (error.response?.status === 409 && error.response?.data?.requires_confirmation) {
           const previousTaskCount = error.response.data.previous_task_count || 0;
           setRestartModalData({
@@ -220,7 +229,10 @@ const QuestDetail = () => {
 
   const handleAddMoreTasks = () => {
     setShowQuestCompletionCelebration(false);
-    setShowPersonalizationWizard(true);
+    // Only open wizard for quests without template tasks
+    if (!quest?.has_template_tasks) {
+      setShowPersonalizationWizard(true);
+    }
   };
 
   const handleFinishQuestFromCelebration = () => {
@@ -499,7 +511,7 @@ const QuestDetail = () => {
           quest={quest}
           isQuestCompleted={isQuestCompleted}
           totalTasks={totalTasks}
-          isEnrolling={isEnrolling}
+          isEnrolling={isEnrolling || isEnrollmentLoading}
           onEnroll={handleEnroll}
           onShowPersonalizationWizard={() => setShowPersonalizationWizard(true)}
           onPreloadWizard={preloadWizard}
@@ -516,7 +528,7 @@ const QuestDetail = () => {
                 onTaskSelect={handleTaskSelect}
                 onTaskReorder={handleTaskReorder}
                 onTaskComplete={handleTaskCompletion}
-                onAddTask={() => setShowPersonalizationWizard(true)}
+                onAddTask={quest.has_template_tasks ? undefined : () => setShowPersonalizationWizard(true)}
                 onRemoveTask={handleDropTask}
                 onClose={() => setSelectedTask(null)}
               />
@@ -524,6 +536,21 @@ const QuestDetail = () => {
           </div>
         )}
       </div>
+
+      {/* Enrollment loading overlay */}
+      {isEnrollmentLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-4 shadow-2xl">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-optio-purple border-t-transparent"></div>
+            <p className="text-lg font-semibold text-gray-700" style={{ fontFamily: 'Poppins' }}>
+              Setting up your quest...
+            </p>
+            <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins' }}>
+              Preparing your tasks and getting everything ready
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       {showTaskModal && selectedTask && (
@@ -550,7 +577,7 @@ const QuestDetail = () => {
         </Suspense>
       )}
 
-      {showPersonalizationWizard && (
+      {showPersonalizationWizard && !quest?.has_template_tasks && (
         <Suspense fallback={<WizardLoadingOverlay />}>
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
