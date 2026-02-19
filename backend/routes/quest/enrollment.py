@@ -115,36 +115,47 @@ def enroll_in_quest(user_id: str, quest_id: str):
             admin_client = get_supabase_admin_client()
 
             # Get all existing tasks for this enrollment
-            existing_tasks = admin_client.table('user_quest_tasks')\
+            all_enrollment_tasks = admin_client.table('user_quest_tasks')\
                 .select('id, source_template_task_id')\
                 .eq('user_quest_id', enrollment['id'])\
-                .is_('completed_at', 'null')\
                 .execute()
+
+            # Get completed task IDs from quest_task_completions
+            # (user_quest_tasks has no completed_at column; completions are tracked separately)
+            task_completions = admin_client.table('quest_task_completions')\
+                .select('user_quest_task_id')\
+                .eq('user_id', user_id)\
+                .eq('quest_id', quest_id)\
+                .execute()
+            completed_task_ids = {
+                t['user_quest_task_id'] for t in (task_completions.data or [])
+                if t.get('user_quest_task_id')
+            }
+
+            # Split into completed vs incomplete
+            incomplete_ids = []
+            completed_template_ids = set()
+            for task in (all_enrollment_tasks.data or []):
+                if task['id'] in completed_task_ids:
+                    # Task is completed -- preserve it and track its template ID
+                    if task.get('source_template_task_id'):
+                        completed_template_ids.add(task['source_template_task_id'])
+                else:
+                    incomplete_ids.append(task['id'])
 
             # Delete only INCOMPLETE tasks -- completed tasks keep their evidence
             # FK cascades handle child records for deleted tasks
-            if existing_tasks.data:
-                incomplete_ids = [t['id'] for t in existing_tasks.data]
+            if incomplete_ids:
                 admin_client.table('user_quest_tasks')\
                     .delete()\
                     .in_('id', incomplete_ids)\
                     .execute()
-                logger.info(f"[START_FRESH] Deleted {len(incomplete_ids)} incomplete tasks, keeping completed ones")
+                logger.info(f"[START_FRESH] Deleted {len(incomplete_ids)} incomplete tasks, keeping {len(completed_template_ids)} completed ones")
             else:
                 logger.info(f"[START_FRESH] No incomplete tasks to delete")
 
-            # Build set of template task IDs that are already completed (to skip during re-insert)
-            completed_tasks = admin_client.table('user_quest_tasks')\
-                .select('source_template_task_id')\
-                .eq('user_quest_id', enrollment['id'])\
-                .not_.is_('completed_at', 'null')\
-                .execute()
-            completed_template_ids = {
-                t['source_template_task_id'] for t in (completed_tasks.data or [])
-                if t.get('source_template_task_id')
-            }
             if completed_template_ids:
-                logger.info(f"[START_FRESH] Preserving {len(completed_template_ids)} completed tasks")
+                logger.info(f"[START_FRESH] Preserving {len(completed_template_ids)} completed template tasks")
 
             # Store on enrollment object so template insertion can skip duplicates
             enrollment['_completed_template_ids'] = completed_template_ids
@@ -300,13 +311,31 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 all_tasks = get_template_tasks(quest_id, filter_type='all')
 
                 if all_tasks:
-                    # Skip template tasks that are already completed (Start Fresh preserves these)
+                    # Skip template tasks that already exist for this enrollment
+                    # This handles: Start Fresh (completed tasks preserved) AND
+                    # reactivated enrollments (same enrollment ID, old tasks still present)
                     completed_template_ids = enrollment.get('_completed_template_ids', set())
+
+                    existing_enrollment_tasks = admin_client.table('user_quest_tasks')\
+                        .select('source_template_task_id, source_task_id')\
+                        .eq('user_quest_id', enrollment['id'])\
+                        .execute()
+                    already_existing_template_ids = set()
+                    for t in (existing_enrollment_tasks.data or []):
+                        if t.get('source_template_task_id'):
+                            already_existing_template_ids.add(t['source_template_task_id'])
+                        if t.get('source_task_id'):
+                            already_existing_template_ids.add(t['source_task_id'])
+
+                    # Merge both sets: completed (from Start Fresh) + already existing
+                    skip_ids = completed_template_ids | already_existing_template_ids
+                    if skip_ids:
+                        logger.info(f"[UNIFIED_ENROLL] Skipping {len(skip_ids)} template tasks that already exist")
 
                     tasks_to_insert = []
                     for task in all_tasks:
-                        if task.get('id') in completed_template_ids:
-                            logger.info(f"[UNIFIED_ENROLL] Skipping already-completed template task: {task.get('title', '')[:30]}")
+                        if task.get('id') in skip_ids:
+                            logger.info(f"[UNIFIED_ENROLL] Skipping already-existing template task: {task.get('title', '')[:30]}")
                             continue
                         tasks_to_insert.append({
                             'user_id': user_id,

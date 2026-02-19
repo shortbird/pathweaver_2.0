@@ -27,7 +27,8 @@ const QuestEnrollment = ({
   const hasTemplateTasks = templateTasks.length > 0;
 
   // Show "Ready to personalize" message for enrolled quests with no tasks
-  const showPersonalizationPrompt = quest?.quest_tasks?.length === 0 && quest?.user_enrollment;
+  // Only for quests without template tasks (template quests don't use the wizard)
+  const showPersonalizationPrompt = quest?.quest_tasks?.length === 0 && quest?.user_enrollment && !hasTemplateTasks;
 
   // Show template tasks when not enrolled and quest has template tasks
   const showTemplateTasks = !quest?.user_enrollment && hasTemplateTasks;
