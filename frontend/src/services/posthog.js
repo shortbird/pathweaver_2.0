@@ -24,8 +24,8 @@ export const initPostHog = () => {
     capture_pageview: true,
     // Capture page leave for replay timeline
     capture_pageleave: true,
-    // Honor Do Not Track
-    respect_dnt: true,
+    // DNT disabled -- beta platform with consented users, not public website
+    respect_dnt: false,
   })
 
   initialized = true
