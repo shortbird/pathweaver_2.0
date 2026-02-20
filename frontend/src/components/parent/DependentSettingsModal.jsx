@@ -707,11 +707,11 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
                           type="text"
                           value={activeInvite.url}
                           readOnly
-                          className="flex-1 px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg text-gray-600"
+                          className="flex-1 min-w-0 px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg text-gray-600 truncate"
                         />
                         <button
                           onClick={handleCopyInviteLink}
-                          className="px-3 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg text-sm font-medium hover:opacity-90"
+                          className="flex-shrink-0 px-3 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg text-sm font-medium hover:opacity-90"
                         >
                           Copy
                         </button>

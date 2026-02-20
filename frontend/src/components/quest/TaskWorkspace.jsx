@@ -590,21 +590,66 @@ const TaskWorkspace = ({
   const completedTasks = tasks.filter(t => t.is_completed);
 
   return (
-    <div className="h-full flex">
-      {/* Content Area with Full-Height Sidebar */}
+    <div className="h-full flex flex-col sm:flex-row">
+      {/* Mobile: Task Dropdown */}
+      <div className="sm:hidden px-3 py-2 border-b border-gray-200 bg-gray-50 flex items-center gap-2">
+        <div className="relative flex-1">
+          <select
+            value={task?.id || ''}
+            onChange={(e) => {
+              const selected = tasks.find(t => t.id === e.target.value);
+              if (selected) onTaskSelect?.(selected);
+            }}
+            className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-optio-purple/30 focus:border-optio-purple"
+            style={{ fontFamily: 'Poppins' }}
+          >
+            {activeTasks.length > 0 && (
+              <optgroup label={`Active (${activeTasks.length})`}>
+                {activeTasks.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title} ({t.xp_value} XP)
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {completedTasks.length > 0 && (
+              <optgroup label={`Completed (${completedTasks.length})`}>
+                {completedTasks.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title} ({t.xp_value} XP)
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+          <ChevronDownIcon className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        </div>
+        {onAddTask && (
+          <button
+            onClick={onAddTask}
+            className="flex-shrink-0 p-2 text-optio-purple hover:bg-optio-purple/5 rounded-lg transition-colors"
+            title="Add Task"
+          >
+            <PlusIcon className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+
+      {/* Desktop: Content Area with Full-Height Sidebar */}
         {/* Expand button when collapsed */}
         {!isTaskListOpen && (
           <button
             onClick={() => setIsTaskListOpen(true)}
-            className="flex-shrink-0 w-8 border-r border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-center group"
+            className="hidden sm:flex flex-shrink-0 w-8 border-r border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors items-center justify-center group"
             title="Show task list"
           >
             <ChevronRightIcon className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
           </button>
         )}
 
-        {/* Collapsible Task List Panel */}
+        {/* Collapsible Task List Panel (desktop only) */}
         <div className={`
+          hidden sm:block
           ${isTaskListOpen ? 'w-64' : 'w-0'}
           flex-shrink-0 border-r border-gray-200 transition-all duration-300 overflow-hidden
         `}>
