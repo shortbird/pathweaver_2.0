@@ -12,7 +12,8 @@ import {
   Cog6ToothIcon,
   UserGroupIcon,
   NewspaperIcon,
-  RocketLaunchIcon
+  RocketLaunchIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline';
 import AddDependentModal from '../components/parent/AddDependentModal';
 import RequestStudentConnectionModal from '../components/parent/RequestStudentConnectionModal';
@@ -362,59 +363,95 @@ const ParentDashboardPage = () => {
         </div>
       ) : (
         <>
-          {/* Student Tabs */}
-          {(children.length > 1 || dependents.length > 1 || (children.length > 0 && dependents.length > 0)) && (
-            <div className="border-b border-gray-200 mb-6">
-              <nav className="flex gap-6 overflow-x-auto pb-4 -mb-px">
-                {/* Linked 13+ students */}
-                {children.map((child) => {
-                  // Calculate age if date_of_birth is available
-                  const age = child.date_of_birth ? calculateAge(child.date_of_birth) : null;
-                  const showAgeIcon = age !== null && age < 13;
+          {/* Student Selector */}
+          {(children.length > 1 || dependents.length > 1 || (children.length > 0 && dependents.length > 0)) && (() => {
+            // Build unified list for both mobile dropdown and desktop tabs
+            const allStudents = [
+              ...children.map((child) => {
+                const age = child.date_of_birth ? calculateAge(child.date_of_birth) : null;
+                return {
+                  id: child.student_id,
+                  name: `${child.student_first_name} ${child.student_last_name}`,
+                  isUnder13: age !== null && age < 13,
+                };
+              }),
+              ...dependents.map((dep) => ({
+                id: dep.id,
+                name: dep.display_name,
+                isUnder13: false,
+              })),
+            ];
+            const selectedStudent = allStudents.find(s => s.id === selectedStudentId);
 
-                  return (
-                    <button
-                      key={child.student_id}
-                      onClick={() => setSelectedStudentId(child.student_id)}
-                      className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap min-h-[44px] ${
-                        selectedStudentId === child.student_id
-                          ? 'border-b-2 border-optio-purple text-optio-purple'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
+            return (
+              <>
+                {/* Mobile: Dropdown */}
+                <div className="sm:hidden mb-4">
+                  <div className="relative">
+                    <select
+                      value={selectedStudentId || ''}
+                      onChange={(e) => setSelectedStudentId(e.target.value)}
+                      className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-4 py-3 pr-10 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-optio-purple/30 focus:border-optio-purple"
                       style={{ fontFamily: 'Poppins, sans-serif' }}
                     >
-                      <UserIcon className="w-5 h-5" />
-                      {child.student_first_name} {child.student_last_name}
-                      {showAgeIcon && (
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Under 13</span>
-                      )}
-                    </button>
-                  );
-                })}
+                      {allStudents.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}{s.isUnder13 ? ' (Under 13)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
 
-                {/* Dependents (under 13) */}
-                {dependents.map((dependent) => {
-                  const isSelected = selectedStudentId === dependent.id;
-
-                  return (
-                    <button
-                      key={dependent.id}
-                      onClick={() => setSelectedStudentId(dependent.id)}
-                      className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap min-h-[44px] ${
-                        isSelected
-                          ? 'border-b-2 border-optio-purple text-optio-purple'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                      style={{ fontFamily: 'Poppins, sans-serif' }}
-                    >
-                      <UserIcon className="w-5 h-5" />
-                      {dependent.display_name}
-                    </button>
-                  );
-                })}
-              </nav>
-            </div>
-          )}
+                {/* Desktop: Tabs */}
+                <div className="hidden sm:block border-b border-gray-200 mb-6">
+                  <nav className="flex gap-6 overflow-x-auto pb-4 -mb-px">
+                    {children.map((child) => {
+                      const age = child.date_of_birth ? calculateAge(child.date_of_birth) : null;
+                      const showAgeIcon = age !== null && age < 13;
+                      return (
+                        <button
+                          key={child.student_id}
+                          onClick={() => setSelectedStudentId(child.student_id)}
+                          className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap min-h-[44px] ${
+                            selectedStudentId === child.student_id
+                              ? 'border-b-2 border-optio-purple text-optio-purple'
+                              : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                          style={{ fontFamily: 'Poppins, sans-serif' }}
+                        >
+                          <UserIcon className="w-5 h-5" />
+                          {child.student_first_name} {child.student_last_name}
+                          {showAgeIcon && (
+                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Under 13</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                    {dependents.map((dependent) => {
+                      const isSelected = selectedStudentId === dependent.id;
+                      return (
+                        <button
+                          key={dependent.id}
+                          onClick={() => setSelectedStudentId(dependent.id)}
+                          className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 whitespace-nowrap min-h-[44px] ${
+                            isSelected
+                              ? 'border-b-2 border-optio-purple text-optio-purple'
+                              : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                          style={{ fontFamily: 'Poppins, sans-serif' }}
+                        >
+                          <UserIcon className="w-5 h-5" />
+                          {dependent.display_name}
+                        </button>
+                      );
+                    })}
+                  </nav>
+                </div>
+              </>
+            );
+          })()}
 
 
 
