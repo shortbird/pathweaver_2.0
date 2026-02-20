@@ -668,7 +668,7 @@ const DiplomaPage = () => {
       return `${firstName} ${lastName}`.trim();
     }
 
-    return student.username || 'Student';
+    return student.display_name || student.username || 'Student';
   };
 
   // Get first name for possessive pronoun
@@ -680,7 +680,7 @@ const DiplomaPage = () => {
 
     const student = displayData.student || effectiveUser;
     if (!student) return 'This student';
-    return student.first_name || student.username || 'This student';
+    return student.first_name || student.display_name || student.username || 'This student';
   };
 
   // Helper function to get possessive text (e.g., "your" vs "Emma's")

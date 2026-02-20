@@ -20,8 +20,8 @@ export const initPostHog = () => {
     },
     // Disable autocapture -- already have ActivityTracker + GA4
     autocapture: false,
-    // Disable pageview capture -- already tracked by GA4
-    capture_pageview: false,
+    // Enable pageview capture for session replay timeline
+    capture_pageview: true,
     // Capture page leave for replay timeline
     capture_pageleave: true,
     // Honor Do Not Track
