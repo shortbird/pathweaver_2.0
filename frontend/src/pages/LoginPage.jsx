@@ -15,6 +15,7 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false)
   const [loginError, setLoginError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [wantsToSwitch, setWantsToSwitch] = useState(false)
 
   // Store invitation code in localStorage so we can accept it after login
   useEffect(() => {
@@ -45,32 +46,27 @@ const LoginPage = () => {
     return null
   }
 
-  // Redirect if already authenticated
+  // Auto-redirect only for pending observer invitations (special deep-link case)
+  // Normal authenticated users see the account selection screen instead
   useEffect(() => {
-    const handleAuthRedirect = async () => {
-      if (isAuthenticated && user && !authLoading) {
-        logger.debug('[LoginPage] User already authenticated, handling redirect')
-
-        // Check for pending observer invitation
-        const acceptResult = await handlePendingObserverInvitation()
-
-        if (acceptResult && acceptResult.status === 'success') {
-          // Invitation was accepted - redirect to observer feed with state to trigger refresh
-          logger.debug('[LoginPage] Observer invitation accepted, redirecting to observer feed')
-          navigate('/observer/feed', { replace: true, state: { freshInvitation: true } })
-          return
+    const handlePendingInvitationRedirect = async () => {
+      if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
+        const pendingInvitation = localStorage.getItem('pendingObserverInvitation')
+        if (pendingInvitation) {
+          logger.debug('[LoginPage] User already authenticated with pending invitation, handling redirect')
+          const acceptResult = await handlePendingObserverInvitation()
+          if (acceptResult && acceptResult.status === 'success') {
+            logger.debug('[LoginPage] Observer invitation accepted, redirecting to observer feed')
+            navigate('/observer/feed', { replace: true, state: { freshInvitation: true } })
+            return
+          }
         }
-
-        // No invitation or failed - redirect based on role
-        const redirectPath = user.role === 'parent' ? '/parent/dashboard'
-          : user.role === 'observer' ? '/observer/feed'
-          : '/dashboard'
-        navigate(redirectPath, { replace: true })
+        // No pending invitation - account selection screen will handle navigation
       }
     }
 
-    handleAuthRedirect()
-  }, [isAuthenticated, user, authLoading, navigate])
+    handlePendingInvitationRedirect()
+  }, [isAuthenticated, user, authLoading, navigate, wantsToSwitch])
 
   const onSubmit = async (data) => {
     setLoading(true)
@@ -83,6 +79,52 @@ const LoginPage = () => {
     }
 
     setLoading(false)
+  }
+
+  // Show account selection screen if already authenticated and not switching
+  if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
+    const displayName = user.first_name || user.display_name || user.email || 'User'
+    const redirectPath = user.role === 'parent' ? '/parent/dashboard'
+      : user.role === 'observer' ? '/observer/feed'
+      : '/dashboard'
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-6">
+          <div className="text-center">
+            <div className="mx-auto h-16 w-16 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center mb-4">
+              <span className="text-2xl font-bold text-white">
+                {displayName.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">
+              You are logged in as <span className="text-optio-purple">{displayName}</span>
+            </h2>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={() => navigate(redirectPath)}
+              className="w-full py-3 px-4 text-sm font-medium rounded-lg text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-optio-purple transition-all"
+            >
+              Continue as {displayName}
+            </button>
+            <button
+              onClick={() => setWantsToSwitch(true)}
+              className="w-full py-3 px-4 text-sm font-medium rounded-lg text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-optio-purple transition-all"
+            >
+              Sign in with a different account
+            </button>
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <p className="text-sm text-yellow-800">
+              Signing in as a different account will end your current session in all open tabs.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -99,7 +141,15 @@ const LoginPage = () => {
             </Link>
           </p>
         </div>
-        
+
+        {wantsToSwitch && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <p className="text-sm text-yellow-800">
+              Signing in below will end your current session in all open tabs.
+            </p>
+          </div>
+        )}
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           {loginError && (
             <div className="bg-red-50 border-l-4 border-red-500 rounded-md p-4 shadow-sm">

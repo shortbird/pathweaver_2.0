@@ -525,6 +525,12 @@ export const parentAPI = {
   // Family Settings - Co-Parents management
   getFamilyParents: () => api.get('/api/parents/family-parents'),
   inviteParent: (data) => api.post('/api/parents/invite-parent', data),
+
+  // Parent task management for dependents (under-13 managed accounts)
+  createTaskForDependent: (questId, data) =>
+    api.post(`/api/family/quests/${questId}/tasks`, data),
+  uncompleteTaskForDependent: (questId, taskId, data) =>
+    api.post(`/api/family/quests/${questId}/tasks/${taskId}/uncomplete`, data),
 }
 
 // Admin Parent Connections API methods (January 2025 Redesign)

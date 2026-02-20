@@ -11,7 +11,8 @@ import {
   PlusIcon,
   Cog6ToothIcon,
   UserGroupIcon,
-  NewspaperIcon
+  NewspaperIcon,
+  RocketLaunchIcon
 } from '@heroicons/react/24/outline';
 import AddDependentModal from '../components/parent/AddDependentModal';
 import RequestStudentConnectionModal from '../components/parent/RequestStudentConnectionModal';
@@ -20,6 +21,8 @@ import DependentSettingsModal from '../components/parent/DependentSettingsModal'
 import FamilySettingsModal from '../components/parent/FamilySettingsModal';
 import ChildOverviewContent from '../components/parent/ChildOverviewContent';
 import ParentMomentCaptureButton from '../components/parent/ParentMomentCaptureButton';
+import QuestForm from '../components/admin/QuestForm';
+import FamilyQuestChildSelector from '../components/parent/FamilyQuestChildSelector';
 
 const ParentDashboardPage = () => {
   const { user, refreshUser } = useAuth();
@@ -38,6 +41,9 @@ const ParentDashboardPage = () => {
   const [selectedChildIsDependent, setSelectedChildIsDependent] = useState(true);
   const [showFamilySettingsModal, setShowFamilySettingsModal] = useState(false);
   const [overviewRefreshKey, setOverviewRefreshKey] = useState(0);
+  const [showFamilyQuestForm, setShowFamilyQuestForm] = useState(false);
+  const [showChildSelector, setShowChildSelector] = useState(false);
+  const [createdQuestData, setCreatedQuestData] = useState(null);
 
   // Load children list (admin-only linking, no invitations) and dependents
   // NOTE: All hooks must be declared before any conditional returns (React Rules of Hooks)
@@ -315,6 +321,16 @@ const ParentDashboardPage = () => {
 
         {/* Header Action Buttons */}
         <div className="flex flex-wrap gap-2 sm:gap-3">
+          {(children.length > 0 || dependents.length > 0) && (
+            <button
+              onClick={() => setShowFamilyQuestForm(true)}
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border-2 border-optio-pink text-optio-pink rounded-lg font-semibold hover:bg-optio-pink/5 transition-colors min-h-[44px] text-sm sm:text-base"
+              style={{ fontFamily: 'Poppins, sans-serif' }}
+            >
+              <RocketLaunchIcon className="w-5 h-5" />
+              Create Family Quest
+            </button>
+          )}
           <button
             onClick={() => navigate('/observer/feed')}
             className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border-2 border-optio-purple text-optio-purple rounded-lg font-semibold hover:bg-optio-purple/5 transition-colors min-h-[44px] text-sm sm:text-base"
@@ -411,6 +427,7 @@ const ParentDashboardPage = () => {
               key={`${selectedStudentId}-${overviewRefreshKey}`}
               studentId={selectedStudentId}
               isDependent={dependents.some(d => d.id === selectedStudentId)}
+              dependentName={dependents.find(d => d.id === selectedStudentId)?.display_name}
               onEditClick={() => {
                 // Find the selected child/dependent for settings
                 const selectedDependent = dependents.find(d => d.id === selectedStudentId);
@@ -525,6 +542,38 @@ const ParentDashboardPage = () => {
         selectedChildId={selectedStudentId}
         onSuccess={() => {
           // Refresh the child overview to show the new moment
+          setOverviewRefreshKey(prev => prev + 1);
+        }}
+      />
+
+      {/* Family Quest Creation Flow */}
+      {showFamilyQuestForm && (
+        <QuestForm
+          mode="create"
+          onClose={() => setShowFamilyQuestForm(false)}
+          createEndpoint="/api/family/quests/create"
+          templateTasksEndpoint={(questId) => `/api/family/quests/${questId}/template-tasks`}
+          onSuccess={(questData) => {
+            setCreatedQuestData(questData);
+            setShowFamilyQuestForm(false);
+            setShowChildSelector(true);
+          }}
+        />
+      )}
+
+      <FamilyQuestChildSelector
+        isOpen={showChildSelector}
+        onClose={() => {
+          setShowChildSelector(false);
+          setCreatedQuestData(null);
+        }}
+        questId={createdQuestData?.id}
+        questTitle={createdQuestData?.title}
+        children={children}
+        dependents={dependents}
+        onComplete={() => {
+          setShowChildSelector(false);
+          setCreatedQuestData(null);
           setOverviewRefreshKey(prev => prev + 1);
         }}
       />

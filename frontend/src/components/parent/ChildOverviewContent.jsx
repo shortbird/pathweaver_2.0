@@ -19,7 +19,7 @@ import ParentConversationsViewer from './ParentConversationsViewer';
  * @param {boolean} isDependent - True if child is under 13 (hides diploma credits)
  * @param {string} viewMode - 'parent' or 'observer' - observers have restricted access
  */
-const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, viewMode = 'parent' }) => {
+const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dependentName = null, viewMode = 'parent' }) => {
   const isObserver = viewMode === 'observer';
   const { data, isLoading, error, refetch } = useParentChildOverview(studentId);
 
@@ -85,6 +85,8 @@ const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, vie
       <StudentOverviewSections
         data={data}
         studentId={studentId}
+        isDependent={isDependent}
+        dependentName={dependentName}
         showJournal
         hideEmptySections
         portfolioReadOnly

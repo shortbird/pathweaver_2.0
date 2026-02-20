@@ -14,11 +14,13 @@ import { tokenStore } from './services/api'
 import MasqueradeBanner from './components/admin/MasqueradeBanner'
 import ActingAsBanner from './components/parent/ActingAsBanner'
 import ConsentBlockedOverlay from './components/consent/ConsentBlockedOverlay'
+import SessionConflictOverlay from './components/SessionConflictOverlay'
 import { getMasqueradeState, exitMasquerade, restoreMasqueradeToken } from './services/masqueradeService'
 import { queryKeys } from './utils/queryKeys'
 import logger from './utils/logger'
 import api from './services/api'
 import { activityTracker } from './services/activityTracker'
+import { initPostHog } from './services/posthog'
 import { toast } from 'react-hot-toast'
 
 // Always-loaded components (critical for initial render)
@@ -286,6 +288,7 @@ function AppContent() {
           onRetry={handleRetryConsent}
         />
       )}
+      <SessionConflictOverlay />
     </>
   );
 }
@@ -321,6 +324,11 @@ function App() {
     return () => {
       activityTracker.destroy()
     }
+  }, [])
+
+  // Initialize PostHog session replay (no-ops if VITE_POSTHOG_KEY is not set)
+  useEffect(() => {
+    initPostHog()
   }, [])
 
   return (

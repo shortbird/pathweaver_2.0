@@ -16,11 +16,11 @@
     <!-- Content Security Policy: Prevents XSS, clickjacking, and other injection attacks -->
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
-      script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://connect.facebook.net;
+      script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://connect.facebook.net https://us-assets.i.posthog.com;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: https: blob:;
-      connect-src 'self' http://localhost:5001 ws://localhost:3000 https://www.google-analytics.com https://optio-dev-backend.onrender.com https://optio-prod-backend.onrender.com https://api.optioeducation.com https://vvfgxcykxjybtvpfzwyx.supabase.co wss://vvfgxcykxjybtvpfzwyx.supabase.co;
+      connect-src 'self' http://localhost:5001 ws://localhost:3000 https://www.google-analytics.com https://optio-dev-backend.onrender.com https://optio-prod-backend.onrender.com https://api.optioeducation.com https://vvfgxcykxjybtvpfzwyx.supabase.co wss://vvfgxcykxjybtvpfzwyx.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com;
       frame-src https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://vimeo.com https://drive.google.com https://docs.google.com https://www.slideshare.net https://www.loom.com https://loom.com https://www.googletagmanager.com https://vvfgxcykxjybtvpfzwyx.supabase.co;
       object-src 'none';
       base-uri 'self';

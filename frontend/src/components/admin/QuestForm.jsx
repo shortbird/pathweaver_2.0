@@ -259,7 +259,9 @@ const QuestForm = ({
   onSuccess,
   organizationId = null,
   canDelete = false,
-  onDelete = null
+  onDelete = null,
+  createEndpoint = '/api/admin/quests/create',
+  templateTasksEndpoint = null
 }) => {
   const [loading, setLoading] = useState(false);
   const [cleanupLoading, setCleanupLoading] = useState(false);
@@ -406,7 +408,7 @@ const QuestForm = ({
         await api.put(`/api/admin/quests/${questId}`, questData);
       } else {
         // Create new quest
-        const createResponse = await api.post('/api/admin/quests/create', questData);
+        const createResponse = await api.post(createEndpoint, questData);
         questId = createResponse.data.quest_id;
       }
 
@@ -425,7 +427,10 @@ const QuestForm = ({
           }))
         };
 
-        await api.put(`/api/admin/quests/${questId}/template-tasks`, tasksPayload);
+        const templateUrl = templateTasksEndpoint
+          ? templateTasksEndpoint(questId)
+          : `/api/admin/quests/${questId}/template-tasks`;
+        await api.put(templateUrl, tasksPayload);
       }
 
       const taskSummary = formData.tasks.length > 0

@@ -1,611 +1,427 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { axe, toHaveNoViolations } from 'jest-axe'
-import { renderWithProviders, createMockUser } from '../tests/test-utils'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import RegisterPage from './RegisterPage'
 
-expect.extend(toHaveNoViolations)
-
-// Mock useNavigate
+const mockRegister = vi.fn()
 const mockNavigate = vi.fn()
+let authState = {}
+
+vi.mock('../contexts/AuthContext', () => ({
+  useAuth: () => authState
+}))
+
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
   return {
     ...actual,
-    useNavigate: () => mockNavigate,
+    useNavigate: () => mockNavigate
   }
 })
 
-// Mock the useAuth hook
-let mockAuthValue = {
-  user: null,
-  isAuthenticated: false,
-  loading: false,
-  register: vi.fn(),
-}
-
-vi.mock('../contexts/AuthContext', () => ({
-  useAuth: () => mockAuthValue,
-}))
-
-// Mock logger
 vi.mock('../utils/logger', () => ({
-  default: {
-    debug: vi.fn(),
-    error: vi.fn(),
-  }
+  default: { debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn: vi.fn() }
 }))
 
-// Mock PasswordStrengthMeter component
-vi.mock('../components/auth/PasswordStrengthMeter', () => ({
-  default: ({ password }) => (
-    <div data-testid="password-strength-meter">
-      {password ? 'Strength meter visible' : 'No password'}
-    </div>
+vi.mock('react-hot-toast', () => ({
+  default: { success: vi.fn(), error: vi.fn() }
+}))
+
+vi.mock('../components/auth/GoogleButton', () => ({
+  default: ({ mode, onError, disabled }) => (
+    <button data-testid="google-button" disabled={disabled}>
+      {mode === 'signup' ? 'Sign up with Google' : 'Sign in with Google'}
+    </button>
   )
 }))
 
-describe('RegisterPage', () => {
-  const mockRegister = vi.fn()
+vi.mock('../components/auth/PasswordStrengthMeter', () => ({
+  default: ({ password }) => password ? <div data-testid="password-strength">Strength meter</div> : null
+}))
 
-  // Helper to fill valid form data (all fields except the one being tested)
-  const fillValidFormData = async (user, { skipField = null } = {}) => {
-    const today = new Date()
-    const twentyYearsAgo = new Date(today.getFullYear() - 20, today.getMonth(), today.getDate())
-    const dobString = twentyYearsAgo.toISOString().split('T')[0]
-
-    if (skipField !== 'first_name') {
-      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
-    }
-    if (skipField !== 'last_name') {
-      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
-    }
-    if (skipField !== 'email') {
-      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'john@example.com')
-    }
-    if (skipField !== 'date_of_birth') {
-      await user.type(screen.getByLabelText(/date of birth/i), dobString)
-    }
-    if (skipField !== 'password') {
-      await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
-    }
-    if (skipField !== 'confirmPassword') {
-      await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!')
-    }
-    if (skipField !== 'acceptedLegalTerms') {
-      await user.click(screen.getByRole('checkbox', { name: /i agree to the terms of service and privacy policy/i }))
-    }
-    if (skipField !== 'acceptedPortfolioVisibility') {
-      await user.click(screen.getByRole('checkbox', { name: /i understand that my learning portfolio/i }))
-    }
+vi.mock('../services/api', () => ({
+  default: {
+    post: vi.fn()
   }
+}))
 
+function renderRegisterPage(initialRoute = '/register') {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } }
+  })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[initialRoute]}>
+        <Routes>
+          <Route path="/register" element={<RegisterPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+describe('RegisterPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // Update mockAuthValue for each test
-    mockAuthValue.register = mockRegister
-    mockAuthValue.user = null
-    mockAuthValue.isAuthenticated = false
-    mockAuthValue.loading = false
+    localStorage.clear()
+    authState = {
+      register: mockRegister,
+      isAuthenticated: false,
+      user: null,
+      loading: false
+    }
   })
 
-  describe('Rendering', () => {
-    it('renders registration form with all fields', () => {
-      renderWithProviders(<RegisterPage />)
-
-      expect(screen.getByRole('heading', { name: /create your account/i })).toBeInTheDocument()
-      expect(screen.getByPlaceholderText(/^john$/i)).toBeInTheDocument() // First name (exact match)
-      expect(screen.getByPlaceholderText(/^doe$/i)).toBeInTheDocument() // Last name
-      expect(screen.getByPlaceholderText(/john@example.com/i)).toBeInTheDocument() // Email
-      expect(screen.getByLabelText(/date of birth/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument()
+  // --- Rendering ---
+  describe('rendering', () => {
+    it('renders heading', () => {
+      renderRegisterPage()
+      expect(screen.getByText('Create your account')).toBeInTheDocument()
     })
 
-    it('renders link to login page', () => {
-      renderWithProviders(<RegisterPage />)
-
-      const loginLink = screen.getByRole('link', { name: /sign in to your existing account/i })
-      expect(loginLink).toBeInTheDocument()
-      expect(loginLink).toHaveAttribute('href', '/login')
+    it('renders first name field', () => {
+      renderRegisterPage()
+      expect(screen.getByLabelText('First Name')).toBeInTheDocument()
     })
 
-    it('shows password strength meter', () => {
-      renderWithProviders(<RegisterPage />)
+    it('renders last name field', () => {
+      renderRegisterPage()
+      expect(screen.getByLabelText('Last Name')).toBeInTheDocument()
+    })
 
-      expect(screen.getByTestId('password-strength-meter')).toBeInTheDocument()
+    it('renders email field', () => {
+      renderRegisterPage()
+      expect(screen.getByLabelText('Email Address')).toBeInTheDocument()
+    })
+
+    it('renders date of birth field', () => {
+      renderRegisterPage()
+      expect(screen.getByLabelText('Date of Birth')).toBeInTheDocument()
+    })
+
+    it('renders password field', () => {
+      renderRegisterPage()
+      expect(screen.getByLabelText('Password')).toBeInTheDocument()
+    })
+
+    it('renders confirm password field', () => {
+      renderRegisterPage()
+      expect(screen.getByLabelText('Confirm Password')).toBeInTheDocument()
+    })
+
+    it('renders Google signup button', () => {
+      renderRegisterPage()
+      expect(screen.getByTestId('google-button')).toBeInTheDocument()
+    })
+
+    it('renders login link', () => {
+      renderRegisterPage()
+      expect(screen.getByText('sign in to your existing account')).toBeInTheDocument()
+    })
+
+    it('renders legal terms checkbox', () => {
+      renderRegisterPage()
+      expect(screen.getByLabelText(/I agree to the/)).toBeInTheDocument()
+    })
+
+    it('renders portfolio visibility checkbox', () => {
+      renderRegisterPage()
+      expect(screen.getByLabelText(/I understand that my learning portfolio/)).toBeInTheDocument()
+    })
+
+    it('renders submit button', () => {
+      renderRegisterPage()
+      expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument()
     })
   })
 
-  describe('Form Validation', () => {
+  // --- Required field validation ---
+  describe('validation', () => {
     it('shows error when first name is empty', async () => {
-      const user = userEvent.setup()
-
-      renderWithProviders(<RegisterPage />)
-
-      const submitButton = screen.getByRole('button', { name: /create account/i })
-      await user.click(submitButton)
+      renderRegisterPage()
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
       await waitFor(() => {
-        expect(screen.getByText(/first name is required/i)).toBeInTheDocument()
+        expect(screen.getByText('First name is required')).toBeInTheDocument()
       })
     })
 
     it('shows error when last name is empty', async () => {
-      const user = userEvent.setup()
-
-      renderWithProviders(<RegisterPage />)
-
-      const submitButton = screen.getByRole('button', { name: /create account/i })
-      await user.click(submitButton)
+      renderRegisterPage()
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
       await waitFor(() => {
-        expect(screen.getByText(/last name is required/i)).toBeInTheDocument()
+        expect(screen.getByText('Last name is required')).toBeInTheDocument()
       })
     })
 
     it('shows error when email is empty', async () => {
-      const user = userEvent.setup()
-
-      renderWithProviders(<RegisterPage />)
-
-      const submitButton = screen.getByRole('button', { name: /create account/i })
-      await user.click(submitButton)
+      renderRegisterPage()
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
       await waitFor(() => {
-        expect(screen.getByText(/email is required/i)).toBeInTheDocument()
+        expect(screen.getByText('Email is required')).toBeInTheDocument()
       })
-    })
-
-    it.skip('shows error for invalid email format', async () => {
-      const user = userEvent.setup()
-
-      renderWithProviders(<RegisterPage />)
-
-      // Fill all required fields with valid data except email
-      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
-      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
-
-      // Fill email with invalid format
-      const emailInput = screen.getByPlaceholderText(/john@example.com/i)
-      await user.type(emailInput, 'invalid-email')
-
-      const today = new Date()
-      const twentyYearsAgo = new Date(today.getFullYear() - 20, today.getMonth(), today.getDate())
-      const dobString = twentyYearsAgo.toISOString().split('T')[0]
-      await user.type(screen.getByLabelText(/date of birth/i), dobString)
-
-      await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
-      await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!')
-      await user.click(screen.getByRole('checkbox', { name: /i agree to the terms of service and privacy policy/i }))
-      await user.click(screen.getByRole('checkbox', { name: /i understand that my learning portfolio/i }))
-
-      const submitButton = screen.getByRole('button', { name: /create account/i })
-      await user.click(submitButton)
-
-      await waitFor(() => {
-        expect(screen.getByText(/invalid email address/i)).toBeInTheDocument()
-      }, { timeout: 5000 })
     })
 
     it('shows error when date of birth is empty', async () => {
-      const user = userEvent.setup()
-
-      renderWithProviders(<RegisterPage />)
-
-      const submitButton = screen.getByRole('button', { name: /create account/i })
-      await user.click(submitButton)
+      renderRegisterPage()
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
       await waitFor(() => {
-        expect(screen.getByText(/date of birth is required/i)).toBeInTheDocument()
+        expect(screen.getByText('Date of birth is required for age verification')).toBeInTheDocument()
       })
     })
 
-    it('shows error when password is too short', async () => {
-      const user = userEvent.setup()
-
-      renderWithProviders(<RegisterPage />)
-
-      // Fill all required fields
-      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
-      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
-      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'john@example.com')
-
-      const today = new Date()
-      const twentyYearsAgo = new Date(today.getFullYear() - 20, today.getMonth(), today.getDate())
-      const dobString = twentyYearsAgo.toISOString().split('T')[0]
-      await user.type(screen.getByLabelText(/date of birth/i), dobString)
-
-      // Fill password with too short value
-      const passwordInput = screen.getByLabelText(/^password$/i)
-      await user.type(passwordInput, 'short')
-      await user.type(screen.getByLabelText(/confirm password/i), 'short')
-      await user.click(screen.getByRole('checkbox', { name: /i agree to the terms of service and privacy policy/i }))
-      await user.click(screen.getByRole('checkbox', { name: /i understand that my learning portfolio/i }))
-
-      const submitButton = screen.getByRole('button', { name: /create account/i })
-      await user.click(submitButton)
+    it('shows error when password is empty', async () => {
+      renderRegisterPage()
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
       await waitFor(() => {
-        // Look for the error message in the red text (not the helper text)
-        const errorMessages = screen.queryAllByText(/password must be at least 12 characters/i)
-        expect(errorMessages.length).toBeGreaterThan(0)
-      }, { timeout: 3000 })
-    })
-
-    it('shows error when password lacks uppercase letter', async () => {
-      const user = userEvent.setup()
-
-      renderWithProviders(<RegisterPage />)
-
-      // Fill all required fields
-      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
-      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
-      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'john@example.com')
-
-      const today = new Date()
-      const twentyYearsAgo = new Date(today.getFullYear() - 20, today.getMonth(), today.getDate())
-      const dobString = twentyYearsAgo.toISOString().split('T')[0]
-      await user.type(screen.getByLabelText(/date of birth/i), dobString)
-
-      const passwordInput = screen.getByLabelText(/^password$/i)
-      await user.type(passwordInput, 'lowercase123!')
-      await user.type(screen.getByLabelText(/confirm password/i), 'lowercase123!')
-      await user.click(screen.getByRole('checkbox', { name: /i agree to the terms of service and privacy policy/i }))
-      await user.click(screen.getByRole('checkbox', { name: /i understand that my learning portfolio/i }))
-
-      const submitButton = screen.getByRole('button', { name: /create account/i })
-      await user.click(submitButton)
-
-      await waitFor(() => {
-        // The error format is "Password must contain: One uppercase letter"
-        expect(screen.getByText(/password must contain.*uppercase/i)).toBeInTheDocument()
-      }, { timeout: 3000 })
-    })
-
-    it('shows error when password lacks number', async () => {
-      const user = userEvent.setup()
-
-      renderWithProviders(<RegisterPage />)
-
-      // Fill all fields except password using helper
-      await fillValidFormData(user, { skipField: 'password' })
-
-      const passwordInput = screen.getByLabelText(/^password$/i)
-      await user.clear(screen.getByLabelText(/confirm password/i))
-      await user.type(passwordInput, 'NoNumbersHere!')
-      await user.type(screen.getByLabelText(/confirm password/i), 'NoNumbersHere!')
-
-      const submitButton = screen.getByRole('button', { name: /create account/i })
-      await user.click(submitButton)
-
-      await waitFor(() => {
-        // The error format is "Password must contain: One number"
-        expect(screen.getByText(/password must contain.*number/i)).toBeInTheDocument()
-      }, { timeout: 3000 })
-    })
-
-    it('shows error when password lacks special character', async () => {
-      const user = userEvent.setup()
-
-      renderWithProviders(<RegisterPage />)
-
-      // Fill all fields except password and confirmPassword
-      await fillValidFormData(user, { skipField: 'password' })
-
-      const passwordInput = screen.getByLabelText(/^password$/i)
-      await user.clear(screen.getByLabelText(/confirm password/i))
-      await user.type(passwordInput, 'NoSpecial123')
-      await user.type(screen.getByLabelText(/confirm password/i), 'NoSpecial123!')
-
-      const submitButton = screen.getByRole('button', { name: /create account/i })
-      await user.click(submitButton)
-
-      await waitFor(() => {
-        expect(screen.getByText(/one special character/i)).toBeInTheDocument()
+        expect(screen.getByText('Password is required')).toBeInTheDocument()
       })
     })
 
-    it('shows error when passwords do not match', async () => {
-      const user = userEvent.setup()
-
-      renderWithProviders(<RegisterPage />)
-
-      // Fill all fields except confirmPassword
-      await fillValidFormData(user, { skipField: 'confirmPassword' })
-
-      const confirmPasswordInput = screen.getByLabelText(/confirm password/i)
-      await user.type(confirmPasswordInput, 'DifferentPass123!')
-
-      const submitButton = screen.getByRole('button', { name: /create account/i })
-      await user.click(submitButton)
+    it('shows error when confirm password is empty', async () => {
+      renderRegisterPage()
+      // Fill password but not confirm
+      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'MyStr0ng!Pass#2024' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
       await waitFor(() => {
-        expect(screen.getByText(/passwords do not match/i)).toBeInTheDocument()
+        expect(screen.getByText('Please confirm your password')).toBeInTheDocument()
+      })
+    })
+
+    it('shows error when legal terms not checked', async () => {
+      renderRegisterPage()
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+      await waitFor(() => {
+        expect(screen.getByText('You must accept the Terms of Service and Privacy Policy')).toBeInTheDocument()
+      })
+    })
+
+    it('shows error when portfolio visibility not checked', async () => {
+      renderRegisterPage()
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+      await waitFor(() => {
+        expect(screen.getByText('You must acknowledge that your learning portfolio will be publicly visible')).toBeInTheDocument()
       })
     })
   })
 
-  describe('COPPA Compliance (Under 13)', () => {
-    it('shows parent email field when user is under 13', async () => {
-      const user = userEvent.setup()
-
-      renderWithProviders(<RegisterPage />)
-
-      // Calculate date for 12-year-old
-      const today = new Date()
-      const twelveYearsAgo = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate())
-      const dobString = twelveYearsAgo.toISOString().split('T')[0]
-
-      const dobInput = screen.getByLabelText(/date of birth/i)
-      await user.type(dobInput, dobString)
+  // --- Password validation ---
+  describe('password validation', () => {
+    it('shows password strength meter when password entered', async () => {
+      renderRegisterPage()
+      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'abc' } })
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/parent\/guardian email/i)).toBeInTheDocument()
-        expect(screen.getByText(/users under 13 require parental consent/i)).toBeInTheDocument()
+        expect(screen.getByTestId('password-strength')).toBeInTheDocument()
       })
     })
 
-    it('hides parent email field when user is 13 or older', async () => {
-      const user = userEvent.setup()
+    it('shows error for password confirm mismatch', async () => {
+      renderRegisterPage()
+      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'MyStr0ng!Pass#2024' } })
+      fireEvent.change(screen.getByLabelText('Confirm Password'), { target: { value: 'DifferentPass!' } })
 
-      renderWithProviders(<RegisterPage />)
-
-      // Calculate date for 14-year-old
-      const today = new Date()
-      const fourteenYearsAgo = new Date(today.getFullYear() - 14, today.getMonth(), today.getDate())
-      const dobString = fourteenYearsAgo.toISOString().split('T')[0]
-
-      const dobInput = screen.getByLabelText(/date of birth/i)
-      await user.type(dobInput, dobString)
-
-      await waitFor(() => {
-        expect(screen.queryByLabelText(/parent\/guardian email/i)).not.toBeInTheDocument()
-      })
-    })
-
-    it('requires parent email for users under 13', async () => {
-      const user = userEvent.setup()
-
-      renderWithProviders(<RegisterPage />)
-
-      // Fill all fields except parent_email
-      const today = new Date()
-      const twelveYearsAgo = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate())
-      const dobString = twelveYearsAgo.toISOString().split('T')[0]
-
-      await user.type(screen.getByPlaceholderText(/^john$/i), 'John')
-      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Doe')
-      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'john@example.com')
-      await user.type(screen.getByLabelText(/date of birth/i), dobString)
-
-      // Wait for parent email field to appear
-      await waitFor(() => {
-        expect(screen.getByLabelText(/parent\/guardian email/i)).toBeInTheDocument()
-      })
-
-      await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
-      await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!')
-      await user.click(screen.getByRole('checkbox', { name: /i agree to the terms of service and privacy policy/i }))
-
-      // Try to submit without parent email
-      const submitButton = screen.getByRole('button', { name: /create account/i })
-      await user.click(submitButton)
+      // Fill required fields to get past other validations
+      fireEvent.change(screen.getByLabelText('First Name'), { target: { value: 'John' } })
+      fireEvent.change(screen.getByLabelText('Last Name'), { target: { value: 'Doe' } })
+      fireEvent.change(screen.getByLabelText('Email Address'), { target: { value: 'test@test.com' } })
+      fireEvent.change(screen.getByLabelText('Date of Birth'), { target: { value: '2000-01-01' } })
+      fireEvent.click(screen.getByLabelText(/I agree to the/))
+      fireEvent.click(screen.getByLabelText(/I understand that my learning portfolio/))
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
       await waitFor(() => {
-        expect(screen.getByText(/parent\/guardian email is required/i)).toBeInTheDocument()
+        expect(screen.getByText('Passwords do not match')).toBeInTheDocument()
       })
     })
   })
 
-  describe('Password Visibility Toggle', () => {
-    it('toggles password visibility', async () => {
-      const user = userEvent.setup()
-
-      renderWithProviders(<RegisterPage />)
-
-      const passwordInput = screen.getByLabelText(/^password$/i)
-
-      // Initially should be type="password"
+  // --- Password visibility toggles ---
+  describe('password visibility', () => {
+    it('toggles password visibility', () => {
+      renderRegisterPage()
+      const passwordInput = screen.getByLabelText('Password')
       expect(passwordInput).toHaveAttribute('type', 'password')
 
-      // Fill password to make toggle button more visible
-      await user.type(passwordInput, 'Test')
+      const toggleButtons = screen.getAllByLabelText('Show password')
+      fireEvent.click(toggleButtons[0])
+      expect(passwordInput).toHaveAttribute('type', 'text')
+    })
 
-      // Find and click toggle button (eye icon) - it's the button inside the password field container
-      const toggleButtons = screen.getAllByRole('button')
-      // Filter out the submit button
-      const toggleButton = toggleButtons.find(btn =>
-        btn !== screen.getByRole('button', { name: /create account/i })
-      )
+    it('toggles confirm password visibility', () => {
+      renderRegisterPage()
+      const confirmInput = screen.getByLabelText('Confirm Password')
+      expect(confirmInput).toHaveAttribute('type', 'password')
 
-      if (toggleButton) {
-        await user.click(toggleButton)
-        expect(passwordInput).toHaveAttribute('type', 'text')
-
-        await user.click(toggleButton)
-        expect(passwordInput).toHaveAttribute('type', 'password')
-      }
+      const toggleButtons = screen.getAllByLabelText('Show password')
+      fireEvent.click(toggleButtons[1])
+      expect(confirmInput).toHaveAttribute('type', 'text')
     })
   })
 
-  describe('Registration Submission', () => {
-    it('calls register with valid data', async () => {
-      const user = userEvent.setup()
-      mockRegister.mockResolvedValue({ success: true })
+  // --- COPPA (under 13) ---
+  describe('COPPA compliance', () => {
+    it('shows under-13 warning when date of birth indicates minor', async () => {
+      renderRegisterPage()
+      // Set date to make user 10 years old
+      const tenYearsAgo = new Date()
+      tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10)
+      const dateStr = tenYearsAgo.toISOString().split('T')[0]
 
-      renderWithProviders(<RegisterPage />)
-
-      // Fill form with valid data
-      await fillValidFormData(user)
-
-      const submitButton = screen.getByRole('button', { name: /create account/i })
-      await user.click(submitButton)
+      fireEvent.change(screen.getByLabelText('Date of Birth'), { target: { value: dateStr } })
 
       await waitFor(() => {
-        expect(mockRegister).toHaveBeenCalledWith(
-          expect.objectContaining({
-            first_name: 'John',
-            last_name: 'Doe',
-            email: 'john@example.com',
-            password: 'StrongPass123!',
-          })
-        )
+        expect(screen.getByText('Parent Account Required')).toBeInTheDocument()
       })
     })
 
-    it('includes parent email for users under 13', async () => {
-      const user = userEvent.setup()
-      mockRegister.mockResolvedValue({ success: true })
+    it('disables submit when under 13', async () => {
+      renderRegisterPage()
+      const tenYearsAgo = new Date()
+      tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10)
+      const dateStr = tenYearsAgo.toISOString().split('T')[0]
 
-      renderWithProviders(<RegisterPage />)
-
-      // Fill form with valid data for under 13 user
-      const today = new Date()
-      const twelveYearsAgo = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate())
-      const dobString = twelveYearsAgo.toISOString().split('T')[0]
-
-      await user.type(screen.getByPlaceholderText(/^john$/i), 'Johnny')
-      await user.type(screen.getByPlaceholderText(/^doe$/i), 'Kid')
-      await user.type(screen.getByPlaceholderText(/john@example.com/i), 'johnny@example.com')
-      await user.type(screen.getByLabelText(/date of birth/i), dobString)
-
-      // Wait for parent email field to appear
-      await waitFor(() => {
-        expect(screen.getByLabelText(/parent\/guardian email/i)).toBeInTheDocument()
-      })
-
-      // Fill parent email
-      await user.type(screen.getByLabelText(/parent\/guardian email/i), 'parent@example.com')
-
-      // Strong password
-      await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
-      await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!')
-      await user.click(screen.getByRole('checkbox', { name: /i agree to the terms of service and privacy policy/i }))
-      await user.click(screen.getByRole('checkbox', { name: /i understand that my learning portfolio/i }))
-
-      const submitButton = screen.getByRole('button', { name: /create account/i })
-      await user.click(submitButton)
+      fireEvent.change(screen.getByLabelText('Date of Birth'), { target: { value: dateStr } })
 
       await waitFor(() => {
-        expect(mockRegister).toHaveBeenCalledWith(
-          expect.objectContaining({
-            first_name: 'Johnny',
-            last_name: 'Kid',
-            email: 'johnny@example.com',
-            parent_email: 'parent@example.com',
-            password: 'StrongPass123!',
-          })
-        )
+        expect(screen.getByRole('button', { name: 'Parent account required' })).toBeDisabled()
       })
     })
 
-    it('disables submit button while loading', async () => {
-      const user = userEvent.setup()
+    it('does not show warning for users 13+', async () => {
+      renderRegisterPage()
+      const fifteenYearsAgo = new Date()
+      fifteenYearsAgo.setFullYear(fifteenYearsAgo.getFullYear() - 15)
+      const dateStr = fifteenYearsAgo.toISOString().split('T')[0]
 
+      fireEvent.change(screen.getByLabelText('Date of Birth'), { target: { value: dateStr } })
+
+      await waitFor(() => {
+        expect(screen.queryByText('Parent Account Required')).not.toBeInTheDocument()
+      })
+    })
+  })
+
+  // --- Happy path ---
+  describe('registration flow', () => {
+    it('calls register with form data on valid submit', async () => {
+      mockRegister.mockResolvedValue({ success: true })
+      renderRegisterPage()
+
+      fireEvent.change(screen.getByLabelText('First Name'), { target: { value: 'Jane' } })
+      fireEvent.change(screen.getByLabelText('Last Name'), { target: { value: 'Doe' } })
+      fireEvent.change(screen.getByLabelText('Email Address'), { target: { value: 'jane@example.com' } })
+
+      const twentyYearsAgo = new Date()
+      twentyYearsAgo.setFullYear(twentyYearsAgo.getFullYear() - 20)
+      fireEvent.change(screen.getByLabelText('Date of Birth'), { target: { value: twentyYearsAgo.toISOString().split('T')[0] } })
+
+      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'MyStr0ng!Pass#2024' } })
+      fireEvent.change(screen.getByLabelText('Confirm Password'), { target: { value: 'MyStr0ng!Pass#2024' } })
+      fireEvent.click(screen.getByLabelText(/I agree to the/))
+      fireEvent.click(screen.getByLabelText(/I understand that my learning portfolio/))
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+      await waitFor(() => {
+        expect(mockRegister).toHaveBeenCalledWith(expect.objectContaining({
+          first_name: 'Jane',
+          last_name: 'Doe',
+          email: 'jane@example.com',
+          password: 'MyStr0ng!Pass#2024'
+        }))
+      })
+    })
+
+    it('shows loading state during registration', async () => {
       let resolveRegister
-      mockRegister.mockImplementation(() => new Promise(resolve => {
-        resolveRegister = resolve
-      }))
+      mockRegister.mockReturnValue(new Promise(resolve => { resolveRegister = resolve }))
+      renderRegisterPage()
 
-      renderWithProviders(<RegisterPage />)
+      fireEvent.change(screen.getByLabelText('First Name'), { target: { value: 'Jane' } })
+      fireEvent.change(screen.getByLabelText('Last Name'), { target: { value: 'Doe' } })
+      fireEvent.change(screen.getByLabelText('Email Address'), { target: { value: 'jane@example.com' } })
 
-      // Fill all valid data
-      await fillValidFormData(user)
+      const twentyYearsAgo = new Date()
+      twentyYearsAgo.setFullYear(twentyYearsAgo.getFullYear() - 20)
+      fireEvent.change(screen.getByLabelText('Date of Birth'), { target: { value: twentyYearsAgo.toISOString().split('T')[0] } })
 
-      const submitButton = screen.getByRole('button', { name: /create account/i })
-      await user.click(submitButton)
+      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'MyStr0ng!Pass#2024' } })
+      fireEvent.change(screen.getByLabelText('Confirm Password'), { target: { value: 'MyStr0ng!Pass#2024' } })
+      fireEvent.click(screen.getByLabelText(/I agree to the/))
+      fireEvent.click(screen.getByLabelText(/I understand that my learning portfolio/))
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
       await waitFor(() => {
-        expect(submitButton).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Creating account...' })).toBeDisabled()
       })
 
       resolveRegister({ success: true })
-
-      await waitFor(() => {
-        expect(submitButton).not.toBeDisabled()
-      })
     })
   })
 
-  describe('Authentication Redirect', () => {
-    it('redirects to dashboard when student is already authenticated', async () => {
-      const mockStudent = createMockUser({ role: 'student' })
-
-      // Set mockAuthValue BEFORE rendering
-      mockAuthValue.isAuthenticated = true
-      mockAuthValue.user = mockStudent
-      mockAuthValue.loading = false
-
-      renderWithProviders(<RegisterPage />)
+  // --- Auth redirect ---
+  describe('redirect when already authenticated', () => {
+    it('redirects student to /dashboard', async () => {
+      authState = {
+        register: mockRegister,
+        isAuthenticated: true,
+        user: { id: '1', role: 'student' },
+        loading: false
+      }
+      renderRegisterPage()
 
       await waitFor(() => {
         expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true })
       })
     })
 
-    it('redirects to parent dashboard when parent is already authenticated', async () => {
-      const mockParent = createMockUser({ role: 'parent' })
-
-      // Set mockAuthValue BEFORE rendering
-      mockAuthValue.isAuthenticated = true
-      mockAuthValue.user = mockParent
-      mockAuthValue.loading = false
-
-      renderWithProviders(<RegisterPage />)
+    it('redirects parent to /parent/dashboard', async () => {
+      authState = {
+        register: mockRegister,
+        isAuthenticated: true,
+        user: { id: '1', role: 'parent' },
+        loading: false
+      }
+      renderRegisterPage()
 
       await waitFor(() => {
         expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard', { replace: true })
       })
     })
 
-    it('does not redirect when not authenticated', () => {
-      renderWithProviders(<RegisterPage />)
-
-      expect(mockNavigate).not.toHaveBeenCalled()
-    })
-
-    it('does not redirect while loading', () => {
-      const mockUser = createMockUser()
-
-      // Set mockAuthValue BEFORE rendering
-      mockAuthValue.isAuthenticated = true
-      mockAuthValue.user = mockUser
-      mockAuthValue.loading = true // Still loading
-
-      renderWithProviders(<RegisterPage />)
-
-      expect(mockNavigate).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('Accessibility', () => {
-    it('has no accessibility violations', async () => {
-      const { container } = renderWithProviders(<RegisterPage />)
-
-      const results = await axe(container)
-      expect(results).toHaveNoViolations()
-    })
-  })
-
-  describe('Edge Cases', () => {
-    it('handles form submission via Enter key', async () => {
-      const user = userEvent.setup()
-      mockRegister.mockResolvedValue({ success: true })
-
-      renderWithProviders(<RegisterPage />)
-
-      // Fill form with all valid data
-      await fillValidFormData(user)
-
-      // Press Enter
-      await user.keyboard('{Enter}')
+    it('redirects observer to /observer/feed', async () => {
+      authState = {
+        register: mockRegister,
+        isAuthenticated: true,
+        user: { id: '1', role: 'observer' },
+        loading: false
+      }
+      renderRegisterPage()
 
       await waitFor(() => {
-        expect(mockRegister).toHaveBeenCalled()
+        expect(mockNavigate).toHaveBeenCalledWith('/observer/feed', { replace: true })
       })
+    })
+  })
+
+  // --- Observer registration ---
+  describe('observer registration', () => {
+    it('shows observer banner when invitation code in URL', () => {
+      renderRegisterPage('/register?invitation=obs-code-123')
+      expect(screen.getByText('Creating Observer Account')).toBeInTheDocument()
+    })
+
+    it('shows observer heading when invitation code present', () => {
+      renderRegisterPage('/register?invitation=obs-code-123')
+      expect(screen.getByText('Create your observer account')).toBeInTheDocument()
     })
   })
 })

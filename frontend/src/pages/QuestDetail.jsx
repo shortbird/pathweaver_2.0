@@ -229,10 +229,7 @@ const QuestDetail = () => {
 
   const handleAddMoreTasks = () => {
     setShowQuestCompletionCelebration(false);
-    // Only open wizard for quests without template tasks
-    if (!quest?.has_template_tasks) {
-      setShowPersonalizationWizard(true);
-    }
+    setShowPersonalizationWizard(true);
   };
 
   const handleFinishQuestFromCelebration = () => {
@@ -528,7 +525,7 @@ const QuestDetail = () => {
                 onTaskSelect={handleTaskSelect}
                 onTaskReorder={handleTaskReorder}
                 onTaskComplete={handleTaskCompletion}
-                onAddTask={quest.has_template_tasks ? undefined : () => setShowPersonalizationWizard(true)}
+                onAddTask={() => setShowPersonalizationWizard(true)}
                 onRemoveTask={handleDropTask}
                 onClose={() => setSelectedTask(null)}
               />
@@ -577,7 +574,7 @@ const QuestDetail = () => {
         </Suspense>
       )}
 
-      {showPersonalizationWizard && !quest?.has_template_tasks && (
+      {showPersonalizationWizard && (
         <Suspense fallback={<WizardLoadingOverlay />}>
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">

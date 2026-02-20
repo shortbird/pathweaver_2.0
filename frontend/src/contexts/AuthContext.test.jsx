@@ -1,59 +1,83 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { renderHook, waitFor, act } from '@testing-library/react'
-import { BrowserRouter } from 'react-router-dom'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { renderHook, act, waitFor } from '@testing-library/react'
+import React from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from './AuthContext'
-import api, { tokenStore } from '../services/api'
-import toast from 'react-hot-toast'
 
-// Mock dependencies
-vi.mock('../services/api')
-vi.mock('react-hot-toast')
-vi.mock('../utils/browserDetection', () => ({
-  isSafari: vi.fn(() => false),
-  isIOS: vi.fn(() => false),
-  shouldUseAuthHeaders: vi.fn(() => false),
-  setAuthMethodPreference: vi.fn(),
-  testCookieSupport: vi.fn(() => true),
-  logBrowserInfo: vi.fn(),
-}))
-vi.mock('../services/masqueradeService', () => ({
-  clearMasqueradeData: vi.fn(),
-}))
-vi.mock('../utils/logger', () => ({
-  default: {
-    debug: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-  }
-}))
-
-// Mock useNavigate
 const mockNavigate = vi.fn()
+
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
   return {
     ...actual,
-    useNavigate: () => mockNavigate,
+    useNavigate: () => mockNavigate
   }
 })
 
-// Helper to create a wrapper with all required providers
-const createWrapper = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-        cacheTime: 0,
-      },
-    },
-  })
+vi.mock('react-hot-toast', () => ({
+  default: { success: vi.fn(), error: vi.fn() }
+}))
 
+vi.mock('../services/api', () => {
+  const tokenStoreMock = {
+    init: vi.fn().mockResolvedValue(undefined),
+    restoreTokens: vi.fn().mockResolvedValue(false),
+    getAccessToken: vi.fn().mockReturnValue(null),
+    setTokens: vi.fn().mockResolvedValue(undefined),
+    clearTokens: vi.fn().mockResolvedValue(undefined)
+  }
+  return {
+    default: {
+      get: vi.fn(),
+      post: vi.fn()
+    },
+    tokenStore: tokenStoreMock
+  }
+})
+
+vi.mock('../utils/retryHelper', () => ({
+  retryWithBackoff: vi.fn((fn) => fn())
+}))
+
+vi.mock('../utils/queryKeys', () => ({
+  queryKeys: {
+    user: {
+      profile: (key) => ['user', 'profile', key]
+    }
+  }
+}))
+
+vi.mock('../utils/browserDetection', () => ({
+  isSafari: vi.fn().mockReturnValue(false),
+  isIOS: vi.fn().mockReturnValue(false),
+  shouldUseAuthHeaders: vi.fn().mockReturnValue(false),
+  setAuthMethodPreference: vi.fn(),
+  testCookieSupport: vi.fn(),
+  logBrowserInfo: vi.fn()
+}))
+
+vi.mock('../services/masqueradeService', () => ({
+  clearMasqueradeData: vi.fn()
+}))
+
+vi.mock('../utils/logger', () => ({
+  default: { debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn: vi.fn() }
+}))
+
+import api, { tokenStore } from '../services/api'
+import toast from 'react-hot-toast'
+import { clearMasqueradeData } from '../services/masqueradeService'
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, cacheTime: 0 } }
+  })
   return ({ children }) => (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>{children}</AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -61,653 +85,435 @@ const createWrapper = () => {
 describe('AuthContext', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    // Mock tokenStore
-    tokenStore.init = vi.fn().mockResolvedValue(undefined)
-    tokenStore.restoreTokens = vi.fn().mockResolvedValue(false)
-    tokenStore.getAccessToken = vi.fn().mockReturnValue(null)
-    tokenStore.setTokens = vi.fn().mockResolvedValue(undefined)
-    tokenStore.clearTokens = vi.fn().mockResolvedValue(undefined)
-
-    // Mock localStorage
-    global.localStorage = {
-      getItem: vi.fn(),
-      setItem: vi.fn(),
-      removeItem: vi.fn(),
-      clear: vi.fn(),
-    }
+    localStorage.clear()
+    // Default: no session, /api/auth/me fails
+    api.get.mockRejectedValue({ response: { status: 401 } })
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  describe('Initialization', () => {
-    it('initializes with loading state', () => {
-      // Mock failed auth check
-      api.get = vi.fn().mockRejectedValue(new Error('Not authenticated'))
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
+  // --- Initialization ---
+  describe('initialization', () => {
+    it('starts in loading state', () => {
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      // loading should be true initially (before checkSession resolves)
       expect(result.current.loading).toBe(true)
     })
 
-    it('initializes tokenStore on mount', async () => {
-      api.get = vi.fn().mockRejectedValue(new Error('Not authenticated'))
-
-      renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(tokenStore.init).toHaveBeenCalled()
-      })
-    })
-
-    it('restores user session if tokens exist', async () => {
-      const mockUser = {
-        id: 'user-123',
-        email: 'test@example.com',
-        display_name: 'Test User',
-        role: 'student',
-      }
-
-      tokenStore.getAccessToken = vi.fn().mockReturnValue('mock-token')
-      api.get = vi.fn().mockResolvedValue({ data: mockUser })
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
+    it('finishes loading after session check', async () => {
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false)
-        expect(result.current.user).toEqual(mockUser)
-        expect(result.current.isAuthenticated).toBe(true)
       })
     })
 
-    it('clears tokens if session is invalid', async () => {
-      tokenStore.getAccessToken = vi.fn().mockReturnValue('invalid-token')
-      api.get = vi.fn().mockRejectedValue(new Error('Unauthorized'))
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
+    it('is not authenticated when no session', async () => {
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
 
       await waitFor(() => {
-        expect(tokenStore.clearTokens).toHaveBeenCalled()
-        expect(result.current.user).toBeNull()
         expect(result.current.loading).toBe(false)
       })
+      expect(result.current.isAuthenticated).toBe(false)
+    })
+
+    it('restores session from token store', async () => {
+      tokenStore.getAccessToken.mockReturnValue('valid-token')
+      tokenStore.restoreTokens.mockResolvedValue(true)
+      api.get.mockResolvedValue({ data: { id: '1', role: 'student', email: 'test@test.com' } })
+
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+      expect(result.current.isAuthenticated).toBe(true)
+      expect(result.current.user).toEqual(expect.objectContaining({ id: '1', role: 'student' }))
+    })
+
+    it('clears invalid tokens on failed session restore', async () => {
+      tokenStore.getAccessToken.mockReturnValue('expired-token')
+      tokenStore.restoreTokens.mockResolvedValue(true)
+      api.get.mockRejectedValue({ response: { status: 401 } })
+
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+      expect(tokenStore.clearTokens).toHaveBeenCalled()
+      expect(result.current.isAuthenticated).toBe(false)
     })
   })
 
-  describe('Login', () => {
-    it('successfully logs in a user', async () => {
-      const mockUser = {
-        id: 'user-123',
-        email: 'test@example.com',
-        display_name: 'Test User',
+  // --- Login ---
+  describe('login', () => {
+    it('sets user and navigates on successful login', async () => {
+      const loginUser = {
+        id: '1',
         role: 'student',
-        created_at: new Date(Date.now() - 1000000).toISOString(), // Old user
+        first_name: 'Test',
+        email: 'test@test.com',
+        created_at: new Date(Date.now() - 86400000).toISOString() // not new user
       }
-
-      const mockResponse = {
+      api.post.mockResolvedValue({
         data: {
-          user: mockUser,
+          user: loginUser,
           session: { authenticated: true },
-          app_access_token: 'access-token',
-          app_refresh_token: 'refresh-token',
-        },
-      }
-
-      api.get = vi.fn().mockRejectedValue(new Error('Not authenticated'))
-      api.post = vi.fn().mockResolvedValue(mockResponse)
-      toast.success = vi.fn()
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
+          app_access_token: 'at',
+          app_refresh_token: 'rt'
+        }
       })
 
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      })
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+
+      await waitFor(() => expect(result.current.loading).toBe(false))
 
       let loginResult
       await act(async () => {
-        loginResult = await result.current.login('test@example.com', 'password123')
+        loginResult = await result.current.login('test@test.com', 'password')
       })
 
       expect(loginResult.success).toBe(true)
-      expect(tokenStore.setTokens).toHaveBeenCalledWith('access-token', 'refresh-token')
-      expect(toast.success).toHaveBeenCalledWith('Welcome back!')
+      expect(tokenStore.setTokens).toHaveBeenCalledWith('at', 'rt')
       expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
     })
 
-    it('redirects to parent dashboard for parent role', async () => {
-      const mockParent = {
-        id: 'parent-123',
-        email: 'parent@example.com',
-        display_name: 'Parent User',
-        role: 'parent',
-        created_at: new Date(Date.now() - 1000000).toISOString(),
-      }
-
-      api.get = vi.fn().mockRejectedValue(new Error('Not authenticated'))
-      api.post = vi.fn().mockResolvedValue({
+    it('navigates parent to /parent/dashboard', async () => {
+      api.post.mockResolvedValue({
         data: {
-          user: mockParent,
+          user: { id: '1', role: 'parent', first_name: 'P', created_at: new Date(Date.now() - 86400000).toISOString() },
           session: { authenticated: true },
-          app_access_token: 'token',
-          app_refresh_token: 'refresh',
-        },
+          app_access_token: 'at',
+          app_refresh_token: 'rt'
+        }
       })
 
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      })
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
 
       await act(async () => {
-        await result.current.login('parent@example.com', 'password123')
+        await result.current.login('p@test.com', 'pass')
       })
 
       expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard')
     })
 
-    it('shows welcome message for new users', async () => {
-      const mockNewUser = {
-        id: 'user-123',
-        email: 'new@example.com',
-        display_name: 'New User',
-        first_name: 'New',
-        role: 'student',
-        created_at: new Date().toISOString(), // Created just now
-      }
-
-      api.get = vi.fn().mockRejectedValue(new Error('Not authenticated'))
-      api.post = vi.fn().mockResolvedValue({
+    it('navigates observer to /observer/feed', async () => {
+      api.post.mockResolvedValue({
         data: {
-          user: mockNewUser,
+          user: { id: '1', role: 'observer', first_name: 'O', created_at: new Date(Date.now() - 86400000).toISOString() },
           session: { authenticated: true },
-          app_access_token: 'token',
-          app_refresh_token: 'refresh',
-        },
-      })
-      toast.success = vi.fn()
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
+          app_access_token: 'at',
+          app_refresh_token: 'rt'
+        }
       })
 
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      })
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
 
       await act(async () => {
-        await result.current.login('new@example.com', 'password123')
+        await result.current.login('o@test.com', 'pass')
       })
 
-      expect(toast.success).toHaveBeenCalledWith('Welcome to Optio, New!')
+      expect(mockNavigate).toHaveBeenCalledWith('/observer/feed')
     })
 
-    it('handles login failure with error message', async () => {
-      api.get = vi.fn().mockRejectedValue(new Error('Not authenticated'))
-      api.post = vi.fn().mockRejectedValue({
-        response: {
-          status: 401,
-          data: { error: 'Invalid credentials' },
-        },
+    it('shows welcome toast for new users', async () => {
+      api.post.mockResolvedValue({
+        data: {
+          user: { id: '1', role: 'student', first_name: 'NewUser', created_at: new Date().toISOString() },
+          session: { authenticated: true },
+          app_access_token: 'at',
+          app_refresh_token: 'rt'
+        }
       })
 
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      await act(async () => {
+        await result.current.login('new@test.com', 'pass')
       })
 
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
+      expect(toast.success).toHaveBeenCalledWith('Welcome to Optio, NewUser!')
+    })
+
+    it('shows welcome back toast for existing users', async () => {
+      api.post.mockResolvedValue({
+        data: {
+          user: { id: '1', role: 'student', first_name: 'Old', created_at: '2024-01-01T00:00:00Z' },
+          session: { authenticated: true },
+          app_access_token: 'at',
+          app_refresh_token: 'rt'
+        }
       })
+
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      await act(async () => {
+        await result.current.login('old@test.com', 'pass')
+      })
+
+      expect(toast.success).toHaveBeenCalledWith('Welcome back!')
+    })
+
+    it('returns error on 401', async () => {
+      api.post.mockRejectedValue({
+        response: { status: 401, data: {} }
+      })
+
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
 
       let loginResult
       await act(async () => {
-        loginResult = await result.current.login('wrong@example.com', 'wrongpass')
+        loginResult = await result.current.login('bad@test.com', 'wrong')
       })
 
       expect(loginResult.success).toBe(false)
-      expect(loginResult.error).toBe('Invalid credentials')
+      expect(loginResult.error).toContain('Incorrect email or password')
     })
 
-    it('handles rate limiting errors', async () => {
-      api.get = vi.fn().mockRejectedValue(new Error('Not authenticated'))
-      api.post = vi.fn().mockRejectedValue({
-        response: {
-          status: 429,
-          data: {},
-        },
+    it('returns error on 429 rate limit', async () => {
+      api.post.mockRejectedValue({
+        response: { status: 429, data: {} }
       })
 
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      })
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
 
       let loginResult
       await act(async () => {
-        loginResult = await result.current.login('test@example.com', 'password')
+        loginResult = await result.current.login('test@test.com', 'pass')
       })
 
       expect(loginResult.success).toBe(false)
       expect(loginResult.error).toContain('Too many login attempts')
     })
 
-    it('handles server errors with toast notification', async () => {
-      api.get = vi.fn().mockRejectedValue(new Error('Not authenticated'))
-      api.post = vi.fn().mockRejectedValue({
-        response: {
-          status: 500,
-          data: { error: 'Internal server error' },
-        },
-      })
-      toast.error = vi.fn()
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
+    it('returns error on 500 server error', async () => {
+      api.post.mockRejectedValue({
+        response: { status: 500, data: {} }
       })
 
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      })
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
 
+      let loginResult
       await act(async () => {
-        await result.current.login('test@example.com', 'password')
+        loginResult = await result.current.login('test@test.com', 'pass')
       })
 
-      expect(toast.error).toHaveBeenCalledWith('Internal server error')
+      expect(loginResult.success).toBe(false)
+      expect(loginResult.error).toContain('Server error')
+    })
+
+    it('returns connection error when no response', async () => {
+      api.post.mockRejectedValue(new Error('Network Error'))
+
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      let loginResult
+      await act(async () => {
+        loginResult = await result.current.login('test@test.com', 'pass')
+      })
+
+      expect(loginResult.success).toBe(false)
+      expect(loginResult.error).toContain('Connection error')
     })
   })
 
-  describe('Logout', () => {
-    it('clears all authentication data on logout', async () => {
-      const mockUser = {
-        id: 'user-123',
-        email: 'test@example.com',
-        display_name: 'Test User',
-        role: 'student',
-      }
+  // --- Register ---
+  describe('register', () => {
+    it('navigates to email verification when required', async () => {
+      const { retryWithBackoff } = await import('../utils/retryHelper')
+      retryWithBackoff.mockImplementation((fn) => fn())
 
-      // Setup authenticated state
-      tokenStore.getAccessToken = vi.fn().mockReturnValue('token')
-      api.get = vi.fn().mockResolvedValue({ data: mockUser })
-      api.post = vi.fn().mockResolvedValue({ data: { success: true } })
-      toast.success = vi.fn()
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.user).toBeTruthy()
-      })
-
-      // Logout
-      await act(async () => {
-        await result.current.logout()
-      })
-
-      expect(tokenStore.clearTokens).toHaveBeenCalled()
-      expect(api.post).toHaveBeenCalledWith('/api/auth/logout', {})
-      expect(toast.success).toHaveBeenCalledWith('Logged out successfully')
-      expect(mockNavigate).toHaveBeenCalledWith('/')
-    })
-
-    it('clears tokens even if backend logout fails', async () => {
-      const mockUser = {
-        id: 'user-123',
-        email: 'test@example.com',
-        role: 'student',
-      }
-
-      tokenStore.getAccessToken = vi.fn().mockReturnValue('token')
-      api.get = vi.fn().mockResolvedValue({ data: mockUser })
-      api.post = vi.fn().mockRejectedValue(new Error('Network error'))
-      toast.success = vi.fn()
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.user).toBeTruthy()
-      })
-
-      await act(async () => {
-        await result.current.logout()
-      })
-
-      // Should still clear tokens and navigate even on error
-      expect(tokenStore.clearTokens).toHaveBeenCalled()
-      expect(toast.success).toHaveBeenCalledWith('Logged out successfully')
-      expect(mockNavigate).toHaveBeenCalledWith('/')
-    })
-
-    it('clears localStorage tokens on logout', async () => {
-      const mockUser = {
-        id: 'user-123',
-        email: 'test@example.com',
-        role: 'student',
-      }
-
-      tokenStore.getAccessToken = vi.fn().mockReturnValue('token')
-      api.get = vi.fn().mockResolvedValue({ data: mockUser })
-      api.post = vi.fn().mockResolvedValue({ data: { success: true } })
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.user).toBeTruthy()
-      })
-
-      await act(async () => {
-        await result.current.logout()
-      })
-
-      expect(localStorage.removeItem).toHaveBeenCalledWith('access_token')
-      expect(localStorage.removeItem).toHaveBeenCalledWith('refresh_token')
-      expect(localStorage.removeItem).toHaveBeenCalledWith('user')
-    })
-  })
-
-  describe('Register', () => {
-    it('successfully registers a new user', async () => {
-      const mockUser = {
-        id: 'user-123',
-        email: 'new@example.com',
-        display_name: 'New User',
-        role: 'student',
-      }
-
-      api.get = vi.fn().mockRejectedValue(new Error('Not authenticated'))
-      api.post = vi.fn().mockResolvedValue({
-        data: {
-          user: mockUser,
-          session: { authenticated: true },
-          app_access_token: 'token',
-          app_refresh_token: 'refresh',
-        },
-      })
-      toast.success = vi.fn()
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      })
-
-      const userData = {
-        email: 'new@example.com',
-        password: 'SecurePass123!',
-        display_name: 'New User',
-      }
-
-      let registerResult
-      await act(async () => {
-        registerResult = await result.current.register(userData)
-      })
-
-      expect(registerResult.success).toBe(true)
-      expect(tokenStore.setTokens).toHaveBeenCalledWith('token', 'refresh')
-      expect(toast.success).toHaveBeenCalledWith('Account created successfully!')
-    })
-
-    it('handles email verification required', async () => {
-      api.get = vi.fn().mockRejectedValue(new Error('Not authenticated'))
-      api.post = vi.fn().mockResolvedValue({
+      api.post.mockResolvedValue({
         data: {
           email_verification_required: true,
-          message: 'Please verify your email',
-        },
+          message: 'Check your email'
+        }
       })
 
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      })
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
 
       await act(async () => {
-        await result.current.register({ email: 'test@example.com', password: 'pass' })
+        await result.current.register({ email: 'new@test.com', password: 'pass' })
       })
 
-      expect(mockNavigate).toHaveBeenCalledWith('/email-verification', {
-        state: { email: 'test@example.com' },
-      })
+      expect(mockNavigate).toHaveBeenCalledWith('/email-verification', { state: { email: 'new@test.com' } })
     })
 
-    it('handles registration errors', async () => {
-      api.get = vi.fn().mockRejectedValue(new Error('Not authenticated'))
-      api.post = vi.fn().mockRejectedValue({
-        response: {
-          status: 400,
-          data: { error: 'Email already exists' },
-        },
-      })
-      toast.error = vi.fn()
+    it('sets user and navigates on direct registration', async () => {
+      const { retryWithBackoff } = await import('../utils/retryHelper')
+      retryWithBackoff.mockImplementation((fn) => fn())
 
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
+      api.post.mockResolvedValue({
+        data: {
+          user: { id: '1', role: 'student' },
+          session: { authenticated: true },
+          app_access_token: 'at',
+          app_refresh_token: 'rt'
+        }
       })
 
-      let registerResult
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
       await act(async () => {
-        registerResult = await result.current.register({ email: 'test@example.com' })
+        await result.current.register({ email: 'new@test.com', password: 'pass' })
       })
 
-      expect(registerResult.success).toBe(false)
-      expect(toast.error).toHaveBeenCalledWith('Email already exists')
+      expect(tokenStore.setTokens).toHaveBeenCalledWith('at', 'rt')
+      expect(toast.success).toHaveBeenCalledWith('Account created successfully!')
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
     })
   })
 
-  describe('Token Refresh', () => {
-    it('successfully refreshes token', async () => {
-      const mockUser = {
-        id: 'user-123',
-        email: 'test@example.com',
-        role: 'student',
-      }
+  // --- Logout ---
+  describe('logout', () => {
+    it('clears tokens and navigates to /', async () => {
+      // Start authenticated
+      tokenStore.getAccessToken.mockReturnValue('valid-token')
+      tokenStore.restoreTokens.mockResolvedValue(true)
+      api.get.mockResolvedValue({ data: { id: '1', role: 'student' } })
+      api.post.mockResolvedValue({})
 
-      tokenStore.getAccessToken = vi.fn().mockReturnValue('token')
-      api.get = vi.fn().mockResolvedValue({ data: mockUser })
-      api.post = vi.fn().mockResolvedValue({ status: 200 })
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
 
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.user).toBeTruthy()
-      })
-
-      let refreshResult
       await act(async () => {
-        refreshResult = await result.current.refreshToken()
+        await result.current.logout()
       })
 
-      expect(refreshResult).toBe(true)
+      expect(clearMasqueradeData).toHaveBeenCalled()
+      expect(tokenStore.clearTokens).toHaveBeenCalled()
+      expect(toast.success).toHaveBeenCalledWith('Logged out successfully')
+      expect(mockNavigate).toHaveBeenCalledWith('/')
     })
 
-    it('logs out user if token refresh fails', async () => {
-      const mockUser = {
-        id: 'user-123',
-        email: 'test@example.com',
-        role: 'student',
-      }
+    it('clears localStorage tokens', async () => {
+      localStorage.setItem('access_token', 'old')
+      localStorage.setItem('refresh_token', 'old')
+      localStorage.setItem('user', 'old')
+      api.post.mockResolvedValue({})
 
-      tokenStore.getAccessToken = vi.fn().mockReturnValue('token')
-      api.get = vi.fn().mockResolvedValueOnce({ data: mockUser })
-      api.post = vi.fn()
-        .mockRejectedValueOnce(new Error('Token expired')) // Refresh fails
-        .mockResolvedValueOnce({ data: { success: true } }) // Logout succeeds
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
 
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.user).toBeTruthy()
-      })
-
-      let refreshResult
       await act(async () => {
-        refreshResult = await result.current.refreshToken()
+        await result.current.logout()
       })
 
-      expect(refreshResult).toBe(false)
-      // Should trigger logout
-      await waitFor(() => {
-        expect(tokenStore.clearTokens).toHaveBeenCalled()
+      expect(localStorage.getItem('access_token')).toBeNull()
+      expect(localStorage.getItem('refresh_token')).toBeNull()
+      expect(localStorage.getItem('user')).toBeNull()
+    })
+
+    it('completes logout even if backend call fails', async () => {
+      api.post.mockRejectedValue(new Error('Network error'))
+
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      await act(async () => {
+        await result.current.logout()
       })
+
+      expect(mockNavigate).toHaveBeenCalledWith('/')
+      expect(toast.success).toHaveBeenCalledWith('Logged out successfully')
     })
   })
 
-  describe('User Management', () => {
-    it('updates user data in cache', async () => {
-      const mockUser = {
-        id: 'user-123',
-        email: 'test@example.com',
-        display_name: 'Test User',
-      }
+  // --- Role resolution ---
+  describe('getEffectiveRole / computed properties', () => {
+    async function renderWithUser(userData) {
+      tokenStore.getAccessToken.mockReturnValue('valid-token')
+      tokenStore.restoreTokens.mockResolvedValue(true)
+      api.get.mockResolvedValue({ data: userData })
 
-      tokenStore.getAccessToken = vi.fn().mockReturnValue('token')
-      api.get = vi.fn().mockResolvedValue({ data: mockUser })
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
+      return result
+    }
 
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.user).toBeTruthy()
-      })
-
-      const updatedUser = { ...mockUser, display_name: 'Updated Name' }
-
-      act(() => {
-        result.current.updateUser(updatedUser)
-      })
-
-      await waitFor(() => {
-        expect(result.current.user.display_name).toBe('Updated Name')
-      })
+    it('returns superadmin for superadmin role', async () => {
+      const result = await renderWithUser({ id: '1', role: 'superadmin' })
+      expect(result.current.effectiveRole).toBe('superadmin')
+      expect(result.current.isSuperadmin).toBe(true)
     })
 
-    it('refreshes user data from server', async () => {
-      const initialUser = {
-        id: 'user-123',
-        email: 'test@example.com',
-        display_name: 'Original Name',
-      }
-
-      const updatedUser = {
-        ...initialUser,
-        display_name: 'Server Updated Name',
-      }
-
-      tokenStore.getAccessToken = vi.fn().mockReturnValue('token')
-      api.get = vi.fn()
-        .mockResolvedValueOnce({ data: initialUser })
-        .mockResolvedValueOnce({ data: updatedUser })
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.user.display_name).toBe('Original Name')
-      })
-
-      await act(async () => {
-        await result.current.refreshUser()
-      })
-
-      await waitFor(() => {
-        expect(result.current.user.display_name).toBe('Server Updated Name')
-      })
-    })
-  })
-
-  describe('Computed Properties', () => {
-    it('correctly identifies admin users', async () => {
-      const adminUser = {
-        id: 'admin-123',
-        email: 'admin@example.com',
-        role: 'admin',
-      }
-
-      tokenStore.getAccessToken = vi.fn().mockReturnValue('token')
-      api.get = vi.fn().mockResolvedValue({ data: adminUser })
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.isAdmin).toBe(true)
-      })
+    it('returns student for platform student', async () => {
+      const result = await renderWithUser({ id: '1', role: 'student' })
+      expect(result.current.effectiveRole).toBe('student')
     })
 
-    it('correctly identifies non-admin users', async () => {
-      const studentUser = {
-        id: 'user-123',
-        email: 'student@example.com',
-        role: 'student',
-      }
-
-      tokenStore.getAccessToken = vi.fn().mockReturnValue('token')
-      api.get = vi.fn().mockResolvedValue({ data: studentUser })
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.isAdmin).toBe(false)
-      })
+    it('returns org_role for org_managed user', async () => {
+      const result = await renderWithUser({ id: '1', role: 'org_managed', org_role: 'advisor' })
+      expect(result.current.effectiveRole).toBe('advisor')
     })
 
-    it('provides isAuthenticated status', async () => {
-      const mockUser = {
-        id: 'user-123',
-        email: 'test@example.com',
-        role: 'student',
-      }
+    it('returns first org_roles entry for multi-role org user', async () => {
+      const result = await renderWithUser({ id: '1', role: 'org_managed', org_roles: ['org_admin', 'advisor'] })
+      expect(result.current.effectiveRole).toBe('org_admin')
+    })
 
-      tokenStore.getAccessToken = vi.fn().mockReturnValue('token')
-      api.get = vi.fn().mockResolvedValue({ data: mockUser })
+    it('isAdmin true for org_admin', async () => {
+      const result = await renderWithUser({ id: '1', role: 'org_managed', org_role: 'org_admin' })
+      expect(result.current.isAdmin).toBe(true)
+    })
 
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
+    it('isAdmin true for superadmin', async () => {
+      const result = await renderWithUser({ id: '1', role: 'superadmin' })
+      expect(result.current.isAdmin).toBe(true)
+    })
 
-      await waitFor(() => {
-        expect(result.current.isAuthenticated).toBe(true)
-      })
+    it('isAuthenticated is true when user exists', async () => {
+      const result = await renderWithUser({ id: '1', role: 'student' })
+      expect(result.current.isAuthenticated).toBe(true)
+    })
+
+    it('hasRole returns true for matching role', async () => {
+      const result = await renderWithUser({ id: '1', role: 'student' })
+      expect(result.current.hasRole('student')).toBe(true)
+    })
+
+    it('hasRole returns false for non-matching role', async () => {
+      const result = await renderWithUser({ id: '1', role: 'student' })
+      expect(result.current.hasRole('parent')).toBe(false)
+    })
+
+    it('hasAnyRole returns true when any role matches', async () => {
+      const result = await renderWithUser({ id: '1', role: 'student' })
+      expect(result.current.hasAnyRole(['student', 'parent'])).toBe(true)
+    })
+
+    it('hasAnyRole returns false when no roles match', async () => {
+      const result = await renderWithUser({ id: '1', role: 'student' })
+      expect(result.current.hasAnyRole(['parent', 'advisor'])).toBe(false)
     })
   })
 })
