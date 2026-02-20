@@ -8,6 +8,7 @@ import { queryKeys } from '../utils/queryKeys'
 import { isSafari, isIOS, shouldUseAuthHeaders, setAuthMethodPreference, testCookieSupport, logBrowserInfo } from '../utils/browserDetection'
 import { clearMasqueradeData } from '../services/masqueradeService'
 import logger from '../utils/logger'
+import { identifyUser, resetUser } from '../services/posthog'
 
 const AuthContext = createContext()
 
@@ -68,6 +69,7 @@ export const AuthProvider = ({ children }) => {
             // ✅ SPARK SSO FIX: Update React Query cache IMMEDIATELY with user data
             // This prevents PrivateRoute from redirecting to /login before user data loads
             queryClient.setQueryData(queryKeys.user.profile('current'), response.data)
+            identifyUser(response.data)
 
             setSession({ authenticated: true })
             setLoginTimestamp(Date.now())
@@ -82,6 +84,7 @@ export const AuthProvider = ({ children }) => {
             if (response.data) {
               // ✅ SPARK SSO FIX: Update React Query cache for cookie-based auth too
               queryClient.setQueryData(queryKeys.user.profile('current'), response.data)
+              identifyUser(response.data)
 
               setSession({ authenticated: true })
               setLoginTimestamp(Date.now())
@@ -130,6 +133,7 @@ export const AuthProvider = ({ children }) => {
 
       // Update React Query cache with fresh user data
       queryClient.setQueryData(queryKeys.user.profile('current'), loginUser)
+      identifyUser(loginUser)
 
       // Check if user is new (created within the last 5 minutes)
       const createdAt = new Date(loginUser.created_at)
@@ -211,6 +215,7 @@ export const AuthProvider = ({ children }) => {
 
       // Update React Query cache with fresh user data
       queryClient.setQueryData(queryKeys.user.profile('current'), loginUser)
+      identifyUser(loginUser)
 
       // Check if user is new (created within the last 5 minutes)
       const createdAt = new Date(loginUser.created_at)
@@ -295,7 +300,8 @@ export const AuthProvider = ({ children }) => {
 
         // Update React Query cache with fresh user data
         queryClient.setQueryData(queryKeys.user.profile('current'), user)
-        
+        identifyUser(user)
+
         // Track registration completion for Meta Pixel
         try {
           if (typeof fbq !== 'undefined') {
@@ -391,6 +397,9 @@ export const AuthProvider = ({ children }) => {
 
       // Step 7: Clear React Query cache
       queryClient.clear()
+
+      // Step 8: Reset PostHog identity (starts new anonymous session)
+      resetUser()
 
       toast.success('Logged out successfully')
       navigate('/')

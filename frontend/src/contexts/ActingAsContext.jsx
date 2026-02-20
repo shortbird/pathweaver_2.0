@@ -128,7 +128,7 @@ export const ActingAsProvider = ({ children }) => {
     }
   }, [user, loading, hasInitialized, clearActingAs, actingAsDependent, actingAsToken]);
 
-  const setActingAs = async (dependent) => {
+  const setActingAs = async (dependent, redirectTo = '/dashboard') => {
     if (dependent) {
       try {
         // CRITICAL: Save parent's tokens before switching to dependent
@@ -163,7 +163,7 @@ export const ActingAsProvider = ({ children }) => {
         // CRITICAL FIX: Force full page reload to clear React Query cache
         // Without this, cached data from parent session shows instead of dependent's data
         // This matches the behavior of clearActingAs() which does window.location.href
-        window.location.href = '/dashboard';
+        window.location.href = redirectTo;
 
         // The code below won't be reached due to page redirect, but keep for fallback
         startTransition(() => {

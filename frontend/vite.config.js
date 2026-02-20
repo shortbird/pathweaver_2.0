@@ -93,6 +93,10 @@ export default defineConfig(({ mode }) => {
             if (id.includes('axios')) {
               return 'utils-vendor';
             }
+            // PostHog session replay (~45KB gzipped, separate for caching)
+            if (id.includes('posthog')) {
+              return 'posthog'
+            }
             // All other vendors
             return 'vendor';
           }

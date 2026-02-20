@@ -52,6 +52,8 @@ const icons = {
 const StudentOverviewSections = ({
   data,
   studentId = null,
+  isDependent = false,
+  dependentName = null,
   showJournal = false,
   hideEmptySections = false,
   portfolioReadOnly = false,
@@ -81,6 +83,8 @@ const StudentOverviewSections = ({
             recentCompletions={data.recentCompletions}
             hideHeader
             studentId={studentId}
+            isDependent={isDependent}
+            dependentName={dependentName}
           />
         </CollapsibleSection>
       )}
@@ -160,6 +164,7 @@ StudentOverviewSections.propTypes = {
     visibilityStatus: PropTypes.object
   }).isRequired,
   studentId: PropTypes.string,
+  isDependent: PropTypes.bool,
   showJournal: PropTypes.bool,
   hideEmptySections: PropTypes.bool,
   portfolioReadOnly: PropTypes.bool,

@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { useQuestEngagement } from '../../hooks/api/useQuests';
+import { useActingAs } from '../../contexts/ActingAsContext';
 
 // Simple engagement heatmap cell
 const HeatmapCell = ({ intensity, date, activities, size = 'normal' }) => {
@@ -88,9 +89,11 @@ const MiniHeatMap = ({ days }) => {
 };
 
 // Active quest card with engagement metrics
-const ActiveQuestCard = ({ quest, studentId }) => {
+const ActiveQuestCard = ({ quest, studentId, isDependent = false, dependentName = null }) => {
   const questData = quest.quests || quest;
   const questId = questData.id || quest.quest_id;
+  const { setActingAs } = useActingAs();
+  const [switching, setSwitching] = useState(false);
 
   // Fetch quest-specific engagement data
   const { data: engagement } = useQuestEngagement(questId);
@@ -99,16 +102,27 @@ const ActiveQuestCard = ({ quest, studentId }) => {
   const rhythmState = engagement?.rhythm?.state || 'ready_to_begin';
   const config = rhythmConfig[rhythmState] || rhythmConfig.finding_rhythm;
 
-  // Use parent route if studentId is provided
-  const questLink = studentId
+  // For dependents: activate act-as and redirect to standard quest page
+  // For linked students (13+): link to parent quest view (evidence upload only)
+  // For own quests (no studentId): link to standard quest page
+  const questLink = studentId && !isDependent
     ? `/parent/quest/${studentId}/${questId}`
     : `/quests/${questId}`;
 
-  return (
-    <Link
-      to={questLink}
-      className="block p-4 bg-white border border-gray-200 hover:border-purple-300 hover:shadow-md rounded-xl transition-all"
-    >
+  const handleDependentQuestClick = async (e) => {
+    e.preventDefault();
+    if (switching) return;
+    setSwitching(true);
+    try {
+      await setActingAs({ id: studentId, display_name: dependentName }, `/quests/${questId}`);
+    } catch (err) {
+      console.error('Failed to switch to dependent profile:', err);
+      setSwitching(false);
+    }
+  };
+
+  const cardContent = (
+    <>
       {/* Title */}
       <h4 className="font-semibold text-gray-900 text-sm sm:text-base mb-3 line-clamp-2 hover:text-optio-purple transition-colors">
         {questData.title}
@@ -117,10 +131,33 @@ const ActiveQuestCard = ({ quest, studentId }) => {
       {/* Rhythm indicator with mini heat map */}
       <div className={`flex items-center justify-between px-2 py-1.5 rounded-md ${config.bgClass}`}>
         <span className={`text-xs font-medium ${config.textClass}`}>
-          {config.label}
+          {switching ? 'Switching...' : config.label}
         </span>
         <MiniHeatMap days={engagement?.calendar?.days || []} />
       </div>
+    </>
+  );
+
+  // Dependents: click triggers act-as + redirect to standard quest page
+  if (studentId && isDependent) {
+    return (
+      <button
+        onClick={handleDependentQuestClick}
+        disabled={switching}
+        className="block w-full text-left p-4 bg-white border border-gray-200 hover:border-purple-300 hover:shadow-md rounded-xl transition-all disabled:opacity-70"
+      >
+        {cardContent}
+      </button>
+    );
+  }
+
+  // Linked students / own quests: regular link
+  return (
+    <Link
+      to={questLink}
+      className="block p-4 bg-white border border-gray-200 hover:border-purple-300 hover:shadow-md rounded-xl transition-all"
+    >
+      {cardContent}
     </Link>
   );
 };
@@ -250,7 +287,9 @@ const LearningSnapshot = ({
   activeQuests = [],
   recentCompletions = [],
   hideHeader = false,
-  studentId = null // For parent view - prefixes quest links with /parent/quest/{studentId}/
+  studentId = null, // For parent view - prefixes quest links with /parent/quest/{studentId}/
+  isDependent = false, // For dependent children - links to standard quest page instead of parent view
+  dependentName = null // Display name of the dependent (for act-as switching)
 }) => {
   const { calendar = [], rhythm, summary } = engagementData;
 
@@ -286,6 +325,8 @@ const LearningSnapshot = ({
                 key={quest.quests?.id || idx}
                 quest={quest}
                 studentId={studentId}
+                isDependent={isDependent}
+                dependentName={dependentName}
               />
             ))
           ) : (
@@ -325,6 +366,8 @@ const LearningSnapshot = ({
                 key={quest.quests?.id || `extra-${idx}`}
                 quest={quest}
                 studentId={studentId}
+                isDependent={isDependent}
+                dependentName={dependentName}
               />
             ))}
           </div>

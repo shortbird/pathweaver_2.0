@@ -281,6 +281,15 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Error registering Observer role routes: {e}", exc_info=True)
 
+# Register Family Quests blueprint (February 2026 - Parent quest creation)
+try:
+    from routes.family_quests import bp as family_quests_bp
+    app.register_blueprint(family_quests_bp)  # /api/family/* endpoints
+except ImportError as e:
+    logger.warning(f"Warning: Family Quests module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Family Quests routes: {e}", exc_info=True)
+
 # Register Link Preview blueprint (February 2026 - Rich link previews in feed)
 from routes.link_preview import bp as link_preview_bp
 app.register_blueprint(link_preview_bp)  # /api/utils/link-preview

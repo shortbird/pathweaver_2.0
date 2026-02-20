@@ -1,4 +1,5 @@
 import React from 'react';
+import { captureError } from '../services/posthog';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -19,6 +20,9 @@ class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     // Log error to console in development
     console.error('Error caught by ErrorBoundary:', error, errorInfo);
+
+    // Send to PostHog for correlation with session replays
+    captureError(error, errorInfo);
 
     // Update state with error details
     this.setState(prevState => ({

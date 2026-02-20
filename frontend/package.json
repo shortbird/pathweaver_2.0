@@ -29,6 +29,7 @@
     "focus-trap-react": "^11.0.4",
     "framer-motion": "^12.23.22",
     "html2pdf.js": "^0.14.0",
+    "posthog-js": "^1.352.0",
     "prop-types": "^15.8.1",
     "qrcode.react": "^4.2.0",
     "react": "^18.3.1",

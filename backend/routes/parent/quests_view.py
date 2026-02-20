@@ -292,6 +292,10 @@ def get_student_quest_view(user_id, student_id, quest_id):
         supabase = get_supabase_admin_client()
         verify_parent_access(supabase, user_id, student_id)
 
+        # Check if student is a dependent (managed by this parent)
+        student_check = supabase.table('users').select('managed_by_parent_id').eq('id', student_id).single().execute()
+        is_dependent = bool(student_check.data and student_check.data.get('managed_by_parent_id') == user_id)
+
         # Get quest details
         quest_response = supabase.table('quests').select('''
             id, title, description, image_url, header_image_url, quest_type
@@ -435,7 +439,7 @@ def get_student_quest_view(user_id, student_id, quest_id):
 
         # Check if student has started this quest
         user_quest_response = supabase.table('user_quests').select('''
-            started_at, completed_at, is_active
+            id, started_at, completed_at, is_active
         ''').eq('user_id', student_id).eq('quest_id', quest_id).execute()
 
         quest_status = 'not_started'
@@ -470,7 +474,9 @@ def get_student_quest_view(user_id, student_id, quest_id):
                 'completed_tasks': completed_count,
                 'total_tasks': total_count,
                 'percentage': progress_percentage
-            }
+            },
+            'is_dependent': is_dependent,
+            'user_quest_id': user_quest_response.data[0]['id'] if user_quest_response.data else None,
         }), 200
 
     except AuthorizationError as e:

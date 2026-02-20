@@ -66,13 +66,22 @@ vi.mock('../components/parent/ParentMomentCaptureButton', () => ({
   default: () => null
 }))
 
+vi.mock('../components/admin/QuestForm', () => ({
+  default: () => null
+}))
+
+vi.mock('../components/parent/FamilyQuestChildSelector', () => ({
+  default: () => null
+}))
+
 vi.mock('@heroicons/react/24/outline', () => ({
   ExclamationTriangleIcon: (props) => <svg data-testid="warning-icon" {...props} />,
   UserIcon: (props) => <svg data-testid="user-icon" {...props} />,
   PlusIcon: (props) => <svg data-testid="plus-icon" {...props} />,
   Cog6ToothIcon: (props) => <svg data-testid="cog-icon" {...props} />,
   UserGroupIcon: (props) => <svg data-testid="group-icon" {...props} />,
-  NewspaperIcon: (props) => <svg data-testid="newspaper-icon" {...props} />
+  NewspaperIcon: (props) => <svg data-testid="newspaper-icon" {...props} />,
+  RocketLaunchIcon: (props) => <svg data-testid="rocket-icon" {...props} />
 }))
 
 import { parentAPI } from '../services/api'
