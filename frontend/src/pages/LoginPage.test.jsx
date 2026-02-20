@@ -250,48 +250,89 @@ describe('LoginPage', () => {
     })
   })
 
-  // --- Auth redirect ---
-  describe('redirect when already authenticated', () => {
-    it('redirects student to /dashboard', async () => {
+  // --- Account selection when already authenticated ---
+  describe('account selection when already authenticated', () => {
+    it('shows account selection screen for student', () => {
       authState = {
         login: mockLogin,
         isAuthenticated: true,
-        user: { id: '1', role: 'student' },
+        user: { id: '1', role: 'student', first_name: 'Alice' },
         loading: false
       }
       renderLoginPage()
 
+      expect(screen.getByText(/You are logged in as/)).toBeInTheDocument()
+      expect(screen.getByText('Alice')).toBeInTheDocument()
+      expect(screen.getByText('Continue as Alice')).toBeInTheDocument()
+      expect(screen.getByText('Sign in with a different account')).toBeInTheDocument()
+    })
+
+    it('navigates to dashboard when Continue is clicked (student)', async () => {
+      authState = {
+        login: mockLogin,
+        isAuthenticated: true,
+        user: { id: '1', role: 'student', first_name: 'Alice' },
+        loading: false
+      }
+      renderLoginPage()
+
+      fireEvent.click(screen.getByText('Continue as Alice'))
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
+    })
+
+    it('navigates to parent dashboard when Continue is clicked (parent)', async () => {
+      authState = {
+        login: mockLogin,
+        isAuthenticated: true,
+        user: { id: '1', role: 'parent', first_name: 'Bob' },
+        loading: false
+      }
+      renderLoginPage()
+
+      fireEvent.click(screen.getByText('Continue as Bob'))
+      expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard')
+    })
+
+    it('navigates to observer feed when Continue is clicked (observer)', async () => {
+      authState = {
+        login: mockLogin,
+        isAuthenticated: true,
+        user: { id: '1', role: 'observer', first_name: 'Carol' },
+        loading: false
+      }
+      renderLoginPage()
+
+      fireEvent.click(screen.getByText('Continue as Carol'))
+      expect(mockNavigate).toHaveBeenCalledWith('/observer/feed')
+    })
+
+    it('shows login form when switch account is clicked', async () => {
+      authState = {
+        login: mockLogin,
+        isAuthenticated: true,
+        user: { id: '1', role: 'student', first_name: 'Alice' },
+        loading: false
+      }
+      renderLoginPage()
+
+      fireEvent.click(screen.getByText('Sign in with a different account'))
+
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true })
+        expect(screen.getByText('Welcome back')).toBeInTheDocument()
+        expect(screen.getByText(/Signing in below will end your current session/)).toBeInTheDocument()
       })
     })
 
-    it('redirects parent to /parent/dashboard', async () => {
+    it('shows session switch warning', () => {
       authState = {
         login: mockLogin,
         isAuthenticated: true,
-        user: { id: '1', role: 'parent' },
+        user: { id: '1', role: 'student', first_name: 'Alice' },
         loading: false
       }
       renderLoginPage()
 
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard', { replace: true })
-      })
-    })
-
-    it('redirects observer to /observer/feed', async () => {
-      authState = {
-        login: mockLogin,
-        isAuthenticated: true,
-        user: { id: '1', role: 'observer' },
-        loading: false
-      }
-      renderLoginPage()
-
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/observer/feed', { replace: true })
-      })
+      expect(screen.getByText(/Signing in as a different account will end your current session/)).toBeInTheDocument()
     })
   })
 
@@ -313,7 +354,7 @@ describe('LoginPage', () => {
       authState = {
         login: mockLogin,
         isAuthenticated: true,
-        user: { id: '1', role: 'student' },
+        user: { id: '1', role: 'student', first_name: 'Test' },
         loading: false
       }
       renderLoginPage()

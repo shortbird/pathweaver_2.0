@@ -24,6 +24,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState(null)
   const [loginTimestamp, setLoginTimestamp] = useState(null)
+  const [sessionConflict, setSessionConflict] = useState(null)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -117,6 +118,32 @@ export const AuthProvider = ({ children }) => {
     checkSession()
   }, [])
 
+  // Cross-tab session sync: detect when a different user logs in from another tab
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key !== 'session_sync') return
+      try {
+        const syncData = JSON.parse(e.newValue)
+        if (!syncData) return
+        // Only trigger conflict if we have an active user and the synced user differs
+        if (user?.id && syncData.userId !== user.id) {
+          setSessionConflict({
+            action: syncData.action,
+            newUserName: syncData.displayName || null,
+            timestamp: syncData.timestamp
+          })
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [user?.id])
+
+  const clearSessionConflict = () => setSessionConflict(null)
+
   const login = async (email, password) => {
     try {
       const response = await api.post('/api/auth/login', { email, password })
@@ -134,6 +161,16 @@ export const AuthProvider = ({ children }) => {
       // Update React Query cache with fresh user data
       queryClient.setQueryData(queryKeys.user.profile('current'), loginUser)
       identifyUser(loginUser)
+
+      // Notify other tabs about the session change
+      try {
+        localStorage.setItem('session_sync', JSON.stringify({
+          userId: loginUser.id,
+          displayName: loginUser.first_name || loginUser.display_name || loginUser.email,
+          action: 'login',
+          timestamp: Date.now()
+        }))
+      } catch { /* localStorage unavailable */ }
 
       // Check if user is new (created within the last 5 minutes)
       const createdAt = new Date(loginUser.created_at)
@@ -216,6 +253,16 @@ export const AuthProvider = ({ children }) => {
       // Update React Query cache with fresh user data
       queryClient.setQueryData(queryKeys.user.profile('current'), loginUser)
       identifyUser(loginUser)
+
+      // Notify other tabs about the session change
+      try {
+        localStorage.setItem('session_sync', JSON.stringify({
+          userId: loginUser.id,
+          displayName: loginUser.first_name || loginUser.display_name || loginUser.email,
+          action: 'login',
+          timestamp: Date.now()
+        }))
+      } catch { /* localStorage unavailable */ }
 
       // Check if user is new (created within the last 5 minutes)
       const createdAt = new Date(loginUser.created_at)
@@ -301,6 +348,16 @@ export const AuthProvider = ({ children }) => {
         // Update React Query cache with fresh user data
         queryClient.setQueryData(queryKeys.user.profile('current'), user)
         identifyUser(user)
+
+        // Notify other tabs about the session change
+        try {
+          localStorage.setItem('session_sync', JSON.stringify({
+            userId: user.id,
+            displayName: user.first_name || user.display_name || user.email,
+            action: 'login',
+            timestamp: Date.now()
+          }))
+        } catch { /* localStorage unavailable */ }
 
         // Track registration completion for Meta Pixel
         try {
@@ -400,6 +457,16 @@ export const AuthProvider = ({ children }) => {
 
       // Step 8: Reset PostHog identity (starts new anonymous session)
       resetUser()
+
+      // Notify other tabs about the logout
+      try {
+        localStorage.setItem('session_sync', JSON.stringify({
+          userId: null,
+          displayName: null,
+          action: 'logout',
+          timestamp: Date.now()
+        }))
+      } catch { /* localStorage unavailable */ }
 
       toast.success('Logged out successfully')
       navigate('/')
@@ -515,7 +582,9 @@ export const AuthProvider = ({ children }) => {
     isSuperadmin: effectiveRole === 'superadmin',
     isCreator: user?.subscription_tier === 'creator' || user?.subscription_tier === 'enterprise',
     isAcademy: user?.subscription_tier === 'enterprise', // Academy tier uses 'enterprise' in database
-    isFree: user?.subscription_tier === 'free' || user?.subscription_tier === 'explorer' || !user?.subscription_tier
+    isFree: user?.subscription_tier === 'free' || user?.subscription_tier === 'explorer' || !user?.subscription_tier,
+    sessionConflict,
+    clearSessionConflict
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

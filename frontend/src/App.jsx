@@ -14,6 +14,7 @@ import { tokenStore } from './services/api'
 import MasqueradeBanner from './components/admin/MasqueradeBanner'
 import ActingAsBanner from './components/parent/ActingAsBanner'
 import ConsentBlockedOverlay from './components/consent/ConsentBlockedOverlay'
+import SessionConflictOverlay from './components/SessionConflictOverlay'
 import { getMasqueradeState, exitMasquerade, restoreMasqueradeToken } from './services/masqueradeService'
 import { queryKeys } from './utils/queryKeys'
 import logger from './utils/logger'
@@ -287,6 +288,7 @@ function AppContent() {
           onRetry={handleRetryConsent}
         />
       )}
+      <SessionConflictOverlay />
     </>
   );
 }
