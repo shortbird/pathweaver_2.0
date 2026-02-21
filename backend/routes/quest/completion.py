@@ -416,6 +416,7 @@ def end_quest(user_id: str, quest_id: str):
             .select('*')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
+            .order('created_at', desc=True)\
             .execute()
 
         if not enrollment.data:
@@ -424,8 +425,11 @@ def end_quest(user_id: str, quest_id: str):
                 'error': 'Not enrolled in this quest'
             }), 404
 
-        # Get the most recent enrollment (in case of multiple)
-        current_enrollment = enrollment.data[0]
+        # Prioritize active enrollment when multiple exist (e.g. user re-enrolled)
+        current_enrollment = next(
+            (e for e in enrollment.data if e.get('is_active')),
+            enrollment.data[0]  # Fall back to most recent if none active
+        )
 
         # Check if already marked as inactive and completed
         if not current_enrollment.get('is_active') and current_enrollment.get('completed_at'):
