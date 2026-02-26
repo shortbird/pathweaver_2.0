@@ -156,6 +156,30 @@ export const useAbandonQuest = () => {
 }
 
 /**
+ * Hook for permanently deleting a quest enrollment and reversing XP
+ */
+export const useDeleteEnrollment = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: [mutationKeys.deleteEnrollment],
+    mutationFn: async ({ questId, studentId }) => {
+      const params = studentId ? `?student_id=${studentId}` : ''
+      const response = await api.delete(`/api/quests/${questId}/enrollment${params}`)
+      return response.data
+    },
+    onSuccess: (data) => {
+      queryKeys.invalidateQuests(queryClient)
+      queryClient.invalidateQueries(queryKeys.user.dashboard())
+      toast.success(data.message || 'Enrollment deleted successfully')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to delete enrollment')
+    },
+  })
+}
+
+/**
  * Hook for ending/finishing a quest
  */
 export const useEndQuest = () => {

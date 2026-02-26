@@ -12,6 +12,7 @@ from datetime import datetime
 import logging
 
 from database import get_user_client, get_supabase_admin_client
+from middleware.error_handler import NotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -258,4 +259,153 @@ class QuestLifecycleService:
             'last_set_down_at': user_quest.get('last_set_down_at'),
             'started_at': user_quest.get('started_at'),
             'reflections': user_quest.get('reflection_notes', [])
+        }
+
+    # =========================================================================
+    # ENROLLMENT DELETION
+    # =========================================================================
+
+    def delete_enrollment(self, user_id: str, quest_id: str) -> Dict[str, Any]:
+        """
+        Permanently delete a quest enrollment and reverse all XP.
+
+        Removes user_quests rows (FK cascades handle tasks, completions,
+        evidence, comments, etc.) and reverses pillar/subject/total XP.
+
+        Args:
+            user_id: User ID
+            quest_id: Quest ID
+
+        Returns:
+            Dict with deletion stats (tasks_deleted, xp_reversed, quest_title)
+
+        Raises:
+            NotFoundError: If no enrollment found
+        """
+        # Get quest title for response
+        quest = self.admin_client.table('quests')\
+            .select('id, title')\
+            .eq('id', quest_id)\
+            .single()\
+            .execute()
+        quest_title = quest.data.get('title', 'Unknown') if quest.data else 'Unknown'
+
+        # Find ALL user_quests records for this user+quest (handle multiple enrollments)
+        enrollments = self.admin_client.table('user_quests')\
+            .select('id')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .execute()
+
+        if not enrollments.data:
+            raise NotFoundError('Enrollment', quest_id)
+
+        enrollment_ids = [e['id'] for e in enrollments.data]
+
+        # Get all task IDs from these enrollments
+        tasks_result = self.admin_client.table('user_quest_tasks')\
+            .select('id, pillar, xp_value, subject_xp_distribution')\
+            .in_('user_quest_id', enrollment_ids)\
+            .execute()
+
+        all_tasks = tasks_result.data or []
+        task_ids = [t['id'] for t in all_tasks]
+
+        # Find which tasks have completions (only completed tasks had XP awarded)
+        completed_task_ids = []
+        if task_ids:
+            completions = self.admin_client.table('quest_task_completions')\
+                .select('user_quest_task_id')\
+                .in_('user_quest_task_id', task_ids)\
+                .execute()
+            completed_task_ids = [c['user_quest_task_id'] for c in (completions.data or [])]
+
+        # Build XP to reverse from completed tasks only
+        completed_tasks = [t for t in all_tasks if t['id'] in completed_task_ids]
+        pillar_xp_to_remove = {}
+        subject_xp_to_remove = {}
+
+        for task in completed_tasks:
+            pillar = task.get('pillar')
+            xp = task.get('xp_value', 0)
+            if pillar and xp > 0:
+                pillar_xp_to_remove[pillar] = pillar_xp_to_remove.get(pillar, 0) + xp
+
+            # Collect subject XP to reverse
+            subject_dist = task.get('subject_xp_distribution') or {}
+            for subject, sxp in subject_dist.items():
+                if sxp and sxp > 0:
+                    subject_xp_to_remove[subject] = subject_xp_to_remove.get(subject, 0) + sxp
+
+        total_xp_reversed = sum(pillar_xp_to_remove.values())
+
+        # Reverse pillar XP in user_skill_xp
+        for pillar, xp in pillar_xp_to_remove.items():
+            try:
+                current = self.admin_client.table('user_skill_xp')\
+                    .select('id, xp_amount')\
+                    .eq('user_id', user_id)\
+                    .eq('pillar', pillar)\
+                    .execute()
+                if current.data:
+                    new_xp = max(0, current.data[0].get('xp_amount', 0) - xp)
+                    self.admin_client.table('user_skill_xp')\
+                        .update({'xp_amount': new_xp})\
+                        .eq('id', current.data[0]['id'])\
+                        .execute()
+            except Exception as e:
+                logger.warning(f"Could not reverse pillar XP for {pillar}: {e}")
+
+        # Reverse subject XP in user_subject_xp
+        for subject, xp in subject_xp_to_remove.items():
+            try:
+                current = self.admin_client.table('user_subject_xp')\
+                    .select('xp_amount')\
+                    .eq('user_id', user_id)\
+                    .eq('school_subject', subject)\
+                    .execute()
+                if current.data:
+                    new_xp = max(0, current.data[0].get('xp_amount', 0) - xp)
+                    self.admin_client.table('user_subject_xp')\
+                        .update({'xp_amount': new_xp})\
+                        .eq('user_id', user_id)\
+                        .eq('school_subject', subject)\
+                        .execute()
+            except Exception as e:
+                logger.warning(f"Could not reverse subject XP for {subject}: {e}")
+
+        # Delete user_quests rows (FK cascades handle everything else)
+        for enrollment_id in enrollment_ids:
+            self.admin_client.table('user_quests')\
+                .delete()\
+                .eq('id', enrollment_id)\
+                .execute()
+
+        # Recalculate total_xp from remaining user_skill_xp
+        xp_records = self.admin_client.table('user_skill_xp')\
+            .select('xp_amount')\
+            .eq('user_id', user_id)\
+            .execute()
+        new_total = sum(r.get('xp_amount', 0) for r in (xp_records.data or []))
+        self.admin_client.table('users')\
+            .update({'total_xp': new_total})\
+            .eq('id', user_id)\
+            .execute()
+
+        # Update mastery
+        try:
+            from services.xp_service import XPService
+            XPService().update_user_mastery(user_id)
+        except Exception as e:
+            logger.warning(f"Could not update mastery after enrollment deletion: {e}")
+
+        logger.info(
+            f"Deleted enrollment for user {user_id[:8]} quest {quest_id[:8]}: "
+            f"{len(all_tasks)} tasks, {total_xp_reversed} XP reversed"
+        )
+
+        return {
+            'tasks_deleted': len(all_tasks),
+            'xp_reversed': total_xp_reversed,
+            'quest_title': quest_title
         }

@@ -111,6 +111,7 @@ export const mutationKeys = {
   submitEvidence: 'submitEvidence',
   abandonQuest: 'abandonQuest',
   endQuest: 'endQuest',
+  deleteEnrollment: 'deleteEnrollment',
 
   // Social mutations
   sendFriendRequest: 'sendFriendRequest',

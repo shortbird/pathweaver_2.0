@@ -17,7 +17,8 @@ import {
   ArrowRightStartOnRectangleIcon,
   ClockIcon,
   FireIcon,
-  MapPinIcon
+  MapPinIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 
 /**
@@ -31,7 +32,9 @@ const QuestDetailHeader = ({
   earnedXP,
   isQuestCompleted,
   onEndQuest,
-  endQuestMutation
+  endQuestMutation,
+  onDeleteEnrollment,
+  deleteEnrollmentMutation
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -174,6 +177,20 @@ const QuestDetailHeader = ({
                   <span className="hidden sm:inline">{endQuestMutation?.isPending ? '...' : 'End'}</span>
                 </button>
               )
+            )}
+
+            {/* Delete enrollment - visible whenever user has any enrollment */}
+            {(isEnrolled || isQuestCompleted) &&
+              !quest?.lms_platform && !quest?.active_course_enrollment && onDeleteEnrollment && (
+              <button
+                onClick={onDeleteEnrollment}
+                disabled={deleteEnrollmentMutation?.isPending}
+                className="flex items-center gap-1.5 px-3 py-2 bg-white/90 backdrop-blur-sm text-red-500 border border-red-200 rounded-full hover:bg-red-50 transition-all text-sm font-medium shadow-sm disabled:opacity-50 min-h-[44px] touch-manipulation"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                <TrashIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">{deleteEnrollmentMutation?.isPending ? '...' : 'Delete'}</span>
+              </button>
             )}
           </div>
 
