@@ -12,6 +12,7 @@ import QuestMetadataCard from '../components/quest/QuestMetadataCard';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 import { useActivityTracking } from '../hooks/useActivityTracking';
+import { useDeleteEnrollment } from '../hooks/api/useQuests';
 
 // Lazy load heavy components
 const TaskEvidenceModal = lazy(() => import('../components/quest/TaskEvidenceModal'));
@@ -83,6 +84,9 @@ const QuestDetail = () => {
     isQuestCompleted,
     queryClient
   } = useQuestDetailData(id);
+
+  const deleteEnrollmentMutation = useDeleteEnrollment();
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
 
   // Enrollment transition loading state (stays true from click through refetch)
   const [isEnrollmentLoading, setIsEnrollmentLoading] = React.useState(false);
@@ -223,6 +227,19 @@ const QuestDetail = () => {
         } else {
           toast.error(responseData?.error || 'Failed to finish quest. Please try again.');
         }
+      }
+    });
+  };
+
+  const handleDeleteEnrollment = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteEnrollment = () => {
+    setShowDeleteConfirm(false);
+    deleteEnrollmentMutation.mutate({ questId: id }, {
+      onSuccess: () => {
+        navigate('/dashboard');
       }
     });
   };
@@ -444,6 +461,8 @@ const QuestDetail = () => {
         isQuestCompleted={isQuestCompleted}
         onEndQuest={handleEndQuest}
         endQuestMutation={endQuestMutation}
+        onDeleteEnrollment={handleDeleteEnrollment}
+        deleteEnrollmentMutation={deleteEnrollmentMutation}
       />
 
       {/* Main Content */}
@@ -533,6 +552,39 @@ const QuestDetail = () => {
           </div>
         )}
       </div>
+
+      {/* Delete enrollment confirmation */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl">
+            <h3
+              className="text-lg font-bold text-gray-900 mb-3"
+              style={{ fontFamily: 'Poppins' }}
+            >
+              Delete Enrollment?
+            </h3>
+            <p className="text-sm text-gray-600 mb-6" style={{ fontFamily: 'Poppins' }}>
+              This will permanently remove this quest and all associated tasks, evidence, and XP. This cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors min-h-[44px] touch-manipulation"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteEnrollment}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors min-h-[44px] touch-manipulation"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Enrollment loading overlay */}
       {isEnrollmentLoading && (

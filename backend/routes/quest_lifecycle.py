@@ -12,7 +12,8 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from services.quest_lifecycle_service import QuestLifecycleService
 from services.quest_invitation_service import QuestInvitationService
-from middleware.error_handler import ValidationError, NotFoundError
+from middleware.error_handler import ValidationError, NotFoundError, AuthorizationError
+from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -90,6 +91,68 @@ def get_pickup_history(user_id, quest_id):
 
     except Exception as e:
         logger.error(f"Error getting pickup history for quest {quest_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@quest_lifecycle_bp.route('/quests/<quest_id>/enrollment', methods=['DELETE'])
+@require_auth
+def delete_enrollment(user_id, quest_id):
+    """
+    Permanently delete a quest enrollment and reverse all XP.
+    Supports advisor/parent acting on behalf of a student via ?student_id= param.
+    """
+    try:
+        student_id = request.args.get('student_id')
+        target_user_id = user_id
+
+        if student_id and student_id != user_id:
+            # Verify advisor or parent access
+            supabase = get_supabase_admin_client()
+            has_access = False
+
+            # Check advisor access
+            try:
+                from repositories.advisor_repository import AdvisorRepository
+                advisor_repo = AdvisorRepository()
+                if advisor_repo.verify_student_access(user_id, student_id):
+                    has_access = True
+            except Exception:
+                pass
+
+            # Check parent access
+            if not has_access:
+                child = supabase.table('users').select('id, managed_by_parent_id').eq('id', student_id).single().execute()
+                if child.data and child.data.get('managed_by_parent_id') == user_id:
+                    has_access = True
+
+                if not has_access:
+                    link = supabase.table('parent_student_links').select('id').eq(
+                        'parent_user_id', user_id
+                    ).eq('student_user_id', student_id).eq('status', 'approved').execute()
+                    if link.data:
+                        has_access = True
+
+            if not has_access:
+                raise AuthorizationError('You do not have permission to delete this enrollment')
+
+            target_user_id = student_id
+
+        service = QuestLifecycleService()
+        result = service.delete_enrollment(target_user_id, quest_id)
+
+        return jsonify({
+            'success': True,
+            'message': f'Enrollment in "{result["quest_title"]}" deleted successfully',
+            'tasks_deleted': result['tasks_deleted'],
+            'xp_reversed': result['xp_reversed']
+        }), 200
+
+    except NotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error deleting enrollment for quest {quest_id}: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
