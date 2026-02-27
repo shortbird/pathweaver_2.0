@@ -17,10 +17,10 @@ test.describe('Task Generation', () => {
   let questHubPage;
   let questDetailPage;
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, browserName }) => {
     loginPage = new LoginPage(page);
-    questHubPage = new QuestHubPage(page);
-    questDetailPage = new QuestDetailPage(page);
+    questHubPage = new QuestHubPage(page, browserName);
+    questDetailPage = new QuestDetailPage(page, browserName);
 
     // Login first
     await loginPage.goto();

@@ -38,11 +38,15 @@ export class QuestHubPage extends BasePage {
 
   /**
    * Navigate to quest discovery page.
-   * Uses client-side navigation to preserve auth state across browsers
-   * (WebKit blocks cross-site cookies on Render dev environment).
+   * WebKit uses client-side navigation to preserve auth state because
+   * it blocks cross-site cookies on the Render dev environment.
    */
   async goto() {
-    await this.navigateWithinApp('/quests');
+    if (this.browserName === 'webkit') {
+      await this.navigateWithinApp('/quests');
+    } else {
+      await super.goto('/quests');
+    }
     await this.waitForLoadingComplete();
   }
 

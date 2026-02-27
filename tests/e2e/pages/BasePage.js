@@ -5,8 +5,9 @@
  * and common element interactions.
  */
 export class BasePage {
-  constructor(page) {
+  constructor(page, browserName = '') {
     this.page = page;
+    this.browserName = browserName;
     this.timeout = 15000;
   }
 
