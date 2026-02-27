@@ -38,19 +38,12 @@ export class QuestHubPage extends BasePage {
 
   /**
    * Navigate to quest discovery page.
-   * WebKit uses the in-app "Quests" nav button to preserve auth state
-   * because it blocks cross-site cookies on the Render dev environment.
-   * A full page.goto() would lose auth tokens in WebKit.
+   * Uses page.goto() for all browsers. WebKit preserves auth tokens
+   * in IndexedDB across same-origin navigations within a Playwright
+   * browser context, so full page reload works correctly.
    */
   async goto() {
-    if (this.browserName === 'webkit') {
-      // Click the "Quests" toggle in the TopNavbar which uses React Router
-      // navigate() for proper client-side navigation without page reload
-      await this.page.click('button:has-text("Quests")');
-      await this.waitForUrl('/quests');
-    } else {
-      await super.goto('/quests');
-    }
+    await super.goto('/quests');
     await this.waitForLoadingComplete();
   }
 

@@ -67,15 +67,12 @@ export class QuestDetailPage extends BasePage {
 
   /**
    * Navigate to a specific quest.
-   * WebKit uses client-side navigation to preserve auth state because
-   * it blocks cross-site cookies on the Render dev environment.
+   * Uses page.goto() for all browsers. WebKit preserves auth tokens
+   * in IndexedDB across same-origin navigations within a Playwright
+   * browser context, so full page reload works correctly.
    */
   async goto(questId) {
-    if (this.browserName === 'webkit') {
-      await this.navigateWithinApp(`/quests/${questId}`);
-    } else {
-      await super.goto(`/quests/${questId}`);
-    }
+    await super.goto(`/quests/${questId}`);
     await this.waitForLoadingComplete();
   }
 
