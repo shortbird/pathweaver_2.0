@@ -77,9 +77,9 @@ export class LoginPage extends BasePage {
    */
   async waitForSuccessfulLogin() {
     // Wait for redirect away from login page
-    await this.page.waitForURL(/\/(dashboard|quests|home|parent|observer)/, {
-      timeout: 15000
-    });
+    // Uses the project's navigationTimeout (40s for WebKit/Firefox, 30s default)
+    // instead of a hardcoded value, since WebKit login can be slow on CI
+    await this.page.waitForURL(/\/(dashboard|quests|home|parent|observer)/);
   }
 
   /**

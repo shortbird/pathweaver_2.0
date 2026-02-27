@@ -38,12 +38,16 @@ export class QuestHubPage extends BasePage {
 
   /**
    * Navigate to quest discovery page.
-   * WebKit uses client-side navigation to preserve auth state because
-   * it blocks cross-site cookies on the Render dev environment.
+   * WebKit uses the in-app "Quests" nav button to preserve auth state
+   * because it blocks cross-site cookies on the Render dev environment.
+   * A full page.goto() would lose auth tokens in WebKit.
    */
   async goto() {
     if (this.browserName === 'webkit') {
-      await this.navigateWithinApp('/quests');
+      // Click the "Quests" toggle in the TopNavbar which uses React Router
+      // navigate() for proper client-side navigation without page reload
+      await this.page.click('button:has-text("Quests")');
+      await this.waitForUrl('/quests');
     } else {
       await super.goto('/quests');
     }
