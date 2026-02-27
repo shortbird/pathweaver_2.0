@@ -81,7 +81,8 @@ vi.mock('@heroicons/react/24/outline', () => ({
   Cog6ToothIcon: (props) => <svg data-testid="cog-icon" {...props} />,
   UserGroupIcon: (props) => <svg data-testid="group-icon" {...props} />,
   NewspaperIcon: (props) => <svg data-testid="newspaper-icon" {...props} />,
-  RocketLaunchIcon: (props) => <svg data-testid="rocket-icon" {...props} />
+  RocketLaunchIcon: (props) => <svg data-testid="rocket-icon" {...props} />,
+  ChevronDownIcon: (props) => <svg data-testid="chevron-down-icon" {...props} />
 }))
 
 import { parentAPI } from '../services/api'
@@ -197,8 +198,8 @@ describe('ParentDashboardPage', () => {
     it('shows child tabs when multiple children', async () => {
       renderParentDashboard()
       await waitFor(() => {
-        expect(screen.getByText(/Emma Smith/)).toBeInTheDocument()
-        expect(screen.getByText(/Noah Smith/)).toBeInTheDocument()
+        expect(screen.getAllByText(/Emma Smith/).length).toBeGreaterThanOrEqual(1)
+        expect(screen.getAllByText(/Noah Smith/).length).toBeGreaterThanOrEqual(1)
       })
     })
 

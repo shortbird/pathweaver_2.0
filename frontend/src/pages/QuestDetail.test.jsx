@@ -49,6 +49,14 @@ vi.mock('../utils/queryKeys', () => ({
   queryKeys: {
     quests: { detail: (id) => ['quests', 'detail', id] },
     invalidateCourses: vi.fn()
+  },
+  mutationKeys: {
+    deleteEnrollment: 'deleteEnrollment',
+    endQuest: 'endQuest',
+    completeTask: 'completeTask',
+    submitEvidence: 'submitEvidence',
+    enrollQuest: 'enrollQuest',
+    abandonQuest: 'abandonQuest'
   }
 }))
 
