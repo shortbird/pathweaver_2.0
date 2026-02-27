@@ -38,12 +38,22 @@ export class QuestHubPage extends BasePage {
 
   /**
    * Navigate to quest discovery page.
-   * Uses page.goto() for all browsers. WebKit preserves auth tokens
-   * in IndexedDB across same-origin navigations within a Playwright
-   * browser context, so full page reload works correctly.
+   * WebKit uses React Router client-side navigation (button click) to
+   * preserve auth state, since page.goto() causes a full reload that
+   * loses IndexedDB tokens in Playwright's WebKit engine.
    */
   async goto() {
-    await super.goto('/quests');
+    if (this.browserName === 'webkit') {
+      // Wait for the current page to fully stabilize after login
+      await this.page.waitForLoadState('networkidle');
+
+      // Click the "Quests" toggle in the TopNavbar which uses React Router
+      // navigate() for client-side navigation without page reload
+      await this.page.click('button:has-text("Quests")');
+      await this.waitForUrl('/quests');
+    } else {
+      await super.goto('/quests');
+    }
     await this.waitForLoadingComplete();
   }
 
@@ -155,7 +165,16 @@ export class QuestHubPage extends BasePage {
    * Check if page is loaded
    */
   async isLoaded() {
-    return this.isVisible(this.selectors.heroTitle, 5000);
+    const visible = await this.isVisible(this.selectors.heroTitle, 5000);
+    if (!visible && this.browserName === 'webkit') {
+      const url = this.page.url();
+      const bodyText = await this.page.evaluate(() =>
+        document.body?.innerText?.substring(0, 500) || 'empty'
+      ).catch(() => 'error reading body');
+      console.log(`[WebKit Debug] isLoaded=false URL: ${url}`);
+      console.log(`[WebKit Debug] Body: ${bodyText}`);
+    }
+    return visible;
   }
 
   /**
