@@ -121,10 +121,22 @@ export class QuestHubPage extends BasePage {
    */
   async clickQuestByIndex(index = 0) {
     await this.waitForLoadingComplete();
-    const cards = await this.page.$$(this.selectors.questCard);
-    if (cards.length > index) {
-      await cards[index].click();
+
+    if (this.browserName === 'webkit') {
+      // WebKit: Use locator API targeting the QuestCard root element directly
+      // (the one with the onClick handler and group class) for better
+      // reliability. ElementHandles from $$() can become stale in WebKit
+      // if React re-renders between fetch and click.
+      await this.page.waitForTimeout(500);
+      const card = this.page.locator('.grid > div > .group').nth(index);
+      await card.click({ timeout: 10000 });
       await this.waitForUrl('/quests/');
+    } else {
+      const cards = await this.page.$$(this.selectors.questCard);
+      if (cards.length > index) {
+        await cards[index].click();
+        await this.waitForUrl('/quests/');
+      }
     }
   }
 
