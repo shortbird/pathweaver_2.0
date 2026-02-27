@@ -37,10 +37,12 @@ export class QuestHubPage extends BasePage {
   }
 
   /**
-   * Navigate to quest discovery page
+   * Navigate to quest discovery page.
+   * Uses client-side navigation to preserve auth state across browsers
+   * (WebKit blocks cross-site cookies on Render dev environment).
    */
   async goto() {
-    await super.goto('/quests');
+    await this.navigateWithinApp('/quests');
     await this.waitForLoadingComplete();
   }
 

@@ -66,10 +66,12 @@ export class QuestDetailPage extends BasePage {
   }
 
   /**
-   * Navigate to a specific quest
+   * Navigate to a specific quest.
+   * Uses client-side navigation to preserve auth state across browsers
+   * (WebKit blocks cross-site cookies on Render dev environment).
    */
   async goto(questId) {
-    await super.goto(`/quests/${questId}`);
+    await this.navigateWithinApp(`/quests/${questId}`);
     await this.waitForLoadingComplete();
   }
 
