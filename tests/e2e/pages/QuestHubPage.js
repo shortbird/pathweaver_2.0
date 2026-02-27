@@ -6,8 +6,8 @@ import { BasePage } from './BasePage.js';
  * Handles quest discovery, search, filtering, and quest card interactions.
  */
 export class QuestHubPage extends BasePage {
-  constructor(page) {
-    super(page);
+  constructor(page, browserName) {
+    super(page, browserName);
 
     this.selectors = {
       // Hero section
@@ -165,16 +165,7 @@ export class QuestHubPage extends BasePage {
    * Check if page is loaded
    */
   async isLoaded() {
-    const visible = await this.isVisible(this.selectors.heroTitle, 5000);
-    if (!visible && this.browserName === 'webkit') {
-      const url = this.page.url();
-      const bodyText = await this.page.evaluate(() =>
-        document.body?.innerText?.substring(0, 500) || 'empty'
-      ).catch(() => 'error reading body');
-      console.log(`[WebKit Debug] isLoaded=false URL: ${url}`);
-      console.log(`[WebKit Debug] Body: ${bodyText}`);
-    }
-    return visible;
+    return this.isVisible(this.selectors.heroTitle, 5000);
   }
 
   /**

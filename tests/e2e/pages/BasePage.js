@@ -107,6 +107,21 @@ export class BasePage {
   }
 
   /**
+   * Navigate within the SPA without a full page reload.
+   * Uses the History API to trigger React Router v6 route changes.
+   * Preserves auth state that can be lost on full page reload in
+   * WebKit due to cross-site cookie blocking on the CI environment.
+   */
+  async navigateWithinApp(path) {
+    await this.page.evaluate((targetPath) => {
+      window.history.pushState(null, '', targetPath);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }, path);
+    await this.page.waitForTimeout(500);
+    await this.waitForLoadingComplete();
+  }
+
+  /**
    * Wait for loading state to complete
    */
   async waitForLoadingComplete() {
