@@ -24,6 +24,7 @@ import ChildOverviewContent from '../components/parent/ChildOverviewContent';
 import ParentMomentCaptureButton from '../components/parent/ParentMomentCaptureButton';
 import QuestForm from '../components/admin/QuestForm';
 import FamilyQuestChildSelector from '../components/parent/FamilyQuestChildSelector';
+import FamilyQuestIdeaGenerator from '../components/parent/FamilyQuestIdeaGenerator';
 
 const ParentDashboardPage = () => {
   const { user, refreshUser } = useAuth();
@@ -45,6 +46,7 @@ const ParentDashboardPage = () => {
   const [showFamilyQuestForm, setShowFamilyQuestForm] = useState(false);
   const [showChildSelector, setShowChildSelector] = useState(false);
   const [createdQuestData, setCreatedQuestData] = useState(null);
+  const [showQuestIdeaGenerator, setShowQuestIdeaGenerator] = useState(false);
 
   // Load children list (admin-only linking, no invitations) and dependents
   // NOTE: All hooks must be declared before any conditional returns (React Rules of Hooks)
@@ -324,7 +326,7 @@ const ParentDashboardPage = () => {
         <div className="flex flex-wrap gap-2 sm:gap-3">
           {(children.length > 0 || dependents.length > 0) && (
             <button
-              onClick={() => setShowFamilyQuestForm(true)}
+              onClick={() => setShowQuestIdeaGenerator(true)}
               className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border-2 border-optio-pink text-optio-pink rounded-lg font-semibold hover:bg-optio-pink/5 transition-colors min-h-[44px] text-sm sm:text-base"
               style={{ fontFamily: 'Poppins, sans-serif' }}
             >
@@ -613,6 +615,16 @@ const ParentDashboardPage = () => {
           setCreatedQuestData(null);
           setOverviewRefreshKey(prev => prev + 1);
         }}
+      />
+
+      {/* AI-Powered Family Quest Idea Generator */}
+      <FamilyQuestIdeaGenerator
+        isOpen={showQuestIdeaGenerator}
+        onClose={() => setShowQuestIdeaGenerator(false)}
+        children={children}
+        dependents={dependents}
+        onFallbackToManual={() => setShowFamilyQuestForm(true)}
+        onComplete={() => setOverviewRefreshKey(prev => prev + 1)}
       />
     </div>
   );

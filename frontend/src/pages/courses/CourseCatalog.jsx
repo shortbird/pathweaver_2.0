@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { toast } from 'react-hot-toast'
@@ -14,13 +14,14 @@ import {
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 import api from '../../services/api'
+import { useCourses } from '../../hooks/api/useCourseData'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '../../utils/queryKeys'
 
 const CourseCatalog = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  const [courses, setCourses] = useState([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
 
   // Check if user can manage courses (see drafts, edit)
@@ -28,37 +29,28 @@ const CourseCatalog = () => {
   const effectiveRole = user?.role === 'org_managed' ? user?.org_role : user?.role
   const canManageCourses = effectiveRole === 'superadmin' || effectiveRole === 'org_admin' || effectiveRole === 'advisor'
 
-  useEffect(() => {
-    fetchCourses()
-  }, [])
+  const queryClient = useQueryClient()
 
-  const fetchCourses = async () => {
-    try {
-      setLoading(true)
-      const response = await api.get('/api/courses')
+  const { data, isLoading: loading, error } = useCourses({}, {
+    staleTime: 60 * 1000, // 1 minute - cached for quick revisits
+  })
 
-      // Show all courses to admins, only published to others
-      const coursesToShow = canManageCourses
-        ? response.data.courses
-        : response.data.courses.filter(c => c.status === 'published')
-      setCourses(coursesToShow)
-    } catch (error) {
-      console.error('Failed to fetch courses:', error)
-      toast.error('Failed to load courses')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const courses = useMemo(() => {
+    const allCourses = data?.courses || []
+    return canManageCourses
+      ? allCourses
+      : allCourses.filter(c => c.status === 'published')
+  }, [data, canManageCourses])
+
+  // Error is handled by React Query - shows in UI via loading/empty states
 
   const handleEnroll = async (courseId) => {
     try {
       await api.post(`/api/courses/${courseId}/enroll`, {})
       toast.success('Successfully enrolled in course')
 
-      // Update course enrollment state locally
-      setCourses(prev => prev.map(c =>
-        c.id === courseId ? { ...c, is_enrolled: true } : c
-      ))
+      // Invalidate course list cache so it refreshes on return
+      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all })
 
       // Navigate to the course after enrollment
       navigate(`/courses/${courseId}`)

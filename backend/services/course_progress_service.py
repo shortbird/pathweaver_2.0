@@ -362,6 +362,9 @@ class CourseProgressService(BaseService):
         """
         Calculate progress for multiple courses efficiently.
 
+        Uses batched queries across all courses instead of per-course queries.
+        This reduces database round-trips from 6*N to 6 total.
+
         Args:
             user_id: User ID
             course_ids: List of course IDs
@@ -369,10 +372,137 @@ class CourseProgressService(BaseService):
         Returns:
             Dictionary mapping course_id -> CourseProgress
         """
-        result = {}
+        if not course_ids:
+            return {}
 
-        for course_id in course_ids:
-            result[course_id] = self.calculate_course_progress(user_id, course_id)
+        result = {cid: CourseProgress(course_id=cid) for cid in course_ids}
+
+        try:
+            # 1. Get ALL course_quests for all courses in one query
+            all_cq_result = self.client.table('course_quests')\
+                .select('course_id, quest_id, is_required, is_published')\
+                .in_('course_id', course_ids)\
+                .execute()
+
+            # Build map: course_id -> list of required, published quest_ids
+            quests_by_course: Dict[str, List[str]] = {cid: [] for cid in course_ids}
+            all_quest_ids = set()
+            for cq in (all_cq_result.data or []):
+                if cq.get('is_published') is False:
+                    continue
+                if cq.get('is_required', True) is False:
+                    continue
+                cid = cq['course_id']
+                qid = cq['quest_id']
+                quests_by_course[cid].append(qid)
+                all_quest_ids.add(qid)
+
+            if not all_quest_ids:
+                return result
+
+            all_quest_ids_list = list(all_quest_ids)
+
+            # 2. Get ALL lessons for all quests in one query
+            all_lessons_result = self.client.table('curriculum_lessons')\
+                .select('id, quest_id, xp_threshold, is_published')\
+                .in_('quest_id', all_quest_ids_list)\
+                .execute()
+
+            lessons_by_quest: Dict[str, List[Dict]] = {qid: [] for qid in all_quest_ids}
+            all_lesson_ids = []
+            for lesson in (all_lessons_result.data or []):
+                if lesson.get('is_published') is False:
+                    continue
+                qid = lesson['quest_id']
+                if qid in lessons_by_quest:
+                    lessons_by_quest[qid].append(lesson)
+                    all_lesson_ids.append(lesson['id'])
+
+            # 3. Get ALL linked tasks in one query
+            linked_tasks_by_quest: Dict[str, List[str]] = {qid: [] for qid in all_quest_ids}
+            all_linked_task_ids = []
+            if all_lesson_ids:
+                all_links_result = self.client.table('curriculum_lesson_tasks')\
+                    .select('task_id, quest_id')\
+                    .in_('quest_id', all_quest_ids_list)\
+                    .execute()
+
+                for link in (all_links_result.data or []):
+                    qid = link.get('quest_id')
+                    if qid in linked_tasks_by_quest:
+                        linked_tasks_by_quest[qid].append(link['task_id'])
+                        all_linked_task_ids.append(link['task_id'])
+
+            # 4. Get ALL user quest enrollments in one query
+            all_enrollments_result = self.client.table('user_quests')\
+                .select('id, quest_id, completed_at, is_active')\
+                .eq('user_id', user_id)\
+                .in_('quest_id', all_quest_ids_list)\
+                .execute()
+
+            enrollment_by_quest = {e['quest_id']: e for e in (all_enrollments_result.data or [])}
+            enrollment_ids = [e['id'] for e in enrollment_by_quest.values()]
+
+            # 5. Get ALL user tasks with XP in one query
+            task_xp_map: Dict[str, int] = {}
+            if all_linked_task_ids and enrollment_ids:
+                all_user_tasks_result = self.client.table('user_quest_tasks')\
+                    .select('id, xp_value')\
+                    .in_('user_quest_id', enrollment_ids)\
+                    .in_('id', all_linked_task_ids)\
+                    .execute()
+
+                task_xp_map = {
+                    t['id']: t.get('xp_value', 0) or 0
+                    for t in (all_user_tasks_result.data or [])
+                }
+
+            # 6. Get ALL completions in one query
+            completed_task_ids = set()
+            if task_xp_map:
+                all_completions_result = self.client.table('quest_task_completions')\
+                    .select('user_quest_task_id')\
+                    .eq('user_id', user_id)\
+                    .in_('user_quest_task_id', list(task_xp_map.keys()))\
+                    .execute()
+
+                completed_task_ids = {c['user_quest_task_id'] for c in (all_completions_result.data or [])}
+
+            # Now build progress for each course using in-memory data
+            for cid in course_ids:
+                progress = result[cid]
+                quest_ids = quests_by_course.get(cid, [])
+                progress.total_quests = len(quest_ids)
+
+                for qid in quest_ids:
+                    # Total XP from lessons
+                    quest_lessons = lessons_by_quest.get(qid, [])
+                    quest_total_xp = sum(l.get('xp_threshold', 0) or 0 for l in quest_lessons)
+                    progress.total_xp += quest_total_xp
+
+                    # Earned XP from completed linked tasks
+                    linked_tasks = linked_tasks_by_quest.get(qid, [])
+                    quest_earned_xp = sum(
+                        task_xp_map.get(tid, 0)
+                        for tid in linked_tasks
+                        if tid in completed_task_ids
+                    )
+                    progress.earned_xp += quest_earned_xp
+
+                    # Quest completion check
+                    enrollment = enrollment_by_quest.get(qid)
+                    if (enrollment and
+                            enrollment.get('completed_at') is not None and
+                            not enrollment.get('is_active', True)):
+                        progress.completed_quests += 1
+
+                # Calculate percentage
+                if progress.total_xp > 0:
+                    progress.percentage = min(100, round((progress.earned_xp / progress.total_xp * 100), 1))
+                progress.is_completed = progress.percentage >= 100
+
+        except Exception as e:
+            logger.error(f"Error in bulk progress calculation: {str(e)}", exc_info=True)
 
         return result
 
