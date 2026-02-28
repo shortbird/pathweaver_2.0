@@ -17,6 +17,8 @@ import {
   PlusIcon,
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
+  EyeIcon,
+  EyeSlashIcon,
 } from '@heroicons/react/24/outline'
 import OutlineTreeItem from './OutlineTreeItem'
 
@@ -42,6 +44,8 @@ const OutlineTree = ({
   onReorderProjects,
   onReorderLessons,
   onReorderSteps,
+  onToggleProjectPublish,
+  onPublishAllProjects,
   isCollapsed,
   onToggleCollapse,
 }) => {
@@ -158,6 +162,11 @@ const OutlineTree = ({
     }
   }, [searchTerm, projects, lessonsMap, tasksMap])
 
+  // Check if all projects are published
+  const allPublished = useMemo(() => {
+    return projects.length > 0 && projects.every(p => p.is_published !== false)
+  }, [projects])
+
   // Handle drag end for projects
   const handleProjectDragEnd = (event) => {
     const { active, over } = event
@@ -200,6 +209,19 @@ const OutlineTree = ({
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-gray-900">Course Outline</h2>
           <div className="flex items-center gap-1">
+            {projects.length > 0 && onPublishAllProjects && (
+              <button
+                onClick={() => onPublishAllProjects(!allPublished)}
+                className={`p-1 rounded transition-colors ${
+                  allPublished
+                    ? 'text-green-600 hover:text-gray-600 hover:bg-gray-100'
+                    : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+                }`}
+                title={allPublished ? 'Unpublish all projects' : 'Publish all projects'}
+              >
+                {allPublished ? <EyeIcon className="w-3.5 h-3.5" /> : <EyeSlashIcon className="w-3.5 h-3.5" />}
+              </button>
+            )}
             <button
               onClick={handleExpandAll}
               className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
@@ -285,6 +307,7 @@ const OutlineTree = ({
                     onDelete={onDeleteItem}
                     onAddChild={onAddLesson}
                     onMove={onMoveItem}
+                    onTogglePublish={onToggleProjectPublish}
                   >
                     {/* Lessons within project */}
                     {isProjectExpanded && projectLessons.length > 0 && (

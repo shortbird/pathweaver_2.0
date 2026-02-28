@@ -15,6 +15,8 @@ import {
   ArrowsPointingOutIcon,
   ExclamationTriangleIcon,
   Bars3BottomLeftIcon,
+  EyeIcon,
+  EyeSlashIcon,
 } from '@heroicons/react/24/outline'
 import { getPillarData } from '../../../utils/pillarMappings'
 
@@ -34,6 +36,7 @@ const OutlineTreeItem = ({
   onDelete,
   onAddChild,
   onMove,
+  onTogglePublish,
   children,
   hasChildren,
   hasWarning, // e.g., lesson with no tasks
@@ -134,7 +137,6 @@ const OutlineTreeItem = ({
         className={`
           group flex items-center gap-1 py-1.5 px-2 rounded-md cursor-pointer transition-colors
           ${isSelected ? 'bg-optio-purple/10 text-optio-purple' : 'hover:bg-gray-100'}
-          ${!isPublished && type === 'project' ? 'opacity-60' : ''}
         `}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
@@ -173,7 +175,10 @@ const OutlineTreeItem = ({
 
         {/* Icon */}
         <span
-          className={`flex-shrink-0 ${isSelected ? 'text-optio-purple' : 'text-gray-500'}`}
+          className={`flex-shrink-0 ${
+            !isPublished && type === 'project' ? 'text-gray-400' :
+            isSelected ? 'text-optio-purple' : 'text-gray-500'
+          }`}
           style={pillarColor ? { color: pillarColor } : undefined}
         >
           {getIcon()}
@@ -182,7 +187,9 @@ const OutlineTreeItem = ({
         {/* Title and subtitle */}
         <div className="flex-1 min-w-0 ml-1">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-medium truncate">
+            <span className={`text-sm font-medium truncate ${
+              !isPublished && type === 'project' ? 'text-gray-400' : ''
+            }`}>
               {getDisplayName()}
             </span>
             {/* Status badges */}
@@ -225,7 +232,7 @@ const OutlineTreeItem = ({
               <EllipsisVerticalIcon className="w-4 h-4" />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-20 min-w-[120px]">
+              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50 min-w-[150px]">
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -237,6 +244,24 @@ const OutlineTreeItem = ({
                   <PencilIcon className="w-3.5 h-3.5" />
                   Edit
                 </button>
+                {type === 'project' && onTogglePublish && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setMenuOpen(false)
+                      onTogglePublish(item.id, !isPublished)
+                    }}
+                    className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                      isPublished ? 'text-gray-700 hover:bg-gray-100' : 'text-green-700 hover:bg-green-50'
+                    }`}
+                  >
+                    {isPublished ? (
+                      <><EyeSlashIcon className="w-3.5 h-3.5" /> Unpublish</>
+                    ) : (
+                      <><EyeIcon className="w-3.5 h-3.5" /> Publish</>
+                    )}
+                  </button>
+                )}
                 {(type === 'project' || type === 'lesson') && onAddChild && (
                   <button
                     onClick={(e) => {

@@ -106,6 +106,8 @@ const CourseBuilder = () => {
           onReorderProjects={state.handleReorderProjects}
           onReorderLessons={state.handleReorderLessons}
           onReorderSteps={state.handleReorderSteps}
+          onToggleProjectPublish={state.handleToggleProjectPublish}
+          onPublishAllProjects={state.handlePublishAllProjects}
           isCollapsed={state.outlineCollapsed}
           onToggleCollapse={() => state.setOutlineCollapsed(!state.outlineCollapsed)}
         />

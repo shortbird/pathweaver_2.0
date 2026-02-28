@@ -850,13 +850,13 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
         modalState.setIsPublishing(false)
       }
     } else {
-      if (!confirm('Are you sure you want to publish this course? This will create a badge for course completion.')) return
+      if (!confirm('Are you sure you want to publish this course? Students will be able to enroll and access it.')) return
 
       try {
         modalState.setIsPublishing(true)
         await courseService.publishCourse(courseId)
         setCourse(prev => ({ ...prev, status: 'published' }))
-        toast.success('Course published! A completion badge has been created.')
+        toast.success('Course published successfully.')
       } catch (error) {
         console.error('Failed to publish course:', error)
         toast.error('Failed to publish course')
@@ -865,6 +865,39 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
       }
     }
   }
+
+  // Toggle publish state for a single project
+  const handleToggleProjectPublish = useCallback(async (questId, newPublishState) => {
+    try {
+      await api.put(`/api/courses/${courseId}/quests/${questId}`, {
+        is_published: newPublishState
+      })
+      setQuests(prev => prev.map(q =>
+        q.id === questId ? { ...q, is_published: newPublishState } : q
+      ))
+      toast.success(newPublishState ? 'Project published' : 'Project unpublished')
+    } catch (error) {
+      console.error('Failed to toggle project publish:', error)
+      toast.error('Failed to update project')
+    }
+  }, [courseId])
+
+  // Publish or unpublish all projects at once
+  const handlePublishAllProjects = useCallback(async (publishState) => {
+    try {
+      const updates = quests.map(q =>
+        api.put(`/api/courses/${courseId}/quests/${q.id}`, {
+          is_published: publishState
+        })
+      )
+      await Promise.all(updates)
+      setQuests(prev => prev.map(q => ({ ...q, is_published: publishState })))
+      toast.success(publishState ? 'All projects published' : 'All projects unpublished')
+    } catch (error) {
+      console.error('Failed to publish all projects:', error)
+      toast.error('Failed to update projects')
+    }
+  }, [courseId, quests])
 
   // Delete course
   const handleDeleteCourse = async ({ deleteQuests = false } = {}) => {
@@ -1044,6 +1077,8 @@ export function useCourseBuilderState({ courseId, isNewCourse, isSuperadmin }) {
     fetchAllTasks,
     handleToggleTaskRequired,
     handlePublishToggle,
+    handleToggleProjectPublish,
+    handlePublishAllProjects,
     handleDeleteCourse,
     handleLessonSaved,
     handleLessonMoved,

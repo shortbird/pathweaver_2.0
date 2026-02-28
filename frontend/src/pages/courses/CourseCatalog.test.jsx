@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import CourseCatalog from './CourseCatalog'
 
 const mockNavigate = vi.fn()
@@ -48,13 +49,24 @@ vi.mock('@heroicons/react/24/solid', () => ({
 
 import api from '../../services/api'
 
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+    },
+  })
+}
+
 function renderCatalog() {
+  const queryClient = createTestQueryClient()
   return render(
-    <MemoryRouter initialEntries={['/courses']}>
-      <Routes>
-        <Route path="/courses" element={<CourseCatalog />} />
-      </Routes>
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/courses']}>
+        <Routes>
+          <Route path="/courses" element={<CourseCatalog />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
   )
 }
 

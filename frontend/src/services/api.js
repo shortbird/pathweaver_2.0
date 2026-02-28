@@ -531,6 +531,14 @@ export const parentAPI = {
     api.post(`/api/family/quests/${questId}/tasks`, data),
   uncompleteTaskForDependent: (questId, taskId, data) =>
     api.post(`/api/family/quests/${questId}/tasks/${taskId}/uncomplete`, data),
+
+  // AI-powered family quest idea generation
+  generateFamilyQuestIdeas: (preferences) =>
+    api.post('/api/parent/family-quest-ideas/generate', preferences),
+  refineFamilyQuestIdea: (data) =>
+    api.post('/api/parent/family-quest-ideas/refine', data),
+  acceptFamilyQuestIdea: (data) =>
+    api.post('/api/parent/family-quest-ideas/accept', data),
 }
 
 // Admin Parent Connections API methods (January 2025 Redesign)

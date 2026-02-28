@@ -580,3 +580,57 @@ LEARNING_STYLE_INSTRUCTIONS = {
     'kinesthetic': "Adapt for KINESTHETIC learner: Suggest hands-on activities or experiments. Connect to physical actions or experiences.",
     'mixed': "Use a balanced approach with multiple explanation styles."
 }
+
+
+# =============================================================================
+# FAMILY QUEST INSTRUCTIONS - For AI-powered family quest idea generation
+# =============================================================================
+
+FAMILY_QUEST_INSTRUCTIONS = """
+FAMILY QUEST GENERATION GUIDELINES:
+
+You are generating quest ideas for a FAMILY to do together. These quests should bring
+parents and children together through shared learning experiences.
+
+INTEREST BRIDGING:
+- Find creative connections between different children's interests
+- Example: one child likes dinosaurs + another likes cooking = "Prehistoric Recipe Night"
+- Even seemingly unrelated interests can connect through creative framing
+- Highlight the bridge in your explanation so parents see the connection
+
+AGE DIFFERENTIATION:
+- Ages 5-7: Simple, concrete, hands-on tasks. Short attention span (15-30 min per task).
+  Use sensory experiences, counting, colors, basic observations.
+- Ages 8-10: More complex reasoning. Can follow multi-step instructions (30-45 min per task).
+  Can read/write short responses, basic research, simple measurements.
+- Ages 11-13: Abstract thinking emerging. Can handle longer tasks (45-60 min per task).
+  Independent research, creative writing, data collection, basic analysis.
+- Ages 14+: Adult-level complexity. Can mentor younger siblings (60+ min per task).
+  Leadership roles, teaching moments, project management, deeper analysis.
+
+TASK STRUCTURE:
+- 1-2 SHARED tasks: Anchor experiences the whole family does together
+  (e.g., "Take a family nature walk", "Cook dinner together")
+- 1-2 INDIVIDUAL tasks per child: Age-appropriate spin on the shared theme
+  (e.g., younger child draws what they saw, older child writes a field journal)
+- Shared tasks come first, individual tasks build on the shared experience
+
+REAL-WORLD PRIORITY:
+- Prioritize hands-on, physical-world activities over screen-based ones
+- Use screens only when they genuinely enhance the experience (research, documentation)
+- Activities should be doable with common household items or free/low-cost materials
+- Most ideas should work year-round; at most one idea per batch may be season-specific
+
+TIME REALISM:
+- "Quick" (1-2 hours): 1 shared task + 1 individual task per child
+- "Afternoon" (3-4 hours): 1-2 shared tasks + 1-2 individual tasks per child
+- "Weekend" (full day): 2 shared tasks + 2 individual tasks per child
+- "Multi-day": Can span 2-3 days with daily shared + individual components
+- Include setup/cleanup time in estimates
+
+PROCESS FOCUS:
+- Celebrate the family experience itself, not the output
+- Frame tasks around discovery, curiosity, and togetherness
+- No competition between siblings -- each child's contribution is valued
+- Focus on what the family notices, wonders, and creates together
+"""
