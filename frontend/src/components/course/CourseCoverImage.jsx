@@ -40,7 +40,7 @@ const CourseCoverImage = ({
       })
 
       if (response.data.success && response.data.image_url) {
-        onUpdate(response.data.image_url)
+        await onUpdate(response.data.image_url)
         toast.success('Cover image updated')
       } else {
         toast.error('No suitable image found')
@@ -97,7 +97,7 @@ const CourseCoverImage = ({
       const response = await api.post(`/api/courses/${courseId}/cover-image`, formData)
 
       if (response.data.success && response.data.url) {
-        onUpdate(response.data.url)
+        await onUpdate(response.data.url)
         toast.success('Cover image uploaded')
       } else {
         toast.error(response.data.error || 'Failed to upload image')

@@ -17,6 +17,7 @@ Endpoints:
 
 import uuid
 import atexit
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict
 from flask import Blueprint, request, jsonify, current_app
@@ -149,7 +150,32 @@ def _process_curriculum_in_context(
             return
 
         # Finalize: create course and send notification
-        _finalize_curriculum_upload(upload_id, user_id, organization_id, result)
+        try:
+            _finalize_curriculum_upload(upload_id, user_id, organization_id, result)
+        except Exception as finalize_error:
+            # All AI stages completed, only finalization (DB writes) failed.
+            # Set resume_from_stage high so resume skips the AI pipeline.
+            logger.error(f"Finalize failed for upload {upload_id}: {str(finalize_error)}")
+            try:
+                supabase = get_supabase_admin_client()
+                supabase.table('curriculum_uploads').update({
+                    'status': 'error',
+                    'error_message': f'Course creation failed: {str(finalize_error)}',
+                    'can_resume': True,
+                    'resume_from_stage': 4
+                }).eq('id', upload_id).execute()
+
+                get_notification_service().create_notification(
+                    user_id=user_id,
+                    notification_type='system_alert',
+                    title='Curriculum Upload Failed',
+                    message=f'AI processing completed but course creation failed: {str(finalize_error)[:100]}',
+                    organization_id=organization_id,
+                    metadata={'upload_id': upload_id, 'error': str(finalize_error)}
+                )
+            except Exception as notify_error:
+                logger.error(f"Failed to send finalize error notification: {str(notify_error)}")
+            return
 
         logger.info(f"Background processing complete for upload {upload_id}")
 
@@ -1122,7 +1148,7 @@ def _finalize_curriculum_upload(upload_id: str, user_id: str, organization_id: s
         'created_course_id': course_id,
         'generated_content': preview,
         'reviewed_by': user_id,
-        'reviewed_at': 'now()',
+        'reviewed_at': datetime.utcnow().isoformat(),
         'progress_percent': 100,
         'current_stage_name': 'Complete',
         'current_item': None

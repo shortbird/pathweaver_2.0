@@ -143,7 +143,7 @@ class CourseRepository(BaseRepository):
             response = (
                 self.client.table(self.table_name)
                 .update(updates)
-                .eq(self.id_column, course_id)
+                .eq('id', course_id)
                 .execute()
             )
 
@@ -175,7 +175,7 @@ class CourseRepository(BaseRepository):
             response = (
                 self.client.table(self.table_name)
                 .update({'is_active': False})
-                .eq(self.id_column, course_id)
+                .eq('id', course_id)
                 .execute()
             )
 

@@ -970,9 +970,7 @@ class CourseGenerationService(BaseAIService):
             Dict with success status and course details
         """
         # Update course status
-        self.admin_client.table('courses').update({
-            'status': 'published'
-        }).eq('id', course_id).execute()
+        self.admin_client.table('courses').update({'status': 'published'}).eq('id', course_id).execute()
 
         # Activate all quests
         projects_result = self.admin_client.table('course_quests').select(
