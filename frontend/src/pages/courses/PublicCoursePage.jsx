@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async'
 import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
+import { Modal } from '../../components/ui/Modal'
 
 const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
 
@@ -41,11 +42,68 @@ const ArrowRightIcon = () => (
   </svg>
 )
 
-const CheckIcon = () => (
-  <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+const CheckIcon = ({ className = "w-5 h-5 flex-shrink-0 mt-0.5" }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
   </svg>
 )
+
+const XIcon = ({ className = "w-5 h-5 flex-shrink-0 mt-0.5" }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+  </svg>
+)
+
+const LearningApproachSection = () => {
+  const traditional = [
+    'Watch video lessons on a screen',
+    'Take quizzes to prove retention',
+    'Same assignments for every student',
+    'Learning happens at the computer',
+  ]
+
+  const optio = [
+    'Brief overview to get you started',
+    'Real-world activities you choose yourself',
+    'Personalized projects based on your interests',
+    'Learning happens in the real world',
+  ]
+
+  return (
+    <section className="mb-10" aria-labelledby="approach-heading">
+      <h2 id="approach-heading" className="text-2xl font-bold text-gray-900 mb-4">
+        What to Expect
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Traditional column */}
+        <div className="bg-gray-50 rounded-xl border border-gray-200 p-6">
+          <h3 className="font-semibold text-gray-500 mb-4">Traditional Online Course</h3>
+          <ul className="space-y-3" role="list">
+            {traditional.map((item) => (
+              <li key={item} className="flex items-start gap-2 text-gray-400">
+                <XIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-gray-300" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Optio column */}
+        <div className="bg-gradient-to-br from-optio-purple/5 to-optio-pink/5 rounded-xl border border-optio-purple/20 p-6">
+          <h3 className="font-semibold text-optio-purple mb-4">An Optio Course</h3>
+          <ul className="space-y-3" role="list">
+            {optio.map((item) => (
+              <li key={item} className="flex items-start gap-2 text-gray-700">
+                <CheckIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-optio-purple" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  )
+}
 
 // Strip HTML tags and markdown formatting from text
 const cleanText = (text) => {
@@ -72,6 +130,7 @@ const PublicCoursePage = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [enrolling, setEnrolling] = useState(false)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -94,21 +153,23 @@ const PublicCoursePage = () => {
     fetchCourse()
   }, [slug])
 
-  const handleEnroll = async () => {
+  const handleEnroll = () => {
     if (!isAuthenticated) {
-      // Redirect to login with return URL
       navigate(`/login?redirect=/course/${slug}`)
       return
     }
 
+    setShowConfirmModal(true)
+  }
+
+  const confirmEnroll = async () => {
     try {
       setEnrolling(true)
+      setShowConfirmModal(false)
       await api.post(`/api/courses/${course.id}/enroll`, {})
-      // Redirect to course homepage
       navigate(`/courses/${course.id}`)
     } catch (err) {
       console.error('Failed to enroll:', err)
-      // If already enrolled, just redirect
       if (err.response?.data?.message === 'Already enrolled') {
         navigate(`/courses/${course.id}`)
       }
@@ -241,6 +302,9 @@ const PublicCoursePage = () => {
             </section>
           )}
 
+          {/* Learning Approach Comparison */}
+          <LearningApproachSection />
+
           {/* Projects Overview */}
           {quests.length > 0 && (
             <section className="mb-10" aria-labelledby="projects-heading">
@@ -351,6 +415,55 @@ const PublicCoursePage = () => {
 
         {/* Floating "New to Optio" button - hidden on mobile to avoid covering enroll button */}
         <FloatingNewToOptioButton />
+
+        {/* Pre-enrollment confirmation modal */}
+        <Modal
+          isOpen={showConfirmModal}
+          onClose={() => setShowConfirmModal(false)}
+          title="Before You Begin"
+          size="sm"
+          footer={
+            <div className="flex flex-col sm:flex-row gap-3 w-full">
+              <Button
+                onClick={confirmEnroll}
+                disabled={enrolling}
+                className="flex-1 px-6 py-2.5"
+              >
+                {enrolling ? 'Enrolling...' : 'Enroll Now'}
+              </Button>
+              <Link
+                to="/how-it-works"
+                className="flex-1 px-6 py-2.5 text-center border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              >
+                Learn More
+              </Link>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-gray-700">
+              This course was designed to get your student off the screen and into the real world.
+            </p>
+            <ul className="space-y-3">
+              <li className="flex items-start gap-2 text-gray-600">
+                <CheckIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-optio-purple" />
+                <span>Lessons are intentionally brief -- just enough to get started</span>
+              </li>
+              <li className="flex items-start gap-2 text-gray-600">
+                <CheckIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-optio-purple" />
+                <span>Students complete real-world activities, not screen-based quizzes</span>
+              </li>
+              <li className="flex items-start gap-2 text-gray-600">
+                <CheckIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-optio-purple" />
+                <span>Parents and teachers help guide through roadblocks</span>
+              </li>
+              <li className="flex items-start gap-2 text-gray-600">
+                <CheckIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-optio-purple" />
+                <span>Each student personalizes their own projects and activities</span>
+              </li>
+            </ul>
+          </div>
+        </Modal>
       </main>
     </>
   )

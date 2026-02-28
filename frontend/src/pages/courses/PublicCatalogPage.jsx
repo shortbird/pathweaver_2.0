@@ -5,6 +5,9 @@ import {
   MagnifyingGlassIcon,
   AcademicCapIcon,
   RocketLaunchIcon,
+  WrenchScrewdriverIcon,
+  SparklesIcon,
+  FireIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 
@@ -34,6 +37,44 @@ const FloatingNewToOptioButton = () => {
         </span>
       </div>
     </Link>
+  )
+}
+
+const PhilosophyBanner = () => {
+  const points = [
+    {
+      icon: WrenchScrewdriverIcon,
+      title: 'Learn by Doing',
+      description: 'Courses are built around real-world projects, not screen time',
+    },
+    {
+      icon: SparklesIcon,
+      title: 'Personalized Activities',
+      description: 'Students choose activities that match their interests',
+    },
+    {
+      icon: FireIcon,
+      title: 'Built-in Motivation',
+      description: 'When roadblocks arise, personal interest drives students to find solutions',
+    },
+  ]
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+      <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border border-optio-purple/10 rounded-xl p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          {points.map((point) => (
+            <div key={point.title} className="flex items-start gap-3">
+              <point.icon className="w-6 h-6 text-optio-purple flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-gray-900">{point.title}</h3>
+                <p className="text-sm text-gray-600 mt-1">{point.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -176,6 +217,9 @@ const PublicCatalogPage = () => {
             </div>
           </div>
         </div>
+
+        {/* Learning Philosophy */}
+        <PhilosophyBanner />
 
         {/* Content */}
         <div id="course-list" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
