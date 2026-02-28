@@ -212,6 +212,81 @@ class BaseAIService(BaseService):
                 self._safety_service = None
         return self._safety_service
 
+    def _extract_response_text(self, response) -> Optional[str]:
+        """
+        Safely extract text from Gemini response.
+
+        Handles thinking models (gemini-2.5-pro) where response.text raises
+        ValueError if the response only contains thought parts.
+        """
+        # Try the standard .text accessor first
+        try:
+            text = response.text
+            if text:
+                return text
+        except ValueError:
+            # Gemini 2.5 thinking models raise ValueError("Empty text content")
+            # when response has only thought parts and no text output
+            logger.warning("response.text raised ValueError - attempting manual part extraction")
+
+        # Fallback: manually extract text from response parts
+        try:
+            candidates = response.candidates
+            if not candidates:
+                return None
+            parts = candidates[0].content.parts
+            text_parts = []
+            for part in parts:
+                # Skip thought parts, only collect text parts
+                if hasattr(part, 'thought') and part.thought:
+                    continue
+                if hasattr(part, 'text') and part.text:
+                    text_parts.append(part.text)
+            if text_parts:
+                return ''.join(text_parts)
+        except (IndexError, AttributeError) as e:
+            logger.warning(f"Manual part extraction failed: {e}")
+
+        return None
+
+    def _log_empty_response(self, response) -> None:
+        """Log diagnostic information when Gemini returns empty text."""
+        try:
+            candidates = response.candidates
+            if not candidates:
+                logger.error("Gemini response has no candidates")
+                return
+
+            candidate = candidates[0]
+            finish_reason = getattr(candidate, 'finish_reason', 'unknown')
+            logger.error(f"Gemini empty response - finish_reason: {finish_reason}")
+
+            # Log safety ratings if present
+            safety_ratings = getattr(candidate, 'safety_ratings', None)
+            if safety_ratings:
+                for rating in safety_ratings:
+                    logger.error(f"  Safety: {rating.category} = {rating.probability}")
+
+            # Log if there are thought parts
+            try:
+                parts = candidate.content.parts
+                thought_count = sum(1 for p in parts if hasattr(p, 'thought') and p.thought)
+                text_count = sum(1 for p in parts if hasattr(p, 'text') and p.text and not (hasattr(p, 'thought') and p.thought))
+                logger.error(f"  Parts: {len(parts)} total, {thought_count} thought, {text_count} text")
+            except (AttributeError, TypeError):
+                logger.error("  Could not inspect response parts")
+
+            # Log token usage
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                meta = response.usage_metadata
+                logger.error(
+                    f"  Tokens: prompt={getattr(meta, 'prompt_token_count', '?')}, "
+                    f"output={getattr(meta, 'candidates_token_count', '?')}, "
+                    f"thoughts={getattr(meta, 'thoughts_token_count', '?')}"
+                )
+        except Exception as e:
+            logger.error(f"Could not log empty response diagnostics: {e}")
+
     def generate(
         self,
         prompt: str,
@@ -284,11 +359,20 @@ class BaseAIService(BaseService):
                     request_options=RequestOptions(timeout=120)
                 )
 
-                if not response or not response.text:
+                if not response:
                     raise AIGenerationError("Empty response from Gemini API")
 
-                # Extract text immediately to allow response object cleanup
-                result_text = response.text
+                # Safely extract text - response.text raises ValueError on
+                # thinking-only responses (gemini-2.5-pro)
+                result_text = self._extract_response_text(response)
+                if not result_text:
+                    # Log diagnostic info for debugging
+                    self._log_empty_response(response)
+                    raise AIGenerationError(
+                        "Gemini returned empty text content (model may have "
+                        "used all output for thinking). Retrying..."
+                    )
+
                 response_length = len(result_text)
 
                 elapsed = time.time() - start_time
@@ -479,10 +563,6 @@ class BaseAIService(BaseService):
 
         result = self.extract_json(text)
 
-        # Clear the raw text after JSON extraction to free memory
-        del text
-        gc.collect()
-
         if result is None:
             # Comprehensive debugging for JSON parse failures
             logger.error("=" * 60)
@@ -528,8 +608,13 @@ class BaseAIService(BaseService):
                 raise AIParsingError(f"Failed to parse JSON: {issue_summary}. Preview: {error_preview}...")
 
             logger.warning(f"Failed to parse JSON, returning empty dict.")
+            del text
+            gc.collect()
             return {}
 
+        # Clear the raw text after successful JSON extraction to free memory
+        del text
+        gc.collect()
         return result
 
     def extract_json(self, text: str) -> Optional[Union[Dict, List]]:

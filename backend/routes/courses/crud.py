@@ -509,9 +509,6 @@ def register_routes(bp):
             if not result.success:
                 return jsonify({'error': result.error_message}), 400
 
-            # Update course with new cover image URL
-            client.table('courses').update({'cover_image_url': result.url}).eq('id', course_id).execute()
-
             logger.info(f"Cover image uploaded for course {course_id}: {result.url}")
 
             return jsonify({
@@ -582,61 +579,7 @@ def register_routes(bp):
             if not result.success:
                 return jsonify({'error': result.error_message}), 400
 
-            # Update quest with new header image URL
-            # Use retry logic for transient connection issues
-            import time as time_module  # Import at top of function scope
-
-            update_data = {
-                'header_image_url': result.url,
-                'updated_at': datetime.utcnow().isoformat()
-            }
-
-            max_retries = 3
-            last_error = None
-            for attempt in range(max_retries):
-                try:
-                    update_result = client.table('quests').update(update_data).eq('id', quest_id).execute()
-                    if update_result.data:
-                        logger.info(f"Header image uploaded for quest {quest_id}: {result.url}")
-                        break
-                    else:
-                        # Update succeeded but no data returned - this is OK for updates
-                        logger.info(f"Header image uploaded for quest {quest_id}: {result.url} (no data returned)")
-                        break
-                except Exception as update_error:
-                    last_error = update_error
-                    error_str = str(update_error)
-
-                    # Log detailed error information
-                    logger.warning(f"Quest update attempt {attempt + 1}/{max_retries} failed for quest {quest_id}")
-                    logger.warning(f"Error type: {type(update_error).__name__}")
-                    logger.warning(f"Error message: {error_str}")
-
-                    # Log exception attributes if available (Supabase errors have extra info)
-                    if hasattr(update_error, 'message'):
-                        logger.warning(f"Error.message: {update_error.message}")
-                    if hasattr(update_error, 'code'):
-                        logger.warning(f"Error.code: {update_error.code}")
-                    if hasattr(update_error, 'details'):
-                        logger.warning(f"Error.details: {update_error.details}")
-
-                    # Check if this is the unusual "Route not found" error
-                    if 'Route' in error_str and 'not found' in error_str:
-                        logger.error(f"Unusual PostgREST error detected. This may indicate a Supabase configuration issue.")
-                        logger.error(f"Quest ID: {quest_id}, Update data: {update_data}")
-                        logger.error(f"This error typically indicates the Supabase REST API received an unexpected request format.")
-
-                    if attempt < max_retries - 1:
-                        time_module.sleep(0.5 * (attempt + 1))  # Exponential backoff
-                    else:
-                        # All retries failed - return the uploaded URL anyway since storage succeeded
-                        logger.error(f"All {max_retries} quest update attempts failed. Storage upload succeeded but DB update failed.")
-                        # Return success with the URL - the image is uploaded, just not linked
-                        return jsonify({
-                            'success': True,
-                            'url': result.url,
-                            'warning': 'Image uploaded but database update failed. Please save the project to link the image.'
-                        }), 200
+            logger.info(f"Header image uploaded for quest {quest_id}: {result.url}")
 
             return jsonify({
                 'success': True,

@@ -138,7 +138,7 @@ class CurriculumUploadService:
                 timestamp_col: datetime.utcnow().isoformat(),
                 'current_stage': stage,
                 'can_resume': True,
-                'resume_from_stage': stage + 1 if stage < 4 else None
+                'resume_from_stage': stage + 1 if stage < 4 else 4
             }).eq('id', upload_id).execute()
             logger.info(f"Checkpoint saved for upload {upload_id}, stage {stage}")
         except Exception as e:
@@ -202,7 +202,7 @@ class CurriculumUploadService:
         if not upload.get('can_resume'):
             return {'success': False, 'error': 'Upload cannot be resumed'}
 
-        resume_from = upload.get('resume_from_stage', 1)
+        resume_from = upload.get('resume_from_stage') or 1
         logger.info(f"Resuming upload {upload_id} from stage {resume_from}")
 
         self.admin_client.table('curriculum_uploads').update({
@@ -480,26 +480,41 @@ class CurriculumUploadService:
         try:
             # Stage 1: Parse source content
             if resume_from <= 1:
-                self._update_progress(upload_id, 1, 10, "Reading document...")
-                logger.info(f"Stage 1: Parsing {source_type} content")
+                # If content is None (e.g. resume after finalize failure),
+                # try to load from previously saved checkpoint
+                if content is None:
+                    upload = self._get_upload(upload_id)
+                    saved_raw = upload.get('raw_content', {}) if upload else {}
+                    if saved_raw:
+                        parse_result = saved_raw
+                        logger.info("Stage 1: No content provided, loaded from saved checkpoint")
+                    else:
+                        self._mark_error(upload_id, 'No content available. Please upload again.')
+                        return {
+                            'success': False,
+                            'error': 'No content available for parsing. Please upload again.'
+                        }
+                else:
+                    self._update_progress(upload_id, 1, 10, "Reading document...")
+                    logger.info(f"Stage 1: Parsing {source_type} content")
 
-                self._update_progress(upload_id, 1, 30, "Extracting content...")
-                parse_result = self.parse_source(source_type, content, filename, content_types, upload_id)
+                    self._update_progress(upload_id, 1, 30, "Extracting content...")
+                    parse_result = self.parse_source(source_type, content, filename, content_types, upload_id)
 
-                if not parse_result.get('success'):
-                    self._mark_error(upload_id, parse_result.get('error', 'Failed to parse source'))
-                    return {
-                        'success': False,
-                        'error': parse_result.get('error', 'Failed to parse source'),
-                        'stages': {'parse': parse_result}
-                    }
+                    if not parse_result.get('success'):
+                        self._mark_error(upload_id, parse_result.get('error', 'Failed to parse source'))
+                        return {
+                            'success': False,
+                            'error': parse_result.get('error', 'Failed to parse source'),
+                            'stages': {'parse': parse_result}
+                        }
 
-                self._update_progress(upload_id, 1, 80, "Saving parsed content...")
-                self._save_checkpoint(upload_id, 1, parse_result)
-                self._update_progress(upload_id, 1, 100, "Document parsed successfully")
+                    self._update_progress(upload_id, 1, 80, "Saving parsed content...")
+                    self._save_checkpoint(upload_id, 1, parse_result)
+                    self._update_progress(upload_id, 1, 100, "Document parsed successfully")
 
-                del content
-                gc.collect()
+                    del content
+                    gc.collect()
             else:
                 upload = self._get_upload(upload_id)
                 parse_result = upload.get('raw_content', {})
@@ -608,7 +623,7 @@ class CurriculumUploadService:
 
             # Mark as complete
             self.admin_client.table('curriculum_uploads').update({
-                'status': 'complete',
+                'status': 'approved',
                 'progress_percent': 100,
                 'current_stage_name': 'Complete',
                 'current_item': f'{generated_projects_count} projects with {total_lessons} lessons',

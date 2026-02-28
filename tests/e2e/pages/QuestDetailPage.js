@@ -7,8 +7,8 @@ import { BasePage } from './BasePage.js';
  * and evidence submission.
  */
 export class QuestDetailPage extends BasePage {
-  constructor(page) {
-    super(page);
+  constructor(page, browserName) {
+    super(page, browserName);
 
     this.selectors = {
       // Quest header

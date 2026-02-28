@@ -31,6 +31,10 @@ class CurriculumAIService(BaseAIService):
     """
 
     CURRICULUM_MODEL = 'gemini-2.5-pro'
+    # Thinking models need more retries (can return thought-only responses)
+    CURRICULUM_MAX_RETRIES = 5
+    # Ensure plenty of output room for thinking + text
+    CURRICULUM_MAX_OUTPUT_TOKENS = 65536
 
     def __init__(self):
         """Initialize with advanced AI model for curriculum processing."""
@@ -76,7 +80,11 @@ CONTENT TO ANALYZE:
 """
 
         try:
-            result = self.generate_json(prompt, strict=True)
+            result = self.generate_json(
+                prompt, strict=True,
+                max_retries=self.CURRICULUM_MAX_RETRIES,
+                max_output_tokens=self.CURRICULUM_MAX_OUTPUT_TOKENS
+            )
 
             if not isinstance(result, dict):
                 return {
@@ -157,7 +165,11 @@ CONTENT TO TRANSFORM:
 """
 
         try:
-            result = self.generate_json(prompt, strict=True)
+            result = self.generate_json(
+                prompt, strict=True,
+                max_retries=self.CURRICULUM_MAX_RETRIES,
+                max_output_tokens=self.CURRICULUM_MAX_OUTPUT_TOKENS
+            )
 
             if not isinstance(result, dict):
                 return {
@@ -242,7 +254,11 @@ ALIGNED CONTENT TO FORMAT:
 """
 
         try:
-            result = self.generate_json(prompt, strict=True)
+            result = self.generate_json(
+                prompt, strict=True,
+                max_retries=self.CURRICULUM_MAX_RETRIES,
+                max_output_tokens=self.CURRICULUM_MAX_OUTPUT_TOKENS
+            )
 
             if not isinstance(result, dict):
                 return {
@@ -316,7 +332,11 @@ SCHOOL SUBJECTS FOR DIPLOMA MAPPING: {', '.join(SCHOOL_SUBJECTS)}
 """
 
         try:
-            result = self.generate_json(prompt, strict=True)
+            result = self.generate_json(
+                prompt, strict=True,
+                max_retries=self.CURRICULUM_MAX_RETRIES,
+                max_output_tokens=self.CURRICULUM_MAX_OUTPUT_TOKENS
+            )
 
             if not isinstance(result, dict):
                 return {

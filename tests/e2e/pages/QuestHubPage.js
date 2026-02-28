@@ -6,8 +6,8 @@ import { BasePage } from './BasePage.js';
  * Handles quest discovery, search, filtering, and quest card interactions.
  */
 export class QuestHubPage extends BasePage {
-  constructor(page) {
-    super(page);
+  constructor(page, browserName) {
+    super(page, browserName);
 
     this.selectors = {
       // Hero section
@@ -38,14 +38,17 @@ export class QuestHubPage extends BasePage {
 
   /**
    * Navigate to quest discovery page.
-   * WebKit uses the in-app "Quests" nav button to preserve auth state
-   * because it blocks cross-site cookies on the Render dev environment.
-   * A full page.goto() would lose auth tokens in WebKit.
+   * WebKit uses React Router client-side navigation (button click) to
+   * preserve auth state, since page.goto() causes a full reload that
+   * loses IndexedDB tokens in Playwright's WebKit engine.
    */
   async goto() {
     if (this.browserName === 'webkit') {
+      // Wait for the current page to fully stabilize after login
+      await this.page.waitForLoadState('networkidle');
+
       // Click the "Quests" toggle in the TopNavbar which uses React Router
-      // navigate() for proper client-side navigation without page reload
+      // navigate() for client-side navigation without page reload
       await this.page.click('button:has-text("Quests")');
       await this.waitForUrl('/quests');
     } else {
@@ -118,10 +121,22 @@ export class QuestHubPage extends BasePage {
    */
   async clickQuestByIndex(index = 0) {
     await this.waitForLoadingComplete();
-    const cards = await this.page.$$(this.selectors.questCard);
-    if (cards.length > index) {
-      await cards[index].click();
+
+    if (this.browserName === 'webkit') {
+      // WebKit: Use locator API targeting the QuestCard root element directly
+      // (the one with the onClick handler and group class) for better
+      // reliability. ElementHandles from $$() can become stale in WebKit
+      // if React re-renders between fetch and click.
+      await this.page.waitForTimeout(500);
+      const card = this.page.locator('.grid > div > .group').nth(index);
+      await card.click({ timeout: 10000 });
       await this.waitForUrl('/quests/');
+    } else {
+      const cards = await this.page.$$(this.selectors.questCard);
+      if (cards.length > index) {
+        await cards[index].click();
+        await this.waitForUrl('/quests/');
+      }
     }
   }
 
