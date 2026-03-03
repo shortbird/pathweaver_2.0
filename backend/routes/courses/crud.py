@@ -309,7 +309,8 @@ def register_routes(bp):
                 'visibility', 'navigation_mode', 'status',
                 # Showcase fields for public course pages
                 'slug', 'learning_outcomes', 'final_deliverable',
-                'educational_value', 'parent_guidance'
+                'educational_value', 'parent_guidance',
+                'target_audience', 'progress_model'
             ]
             for field in allowed_fields:
                 if field in data:

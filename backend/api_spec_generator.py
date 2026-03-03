@@ -300,7 +300,6 @@ def generate_summary(path, method, endpoint):
         # Admin
         '/api/admin/users': 'List all users',
         '/api/admin/quests': 'Manage quests (admin)',
-        '/api/admin/analytics/summary': 'Get platform analytics summary',
         '/api/admin/organizations/organizations': 'List or create organizations',
     }
 
@@ -335,7 +334,6 @@ def generate_description(path, method, endpoint):
         '/api/portfolio/<slug>': 'Public endpoint for viewing user portfolios/diplomas. Shows completed quests, earned badges, and XP breakdown by pillar.',
         '/api/dependents/create': 'Create a COPPA-compliant dependent profile for children under 13. Requires parental consent.',
         '/api/observers/invite': 'Send email invitation to observer (grandparent, mentor, etc.) to view student\'s learning journey.',
-        '/api/admin/analytics/summary': 'Get platform-wide analytics including user counts, quest completions, XP awarded, and engagement metrics.',
     }
 
     if path in descriptions:

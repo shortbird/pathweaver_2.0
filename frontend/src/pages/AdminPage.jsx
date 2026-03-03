@@ -6,10 +6,7 @@ import { useAuth } from '../contexts/AuthContext'
 const AdminQuests = lazy(() => import('../components/admin/AdminQuests'))
 const AdminUsers = lazy(() => import('../components/admin/AdminUsers'))
 const AdminConnections = lazy(() => import('../components/admin/AdminConnections'))
-const AdminDashboard = lazy(() => import('../components/admin/AdminDashboard'))
 const FlaggedTasksPanel = lazy(() => import('../components/admin/FlaggedTasksPanel'))
-const UserActivityLogPage = lazy(() => import('./admin/UserActivityLogPage'))
-const SparkLogsPanel = lazy(() => import('../components/admin/SparkLogsPanel'))
 const AutomatedEmailsList = lazy(() => import('../components/admin/AutomatedEmailsList'))
 const OrganizationDashboard = lazy(() => import('./admin/OrganizationDashboard'))
 const OrganizationManagement = lazy(() => import('./admin/OrganizationManagement'))
@@ -54,10 +51,8 @@ const AdminPage = () => {
   // Define admin tabs for both mobile dropdown and desktop tabs
   const adminTabs = [
     { path: '', label: 'Quests', pathMatch: ['admin', 'quests', ''] },
-    { path: 'analytics', label: 'Analytics' },
     { path: 'users', label: 'Users' },
     { path: 'connections', label: 'Connections' },
-    { path: 'lms-logs', label: 'LMS Logs' },
     { path: 'emails', label: 'Emails' },
     { path: 'organizations', label: 'Organizations' },
     { path: 'parental-consent', label: 'Parental Consent' }
@@ -155,13 +150,10 @@ const AdminPage = () => {
         <Routes>
           <Route index element={<AdminQuests />} />
           <Route path="quests" element={<AdminQuests />} />
-          <Route path="analytics" element={<AdminDashboard />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="connections" element={<AdminConnections />} />
           <Route path="flagged-tasks" element={<FlaggedTasksPanel />} />
-          <Route path="user/:userId/activity" element={<UserActivityLogPage />} />
           <Route path="user/:userId/transfer-credits" element={<TransferCreditForm />} />
-          <Route path="lms-logs" element={<SparkLogsPanel />} />
           <Route path="emails" element={<AutomatedEmailsList />} />
           <Route path="organizations" element={<OrganizationDashboard />} />
           <Route path="organizations/:orgId" element={<OrganizationManagement />} />

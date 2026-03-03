@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
-import Button from '../../components/ui/Button'
-import { Modal } from '../../components/ui/Modal'
 
 const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
 
@@ -105,6 +102,50 @@ const LearningApproachSection = () => {
   )
 }
 
+const ParentGuidanceSection = ({ guidance, cleanText }) => {
+  const ageGroups = [
+    { key: 'ages_5_9', label: 'Ages 5-9' },
+    { key: 'ages_10_14', label: 'Ages 10-14' },
+    { key: 'ages_15_18', label: 'Ages 15-18' },
+  ].filter(g => guidance[g.key])
+
+  const [activeGroup, setActiveGroup] = useState(ageGroups[0]?.key || '')
+
+  if (ageGroups.length === 0) return null
+
+  return (
+    <section className="mb-10" aria-labelledby="parents-heading">
+      <h2 id="parents-heading" className="text-2xl font-bold text-gray-900 mb-4">
+        Tips for Parents
+      </h2>
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200">
+          {ageGroups.map((group) => (
+            <button
+              key={group.key}
+              onClick={() => setActiveGroup(group.key)}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                activeGroup === group.key
+                  ? 'text-optio-purple border-b-2 border-optio-purple bg-optio-purple/5'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {group.label}
+            </button>
+          ))}
+        </div>
+        {/* Content */}
+        <div className="p-6">
+          <p className="text-gray-600 leading-relaxed">
+            {cleanText(guidance[activeGroup])}
+          </p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 // Strip HTML tags and markdown formatting from text
 const cleanText = (text) => {
   if (!text) return ''
@@ -124,13 +165,10 @@ const cleanText = (text) => {
 const PublicCoursePage = () => {
   const { slug } = useParams()
   const navigate = useNavigate()
-  const { user, isAuthenticated } = useAuth()
 
   const [course, setCourse] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [enrolling, setEnrolling] = useState(false)
-  const [showConfirmModal, setShowConfirmModal] = useState(false)
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -153,30 +191,6 @@ const PublicCoursePage = () => {
     fetchCourse()
   }, [slug])
 
-  const handleEnroll = () => {
-    if (!isAuthenticated) {
-      navigate(`/login?redirect=/course/${slug}`)
-      return
-    }
-
-    setShowConfirmModal(true)
-  }
-
-  const confirmEnroll = async () => {
-    try {
-      setEnrolling(true)
-      setShowConfirmModal(false)
-      await api.post(`/api/courses/${course.id}/enroll`, {})
-      navigate(`/courses/${course.id}`)
-    } catch (err) {
-      console.error('Failed to enroll:', err)
-      if (err.response?.data?.message === 'Already enrolled') {
-        navigate(`/courses/${course.id}`)
-      }
-    } finally {
-      setEnrolling(false)
-    }
-  }
 
   if (loading) {
     return (
@@ -233,61 +247,86 @@ const PublicCoursePage = () => {
           Skip to course content
         </a>
 
-        {/* Hero Section */}
-        <div className="bg-gradient-to-r from-optio-purple to-optio-pink">
-          <div className="max-w-6xl mx-auto px-4 py-8 sm:py-12 text-white">
-            {/* Title */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-8">
+        {/* Hero Section - Full-bleed cover image */}
+        <div className="relative min-h-[320px] sm:min-h-[400px] lg:min-h-[480px] flex items-end">
+          {/* Background: cover image or gradient fallback */}
+          {course.cover_image_url ? (
+            <img
+              src={course.cover_image_url}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-optio-purple to-optio-pink" />
+          )}
+          {/* Dark overlay for text legibility */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-black/30" />
+          {/* Content */}
+          <div className="relative z-10 w-full max-w-4xl mx-auto px-4 pb-8 sm:pb-12 pt-24 sm:pt-32 text-white">
+            {course.organization_name && (
+              <p className="text-sm sm:text-base text-white/80 mb-2">
+                {course.organization_name}
+              </p>
+            )}
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold">
               {course.title}
             </h1>
-
-            {/* Image and description in 2 columns */}
-            <div className="flex flex-col lg:flex-row gap-8 items-start">
-              {/* Course image */}
-              {course.cover_image_url && (
-                <div className="w-full lg:w-[400px] flex-shrink-0">
-                  <img
-                    src={course.cover_image_url}
-                    alt={course.title}
-                    className="w-full h-auto rounded-xl shadow-2xl"
-                  />
-                </div>
-              )}
-
-              {/* Description and learning outcomes */}
-              <div className="flex-1">
-                {course.description && (
-                  <p className="text-lg sm:text-xl text-white">
-                    {course.description}
-                  </p>
-                )}
-
-                {course.organization_name && (
-                  <p className="mt-4 text-white">
-                    Offered by <span className="font-medium">{course.organization_name}</span>
-                  </p>
-                )}
-
-                {/* What You'll Do */}
-                {learningOutcomes.length > 0 && (
-                  <div className="mt-6">
-                    <h2 className="text-lg font-semibold mb-3">What You'll Do</h2>
-                    <ul className="space-y-2" role="list">
-                      {learningOutcomes.map((outcome, index) => (
-                        <li key={index} className="flex items-start gap-2 text-white">
-                          <CheckIcon />
-                          <span>{cleanText(outcome)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </div>
+            {course.description && (
+              <p className="mt-3 text-base sm:text-lg text-white/90 max-w-2xl">
+                {course.description}
+              </p>
+            )}
           </div>
         </div>
 
         <div id="course-content" className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+          {/* What You'll Do */}
+          {learningOutcomes.length > 0 && (
+            <section className="mb-10" aria-labelledby="outcomes-heading">
+              <h2 id="outcomes-heading" className="text-2xl font-bold text-gray-900 mb-4">
+                What You'll Do
+              </h2>
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <ul className="space-y-3" role="list">
+                  {learningOutcomes.map((outcome, index) => (
+                    <li key={index} className="flex items-start gap-2 text-gray-700">
+                      <CheckIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-optio-purple" />
+                      <span>{cleanText(outcome)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          )}
+
+          {/* Who This Course Is For */}
+          {course.target_audience && (
+            <section className="mb-10" aria-labelledby="audience-heading">
+              <h2 id="audience-heading" className="text-2xl font-bold text-gray-900 mb-4">
+                Who This Course Is For
+              </h2>
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <p className="text-gray-700 leading-relaxed">
+                  {cleanText(course.target_audience)}
+                </p>
+              </div>
+            </section>
+          )}
+
+          {/* What You'll Create */}
+          {course.final_deliverable && (
+            <section className="mb-10" aria-labelledby="deliverable-heading">
+              <h2 id="deliverable-heading" className="text-2xl font-bold text-gray-900 mb-4">
+                What You'll Create
+              </h2>
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <p className="text-gray-700 leading-relaxed">
+                  {cleanText(course.final_deliverable)}
+                </p>
+              </div>
+            </section>
+          )}
+
           {/* Educational Value */}
           {course.educational_value && (
             <section className="mb-10" aria-labelledby="why-heading">
@@ -305,37 +344,51 @@ const PublicCoursePage = () => {
           {/* Learning Approach Comparison */}
           <LearningApproachSection />
 
+          {/* How Progress Works */}
+          {course.progress_model && (
+            <section className="mb-10" aria-labelledby="progress-heading">
+              <h2 id="progress-heading" className="text-2xl font-bold text-gray-900 mb-4">
+                How Progress Works
+              </h2>
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <p className="text-gray-700 leading-relaxed">
+                  {cleanText(course.progress_model)}
+                </p>
+              </div>
+            </section>
+          )}
+
           {/* Projects Overview */}
           {quests.length > 0 && (
             <section className="mb-10" aria-labelledby="projects-heading">
               <h2 id="projects-heading" className="text-2xl font-bold text-gray-900 mb-4">
                 Course Projects
               </h2>
-              <ul className="space-y-6" role="list">
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4" role="list">
                 {quests.map((quest, index) => (
                   <li
                     key={quest.id}
-                    className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-optio-purple/30 transition-colors"
+                    className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-optio-purple/30 hover:shadow-md transition-all flex flex-col"
                   >
                     {/* Project image */}
                     {quest.header_image_url ? (
                       <img
                         src={quest.header_image_url}
                         alt=""
-                        className="w-full h-48 object-cover"
+                        className="w-full h-36 object-cover"
                       />
                     ) : (
-                      <div className="w-full h-48 bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center" aria-hidden="true">
-                        <span className="text-5xl font-bold text-white">{index + 1}</span>
+                      <div className="w-full h-36 bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center" aria-hidden="true">
+                        <span className="text-4xl font-bold text-white">{index + 1}</span>
                       </div>
                     )}
                     {/* Project content */}
-                    <div className="p-5">
-                      <h3 className="font-semibold text-gray-900 text-lg">
+                    <div className="p-4 flex-1">
+                      <h3 className="font-semibold text-gray-900">
                         {quest.title}
                       </h3>
                       {quest.description && (
-                        <p className="mt-2 text-gray-600">
+                        <p className="mt-1.5 text-sm text-gray-600">
                           {cleanText(quest.description)}
                         </p>
                       )}
@@ -348,122 +401,14 @@ const PublicCoursePage = () => {
 
           {/* Parent Guidance by Age */}
           {course.parent_guidance && (course.parent_guidance.ages_5_9 || course.parent_guidance.ages_10_14 || course.parent_guidance.ages_15_18) && (
-            <section className="mb-10" aria-labelledby="parents-heading">
-              <h2 id="parents-heading" className="text-2xl font-bold text-gray-900 mb-4">
-                Tips for Parents
-              </h2>
-              <div className="space-y-4">
-                {course.parent_guidance.ages_5_9 && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-5">
-                    <h3 className="font-semibold text-gray-900 mb-2">Ages 5-9</h3>
-                    <p className="text-gray-600 leading-relaxed">
-                      {cleanText(course.parent_guidance.ages_5_9)}
-                    </p>
-                  </div>
-                )}
-                {course.parent_guidance.ages_10_14 && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-5">
-                    <h3 className="font-semibold text-gray-900 mb-2">Ages 10-14</h3>
-                    <p className="text-gray-600 leading-relaxed">
-                      {cleanText(course.parent_guidance.ages_10_14)}
-                    </p>
-                  </div>
-                )}
-                {course.parent_guidance.ages_15_18 && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-5">
-                    <h3 className="font-semibold text-gray-900 mb-2">Ages 15-18</h3>
-                    <p className="text-gray-600 leading-relaxed">
-                      {cleanText(course.parent_guidance.ages_15_18)}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </section>
+            <ParentGuidanceSection guidance={course.parent_guidance} cleanText={cleanText} />
           )}
 
-          {/* Enroll CTA */}
-          <section className="sticky bottom-0 bg-gray-50 py-4 border-t border-gray-200 -mx-4 px-4 sm:relative sm:border-0 sm:mx-0 sm:px-0 sm:py-0">
-            <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
-              <Button
-                onClick={handleEnroll}
-                disabled={enrolling}
-                className="w-full sm:w-auto px-8 py-3 text-lg"
-              >
-                {enrolling ? 'Enrolling...' : isAuthenticated ? 'Enroll Now' : 'Sign Up to Enroll'}
-              </Button>
-
-              {!isAuthenticated && (
-                <p className="text-sm text-gray-600">
-                  Already have an account?{' '}
-                  <Link to={`/login?redirect=/course/${slug}`} className="text-optio-purple hover:underline">
-                    Sign in
-                  </Link>
-                </p>
-              )}
-
-              {/* Mobile-only "New to Optio" link */}
-              <Link
-                to="/how-it-works"
-                className="sm:hidden inline-flex items-center gap-1 text-sm text-optio-purple font-medium underline underline-offset-2"
-              >
-                New to Optio? Learn how it works
-                <ArrowRightIcon />
-              </Link>
-            </div>
-          </section>
         </div>
 
         {/* Floating "New to Optio" button - hidden on mobile to avoid covering enroll button */}
         <FloatingNewToOptioButton />
 
-        {/* Pre-enrollment confirmation modal */}
-        <Modal
-          isOpen={showConfirmModal}
-          onClose={() => setShowConfirmModal(false)}
-          title="Before You Begin"
-          size="sm"
-          footer={
-            <div className="flex flex-col sm:flex-row gap-3 w-full">
-              <Button
-                onClick={confirmEnroll}
-                disabled={enrolling}
-                className="flex-1 px-6 py-2.5"
-              >
-                {enrolling ? 'Enrolling...' : 'Enroll Now'}
-              </Button>
-              <Link
-                to="/how-it-works"
-                className="flex-1 px-6 py-2.5 text-center border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-              >
-                Learn More
-              </Link>
-            </div>
-          }
-        >
-          <div className="space-y-4">
-            <p className="text-gray-700">
-              This course was designed to get your student off the screen and into the real world.
-            </p>
-            <ul className="space-y-3">
-              <li className="flex items-start gap-2 text-gray-600">
-                <CheckIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-optio-purple" />
-                <span>Lessons are intentionally brief -- just enough to get started</span>
-              </li>
-              <li className="flex items-start gap-2 text-gray-600">
-                <CheckIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-optio-purple" />
-                <span>Students complete real-world activities, not screen-based quizzes</span>
-              </li>
-              <li className="flex items-start gap-2 text-gray-600">
-                <CheckIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-optio-purple" />
-                <span>Parents and teachers help guide through roadblocks</span>
-              </li>
-              <li className="flex items-start gap-2 text-gray-600">
-                <CheckIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-optio-purple" />
-                <span>Each student personalizes their own projects and activities</span>
-              </li>
-            </ul>
-          </div>
-        </Modal>
       </main>
     </>
   )

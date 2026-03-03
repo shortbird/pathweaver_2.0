@@ -4,6 +4,7 @@ import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
 import ModalErrorBoundary from '../ModalErrorBoundary';
 import MobileModal from '../ui/mobile/MobileModal';
 import { getPillarData } from '../../utils/pillarMappings';
+import { captureEvent } from '../../services/posthog';
 
 const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
   const [error, setError] = useState('');
@@ -13,6 +14,13 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
   const isTaskCompleted = task.is_completed || false;
 
   const handleComplete = (data) => {
+    captureEvent('task_completed', {
+      task_id: task.id,
+      quest_id: task.quest_id || null,
+      pillar: task.pillar || null,
+      xp_value: data.xp_awarded || task.xp_amount || 0,
+    })
+
     // Immediately call onComplete to close modal and update quest state
     onComplete({
       task,

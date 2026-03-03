@@ -31,6 +31,9 @@ const CourseDetailsModal = ({
     ages_10_14: '',
     ages_15_18: ''
   })
+  const [localTargetAudience, setLocalTargetAudience] = useState(course?.target_audience || '')
+  const [localFinalDeliverable, setLocalFinalDeliverable] = useState(course?.final_deliverable || '')
+  const [localProgressModel, setLocalProgressModel] = useState(course?.progress_model || '')
 
   // UI state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -52,6 +55,9 @@ const CourseDetailsModal = ({
         ages_10_14: '',
         ages_15_18: ''
       })
+      setLocalTargetAudience(course.target_audience || '')
+      setLocalFinalDeliverable(course.final_deliverable || '')
+      setLocalProgressModel(course.progress_model || '')
     }
   }, [course])
 
@@ -114,6 +120,15 @@ const CourseDetailsModal = ({
             ages_15_18: showcase.parent_guidance.ages_15_18 || ''
           })
         }
+        if (showcase.target_audience) {
+          setLocalTargetAudience(showcase.target_audience)
+        }
+        if (showcase.final_deliverable) {
+          setLocalFinalDeliverable(showcase.final_deliverable)
+        }
+        if (showcase.progress_model) {
+          setLocalProgressModel(showcase.progress_model)
+        }
       }
     } catch (error) {
       console.error('Failed to generate showcase fields:', error)
@@ -130,7 +145,10 @@ const CourseDetailsModal = ({
       slug: localSlug || null,
       learning_outcomes: localLearningOutcomes,
       educational_value: localEducationalValue || null,
-      parent_guidance: localParentGuidance
+      parent_guidance: localParentGuidance,
+      target_audience: localTargetAudience || null,
+      final_deliverable: localFinalDeliverable || null,
+      progress_model: localProgressModel || null
     }
     onUpdate(updates)
     onClose()
@@ -416,10 +434,10 @@ const CourseDetailsModal = ({
                 </p>
               </div>
 
-              {/* Learning Outcomes */}
+              {/* What You'll Do (appears in hero on public page) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  What Students Will Do
+                  What You'll Do
                 </label>
                 <p className="text-sm text-gray-500 mb-3">
                   What will students do in this course? Use action words.
@@ -456,10 +474,38 @@ const CourseDetailsModal = ({
                 </div>
               </div>
 
-              {/* Educational Value */}
+              {/* Who This Course Is For */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Why This Matters
+                  Who This Course Is For
+                </label>
+                <textarea
+                  value={localTargetAudience}
+                  onChange={(e) => setLocalTargetAudience(e.target.value)}
+                  rows={2}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none text-sm"
+                  placeholder="e.g., Kids who love animals and want to learn how to care for pets responsibly."
+                />
+              </div>
+
+              {/* What You'll Create */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  What You'll Create
+                </label>
+                <textarea
+                  value={localFinalDeliverable}
+                  onChange={(e) => setLocalFinalDeliverable(e.target.value)}
+                  rows={2}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none text-sm"
+                  placeholder="e.g., A completed short story collection with at least 3 original stories."
+                />
+              </div>
+
+              {/* Why This Course? */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Why This Course?
                 </label>
                 <textarea
                   value={localEducationalValue}
@@ -473,7 +519,21 @@ const CourseDetailsModal = ({
                 </p>
               </div>
 
-              {/* Parent Guidance by Age */}
+              {/* How Progress Works */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  How Progress Works
+                </label>
+                <textarea
+                  value={localProgressModel}
+                  onChange={(e) => setLocalProgressModel(e.target.value)}
+                  rows={2}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none text-sm"
+                  placeholder="e.g., Students earn XP by completing hands-on activities they choose themselves."
+                />
+              </div>
+
+              {/* Tips for Parents */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tips for Parents

@@ -531,6 +531,21 @@ curl -X POST "https://api.render.com/v1/services/<SERVICE_ID>/deploys" \
   -d '{"clearCache": "do_not_clear"}'
 ```
 
+### PostHog MCP
+
+**Status:** Configured (user scope)
+
+**Add PostHog MCP:**
+```bash
+claude mcp add -s user posthog -- npx -y mcp-remote@latest https://mcp.posthog.com/mcp --header "Authorization:Bearer <POSTHOG_PERSONAL_API_KEY>"
+```
+
+**Authentication:** Requires a PostHog Personal API key (`phx_...`). Generate one at https://app.posthog.com/settings/user-api-keys?preset=mcp_server
+
+**Available tools:** Analytics queries, feature flags, experiments, error tracking, annotations, project management.
+
+**EU Cloud:** If using EU Cloud, use `mcp-eu.posthog.com` instead of `mcp.posthog.com`.
+
 ### MCP Troubleshooting
 
 | Issue | Solution |

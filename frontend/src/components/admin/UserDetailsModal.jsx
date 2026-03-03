@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo, lazy, Suspense } from 'react'
+import React, { useState, useEffect, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api'
@@ -8,8 +8,6 @@ import CheckinHistoryModal from '../advisor/CheckinHistoryModal'
 import { startMasquerade } from '../../services/masqueradeService'
 import { queryKeys } from '../../utils/queryKeys'
 
-// Lazy load UserActivityLog for the Activity tab
-const UserActivityLog = lazy(() => import('./UserActivityLog'))
 // import { useAdminSubscriptionTiers, formatPrice } from '../../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const UserDetailsModal = ({ user, onClose, onSave }) => {
@@ -366,7 +364,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
         {/* Tabs */}
         <div className="flex border-b overflow-x-auto">
-          {['profile', 'role', 'activity', 'actions'].map((tab) => (
+          {['profile', 'role', 'actions'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -780,22 +778,6 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   {loading ? 'Updating...' : 'Update Organizational Role'}
                 </button>
               </div>
-            </div>
-          )}
-
-          {activeTab === 'activity' && (
-            <div className="space-y-4">
-              <p className="text-gray-600 mb-4">User journey and activity logs</p>
-              <Suspense fallback={
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                </div>
-              }>
-                <UserActivityLog
-                  userId={user.id}
-                  userName={`${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email}
-                />
-              </Suspense>
             </div>
           )}
 

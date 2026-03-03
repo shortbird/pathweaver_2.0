@@ -32,7 +32,7 @@ from routes.public import bp as public_bp
 # Import routes
 from routes import tasks, admin_core, evidence_documents, analytics as analytics_routes, webhooks
 from routes.quest import register_quest_blueprints  # Refactored quest routes (P2-ARCH-1)
-from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management, observer_audit, ferpa_compliance, bulk_import, user_invitations, curriculum_upload, curriculum_generate, org_connections, course_enrollments, course_refine, transfer_credits, plan_mode, xp_reconciliation, task_feedback
+from routes.admin import user_management, quest_management, student_task_management, sample_task_management, course_quest_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management, observer_audit, ferpa_compliance, bulk_import, user_invitations, curriculum_upload, curriculum_generate, org_connections, course_enrollments, course_refine, transfer_credits, plan_mode, xp_reconciliation, task_feedback
 # badge_management import removed (January 2026 - Microschool client feedback)
 from cors_config import configure_cors
 from middleware.security import security_middleware
@@ -183,7 +183,6 @@ app.register_blueprint(admin_core.bp)   # /api/admin (blueprint has url_prefix='
 app.register_blueprint(user_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(quest_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 # badge_management.bp removed (January 2026 - Microschool client feedback)
-app.register_blueprint(analytics.bp)  # /api/admin/analytics (blueprint has url_prefix='/api/admin/analytics')
 app.register_blueprint(student_task_management.bp)  # /api/admin/users (blueprint has url_prefix='/api/admin/users')
 app.register_blueprint(sample_task_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(course_quest_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')

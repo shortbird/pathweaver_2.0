@@ -157,7 +157,10 @@ Return a JSON object with these fields:
     "ages_5_9": "Specific tips for parents of younger kids (5-9) taking THIS course. What will they need help with? How can parents be involved without doing it for them? Be specific to the course content.",
     "ages_10_14": "Tips for parents of middle-schoolers. Where might they still need support? What can they do independently? Be specific to this course.",
     "ages_15_18": "Tips for parents of teens. How can parents stay connected to their work without hovering? What makes this course work well for independent learners?"
-  }}
+  }},
+  "target_audience": "A short description of who this course is for. Be specific: interest level, any prerequisites. Example: 'Kids who love animals and want to learn how to care for pets responsibly.' Keep it to 1-2 sentences.",
+  "final_deliverable": "What will students have created or produced by the end of this course? Describe the tangible output. Example: 'A completed short story collection with at least 3 original stories, each with illustrations.' Keep it to 1-2 sentences.",
+  "progress_model": "How do students show what they've learned? Describe how progress is demonstrated in this course. Example: 'Students earn XP by completing hands-on activities they choose themselves. Each project has a target XP goal.' Keep it to 1-2 sentences."
 }}
 
 WRITING RULES:
@@ -208,5 +211,17 @@ Return ONLY the JSON object."""
                 'ages_10_14': '',
                 'ages_15_18': ''
             }
+
+        # Target audience - ensure it's a string
+        target_audience = result.get('target_audience', '')
+        validated['target_audience'] = str(target_audience).strip() if target_audience else ''
+
+        # Final deliverable - ensure it's a string
+        final_deliverable = result.get('final_deliverable', '')
+        validated['final_deliverable'] = str(final_deliverable).strip() if final_deliverable else ''
+
+        # Progress model - ensure it's a string
+        progress_model = result.get('progress_model', '')
+        validated['progress_model'] = str(progress_model).strip() if progress_model else ''
 
         return validated
