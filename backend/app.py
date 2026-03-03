@@ -311,6 +311,15 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Error registering AI Jobs routes: {e}", exc_info=True)
 
+# Register Advisor Summary blueprint (daily cron-triggered email summaries)
+try:
+    from routes.admin import advisor_summary as advisor_summary_routes
+    app.register_blueprint(advisor_summary_routes.bp)  # /api/admin/advisor-summary (blueprint has url_prefix)
+except ImportError as e:
+    logger.warning(f"Warning: Advisor Summary module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Advisor Summary routes: {e}", exc_info=True)
+
 # Register Parental Consent blueprint (COPPA compliance)
 try:
     from routes import parental_consent
