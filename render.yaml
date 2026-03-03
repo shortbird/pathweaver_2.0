@@ -1,12 +1,20 @@
-# Cron Jobs (production only)
-crons:
-  # Daily Advisor Summary - sends morning briefing emails at 7 AM UTC (2 AM EST)
-  - name: daily-advisor-summary
-    schedule: "0 7 * * *"
-    command: "curl -X POST https://optio-backend-prod.onrender.com/api/admin/advisor-summary/trigger -H 'Content-Type: application/json' -H 'X-Cron-Secret: ${CRON_SECRET}'"
-    runtime: curl
-
 services:
+  # Daily Advisor Summary Cron Job
+  - type: cron
+    name: daily-advisor-summary
+    runtime: python
+    schedule: "0 12 * * *"  # 12 PM UTC = 7 AM EST / 8 AM EDT
+    repo: https://github.com/shortbird/pathweaver_2.0.git
+    branch: main
+    rootDir: backend
+    buildCommand: "pip install requests"
+    startCommand: "python jobs/cron_trigger.py"
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: BACKEND_URL
+        value: https://optio-backend-prod.onrender.com
+
   # Production Backend
   - type: web
     name: optio-backend-prod

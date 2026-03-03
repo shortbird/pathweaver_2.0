@@ -476,8 +476,8 @@ emails:
     salutation: "Hi {{ advisor_name }},"
     paragraphs:
       - "Here's your morning briefing for {{ summary_date }}:"
-    closing_paragraphs:
-      - "{{ students_html }}"
+    # students_html is passed as closing_html directly in the context
+    # (not via closing_paragraphs, which wraps in <p> tags and breaks block-level HTML)
     cta:
       text: "View Full Dashboard"
       url: "{{ dashboard_url }}"

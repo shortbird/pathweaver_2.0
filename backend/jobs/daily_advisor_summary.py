@@ -139,6 +139,9 @@ class DailyAdvisorSummaryJob:
                     at_risk_count = cohort.get('at_risk', 0)
 
                     # Send using templated email system for consistent branding
+                    # Pass students_html as closing_html directly so it renders
+                    # raw HTML after the highlight box (closing_paragraphs would
+                    # wrap it in <p> tags, breaking block-level elements)
                     success = email_service.send_templated_email(
                         to_email=advisor_email,
                         subject=f"Morning Briefing: Your Students' Progress - {formatted_date}",
@@ -154,7 +157,7 @@ class DailyAdvisorSummaryJob:
                             'in_flow_count': in_flow_count,
                             'building_count': building_count,
                             'at_risk_count': at_risk_count,
-                            'students_html': students_html,
+                            'closing_html': students_html,
                             'dashboard_url': f"{frontend_url}/advisor"
                         }
                     )
