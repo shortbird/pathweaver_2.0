@@ -32,14 +32,10 @@ export const queryKeys = {
     settings: (userId) => [...queryKeys.portfolio.all, 'settings', userId],
   },
 
-  // Social features (friends & collaborations)
+  // Social features (friends removed March 2026)
   social: {
     all: ['social'],
-    friends: (userId) => [...queryKeys.social.all, 'friends', userId],
     activity: (userId) => [...queryKeys.social.all, 'activity', userId],
-    friendRequests: (userId) => [...queryKeys.social.all, 'friendRequests', userId],
-    collaborations: (userId) => [...queryKeys.social.all, 'collaborations', userId],
-    questCollaborations: (questId) => [...queryKeys.social.all, 'questCollaborations', questId],
   },
 
   // Evidence
@@ -72,7 +68,7 @@ export const queryKeys = {
       queryClient.invalidateQueries(queryKeys.quests.active(userId))
       queryClient.invalidateQueries(queryKeys.quests.completed(userId))
       queryClient.invalidateQueries(queryKeys.portfolio.user(userId))
-      queryClient.invalidateQueries(queryKeys.social.friends(userId))
+      queryClient.invalidateQueries(queryKeys.social.activity(userId))
     }
   },
 
@@ -114,12 +110,6 @@ export const mutationKeys = {
   deleteEnrollment: 'deleteEnrollment',
 
   // Social mutations
-  sendFriendRequest: 'sendFriendRequest',
-  acceptFriendRequest: 'acceptFriendRequest',
-  declineFriendRequest: 'declineFriendRequest',
-  sendCollaboration: 'sendCollaboration',
-  acceptCollaboration: 'acceptCollaboration',
-
   // Evidence mutations
   uploadEvidence: 'uploadEvidence',
 }

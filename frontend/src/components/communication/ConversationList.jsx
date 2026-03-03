@@ -3,7 +3,7 @@ import { AcademicCapIcon, ChatBubbleLeftEllipsisIcon, EyeIcon, MagnifyingGlassIc
 import { useAuth } from '../../contexts/AuthContext'
 import { useAIAccess } from '../../contexts/AIAccessContext'
 import { useQuery } from '@tanstack/react-query'
-import { parentAPI, friendsAPI, observerAPI } from '../../services/api'
+import { parentAPI, observerAPI } from '../../services/api'
 import { useMessagingContacts } from '../../hooks/api/useDirectMessages'
 import {
   mergeContacts,
@@ -49,18 +49,7 @@ const ConversationList = ({
     refetchOnMount: false
   })
 
-  // Fetch friends (learning partners) - available to all users
-  const { data: friendsData } = useQuery({
-    queryKey: ['friends', user?.id],
-    queryFn: async () => {
-      const response = await friendsAPI.getFriends()
-      return response.data
-    },
-    enabled: !!user?.id,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false
-  })
+  // Friends fetch removed (March 2026 - Feature pruning)
 
   // Fetch observers - available to all users
   const { data: observersData } = useQuery({
@@ -80,7 +69,6 @@ const ConversationList = ({
     enabled: !!user?.id
   })
 
-  const learningPartners = friendsData?.friends || []
   const observers = observersData?.observers || []
   const messagingContacts = contactsData?.contacts || []
 
@@ -149,7 +137,7 @@ const ConversationList = ({
   const unifiedContacts = useMemo(() => {
     // Merge all contact sources
     const merged = mergeContacts({
-      friends: learningPartners,
+      friends: [],
       observers: observers,
       children: user?.role === 'parent' ? linkedChildren : [],
       advisorContacts: messagingContacts,

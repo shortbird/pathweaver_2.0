@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../contexts/AuthContext'
 import { useActingAs } from '../../contexts/ActingAsContext'
 import ActingAsBanner from '../parent/ActingAsBanner'
@@ -60,26 +61,34 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     return false
   }
 
+  // Check if user has course enrollments (for conditional Courses nav item)
+  const { data: coursesData } = useQuery({
+    queryKey: ['courses-sidebar-check', user?.id],
+    queryFn: async () => {
+      const response = await api.get('/api/courses')
+      const courses = response.data?.courses || []
+      return courses.some(c => c.is_enrolled)
+    },
+    enabled: !!user?.id,
+    staleTime: 10 * 60 * 1000, // Cache for 10 minutes
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false
+  })
+
+  const hasEnrolledCourses = coursesData === true
+
   // Base navigation items for all users
   const baseNavItems = [
-    {
-      name: 'Courses',
-      path: '/courses',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
-        </svg>
-      )
-    },
-    {
-      name: 'Calendar',
-      path: '/calendar',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      )
-    },
+    // Calendar nav item commented out (March 2026 - Feature pruning, keep code for future re-enabling)
+    // {
+    //   name: 'Calendar',
+    //   path: '/calendar',
+    //   icon: (
+    //     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    //       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    //     </svg>
+    //   )
+    // },
     {
       name: 'Communication',
       path: '/communication',
@@ -112,6 +121,30 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // Start with base navigation items
   const navItems = [...baseNavItems]
 
+  // Helper to check if user has a role (supports org_roles array)
+  const userHasRole = (role) => {
+    if (user?.role === role) return true
+    // Check org_roles array (new format)
+    if (user?.org_roles && Array.isArray(user.org_roles) && user.org_roles.includes(role)) return true
+    // Check legacy org_role field
+    if (user?.org_role === role) return true
+    return false
+  }
+
+  // Add Courses link: always for advisors/admins, only if enrolled for students
+  const alwaysShowCourses = user?.role === 'superadmin' || userHasRole('advisor') || userHasRole('org_admin')
+  if (alwaysShowCourses || hasEnrolledCourses) {
+    navItems.unshift({
+      name: 'Courses',
+      path: '/courses',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+        </svg>
+      )
+    })
+  }
+
   // Add My Activity link for students to view their activity feed with observer comments/likes
   if (user?.role === 'student') {
     navItems.push({
@@ -123,16 +156,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
         </svg>
       )
     })
-  }
-
-  // Helper to check if user has a role (supports org_roles array)
-  const userHasRole = (role) => {
-    if (user?.role === role) return true
-    // Check org_roles array (new format)
-    if (user?.org_roles && Array.isArray(user.org_roles) && user.org_roles.includes(role)) return true
-    // Check legacy org_role field
-    if (user?.org_role === role) return true
-    return false
   }
 
   // Add Parent link if user has parent relationships (dependents or linked students)

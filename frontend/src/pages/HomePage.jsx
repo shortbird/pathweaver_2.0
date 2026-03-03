@@ -47,14 +47,6 @@ const HomePage = () => {
     return () => observer.disconnect()
   }, [])
 
-  const goToDemo = () => {
-    navigate('/demo')
-  }
-
-  const goToDemoRequest = () => {
-    navigate('/contact?type=demo')
-  }
-
   // Redirect authenticated users to their appropriate dashboard
   useEffect(() => {
     const currentPath = window.location.pathname
