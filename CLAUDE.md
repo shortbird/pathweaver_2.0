@@ -261,6 +261,8 @@ git push origin main       # Push to prod (auto-deploys to Render prod)
 git checkout main && git merge develop && git push origin main && git checkout develop
 ```
 
+**IMPORTANT: When the user says "push", always stage and commit ALL outstanding changes (staged, unstaged, and untracked relevant files) before pushing. Never selectively unstage files -- push everything.**
+
 ---
 
 ## Supabase Branching (Safe Testing)
