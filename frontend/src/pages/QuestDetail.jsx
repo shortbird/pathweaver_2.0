@@ -307,9 +307,9 @@ const QuestDetail = () => {
     logger.debug('[QUEST_DETAIL] Invalidating course cache for XP update');
     queryKeys.invalidateCourses(queryClient);
 
-    logger.debug('[QUEST_DETAIL] Closing modal and clearing selectedTask');
+    // Keep the completed task selected so the user can see it and request credit
+    logger.debug('[QUEST_DETAIL] Closing modal but keeping selectedTask');
     setShowTaskModal(false);
-    setSelectedTask(null);
 
     logger.debug('[QUEST_DETAIL] ========== TASK COMPLETION HANDLER END ==========');
   };

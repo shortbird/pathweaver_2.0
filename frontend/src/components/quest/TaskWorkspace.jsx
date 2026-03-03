@@ -23,8 +23,9 @@ import EvidenceDisplay from '../evidence/EvidenceDisplay';
 import AddEvidenceModal from '../evidence/AddEvidenceModal';
 import SubjectBadges from '../common/SubjectBadges';
 import TaskStepsModal from './TaskStepsModal';
-import { SparklesIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
 import { useAIAccess } from '../../contexts/AIAccessContext';
+import api from '../../services/api';
 
 // Sortable Task Item for the collapsible list
 const SortableTaskItem = ({ task, isSelected, onClick, onRemove, onMoveUp, onMoveDown, isFirst, isLast }) => {
@@ -169,6 +170,9 @@ const TaskWorkspace = ({
   const [isTaskListOpen, setIsTaskListOpen] = useState(true);
   const [editingBlock, setEditingBlock] = useState(null);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [isRequestingCredit, setIsRequestingCredit] = useState(false);
+  const [creditStatus, setCreditStatus] = useState(null); // tracks diploma_status for current task
+  const [creditFeedback, setCreditFeedback] = useState(null); // advisor feedback for grow_this
 
   // Drag sensors for task reordering
   const sensors = useSensors(
@@ -176,11 +180,16 @@ const TaskWorkspace = ({
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } })
   );
 
-  // Load existing evidence when task changes and reset description state
+  // Load existing evidence and credit status when task changes
   useEffect(() => {
     setIsDescriptionExpanded(false);
+    setCreditStatus(null);
+    setCreditFeedback(null);
     if (task?.id) {
       loadEvidence();
+      if (task.is_completed) {
+        loadCreditStatus();
+      }
     } else {
       setEvidenceBlocks([]);
     }
@@ -232,6 +241,42 @@ const TaskWorkspace = ({
       setEvidenceBlocks([]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadCreditStatus = async () => {
+    try {
+      const response = await api.get(`/api/tasks/${task.id}/draft-status`);
+      const data = response.data.data;
+      if (data?.has_completion) {
+        setCreditStatus(data.diploma_status);
+        if (data.latest_feedback) {
+          setCreditFeedback({
+            text: data.latest_feedback,
+            at: data.feedback_at,
+          });
+        }
+      }
+    } catch {
+      // Not critical, silently ignore
+    }
+  };
+
+  const handleRequestCredit = async () => {
+    if (!task?.id) return;
+    setIsRequestingCredit(true);
+    try {
+      const response = await api.post(`/api/tasks/${task.id}/request-credit`, {});
+      const resData = response.data?.data || response.data;
+      if (resData.success || resData.diploma_status === 'pending_review') {
+        setCreditStatus('pending_review');
+        toast.success(resData.message || 'Diploma credit requested!');
+      }
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || 'Failed to request credit';
+      toast.error(errorMsg);
+    } finally {
+      setIsRequestingCredit(false);
     }
   };
 
@@ -878,12 +923,47 @@ const TaskWorkspace = ({
                         )}
                       </button>
                     ) : (
-                      <div className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-4 sm:py-1.5 bg-green-50 border border-green-200 rounded-lg">
-                        <CheckCircleIcon className="w-4 h-4 text-green-600" />
-                        <span className="text-green-700 text-xs sm:text-sm font-semibold whitespace-nowrap" style={{ fontFamily: 'Poppins' }}>
-                          <span className="sm:hidden">+{task.xp_amount} XP</span>
-                          <span className="hidden sm:inline">Completed! +{task.xp_amount} XP</span>
-                        </span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-4 sm:py-1.5 bg-green-50 border border-green-200 rounded-lg">
+                          <CheckCircleIcon className="w-4 h-4 text-green-600" />
+                          <span className="text-green-700 text-xs sm:text-sm font-semibold whitespace-nowrap" style={{ fontFamily: 'Poppins' }}>
+                            <span className="sm:hidden">+{task.xp_amount} XP</span>
+                            <span className="hidden sm:inline">Completed! +{task.xp_amount} XP</span>
+                          </span>
+                        </div>
+                        {/* Request Diploma Credit button */}
+                        {(creditStatus === 'none' || creditStatus === 'grow_this') && (
+                          <button
+                            onClick={handleRequestCredit}
+                            disabled={isRequestingCredit}
+                            className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-optio-purple bg-optio-purple/10 hover:bg-optio-purple/20 border border-optio-purple/30 rounded-lg transition-colors disabled:opacity-50 min-h-[32px] touch-manipulation"
+                            style={{ fontFamily: 'Poppins' }}
+                            title={creditStatus === 'grow_this' ? 'Resubmit for diploma credit' : 'Request diploma credit for this task'}
+                          >
+                            {isRequestingCredit ? (
+                              <div className="w-4 h-4 border-2 border-optio-purple border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <>
+                                <AcademicCapIcon className="w-4 h-4" />
+                                <span className="hidden sm:inline">
+                                  {creditStatus === 'grow_this' ? 'Resubmit' : 'Request Credit'}
+                                </span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                        {creditStatus === 'pending_review' && (
+                          <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg">
+                            <AcademicCapIcon className="w-4 h-4" />
+                            <span className="hidden sm:inline">Awaiting Review</span>
+                          </span>
+                        )}
+                        {creditStatus === 'approved' && (
+                          <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg">
+                            <AcademicCapIcon className="w-4 h-4" />
+                            <span className="hidden sm:inline">Credit Approved</span>
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -891,6 +971,17 @@ const TaskWorkspace = ({
               </div>
 
               <div className="p-6">
+                {/* Advisor feedback banner for grow_this */}
+                {creditStatus === 'grow_this' && creditFeedback?.text && (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-xs font-semibold text-blue-800 mb-1" style={{ fontFamily: 'Poppins' }}>Advisor Feedback</p>
+                    <p className="text-sm text-blue-900 whitespace-pre-wrap">{creditFeedback.text}</p>
+                    {creditFeedback.at && (
+                      <p className="text-xs text-blue-500 mt-1">{new Date(creditFeedback.at).toLocaleDateString()}</p>
+                    )}
+                  </div>
+                )}
+
                 {error && (
                   <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                     <div className="flex items-start gap-2">
