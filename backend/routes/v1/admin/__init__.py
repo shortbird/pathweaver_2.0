@@ -43,7 +43,7 @@ def register_admin_blueprints_v1(app: Flask):
             user_management, quest_management,
             student_task_management, sample_task_management,
             course_quest_management, task_flags, advisor_management,
-            parent_connections, masquerade, crm, course_import,
+            parent_connections, masquerade, course_import,
             organization_management, observer_audit, ferpa_compliance
         )
 
@@ -87,9 +87,7 @@ def register_admin_blueprints_v1(app: Flask):
         app.register_blueprint(masquerade.masquerade_bp, url_prefix='/api/v1/admin/masquerade',
                              name='admin_masquerade_v1')
 
-        # Register CRM with v1 prefix
-        app.register_blueprint(crm.crm_bp, url_prefix='/api/v1/admin/crm',
-                             name='admin_crm_v1')
+        # CRM v1 routes removed (March 2026 - Feature pruning)
 
         # Register course import with v1 prefix
         app.register_blueprint(course_import.bp, url_prefix='/api/v1/admin/courses',

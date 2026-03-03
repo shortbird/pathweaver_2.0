@@ -17,10 +17,8 @@ from repositories import (
     UserRepository,
     QuestRepository,
     EvidenceRepository,
-    FriendshipRepository,
     ParentRepository,
     TutorRepository,
-    LMSRepository,
     AnalyticsRepository
 )
 from utils.auth.decorators import require_admin, require_role

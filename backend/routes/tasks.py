@@ -16,10 +16,8 @@ from repositories import (
     UserRepository,
     QuestRepository,
     EvidenceRepository,
-    FriendshipRepository,
     ParentRepository,
     TutorRepository,
-    LMSRepository,
     AnalyticsRepository
 )
 from repositories.base_repository import NotFoundError

@@ -308,23 +308,7 @@ def register_routes(bp):
                 except Exception as update_error:
                     logger.error(f"Warning: Failed to update last_active timestamp: {update_error}")
 
-                # Trigger email_confirmed event for automation sequences (only once)
-                if auth_response.user.email_confirmed_at and not user_response_data.get('welcome_email_sent'):
-                    try:
-                        from services.campaign_automation_service import CampaignAutomationService
-                        automation_service = CampaignAutomationService()
-                        automation_service.process_event_trigger(
-                            event_type='email_confirmed',
-                            user_id=auth_response.user.id,
-                            metadata={'email': auth_response.user.email}
-                        )
-                        # Mark welcome email as sent
-                        admin_client.table('users').update({
-                            'welcome_email_sent': True
-                        }).eq('id', auth_response.user.id).execute()
-                        logger.info(f"Triggered email_confirmed event for user {mask_user_id(auth_response.user.id)}")
-                    except Exception as automation_error:
-                        logger.error(f"Warning: Failed to process email_confirmed event: {automation_error}")
+                # CRM automation trigger removed (March 2026 - Feature pruning)
 
                 # Generate app tokens for Authorization header usage (Safari compatibility)
                 app_access_token = session_manager.generate_access_token(auth_response.user.id)

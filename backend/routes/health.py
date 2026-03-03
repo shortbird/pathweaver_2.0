@@ -11,10 +11,8 @@ from repositories import (
     UserRepository,
     QuestRepository,
     EvidenceRepository,
-    FriendshipRepository,
     ParentRepository,
     TutorRepository,
-    LMSRepository,
     AnalyticsRepository
 )
 from datetime import datetime

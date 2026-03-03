@@ -139,16 +139,7 @@ def register_v1_routes(app: Flask):
     except Exception as e:
         logger.error(f"✗ Failed to register v1 observer routes: {e}")
 
-    # Phase 3: Community/Social routes (LOW PRIORITY)
-    try:
-        from routes.v1 import community
-        app.register_blueprint(community.bp, url_prefix='/api/v1/community', name='community_v1')
-        registered_count += 1
-        logger.info("✓ Registered v1 community routes")
-    except ImportError:
-        logger.warning("✗ Community routes v1 not yet migrated")
-    except Exception as e:
-        logger.error(f"✗ Failed to register v1 community routes: {e}")
+    # Community routes v1 removed (March 2026 - Feature pruning)
 
     # Phase 3: AI Tutor routes (LOW PRIORITY)
     try:
@@ -161,16 +152,7 @@ def register_v1_routes(app: Flask):
     except Exception as e:
         logger.error(f"✗ Failed to register v1 tutor routes: {e}")
 
-    # Phase 3: LMS Integration routes (LOW PRIORITY)
-    try:
-        from routes.v1 import lms_integration
-        app.register_blueprint(lms_integration.bp, url_prefix='/api/v1/lms', name='lms_integration_v1')
-        registered_count += 1
-        logger.info("✓ Registered v1 LMS integration routes")
-    except ImportError:
-        logger.warning("✗ LMS integration routes v1 not yet migrated")
-    except Exception as e:
-        logger.error(f"✗ Failed to register v1 LMS integration routes: {e}")
+    # LMS integration routes v1 removed (March 2026 - Feature pruning, Spark kept separately)
 
     # Phase 4: Additional API routes (MEDIUM PRIORITY)
     try:
