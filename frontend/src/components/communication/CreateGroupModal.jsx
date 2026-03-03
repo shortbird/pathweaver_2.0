@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { XMarkIcon, MagnifyingGlassIcon, UserPlusIcon, CheckIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
-import { useQuery } from '@tanstack/react-query'
-import { friendsAPI, observerAPI } from '../../services/api'
 import { useMessagingContacts } from '../../hooks/api/useDirectMessages'
 import { useCreateGroup } from '../../hooks/api/useGroupMessages'
 
@@ -16,53 +14,22 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
 
   const createGroupMutation = useCreateGroup()
 
-  // Fetch potential members (friends, contacts)
-  const { data: friendsData } = useQuery({
-    queryKey: ['friends', user?.id],
-    queryFn: async () => {
-      const response = await friendsAPI.getFriends()
-      return response.data
-    },
-    enabled: !!user?.id
-  })
-
   const { data: contactsData } = useMessagingContacts(user?.id, {
     enabled: !!user?.id
   })
 
-  const friends = friendsData?.friends || []
   const contacts = contactsData?.contacts || []
 
-  // Combine and dedupe available members
   const availableMembers = React.useMemo(() => {
-    const memberMap = new Map()
-
-    friends.forEach(f => {
-      memberMap.set(f.id, {
-        id: f.id,
-        displayName: f.display_name || `${f.first_name || ''} ${f.last_name || ''}`.trim(),
-        firstName: f.first_name,
-        lastName: f.last_name,
-        avatarUrl: f.avatar_url,
-        role: f.role
-      })
-    })
-
-    contacts.forEach(c => {
-      if (!memberMap.has(c.id)) {
-        memberMap.set(c.id, {
-          id: c.id,
-          displayName: c.display_name || `${c.first_name || ''} ${c.last_name || ''}`.trim(),
-          firstName: c.first_name,
-          lastName: c.last_name,
-          avatarUrl: c.avatar_url,
-          role: c.role
-        })
-      }
-    })
-
-    return Array.from(memberMap.values())
-  }, [friends, contacts])
+    return contacts.map(c => ({
+      id: c.id,
+      displayName: c.display_name || `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+      firstName: c.first_name,
+      lastName: c.last_name,
+      avatarUrl: c.avatar_url,
+      role: c.role
+    }))
+  }, [contacts])
 
   // Filter by search
   const filteredMembers = React.useMemo(() => {
