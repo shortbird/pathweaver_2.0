@@ -5,6 +5,7 @@ import { advisorAPI } from '../services/api';
 import AdvisorStudentListPanel from '../components/advisor/AdvisorStudentListPanel';
 import AdvisorDefaultPanel from '../components/advisor/AdvisorDefaultPanel';
 import AdvisorStudentPanel from '../components/advisor/AdvisorStudentPanel';
+import CreditReviewQueue from '../components/advisor/CreditReviewQueue';
 
 // Helper function to get student display name with fallback
 const getStudentName = (student) => {
@@ -20,6 +21,8 @@ export default function AdvisorDashboard() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showCreditQueue, setShowCreditQueue] = useState(false);
+  const [pendingCreditCount, setPendingCreditCount] = useState(0);
 
   // Mobile breakpoint detection
   const [isMobile, setIsMobile] = useState(false);
@@ -46,6 +49,9 @@ export default function AdvisorDashboard() {
       if (caseloadRes.data.success) {
         setCaseloadSummary(caseloadRes.data.summary);
       }
+
+      // Pending credit count will be loaded by CreditReviewQueue component
+      // Don't duplicate the fetch here to avoid race conditions
     } catch (err) {
       console.error('Error fetching advisor dashboard:', err);
       setError(err.response?.data?.error || 'Failed to load dashboard');
@@ -143,11 +149,32 @@ export default function AdvisorDashboard() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white py-4 px-6">
-        <h1 className="text-xl font-bold">Advisor Dashboard</h1>
-        <p className="text-sm text-white/80 mt-0.5">
-          {students.length} student{students.length !== 1 ? 's' : ''}
-          {(rhythmCounts.in_flow || 0) > 0 && ` -- ${rhythmCounts.in_flow} in flow`}
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">Advisor Dashboard</h1>
+            <p className="text-sm text-white/80 mt-0.5">
+              {students.length} student{students.length !== 1 ? 's' : ''}
+              {(rhythmCounts.in_flow || 0) > 0 && ` -- ${rhythmCounts.in_flow} in flow`}
+            </p>
+          </div>
+          <button
+            onClick={() => { setShowCreditQueue(!showCreditQueue); setSelectedStudent(null); }}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              showCreditQueue
+                ? 'bg-white text-optio-purple'
+                : 'bg-white/20 text-white hover:bg-white/30'
+            }`}
+          >
+            Credit Reviews
+            {pendingCreditCount > 0 && (
+              <span className={`px-1.5 py-0.5 text-xs font-bold rounded-full ${
+                showCreditQueue ? 'bg-optio-purple text-white' : 'bg-white text-optio-purple'
+              }`}>
+                {pendingCreditCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Split panel */}
@@ -163,9 +190,13 @@ export default function AdvisorDashboard() {
           />
         </div>
 
-        {/* Right panel - Default or student detail */}
+        {/* Right panel - Default, student detail, or credit queue */}
         <div className="flex-1 overflow-hidden">
-          {selectedStudent ? (
+          {showCreditQueue ? (
+            <div className="h-full overflow-y-auto p-6">
+              <CreditReviewQueue />
+            </div>
+          ) : selectedStudent ? (
             <AdvisorStudentPanel
               key={selectedStudent.id}
               student={selectedStudent}

@@ -10,6 +10,7 @@ import RhythmIndicator from '../components/quest/RhythmIndicator'
 import EngagementCalendar from '../components/quest/EngagementCalendar'
 import RhythmExplainerModal from '../components/quest/RhythmExplainerModal'
 import QuickCaptureButton from '../components/learning-events/QuickCaptureButton'
+import DiplomaCreditTracker from '../components/diploma/DiplomaCreditTracker'
 import {
   RocketLaunchIcon,
   CheckCircleIcon,
@@ -353,6 +354,24 @@ const DashboardPage = () => {
         */}
       </div>
 
+      {/* Active Quests Panel */}
+      <div className="mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
+          <h2 className="text-xl font-bold text-gray-900 font-['Poppins']">Current Quests</h2>
+          <Link
+            to="/quests"
+            className="text-sm text-optio-purple hover:text-purple-800 font-medium transition-colors"
+          >
+            Browse All Quests →
+          </Link>
+        </div>
+        <ActiveQuests
+          activeQuests={dashboardData?.active_quests}
+          enrolledCourses={dashboardData?.enrolled_courses}
+          completedQuestsCount={dashboardData?.stats?.completed_quests_count || 0}
+        />
+      </div>
+
       {/* Dashboard Overview - Two Column Layout */}
       <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Learning Rhythm */}
@@ -395,22 +414,9 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Active Quests Panel */}
-      <div className="mb-12">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
-          <h2 className="text-xl font-bold text-gray-900 font-['Poppins']">Current Quests</h2>
-          <Link
-            to="/quests"
-            className="text-sm text-optio-purple hover:text-purple-800 font-medium transition-colors"
-          >
-            Browse All Quests →
-          </Link>
-        </div>
-        <ActiveQuests
-          activeQuests={dashboardData?.active_quests}
-          enrolledCourses={dashboardData?.enrolled_courses}
-          completedQuestsCount={dashboardData?.stats?.completed_quests_count || 0}
-        />
+      {/* Diploma Credit Tracker */}
+      <div className="mb-8">
+        <DiplomaCreditTracker />
       </div>
 
       {/* Completed Quests Section */}

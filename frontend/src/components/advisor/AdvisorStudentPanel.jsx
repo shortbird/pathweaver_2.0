@@ -14,6 +14,7 @@ import AdvisorNotesModal from './AdvisorNotesModal';
 import AdvisorMomentCaptureButton from './AdvisorMomentCaptureButton';
 import AdvisorMomentsTab from './AdvisorMomentsTab';
 import AdvisorCheckinHistoryInline from './AdvisorCheckinHistoryInline';
+import CreditReviewQueue from './CreditReviewQueue';
 import api, { observerAPI } from '../../services/api';
 import FeedCard from '../observer/FeedCard';
 
@@ -27,6 +28,7 @@ const TABS = [
   { key: 'activity', label: 'Activity' },
   { key: 'overview', label: 'Overview' },
   { key: 'tasks', label: 'Tasks' },
+  { key: 'credits', label: 'Credits' },
   { key: 'checkins', label: 'Check-ins' },
   { key: 'moments', label: 'Moments' },
 ];
@@ -318,6 +320,15 @@ const AdvisorStudentPanel = ({ student, onBack, onTasksUpdated }) => {
                 ))}
               </>
             )}
+          </div>
+        )}
+
+        {activeTab === 'credits' && (
+          <div className="p-4">
+            <CreditReviewQueue
+              studentId={student.id}
+              studentName={studentName}
+            />
           </div>
         )}
 

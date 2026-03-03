@@ -75,7 +75,8 @@ def enrich_drafts_with_relations(supabase, drafts):
 @require_superadmin
 def get_pending_drafts(user_id: str):
     """
-    Get all task completions awaiting feedback (diploma_status = 'draft').
+    Get all task completions awaiting review (diploma_status = 'pending_review').
+    Also includes legacy 'draft' status for backward compatibility.
     """
     try:
         supabase = get_supabase_admin_client()
@@ -84,10 +85,10 @@ def get_pending_drafts(user_id: str):
         offset = int(request.args.get('offset', 0))
         sort_order = request.args.get('sort', 'oldest')
 
-        # Get drafts awaiting review
+        # Get completions awaiting review (new 'pending_review' + legacy 'draft')
         query = supabase.table('quest_task_completions')\
             .select('*')\
-            .eq('diploma_status', 'draft')\
+            .in_('diploma_status', ['pending_review', 'draft'])\
             .range(offset, offset + limit - 1)
 
         # Apply sort order
@@ -139,7 +140,8 @@ def get_pending_drafts(user_id: str):
 @require_superadmin
 def get_drafts_ready_for_student(user_id: str):
     """
-    Get all drafts marked as ready for credit (awaiting student finalization).
+    Get all drafts marked as ready for credit / approved (awaiting student finalization).
+    Includes both old 'ready_for_credit' and new 'approved' statuses.
     """
     try:
         supabase = get_supabase_admin_client()
@@ -149,8 +151,8 @@ def get_drafts_ready_for_student(user_id: str):
 
         result = supabase.table('quest_task_completions')\
             .select('*')\
-            .eq('diploma_status', 'ready_for_credit')\
-            .order('ready_suggested_at', desc=True)\
+            .in_('diploma_status', ['ready_for_credit', 'approved'])\
+            .order('finalized_at', desc=True)\
             .range(offset, offset + limit - 1)\
             .execute()
 
@@ -273,10 +275,10 @@ def add_feedback(user_id: str, completion_id: str):
 
         completion_data = completion.data
 
-        if completion_data['diploma_status'] == 'finalized':
+        if completion_data['diploma_status'] in ('finalized', 'approved'):
             return error_response(
                 code='INVALID_STATE',
-                message='Cannot add feedback to finalized tasks',
+                message='Cannot add feedback to approved/finalized tasks',
                 status=400
             )
 
@@ -345,10 +347,10 @@ def suggest_ready_for_credit(user_id: str, completion_id: str):
 
         completion_data = completion.data
 
-        if completion_data['diploma_status'] == 'finalized':
+        if completion_data['diploma_status'] in ('finalized', 'approved'):
             return error_response(
                 code='INVALID_STATE',
-                message='Task already finalized',
+                message='Task already finalized/approved',
                 status=400
             )
 
@@ -429,17 +431,18 @@ def suggest_ready_for_credit(user_id: str, completion_id: str):
                         'updated_at': now
                     }).execute()
 
-            # Update completion as finalized
+            # Update completion as approved
             result = supabase.table('quest_task_completions').update({
-                'diploma_status': 'finalized',
+                'diploma_status': 'approved',
                 'reviewed_by': user_id,
                 'reviewed_at': now,
                 'ready_suggested_at': now,
-                'finalized_at': now
+                'finalized_at': now,
+                'credit_reviewer_id': user_id
             }).eq('id', completion_id).execute()
 
-            logger.info(f"Superadmin {user_id[:8]} fast-tracked completion {completion_id[:8]} to finalized")
-            message = 'Task fast-tracked and finalized for diploma credit'
+            logger.info(f"Superadmin {user_id[:8]} fast-tracked completion {completion_id[:8]} to approved")
+            message = 'Task fast-tracked and approved for diploma credit'
         else:
             # Normal flow: mark as ready, student will finalize
             result = supabase.table('quest_task_completions').update({
@@ -481,23 +484,23 @@ def get_draft_stats(user_id: str):
     try:
         supabase = get_supabase_admin_client()
 
-        # Get pending drafts count
+        # Get pending review count (new 'pending_review' + legacy 'draft')
         pending = supabase.table('quest_task_completions')\
             .select('id', count='exact')\
-            .eq('diploma_status', 'draft')\
+            .in_('diploma_status', ['pending_review', 'draft'])\
             .execute()
 
-        # Get ready for student count
-        ready = supabase.table('quest_task_completions')\
+        # Get grow_this count (returned for revision)
+        grow_this = supabase.table('quest_task_completions')\
             .select('id', count='exact')\
-            .eq('diploma_status', 'ready_for_credit')\
+            .eq('diploma_status', 'grow_this')\
             .execute()
 
-        # Get finalized today
+        # Get approved today (new 'approved' + legacy 'finalized' + 'ready_for_credit')
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         finalized = supabase.table('quest_task_completions')\
             .select('id', count='exact')\
-            .eq('diploma_status', 'finalized')\
+            .in_('diploma_status', ['approved', 'finalized'])\
             .gte('finalized_at', today_start.isoformat())\
             .execute()
 
@@ -508,7 +511,7 @@ def get_draft_stats(user_id: str):
 
         return success_response(data={
             'pending_drafts': pending.count or 0,
-            'ready_for_student': ready.count or 0,
+            'grow_this': grow_this.count or 0,
             'finalized_today': finalized.count or 0,
             'total_feedback_given': feedback_count.count or 0
         })
