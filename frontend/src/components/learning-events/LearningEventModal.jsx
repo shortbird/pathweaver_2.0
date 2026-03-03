@@ -252,10 +252,10 @@ const LearningEventModal = ({
 
   const handleFileUpload = async (file, blockId, type) => {
     try {
-      const MAX_FILE_SIZE = 10 * 1024 * 1024;
+      const MAX_FILE_SIZE = 50 * 1024 * 1024;
       if (file.size > MAX_FILE_SIZE) {
         const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-        toast.error(`File is too large (${fileSizeMB}MB). Maximum size is 10MB.`);
+        toast.error(`File is too large (${fileSizeMB}MB). Maximum size is 50MB.`);
         return;
       }
 
@@ -489,7 +489,7 @@ const LearningEventModal = ({
           }}
         >
           <p className="text-sm text-gray-500">Click to upload an image</p>
-          <p className="text-xs text-gray-400 mt-1">JPG, PNG, GIF, WebP, HEIC up to 10MB</p>
+          <p className="text-xs text-gray-400 mt-1">JPG, PNG, GIF, WebP, HEIC up to 50MB</p>
         </div>
       )}
     </div>
@@ -560,7 +560,7 @@ const LearningEventModal = ({
           }}
         >
           <p className="text-sm text-gray-500">Click to upload a document</p>
-          <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX up to 10MB</p>
+          <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX up to 50MB</p>
         </div>
       )}
     </div>

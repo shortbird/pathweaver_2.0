@@ -200,6 +200,143 @@ const DiplomaPage = () => {
   const totalCreditsEarned = useMemo(() => calculateTotalCredits(subjectXP), [subjectXP]);
   const meetsRequirements = useMemo(() => meetsGraduationRequirements(subjectXP), [subjectXP]);
 
+  // Load demo/sample data for /public/diploma/demo route
+  const loadDemoData = () => {
+    setDiploma({
+      student: {
+        first_name: 'Alex',
+        last_name: 'Rivera',
+        display_name: 'Alex Rivera',
+      },
+      total_xp: 4500,
+      total_quests_completed: 3,
+    });
+
+    setAchievements([
+      {
+        quest_id: 'demo-quest-1',
+        quest_title: 'Build a Solar-Powered Phone Charger',
+        quest_type: 'project',
+        status: 'completed',
+        completed_at: '2025-11-15T00:00:00Z',
+        task_evidence: {
+          'Research solar panel specifications': {
+            pillar: 'stem',
+            xp_awarded: 300,
+            evidence_type: 'text',
+            evidence_text: 'I compared monocrystalline vs polycrystalline panels for small-scale charging. Monocrystalline is more efficient per square inch, which matters when building a portable charger. I calculated that a 5W panel with a boost converter could charge a phone in about 3 hours of direct sunlight.',
+          },
+          'Build and test the circuit': {
+            pillar: 'stem',
+            xp_awarded: 400,
+            evidence_type: 'text',
+            evidence_text: 'Soldered the boost converter to step up from 5V to the USB standard. My first attempt had a loose connection that caused intermittent charging. Debugging with a multimeter taught me more about circuits than any textbook.',
+          },
+          'Document the build process': {
+            pillar: 'communication',
+            xp_awarded: 200,
+            evidence_type: 'text',
+            evidence_text: 'Created a step-by-step build guide with diagrams and a materials list. Wrote it so that someone with no electronics experience could follow along. Got feedback from two classmates who successfully built their own chargers using my guide.',
+          },
+        },
+      },
+      {
+        quest_id: 'demo-quest-2',
+        quest_title: 'Community Story Project',
+        quest_type: 'project',
+        status: 'completed',
+        completed_at: '2025-12-20T00:00:00Z',
+        task_evidence: {
+          'Interview community members': {
+            pillar: 'communication',
+            xp_awarded: 350,
+            evidence_type: 'text',
+            evidence_text: 'Interviewed three long-time residents about how our neighborhood has changed. Mrs. Gutierrez shared stories about the old community garden that used to be where the parking lot is now. Learning to ask good follow-up questions was the hardest and most rewarding part.',
+          },
+          'Write and edit the narrative': {
+            pillar: 'communication',
+            xp_awarded: 300,
+            evidence_type: 'text',
+            evidence_text: 'Wove the three interviews into a single narrative about community resilience. Went through five drafts. The biggest challenge was honoring each person\'s voice while creating a cohesive story.',
+          },
+          'Present to community group': {
+            pillar: 'civics',
+            xp_awarded: 250,
+            evidence_type: 'text',
+            evidence_text: 'Presented the finished story at the neighborhood association meeting. About 40 people attended. Several residents said it inspired them to get involved in the community garden revival project. That felt like real impact.',
+          },
+        },
+      },
+      {
+        quest_id: 'demo-quest-3',
+        quest_title: 'Create a Digital Art Portfolio',
+        quest_type: 'project',
+        status: 'completed',
+        completed_at: '2026-01-10T00:00:00Z',
+        task_evidence: {
+          'Learn digital illustration fundamentals': {
+            pillar: 'art',
+            xp_awarded: 300,
+            evidence_type: 'text',
+            evidence_text: 'Spent three weeks learning color theory and composition through daily practice. Started with simple shapes and gradients, then moved to character design. The biggest breakthrough was understanding how light and shadow create depth.',
+          },
+          'Create portfolio pieces': {
+            pillar: 'art',
+            xp_awarded: 450,
+            evidence_type: 'text',
+            evidence_text: 'Produced eight original illustrations spanning different styles: two landscape scenes, three character portraits, two abstract pieces, and one infographic. Each piece pushed me to try a new technique I hadn\'t used before.',
+          },
+          'Build online portfolio website': {
+            pillar: 'stem',
+            xp_awarded: 250,
+            evidence_type: 'text',
+            evidence_text: 'Built a responsive portfolio site using HTML and CSS. Learned about image optimization to keep load times fast. The design process itself became a creative exercise in balancing aesthetics with usability.',
+          },
+        },
+      },
+    ]);
+
+    setTotalXP({
+      stem: 950,
+      communication: 850,
+      art: 750,
+      civics: 250,
+      wellness: 200,
+    });
+
+    setSubjectXP({
+      science: 650,
+      math: 300,
+      language_arts: 850,
+      fine_arts: 750,
+      digital_literacy: 500,
+      social_studies: 250,
+    });
+
+    setTotalXPCount(4500);
+
+    setLearningEvents([
+      {
+        id: 'demo-event-1',
+        title: 'Unexpected lesson from a broken circuit',
+        description: 'While debugging my solar charger, I accidentally shorted a component and had to figure out what went wrong. That 30-minute detour taught me more about electrical safety and troubleshooting than the planned curriculum.',
+        event_type: 'reflection',
+        created_at: '2025-11-10T00:00:00Z',
+        pillar: 'stem',
+      },
+      {
+        id: 'demo-event-2',
+        title: 'Finding my interview style',
+        description: 'After my first community interview felt stilted and awkward, I realized I was reading questions off a list instead of having a conversation. Switching to a few guiding topics instead of scripted questions made all the difference.',
+        event_type: 'reflection',
+        created_at: '2025-12-05T00:00:00Z',
+        pillar: 'communication',
+      },
+    ]);
+
+    setIsLoading(false);
+  };
+
   useEffect(() => {
     // Scroll to top when component mounts
     window.scrollTo(0, 0);
@@ -215,6 +352,9 @@ const DiplomaPage = () => {
     if (slug) {
       // Portfolio route - public access via slug
       fetchPublicDiploma();
+    } else if (userId === 'demo') {
+      // Demo mode - show sample data without API calls
+      loadDemoData();
     } else if (userId) {
       // Public diploma route via userId
       fetchPublicDiplomaByUserId();
