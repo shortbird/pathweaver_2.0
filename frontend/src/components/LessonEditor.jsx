@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
+import React, { useState, useRef, useCallback, forwardRef } from 'react'
 import { toast } from 'react-hot-toast'
 import {
   PlusIcon,
@@ -222,6 +222,8 @@ const LessonEditor = forwardRef(({
   const [isUploading, setIsUploading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef(null)
+  const savingRef = useRef(false)
+  const lessonIdRef = useRef(lesson?.id || null)
 
   // DnD sensors
   const sensors = useSensors(
@@ -230,47 +232,6 @@ const LessonEditor = forwardRef(({
   )
 
   const selectedStep = steps.find(s => s.id === selectedStepId) || steps[0]
-
-  // Expose save function to parent via ref
-  useImperativeHandle(ref, () => ({
-    save: async () => {
-      if (!title.trim()) {
-        // Skip save if no title - nothing to save
-        return
-      }
-
-      try {
-        setIsSaving(true)
-        const lessonData = {
-          title: title.trim(),
-          content: stepsToContent(steps),
-          video_url: null,
-          files: null,
-        }
-
-        let response
-        if (lesson?.id) {
-          response = await api.put(
-            `/api/quests/${questId}/curriculum/lessons/${lesson.id}`,
-            lessonData
-          )
-        } else {
-          response = await api.post(
-            `/api/quests/${questId}/curriculum/lessons`,
-            lessonData
-          )
-        }
-
-        if (response.data.success) {
-          onSave?.(response.data.lesson)
-        }
-      } catch (error) {
-        console.error('Failed to auto-save lesson:', error)
-      } finally {
-        setIsSaving(false)
-      }
-    }
-  }), [title, steps, lesson?.id, questId, onSave])
 
   // Handle step content change
   const handleStepChange = useCallback((updatedStep) => {
@@ -386,6 +347,10 @@ const LessonEditor = forwardRef(({
       return
     }
 
+    // Prevent concurrent saves (race condition guard)
+    if (savingRef.current) return
+    savingRef.current = true
+
     try {
       setIsSaving(true)
       const lessonData = {
@@ -397,9 +362,10 @@ const LessonEditor = forwardRef(({
       }
 
       let response
-      if (lesson?.id) {
+      const existingId = lesson?.id || lessonIdRef.current
+      if (existingId) {
         response = await api.put(
-          `/api/quests/${questId}/curriculum/lessons/${lesson.id}`,
+          `/api/quests/${questId}/curriculum/lessons/${existingId}`,
           lessonData
         )
       } else {
@@ -407,10 +373,14 @@ const LessonEditor = forwardRef(({
           `/api/quests/${questId}/curriculum/lessons`,
           lessonData
         )
+        // Track the new lesson ID so subsequent saves use PUT
+        if (response.data.success && response.data.lesson?.id) {
+          lessonIdRef.current = response.data.lesson.id
+        }
       }
 
       if (response.data.success) {
-        toast.success(lesson?.id ? 'Lesson updated' : 'Lesson created')
+        toast.success(existingId ? 'Lesson updated' : 'Lesson created')
         onSave?.(response.data.lesson)
       }
     } catch (error) {
@@ -418,6 +388,7 @@ const LessonEditor = forwardRef(({
       toast.error(error.response?.data?.error || 'Failed to save lesson')
     } finally {
       setIsSaving(false)
+      savingRef.current = false
     }
   }
 
