@@ -16,10 +16,8 @@ from repositories import (
     UserRepository,
     QuestRepository,
     EvidenceRepository,
-    FriendshipRepository,
     ParentRepository,
     TutorRepository,
-    LMSRepository,
     AnalyticsRepository
 )
 from utils.auth.decorators import require_auth
@@ -474,8 +472,7 @@ def delete_user_account_permanent(current_user):
             'user_quest_tasks',
             'user_quests',
 
-            # Social features
-            ('friendships', 'or_(f"requester_id.eq.{user_id},addressee_id.eq.{user_id}")'),
+            # Social features (friendships removed March 2026)
             'direct_messages',  # Both sent and received
 
             # Skills and achievements
@@ -506,18 +503,8 @@ def delete_user_account_permanent(current_user):
 
         for table in deletion_tables:
             try:
-                # Handle special case for friendships (needs OR query)
-                if isinstance(table, tuple):
-                    table_name, query_filter = table
-                    # Delete friendships where user is either requester or addressee
-                    result = supabase.table(table_name).delete().or_(
-                        f'requester_id.eq.{user_id},addressee_id.eq.{user_id}'
-                    ).execute()
-                    deleted_counts[table_name] = len(result.data) if result.data else 0
-                    logger.info(f"[GDPR_DELETE] Deleted {deleted_counts[table_name]} rows from {table_name}")
-
                 # Handle direct_messages (user can be sender or recipient)
-                elif table == 'direct_messages':
+                if table == 'direct_messages':
                     # Delete messages sent by user
                     sent_result = supabase.table(table).delete().eq('sender_id', user_id).execute()
                     sent_count = len(sent_result.data) if sent_result.data else 0

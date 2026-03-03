@@ -15,14 +15,11 @@ from swagger_config import init_swagger
 
 from routes.auth import register_auth_routes
 from routes.auth.oauth import bp as oauth_bp
-from routes import users, community, portfolio
+from routes import users, portfolio
 from routes import uploads, images
 from routes.settings import settings_bp
-from routes.promo import promo_bp
-from routes.contact import bp as contact_bp
-from routes.demo import bp as demo_bp
 from routes.ai_access import bp as ai_access_bp
-from routes.services import services_bp
+from routes.demo import bp as demo_bp
 from routes.admin.services import admin_services_bp
 from routes.observer_requests import observer_requests_bp
 from routes.organizations import bp as organizations_bp
@@ -30,9 +27,9 @@ from routes.courses import bp as courses_bp
 from routes.public import bp as public_bp
 
 # Import routes
-from routes import tasks, admin_core, evidence_documents, analytics as analytics_routes, webhooks
+from routes import tasks, admin_core, evidence_documents, analytics as analytics_routes
 from routes.quest import register_quest_blueprints  # Refactored quest routes (P2-ARCH-1)
-from routes.admin import user_management, quest_management, student_task_management, sample_task_management, course_quest_management, task_flags, advisor_management, parent_connections, masquerade, crm, course_import, organization_management, observer_audit, ferpa_compliance, bulk_import, user_invitations, curriculum_upload, curriculum_generate, org_connections, course_enrollments, course_refine, transfer_credits, plan_mode, xp_reconciliation, task_feedback
+from routes.admin import user_management, quest_management, student_task_management, sample_task_management, course_quest_management, task_flags, advisor_management, parent_connections, masquerade, course_import, organization_management, observer_audit, ferpa_compliance, bulk_import, user_invitations, curriculum_upload, curriculum_generate, org_connections, course_enrollments, course_refine, transfer_credits, plan_mode, xp_reconciliation, task_feedback
 # badge_management import removed (January 2026 - Microschool client feedback)
 from cors_config import configure_cors
 from middleware.security import security_middleware
@@ -98,16 +95,16 @@ register_auth_routes(app)
 app.register_blueprint(oauth_bp)  # /api/oauth (OAuth 2.0 authorization flow for LMS integrations)
 # subscription_requests.bp removed in Phase 1 refactoring (January 2025)
 app.register_blueprint(users.bp, url_prefix='/api/users')
-app.register_blueprint(community.bp, url_prefix='/api/community')
+# Community (friendships) blueprint removed (March 2026 - Feature pruning)
 app.register_blueprint(portfolio.bp, url_prefix='/api/portfolio')
 app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
 app.register_blueprint(images.bp)  # /api/images (blueprint has url_prefix)
 app.register_blueprint(settings_bp, url_prefix='/api')  # /api/settings
-app.register_blueprint(promo_bp, url_prefix='/api/promo')  # /api/promo
-app.register_blueprint(contact_bp, url_prefix='/api')  # /api/contact (demo requests, sales inquiries)
+# Promo, services routes removed (March 2026 - Feature pruning)
+from routes.contact import bp as contact_bp
+app.register_blueprint(contact_bp, url_prefix='/api')  # /api/contact (contact form submissions)
 app.register_blueprint(demo_bp)  # /api/demo (public demo task generation with AI)
 app.register_blueprint(ai_access_bp)  # /api/ai-access (AI feature access status)
-app.register_blueprint(services_bp)  # /api/services (blueprint has url_prefix in route definitions)
 app.register_blueprint(admin_services_bp)  # /api/admin/services (blueprint has url_prefix in route definitions)
 app.register_blueprint(observer_requests_bp)  # /api/observer-requests (blueprint has url_prefix in route definitions)
 app.register_blueprint(organizations_bp, url_prefix='/api/organizations')  # /api/organizations (public organization endpoints for signup)
@@ -161,9 +158,7 @@ app.register_blueprint(evidence_documents.bp)  # /api/evidence (blueprint has ur
 from routes import helper_evidence
 app.register_blueprint(helper_evidence.bp)  # /api/evidence/helper (blueprint has url_prefix='/api/evidence/helper')
 
-# Register collaboration routes (collaborative quests and evidence sharing)
-from routes.collaborations import collaborations_bp
-app.register_blueprint(collaborations_bp, url_prefix='/api/collaborations')  # /api/collaborations
+# Collaboration routes removed (March 2026 - Feature pruning)
 
 # Register teacher verification routes (diploma subject verification workflow)
 from routes.teacher_verification import bp as teacher_verification_bp
@@ -190,7 +185,7 @@ app.register_blueprint(task_flags.bp)  # /api/admin (blueprint has url_prefix='/
 app.register_blueprint(advisor_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(parent_connections.bp)  # /api/admin/parent-connections (blueprint has url_prefix='/api/admin/parent-connections')
 app.register_blueprint(masquerade.masquerade_bp)  # /api/admin/masquerade (blueprint has url_prefix='/api/admin/masquerade')
-app.register_blueprint(crm.crm_bp)  # /api/admin/crm (CRM system for email campaigns and automation)
+# CRM blueprint removed (March 2026 - Feature pruning)
 app.register_blueprint(course_import.bp)  # /api/admin/courses (Course import from IMSCC files)
 app.register_blueprint(curriculum_upload.bp)  # /api/admin/curriculum (AI-powered curriculum upload and transformation)
 app.register_blueprint(curriculum_generate.bp)  # /api/admin/curriculum/generate (Multi-stage AI course generation wizard)
@@ -216,7 +211,7 @@ app.register_blueprint(ferpa_compliance.bp)  # /api/admin/ferpa (FERPA disclosur
 app.register_blueprint(transfer_credits.bp)  # /api/admin/transfer-credits (Import external transcript credits toward diploma)
 app.register_blueprint(xp_reconciliation.bp)  # /api/admin/xp (XP audit and reconciliation tools)
 app.register_blueprint(task_feedback.bp)  # /api/admin/drafts (Iterative draft feedback for diploma credits)
-app.register_blueprint(webhooks.webhooks_bp, url_prefix='/api/webhooks')  # /api/webhooks (Webhook subscriptions for LMS integrations)
+# Webhooks blueprint removed (March 2026 - LTI/Canvas feature pruning)
 # Register quest types routes (sample tasks, course tasks)
 try:
     from routes import quest_types
@@ -253,14 +248,7 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Error registering Task Library routes: {e}", exc_info=True)
 
-# Register LMS Integration blueprint
-try:
-    from routes import lms_integration
-    app.register_blueprint(lms_integration.bp)  # /lti/* and /api/lms/*
-except ImportError as e:
-    logger.warning(f"Warning: LMS Integration module not available: {e}")
-except Exception as e:
-    logger.error(f"Error registering LMS Integration routes: {e}", exc_info=True)
+# LMS Integration (Canvas/LTI 1.3) removed (March 2026 - Feature pruning)
 
 # Register Spark LMS Integration blueprint (January 2025)
 try:
@@ -452,14 +440,14 @@ except Exception as e:
 
 # Batch Badge Generation removed (January 2026 - Microschool client feedback)
 
-# Register Calendar blueprint
-try:
-    from routes.calendar import calendar_bp
-    app.register_blueprint(calendar_bp)  # /api/calendar
-except ImportError as e:
-    logger.warning(f"Warning: Calendar module not available: {e}")
-except Exception as e:
-    logger.error(f"Error registering Calendar routes: {e}", exc_info=True)
+# Calendar blueprint commented out (March 2026 - Feature pruning, keep code for future re-enabling)
+# try:
+#     from routes.calendar import calendar_bp
+#     app.register_blueprint(calendar_bp)  # /api/calendar
+# except ImportError as e:
+#     logger.warning(f"Warning: Calendar module not available: {e}")
+# except Exception as e:
+#     logger.error(f"Error registering Calendar routes: {e}", exc_info=True)
 
 # Register Learning Events blueprint
 try:

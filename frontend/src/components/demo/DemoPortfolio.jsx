@@ -1,5 +1,4 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { useDemo } from '../../contexts/DemoContext';
 import {
   AcademicCapIcon,
@@ -101,7 +100,7 @@ const PortfolioCard = ({ totalXP, creditsEarned, topSubjects, evidenceType }) =>
   );
 };
 
-const DemoPortfolio = () => {
+const DemoPortfolio = ({ onGetMoreInfo }) => {
   const { demoState, actions } = useDemo();
   const { totalXPEarned, submittedEvidence, selectedQuest } = demoState;
 
@@ -137,13 +136,13 @@ const DemoPortfolio = () => {
 
       {/* CTA */}
       <div className="text-center pt-4">
-        <Link
-          to="/contact?type=demo"
+        <button
+          onClick={onGetMoreInfo}
           className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-primary text-white rounded-lg font-bold text-lg hover:shadow-xl transform hover:scale-105 transition-all min-h-[56px] touch-manipulation"
         >
           <span>Get More Info</span>
           <ArrowRightIcon className="w-5 h-5" />
-        </Link>
+        </button>
       </div>
 
       {/* Restart option */}

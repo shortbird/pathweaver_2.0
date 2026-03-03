@@ -33,10 +33,8 @@ from repositories.base_repository import (
 from repositories.user_repository import UserRepository
 from repositories.quest_repository import QuestRepository, QuestTaskRepository
 from repositories.evidence_repository import EvidenceRepository
-from repositories.friendship_repository import FriendshipRepository
 from repositories.parent_repository import ParentRepository
 from repositories.tutor_repository import TutorRepository
-from repositories.lms_repository import LMSRepository
 from repositories.analytics_repository import AnalyticsRepository
 from repositories.task_repository import TaskRepository, TaskCompletionRepository
 from repositories.evidence_document_repository import EvidenceDocumentRepository
@@ -59,10 +57,8 @@ __all__ = [
     'QuestRepository',
     'QuestTaskRepository',
     'EvidenceRepository',
-    'FriendshipRepository',
     'ParentRepository',
     'TutorRepository',
-    'LMSRepository',
     'AnalyticsRepository',
     'TaskRepository',
     'TaskCompletionRepository',

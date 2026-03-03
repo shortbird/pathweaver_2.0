@@ -319,9 +319,7 @@ class ActivityTracker:
 
             supabase.table('user_activity_events').insert(insert_data).execute()
 
-            # Process automation triggers (only for authenticated users)
-            if user_id and event_type:
-                self._process_automation_triggers(event_type, user_id, event_data)
+            # CRM automation triggers removed (March 2026 - Feature pruning)
 
         except Exception as e:
             # Never crash the main request if logging fails
@@ -353,53 +351,7 @@ class ActivityTracker:
         else:
             return 'other'
 
-    def _process_automation_triggers(
-        self,
-        event_type: str,
-        user_id: str,
-        event_data: Dict[str, Any]
-    ):
-        """
-        Process campaign automation triggers.
-
-        SAFETY: Only processes ACTIVE campaigns and sequences.
-        Runs in background thread, never crashes main request.
-
-        Args:
-            event_type: Type of event that occurred
-            user_id: UUID of user who triggered event
-            event_data: Additional event metadata
-        """
-        try:
-            # Only process triggers if we're in a request context
-            from flask import has_request_context
-            if not has_request_context():
-                logger.debug(f"Skipping automation trigger for '{event_type}' - no request context")
-                return
-
-            # Lazy import to avoid circular dependency
-            from services.campaign_automation_service import CampaignAutomationService
-
-            # Use lazy initialization - service created within request context
-            def get_automation_service():
-                return CampaignAutomationService()
-
-            automation_service = get_automation_service()
-
-            # Process trigger (service handles all safety checks)
-            automation_service.process_event_trigger(
-                event_type=event_type,
-                user_id=user_id,
-                metadata=event_data
-            )
-
-        except Exception as e:
-            # Never crash main request if automation fails
-            # Log error for debugging but continue silently
-            logger.error(
-                f"Campaign automation trigger error for event '{event_type}': {str(e)}",
-                exc_info=True
-            )
+    # _process_automation_triggers removed (March 2026 - CRM feature pruning)
 
 
 # Export singleton instance

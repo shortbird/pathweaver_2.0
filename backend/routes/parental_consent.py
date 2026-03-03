@@ -22,10 +22,8 @@ from repositories import (
     UserRepository,
     QuestRepository,
     EvidenceRepository,
-    FriendshipRepository,
     ParentRepository,
     TutorRepository,
-    LMSRepository,
     AnalyticsRepository
 )
 from middleware.error_handler import ValidationError, NotFoundError

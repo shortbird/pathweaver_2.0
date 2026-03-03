@@ -74,21 +74,8 @@ class DirectMessageService(BaseService):
                 print(f"[can_message_user] ALLOWED: Advisor-student assignment exists", file=sys.stderr, flush=True)
                 return True
 
-            # Check if they are friends (accepted status) - check both directions
-            friendship1 = supabase.table('friendships').select('status').eq(
-                'requester_id', user_id
-            ).eq('addressee_id', target_id).execute()
-
-            friendship2 = supabase.table('friendships').select('status').eq(
-                'requester_id', target_id
-            ).eq('addressee_id', user_id).execute()
-
-            print(f"[can_message_user] Friendship check: f1={friendship1.data}, f2={friendship2.data}", file=sys.stderr, flush=True)
-
-            if (friendship1.data and len(friendship1.data) > 0 and friendship1.data[0]['status'] == 'accepted') or \
-               (friendship2.data and len(friendship2.data) > 0 and friendship2.data[0]['status'] == 'accepted'):
-                print(f"[can_message_user] ALLOWED: Accepted friendship", file=sys.stderr, flush=True)
-                return True
+            # Friendship check removed (March 2026 - Feature pruning)
+            # Students can no longer DM each other directly
 
             # Check if they have a parent-student link (bidirectional)
             parent_link1 = supabase.table('parent_student_links').select('id').eq(

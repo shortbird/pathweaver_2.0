@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline'
 import LandingPageHero from '../components/landing/LandingPageHero'
 import { useHomepageImages, getImageUrl } from '../hooks/useHomepageImages'
+import ContactInfoModal from '../components/ContactInfoModal'
 import {
   OrganizationFeaturesSection,
   PlatformCapabilitiesSection,
@@ -23,6 +24,14 @@ const HomePage = () => {
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
   const { images, loading: imagesLoading } = useHomepageImages()
   const [openFaq, setOpenFaq] = useState(null)
+  const [contactModalOpen, setContactModalOpen] = useState(false)
+  const [contactModalType, setContactModalType] = useState('demo')
+
+  const openContactModal = useCallback((type = 'demo') => {
+    setContactModalType(type)
+    setContactModalOpen(true)
+  }, [])
+
 
   // Intersection Observer for scroll animations
   const [visibleSections, setVisibleSections] = useState(new Set())
@@ -46,14 +55,6 @@ const HomePage = () => {
 
     return () => observer.disconnect()
   }, [])
-
-  const goToDemo = () => {
-    navigate('/demo')
-  }
-
-  const goToDemoRequest = () => {
-    navigate('/contact?type=demo')
-  }
 
   // Redirect authenticated users to their appropriate dashboard
   useEffect(() => {
@@ -132,7 +133,7 @@ const HomePage = () => {
           gradientTitle="Official Credentials."
           staticSubtitle="Where self-directed learning meets accredited diplomas."
           ctaText="GET MORE INFO"
-          onCtaClick={goToDemoRequest}
+          onCtaClick={() => openContactModal('demo')}
           backgroundImage="https://auth.optioeducation.com/storage/v1/object/public/site-assets/homepage/hero_real.jpg"
           mobileBackgroundImage="https://auth.optioeducation.com/storage/v1/object/public/site-assets/homepage/hero_real.jpg"
           backgroundPosition="calc(100% + 300px)"
@@ -140,7 +141,7 @@ const HomePage = () => {
           textAlign="left"
           secondaryCta={{
             text: "SEE HOW IT WORKS",
-            onClick: goToDemo
+            onClick: () => navigate('/demo')
           }}
         />
       )}
@@ -273,7 +274,7 @@ const HomePage = () => {
         ref={(el) => (sectionRefs.current.orgFeatures = el)}
         data-section="orgFeatures"
       >
-        <OrganizationFeaturesSection isVisible={isVisible('orgFeatures')} />
+        <OrganizationFeaturesSection isVisible={isVisible('orgFeatures')} onGetMoreInfo={() => openContactModal('demo')} />
       </div>
 
       {/* Platform Capabilities */}
@@ -340,7 +341,7 @@ const HomePage = () => {
         ref={(el) => (sectionRefs.current.pricing = el)}
         data-section="pricing"
       >
-        <PricingOverviewSection isVisible={isVisible('pricing')} />
+        <PricingOverviewSection isVisible={isVisible('pricing')} onContactSales={() => openContactModal('sales')} />
       </div>
 
       {/* Section 10: FAQ */}
@@ -410,14 +411,14 @@ const HomePage = () => {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link
-              to="/contact?type=demo"
+            <button
+              onClick={() => openContactModal('demo')}
               className="inline-flex items-center justify-center bg-white text-optio-pink hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all min-h-[44px] w-full sm:w-auto"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
               Get More Info
               <ArrowRightIcon className="ml-2 w-5 h-5" />
-            </Link>
+            </button>
             <Link
               to="/register"
               className="inline-flex items-center justify-center bg-transparent border-2 border-white text-white hover:bg-white/10 px-8 py-4 rounded-lg font-bold text-lg transition-all min-h-[44px] w-full sm:w-auto"
@@ -442,6 +443,13 @@ const HomePage = () => {
           </p>
         </div>
       </div>
+
+      {/* Contact Info Modal */}
+      <ContactInfoModal
+        isOpen={contactModalOpen}
+        onClose={() => setContactModalOpen(false)}
+        contactType={contactModalType}
+      />
 
       {/* Philosophy Details Modal */}
       {philosophyModalOpen && (

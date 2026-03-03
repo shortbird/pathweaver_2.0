@@ -1,15 +1,21 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
 import DemoHero from './DemoHero';
 import DemoQuestGrid from './DemoQuestGrid';
 import DemoPersonalization from './DemoPersonalization';
 import DemoEvidence from './DemoEvidence';
 import DemoPortfolio from './DemoPortfolio';
+import ContactInfoModal from '../ContactInfoModal';
 import { ArrowPathIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 const DemoFeature = () => {
   const { demoState, actions } = useDemo();
   const { currentStep } = demoState;
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+
+  const handleGetMoreInfo = useCallback(() => {
+    setContactModalOpen(true);
+  }, []);
 
   useEffect(() => {
     // Scroll to top when step changes
@@ -27,7 +33,7 @@ const DemoFeature = () => {
       case 3:
         return <DemoEvidence />;
       case 4:
-        return <DemoPortfolio />;
+        return <DemoPortfolio onGetMoreInfo={handleGetMoreInfo} />;
       default:
         return <DemoHero />;
     }
@@ -128,6 +134,12 @@ const DemoFeature = () => {
           )}
         </div>
       </div>
+
+      <ContactInfoModal
+        isOpen={contactModalOpen}
+        onClose={() => setContactModalOpen(false)}
+        contactType="demo"
+      />
     </div>
   );
 };

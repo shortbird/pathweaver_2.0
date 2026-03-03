@@ -294,29 +294,8 @@ api.interceptors.response.use(
   }
 )
 
-// Friend management API methods
-export const friendsAPI = {
-  // Get all friends data including sent/received requests
-  getFriends: () => api.get('/api/community/friends'),
-
-  // Get friends' recent activity for activity feed
-  getFriendsActivity: () => api.get('/api/community/friends/activity'),
-
-  // Send friend request by email
-  sendFriendRequest: (email) => api.post('/api/community/friends/request', { email }),
-
-  // Accept incoming friend request
-  acceptFriendRequest: (friendshipId) => api.post(`/api/community/friends/accept/${friendshipId}`, {}),
-
-  // Decline incoming friend request
-  declineFriendRequest: (friendshipId) => api.delete(`/api/community/friends/decline/${friendshipId}`),
-
-  // Cancel sent friend request
-  cancelFriendRequest: (friendshipId) => api.delete(`/api/community/friends/cancel/${friendshipId}`)
-}
-
+// friendsAPI removed (March 2026 - Feature pruning)
 // Collaboration API removed in Phase 3 refactoring (January 2025)
-// Team-up feature has been removed from the platform
 
 // Observer API methods (extended family portfolio access)
 export const observerAPI = {

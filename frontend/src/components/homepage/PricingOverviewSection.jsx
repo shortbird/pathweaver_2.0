@@ -1,17 +1,11 @@
-import React, { forwardRef, useState } from 'react'
+import React, { forwardRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CheckCircleIcon,
   XCircleIcon,
-  ArrowRightIcon,
 } from '@heroicons/react/24/outline'
-import api from '../../services/api'
 
-const PricingOverviewSection = forwardRef(({ isVisible = true }, ref) => {
-  const [promoFormData, setPromoFormData] = useState({ name: '', email: '' })
-  const [promoLoading, setPromoLoading] = useState(false)
-  const [promoSuccess, setPromoSuccess] = useState(false)
-  const [promoError, setPromoError] = useState('')
+const PricingOverviewSection = forwardRef(({ isVisible = true, onContactSales }, ref) => {
   const freeTierFeatures = [
     'Single student',
     'Unlimited quests',
@@ -44,23 +38,6 @@ const PricingOverviewSection = forwardRef(({ isVisible = true }, ref) => {
     'Dedicated support',
   ]
 
-  const handlePromoSubmit = async (e) => {
-    e.preventDefault()
-    setPromoError('')
-    setPromoLoading(true)
-
-    try {
-      await api.post('/api/promo/first-month-free', {
-        email: promoFormData.email,
-        name: promoFormData.name
-      })
-      setPromoSuccess(true)
-    } catch (err) {
-      setPromoError(err.response?.data?.error || 'Something went wrong. Please try again.')
-    } finally {
-      setPromoLoading(false)
-    }
-  }
 
   return (
     <section
@@ -178,62 +155,13 @@ const PricingOverviewSection = forwardRef(({ isVisible = true }, ref) => {
                 </li>
               ))}
             </ul>
-            {/* First Month Free Email Capture Form */}
-            <div className="mt-8">
-              {promoSuccess ? (
-                <div className="flex items-center justify-center gap-2 text-green-600 bg-green-50 rounded-lg p-4">
-                  <CheckCircleIcon className="w-6 h-6" />
-                  <span style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
-                    Check your email for your code!
-                  </span>
-                </div>
-              ) : (
-                <form onSubmit={handlePromoSubmit} className="space-y-3">
-                  <input
-                    type="text"
-                    placeholder="Your name (optional)"
-                    value={promoFormData.name}
-                    onChange={(e) => setPromoFormData({ ...promoFormData, name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent transition-all"
-                    style={{ fontFamily: 'Poppins' }}
-                    disabled={promoLoading}
-                  />
-                  <input
-                    type="email"
-                    placeholder="Email address"
-                    value={promoFormData.email}
-                    onChange={(e) => setPromoFormData({ ...promoFormData, email: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent transition-all"
-                    style={{ fontFamily: 'Poppins' }}
-                    required
-                    disabled={promoLoading}
-                  />
-                  {promoError && (
-                    <p className="text-sm text-red-600" style={{ fontFamily: 'Poppins' }}>
-                      {promoError}
-                    </p>
-                  )}
-                  <button
-                    type="submit"
-                    disabled={promoLoading}
-                    className="w-full bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all min-h-[44px] disabled:opacity-60"
-                    style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-                  >
-                    {promoLoading ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        Sending...
-                      </span>
-                    ) : (
-                      'Get First Month Free'
-                    )}
-                  </button>
-                </form>
-              )}
-            </div>
+            <button
+              onClick={onContactSales}
+              className="w-full bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all min-h-[44px] mt-8"
+              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+            >
+              Get Started
+            </button>
           </div>
 
           {/* Organizations */}
@@ -270,13 +198,13 @@ const PricingOverviewSection = forwardRef(({ isVisible = true }, ref) => {
                 </li>
               ))}
             </ul>
-            <Link
-              to="/contact?type=sales"
+            <button
+              onClick={onContactSales}
               className="block w-full text-center bg-white border-2 border-gray-300 text-gray-700 hover:border-optio-purple hover:text-optio-purple px-6 py-3 rounded-lg font-semibold transition-all min-h-[44px] mt-8"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
               Contact Sales
-            </Link>
+            </button>
           </div>
         </div>
 

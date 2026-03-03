@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowRightIcon } from '@heroicons/react/24/outline'
 import AccreditationModal from './AccreditationModal'
 
-const OrganizationFeaturesSection = forwardRef(({ isVisible = true }, ref) => {
+const OrganizationFeaturesSection = forwardRef(({ isVisible = true, onGetMoreInfo }, ref) => {
   const [accreditationModalOpen, setAccreditationModalOpen] = useState(false)
   // Pexels search terms for images:
   // - "microschool classroom students" or "small group learning"
@@ -105,14 +105,14 @@ const OrganizationFeaturesSection = forwardRef(({ isVisible = true }, ref) => {
 
         {/* CTA */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-          <Link
-            to="/contact?type=demo"
+          <button
+            onClick={onGetMoreInfo}
             className="inline-flex items-center justify-center bg-gradient-primary text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all min-h-[44px] w-full sm:w-auto"
             style={{ fontFamily: 'Poppins', fontWeight: 700 }}
           >
             Get More Info
             <ArrowRightIcon className="ml-2 w-5 h-5" />
-          </Link>
+          </button>
           <Link
             to="/demo"
             className="inline-flex items-center justify-center bg-white border-2 border-optio-purple text-optio-purple hover:bg-optio-purple hover:text-white px-8 py-4 rounded-lg font-bold transition-all min-h-[44px] w-full sm:w-auto"

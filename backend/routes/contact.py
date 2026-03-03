@@ -23,6 +23,7 @@ def submit_contact():
     Request body:
     - name: string (required)
     - email: string (required)
+    - phone: string (optional)
     - organization: string (optional)
     - message: string (optional)
     - type: string (optional, defaults to 'general') - 'demo', 'sales', or 'general'
@@ -49,6 +50,7 @@ def submit_contact():
             return jsonify({'error': 'Invalid email address'}), 400
 
         # Optional fields
+        phone = data.get('phone', '').strip()
         organization = data.get('organization', '').strip()
         message = data.get('message', '').strip()
         contact_type = data.get('type', 'general').strip()
@@ -70,6 +72,10 @@ def submit_contact():
             'created_at': datetime.utcnow().isoformat(),
             'status': 'new'
         }
+
+        # Include phone if provided
+        if phone:
+            submission_data['phone'] = phone
 
         result = supabase.table('contact_submissions').insert(submission_data).execute()
 

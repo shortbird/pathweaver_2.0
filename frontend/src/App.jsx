@@ -39,14 +39,8 @@ const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'))
-const PromoLandingPage = lazy(() => import('./pages/PromoLandingPage'))
-const ConsultationPage = lazy(() => import('./pages/ConsultationPage'))
-const CreditTrackerLandingPage = lazy(() => import('./pages/CreditTrackerLandingPage'))
-const HomeschoolPortfolioPage = lazy(() => import('./pages/HomeschoolPortfolioPage'))
-const TeacherConsultationPage = lazy(() => import('./pages/TeacherConsultationPage'))
-const ServicesPage = lazy(() => import('./pages/ServicesPage'))
-const ContactPage = lazy(() => import('./pages/ContactPage'))
 const DemoPage = lazy(() => import('./pages/DemoPage'))
+// Promo/marketing page imports removed (March 2026 - Feature pruning)
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const LearningJournalPage = lazy(() => import('./pages/LearningJournalPage'))
@@ -69,7 +63,7 @@ const DiplomaPage = lazy(() => import('./pages/DiplomaPage'))
 const StudentOverviewPage = lazy(() => import('./pages/StudentOverviewPage'))
 // ProfilePage removed - redirects to StudentOverviewPage (January 2026)
 // FriendsPage removed - redirects to ConnectionsPage (January 2025)
-const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage'))
+// ConnectionsPage removed (March 2026 - Feature pruning)
 const CommunicationPage = lazy(() => import('./pages/CommunicationPage'))
 const CalendarPage = lazy(() => import('./pages/CalendarPage'))
 // Admin & Special Pages
@@ -81,7 +75,7 @@ const AdvisorClassesPage = lazy(() => import('./pages/AdvisorClassesPage'))
 // AdvisorBadgeForm removed (January 2026 - Microschool client feedback)
 const AdvisorCheckinPage = lazy(() => import('./pages/AdvisorCheckinPage'))
 const TeacherVerificationPage = lazy(() => import('./pages/TeacherVerificationPage'))
-const CollaborationsPage = lazy(() => import('./pages/advisor/CollaborationsPage'))
+// CollaborationsPage removed (March 2026 - Feature pruning)
 const ParentDashboardPage = lazy(() => import('./pages/ParentDashboardPage'))
 const ParentQuestView = lazy(() => import('./pages/ParentQuestView'))
 // Observer Pages (January 2025)
@@ -379,13 +373,7 @@ function App() {
 
               <Route path="/" element={<Layout />}>
                 <Route index element={<HomePage />} />
-                <Route path="promo" element={<PromoLandingPage />} />
-                <Route path="promo/credit-tracker" element={<CreditTrackerLandingPage />} />
-                <Route path="promo/homeschool-portfolio" element={<HomeschoolPortfolioPage />} />
-                <Route path="promo/teacher-consultation" element={<TeacherConsultationPage />} />
-                <Route path="consultation" element={<ConsultationPage />} />
-                <Route path="services" element={<ServicesPage />} />
-                <Route path="contact" element={<ContactPage />} />
+                {/* Promo/marketing routes removed (March 2026 - Feature pruning) */}
                 <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />
                 <Route path="login" element={<LoginPage />} />
                 <Route path="login/:slug" element={<OrgLoginPage />} />
@@ -425,10 +413,11 @@ function App() {
                 <Route path="overview" element={<StudentOverviewPage />} />
                 {/* Legacy routes - redirect to overview with hash anchors */}
                 <Route path="profile" element={<Navigate to="/overview" replace />} />
-                <Route path="friends" element={<Navigate to="/connections" replace />} />
-                <Route path="connections" element={<ConnectionsPage />} />
+                {/* Connections/friends routes removed (March 2026 - Feature pruning) */}
+                <Route path="friends" element={<Navigate to="/dashboard" replace />} />
+                <Route path="connections" element={<Navigate to="/dashboard" replace />} />
                 <Route path="communication" element={<CommunicationPage />} />
-                <Route path="calendar" element={<CalendarPage />} />
+                {/* <Route path="calendar" element={<CalendarPage />} /> */}{/* Calendar route commented out (March 2026 - Feature pruning) */}
                 {/* LMS Features */}
                 <Route path="invitations" element={<MyInvitations />} />
                 <Route path="notifications" element={<NotificationsPage />} />
@@ -465,7 +454,7 @@ function App() {
                 <Route path="classes" element={<AdvisorClassesPage />} />
                 <Route path="classes/:classId" element={<AdvisorClassesPage />} />
                 <Route path="advisor/verification" element={<TeacherVerificationPage />} />
-                <Route path="advisor/collaborations" element={<CollaborationsPage />} />
+                {/* advisor/collaborations route removed (March 2026 - Feature pruning) */}
                 {/* Advisor badge routes removed (January 2026 - Microschool client feedback) */}
                 {/* LMS Features - Advisor */}
                 <Route path="advisor/invitations" element={<QuestInvitations />} />

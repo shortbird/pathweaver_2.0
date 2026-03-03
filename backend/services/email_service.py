@@ -215,14 +215,16 @@ class EmailService(BaseService):
             True if email sent successfully, False otherwise
         """
         try:
-            # Use template service to get template (handles database overrides + YAML fallback)
-            from services.email_template_service import EmailTemplateService
-            template_service = EmailTemplateService()
+            # Load template from YAML
+            template_data = self.copy_loader.get_email_copy(template_name)
+            if not template_data:
+                raise ValueError(f"Template '{template_name}' not found in email_copy.yaml")
 
-            # Get template
-            template = template_service.get_template(template_name)
-            if not template:
-                raise ValueError(f"Template '{template_name}' not found")
+            template = {
+                'key': template_name,
+                'subject': template_data.get('subject', ''),
+                'data': template_data,
+            }
 
             # Render template with context
             rendered = self._render_email_template(template, subject, context)
