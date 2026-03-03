@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React from 'react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import LessonEditor from '../LessonEditor'
 
@@ -13,16 +13,6 @@ const LessonEditorModal = ({
   onSave,
   onClose
 }) => {
-  const editorRef = useRef(null)
-
-  const handleClose = () => {
-    // Fire autosave in background and close immediately
-    if (editorRef.current?.save) {
-      editorRef.current.save()
-    }
-    onClose()
-  }
-
   if (!isOpen) return null
 
   return (
@@ -34,7 +24,7 @@ const LessonEditorModal = ({
             {lesson ? 'Edit Lesson' : 'New Lesson'}
           </h2>
           <button
-            onClick={handleClose}
+            onClick={onClose}
             className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
           >
             <XMarkIcon className="w-5 h-5" />
@@ -44,11 +34,10 @@ const LessonEditorModal = ({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
           <LessonEditor
-            ref={editorRef}
             questId={questId}
             lesson={lesson}
             onSave={onSave}
-            onCancel={handleClose}
+            onCancel={onClose}
           />
         </div>
       </div>

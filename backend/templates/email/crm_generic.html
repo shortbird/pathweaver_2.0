@@ -1,0 +1,84 @@
+{% extends "email/base.html" %}
+
+{% block title %}{{ email_subject|default('Optio Education') }}{% endblock %}
+
+{% block content %}
+    <!-- Greeting -->
+    {% if greeting %}
+    <p class="greeting">{{ greeting }}</p>
+    {% endif %}
+
+    <!-- Main body content (opening paragraphs) -->
+    {% if body_html %}
+    <div class="email-body">
+        {{ body_html|safe }}
+    </div>
+    {% else %}
+    <!-- Fallback: render paragraphs if body_html not provided -->
+    {% if paragraphs %}
+        {% for paragraph in paragraphs %}
+        <p class="text">{{ paragraph }}</p>
+        {% endfor %}
+    {% endif %}
+    {% endif %}
+
+    <!-- Highlight box (placed after opening paragraphs, before closing) -->
+    {% if highlight %}
+    <div class="highlight-box">
+        {% if highlight.title %}
+        <h3>{{ highlight.title }}</h3>
+        {% endif %}
+        {% if highlight.content %}
+        <p>{{ highlight.content }}</p>
+        {% endif %}
+        {% if highlight.bullet_points %}
+        <ul style="margin: 14px 0 0 0; padding-left: 20px;">
+            {% for bullet in highlight.bullet_points %}
+            <li class="list-item">{{ bullet|safe }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Closing paragraphs (after highlight box) -->
+    {% if closing_html %}
+    <div class="email-body">
+        {{ closing_html|safe }}
+    </div>
+    {% endif %}
+
+    <!-- Call-to-action button -->
+    {% if cta %}
+    <div class="cta-container">
+        <a href="{{ cta.url }}" class="cta-button">{{ cta.text }}</a>
+    </div>
+    {% endif %}
+
+    <!-- Link fallback (for email clients that block buttons) -->
+    {% if cta and cta.url %}
+    <p class="link-fallback-text">If the button above doesn't work, copy and paste this link into your browser:</p>
+    <p class="link-fallback-url">{{ cta.url }}</p>
+    {% endif %}
+{% endblock %}
+
+{% block signature %}
+    <!-- Signature -->
+    {% if signature %}
+    <p class="text" style="margin-top: 32px;">
+        {{ signature.line1|default('Best regards,') }}<br>
+        {{ signature.line2|default('The Optio Team') }}
+    </p>
+    {% else %}
+    <p class="text" style="margin-top: 32px;">
+        Best regards,<br>
+        The Optio Team
+    </p>
+    {% endif %}
+{% endblock %}
+
+{% block footer_extra %}
+    {% if unsubscribe_url %}
+    <a href="{{ unsubscribe_url }}">Unsubscribe from marketing emails</a><br>
+    {% endif %}
+{% endblock %}

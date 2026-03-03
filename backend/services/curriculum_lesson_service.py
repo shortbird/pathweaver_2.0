@@ -94,6 +94,12 @@ def validate_content_blocks(content: Any) -> Dict[str, Any]:
 
                     validated_steps.append(validated_step)
 
+            # Deduplicate by step ID - keep last occurrence of each ID
+            seen_ids = {}
+            for i, step in enumerate(validated_steps):
+                seen_ids[step["id"]] = i
+            validated_steps = [validated_steps[i] for i in sorted(seen_ids.values())]
+
             logger.info(f"[VALIDATE_CONTENT] Version 2 format with {len(validated_steps)} steps")
             return {"version": 2, "steps": validated_steps}
         return {"version": 2, "steps": []}
