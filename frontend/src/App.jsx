@@ -5,7 +5,7 @@ import { Toaster } from 'react-hot-toast'
 import { HelmetProvider } from 'react-helmet-async'
 import { AuthProvider } from './contexts/AuthContext'
 import { AIAccessProvider } from './contexts/AIAccessContext'
-// DemoProvider removed (March 2026 - Feature pruning)
+import { DemoProvider } from './contexts/DemoContext'
 import { OrganizationProvider } from './contexts/OrganizationContext'
 import { ActingAsProvider, useActingAs } from './contexts/ActingAsContext'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -39,6 +39,7 @@ const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'))
+const DemoPage = lazy(() => import('./pages/DemoPage'))
 // Promo/marketing page imports removed (March 2026 - Feature pruning)
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -373,6 +374,7 @@ function App() {
               <Route path="/" element={<Layout />}>
                 <Route index element={<HomePage />} />
                 {/* Promo/marketing routes removed (March 2026 - Feature pruning) */}
+                <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />
                 <Route path="login" element={<LoginPage />} />
                 <Route path="login/:slug" element={<OrgLoginPage />} />
                 <Route path="register" element={<RegisterPage />} />
