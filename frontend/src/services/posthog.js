@@ -18,7 +18,7 @@ export const initPostHog = () => {
     session_recording: {
       maskAllInputs: true,
     },
-    // Disable autocapture -- already have ActivityTracker + GA4
+    // Disable autocapture -- we track specific business events manually
     autocapture: false,
     // Enable pageview capture for session replay timeline
     capture_pageview: true,
@@ -56,6 +56,15 @@ export const resetUser = () => {
   if (!POSTHOG_KEY) return
 
   posthog.reset()
+}
+
+/**
+ * Capture a custom business event in PostHog.
+ * COPPA: Only pass IDs and predefined enums as properties -- no free-text.
+ */
+export const captureEvent = (eventName, properties = {}) => {
+  if (!POSTHOG_KEY) return
+  posthog.capture(eventName, properties)
 }
 
 /**

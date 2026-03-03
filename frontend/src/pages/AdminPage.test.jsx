@@ -19,17 +19,8 @@ vi.mock('../components/admin/AdminUsers', () => ({
 vi.mock('../components/admin/AdminConnections', () => ({
   default: () => <div data-testid="admin-connections">Admin Connections</div>
 }))
-vi.mock('../components/admin/AdminDashboard', () => ({
-  default: () => <div data-testid="admin-dashboard">Admin Dashboard</div>
-}))
 vi.mock('../components/admin/FlaggedTasksPanel', () => ({
   default: () => <div data-testid="flagged-tasks">Flagged Tasks</div>
-}))
-vi.mock('./admin/UserActivityLogPage', () => ({
-  default: () => <div>Activity Log</div>
-}))
-vi.mock('../components/admin/SparkLogsPanel', () => ({
-  default: () => <div data-testid="spark-logs">Spark Logs</div>
 }))
 vi.mock('../components/admin/AutomatedEmailsList', () => ({
   default: () => <div>Emails</div>
@@ -99,7 +90,6 @@ describe('AdminPage', () => {
       renderAdmin()
       await waitFor(() => {
         // Tabs appear in both mobile select and desktop links
-        expect(screen.getAllByText('Analytics').length).toBeGreaterThanOrEqual(1)
         expect(screen.getAllByText('Users').length).toBeGreaterThanOrEqual(1)
         expect(screen.getAllByText('Connections').length).toBeGreaterThanOrEqual(1)
       })
@@ -187,7 +177,6 @@ describe('AdminPage', () => {
     it('does not show admin-only tabs for advisors', async () => {
       renderAdmin()
       await waitFor(() => {
-        expect(screen.queryByText('Analytics')).not.toBeInTheDocument()
         expect(screen.queryByText('Organizations')).not.toBeInTheDocument()
       })
     })
@@ -202,12 +191,5 @@ describe('AdminPage', () => {
       })
     })
 
-    it('renders analytics on /admin/analytics', async () => {
-      authState = { user: { id: 'admin-1', role: 'superadmin' } }
-      renderAdmin('/admin/analytics')
-      await waitFor(() => {
-        expect(screen.getByTestId('admin-dashboard')).toBeInTheDocument()
-      })
-    })
   })
 })

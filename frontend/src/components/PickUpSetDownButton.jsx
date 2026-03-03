@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { captureEvent } from '../services/posthog';
 
 /**
  * PickUpSetDownButton
@@ -29,6 +30,10 @@ const PickUpSetDownButton = ({
     try {
       const response = await api.post(`/quests/${questId}/pickup`, {});
 
+      captureEvent('quest_picked_up', {
+        quest_id: questId,
+      })
+
       if (onPickUp) {
         onPickUp(response.data);
       }
@@ -44,6 +49,10 @@ const PickUpSetDownButton = ({
   };
 
   const handleSetDown = () => {
+    captureEvent('quest_set_down', {
+      quest_id: questId,
+    })
+
     // Open reflection modal (handled by parent component)
     if (onSetDown) {
       onSetDown();

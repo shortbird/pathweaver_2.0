@@ -8,7 +8,7 @@ import { queryKeys } from '../utils/queryKeys'
 import { isSafari, isIOS, shouldUseAuthHeaders, setAuthMethodPreference, testCookieSupport, logBrowserInfo } from '../utils/browserDetection'
 import { clearMasqueradeData } from '../services/masqueradeService'
 import logger from '../utils/logger'
-import { identifyUser, resetUser } from '../services/posthog'
+import { identifyUser, resetUser, captureEvent } from '../services/posthog'
 
 const AuthContext = createContext()
 
@@ -348,6 +348,13 @@ export const AuthProvider = ({ children }) => {
         // Update React Query cache with fresh user data
         queryClient.setQueryData(queryKeys.user.profile('current'), user)
         identifyUser(user)
+
+        // Track registration in PostHog
+        captureEvent('registration_completed', {
+          method: userData.provider || 'email',
+          role: user.role,
+          has_organization: !!user.organization_id,
+        })
 
         // Notify other tabs about the session change
         try {

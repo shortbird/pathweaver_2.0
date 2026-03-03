@@ -36,7 +36,8 @@ def list_public_courses():
         result = client.table('courses').select(
             'id, title, description, slug, cover_image_url, '
             'learning_outcomes, educational_value, '
-            'parent_guidance, created_at'
+            'parent_guidance, final_deliverable, target_audience, '
+            'progress_model, created_at'
         ).eq('visibility', 'public').eq('status', 'published').order(
             'created_at', desc=True
         ).range(offset, offset + limit - 1).execute()
@@ -100,7 +101,8 @@ def get_public_course_by_slug(slug: str):
         course_result = client.table('courses').select(
             'id, title, description, slug, cover_image_url, intro_content, '
             'learning_outcomes, educational_value, '
-            'parent_guidance, visibility, status, created_at, organization_id'
+            'parent_guidance, final_deliverable, target_audience, '
+            'progress_model, visibility, status, created_at, organization_id'
         ).eq('slug', slug).execute()
 
         if not course_result.data:

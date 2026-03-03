@@ -4,6 +4,7 @@ import { ArrowLeftIcon, AcademicCapIcon, CheckCircleIcon } from '@heroicons/reac
 import { useAuth } from '../../contexts/AuthContext'
 import toast from 'react-hot-toast'
 import { getCourseById, getCourseProgress, enrollInCourse, unenrollFromCourse } from '../../services/courseService'
+import { captureEvent } from '../../services/posthog'
 
 /**
  * CourseDetailPage - Student view of a course
@@ -71,6 +72,9 @@ const CourseDetailPage = () => {
     try {
       setIsEnrolling(true)
       await enrollInCourse(courseId)
+
+      captureEvent('course_enrolled', { course_id: courseId })
+
       toast.success('Successfully enrolled in course!')
       setIsEnrolled(true)
 

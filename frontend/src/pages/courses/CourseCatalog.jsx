@@ -17,6 +17,7 @@ import api from '../../services/api'
 import { useCourses } from '../../hooks/api/useCourseData'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../../utils/queryKeys'
+import { captureEvent } from '../../services/posthog'
 
 const CourseCatalog = () => {
   const { user } = useAuth()
@@ -47,6 +48,9 @@ const CourseCatalog = () => {
   const handleEnroll = async (courseId) => {
     try {
       await api.post(`/api/courses/${courseId}/enroll`, {})
+
+      captureEvent('course_enrolled', { course_id: courseId })
+
       toast.success('Successfully enrolled in course')
 
       // Invalidate course list cache so it refreshes on return
