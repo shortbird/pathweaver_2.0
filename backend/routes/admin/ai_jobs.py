@@ -369,7 +369,7 @@ def test_advisor_summary(user_id):
                     'active_students': summary['totals']['active_students'],
                     'total_tasks': summary['totals']['total_tasks'],
                     'total_xp': summary['totals']['total_xp'],
-                    'students_html': students_html,
+                    'closing_html': students_html,
                     'dashboard_url': f"{frontend_url}/advisor"
                 }
             )
@@ -428,6 +428,8 @@ def trigger_advisor_summary_job():
             return jsonify({'error': 'Unauthorized'}), 401
 
     try:
+        from jobs.daily_advisor_summary import DailyAdvisorSummaryJob
+
         data = request.get_json() or {}
 
         job_data = {}
@@ -436,18 +438,12 @@ def trigger_advisor_summary_job():
         if data.get('advisor_ids'):
             job_data['advisor_ids'] = data['advisor_ids']
 
-        # Schedule and immediately run the job
-        job_id = JobScheduler.schedule_job(
-            job_type=JobScheduler.JOB_TYPE_DAILY_ADVISOR_SUMMARY,
-            job_data=job_data,
-            priority=9
-        )
-
-        result = JobScheduler.run_pending_jobs(max_jobs=1)
+        # Execute directly instead of via scheduler to avoid
+        # running stale pending jobs of other types
+        result = DailyAdvisorSummaryJob.execute(job_data)
 
         return jsonify({
             'message': 'Daily advisor summary job triggered',
-            'job_id': job_id,
             'result': result
         }), 200
 
