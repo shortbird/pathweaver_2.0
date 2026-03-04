@@ -133,6 +133,32 @@ const AdvisorCheckinHistoryInline = ({ studentId, studentName }) => {
                     </div>
                   )}
 
+                  {(checkin.reading_notes || checkin.writing_notes || checkin.math_notes) && (
+                    <div>
+                      <h4 className="font-semibold text-gray-800 text-sm mb-1">Core Skills</h4>
+                      <div className="space-y-1.5">
+                        {checkin.reading_notes && (
+                          <div className="bg-blue-50 border-l-3 border-blue-400 p-2 rounded">
+                            <p className="text-xs font-semibold text-blue-700">Reading</p>
+                            <p className="text-xs text-gray-700 whitespace-pre-wrap">{checkin.reading_notes}</p>
+                          </div>
+                        )}
+                        {checkin.writing_notes && (
+                          <div className="bg-green-50 border-l-3 border-green-400 p-2 rounded">
+                            <p className="text-xs font-semibold text-green-700">Writing</p>
+                            <p className="text-xs text-gray-700 whitespace-pre-wrap">{checkin.writing_notes}</p>
+                          </div>
+                        )}
+                        {checkin.math_notes && (
+                          <div className="bg-amber-50 border-l-3 border-amber-400 p-2 rounded">
+                            <p className="text-xs font-semibold text-amber-700">Math</p>
+                            <p className="text-xs text-gray-700 whitespace-pre-wrap">{checkin.math_notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {checkin.growth_moments && (
                     <div>
                       <h4 className="font-semibold text-gray-800 text-sm mb-1">Growth Moments</h4>

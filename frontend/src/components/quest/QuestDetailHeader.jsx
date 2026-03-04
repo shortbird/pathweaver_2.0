@@ -21,6 +21,12 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline';
 
+const stripHtml = (html) => {
+  if (!html) return '';
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return doc.body.textContent || '';
+};
+
 /**
  * QuestDetailHeader - Hero section with image, overlaid title/description
  *
@@ -156,17 +162,8 @@ const QuestDetailHeader = ({
               </button>
             )}
 
-            {isEnrolled && !isQuestCompleted && !quest?.lms_platform && (
-              quest?.active_course_enrollment ? (
-                <button
-                  onClick={() => toast.error('This quest is part of an active course. Unenroll from the course first.')}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-gray-100/90 backdrop-blur-sm text-gray-400 border border-gray-200 rounded-full cursor-not-allowed text-sm font-medium min-h-[44px] touch-manipulation"
-                  style={{ fontFamily: 'Poppins' }}
-                >
-                  <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
-                  <span className="hidden sm:inline">End</span>
-                </button>
-              ) : (
+            {isEnrolled && !isQuestCompleted && !quest?.lms_platform &&
+              !sessionStorage.getItem('courseTaskReturnInfo') && (
                 <button
                   onClick={onEndQuest}
                   disabled={endQuestMutation?.isPending}
@@ -176,7 +173,6 @@ const QuestDetailHeader = ({
                   <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
                   <span className="hidden sm:inline">{endQuestMutation?.isPending ? '...' : 'End'}</span>
                 </button>
-              )
             )}
 
             {/* Delete enrollment - visible whenever user has any enrollment */}
@@ -214,7 +210,7 @@ const QuestDetailHeader = ({
                 className="text-xs sm:text-sm text-gray-700 mt-1 leading-relaxed line-clamp-2"
                 style={{ fontFamily: 'Poppins' }}
               >
-                {quest?.big_idea || quest?.description}
+                {stripHtml(quest?.big_idea || quest?.description)}
               </p>
             )}
 

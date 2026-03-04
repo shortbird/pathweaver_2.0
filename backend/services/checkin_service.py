@@ -38,7 +38,10 @@ class CheckinService(BaseService):
         solutions: str,
         advisor_notes: str,
         active_quests_snapshot: List[Dict],
-        quest_notes: Optional[List[Dict]] = None
+        quest_notes: Optional[List[Dict]] = None,
+        reading_notes: str = '',
+        writing_notes: str = '',
+        math_notes: str = ''
     ) -> Dict:
         """
         Create a new advisor check-in.
@@ -76,7 +79,10 @@ class CheckinService(BaseService):
                 'solutions': solutions,
                 'advisor_notes': advisor_notes,
                 'active_quests_snapshot': active_quests_snapshot,
-                'quest_notes': quest_notes or []
+                'quest_notes': quest_notes or [],
+                'reading_notes': reading_notes,
+                'writing_notes': writing_notes,
+                'math_notes': math_notes
             }
 
             checkin = self.repository.create_checkin(checkin_data)

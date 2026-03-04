@@ -154,6 +154,33 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
                         </div>
                       )}
 
+                      {/* Core Skills */}
+                      {(checkin.reading_notes || checkin.writing_notes || checkin.math_notes) && (
+                        <div>
+                          <h4 className="font-bold text-gray-800 mb-2">Core Skills</h4>
+                          <div className="space-y-2">
+                            {checkin.reading_notes && (
+                              <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
+                                <p className="text-xs font-semibold text-blue-700 mb-1">Reading</p>
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap">{checkin.reading_notes}</p>
+                              </div>
+                            )}
+                            {checkin.writing_notes && (
+                              <div className="bg-green-50 border-l-4 border-green-400 p-3 rounded">
+                                <p className="text-xs font-semibold text-green-700 mb-1">Writing</p>
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap">{checkin.writing_notes}</p>
+                              </div>
+                            )}
+                            {checkin.math_notes && (
+                              <div className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded">
+                                <p className="text-xs font-semibold text-amber-700 mb-1">Math</p>
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap">{checkin.math_notes}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Growth Moments */}
                       {checkin.growth_moments && (
                         <div>

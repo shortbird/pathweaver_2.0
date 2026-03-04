@@ -617,6 +617,9 @@ export const checkinAPI = {
   // Get check-in analytics for advisor
   getAnalytics: () => api.get('/api/advisor/checkins/analytics'),
 
+  // End a student's quest during check-in
+  endStudentQuest: (studentId, questId) => api.post(`/api/advisor/students/${studentId}/quests/${questId}/end`, {}),
+
   // Admin endpoints
   getAllCheckins: (page = 1, limit = 50) => api.get('/api/admin/checkins', { params: { page, limit } }),
   getAdminAnalytics: () => api.get('/api/admin/checkins/analytics'),

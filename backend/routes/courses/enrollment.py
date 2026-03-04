@@ -4,6 +4,7 @@ Courses Module - Enrollment
 Student enrollment, unenrollment, and progress tracking.
 """
 
+import os
 from datetime import datetime
 from flask import request, jsonify
 from utils.auth.decorators import require_auth, require_admin
@@ -17,6 +18,7 @@ from services.course_service import CourseService
 from utils.logger import get_logger
 from utils.roles import get_effective_role
 from utils.slug_utils import generate_slug, ensure_unique_slug
+from services.email_service import email_service
 
 logger = get_logger(__name__)
 
@@ -161,6 +163,24 @@ def register_routes(bp):
                         logger.warning(f"Failed to auto-enroll in quest {quest_id}: {quest_err}")
 
             logger.info(f"User {target_user_id} enrolled in course {course_id}, auto-enrolled in {quest_enrollments_created} quests")
+
+            # Send enrollment email (non-blocking)
+            try:
+                user_result = client.table('users').select('email, display_name, first_name').eq('id', target_user_id).execute()
+                if user_result.data:
+                    user_data = user_result.data[0]
+                    frontend_url = os.getenv('FRONTEND_URL', 'https://www.optioeducation.com')
+                    course_url = f"{frontend_url}/courses/{course_id}"
+                    quest_count = len(course_quests.data) if course_quests.data else 0
+                    email_service.send_course_enrollment_email(
+                        user_email=user_data['email'],
+                        user_name=user_data.get('display_name') or user_data.get('first_name') or 'there',
+                        course_title=course.get('title', 'your course'),
+                        quest_count=quest_count,
+                        course_url=course_url
+                    )
+            except Exception as email_err:
+                logger.warning(f"Failed to send enrollment email for course {course_id}: {email_err}")
 
             return jsonify({
                 'success': True,

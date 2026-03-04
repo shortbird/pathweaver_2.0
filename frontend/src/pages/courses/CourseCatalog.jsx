@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { toast } from 'react-hot-toast'
 import {
   MagnifyingGlassIcon,
   AcademicCapIcon,
@@ -13,11 +12,7 @@ import {
   GlobeAltIcon,
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
-import api from '../../services/api'
 import { useCourses } from '../../hooks/api/useCourseData'
-import { useQueryClient } from '@tanstack/react-query'
-import { queryKeys } from '../../utils/queryKeys'
-import { captureEvent } from '../../services/posthog'
 
 const CourseCatalog = () => {
   const { user } = useAuth()
@@ -30,39 +25,17 @@ const CourseCatalog = () => {
   const effectiveRole = user?.role === 'org_managed' ? user?.org_role : user?.role
   const canManageCourses = effectiveRole === 'superadmin' || effectiveRole === 'org_admin' || effectiveRole === 'advisor'
 
-  const queryClient = useQueryClient()
-
   const { data, isLoading: loading, error } = useCourses({}, {
     staleTime: 60 * 1000, // 1 minute - cached for quick revisits
   })
 
   const courses = useMemo(() => {
     const allCourses = data?.courses || []
-    return canManageCourses
-      ? allCourses
-      : allCourses.filter(c => c.status === 'published')
-  }, [data, canManageCourses])
+    // Only show courses the user is enrolled in (or created, for admins)
+    return allCourses.filter(c => c.is_enrolled)
+  }, [data])
 
   // Error is handled by React Query - shows in UI via loading/empty states
-
-  const handleEnroll = async (courseId) => {
-    try {
-      await api.post(`/api/courses/${courseId}/enroll`, {})
-
-      captureEvent('course_enrolled', { course_id: courseId })
-
-      toast.success('Successfully enrolled in course')
-
-      // Invalidate course list cache so it refreshes on return
-      queryClient.invalidateQueries({ queryKey: queryKeys.courses.all })
-
-      // Navigate to the course after enrollment
-      navigate(`/courses/${courseId}`)
-    } catch (error) {
-      console.error('Failed to enroll in course:', error)
-      toast.error(error.response?.data?.error || 'Failed to enroll in course')
-    }
-  }
 
   const handleViewCourse = (courseId) => {
     navigate(`/courses/${courseId}`)
@@ -86,10 +59,10 @@ const CourseCatalog = () => {
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <AcademicCapIcon className="w-8 h-8 text-optio-purple" />
-                <h1 className="text-3xl font-bold text-gray-900">Course Catalog</h1>
+                <h1 className="text-3xl font-bold text-gray-900">My Courses</h1>
               </div>
               <p className="text-gray-600">
-                Explore structured learning pathways and enroll in courses
+                Your enrolled courses and learning progress
               </p>
             </div>
 
@@ -140,18 +113,17 @@ const CourseCatalog = () => {
           <div className="text-center py-12">
             <AcademicCapIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {searchTerm ? 'No courses found' : 'No courses available'}
+              {searchTerm ? 'No courses found' : 'No enrolled courses yet'}
             </h3>
             <p className="text-gray-600">
               {searchTerm
                 ? 'Try adjusting your search terms'
-                : 'Check back later for new courses'}
+                : 'You haven\'t enrolled in any courses yet'}
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredCourses.map(course => {
-              const isEnrolled = course.is_enrolled
               const isDraft = course.status === 'draft'
               const isArchived = course.status === 'archived'
               const isCompleted = course.progress?.percentage >= 100 || course.progress?.is_completed
@@ -256,20 +228,13 @@ const CourseCatalog = () => {
                           {isDraft ? 'Preview' : 'View'}
                         </button>
                       </div>
-                    ) : isEnrolled ? (
+                    ) : (
                       <button
                         onClick={() => handleViewCourse(course.id)}
                         className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors font-medium min-h-[44px]"
                       >
                         <CheckCircleIcon className="w-5 h-5" />
                         View Course
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleEnroll(course.id)}
-                        className="w-full px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity font-medium min-h-[44px]"
-                      >
-                        Enroll Now
                       </button>
                     )}
                   </div>

@@ -6,6 +6,7 @@ import CourseCatalog from './CourseCatalog'
 
 const mockNavigate = vi.fn()
 let authState = {}
+let coursesHookData = {}
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => authState
@@ -24,11 +25,8 @@ vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() }
 }))
 
-vi.mock('../../services/api', () => ({
-  default: {
-    get: vi.fn(),
-    post: vi.fn()
-  }
+vi.mock('../../hooks/api/useCourseData', () => ({
+  useCourses: () => coursesHookData
 }))
 
 // Mock heroicons
@@ -46,8 +44,6 @@ vi.mock('@heroicons/react/24/outline', () => ({
 vi.mock('@heroicons/react/24/solid', () => ({
   CheckCircleIcon: (props) => <svg data-testid="check-solid-icon" {...props} />
 }))
-
-import api from '../../services/api'
 
 function createTestQueryClient() {
   return new QueryClient({
@@ -77,7 +73,7 @@ const mockCourses = [
     description: 'Build robots from scratch',
     status: 'published',
     quest_count: 3,
-    is_enrolled: false,
+    is_enrolled: true,
     created_by: 'other-user'
   },
   {
@@ -106,15 +102,17 @@ describe('CourseCatalog', () => {
     vi.clearAllMocks()
     authState = { user: { id: 'user-1', role: 'student' } }
 
-    api.get.mockResolvedValue({
-      data: { courses: mockCourses }
-    })
+    coursesHookData = {
+      data: { courses: mockCourses },
+      isLoading: false,
+      error: null
+    }
   })
 
   // --- Loading state ---
   describe('loading state', () => {
     it('shows skeleton cards while loading', () => {
-      api.get.mockImplementation(() => new Promise(() => {}))
+      coursesHookData = { data: undefined, isLoading: true, error: null }
       renderCatalog()
       expect(document.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0)
     })
@@ -124,7 +122,7 @@ describe('CourseCatalog', () => {
   describe('rendering', () => {
     it('renders page heading', () => {
       renderCatalog()
-      expect(screen.getByText('Course Catalog')).toBeInTheDocument()
+      expect(screen.getByText('My Courses')).toBeInTheDocument()
     })
 
     it('renders search input', () => {
@@ -132,64 +130,43 @@ describe('CourseCatalog', () => {
       expect(screen.getByPlaceholderText('Search courses...')).toBeInTheDocument()
     })
 
-    it('renders course cards after loading', async () => {
+    it('renders course cards after loading', () => {
       renderCatalog()
-      await waitFor(() => {
-        expect(screen.getByText('Intro to Robotics')).toBeInTheDocument()
-        expect(screen.getByText('Creative Writing')).toBeInTheDocument()
-        expect(screen.getByText('Advanced Math')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Intro to Robotics')).toBeInTheDocument()
+      expect(screen.getByText('Creative Writing')).toBeInTheDocument()
+      expect(screen.getByText('Advanced Math')).toBeInTheDocument()
     })
 
-    it('renders course descriptions', async () => {
+    it('renders course descriptions', () => {
       renderCatalog()
-      await waitFor(() => {
-        expect(screen.getByText('Build robots from scratch')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Build robots from scratch')).toBeInTheDocument()
     })
 
-    it('renders project counts', async () => {
+    it('renders project counts', () => {
       renderCatalog()
-      await waitFor(() => {
-        expect(screen.getByText('3 projects')).toBeInTheDocument()
-        expect(screen.getByText('5 projects')).toBeInTheDocument()
-      })
+      expect(screen.getByText('3 projects')).toBeInTheDocument()
+      expect(screen.getByText('5 projects')).toBeInTheDocument()
     })
   })
 
   // --- Enrollment states ---
   describe('enrollment states', () => {
-    it('shows Enroll Now button for unenrolled courses', async () => {
+    it('shows View Course button for enrolled courses', () => {
       renderCatalog()
-      await waitFor(() => {
-        expect(screen.getByText('Enroll Now')).toBeInTheDocument()
-      })
+      const viewButtons = screen.getAllByText('View Course')
+      expect(viewButtons.length).toBeGreaterThanOrEqual(1)
     })
 
-    it('shows View Course button for enrolled courses', async () => {
+    it('shows Completed badge for completed courses', () => {
       renderCatalog()
-      await waitFor(() => {
-        // c2 and c3 are both enrolled, so multiple View Course buttons
-        const viewButtons = screen.getAllByText('View Course')
-        expect(viewButtons.length).toBeGreaterThanOrEqual(1)
-      })
-    })
-
-    it('shows Completed badge for completed courses', async () => {
-      renderCatalog()
-      await waitFor(() => {
-        expect(screen.getByText('Completed')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Completed')).toBeInTheDocument()
     })
   })
 
   // --- Admin view ---
   describe('admin view', () => {
-    it('shows Create Course button for admins', async () => {
+    it('shows Create Course button for admins', () => {
       authState = { user: { id: 'user-1', role: 'superadmin' } }
-      api.get.mockResolvedValue({
-        data: { courses: mockCourses }
-      })
       renderCatalog()
       expect(screen.getByText('Create Course')).toBeInTheDocument()
     })
@@ -200,39 +177,35 @@ describe('CourseCatalog', () => {
       expect(screen.queryByText('Create Course')).not.toBeInTheDocument()
     })
 
-    it('shows draft courses to admins', async () => {
+    it('shows draft courses to admins', () => {
       authState = { user: { id: 'admin-1', role: 'superadmin' } }
-      api.get.mockResolvedValue({
+      coursesHookData = {
         data: {
           courses: [
             ...mockCourses,
-            { id: 'c4', title: 'Draft Course', status: 'draft', quest_count: 0, created_by: 'admin-1' }
+            { id: 'c4', title: 'Draft Course', status: 'draft', quest_count: 0, is_enrolled: true, created_by: 'admin-1' }
           ]
-        }
-      })
+        },
+        isLoading: false,
+        error: null
+      }
       renderCatalog()
-      await waitFor(() => {
-        expect(screen.getByText('Draft Course')).toBeInTheDocument()
-        expect(screen.getByText('Draft')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Draft Course')).toBeInTheDocument()
+      expect(screen.getByText('Draft')).toBeInTheDocument()
     })
   })
 
   // --- Empty state ---
   describe('empty state', () => {
-    it('shows empty message when no courses', async () => {
-      api.get.mockResolvedValue({ data: { courses: [] } })
+    it('shows empty message when no courses', () => {
+      coursesHookData = { data: { courses: [] }, isLoading: false, error: null }
       renderCatalog()
-      await waitFor(() => {
-        expect(screen.getByText('No courses available')).toBeInTheDocument()
-      })
+      expect(screen.getByText('No enrolled courses yet')).toBeInTheDocument()
     })
 
-    it('shows no results message when search has no matches', async () => {
+    it('shows no results message when search has no matches', () => {
       renderCatalog()
-      await waitFor(() => {
-        expect(screen.getByText('Intro to Robotics')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Intro to Robotics')).toBeInTheDocument()
 
       const input = screen.getByPlaceholderText('Search courses...')
       fireEvent.change(input, { target: { value: 'xyznonexistent' } })
@@ -243,11 +216,9 @@ describe('CourseCatalog', () => {
 
   // --- Search ---
   describe('search', () => {
-    it('filters courses by search term', async () => {
+    it('filters courses by search term', () => {
       renderCatalog()
-      await waitFor(() => {
-        expect(screen.getByText('Intro to Robotics')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Intro to Robotics')).toBeInTheDocument()
 
       const input = screen.getByPlaceholderText('Search courses...')
       fireEvent.change(input, { target: { value: 'robot' } })
@@ -257,21 +228,13 @@ describe('CourseCatalog', () => {
     })
   })
 
-  // --- Enrollment ---
-  describe('enrollment action', () => {
-    it('calls api.post on enroll and navigates', async () => {
-      api.post.mockResolvedValue({ data: { success: true } })
+  // --- Navigation ---
+  describe('navigation', () => {
+    it('navigates to course on View Course click', () => {
       renderCatalog()
-      await waitFor(() => {
-        expect(screen.getByText('Enroll Now')).toBeInTheDocument()
-      })
-
-      fireEvent.click(screen.getByText('Enroll Now'))
-
-      await waitFor(() => {
-        expect(api.post).toHaveBeenCalledWith('/api/courses/c1/enroll', {})
-        expect(mockNavigate).toHaveBeenCalledWith('/courses/c1')
-      })
+      const viewButtons = screen.getAllByText('View Course')
+      fireEvent.click(viewButtons[0])
+      expect(mockNavigate).toHaveBeenCalledWith('/courses/c1')
     })
   })
 })

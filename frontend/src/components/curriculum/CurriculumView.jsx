@@ -105,6 +105,7 @@ const CurriculumView = ({
   isAdmin = false,
   className = '',
   questId,
+  questXpThreshold: propQuestXpThreshold,
   embedded = false,
   initialLessonId,
   initialStepIndex: propInitialStepIndex,
@@ -179,10 +180,10 @@ const CurriculumView = ({
   // Calculate step counts
   const linkedTasksForLesson = selectedLesson ? getLinkedTasks(selectedLesson) : []
   const hasTasksStep = linkedTasksForLesson.length > 0
-  const totalStepsWithTasks = hasTasksStep ? totalSteps + 1 : totalSteps
+  const totalStepsWithTasks = totalSteps + (hasTasksStep ? 1 : 0)
 
-  // XP values - use project-wide XP for the "Project XP Goal" display
-  const selectedLessonXpThreshold = selectedLesson?.xp_threshold || 0
+  // XP values - use project-wide XP threshold when available, fall back to lesson-level
+  const selectedLessonXpThreshold = propQuestXpThreshold || selectedLesson?.xp_threshold || 0
   const selectedLessonEarnedXP = getProjectEarnedXP()
 
   // Fetch data when questId is provided
@@ -287,7 +288,8 @@ const CurriculumView = ({
     if (initializedLessonIdRef.current === selectedLessonId) {
       if (propInitialStepIndex !== null && propInitialStepIndex !== undefined &&
           propInitialStepIndex >= tasksStepIndex && propInitialStepIndex !== lastAppliedInitialStep) {
-        setCurrentStepIndex(propInitialStepIndex)
+        const clampedStep = Math.min(propInitialStepIndex, totalStepsWithTasks - 1)
+        setCurrentStepIndex(clampedStep)
         setLastAppliedInitialStep(propInitialStepIndex)
       }
       return
@@ -313,7 +315,8 @@ const CurriculumView = ({
     }
 
     if (propInitialStepIndex !== null && propInitialStepIndex !== undefined) {
-      setCurrentStepIndex(propInitialStepIndex)
+      const clampedStep = Math.min(propInitialStepIndex, totalStepsWithTasks - 1)
+      setCurrentStepIndex(clampedStep)
       setLastAppliedInitialStep(propInitialStepIndex)
       return
     }
@@ -620,7 +623,7 @@ const CurriculumView = ({
 
                 {/* Step Progress Indicators */}
                 {totalStepsWithTasks > 1 && (
-                  <div className="flex items-center gap-2 mt-4 flex-wrap">
+                  <div data-onboarding="step-indicators" className="flex items-center gap-2 mt-4 flex-wrap">
                     {lessonSteps.map((step, index) => (
                       <button key={step.id || index} onClick={() => goToStep(index)} className="flex items-center gap-1.5 group" title={step.title || `Step ${index + 1}`}>
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${completedSteps.has(index) ? 'bg-green-100 text-green-600 ring-2 ring-green-200' : index === currentStepIndex ? 'bg-optio-purple text-white ring-2 ring-optio-purple/30' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'}`}>
@@ -682,6 +685,7 @@ const CurriculumView = ({
                 allLessons={lessons}
                 allTasks={questTasks}
                 onLessonSelect={handleLessonSelect}
+
                 onTaskCreated={(newTask) => {
                   setQuestTasks(prev => [...prev, newTask])
                   setFetchedLessons(prev => prev.map(lesson =>

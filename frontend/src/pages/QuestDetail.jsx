@@ -279,7 +279,7 @@ const QuestDetail = () => {
             isNewlyCompleted
           });
 
-          if (isNewlyCompleted) {
+          if (isNewlyCompleted && !sessionStorage.getItem('courseTaskReturnInfo')) {
             logger.debug('[QUEST_DETAIL] Quest newly completed - showing celebration');
             setTimeout(() => {
               setShowQuestCompletionCelebration(true);
@@ -306,6 +306,24 @@ const QuestDetail = () => {
     // Invalidate course cache so XP updates immediately when navigating back
     logger.debug('[QUEST_DETAIL] Invalidating course cache for XP update');
     queryKeys.invalidateCourses(queryClient);
+
+    // If this task was started from a course lesson, navigate back automatically
+    const courseReturnInfo = sessionStorage.getItem('courseTaskReturnInfo');
+    if (courseReturnInfo) {
+      try {
+        const returnInfo = JSON.parse(courseReturnInfo);
+        sessionStorage.removeItem('courseTaskReturnInfo');
+        toast.success('Task completed! Returning to lesson...');
+        setTimeout(() => {
+          navigate(returnInfo.pathname + (returnInfo.search || ''));
+        }, 1500);
+        logger.debug('[QUEST_DETAIL] ========== TASK COMPLETION HANDLER END (course return) ==========');
+        return;
+      } catch (e) {
+        logger.debug('[QUEST_DETAIL] Failed to parse courseTaskReturnInfo', e);
+        sessionStorage.removeItem('courseTaskReturnInfo');
+      }
+    }
 
     // Keep the completed task selected so the user can see it and request credit
     logger.debug('[QUEST_DETAIL] Closing modal but keeping selectedTask');

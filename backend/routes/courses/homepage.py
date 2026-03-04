@@ -52,7 +52,8 @@ def register_routes(bp):
                 'course': result['course'],
                 'quests': result['quests'],
                 'enrollment': result['enrollment'],
-                'progress': result['progress']
+                'progress': result['progress'],
+                'next_step': result.get('next_step')
             }), 200
 
         except Exception as e:

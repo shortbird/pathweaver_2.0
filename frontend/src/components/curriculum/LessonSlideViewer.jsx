@@ -6,9 +6,10 @@
  * Handles content, finished, and tasks steps.
  */
 
-import { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useMemo, useEffect } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import {
+  ArrowTopRightOnSquareIcon,
   ChevronRightIcon,
   ChevronLeftIcon,
   ClipboardDocumentListIcon,
@@ -16,6 +17,7 @@ import {
   TrophyIcon,
   SparklesIcon,
   BookOpenIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolidIcon, ExclamationCircleIcon } from '@heroicons/react/24/solid'
 import { getPillarData } from '../../utils/pillarMappings'
@@ -30,6 +32,7 @@ import {
 import AddTaskWizard from './AddTaskWizard'
 import LessonHelperModal from './LessonHelperModal'
 import SuggestedTasksModal from './SuggestedTasksModal'
+
 import { useAIAccess } from '../../contexts/AIAccessContext'
 
 export const LessonSlideViewer = ({
@@ -51,10 +54,28 @@ export const LessonSlideViewer = ({
   allTasks = [],
   onLessonSelect,
 }) => {
+  const location = useLocation()
   const [showPersonalizeWizard, setShowPersonalizeWizard] = useState(false)
   const [showHelperModal, setShowHelperModal] = useState(false)
   const [showSuggestedTasksModal, setShowSuggestedTasksModal] = useState(false)
   const { canUseLessonHelper } = useAIAccess()
+
+  // Task activation clarity banner
+  const tasksIntroKey = questId ? `optio-tasks-intro-seen-${questId}` : null
+  const [showTasksIntro, setShowTasksIntro] = useState(false)
+
+  useEffect(() => {
+    if (tasksIntroKey && !localStorage.getItem(tasksIntroKey)) {
+      setShowTasksIntro(true)
+    }
+  }, [tasksIntroKey])
+
+  const dismissTasksIntro = () => {
+    if (tasksIntroKey) {
+      localStorage.setItem(tasksIntroKey, 'true')
+    }
+    setShowTasksIntro(false)
+  }
 
   // Calculate lesson data for project overview
   const projectLessonsData = useMemo(() => {
@@ -83,7 +104,6 @@ export const LessonSlideViewer = ({
   }, [allLessons, allTasks, lesson?.id])
 
   const totalContentSteps = steps.length
-  // Tasks step is directly after content (no "finished" step in between)
   const isOnTasksStep = hasTasksStep && currentStepIndex === totalContentSteps
   const currentStep = isOnTasksStep ? null : (steps[currentStepIndex] || null)
 
@@ -118,12 +138,33 @@ export const LessonSlideViewer = ({
     return (
       <div className="flex flex-col min-h-[400px]">
         <div className="flex-1">
-          <div className="mb-4">
-            <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-              <ClipboardDocumentListIcon className="w-6 h-6 text-optio-purple" />
-              Apply What You Learned
-            </h3>
-          </div>
+          <div data-onboarding="tasks-step">
+            <div className="mb-4">
+              <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                <ClipboardDocumentListIcon className="w-6 h-6 text-optio-purple" />
+                Apply What You Learned
+              </h3>
+            </div>
+
+            {/* Task Activation Intro Banner */}
+            {showTasksIntro && (
+              <div className="mb-6 p-4 rounded-xl bg-optio-purple/5 border border-optio-purple/20 relative">
+                <button
+                  onClick={dismissTasksIntro}
+                  className="absolute top-2 right-2 p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-white/50 transition-colors"
+                  aria-label="Dismiss"
+                >
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+                <div className="flex items-start gap-3 pr-6">
+                  <SparklesIcon className="w-6 h-6 text-optio-purple flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    Ready to apply what you learned? Pick a suggested task below or create your own to earn XP.
+                    Tasks are how you demonstrate your understanding, and you can personalize them to match your interests.
+                  </p>
+                </div>
+              </div>
+            )}
 
           {/* XP Requirement Info with Completion Status */}
           {lessonXpThreshold > 0 && (() => {
@@ -149,7 +190,7 @@ export const LessonSlideViewer = ({
                     {/* Completion status messaging */}
                     {canComplete ? (
                       <p className="text-sm text-green-700 mt-0.5 font-medium">
-                        Ready to complete! You've met all requirements for this project.
+                        Project complete! You've met all requirements. Keep earning XP with more tasks if you'd like.
                       </p>
                     ) : xpMet && !requiredTasksMet ? (
                       <p className="text-sm text-amber-700 mt-0.5">
@@ -181,6 +222,23 @@ export const LessonSlideViewer = ({
             <p className="text-gray-600 mb-6">
               Complete tasks to earn XP and progress through this project. Required tasks must be completed, but you can choose which optional tasks interest you.
             </p>
+          )}
+
+          {/* Open Task Workspace - quick access to all active tasks on the quest page */}
+          {questId && (
+            <div className="mb-6">
+              <Link
+                to={`/quests/${questId}`}
+                onClick={() => onTaskClick?.(null)}
+                className="flex items-center justify-between w-full p-3 rounded-lg border border-optio-purple/20 bg-optio-purple/5 hover:bg-optio-purple/10 hover:border-optio-purple/40 transition-colors group"
+              >
+                <div className="flex items-center gap-2 text-sm font-medium text-optio-purple">
+                  <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                  Open Task Workspace
+                </div>
+                <ChevronRightIcon className="w-4 h-4 text-gray-400 group-hover:text-optio-purple transition-colors" />
+              </Link>
+            </div>
           )}
 
           {/* Required Tasks Section - Current Lesson */}
@@ -309,6 +367,8 @@ export const LessonSlideViewer = ({
               </div>
             </div>
           )}
+
+          </div>
 
           {/* Project Lessons Overview Section */}
           {projectLessonsData.length > 0 && (

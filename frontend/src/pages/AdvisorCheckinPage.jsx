@@ -18,6 +18,13 @@ const AdvisorCheckinPage = () => {
   const [checkinDate, setCheckinDate] = useState(new Date().toISOString().split('T')[0])
   const [additionalNotes, setAdditionalNotes] = useState('')
   const [questNotes, setQuestNotes] = useState({}) // { quest_id: 'notes text' }
+  const [readingNotes, setReadingNotes] = useState('')
+  const [writingNotes, setWritingNotes] = useState('')
+  const [mathNotes, setMathNotes] = useState('')
+
+  // End quest state
+  const [endingQuestId, setEndingQuestId] = useState(null)
+  const [confirmEndQuestId, setConfirmEndQuestId] = useState(null)
 
   useEffect(() => {
     fetchCheckinData()
@@ -41,12 +48,37 @@ const AdvisorCheckinPage = () => {
     }
   }
 
+  const handleEndQuest = async (questId) => {
+    try {
+      setEndingQuestId(questId)
+      const response = await checkinAPI.endStudentQuest(studentId, questId)
+
+      if (response.data.success) {
+        // Remove the quest from the active list
+        setActiveQuests(prev => prev.filter(q => q.quest_id !== questId))
+        // Clean up quest notes for the ended quest
+        setQuestNotes(prev => {
+          const updated = { ...prev }
+          delete updated[questId]
+          return updated
+        })
+      }
+    } catch (err) {
+      console.error('Error ending quest:', err)
+      setError(err.response?.data?.error || 'Failed to end quest')
+    } finally {
+      setEndingQuestId(null)
+      setConfirmEndQuestId(null)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    // Check if at least one note exists (quest note or additional notes)
+    // Check if at least one note exists
     const hasQuestNotes = Object.values(questNotes).some(note => note.trim())
-    if (!hasQuestNotes && !additionalNotes.trim()) {
+    const hasAnyNote = hasQuestNotes || additionalNotes.trim() || readingNotes.trim() || writingNotes.trim() || mathNotes.trim()
+    if (!hasAnyNote) {
       setError('Please add at least one note')
       return
     }
@@ -65,7 +97,10 @@ const AdvisorCheckinPage = () => {
         checkin_date: new Date(checkinDate).toISOString(),
         advisor_notes: additionalNotes,
         active_quests_snapshot: activeQuests,
-        quest_notes: questNotesArray
+        quest_notes: questNotesArray,
+        reading_notes: readingNotes,
+        writing_notes: writingNotes,
+        math_notes: mathNotes
       }
 
       const response = await checkinAPI.createCheckin(checkinData)
@@ -155,6 +190,36 @@ const AdvisorCheckinPage = () => {
                           {quest.description}
                         </p>
                       </div>
+                      {/* End Quest Button */}
+                      <div className="ml-3 flex-shrink-0">
+                        {confirmEndQuestId === quest.quest_id ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleEndQuest(quest.quest_id)}
+                              disabled={endingQuestId === quest.quest_id}
+                              className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                            >
+                              {endingQuestId === quest.quest_id ? 'Ending...' : 'Confirm'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmEndQuestId(null)}
+                              className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmEndQuestId(quest.quest_id)}
+                            className="px-3 py-1.5 text-xs font-semibold text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
+                          >
+                            End Quest
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-4 mb-3">
                       <div className="flex-1 bg-white rounded-full h-3 overflow-hidden border border-purple-200">
@@ -188,6 +253,57 @@ const AdvisorCheckinPage = () => {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Reading, Writing, Math Section */}
+          <div>
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Core Skills</h2>
+            <div className="grid gap-4">
+              {/* Reading */}
+              <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                <label className="block text-gray-800 font-semibold mb-2">
+                  Reading
+                </label>
+                <p className="text-gray-500 text-xs mb-2">What is the student currently reading? How is it going?</p>
+                <textarea
+                  value={readingNotes}
+                  onChange={(e) => setReadingNotes(e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none transition-colors resize-none text-sm"
+                  placeholder="Current book, progress, comprehension..."
+                />
+              </div>
+
+              {/* Writing */}
+              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                <label className="block text-gray-800 font-semibold mb-2">
+                  Writing
+                </label>
+                <p className="text-gray-500 text-xs mb-2">What is the student writing? How are their writing skills developing?</p>
+                <textarea
+                  value={writingNotes}
+                  onChange={(e) => setWritingNotes(e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none transition-colors resize-none text-sm"
+                  placeholder="Current writing projects, skills, progress..."
+                />
+              </div>
+
+              {/* Math */}
+              <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4">
+                <label className="block text-gray-800 font-semibold mb-2">
+                  Math
+                </label>
+                <p className="text-gray-500 text-xs mb-2">How is the student using their mental math muscles?</p>
+                <textarea
+                  value={mathNotes}
+                  onChange={(e) => setMathNotes(e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-amber-500 focus:outline-none transition-colors resize-none text-sm"
+                  placeholder="Math concepts, real-world application, problem-solving..."
+                />
+              </div>
+            </div>
           </div>
 
           {/* Additional Notes */}
