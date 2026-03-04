@@ -58,12 +58,16 @@ vi.mock('../components/learning-events/QuickCaptureButton', () => ({
   default: () => null
 }))
 
-vi.mock('@heroicons/react/24/outline', () => ({
-  RocketLaunchIcon: (props) => <svg data-testid="rocket-icon" {...props} />,
-  CheckCircleIcon: (props) => <svg data-testid="check-icon" {...props} />,
-  ArrowRightIcon: (props) => <svg data-testid="arrow-icon" {...props} />,
-  ClipboardDocumentListIcon: (props) => <svg data-testid="clipboard-icon" {...props} />
-}))
+vi.mock('@heroicons/react/24/outline', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    RocketLaunchIcon: (props) => <svg data-testid="rocket-icon" {...props} />,
+    CheckCircleIcon: (props) => <svg data-testid="check-icon" {...props} />,
+    ArrowRightIcon: (props) => <svg data-testid="arrow-icon" {...props} />,
+    ClipboardDocumentListIcon: (props) => <svg data-testid="clipboard-icon" {...props} />
+  }
+})
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false } }
