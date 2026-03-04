@@ -5,7 +5,7 @@ Lightweight standalone script executed by Render's cron service.
 POSTs to the backend API endpoint with the cron secret header.
 
 Required env vars:
-  BACKEND_URL  - Base URL of the backend (e.g. https://optio-backend-prod.onrender.com)
+  BACKEND_URL  - Base URL of the backend (e.g. https://optio-prod-backend.onrender.com)
   CRON_SECRET  - Shared secret for authenticating cron requests
 """
 
@@ -26,7 +26,7 @@ def main():
         print("ERROR: CRON_SECRET env var is not set")
         sys.exit(1)
 
-    url = f"{backend_url}/api/admin/advisor-summary/trigger"
+    url = f"{backend_url.rstrip('/')}/api/admin/advisor-summary/trigger"
     headers = {
         "Content-Type": "application/json",
         "X-Cron-Secret": cron_secret,
