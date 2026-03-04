@@ -9,9 +9,10 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED
 """
 
 from flask import Blueprint, request, jsonify
-from datetime import datetime
+from datetime import datetime, timezone
 from utils.auth.decorators import require_role, require_admin
 from services.checkin_service import CheckinService
+from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -65,7 +66,10 @@ def create_checkin(user_id):
             solutions=data.get('solutions', ''),
             advisor_notes=data.get('advisor_notes', ''),
             active_quests_snapshot=data.get('active_quests_snapshot', []),
-            quest_notes=data.get('quest_notes', [])
+            quest_notes=data.get('quest_notes', []),
+            reading_notes=data.get('reading_notes', ''),
+            writing_notes=data.get('writing_notes', ''),
+            math_notes=data.get('math_notes', '')
         )
 
         return jsonify({
@@ -77,6 +81,57 @@ def create_checkin(user_id):
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         return jsonify({'error': f'Failed to create check-in: {str(e)}'}), 500
+
+
+@checkins_bp.route('/api/advisor/students/<student_id>/quests/<quest_id>/end', methods=['POST', 'OPTIONS'])
+@require_role('advisor', 'superadmin')
+def advisor_end_student_quest(user_id, student_id, quest_id):
+    """
+    End an active quest for a student (advisor action during check-in).
+    Sets is_active=False and completed_at on the user_quests record.
+    """
+    try:
+        from repositories.checkin_repository import CheckinRepository
+        repository = CheckinRepository()
+
+        # Verify advisor-student relationship
+        if not repository.verify_advisor_student_relationship(user_id, student_id):
+            return jsonify({'error': 'Not authorized for this student'}), 403
+
+        supabase = get_supabase_admin_client()
+
+        # Find the active enrollment
+        enrollment = supabase.table('user_quests')\
+            .select('id, is_active, completed_at')\
+            .eq('user_id', student_id)\
+            .eq('quest_id', quest_id)\
+            .eq('is_active', True)\
+            .is_('completed_at', 'null')\
+            .execute()
+
+        if not enrollment.data:
+            return jsonify({'error': 'No active enrollment found for this quest'}), 404
+
+        # End the quest
+        supabase.table('user_quests')\
+            .update({
+                'is_active': False,
+                'completed_at': datetime.now(timezone.utc).isoformat(),
+                'last_set_down_at': datetime.now(timezone.utc).isoformat()
+            })\
+            .eq('id', enrollment.data[0]['id'])\
+            .execute()
+
+        logger.info(f"Advisor {user_id} ended quest {quest_id} for student {student_id}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Quest ended successfully'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error ending quest: {str(e)}")
+        return jsonify({'error': f'Failed to end quest: {str(e)}'}), 500
 
 
 @checkins_bp.route('/api/advisor/checkins', methods=['GET', 'OPTIONS'])

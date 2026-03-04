@@ -12,9 +12,11 @@ Endpoints:
     GET  /user-enrollments              - Get all enrollments for a specific user
 """
 
+import os
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_org_admin, validate_uuid_param
 from services.course_enrollment_service import CourseEnrollmentService
+from services.email_service import email_service
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 
@@ -223,6 +225,45 @@ def bulk_enroll_users(current_user_id, current_org_id, is_superadmin, course_id)
         result = service.bulk_enroll(user_ids, course_id)
 
         logger.info(f"User {current_user_id} bulk enrolled {result['enrolled']} users in course {course_id}")
+
+        # Send enrollment emails to newly enrolled users
+        if result['enrolled'] > 0:
+            try:
+                newly_enrolled_ids = [
+                    r['user_id'] for r in result['results']
+                    if r['status'] in ('enrolled', 'reactivated')
+                ]
+                if newly_enrolled_ids:
+                    user_rows = client.table('users')\
+                        .select('id, email, display_name, first_name')\
+                        .in_('id', newly_enrolled_ids)\
+                        .execute()
+                    user_map = {u['id']: u for u in (user_rows.data or [])}
+
+                    course_title = course.get('title', 'Untitled Course')
+                    course_quests = client.table('course_quests')\
+                        .select('id')\
+                        .eq('course_id', course_id)\
+                        .execute()
+                    quest_count = len(course_quests.data) if course_quests.data else 0
+                    frontend_url = os.getenv('FRONTEND_URL', 'https://www.optioeducation.com')
+                    course_url = f"{frontend_url}/courses/{course_id}"
+
+                    for uid in newly_enrolled_ids:
+                        u = user_map.get(uid)
+                        if u and u.get('email'):
+                            try:
+                                email_service.send_course_enrollment_email(
+                                    user_email=u['email'],
+                                    user_name=u.get('display_name') or u.get('first_name') or 'there',
+                                    course_title=course_title,
+                                    quest_count=quest_count,
+                                    course_url=course_url
+                                )
+                            except Exception as email_err:
+                                logger.warning(f"Failed to send enrollment email to {u['email']}: {email_err}")
+            except Exception as email_batch_err:
+                logger.warning(f"Failed to send enrollment emails for course {course_id}: {email_batch_err}")
 
         return jsonify(result), 200
 

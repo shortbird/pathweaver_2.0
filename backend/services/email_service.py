@@ -353,6 +353,15 @@ class EmailService(BaseService):
                     rendered_para = para_template.render(**variables)
                     rendered_paragraphs.append(f'<p class="text">{rendered_para}</p>')
 
+                # Append top-level bullet_points to body (if not inside highlight_box)
+                if 'bullet_points' in template_data and template_data['bullet_points']:
+                    rendered_paragraphs.append('<ul style="margin: 14px 0; padding-left: 20px;">')
+                    for bullet in template_data['bullet_points']:
+                        bullet_template = self.jinja_env.from_string(bullet)
+                        rendered_bullet = bullet_template.render(**variables)
+                        rendered_paragraphs.append(f'<li class="list-item" style="margin-bottom: 8px; line-height: 1.6; color: #333333;">{rendered_bullet}</li>')
+                    rendered_paragraphs.append('</ul>')
+
                 render_context['body_html'] = ''.join(rendered_paragraphs)
 
                 # Render closing_paragraphs separately (will be placed after highlight box)
@@ -841,6 +850,28 @@ class EmailService(BaseService):
                 'observer_name': observer_name,
                 'observer_email': observer_email,
                 'dashboard_url': dashboard_url
+            }
+        )
+
+    def send_course_enrollment_email(
+        self,
+        user_email: str,
+        user_name: str,
+        course_title: str,
+        quest_count: int,
+        course_url: str
+    ) -> bool:
+        """Send welcome email when a student enrolls in a course."""
+        return self.send_templated_email(
+            to_email=user_email,
+            subject=f"Welcome to '{course_title}' on Optio!",
+            template_name='course_enrollment',
+            context={
+                'user_name': user_name,
+                'course_title': course_title,
+                'quest_count': quest_count,
+                'quest_count_suffix': 's' if quest_count != 1 else '',
+                'course_url': course_url
             }
         )
 

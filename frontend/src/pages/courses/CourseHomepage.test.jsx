@@ -6,6 +6,7 @@ import CourseHomepage from './CourseHomepage'
 
 const mockNavigate = vi.fn()
 let courseHomepageData = {}
+let authState = {}
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
@@ -14,6 +15,10 @@ vi.mock('react-router-dom', async () => {
     useNavigate: () => mockNavigate
   }
 })
+
+vi.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => authState
+}))
 
 vi.mock('../../hooks/api/useCourseData', () => ({
   useCourseHomepage: () => courseHomepageData
@@ -27,6 +32,29 @@ vi.mock('../../services/courseService', () => ({
 
 vi.mock('react-hot-toast', () => ({
   default: { success: vi.fn(), error: vi.fn() }
+}))
+
+// Mock OnboardingContext
+vi.mock('../../contexts/OnboardingContext', () => ({
+  OnboardingProvider: ({ children }) => <>{children}</>,
+  useOnboarding: () => ({
+    isOnboarding: false,
+    currentStep: 0,
+    startOnboarding: vi.fn(),
+    nextStep: vi.fn(),
+    skipOnboarding: vi.fn(),
+    completeOnboarding: vi.fn()
+  })
+}))
+
+// Mock onboarding steps component
+vi.mock('../../components/onboarding/CourseOnboardingSteps', () => ({
+  default: () => null
+}))
+
+// Mock QuestJourneyMap
+vi.mock('../../components/courses/QuestJourneyMap', () => ({
+  default: () => <div data-testid="quest-journey-map" />
 }))
 
 // Mock CurriculumView
@@ -52,7 +80,8 @@ vi.mock('@heroicons/react/24/outline', () => ({
   ArrowsPointingInIcon: (props) => <svg data-testid="collapse-icon" {...props} />,
   ArrowRightStartOnRectangleIcon: (props) => <svg data-testid="exit-icon" {...props} />,
   ExclamationTriangleIcon: (props) => <svg data-testid="warning-icon" {...props} />,
-  XMarkIcon: (props) => <svg data-testid="x-icon" {...props} />
+  XMarkIcon: (props) => <svg data-testid="x-icon" {...props} />,
+  QuestionMarkCircleIcon: (props) => <svg data-testid="question-icon" {...props} />
 }))
 
 vi.mock('@heroicons/react/24/solid', () => ({
@@ -141,6 +170,8 @@ describe('CourseHomepage', () => {
     vi.clearAllMocks()
     queryClient.clear()
 
+    authState = { user: { id: 'user-1', role: 'student', tutorial_completed_at: '2025-01-01' } }
+
     courseHomepageData = {
       data: mockCourseData,
       isLoading: false,
@@ -188,7 +219,6 @@ describe('CourseHomepage', () => {
   describe('course overview', () => {
     it('renders course title in header', () => {
       renderCourseHomepage()
-      // Title appears in header and overview
       const titles = screen.getAllByText('Robotics 101')
       expect(titles.length).toBeGreaterThanOrEqual(1)
     })
@@ -201,7 +231,7 @@ describe('CourseHomepage', () => {
     it('renders Your Progress section', () => {
       renderCourseHomepage()
       expect(screen.getByText('Your Progress')).toBeInTheDocument()
-      expect(screen.getByText(/1 of 2 projects completed/)).toBeInTheDocument()
+      expect(screen.getByText(/1 \/ 2 Projects/)).toBeInTheDocument()
     })
 
     it('renders Projects heading with grid', () => {
@@ -211,7 +241,6 @@ describe('CourseHomepage', () => {
 
     it('renders project cards', () => {
       renderCourseHomepage()
-      // Titles appear in both sidebar and overview grid
       const robotArm = screen.getAllByText('Build a Robot Arm')
       const controller = screen.getAllByText('Program the Controller')
       expect(robotArm.length).toBeGreaterThanOrEqual(2)
@@ -228,7 +257,6 @@ describe('CourseHomepage', () => {
 
     it('shows quest titles in sidebar', () => {
       renderCourseHomepage()
-      // Quest titles appear in both sidebar and overview
       const robotTitles = screen.getAllByText('Build a Robot Arm')
       expect(robotTitles.length).toBeGreaterThanOrEqual(1)
     })
@@ -240,7 +268,6 @@ describe('CourseHomepage', () => {
 
     it('shows Course Progress percentage', () => {
       renderCourseHomepage()
-      // 50% appears in both sidebar and overview
       const percentages = screen.getAllByText('50%')
       expect(percentages.length).toBeGreaterThanOrEqual(1)
     })
@@ -248,12 +275,11 @@ describe('CourseHomepage', () => {
 
   // --- Enrollment actions ---
   describe('enrollment actions', () => {
-    it('shows Complete and Unenroll buttons when enrolled', () => {
+    it('shows Tutorial and Unenroll buttons when enrolled', () => {
       renderCourseHomepage()
-      // These have hidden text on mobile, check for hidden span text
-      const completeBtn = screen.getByTitle('Complete course (progress will be saved)')
+      const tutorialBtn = screen.getByTitle('View course tutorial')
       const unenrollBtn = screen.getByTitle('Unenroll from course (deletes all progress)')
-      expect(completeBtn).toBeInTheDocument()
+      expect(tutorialBtn).toBeInTheDocument()
       expect(unenrollBtn).toBeInTheDocument()
     })
 
@@ -285,7 +311,6 @@ describe('CourseHomepage', () => {
         }
       }
       renderCourseHomepage()
-      // "Complete" appears in multiple places (header, sidebar, overview)
       const completeTexts = screen.getAllByText('Complete')
       expect(completeTexts.length).toBeGreaterThanOrEqual(1)
     })

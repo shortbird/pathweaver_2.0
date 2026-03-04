@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
 import logger from '../utils/logger'
@@ -10,8 +10,10 @@ const LoginPage = () => {
   const { register, handleSubmit, formState: { errors } } = useForm()
   const { login, isAuthenticated, user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const invitationCode = searchParams.get('invitation')
+  const fromPath = location.state?.from
   const [loading, setLoading] = useState(false)
   const [loginError, setLoginError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -61,12 +63,17 @@ const LoginPage = () => {
             return
           }
         }
-        // No pending invitation - account selection screen will handle navigation
+        // No pending invitation - if we have a return path, auto-redirect there
+        if (fromPath) {
+          navigate(fromPath, { replace: true })
+          return
+        }
+        // Otherwise account selection screen will handle navigation
       }
     }
 
     handlePendingInvitationRedirect()
-  }, [isAuthenticated, user, authLoading, navigate, wantsToSwitch])
+  }, [isAuthenticated, user, authLoading, navigate, wantsToSwitch, fromPath])
 
   const onSubmit = async (data) => {
     setLoading(true)
@@ -84,9 +91,10 @@ const LoginPage = () => {
   // Show account selection screen if already authenticated and not switching
   if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
     const displayName = user.first_name || user.display_name || user.email || 'User'
-    const redirectPath = user.role === 'parent' ? '/parent/dashboard'
+    const defaultPath = user.role === 'parent' ? '/parent/dashboard'
       : user.role === 'observer' ? '/observer/feed'
       : '/dashboard'
+    const redirectPath = fromPath || defaultPath
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">

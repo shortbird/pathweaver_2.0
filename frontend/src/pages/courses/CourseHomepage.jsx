@@ -13,12 +13,23 @@ import {
   ArrowRightStartOnRectangleIcon,
   ExclamationTriangleIcon,
   XMarkIcon,
+  QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid, ExclamationCircleIcon } from '@heroicons/react/24/solid'
 import { useCourseHomepage } from '../../hooks/api/useCourseData'
 import CurriculumView from '../../components/curriculum/CurriculumView'
 import { endCourse, enrollInCourse, unenrollFromCourse } from '../../services/courseService'
 import toast from 'react-hot-toast'
+import { useAuth } from '../../contexts/AuthContext'
+import { OnboardingProvider, useOnboarding } from '../../contexts/OnboardingContext'
+import CourseOnboardingSteps from '../../components/onboarding/CourseOnboardingSteps'
+import QuestJourneyMap from '../../components/courses/QuestJourneyMap'
+
+const stripHtml = (html) => {
+  if (!html) return ''
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  return doc.body.textContent || ''
+}
 
 /**
  * ExpandableQuestItem - Sidebar quest item with nested lessons
@@ -33,6 +44,8 @@ const ExpandableQuestItem = ({
   onSelectQuest,
   onSelectLesson,
   selectedLessonId,
+  isNextStep,
+  nextStepLessonId,
 }) => {
   const isCompleted = quest.progress?.is_completed
   const canComplete = quest.progress?.can_complete
@@ -51,10 +64,13 @@ const ExpandableQuestItem = ({
     <div className="mb-2">
       {/* Quest Header */}
       <div
+        onClick={() => onSelectQuest(quest)}
         className={`relative overflow-hidden flex items-center gap-2 p-3 rounded-lg transition-all cursor-pointer ${
           isSelected && !selectedLessonId
             ? 'bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 border-2 border-optio-purple'
-            : 'bg-white border border-gray-200 hover:border-optio-purple/50'
+            : isNextStep && !isCompleted && !canComplete
+              ? 'bg-white border border-gray-200 border-l-[3px] border-l-optio-purple hover:border-optio-purple/50'
+              : 'bg-white border border-gray-200 hover:border-optio-purple/50'
         }`}
       >
         {/* Progress bar background */}
@@ -84,11 +100,8 @@ const ExpandableQuestItem = ({
           {index + 1}
         </span>
 
-        {/* Quest Title */}
-        <div
-          className="flex-1 min-w-0 cursor-pointer"
-          onClick={() => onSelectQuest(quest)}
-        >
+        {/* Quest Title and Info */}
+        <div className="flex-1 min-w-0 relative">
           <h4 className="font-medium text-gray-900 text-sm leading-snug truncate">
             {quest.title || 'Untitled Project'}
           </h4>
@@ -115,12 +128,8 @@ const ExpandableQuestItem = ({
         </div>
 
         {/* Completion Status */}
-        {isCompleted ? (
+        {(isCompleted || canComplete) ? (
           <CheckCircleSolid className="w-5 h-5 text-green-500 flex-shrink-0" />
-        ) : canComplete ? (
-          <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded flex-shrink-0">
-            Ready
-          </span>
         ) : null}
       </div>
 
@@ -131,15 +140,19 @@ const ExpandableQuestItem = ({
             const isLessonCompleted = lesson.progress?.status === 'completed'
             const isLessonSelected = selectedLessonId === lesson.id
             const hasIncompleteRequired = lesson.progress?.has_incomplete_required
+            const isNextLesson = nextStepLessonId === lesson.id
 
             return (
               <div
                 key={lesson.id}
+                data-onboarding={idx === 0 ? 'lesson-item-0' : undefined}
                 onClick={() => onSelectLesson(quest, lesson)}
                 className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors min-h-[56px] ${
                   isLessonSelected
                     ? 'bg-optio-purple/10 border border-optio-purple'
-                    : 'hover:bg-gray-50 border border-transparent'
+                    : isNextLesson
+                      ? 'bg-optio-purple/5 border border-optio-purple/30'
+                      : 'hover:bg-gray-50 border border-transparent'
                 }`}
               >
                 {/* Lesson Number */}
@@ -158,6 +171,10 @@ const ExpandableQuestItem = ({
                 ) : hasIncompleteRequired ? (
                   <span className="flex items-center gap-1 text-xs text-amber-600 flex-shrink-0" title={`${lesson.progress?.completed_required_tasks || 0}/${lesson.progress?.total_required_tasks || 0} required tasks`}>
                     <ExclamationCircleIcon className="w-4 h-4" />
+                  </span>
+                ) : isNextLesson ? (
+                  <span className="text-[10px] font-medium text-optio-purple bg-optio-purple/10 px-1.5 py-0.5 rounded flex-shrink-0">
+                    Next
                   </span>
                 ) : null}
               </div>
@@ -190,42 +207,28 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">{course.title}</h1>
         {course.description && (
-          <p className="text-gray-600">{course.description}</p>
+          <p className="text-gray-600">{stripHtml(course.description)}</p>
         )}
       </div>
 
-      {/* Progress Summary */}
+      {/* Journey Map */}
       <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-xl p-6 mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Your Progress</h2>
-        <div className="flex items-center gap-4">
-          <div className="flex-1">
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-gray-600">
-                {progress.completed_quests} of {progress.total_quests} projects completed
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Your Progress</h2>
+          <span className="text-sm text-gray-600">
+            {progress.completed_quests} / {progress.total_quests} Projects
+            {progress.percentage >= 100 && (
+              <span className="inline-flex items-center gap-1 ml-2 font-semibold text-green-600">
+                <CheckCircleSolid className="w-4 h-4" />
+                Complete
               </span>
-              {progress.percentage >= 100 ? (
-                <span className="inline-flex items-center gap-1 font-semibold text-green-600">
-                  <CheckCircleSolid className="w-5 h-5" />
-                  Complete
-                </span>
-              ) : (
-                <span className="font-semibold text-gray-900">
-                  {Math.round(progress.percentage)}%
-                </span>
-              )}
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
-              <div
-                className={`h-3 rounded-full transition-all duration-300 ${
-                  progress.percentage >= 100
-                    ? 'bg-green-500'
-                    : 'bg-gradient-to-r from-optio-purple to-optio-pink'
-                }`}
-                style={{ width: `${Math.min(100, progress.percentage)}%` }}
-              />
-            </div>
-          </div>
+            )}
+          </span>
         </div>
+        <QuestJourneyMap
+          quests={quests}
+          onQuestClick={onSelectQuest}
+        />
       </div>
 
       {/* Projects Grid */}
@@ -250,24 +253,19 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
                   <h3 className="font-medium text-gray-900 mb-1">{quest.title}</h3>
                   {quest.description && (
                     <p className="text-sm text-gray-500 line-clamp-2">
-                      {quest.description}
+                      {stripHtml(quest.description)}
                     </p>
                   )}
 
                   {/* Progress */}
                   <div className="mt-3 flex flex-col gap-1">
                     <div className="flex items-center gap-2">
-                      {isCompleted ? (
+                      {(isCompleted || quest.progress?.can_complete) ? (
                         <span className="inline-flex items-center gap-1 text-sm text-green-600 font-medium">
                           <CheckCircleSolid className="w-4 h-4" />
-                          Completed
+                          Complete
                         </span>
-                      ) : quest.progress?.can_complete ? (
-                        <span className="inline-flex items-center gap-1 text-sm text-green-600 font-medium">
-                          <CheckCircleSolid className="w-4 h-4" />
-                          Ready to Complete
-                        </span>
-                      ) : quest.progress?.total_tasks > 0 ? (
+                      ) : quest.progress?.total_xp > 0 ? (
                         <>
                           <div className="flex-1 bg-gray-200 rounded-full h-2">
                             <div
@@ -326,26 +324,21 @@ const QuestDetail = ({ quest, onSelectLesson, onStartQuest, fallbackImageUrl }) 
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">{quest.title}</h1>
         {quest.description && (
-          <p className="text-gray-600">{quest.description}</p>
+          <p className="text-gray-600">{stripHtml(quest.description)}</p>
         )}
       </div>
 
       {/* Progress Bar */}
-      {quest.progress?.total_tasks > 0 && (
+      {quest.progress?.total_xp > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
           <div className="flex justify-between text-sm mb-2">
             <span className="text-gray-600">
-              {quest.progress.completed_tasks} of {quest.progress.total_tasks} tasks completed
+              {quest.progress.earned_xp || 0} / {quest.progress.total_xp} XP
             </span>
-            {isCompleted ? (
+            {(isCompleted || quest.progress?.can_complete) ? (
               <span className="inline-flex items-center gap-1 font-semibold text-green-600">
                 <CheckCircleSolid className="w-5 h-5" />
                 Complete
-              </span>
-            ) : quest.progress?.can_complete ? (
-              <span className="inline-flex items-center gap-1 font-semibold text-green-600">
-                <CheckCircleSolid className="w-5 h-5" />
-                Ready to Complete
               </span>
             ) : (
               <span className="font-semibold text-gray-900">
@@ -425,11 +418,13 @@ const QuestDetail = ({ quest, onSelectLesson, onStartQuest, fallbackImageUrl }) 
 /**
  * CourseHomepage - Main course homepage with sidebar navigation
  */
-const CourseHomepage = () => {
+const CourseHomepageInner = () => {
   const { courseId } = useParams()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const location = useLocation()
+  const { user } = useAuth()
+  const { isActive: isOnboarding, currentStep: onboardingStep, startOnboarding } = useOnboarding()
 
   // Fetch course data
   const { data, isLoading, error, refetch } = useCourseHomepage(courseId)
@@ -578,12 +573,52 @@ const CourseHomepage = () => {
     window.history.replaceState({}, document.title)
   }, [data?.quests, location.state])
 
-  // Auto-expand first quest with lessons on load (only if no URL state)
+  // Trigger onboarding walkthrough for first-time users
   useEffect(() => {
+    if (!data?.quests?.length || !user) return
+    if (user.tutorial_completed_at) return
+    if (searchParams.get('quest')) return // Don't start if deep-linking
+    startOnboarding()
+  }, [data?.quests, user?.tutorial_completed_at])
+
+  // Manage sidebar state during onboarding steps
+  useEffect(() => {
+    if (!isOnboarding || !data?.quests?.length) return
+
+    // Collapse all projects for steps before 4
+    if (onboardingStep < 4) {
+      setExpandedQuestIds(new Set())
+      return
+    }
+
+    if (onboardingStep >= 4) {
+      const firstQuest = data.quests[0]
+      if (firstQuest) {
+        setExpandedQuestIds(new Set([firstQuest.id]))
+        if (firstQuest.lessons?.length > 0) {
+          setSelectedQuest(firstQuest)
+          setSelectedLesson(firstQuest.lessons[0])
+          // On step 6, navigate to the tasks step within the lesson
+          if (onboardingStep === 6) {
+            setInitialStepIndex(999) // Will be clamped to last step (tasks)
+          }
+        }
+      }
+    }
+  }, [isOnboarding, onboardingStep, data?.quests])
+
+  // Auto-expand next-step quest on load (only if no URL state and not onboarding)
+  useEffect(() => {
+    if (isOnboarding) return
+    if (user && !user.tutorial_completed_at) return // Onboarding about to start
     if (data?.quests?.length > 0 && expandedQuestIds.size === 0 && !searchParams.get('quest')) {
-      const firstQuestWithLessons = data.quests.find(q => q.lessons?.length > 0)
-      if (firstQuestWithLessons) {
-        setExpandedQuestIds(new Set([firstQuestWithLessons.id]))
+      if (next_step) {
+        setExpandedQuestIds(new Set([next_step.quest_id]))
+      } else {
+        const firstQuestWithLessons = data.quests.find(q => q.lessons?.length > 0)
+        if (firstQuestWithLessons) {
+          setExpandedQuestIds(new Set([firstQuestWithLessons.id]))
+        }
       }
     }
   }, [data?.quests, searchParams])
@@ -702,7 +737,7 @@ const CourseHomepage = () => {
     )
   }
 
-  const { course, quests, progress, enrollment } = data
+  const { course, quests, progress, enrollment, next_step } = data
   // User is enrolled if they have a formal enrollment with 'active' status
   const isEnrolled = enrollment?.id != null && enrollment?.status === 'active'
 
@@ -750,15 +785,17 @@ const CourseHomepage = () => {
               {isEnrolled ? (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={handleEndCourse}
-                    disabled={isEnding || isUnenrolling}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
-                    title="Complete course (progress will be saved)"
+                    onClick={() => {
+                      localStorage.removeItem('optio-onboarding-step')
+                      startOnboarding()
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-optio-purple hover:text-optio-purple/80 hover:bg-optio-purple/5 border border-optio-purple/30 rounded-lg transition-colors text-sm font-medium"
+                    title="View course tutorial"
                   >
-                    <CheckCircleIcon className="w-4 h-4" />
-                    <span className="hidden sm:inline">{isEnding ? 'Completing...' : 'Complete'}</span>
+                    <QuestionMarkCircleIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">Tutorial</span>
                   </button>
-                  <button
+<button
                     onClick={handleUnenroll}
                     disabled={isUnenrolling || isEnding}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
@@ -813,6 +850,7 @@ const CourseHomepage = () => {
             <div className="bg-white rounded-xl border border-gray-200 p-4 h-full lg:max-h-[calc(100vh-150px)] lg:overflow-y-auto">
               {/* Course Progress Summary - Clickable to go to overview */}
               <button
+                data-onboarding="course-progress"
                 onClick={() => {
                   setSelectedQuest(null)
                   setSelectedLesson(null)
@@ -846,6 +884,7 @@ const CourseHomepage = () => {
               </button>
 
               {/* Projects List */}
+              <div data-onboarding="quest-item-0">
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
                 Projects ({quests.length})
               </h2>
@@ -867,10 +906,13 @@ const CourseHomepage = () => {
                       onSelectQuest={handleSelectQuest}
                       onSelectLesson={handleSelectLesson}
                       selectedLessonId={selectedLesson?.id}
+                      isNextStep={next_step?.quest_id === quest.id}
+                      nextStepLessonId={next_step?.quest_id === quest.id ? next_step?.lesson_id : null}
                     />
                   ))}
                 </div>
               )}
+              </div>
             </div>
           </div>
 
@@ -921,6 +963,7 @@ const CourseHomepage = () => {
                       initialLessonId={selectedLesson.id}
                       initialStepIndex={initialStepIndex}
                       embedded={true}
+                      questXpThreshold={selectedQuest?.xp_threshold || selectedQuest?.progress?.total_xp || 0}
                       onUnsavedChangesChange={setHasUnsavedChanges}
                       onSaveProgress={setSaveProgressFn}
                       onTaskClick={handleTaskClick}
@@ -953,6 +996,9 @@ const CourseHomepage = () => {
           </div>
         </div>
       </div>
+
+      {/* Onboarding Walkthrough */}
+      <CourseOnboardingSteps />
 
       {/* Incomplete Projects Modal */}
       {incompleteProjectsModal && (
@@ -1060,5 +1106,11 @@ const CourseHomepage = () => {
     </div>
   )
 }
+
+const CourseHomepage = () => (
+  <OnboardingProvider>
+    <CourseHomepageInner />
+  </OnboardingProvider>
+)
 
 export default CourseHomepage

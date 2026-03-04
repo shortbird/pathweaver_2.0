@@ -467,6 +467,23 @@ emails:
     signature: "support"
     footer_extra: "If you have concerns about this access, please contact us immediately at support@optioeducation.com."
 
+  course_enrollment:
+    subject: "Welcome to '{{ course_title }}' on Optio!"
+    title: "Welcome to Your New Course!"
+    greeting: "Hi {{ user_name }},"
+    paragraphs:
+      - "You're now enrolled in <strong>{{ course_title }}</strong>. This course has {{ quest_count }} project{{ quest_count_suffix }} for you to explore."
+      - "Optio courses are built around learning by doing. Instead of lectures and tests, each course is a series of hands-on projects. Here's what to expect:"
+      - "<strong style='font-size: 16px;'>Projects, Not Units</strong><br>Your course is organized into projects, not chapters or units. Each one has a real goal and a set of tasks to get you there."
+      - "<strong style='font-size: 16px;'>Just-in-Time Teaching</strong><br>Lessons give you just enough context to get started. The real learning happens when you jump in and do the work yourself."
+      - "<strong style='font-size: 16px;'>Personalized Assignments</strong><br>Choose from suggested tasks or create your own. You learn best when you're working on something you actually care about."
+      - "<strong style='font-size: 16px;'>XP, Not Grades</strong><br>Every completed task earns experience points. Meet the XP goal for each project to complete the course. There's no failure, just progress."
+    cta:
+      text: "Start Your Course"
+      url: "{{ course_url }}"
+    closing_paragraph: "Take it one step at a time. Open your first project, read the first lesson, and try a task. You've got this."
+    signature: "team"
+
   # Daily Advisor Summary (Morning Briefing)
   # V2 Enhancement: Now includes cohort summary, milestones, check-in data,
   # and per-student engagement metrics (rhythm states, streaks, pillar balance)

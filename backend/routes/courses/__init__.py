@@ -23,9 +23,11 @@ from . import quests
 from . import enrollment
 from . import homepage
 
+
 # Register all routes
 crud.register_routes(bp)
 publishing.register_routes(bp)
 quests.register_routes(bp)
 enrollment.register_routes(bp)
 homepage.register_routes(bp)
+

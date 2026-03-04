@@ -716,6 +716,24 @@ class CourseService(BaseService):
                 }
             })
 
+        # Calculate next step: first quest with an incomplete lesson
+        next_step = None
+        for quest_data_item in quests_with_data:
+            if quest_data_item['progress']['is_completed']:
+                continue
+            for lesson_item in quest_data_item.get('lessons', []):
+                lesson_progress = lesson_item.get('progress', {})
+                if lesson_progress.get('status') != 'completed':
+                    next_step = {
+                        'quest_id': quest_data_item['id'],
+                        'quest_title': quest_data_item['title'],
+                        'lesson_id': lesson_item['id'],
+                        'lesson_title': lesson_item.get('title')
+                    }
+                    break
+            if next_step:
+                break
+
         # Get course enrollment status
         enrollment_result = supabase.table('course_enrollments')\
             .select('*')\
@@ -763,7 +781,8 @@ class CourseService(BaseService):
                 'earned_xp': course_earned_xp,
                 'total_xp': course_total_xp,
                 'percentage': course_progress
-            }
+            },
+            'next_step': next_step
         }
 
     @staticmethod

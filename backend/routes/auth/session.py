@@ -3,10 +3,15 @@ Authentication Module: Session Management
 
 Handles:
 - CSRF token generation for frontend requests
+- Tutorial completion tracking
 """
 
+from datetime import datetime
 from flask import Blueprint, request, jsonify
 from middleware.csrf_protection import get_csrf_token
+from utils.auth.decorators import require_auth
+from utils.session_manager import session_manager
+from database import get_supabase_admin_client
 import secrets
 
 from utils.logger import get_logger
@@ -48,3 +53,24 @@ def get_csrf_token_endpoint():
     except Exception as e:
         logger.error(f"Error generating CSRF token: {str(e)}")
         return jsonify({'error': 'Failed to generate CSRF token'}), 500
+
+
+@bp.route('/tutorial-completed', methods=['PATCH'])
+@require_auth
+def mark_tutorial_completed(user_id):
+    """Mark the user's onboarding tutorial as completed."""
+    try:
+        current_user_id = session_manager.get_effective_user_id()
+        client = get_supabase_admin_client()
+
+        client.table('users').update({
+            'tutorial_completed_at': datetime.utcnow().isoformat()
+        }).eq('id', current_user_id).execute()
+
+        logger.info(f"Tutorial completed for user {current_user_id}")
+
+        return jsonify({'success': True}), 200
+
+    except Exception as e:
+        logger.error(f"Error marking tutorial completed: {str(e)}")
+        return jsonify({'error': str(e)}), 500

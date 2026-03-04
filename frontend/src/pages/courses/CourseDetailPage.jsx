@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import toast from 'react-hot-toast'
 import { getCourseById, getCourseProgress, enrollInCourse, unenrollFromCourse } from '../../services/courseService'
 import { captureEvent } from '../../services/posthog'
+import QuestJourneyMap from '../../components/courses/QuestJourneyMap'
 
 /**
  * CourseDetailPage - Student view of a course
@@ -199,10 +200,10 @@ const CourseDetailPage = () => {
               </p>
             </div>
 
-            {/* Progress Bar (if enrolled) */}
+            {/* Progress Journey Map (if enrolled) */}
             {isEnrolled && (
               <div className="bg-white rounded-lg shadow-sm p-6">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-bold text-gray-900">
                     Your Progress
                   </h2>
@@ -210,12 +211,11 @@ const CourseDetailPage = () => {
                     {completedQuests} / {totalQuests} Quests
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                  <div
-                    className="bg-gradient-to-r from-optio-purple to-optio-pink h-full transition-all duration-500 rounded-full"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
+                <QuestJourneyMap
+                  quests={quests}
+                  progress={progress}
+                  onQuestClick={handleQuestClick}
+                />
               </div>
             )}
 

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 const PrivateRoute = ({ requiredRole }) => {
   const { isAuthenticated, user, effectiveRole, loading } = useAuth()
+  const location = useLocation()
 
   // Initialize graceLoading synchronously to prevent flash on first render
   const [graceLoading, setGraceLoading] = useState(() => {
@@ -54,7 +55,7 @@ const PrivateRoute = ({ requiredRole }) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
 
 
