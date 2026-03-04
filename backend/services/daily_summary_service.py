@@ -430,7 +430,7 @@ class DailySummaryService(BaseService):
 
             # Get completions with task info
             response = self.client.table('quest_task_completions')\
-                .select('id, user_id, xp_awarded, completed_at, user_quest_tasks(title, pillar, xp_value)')\
+                .select('id, user_id, completed_at, user_quest_tasks(title, pillar, xp_value)')\
                 .in_('user_id', student_ids)\
                 .gte('completed_at', start_date)\
                 .lte('completed_at', end_date)\
@@ -443,7 +443,7 @@ class DailySummaryService(BaseService):
                 completions.append({
                     'id': c['id'],
                     'user_id': c['user_id'],
-                    'xp_awarded': c.get('xp_awarded') or task.get('xp_value', 0),
+                    'xp_awarded': task.get('xp_value', 0),
                     'completed_at': c['completed_at'],
                     'task_title': task.get('title', 'Untitled Task'),
                     'task_pillar': task.get('pillar')
@@ -862,7 +862,7 @@ class DailySummaryService(BaseService):
 
             # Get XP earned yesterday
             xp_earned_yesterday = self.client.table('quest_task_completions')\
-                .select('user_id, xp_awarded')\
+                .select('user_id, user_quest_tasks(xp_value)')\
                 .in_('user_id', student_ids)\
                 .gte('completed_at', start_of_day.isoformat())\
                 .lte('completed_at', end_of_day.isoformat())\
@@ -870,7 +870,8 @@ class DailySummaryService(BaseService):
 
             xp_earned_by_student = defaultdict(int)
             for record in (xp_earned_yesterday.data or []):
-                xp_earned_by_student[record['user_id']] += record.get('xp_awarded', 0) or 0
+                task = record.get('user_quest_tasks') or {}
+                xp_earned_by_student[record['user_id']] += task.get('xp_value', 0) or 0
 
             for user in (users_response.data or []):
                 student_id = user['id']
