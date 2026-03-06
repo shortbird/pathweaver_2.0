@@ -153,7 +153,7 @@ const ConversationList = ({
 
     // Sort by unread > recent message > alphabetical
     return sortContacts(filtered)
-  }, [learningPartners, observers, linkedChildren, messagingContacts, conversations, pinnedIds, user?.role])
+  }, [observers, linkedChildren, messagingContacts, conversations, pinnedIds, user?.role])
 
   // Filter by search query
   const filteredContacts = useMemo(() => {

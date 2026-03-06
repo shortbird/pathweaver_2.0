@@ -8,6 +8,7 @@ Handles:
 """
 
 from flask import Blueprint, request, jsonify
+from app_config import Config
 from database import get_supabase_client, get_supabase_admin_client
 from utils.validation import sanitize_input, validate_password
 from middleware.rate_limiter import rate_limit
@@ -15,7 +16,6 @@ from utils.log_scrubber import mask_email, mask_user_id, should_log_sensitive_da
 from middleware.error_handler import ValidationError
 from services.email_service import email_service
 import re
-import os
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -156,7 +156,7 @@ def forgot_password():
                 logger.info(f"[FORGOT_PASSWORD] Token stored successfully: {token_result.data}")
 
                 # Generate reset link
-                frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+                frontend_url = Config.FRONTEND_URL
                 reset_link = f"{frontend_url}/reset-password?token={reset_token}"
                 logger.info(f"[FORGOT_PASSWORD] Generated reset link: {reset_link[:50]}...")
 

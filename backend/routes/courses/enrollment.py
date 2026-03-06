@@ -4,9 +4,9 @@ Courses Module - Enrollment
 Student enrollment, unenrollment, and progress tracking.
 """
 
-import os
 from datetime import datetime
 from flask import request, jsonify
+from app_config import Config
 from utils.auth.decorators import require_auth, require_admin
 from database import get_user_client, get_supabase_admin_client
 from utils.session_manager import session_manager
@@ -169,7 +169,7 @@ def register_routes(bp):
                 user_result = client.table('users').select('email, display_name, first_name').eq('id', target_user_id).execute()
                 if user_result.data:
                     user_data = user_result.data[0]
-                    frontend_url = os.getenv('FRONTEND_URL', 'https://www.optioeducation.com')
+                    frontend_url = Config.FRONTEND_URL
                     course_url = f"{frontend_url}/courses/{course_id}"
                     quest_count = len(course_quests.data) if course_quests.data else 0
                     email_service.send_course_enrollment_email(

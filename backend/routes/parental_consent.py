@@ -17,6 +17,7 @@ NOTE: Admin client usage justified throughout this file for consent management.
 Managing parental consent requires cross-user operations and system-level privileges.
 """
 from flask import Blueprint, request, jsonify
+from app_config import Config
 from database import get_supabase_admin_client
 from repositories import (
     UserRepository,
@@ -35,7 +36,6 @@ import secrets
 import hashlib
 from datetime import datetime, timedelta
 import logging
-import os
 import mimetypes
 
 from utils.logger import get_logger
@@ -427,7 +427,7 @@ def submit_consent_documents(user_id: str):
                     context={
                         'parent_name': user.get('display_name', 'Parent'),
                         'parent_email': user.get('email', ''),
-                        'review_url': f"{os.getenv('FRONTEND_URL')}/admin/parental-consent",
+                        'review_url': f"{Config.FRONTEND_URL}/admin/parental-consent",
                         'parent_id': user_id
                     }
                 )
@@ -566,7 +566,7 @@ def approve_parental_consent(user_id: str, parent_id):
             template_name='parent_consent_approved',
             context={
                 'parent_name': parent.get('display_name', 'Parent'),
-                'login_url': f"{os.getenv('FRONTEND_URL')}/login"
+                'login_url': f"{Config.FRONTEND_URL}/login"
             }
         )
 
@@ -650,7 +650,7 @@ def reject_parental_consent(user_id: str, parent_id):
             context={
                 'parent_name': parent.get('display_name', 'Parent'),
                 'rejection_reason': rejection_reason,
-                'resubmit_url': f"{os.getenv('FRONTEND_URL')}/parental-consent"
+                'resubmit_url': f"{Config.FRONTEND_URL}/parental-consent"
             }
         )
 

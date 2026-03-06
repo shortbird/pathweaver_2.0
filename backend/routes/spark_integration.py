@@ -22,6 +22,7 @@ Security features:
 """
 
 from flask import Blueprint, request, redirect, jsonify
+from app_config import Config
 import jwt
 import os
 import hmac
@@ -150,7 +151,7 @@ def spark_sso():
         }).execute()
 
         # Redirect to frontend with one-time code (not tokens)
-        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+        frontend_url = Config.FRONTEND_URL
         redirect_url = f"{frontend_url}/auth/callback?code={auth_code}"
 
         logger.info(f"[SPARK SSO DEBUG] FRONTEND_URL env var: {frontend_url}")

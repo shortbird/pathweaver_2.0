@@ -11,6 +11,7 @@ Endpoints for managing AI content generation and quality monitoring jobs.
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_role
+from app_config import Config
 from jobs.scheduler import JobScheduler
 from jobs.quality_monitor import QualityMonitor
 from services.ai_quest_maintenance_service import AIQuestMaintenanceService
@@ -310,7 +311,6 @@ def test_advisor_summary(user_id):
         from jobs.daily_advisor_summary import DailyAdvisorSummaryJob
         from services.email_service import email_service
         from datetime import timedelta
-        import os
 
         data = request.get_json() or {}
         advisor_id = data.get('advisor_id', user_id)  # Default to current user
@@ -351,7 +351,7 @@ def test_advisor_summary(user_id):
                 }), 400
 
             formatted_date = summary_date.strftime('%B %d, %Y')
-            frontend_url = os.getenv('FRONTEND_URL', 'https://www.optioeducation.com')
+            frontend_url = Config.FRONTEND_URL
 
             # Build the student sections HTML (marked safe for Jinja2)
             from markupsafe import Markup
@@ -411,11 +411,9 @@ def trigger_advisor_summary_job():
         - summary_date: ISO date string (defaults to yesterday)
         - advisor_ids: List of specific advisor UUIDs to process (defaults to all)
     """
-    import os
-
     # Check for cron secret OR superadmin auth
     cron_secret = request.headers.get('X-Cron-Secret')
-    expected_secret = os.getenv('CRON_SECRET')
+    expected_secret = Config.CRON_SECRET
 
     if cron_secret and expected_secret and cron_secret == expected_secret:
         # Valid cron request

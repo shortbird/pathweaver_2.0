@@ -8,9 +8,9 @@ from services.base_service import BaseService
 from typing import Dict, List, Optional, Any
 from utils.logger import get_logger
 from middleware.error_handler import ValidationError
-import os
 import uuid
 import google.generativeai as genai
+from app_config import Config
 
 logger = get_logger(__name__)
 
@@ -173,8 +173,8 @@ class CurriculumLessonService(BaseService):
         self.supabase = supabase
 
         # AI configuration for task generation
-        self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
-        self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
+        self.api_key = Config.GEMINI_API_KEY
+        self.model_name = Config.GEMINI_MODEL
 
         if self.api_key:
             genai.configure(api_key=self.api_key)

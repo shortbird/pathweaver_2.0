@@ -10,7 +10,6 @@ USAGE PATTERN:
 - Can also be run as periodic maintenance via admin endpoint or cron job
 """
 
-import os
 import json
 import threading
 from typing import Dict, List, Optional, Callable
@@ -19,6 +18,7 @@ import google.generativeai as genai
 from services.base_service import BaseService
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from app_config import Config
 
 logger = get_logger(__name__)
 
@@ -30,11 +30,11 @@ class TaskLibrarySanitizationService(BaseService):
         """Initialize the sanitization service with Gemini configuration"""
         super().__init__()
         self.supabase = get_supabase_admin_client()
-        self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
-        self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
+        self.api_key = Config.GEMINI_API_KEY
+        self.model_name = Config.GEMINI_MODEL
 
         if not self.api_key:
-            raise ValueError("GOOGLE_API_KEY not configured. Set GEMINI_API_KEY environment variable.")
+            raise ValueError("GEMINI_API_KEY not configured.")
 
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel(self.model_name)

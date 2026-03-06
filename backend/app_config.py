@@ -111,22 +111,15 @@ class Config:
     # Legacy FRONTEND_URL (for backward compatibility)
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
     
-    # Supabase Configuration - check multiple possible env var names
-    SUPABASE_URL = (
-        os.getenv('SUPABASE_URL') or
-        os.getenv('VITE_SUPABASE_URL') or
-        os.getenv('supabase_url')
-    )
+    # Supabase Configuration
+    SUPABASE_URL = os.getenv('SUPABASE_URL')
     SUPABASE_ANON_KEY = (
-        os.getenv('SUPABASE_KEY') or  # Your Railway uses SUPABASE_KEY
         os.getenv('SUPABASE_ANON_KEY') or
-        os.getenv('VITE_SUPABASE_ANON_KEY') or
-        os.getenv('supabase_anon_key')
+        os.getenv('SUPABASE_KEY')  # Legacy fallback
     )
     SUPABASE_SERVICE_ROLE_KEY = (
-        os.getenv('SUPABASE_SERVICE_KEY') or  # Your Railway uses SUPABASE_SERVICE_KEY
         os.getenv('SUPABASE_SERVICE_ROLE_KEY') or
-        os.getenv('supabase_service_role_key')
+        os.getenv('SUPABASE_SERVICE_KEY')  # Legacy fallback
     )
 
     # Database Configuration - CONFIGURABLE
@@ -154,13 +147,27 @@ class Config:
         # NOTE: print() used here due to circular dependency - logger not available yet
         pass
     
-    # OpenAI Configuration
-    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-    OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4')
-    
     # Google Gemini Configuration
-    GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
-    GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')
+    GEMINI_API_KEY = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
+    GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
+    GOOGLE_API_KEY = GEMINI_API_KEY  # Backward-compat alias
+
+    # Pexels Image API
+    PEXELS_API_KEY = os.getenv('PEXELS_API_KEY')
+
+    # Email / SMTP Configuration
+    SMTP_HOST = os.getenv('SMTP_HOST', 'smtp.sendgrid.net')
+    SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
+    SMTP_USER = os.getenv('SMTP_USER', 'apikey')
+    SMTP_PASS = os.getenv('SMTP_PASS', '')
+    SENDER_EMAIL = os.getenv('SENDER_EMAIL', 'support@optioeducation.com')
+    SENDER_NAME = os.getenv('SENDER_NAME', 'Optio Support')
+    ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'tanner@optioeducation.com')
+    SUPPORT_EMAIL = os.getenv('SUPPORT_EMAIL', 'support@optioeducation.com')
+    SUPPORT_COPY_EMAIL = os.getenv('SUPPORT_COPY_EMAIL', 'tanner@optioeducation.com')
+
+    # Cron Authentication
+    CRON_SECRET = os.getenv('CRON_SECRET')
     
     # Stripe Configuration
     STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
