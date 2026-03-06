@@ -13,12 +13,12 @@ Refactored (Jan 2026): Now uses shared prompt components for consistency.
 """
 
 import google.generativeai as genai
-import os
 import json
 from typing import Dict, List, Optional, Tuple
 from services.base_service import BaseService
 from database import get_supabase_admin_client
 from datetime import datetime
+from app_config import Config
 
 from utils.logger import get_logger
 
@@ -42,13 +42,11 @@ class StudentAIAssistantService(BaseService):
         """Initialize the service with Gemini API."""
         super().__init__()
         self.supabase = get_supabase_admin_client()
-        api_key = os.getenv('GEMINI_API_KEY')
-        if not api_key:
+        if not Config.GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY environment variable not set")
 
-        genai.configure(api_key=api_key)
-        # Use gemini-2.5-flash-lite as per CLAUDE.md specification
-        self.model = genai.GenerativeModel('gemini-2.5-flash-lite')
+        genai.configure(api_key=Config.GEMINI_API_KEY)
+        self.model = genai.GenerativeModel(Config.GEMINI_MODEL)
 
         # Use shared pillar display names from components
         self.pillars = list(PILLAR_DISPLAY_NAMES.values())

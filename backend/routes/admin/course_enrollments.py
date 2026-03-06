@@ -12,8 +12,8 @@ Endpoints:
     GET  /user-enrollments              - Get all enrollments for a specific user
 """
 
-import os
 from flask import Blueprint, request, jsonify
+from app_config import Config
 from utils.auth.decorators import require_org_admin, validate_uuid_param
 from services.course_enrollment_service import CourseEnrollmentService
 from services.email_service import email_service
@@ -246,7 +246,7 @@ def bulk_enroll_users(current_user_id, current_org_id, is_superadmin, course_id)
                         .eq('course_id', course_id)\
                         .execute()
                     quest_count = len(course_quests.data) if course_quests.data else 0
-                    frontend_url = os.getenv('FRONTEND_URL', 'https://www.optioeducation.com')
+                    frontend_url = Config.FRONTEND_URL
                     course_url = f"{frontend_url}/courses/{course_id}"
 
                     for uid in newly_enrolled_ids:

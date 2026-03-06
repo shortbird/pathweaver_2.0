@@ -5,6 +5,7 @@ Cookie debugging and Safari/iOS compatibility.
 """
 
 from flask import request, jsonify, make_response
+from app_config import Config
 from database import get_supabase_client, get_supabase_admin_client
 from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit
@@ -170,7 +171,7 @@ def register_routes(bp):
                 'cookie_secure': session_manager.cookie_secure,
                 'cookie_samesite': session_manager.cookie_samesite,
                 'cookie_domain': session_manager.cookie_domain,
-                'frontend_url': os.getenv('FRONTEND_URL', 'Not configured'),
+                'frontend_url': Config.FRONTEND_URL,
                 'backend_url': request.host_url,
                 'environment': os.getenv('FLASK_ENV', 'Not set'),
                 'partitioned_cookies_enabled': session_manager.is_cross_origin,

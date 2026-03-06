@@ -7,25 +7,23 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional, List, Dict, Any
 from services.base_service import BaseService
-import logging
 from jinja2 import Environment, FileSystemLoader, select_autoescape, TemplateNotFound
 from services.email_copy_loader import email_copy_loader
+from app_config import Config
 
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-logger = logging.getLogger(__name__)
-
 class EmailService(BaseService):
     def __init__(self):
-        # SMTP Configuration from environment variables
-        self.smtp_host = os.getenv('SMTP_HOST', 'smtp.sendgrid.net')
-        self.smtp_port = int(os.getenv('SMTP_PORT', '587'))
-        self.smtp_user = os.getenv('SMTP_USER', 'apikey')
-        self.smtp_pass = os.getenv('SMTP_PASS', '')
-        self.sender_email = os.getenv('SENDER_EMAIL', 'support@optioeducation.com')
-        self.sender_name = os.getenv('SENDER_NAME', 'Optio Support')
+        # SMTP Configuration from Config
+        self.smtp_host = Config.SMTP_HOST
+        self.smtp_port = Config.SMTP_PORT
+        self.smtp_user = Config.SMTP_USER
+        self.smtp_pass = Config.SMTP_PASS
+        self.sender_email = Config.SENDER_EMAIL
+        self.sender_name = Config.SENDER_NAME
 
         # Set up Jinja2 template environment
         template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
@@ -91,8 +89,8 @@ class EmailService(BaseService):
             # Automatically copy support email for monitoring all outgoing emails
             # Note: We'll send a separate copy instead of BCC due to SendGrid SMTP limitations
             # Use tanner@optioeducation.com directly to avoid email alias loops (support@ and admin@ redirect to tanner@)
-            support_email = os.getenv('SUPPORT_EMAIL', 'support@optioeducation.com')
-            support_copy_email = os.getenv('SUPPORT_COPY_EMAIL', 'tanner@optioeducation.com')  # Direct email to avoid alias loops
+            support_email = Config.SUPPORT_EMAIL
+            support_copy_email = Config.SUPPORT_COPY_EMAIL
             should_copy_support = False
 
             bcc = bcc or []
@@ -517,7 +515,7 @@ class EmailService(BaseService):
 
     def send_promo_welcome_email(self, parent_email: str, parent_name: str, teen_age: str, activity: str = '') -> bool:
         """Send welcome email to parents who fill out the promo form"""
-        tanner_email = os.getenv('ADMIN_EMAIL', 'tanner@optioeducation.com')
+        tanner_email = Config.ADMIN_EMAIL
 
         # Format teen_age_text for template (handles empty/None values)
         teen_age_text = ''
@@ -624,7 +622,7 @@ class EmailService(BaseService):
         message: str = None
     ) -> bool:
         """Send notification email to support team about new subscription request"""
-        admin_email = os.getenv('ADMIN_EMAIL', 'support@optioeducation.com')
+        admin_email = Config.ADMIN_EMAIL
         return self.send_templated_email(
             to_email=admin_email,
             subject=f"New Subscription Request: {user_name} → {tier_display_name}",
@@ -799,9 +797,7 @@ class EmailService(BaseService):
         Returns:
             True if email sent successfully, False otherwise
         """
-        # Get frontend URL for registration link
-        import os
-        frontend_url = os.getenv('FRONTEND_URL', 'https://www.optioeducation.com')
+        frontend_url = Config.FRONTEND_URL
         registration_url = f"{frontend_url}/register?promo={promo_code}"
 
         return self.send_templated_email(
@@ -837,7 +833,7 @@ class EmailService(BaseService):
             True if email sent successfully, False otherwise
         """
         # Get frontend URL for dashboard link
-        frontend_url = os.getenv('FRONTEND_URL', 'https://www.optioeducation.com')
+        frontend_url = Config.FRONTEND_URL
         dashboard_url = f"{frontend_url}/parent/dashboard"
 
         return self.send_templated_email(
@@ -902,7 +898,7 @@ class EmailService(BaseService):
         Returns:
             True if email sent successfully, False otherwise
         """
-        frontend_url = os.getenv('FRONTEND_URL', 'https://www.optioeducation.com')
+        frontend_url = Config.FRONTEND_URL
         dashboard_url = f"{frontend_url}/advisor"
 
         return self.send_templated_email(

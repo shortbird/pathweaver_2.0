@@ -4,10 +4,10 @@ Uses Google Gemini to extract topics from quest title and big_idea.
 """
 
 import json
-import os
 import re
 from typing import Dict, List, Optional, Any
 import google.generativeai as genai
+from app_config import Config
 
 from services.base_service import BaseService
 from database import get_supabase_admin_client
@@ -47,11 +47,11 @@ class TopicGenerationService(BaseService):
         """Initialize the service with Gemini configuration."""
         super().__init__()
         self._supabase = None
-        self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
-        self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
+        self.api_key = Config.GEMINI_API_KEY
+        self.model_name = Config.GEMINI_MODEL
 
         if not self.api_key:
-            raise ValueError("GOOGLE_API_KEY not configured.")
+            raise ValueError("GEMINI_API_KEY not configured.")
 
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel(self.model_name)

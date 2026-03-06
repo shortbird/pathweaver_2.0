@@ -22,7 +22,7 @@ from utils.auth.decorators import require_superadmin
 from services.prompt_management_service import PromptManagementService
 from database import get_supabase_admin_client
 from utils.logger import get_logger
-import os
+from app_config import Config
 
 logger = get_logger(__name__)
 
@@ -299,7 +299,7 @@ def get_metrics_summary(user_id):
         generations_today = recent_response.count or 0
 
         # Get AI model info
-        ai_model = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
+        ai_model = Config.GEMINI_MODEL
 
         return jsonify({
             'success': True,
@@ -472,8 +472,8 @@ def ai_health_check(user_id):
     try:
         health = {
             'status': 'healthy',
-            'model': os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite'),
-            'api_key_configured': bool(os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')),
+            'model': Config.GEMINI_MODEL,
+            'api_key_configured': bool(Config.GEMINI_API_KEY),
             'prompt_service': 'available',
             'database': 'available'
         }

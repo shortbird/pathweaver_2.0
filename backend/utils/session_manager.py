@@ -9,6 +9,7 @@ from flask import make_response, request
 from functools import wraps
 from typing import Optional, Dict, Any
 
+from app_config import Config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -44,7 +45,7 @@ class SessionManager:
             logger.info(f"[SessionManager] Token versioning enabled (version: {self.token_version})")
 
         # Detect cross-origin deployment (frontend and backend on different domains)
-        frontend_url = os.getenv('FRONTEND_URL', '')
+        frontend_url = Config.FRONTEND_URL
         backend_url = os.getenv('BACKEND_URL', request.host_url if request else '')
         is_on_render = 'onrender.com' in frontend_url
         is_production = os.getenv('FLASK_ENV') == 'production'

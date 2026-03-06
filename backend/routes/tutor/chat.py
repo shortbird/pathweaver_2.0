@@ -64,16 +64,11 @@ def get_tutor_service():
     global tutor_service
     if tutor_service is None:
         try:
-            import os
+            from app_config import Config
             logger.info("Initializing AITutorService...")
-            logger.info("TUTOR SERVICE: Initializing AITutorService...")
-            logger.info(f"GEMINI_API_KEY present: {'GEMINI_API_KEY' in os.environ}")
-            logger.debug(f"TUTOR SERVICE: GEMINI_API_KEY present: {'GEMINI_API_KEY' in os.environ}")
-            logger.info(f"GOOGLE_API_KEY present: {'GOOGLE_API_KEY' in os.environ}")
-            logger.debug(f"TUTOR SERVICE: GOOGLE_API_KEY present: {'GOOGLE_API_KEY' in os.environ}")
+            logger.info(f"GEMINI_API_KEY configured: {bool(Config.GEMINI_API_KEY)}")
             tutor_service = AITutorService()
             logger.info("AITutorService initialized successfully")
-            logger.info("TUTOR SERVICE: AITutorService initialized successfully")
         except Exception as e:
             logger.error(f"CRITICAL: Failed to initialize AITutorService: {e}")
             logger.error(f"TUTOR SERVICE CRITICAL: Failed to initialize AITutorService: {e}")

@@ -35,7 +35,7 @@ class DailyAdvisorSummaryJob:
         try:
             from services.daily_summary_service import DailySummaryService
             from services.email_service import email_service
-            import os
+            from app_config import Config
 
             summary_service = DailySummaryService()
 
@@ -93,7 +93,7 @@ class DailyAdvisorSummaryJob:
                 'error_details': []
             }
 
-            frontend_url = os.getenv('FRONTEND_URL', 'https://www.optioeducation.com')
+            frontend_url = Config.FRONTEND_URL
             is_test = job_data.get('is_test', False)
 
             for advisor in advisors:

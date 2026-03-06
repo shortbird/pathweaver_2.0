@@ -11,12 +11,17 @@ Required env vars:
 
 import os
 import sys
+
+# Add backend directory to path so we can import app_config
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
 import requests
+from app_config import Config
 
 
 def main():
     backend_url = os.environ.get("BACKEND_URL")
-    cron_secret = os.environ.get("CRON_SECRET")
+    cron_secret = Config.CRON_SECRET
 
     if not backend_url:
         print("ERROR: BACKEND_URL env var is not set")

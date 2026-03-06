@@ -199,7 +199,7 @@ def update_user_profile(admin_id, user_id):
         if 'country' in data:
             update_data['country'] = data['country']
         if 'date_of_birth' in data:
-            update_data['date_of_birth'] = data['date_of_birth']
+            update_data['date_of_birth'] = data['date_of_birth'] or None
 
         if update_data:
             response = supabase.table('users')\

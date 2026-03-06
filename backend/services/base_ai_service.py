@@ -26,13 +26,13 @@ Features:
     - Optional response caching
 """
 
-import os
 import re
 import json
 import time
 import hashlib
 from typing import Dict, List, Optional, Any, Union
 from services.base_service import BaseService
+from app_config import Config
 
 from utils.logger import get_logger
 
@@ -142,16 +142,14 @@ class BaseAIService(BaseService):
         if cls._model is not None:
             return
 
-        # Get API key from environment
-        api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+        api_key = Config.GEMINI_API_KEY
         if not api_key:
             raise AIServiceError(
                 "GEMINI_API_KEY not configured. "
-                "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable."
+                "Set GEMINI_API_KEY environment variable."
             )
 
-        # Get model name from environment or use default
-        model_name = os.getenv('GEMINI_MODEL', cls.DEFAULT_MODEL)
+        model_name = Config.GEMINI_MODEL or cls.DEFAULT_MODEL
 
         try:
             import google.generativeai as genai
@@ -173,7 +171,7 @@ class BaseAIService(BaseService):
             return
 
         # Get API key (should already be set from default model init)
-        api_key = cls._api_key or os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+        api_key = cls._api_key or Config.GEMINI_API_KEY
         if not api_key:
             raise AIServiceError("API key not configured")
 

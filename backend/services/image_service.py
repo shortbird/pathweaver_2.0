@@ -2,25 +2,23 @@
 Image service for fetching quest images from Pexels API.
 Enhanced with AI-powered educational search term generation.
 """
-import os
 import requests
 from typing import Optional, Dict
 from services.base_service import BaseService
 import re
 import google.generativeai as genai
 from services.api_usage_tracker import pexels_tracker
+from app_config import Config
 
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-PEXELS_API_KEY = os.getenv('PEXELS_API_KEY')
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 PEXELS_SEARCH_URL = 'https://api.pexels.com/v1/search'
 
 # Configure Gemini
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+if Config.GEMINI_API_KEY:
+    genai.configure(api_key=Config.GEMINI_API_KEY)
 
 def generate_educational_search_prompt(quest_title: str, quest_description: Optional[str] = None) -> Optional[str]:
     """
@@ -33,11 +31,11 @@ def generate_educational_search_prompt(quest_title: str, quest_description: Opti
     Returns:
         Single optimized search term, or None if AI fails
     """
-    if not GEMINI_API_KEY:
+    if not Config.GEMINI_API_KEY:
         return None
 
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash-lite')
+        model = genai.GenerativeModel(Config.GEMINI_MODEL)
 
         prompt = f"""You are helping find a stock photo for an educational quest. Think like a PHOTOGRAPHER - what physical objects and actions would be in the frame?
 
@@ -151,12 +149,12 @@ def search_quest_image(quest_title: str, quest_description: Optional[str] = None
     Returns:
         Image URL if found, None otherwise
     """
-    if not PEXELS_API_KEY:
+    if not Config.PEXELS_API_KEY:
         logger.warning("Warning: PEXELS_API_KEY not configured")
         return None
 
     headers = {
-        'Authorization': PEXELS_API_KEY
+        'Authorization': Config.PEXELS_API_KEY
     }
 
     # Build search strategy - AI first, then smart fallbacks
@@ -225,12 +223,12 @@ def get_pexels_image_info(quest_title: str, pillar: Optional[str] = None) -> Opt
     Returns:
         Dict with image_url and other metadata if found, None otherwise
     """
-    if not PEXELS_API_KEY:
+    if not Config.PEXELS_API_KEY:
         logger.warning("Warning: PEXELS_API_KEY not configured")
         return None
 
     headers = {
-        'Authorization': PEXELS_API_KEY
+        'Authorization': Config.PEXELS_API_KEY
     }
 
     # Try search strategies in order
