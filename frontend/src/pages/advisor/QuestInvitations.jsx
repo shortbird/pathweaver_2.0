@@ -1,23 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
-import { Card, CardBody, CardHeader, CardTitle } from '../../components/ui/Card';
 import toast from 'react-hot-toast';
+import {
+  PlusIcon,
+  CheckCircleIcon,
+  BookOpenIcon,
+} from '@heroicons/react/24/outline';
+import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
 
 const QuestInvitations = () => {
   const { user } = useAuth();
   const [myQuests, setMyQuests] = useState([]);
   const [libraryQuests, setLibraryQuests] = useState([]);
-  const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
   const [selectedQuest, setSelectedQuest] = useState(null);
-  const [selectedCourse, setSelectedCourse] = useState(null);
   const [selectedStudents, setSelectedStudents] = useState([]);
-  const [invitationMessage, setInvitationMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [sentInvitations, setSentInvitations] = useState([]);
-  const [activeTab, setActiveTab] = useState('my'); // 'my', 'library', or 'courses'
+  const [activeTab, setActiveTab] = useState('my');
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newQuest, setNewQuest] = useState({ title: '', description: '' });
+  const [creating, setCreating] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -26,20 +31,64 @@ const QuestInvitations = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [questsRes, studentsRes, coursesRes] = await Promise.all([
+      const [questsRes, studentsRes] = await Promise.allSettled([
         api.get('/api/advisor/invitable-quests'),
         api.get('/api/advisor/students'),
-        api.get('/api/advisor/enrollable-courses')
       ]);
-      setMyQuests(questsRes.data.my_quests || []);
-      setLibraryQuests(questsRes.data.library_quests || []);
-      setCourses(coursesRes.data.courses || []);
-      setStudents(studentsRes.data.students || []);
+
+      if (questsRes.status === 'fulfilled') {
+        setMyQuests(questsRes.value.data.my_quests || []);
+        setLibraryQuests(questsRes.value.data.library_quests || []);
+      }
+      if (studentsRes.status === 'fulfilled') {
+        setStudents(studentsRes.value.data.students || []);
+      }
+
+      const failed = [questsRes, studentsRes].filter(r => r.status === 'rejected');
+      if (failed.length > 0) {
+        console.error('Some data failed to load:', failed.map(f => f.reason));
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateQuest = async (e) => {
+    e.preventDefault();
+    const title = newQuest.title.trim();
+    const description = newQuest.description.trim();
+
+    if (!title) {
+      toast.error('Title is required');
+      return;
+    }
+
+    try {
+      setCreating(true);
+      const response = await api.post('/api/admin/quests/create', {
+        title,
+        big_idea: description,
+        organization_id: user?.organization_id || null,
+      });
+
+      if (response.data.success) {
+        const quest = response.data.quest;
+        toast.success('Quest created');
+        setMyQuests(prev => [quest, ...prev]);
+        setSelectedQuest(quest.id);
+        setNewQuest({ title: '', description: '' });
+        setShowCreateForm(false);
+      } else {
+        toast.error(response.data.error || 'Failed to create quest');
+      }
+    } catch (error) {
+      console.error('Error creating quest:', error);
+      toast.error(error.response?.data?.error || 'Failed to create quest');
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -59,25 +108,19 @@ const QuestInvitations = () => {
     }
   };
 
-  // Get current quests based on active tab
   const currentQuests = activeTab === 'my' ? myQuests : libraryQuests;
 
-  // Check if we're in course mode
-  const isCourseMode = activeTab === 'courses';
+  const filteredQuests = currentQuests.filter(q => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (q.title || '').toLowerCase().includes(term) ||
+      (q.description || q.big_idea || '').toLowerCase().includes(term);
+  });
 
-  const handleSendInvitations = async () => {
-    if (isCourseMode) {
-      // Course enrollment mode
-      if (!selectedCourse) {
-        toast.error('Please select a course');
-        return;
-      }
-    } else {
-      // Quest invitation mode
-      if (!selectedQuest) {
-        toast.error('Please select a quest');
-        return;
-      }
+  const handleSend = async () => {
+    if (!selectedQuest) {
+      toast.error('Please select a quest');
+      return;
     }
 
     if (selectedStudents.length === 0) {
@@ -87,391 +130,288 @@ const QuestInvitations = () => {
 
     try {
       setSubmitting(true);
+      const response = await api.post('/api/advisor/invite-to-quest', {
+        quest_id: selectedQuest,
+        user_ids: selectedStudents
+      });
+      const { enrolled, skipped, quest_title } = response.data;
 
-      if (isCourseMode) {
-        // Enroll students in course
-        const response = await api.post('/api/advisor/enroll-in-course', {
-          course_id: selectedCourse,
-          user_ids: selectedStudents
-        });
-
-        const courseTitle = courses.find(c => c.id === selectedCourse)?.title;
-        const { enrolled, skipped } = response.data;
-
-        if (enrolled > 0) {
-          toast.success(
-            `Enrolled ${enrolled} student${enrolled > 1 ? 's' : ''} in "${courseTitle}"${skipped > 0 ? ` (${skipped} already enrolled)` : ''}`
-          );
-        } else if (skipped > 0) {
-          toast.info(`All ${skipped} selected student${skipped > 1 ? 's are' : ' is'} already enrolled in "${courseTitle}"`);
-        }
-
-        // Record sent enrollment
-        setSentInvitations(prev => [
-          {
-            id: Date.now(),
-            quest_title: courseTitle,
-            student_count: enrolled,
-            sent_at: new Date(),
-            type: 'course'
-          },
-          ...prev
-        ]);
-
-        // Reset form
-        setSelectedCourse(null);
-        setSelectedStudents([]);
-      } else {
-        // Send quest invitations
-        await api.post('/api/advisor/invite-to-quest', {
-          quest_id: selectedQuest,
-          user_ids: selectedStudents
-        });
-
-        const allQuests = [...myQuests, ...libraryQuests];
-        const questTitle = allQuests.find(q => q.id === selectedQuest)?.title;
+      if (enrolled > 0) {
         toast.success(
-          `Invited ${selectedStudents.length} student${selectedStudents.length > 1 ? 's' : ''} to "${questTitle}"`
+          `Added ${enrolled} student${enrolled > 1 ? 's' : ''} to "${quest_title}"${skipped > 0 ? ` (${skipped} already had it)` : ''}`
         );
-
-        // Record sent invitation
-        setSentInvitations(prev => [
-          {
-            id: Date.now(),
-            quest_title: questTitle,
-            student_count: selectedStudents.length,
-            sent_at: new Date(),
-            type: 'quest'
-          },
-          ...prev
-        ]);
-
-        // Reset form
-        setSelectedQuest(null);
-        setSelectedStudents([]);
-        setInvitationMessage('');
+      } else if (skipped > 0) {
+        toast(`All selected students already have "${quest_title}"`);
       }
+
+      setSelectedQuest(null);
+      setSelectedStudents([]);
     } catch (error) {
       console.error('Error:', error);
-      toast.error(error.response?.data?.error || (isCourseMode ? 'Failed to enroll students' : 'Failed to send invitations'));
+      toast.error(error.response?.data?.error || 'Failed to assign quest');
     } finally {
       setSubmitting(false);
     }
   };
 
+  const selectedQuestTitle = [...myQuests, ...libraryQuests].find(q => q.id === selectedQuest)?.title;
+  const canSend = !!selectedQuest && selectedStudents.length > 0;
+
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          {isCourseMode ? 'Enroll Students in Courses' : 'Invite Students to Quests'}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">
+          Assign Quests to Students
         </h1>
-        <p className="text-gray-600">
-          {isCourseMode
-            ? 'Select a course and students to enroll them directly'
-            : 'Select a quest and students to send invitations'}
+        <p className="text-gray-500 mt-1">
+          Select a quest and students to add it directly to their library.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Form - 2 columns */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Quest/Course Selection */}
-          <Card>
-            <CardHeader gradient>
-              <CardTitle className="text-white">1. Select {isCourseMode ? 'Course' : 'Quest'}</CardTitle>
-            </CardHeader>
-            <CardBody>
-              {/* Tabs for My Quests vs Library vs Courses */}
-              <div className="flex border-b border-gray-200 mb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* Left Panel: Quest Selection (3/5) */}
+        <div className="lg:col-span-3">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200">
+              {[
+                { id: 'my', label: 'My Quests', count: myQuests.length },
+                { id: 'library', label: 'Library', count: libraryQuests.length },
+              ].map(tab => (
                 <button
-                  onClick={() => { setActiveTab('my'); setSelectedQuest(null); setSelectedCourse(null); }}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'my'
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setSelectedQuest(null);
+                    setSearchTerm('');
+                    setShowCreateForm(false);
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === tab.id
                       ? 'border-optio-purple text-optio-purple'
                       : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  My Quests ({myQuests.length})
+                  <BookOpenIcon className="w-4 h-4" />
+                  {tab.label}
+                  <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
+                    activeTab === tab.id ? 'bg-optio-purple/10 text-optio-purple' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {tab.count}
+                  </span>
                 </button>
-                <button
-                  onClick={() => { setActiveTab('library'); setSelectedQuest(null); setSelectedCourse(null); }}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'library'
-                      ? 'border-optio-purple text-optio-purple'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Quest Library ({libraryQuests.length})
-                </button>
-                <button
-                  onClick={() => { setActiveTab('courses'); setSelectedQuest(null); setSelectedCourse(null); }}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'courses'
-                      ? 'border-optio-purple text-optio-purple'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Courses ({courses.length})
-                </button>
-              </div>
+              ))}
+            </div>
 
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {isCourseMode ? (
-                  // Course selection
-                  courses.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">
-                      No published courses available for enrollment.
-                    </p>
-                  ) : (
-                    courses.map((course) => (
-                      <div
-                        key={course.id}
-                        onClick={() => setSelectedCourse(course.id)}
-                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                          selectedCourse === course.id
-                            ? 'border-optio-purple bg-gradient-to-r from-optio-purple/10 to-optio-pink/10'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-semibold text-gray-900">
-                                {course.title}
-                              </h3>
-                              {course.quest_count > 0 && (
-                                <span className="px-2 py-0.5 text-xs bg-optio-purple/10 text-optio-purple rounded-full">
-                                  {course.quest_count} project{course.quest_count !== 1 ? 's' : ''}
-                                </span>
-                              )}
-                            </div>
-                            {course.description && (
-                              <p className="text-sm text-gray-600 line-clamp-2">
-                                {course.description}
-                              </p>
-                            )}
-                          </div>
-                          {selectedCourse === course.id && (
-                            <svg
-                              className="w-6 h-6 text-optio-purple flex-shrink-0 ml-2"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )
-                ) : (
-                  // Quest selection
-                  currentQuests.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">
-                      {activeTab === 'my'
-                        ? 'You haven\'t created any quests yet. Create a quest first to invite students.'
-                        : 'No public quests available in the library.'}
-                    </p>
-                  ) : (
-                    currentQuests.map((quest) => (
-                      <div
-                        key={quest.id}
-                        onClick={() => setSelectedQuest(quest.id)}
-                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                          selectedQuest === quest.id
-                            ? 'border-optio-purple bg-gradient-to-r from-optio-purple/10 to-optio-pink/10'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-gray-900 mb-1">
-                              {quest.title}
-                            </h3>
-                            {(quest.description || quest.big_idea) && (
-                              <p className="text-sm text-gray-600 line-clamp-2">
-                                {quest.description || quest.big_idea}
-                              </p>
-                            )}
-                            {activeTab === 'my' && !quest.is_active && (
-                              <span className="inline-block mt-1 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded">
-                                Draft
-                              </span>
-                            )}
-                          </div>
-                          {selectedQuest === quest.id && (
-                            <svg
-                              className="w-6 h-6 text-optio-purple flex-shrink-0 ml-2"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )
-                )}
-              </div>
-            </CardBody>
-          </Card>
+            <div className="p-4">
+              {/* Search */}
+              {!showCreateForm && (
+                <input
+                  type="text"
+                  placeholder="Search quests..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent mb-3"
+                />
+              )}
 
-          {/* Student Selection */}
-          <Card>
-            <CardHeader gradient>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-white">2. Select Students</CardTitle>
-                <button
-                  onClick={handleSelectAll}
-                  className="text-white text-sm underline hover:no-underline"
-                >
-                  {selectedStudents.length === students.length ? 'Deselect All' : 'Select All'}
-                </button>
-              </div>
-            </CardHeader>
-            <CardBody>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {students.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">
-                    No students in your advisory group
-                  </p>
+              {/* Create New Quest (My Quests tab only) */}
+              {activeTab === 'my' && (
+                showCreateForm ? (
+                  <form onSubmit={handleCreateQuest} className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
+                    <input
+                      type="text"
+                      value={newQuest.title}
+                      onChange={(e) => setNewQuest(prev => ({ ...prev, title: e.target.value }))}
+                      placeholder="Quest title *"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                      maxLength={200}
+                      autoFocus
+                      disabled={creating}
+                    />
+                    <textarea
+                      value={newQuest.description}
+                      onChange={(e) => setNewQuest(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Description (optional)"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none"
+                      rows={2}
+                      maxLength={2000}
+                      disabled={creating}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setShowCreateForm(false); setNewQuest({ title: '', description: '' }); }}
+                        className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+                        disabled={creating}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={creating || !newQuest.title.trim()}
+                        className="px-3 py-1.5 text-xs bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                      >
+                        {creating ? 'Creating...' : 'Create Quest'}
+                      </button>
+                    </div>
+                  </form>
                 ) : (
-                  students.map((student) => (
-                    <label
-                      key={student.id}
-                      className="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
+                  <button
+                    onClick={() => setShowCreateForm(true)}
+                    className="w-full mb-3 flex items-center justify-center gap-1.5 px-3 py-2 text-sm border-2 border-dashed border-optio-purple/30 text-optio-purple rounded-lg hover:bg-optio-purple/5 hover:border-optio-purple/50 transition-colors"
+                  >
+                    <PlusIcon className="w-4 h-4" />
+                    Create New Quest
+                  </button>
+                )
+              )}
+
+              {/* Quest List */}
+              <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
+                {filteredQuests.length === 0 ? (
+                  <div className="text-center py-6">
+                    <p className="text-gray-400 text-sm">
+                      {currentQuests.length === 0
+                        ? (activeTab === 'my' ? 'No quests yet.' : 'No library quests available.')
+                        : 'No quests match your search.'}
+                    </p>
+                    {activeTab === 'my' && currentQuests.length === 0 && (
+                      <button
+                        onClick={() => setShowCreateForm(true)}
+                        className="mt-1 text-optio-purple hover:underline text-sm"
+                      >
+                        Create your first quest
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  filteredQuests.map((quest) => (
+                    <button
+                      key={quest.id}
+                      onClick={() => setSelectedQuest(quest.id)}
+                      className={`w-full text-left p-3 rounded-lg border transition-all ${
+                        selectedQuest === quest.id
+                          ? 'border-optio-purple bg-optio-purple/5 ring-1 ring-optio-purple'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedStudents.includes(student.id)}
-                        onChange={() => handleStudentToggle(student.id)}
-                        className="w-4 h-4 text-optio-purple focus:ring-optio-purple border-gray-300 rounded"
-                      />
-                      <span className="ml-3 text-gray-900 font-medium">
-                        {student.display_name || student.first_name || 'Student'}
-                      </span>
-                    </label>
+                      <div className="flex items-center gap-3">
+                        {selectedQuest === quest.id ? (
+                          <CheckCircleSolidIcon className="w-5 h-5 text-optio-purple flex-shrink-0" />
+                        ) : (
+                          <CheckCircleIcon className="w-5 h-5 text-gray-300 flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 text-sm truncate">{quest.title}</p>
+                          {(quest.description || quest.big_idea) && (
+                            <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">
+                              {quest.description || quest.big_idea}
+                            </p>
+                          )}
+                        </div>
+                        {activeTab === 'my' && !quest.is_active && (
+                          <span className="px-1.5 py-0.5 text-xs bg-yellow-100 text-yellow-700 rounded flex-shrink-0">
+                            Draft
+                          </span>
+                        )}
+                      </div>
+                    </button>
                   ))
                 )}
               </div>
-            </CardBody>
-          </Card>
-
-          {/* Optional Message - only for quest invitations */}
-          {!isCourseMode && (
-            <Card>
-              <CardHeader gradient>
-                <CardTitle className="text-white">3. Add Message (Optional)</CardTitle>
-              </CardHeader>
-              <CardBody>
-                <textarea
-                  value={invitationMessage}
-                  onChange={(e) => setInvitationMessage(e.target.value)}
-                  placeholder="Add a personal message to encourage students..."
-                  rows={4}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none"
-                  maxLength={500}
-                />
-                <p className="text-sm text-gray-500 mt-2">
-                  {invitationMessage.length}/500 characters
-                </p>
-              </CardBody>
-            </Card>
-          )}
-
-          {/* Course enrollment info note */}
-          {isCourseMode && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                  <p className="text-sm text-blue-800 font-medium">Direct Enrollment</p>
-                  <p className="text-sm text-blue-700 mt-1">
-                    Students will be immediately enrolled in the course and all its projects. No invitation acceptance required.
-                  </p>
-                </div>
-              </div>
             </div>
-          )}
-
-          {/* Send Button */}
-          <button
-            onClick={handleSendInvitations}
-            disabled={submitting || (isCourseMode ? !selectedCourse : !selectedQuest) || selectedStudents.length === 0}
-            className="w-full bg-gradient-to-r from-optio-purple to-optio-pink text-white py-4 rounded-lg font-bold text-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {submitting
-              ? (isCourseMode ? 'Enrolling Students...' : 'Sending Invitations...')
-              : isCourseMode
-                ? `Enroll ${selectedStudents.length > 0 ? `${selectedStudents.length} student${selectedStudents.length > 1 ? 's' : ''}` : 'Students'}`
-                : `Send ${selectedStudents.length > 0 ? `to ${selectedStudents.length} student${selectedStudents.length > 1 ? 's' : ''}` : 'Invitations'}`}
-          </button>
+          </div>
         </div>
 
-        {/* Sidebar - Recent Activity */}
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader gradient>
-              <CardTitle className="text-white">Recent Activity</CardTitle>
-            </CardHeader>
-            <CardBody>
-              {sentInvitations.length === 0 ? (
-                <p className="text-gray-500 text-sm text-center py-8">
-                  Invitations and enrollments will appear here
+        {/* Right Panel: Students + Send (2/5) */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <h2 className="text-sm font-semibold text-gray-900">
+                Students
+                {students.length > 0 && (
+                  <span className="ml-1.5 text-gray-400 font-normal">
+                    {selectedStudents.length}/{students.length}
+                  </span>
+                )}
+              </h2>
+              {students.length > 0 && (
+                <button
+                  onClick={handleSelectAll}
+                  className="text-xs text-optio-purple hover:underline"
+                >
+                  {selectedStudents.length === students.length ? 'Deselect all' : 'Select all'}
+                </button>
+              )}
+            </div>
+
+            {/* Student List */}
+            <div className="max-h-[400px] overflow-y-auto">
+              {students.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8 px-4">
+                  No students in your advisory group
                 </p>
               ) : (
-                <div className="space-y-3">
-                  {sentInvitations.slice(0, 10).map((inv) => (
-                    <div
-                      key={inv.id}
-                      className="p-3 bg-gray-50 rounded-lg border border-gray-200"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`px-1.5 py-0.5 text-xs rounded ${
-                          inv.type === 'course'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-green-100 text-green-700'
-                        }`}>
-                          {inv.type === 'course' ? 'Course' : 'Quest'}
+                <div className="divide-y divide-gray-100">
+                  {students.map((student) => {
+                    const isSelected = selectedStudents.includes(student.id);
+                    return (
+                      <label
+                        key={student.id}
+                        className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${
+                          isSelected ? 'bg-optio-purple/5' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleStudentToggle(student.id)}
+                          className="w-4 h-4 text-optio-purple focus:ring-optio-purple border-gray-300 rounded"
+                        />
+                        <span className={`text-sm ${isSelected ? 'text-gray-900 font-medium' : 'text-gray-700'}`}>
+                          {student.display_name || student.first_name || 'Student'}
                         </span>
-                      </div>
-                      <p className="font-semibold text-sm text-gray-900 mb-1 line-clamp-1">
-                        {inv.quest_title}
-                      </p>
-                      <p className="text-xs text-gray-600">
-                        {inv.student_count} student{inv.student_count !== 1 ? 's' : ''} {inv.type === 'course' ? 'enrolled' : 'invited'}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {new Date(inv.sent_at).toLocaleString()}
-                      </p>
-                    </div>
-                  ))}
+                      </label>
+                    );
+                  })}
                 </div>
               )}
-            </CardBody>
-          </Card>
+            </div>
+          </div>
+
+          {/* Send summary + button */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            {canSend && (
+              <p className="text-xs text-gray-500 mb-3">
+                Assigning{' '}
+                <span className="font-medium text-gray-700">{selectedQuestTitle}</span>
+                {' '}to{' '}
+                <span className="font-medium text-gray-700">
+                  {selectedStudents.length} student{selectedStudents.length !== 1 ? 's' : ''}
+                </span>
+              </p>
+            )}
+            <button
+              onClick={handleSend}
+              disabled={submitting || !canSend}
+              className="w-full bg-gradient-to-r from-optio-purple to-optio-pink text-white py-3 rounded-lg font-semibold text-sm hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none"
+            >
+              {submitting ? 'Assigning...' : 'Assign Quest'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

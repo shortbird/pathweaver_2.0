@@ -62,7 +62,14 @@ export default function ClassQuestsTab({ orgId, classId, classData, onUpdate }) 
     }
   }
 
-  const handleAddQuest = async (questId) => {
+  const handleAddQuest = async (questId, wasCreated = false) => {
+    // If quest was already created and added via the create flow, just refresh
+    if (wasCreated) {
+      fetchQuests()
+      onUpdate?.()
+      return
+    }
+
     try {
       const response = await classService.addClassQuest(orgId, classId, questId)
       if (response.success) {
@@ -172,6 +179,7 @@ export default function ClassQuestsTab({ orgId, classId, classData, onUpdate }) 
       {showAddModal && (
         <AddQuestModal
           orgId={orgId}
+          classId={classId}
           existingQuestIds={quests.map((q) => q.quest_id)}
           onClose={() => setShowAddModal(false)}
           onSubmit={handleAddQuest}

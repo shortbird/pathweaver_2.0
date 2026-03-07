@@ -1,20 +1,33 @@
 import React, { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { ClassList, ClassDetailPage } from '../components/classes'
+import StudentClassesView from '../components/classes/StudentClassesView'
 
 /**
- * AdvisorClassesPage - List of classes for advisors
+ * AdvisorClassesPage - Classes page for advisors and students
  *
- * Shows all classes the current user is assigned to as an advisor.
- * Clicking a class opens the detail view.
+ * Advisors: Shows classes they're assigned to with management controls.
+ * Students: Shows classes they're enrolled in with progress and quests.
  */
 export default function AdvisorClassesPage() {
   const { user } = useAuth()
   const [selectedClass, setSelectedClass] = useState(null)
 
-  // If user has org, use that for API calls
   const orgId = user?.organization_id
 
+  // Determine effective role for view selection
+  const effectiveRole = user?.role === 'org_managed'
+    ? (user?.org_role || user?.org_roles?.[0])
+    : user?.role
+
+  const isStudent = effectiveRole === 'student'
+
+  // Student view
+  if (isStudent) {
+    return <StudentClassesView />
+  }
+
+  // Advisor/admin view
   if (selectedClass) {
     return (
       <ClassDetailPage

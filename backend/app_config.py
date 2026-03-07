@@ -227,6 +227,7 @@ class Config:
     VAPID_PRIVATE_KEY = os.getenv('VAPID_PRIVATE_KEY')
     VAPID_MAILTO = os.getenv('VAPID_MAILTO', 'mailto:support@optioeducation.com')
 
+
     @classmethod
     def validate(cls) -> None:
         """Validate required configuration on startup"""

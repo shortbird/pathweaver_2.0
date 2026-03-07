@@ -125,7 +125,7 @@ def create_class(user_id, org_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>', methods=['GET'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role('student', 'org_admin', 'advisor', 'superadmin')
 def get_class(user_id, org_id, class_id):
     """
     Get a class by ID with details.
@@ -257,6 +257,47 @@ def archive_class(user_id, org_id, class_id):
         return jsonify({
             'success': False,
             'error': 'Failed to archive class'
+        }), 500
+
+
+@bp.route('/student/classes', methods=['GET'])
+@require_auth
+def get_student_classes(user_id):
+    """
+    Get all classes the current student is enrolled in with progress.
+
+    Returns:
+    {
+        "success": true,
+        "classes": [
+            {
+                "id": "...",
+                "name": "...",
+                "description": "...",
+                "xp_threshold": 100,
+                "progress": { "earned_xp": 75, "xp_threshold": 100, "percentage": 75, "is_complete": false },
+                "enrollment": { "status": "active", "enrolled_at": "..." },
+                "student_count": 10,
+                "quest_count": 3,
+                "advisor_count": 1
+            }
+        ]
+    }
+    """
+    try:
+        service = ClassService()
+        classes = service.get_student_classes(user_id)
+
+        return jsonify({
+            'success': True,
+            'classes': classes
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting student classes: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to get classes'
         }), 500
 
 

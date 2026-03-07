@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import api from '../../services/api'
 import { SettingsTab, PeopleTab, ContentTab } from '../../components/organization'
+import AdvisorsTab from '../../components/organization/AdvisorsTab'
 import { ClassList, ClassDetailPage } from '../../components/classes'
 
 const OrgStudentProgress = lazy(() => import('../../components/admin/OrgStudentProgress'))
@@ -11,6 +12,7 @@ const OrgStudentProgress = lazy(() => import('../../components/admin/OrgStudentP
 const TABS = [
   { id: 'settings', label: 'Settings' },
   { id: 'people', label: 'People' },
+  { id: 'advisors', label: 'Advisors' },
   { id: 'classes', label: 'Classes' },
   { id: 'content', label: 'Content' },
   { id: 'progress', label: 'Progress' }
@@ -208,6 +210,10 @@ export default function OrganizationManagement() {
           users={orgData.users}
           onUpdate={fetchOrganizationData}
         />
+      )}
+
+      {activeTab === 'advisors' && (
+        <AdvisorsTab orgId={orgId} />
       )}
 
       {activeTab === 'classes' && (
