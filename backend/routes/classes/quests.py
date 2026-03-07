@@ -11,6 +11,7 @@ from utils.auth.decorators import require_role
 from utils.roles import get_effective_role
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from datetime import datetime
 
 logger = get_logger(__name__)
 
@@ -27,7 +28,7 @@ def get_user_info(user_id: str):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/quests', methods=['GET'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role('student', 'org_admin', 'advisor', 'superadmin')
 def get_class_quests(user_id, org_id, class_id):
     """
     Get all quests assigned to a class.
@@ -250,6 +251,109 @@ def reorder_class_quests(user_id, org_id, class_id):
         return jsonify({
             'success': False,
             'error': 'Failed to reorder quests'
+        }), 500
+
+
+@bp.route('/organizations/<org_id>/classes/<class_id>/quests/create', methods=['POST'])
+@require_role('org_admin', 'advisor', 'superadmin')
+def create_and_add_class_quest(user_id, org_id, class_id):
+    """
+    Create a new org quest and immediately add it to a class.
+
+    Request body:
+    {
+        "title": "Quest Title",
+        "description": "Quest description"
+    }
+
+    Returns:
+    {
+        "success": true,
+        "quest": {...},
+        "assignment": {...}
+    }
+    """
+    try:
+        effective_role, user_org_id = get_user_info(user_id)
+
+        service = ClassService()
+
+        # Check management access
+        if not service.can_manage_class(class_id, user_id, effective_role, user_org_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        data = request.json or {}
+        title = (data.get('title') or '').strip()
+        description = (data.get('description') or '').strip()
+
+        if not title:
+            return jsonify({'success': False, 'error': 'Title is required'}), 400
+
+        supabase = get_supabase_admin_client()
+
+        # Verify the class belongs to this org
+        cls = service.get_class(class_id)
+        if not cls or cls.get('organization_id') != org_id:
+            return jsonify({'success': False, 'error': 'Class not found in this organization'}), 404
+
+        # Auto-fetch image
+        image_url = None
+        try:
+            from services.image_service import search_quest_image
+            image_url = search_quest_image(title, description)
+        except Exception as img_err:
+            logger.warning(f"Failed to fetch image for quest '{title}': {img_err}")
+
+        # Create quest scoped to the organization
+        quest_data = {
+            'title': title,
+            'big_idea': description,
+            'description': description,
+            'is_v3': True,
+            'is_active': True,
+            'is_public': False,
+            'quest_type': 'optio',
+            'header_image_url': image_url,
+            'image_url': image_url,
+            'created_by': user_id,
+            'created_at': datetime.utcnow().isoformat(),
+            'organization_id': org_id,
+        }
+
+        quest_result = supabase.table('quests').insert(quest_data).execute()
+
+        if not quest_result.data:
+            return jsonify({'success': False, 'error': 'Failed to create quest'}), 500
+
+        quest = quest_result.data[0]
+        quest_id = quest['id']
+        logger.info(f"Created org quest {quest_id} '{title}' for org {org_id}")
+
+        # Generate starter approaches in background
+        try:
+            from utils.background_tasks import generate_approaches_background
+            generate_approaches_background(
+                quest_id=quest_id,
+                quest_title=title,
+                quest_description=description
+            )
+        except Exception as bg_err:
+            logger.warning(f"Failed to trigger background approach generation: {bg_err}")
+
+        # Add quest to the class
+        assignment = service.add_quest(class_id, quest_id, user_id)
+
+        return jsonify({
+            'success': True,
+            'quest': quest,
+            'assignment': assignment
+        }), 201
+
+    except Exception as e:
+        logger.error(f"Error creating and adding class quest: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to create quest: {str(e)}'
         }), 500
 
 

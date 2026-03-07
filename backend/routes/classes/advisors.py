@@ -27,7 +27,7 @@ def get_user_info(user_id: str):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/advisors', methods=['GET'])
-@require_role('org_admin', 'advisor', 'superadmin')
+@require_role('student', 'org_admin', 'advisor', 'superadmin')
 def get_class_advisors(user_id, org_id, class_id):
     """
     Get all advisors assigned to a class.

@@ -165,9 +165,8 @@ class ClassRepository(BaseRepository):
             .eq('class_id', class_id)\
             .eq('advisor_id', user_id)\
             .eq('is_active', True)\
-            .maybe_single()\
             .execute()
-        return response.data is not None
+        return bool(response.data)
 
     # ===== Student Enrollment =====
 
@@ -433,6 +432,16 @@ class ClassRepository(BaseRepository):
 
     # ===== Authorization Helpers =====
 
+    def is_enrolled_student(self, class_id: str, student_id: str) -> bool:
+        """Check if a user is enrolled in a class as a student"""
+        response = self.admin_client.table('class_enrollments')\
+            .select('id')\
+            .eq('class_id', class_id)\
+            .eq('student_id', student_id)\
+            .eq('status', 'active')\
+            .execute()
+        return bool(response.data)
+
     def can_user_access_class(self, class_id: str, user_id: str, user_role: str, user_org_id: Optional[str]) -> bool:
         """Check if a user can access a class"""
         # Superadmin can access everything
@@ -450,6 +459,10 @@ class ClassRepository(BaseRepository):
 
         # Advisors can access classes they're assigned to
         if self.is_class_advisor(class_id, user_id):
+            return True
+
+        # Students can access classes they're enrolled in
+        if user_role == 'student' and self.is_enrolled_student(class_id, user_id):
             return True
 
         return False

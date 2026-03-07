@@ -103,6 +103,13 @@ const QuestDetailHeader = ({
         // Fall through to default
       }
     }
+    // Return to class page if navigated from there
+    const classReturnPath = sessionStorage.getItem('classReturnPath');
+    if (classReturnPath) {
+      sessionStorage.removeItem('classReturnPath');
+      navigate(classReturnPath);
+      return;
+    }
     navigate('/dashboard');
   };
 

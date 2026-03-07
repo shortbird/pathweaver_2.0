@@ -87,7 +87,7 @@ const Layout = () => {
         id="main-content"
         style={{ paddingTop: 'var(--navbar-height, 64px)' }}
         className={`
-        transition-all duration-200
+        transition-[margin] duration-200
         ${shouldShowSidebar ? (isSidebarExpanded ? 'lg:ml-64' : 'lg:ml-16') : ''}
         min-h-[calc(100vh-4rem)]
       `}>
@@ -96,7 +96,7 @@ const Layout = () => {
 
       {/* Footer */}
       <footer className={`
-        bg-white border-t border-gray-200 mt-auto transition-all duration-200
+        bg-white border-t border-gray-200 mt-auto transition-[margin] duration-200
         ${shouldShowSidebar ? (isSidebarExpanded ? 'lg:ml-64' : 'lg:ml-16') : ''}
       `}>
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">

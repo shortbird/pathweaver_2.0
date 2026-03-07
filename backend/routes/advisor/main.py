@@ -487,12 +487,11 @@ def get_invitable_quests(user_id):
 
 @advisor_bp.route('/invite-to-quest', methods=['POST'])
 @require_role('advisor', 'org_admin', 'superadmin')
-def invite_students_to_quest(user_id):
-    """Invite students to a specific quest"""
+def assign_students_to_quest(user_id):
+    """Directly assign students to a quest (adds it to their quest library)"""
     try:
         data = request.get_json()
 
-        # Validate required fields
         if 'quest_id' not in data:
             raise ValidationError("Missing required field: quest_id")
 
@@ -502,19 +501,54 @@ def invite_students_to_quest(user_id):
         if len(data['user_ids']) == 0:
             raise ValidationError("user_ids array cannot be empty")
 
-        # Create invitations
-        invitation_service = QuestInvitationService()
-        result = invitation_service.invite_students_to_quest(
-            advisor_id=user_id,
-            quest_id=data['quest_id'],
-            user_ids=data['user_ids'],
-            expires_at=data.get('expires_at')
-        )
+        from database import get_supabase_admin_client
+        from datetime import datetime
+        admin = get_supabase_admin_client()
+
+        quest_id = data['quest_id']
+
+        # Verify quest exists
+        quest = admin.table('quests').select('id, title').eq('id', quest_id).execute()
+        if not quest.data:
+            raise NotFoundError(f"Quest {quest_id} not found")
+
+        quest_title = quest.data[0].get('title', 'Quest')
+
+        # Get existing enrollments to skip duplicates
+        existing = admin.table('user_quests')\
+            .select('user_id')\
+            .eq('quest_id', quest_id)\
+            .in_('user_id', data['user_ids'])\
+            .execute()
+
+        already_enrolled = {r['user_id'] for r in (existing.data or [])}
+
+        enrolled = 0
+        skipped = len(already_enrolled)
+        now = datetime.utcnow().isoformat()
+
+        for student_id in data['user_ids']:
+            if student_id in already_enrolled:
+                continue
+
+            admin.table('user_quests').insert({
+                'user_id': student_id,
+                'quest_id': quest_id,
+                'status': 'picked_up',
+                'is_active': True,
+                'times_picked_up': 1,
+                'last_picked_up_at': now,
+                'started_at': now,
+            }).execute()
+            enrolled += 1
+
+        logger.info(f"Advisor {user_id} assigned {enrolled} students to quest {quest_id} (skipped {skipped} already enrolled)")
 
         return jsonify({
             'success': True,
-            'invitations_created': result['invitations_created'],
-            'invitations': result['invitations']
+            'enrolled': enrolled,
+            'skipped': skipped,
+            'quest_title': quest_title,
         }), 201
 
     except ValidationError as e:
@@ -528,10 +562,10 @@ def invite_students_to_quest(user_id):
             'error': str(e)
         }), 404
     except Exception as e:
-        logger.error(f"Error inviting students to quest: {str(e)}")
+        logger.error(f"Error assigning students to quest: {str(e)}")
         return jsonify({
             'success': False,
-            'error': 'Failed to create invitations'
+            'error': 'Failed to assign students to quest'
         }), 500
 
 

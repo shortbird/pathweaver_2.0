@@ -446,13 +446,16 @@ function App() {
                 <Route path="admin/organizations/:orgId/student/:studentId" element={<OrgStudentOverviewPage />} />
               </Route>
 
+              {/* Organization Classes - accessible to students (enrolled), advisors, org_admins, superadmin */}
+              <Route element={<PrivateRoute requiredRole={["student", "advisor", "org_admin", "superadmin"]} />}>
+                <Route path="classes" element={<AdvisorClassesPage />} />
+                <Route path="classes/:classId" element={<AdvisorClassesPage />} />
+              </Route>
+
               <Route element={<PrivateRoute requiredRole={["advisor", "org_admin", "superadmin"]} />}>
                 <Route path="advisor" element={<Navigate to="/advisor/dashboard" replace />} />
                 <Route path="advisor/dashboard" element={<AdvisorDashboard />} />
                 <Route path="advisor/checkin/:studentId" element={<AdvisorCheckinPage />} />
-                {/* Organization Classes (February 2026) */}
-                <Route path="classes" element={<AdvisorClassesPage />} />
-                <Route path="classes/:classId" element={<AdvisorClassesPage />} />
                 <Route path="advisor/verification" element={<TeacherVerificationPage />} />
                 {/* advisor/collaborations route removed (March 2026 - Feature pruning) */}
                 {/* Advisor badge routes removed (January 2026 - Microschool client feedback) */}

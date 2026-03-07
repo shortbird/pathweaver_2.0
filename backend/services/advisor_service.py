@@ -239,13 +239,17 @@ class AdvisorService(BaseService):
                 raise ValueError("Cannot assign student from different organization")
 
             # Verify advisor has advisor role
+            from utils.roles import get_effective_role
             advisor_check = self.supabase.table('users')\
-                .select('role')\
+                .select('role, org_role, org_roles')\
                 .eq('id', advisor_id)\
                 .single()\
                 .execute()
 
-            if not advisor_check.data or advisor_check.data['role'] not in ['advisor', 'org_admin', 'superadmin']:
+            if not advisor_check.data:
+                raise ValueError("User is not an advisor")
+            effective_role = get_effective_role(advisor_check.data)
+            if effective_role not in ['advisor', 'org_admin', 'superadmin']:
                 raise ValueError("User is not an advisor")
 
             # Check if assignment already exists

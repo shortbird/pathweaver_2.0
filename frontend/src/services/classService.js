@@ -229,6 +229,22 @@ const classService = {
   },
 
   /**
+   * Create a new quest and immediately add it to a class
+   * @param {string} orgId - Organization ID
+   * @param {string} classId - Class ID
+   * @param {object} data - Quest data
+   * @param {string} data.title - Quest title
+   * @param {string} data.description - Quest description
+   */
+  createAndAddQuest: async (orgId, classId, data) => {
+    const response = await api.post(
+      `/api/organizations/${orgId}/classes/${classId}/quests/create`,
+      data
+    )
+    return response.data
+  },
+
+  /**
    * Get quests available for adding to classes in an organization
    * @param {string} orgId - Organization ID
    * @param {object} options - Query options
@@ -258,6 +274,16 @@ const classService = {
     const queryString = params.toString()
     const url = `/api/advisor/classes${queryString ? '?' + queryString : ''}`
     const response = await api.get(url)
+    return response.data
+  },
+
+  // ===== Student View =====
+
+  /**
+   * Get all classes the current student is enrolled in with progress
+   */
+  getMyStudentClasses: async () => {
+    const response = await api.get('/api/student/classes')
     return response.data
   },
 }

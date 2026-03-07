@@ -38,8 +38,8 @@ const AdvisorDefaultPanel = ({ caseloadSummary }) => {
               </svg>
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">Invite to Quests</h3>
-              <p className="text-xs text-gray-500">Assign quests to students</p>
+              <h3 className="text-sm font-semibold text-gray-900">Assign Quests</h3>
+              <p className="text-xs text-gray-500">Add quests to student libraries</p>
             </div>
           </div>
         </button>

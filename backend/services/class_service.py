@@ -417,6 +417,49 @@ class ClassService(BaseService):
             class_id, user_id, user_role, user_org_id
         )
 
+    # ===== Student View =====
+
+    def get_student_classes(
+        self,
+        student_id: str,
+        status: Optional[str] = 'active'
+    ) -> List[Dict[str, Any]]:
+        """Get all classes a student is enrolled in with progress and details"""
+        self.validate_required(student_id=student_id)
+
+        enrollments = self.class_repo.get_student_enrollments(student_id, status=status)
+        classes = []
+
+        for enrollment in enrollments:
+            cls = enrollment.get('org_classes')
+            if not cls:
+                continue
+
+            # Only include active classes (not archived)
+            if cls.get('status') != 'active':
+                continue
+
+            class_id = cls['id']
+
+            # Add progress
+            cls['progress'] = self.calculate_student_class_progress(class_id, student_id)
+
+            # Add enrollment info
+            cls['enrollment'] = {
+                'status': enrollment.get('status'),
+                'enrolled_at': enrollment.get('enrolled_at'),
+                'completed_at': enrollment.get('completed_at')
+            }
+
+            # Add counts
+            cls['student_count'] = self.class_repo._get_enrollment_count(class_id)
+            cls['quest_count'] = self.class_repo._get_quest_count(class_id)
+            cls['advisor_count'] = self.class_repo._get_advisor_count(class_id)
+
+            classes.append(cls)
+
+        return classes
+
     # ===== Private Helpers =====
 
     def _check_student_completion(self, class_id: str, student_id: str) -> None:
