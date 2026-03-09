@@ -953,6 +953,20 @@ def get_subject_xp_distribution(task_data, xp_value):
         norm_name = SUBJECT_NORMALIZATION.get(subject, subject.lower().replace(' ', '_'))
         normalized[norm_name] = normalized.get(norm_name, 0) + xp
 
+    # Round all values to multiples of 5
+    if normalized:
+        rounded = {
+            subject: max(5, 5 * round(xp / 5))
+            for subject, xp in normalized.items()
+        }
+        # Adjust largest value so total still matches xp_value
+        current_total = sum(rounded.values())
+        if current_total != xp_value:
+            diff = xp_value - current_total
+            largest_subject = max(rounded.items(), key=lambda x: x[1])[0]
+            rounded[largest_subject] += diff
+        return rounded
+
     return normalized
 
 

@@ -112,10 +112,10 @@ const ParentDashboard = ({ childUserId, childName }) => {
   };
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: BarChart3 },
-    { id: 'conversations', label: 'Conversations', icon: MessageSquare },
-    { id: 'safety', label: 'Safety', icon: Shield },
-    { id: 'settings', label: 'Settings', icon: Settings }
+    { id: 'overview', label: 'Overview', icon: ArrowTrendingUpIcon },
+    { id: 'conversations', label: 'Conversations', icon: ChatBubbleLeftRightIcon },
+    { id: 'safety', label: 'Safety', icon: ShieldCheckIcon },
+    { id: 'settings', label: 'Settings', icon: Cog6ToothIcon }
   ];
 
   if (loading) {

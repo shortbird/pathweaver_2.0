@@ -166,8 +166,9 @@ IMPORTANT GUIDELINES:
 1. Analyze the task and determine which 1-2 school subjects it most strongly aligns with
 2. Distribute the total XP ({xp_value}) across those subjects based on relevance
 3. The XP amounts MUST sum to exactly {xp_value}
-4. Most tasks should have 1 primary subject (unless truly interdisciplinary)
-5. AVOID 'electives' unless the task truly does not fit ANY specific subject category
+4. ALL XP amounts MUST be multiples of 5 (e.g., 25, 50, 75, 100 - NEVER 18, 56, 37, etc.)
+5. Most tasks should have 1 primary subject (unless truly interdisciplinary)
+6. AVOID 'electives' unless the task truly does not fit ANY specific subject category
    - Electives should be RARE (less than 5% of tasks)
    - If a task involves ANY creative work, use 'fine_arts'
    - If a task involves ANY math, numbers, or data, use 'math'
@@ -176,7 +177,7 @@ IMPORTANT GUIDELINES:
    - If a task involves ANY physical activity, use 'pe'
    - If a task involves ANY building, making, or hands-on skills, use 'cte'
    - If a task involves ANY technology or computers, use 'digital_literacy'
-6. Return ONLY valid JSON in this exact format (no markdown, no code blocks):
+7. Return ONLY valid JSON in this exact format (no markdown, no code blocks):
 
 {{"subject1": xp_amount1, "subject2": xp_amount2}}
 
@@ -184,10 +185,11 @@ CORRECT Examples:
 Task: "Paint a landscape in watercolors" -> {{"fine_arts": {xp_value}}}
 Task: "Solve 10 algebra problems" -> {{"math": {xp_value}}}
 Task: "Build a birdhouse" -> {{"cte": {xp_value}}}
-Task: "Write a lab report on photosynthesis" -> {{"science": 60, "language_arts": 40}}
-Task: "Create a 3D object in Blender" -> {{"digital_literacy": 50, "fine_arts": 50}}
+Task: "Write a lab report on photosynthesis" (100 XP) -> {{"science": 65, "language_arts": 35}}
+Task: "Create a 3D object in Blender" (100 XP) -> {{"digital_literacy": 50, "fine_arts": 50}}
 Task: "Practice yoga for 30 minutes" -> {{"pe": {xp_value}}}
 Task: "Research World War II causes" -> {{"social_studies": {xp_value}}}
+Task: "Write and illustrate a short story" (75 XP) -> {{"language_arts": 50, "fine_arts": 25}}
 
 INCORRECT (do NOT do this):
 Task: "Paint a landscape" -> {{"electives": {xp_value}}}  (WRONG: should be fine_arts)
@@ -246,28 +248,8 @@ Now classify the task above. Return ONLY the JSON object."""
                 if not isinstance(xp, (int, float)) or xp <= 0:
                     raise ValueError(f"Invalid XP amount for {subject}: {xp}")
 
-            # Check if sum matches expected total (with small tolerance for rounding)
-            actual_total = sum(subject_distribution.values())
-            if abs(actual_total - expected_total) > 1:
-                logger.warning(f"XP sum mismatch: expected {expected_total}, got {actual_total}. Adjusting...")
-                # Proportionally adjust to match expected total
-                ratio = expected_total / actual_total
-                subject_distribution = {
-                    subject: int(round(xp * ratio))
-                    for subject, xp in subject_distribution.items()
-                }
-
-                # Handle rounding errors by adjusting largest value
-                new_total = sum(subject_distribution.values())
-                if new_total != expected_total:
-                    diff = expected_total - new_total
-                    largest_subject = max(subject_distribution.items(), key=lambda x: x[1])[0]
-                    subject_distribution[largest_subject] += diff
-
-            # Ensure all values are integers
-            subject_distribution = {
-                subject: int(xp) for subject, xp in subject_distribution.items()
-            }
+            # Round all values to multiples of 5 and ensure they sum to expected_total
+            subject_distribution = self._round_to_multiples_of_5(subject_distribution, expected_total)
 
             return subject_distribution
 
@@ -277,6 +259,48 @@ Now classify the task above. Return ONLY the JSON object."""
         except Exception as e:
             logger.error(f"Error parsing AI response: {str(e)}")
             raise
+
+    def _round_to_multiples_of_5(self, distribution: Dict[str, int], expected_total: int) -> Dict[str, int]:
+        """
+        Round all XP values to multiples of 5 while ensuring they sum to expected_total.
+
+        Strategy: round each value to nearest multiple of 5, then adjust the largest
+        value to compensate for any rounding drift.
+        """
+        if not distribution:
+            return distribution
+
+        # Round each value to nearest multiple of 5 (minimum 5)
+        rounded = {
+            subject: max(5, 5 * round(xp / 5))
+            for subject, xp in distribution.items()
+        }
+
+        # Adjust largest value so the total is correct
+        current_total = sum(rounded.values())
+        if current_total != expected_total:
+            diff = expected_total - current_total
+            largest_subject = max(rounded.items(), key=lambda x: x[1])[0]
+            rounded[largest_subject] += diff
+
+            # If adjustment made the largest value non-multiple-of-5 or negative,
+            # redistribute across all subjects
+            if rounded[largest_subject] < 5 or rounded[largest_subject] % 5 != 0:
+                # Recalculate: proportionally distribute then round
+                total_raw = sum(distribution.values())
+                ratio = expected_total / total_raw if total_raw > 0 else 1
+                rounded = {
+                    subject: max(5, 5 * round((xp * ratio) / 5))
+                    for subject, xp in distribution.items()
+                }
+                # Final fixup on largest
+                current_total = sum(rounded.values())
+                if current_total != expected_total:
+                    diff = expected_total - current_total
+                    largest_subject = max(rounded.items(), key=lambda x: x[1])[0]
+                    rounded[largest_subject] += diff
+
+        return rounded
 
     def _fallback_subject_mapping(self, pillar: str, xp_value: int, task_title: str = '') -> Dict[str, int]:
         """

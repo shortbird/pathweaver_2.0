@@ -379,11 +379,12 @@ def approve_credit(user_id: str, completion_id: str):
 
         total_xp_finalized = finalize_subject_xp(admin_supabase, student_id, approved_subjects)
 
-        # Update completion
+        # Update completion (also set accreditor_status for accreditor review pipeline)
         admin_supabase.table('quest_task_completions').update({
             'diploma_status': 'approved',
             'credit_reviewer_id': user_id,
-            'finalized_at': now
+            'finalized_at': now,
+            'accreditor_status': 'pending_accreditor'
         }).eq('id', completion_id).execute()
 
         # Clear task-level feedback notification

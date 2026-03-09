@@ -111,6 +111,8 @@ const StudentFeedbackPage = lazy(() => import('./pages/StudentFeedbackPage'))
 const MyEvidenceReports = lazy(() => import('./pages/MyEvidenceReports'))
 const EvidenceReportBuilder = lazy(() => import('./pages/EvidenceReportBuilder'))
 const PublicEvidenceReport = lazy(() => import('./pages/PublicEvidenceReport'))
+// Credit Review Dashboard (March 2026 - Unified credit review for advisors/accreditors)
+const CreditReviewDashboardPage = lazy(() => import('./pages/CreditReviewDashboardPage'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -468,6 +470,11 @@ function App() {
                 {/* AI Course Plan - accessible to advisors and org_admins */}
                 <Route path="course-plan" element={<CoursePlanMode />} />
                 <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
+              </Route>
+
+              {/* Credit Review Dashboard - accessible to advisors, accreditors, and superadmin */}
+              <Route element={<PrivateRoute requiredRole={["advisor", "accreditor", "org_admin", "superadmin"]} />}>
+                <Route path="credit-dashboard" element={<CreditReviewDashboardPage />} />
               </Route>
 
               <Route element={<PrivateRoute requiredRole="parent" />}>

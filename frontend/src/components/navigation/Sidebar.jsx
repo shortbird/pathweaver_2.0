@@ -253,6 +253,19 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     }
   }
 
+  // Credit Review Dashboard for advisors, accreditors, and superadmins
+  if (isAdvisor || user?.role === 'accreditor' || user?.role === 'superadmin') {
+    navItems.push({
+      name: 'Credit Review',
+      path: '/credit-dashboard',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    })
+  }
+
   // Add global Admin panel link ONLY for superadmins
   if (user?.role === 'superadmin') {
     navItems.push({
