@@ -500,6 +500,15 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Error registering Advisor Student Overview routes: {e}", exc_info=True)
 
+# Register Credit Review Dashboard blueprint (March 2026 - Unified credit review for advisors/accreditors)
+try:
+    from routes.credit_dashboard import bp as credit_dashboard_bp
+    app.register_blueprint(credit_dashboard_bp)  # /api/credit-dashboard
+except ImportError as e:
+    logger.warning(f"Warning: Credit Dashboard module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Credit Dashboard routes: {e}", exc_info=True)
+
 # Register Pillars Configuration API blueprint (public endpoint)
 try:
     from routes.pillars import pillars_bp

@@ -1,7 +1,7 @@
 """
 Credit Mapping Service
 Handles conversion of XP to academic credits and transcript generation.
-1000 XP = 1 accredited high school credit
+2000 XP = 1 accredited high school credit
 """
 
 from typing import Dict, List, Optional
@@ -17,20 +17,25 @@ logger = get_logger(__name__)
 class CreditMappingService(BaseService):
     """Service for tracking academic credits derived from XP."""
 
-    # Standard diploma requirements (20 credits total)
+    # Standard diploma requirements (24 credits total)
     # Keys must match SCHOOL_SUBJECTS from utils/school_subjects.py
+    # Aligned with frontend/src/utils/creditRequirements.js
     DIPLOMA_REQUIREMENTS = {
-        'math': 4.0,
-        'science': 4.0,
-        'language_arts': 4.0,      # Was 'english'
-        'social_studies': 3.0,     # Was 'history'
-        'foreign_language': 2.0,
-        'fine_arts': 1.0,          # Was 'arts'
-        'electives': 2.0
+        'language_arts': 4.0,
+        'math': 3.0,
+        'science': 3.0,
+        'social_studies': 3.5,
+        'financial_literacy': 0.5,
+        'health': 0.5,
+        'pe': 2.0,
+        'fine_arts': 1.5,
+        'cte': 1.0,
+        'digital_literacy': 0.5,
+        'electives': 4.0
     }
 
     # XP to credit conversion rate
-    XP_PER_CREDIT = 1000
+    XP_PER_CREDIT = 2000
 
     @staticmethod
     def calculate_user_credits(user_id: str) -> Dict:

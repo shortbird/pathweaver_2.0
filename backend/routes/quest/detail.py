@@ -152,7 +152,7 @@ def get_quest_detail(user_id: str, quest_id: str):
             elif completed_enrollment:
                 logger.info(f"[QUEST DETAIL] Using completed enrollment")
                 quest_data['completed_enrollment'] = completed_enrollment
-                quest_data['user_enrollment'] = None
+                quest_data['user_enrollment'] = completed_enrollment
                 quest_data['progress'] = {
                     'completed_tasks': completed_count,
                     'total_tasks': total_tasks,

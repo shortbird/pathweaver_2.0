@@ -80,6 +80,7 @@ const PrivateRoute = ({ requiredRole }) => {
       // Redirect to role-appropriate dashboard
       const redirectPath = effectiveRole === 'parent' ? '/parent/dashboard'
         : effectiveRole === 'observer' ? '/observer/feed'
+        : effectiveRole === 'accreditor' ? '/credit-dashboard'
         : '/dashboard'
       return <Navigate to={redirectPath} replace />
     }

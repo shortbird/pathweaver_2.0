@@ -15,6 +15,7 @@ class UserRole(Enum):
     PARENT = 'parent'
     ADVISOR = 'advisor'
     OBSERVER = 'observer'
+    ACCREDITOR = 'accreditor'
     ORG_ADMIN = 'org_admin'
     ORG_MANAGED = 'org_managed'  # Platform role indicating org controls this user
     SUPERADMIN = 'superadmin'
@@ -32,6 +33,7 @@ class OrgRole(Enum):
 ROLE_HIERARCHY = {
     UserRole.SUPERADMIN: 5,
     UserRole.ORG_ADMIN: 4,
+    UserRole.ACCREDITOR: 3,
     UserRole.ADVISOR: 2,
     UserRole.PARENT: 1,
     UserRole.OBSERVER: 1,
@@ -51,6 +53,7 @@ ROLE_DISPLAY_NAMES = {
     UserRole.PARENT.value: 'Parent',
     UserRole.ADVISOR.value: 'Advisor',
     UserRole.OBSERVER.value: 'Observer',
+    UserRole.ACCREDITOR.value: 'Accreditor',
     UserRole.ORG_ADMIN.value: 'Organization Admin',
     UserRole.ORG_MANAGED.value: 'Organization Managed',
     UserRole.SUPERADMIN.value: 'Super Admin'
@@ -62,6 +65,7 @@ ROLE_DESCRIPTIONS = {
     UserRole.PARENT.value: 'Full platform access plus ability to view linked children\'s progress',
     UserRole.ADVISOR.value: 'Can manage student groups and view progress within their organization',
     UserRole.OBSERVER.value: 'View-only access to linked students, can comment on student work',
+    UserRole.ACCREDITOR.value: 'Reviews advisor credit decisions for accreditation compliance',
     UserRole.ORG_ADMIN.value: 'Organization-level admin with access to org management tools',
     UserRole.ORG_MANAGED.value: 'Role is controlled by the user\'s organization',
     UserRole.SUPERADMIN.value: 'Full system access to all organizations and features'
@@ -98,6 +102,13 @@ class RolePermissions:
             'collaborations': [],
             'profile': ['view_linked', 'edit_own'],
             'admin_panel': []
+        },
+        UserRole.ACCREDITOR.value: {
+            'quests': ['view'],
+            'diploma': ['view_all', 'review_credits'],
+            'collaborations': [],
+            'profile': ['view_all', 'edit_own'],
+            'admin_panel': ['credit_review']
         },
         UserRole.ORG_ADMIN.value: {
             'quests': ['view', 'create', 'edit', 'delete', 'start', 'complete'],
@@ -324,6 +335,7 @@ def get_role_badge_color(role: str) -> str:
         UserRole.PARENT.value: 'green',
         UserRole.ADVISOR.value: 'purple',
         UserRole.OBSERVER.value: 'teal',
+        UserRole.ACCREDITOR.value: 'amber',
         UserRole.ORG_ADMIN.value: 'orange',
         UserRole.ORG_MANAGED.value: 'indigo',
         UserRole.SUPERADMIN.value: 'red'

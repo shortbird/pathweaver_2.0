@@ -271,7 +271,6 @@ api.interceptors.response.use(
         const authPaths = ['/login', '/register', '/email-verification', '/forgot-password', '/reset-password', '/', '/terms', '/privacy', '/academy-agreement', '/academy-handbook', '/services', '/catalog', '/how-it-works', '/auth/callback']
         const currentPath = window.location.pathname
         const isPublicDiploma = currentPath.startsWith('/public/diploma/') || currentPath.startsWith('/portfolio/')
-        const isPromoPage = currentPath.startsWith('/promo/') || currentPath === '/promo'
         const isConsultationPage = currentPath === '/consultation'
         const isDemoPage = currentPath === '/demo'
         const isQuestsPage = currentPath.startsWith('/quests') || currentPath.startsWith('/badges')
@@ -282,7 +281,7 @@ api.interceptors.response.use(
         const isInvitationPage = currentPath.startsWith('/invitation/')
         const isDocsPage = currentPath.startsWith('/docs')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isPromoPage && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isInvitationPage && !isDocsPage) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isInvitationPage && !isDocsPage) {
           window.location.href = '/login'
         }
 
