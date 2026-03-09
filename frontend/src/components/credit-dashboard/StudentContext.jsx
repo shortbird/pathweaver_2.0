@@ -1,6 +1,4 @@
-import React, { useState, useEffect } from 'react'
-import api from '../../services/api'
-import MergeSuggestionBadge from './MergeSuggestionBadge'
+import React from 'react'
 
 const SUBJECTS = [
   'language_arts', 'math', 'science', 'social_studies', 'financial_literacy',
@@ -123,11 +121,6 @@ const StudentContext = ({ context, loading }) => {
           })}
         </div>
       </div>
-
-      {/* AI Merge Suggestions */}
-      {student.id && (
-        <MergeSuggestionBadge studentId={student.id} />
-      )}
 
       {/* Pending Items */}
       {pendingItems.length > 0 && (

@@ -13,7 +13,7 @@ import ShortcutHelp from '../components/credit-dashboard/ShortcutHelp'
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts'
 
 const CreditReviewDashboardPage = () => {
-  const { user, effectiveRole } = useAuth()
+  const { user, effectiveRole, logout } = useAuth()
   const [viewMode, setViewMode] = useState('split') // 'split' or 'table'
   const [items, setItems] = useState([])
   const [selectedItem, setSelectedItem] = useState(null)
@@ -23,14 +23,26 @@ const CreditReviewDashboardPage = () => {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [filters, setFilters] = useState({
-    status: 'pending_review',
+  const [filters, setFilters] = useState(() => ({
+    status: '',
     accreditor_status: '',
     student_id: '',
     subject: '',
     date_from: '',
     date_to: ''
-  })
+  }))
+  const [filtersInitialized, setFiltersInitialized] = useState(false)
+
+  // Set default filters based on role
+  useEffect(() => {
+    if (!effectiveRole || filtersInitialized) return
+    if (effectiveRole === 'accreditor') {
+      setFilters(f => ({ ...f, status: 'approved', accreditor_status: 'pending_accreditor' }))
+    } else {
+      setFilters(f => ({ ...f, status: 'pending_review' }))
+    }
+    setFiltersInitialized(true)
+  }, [effectiveRole, filtersInitialized])
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [showMergeModal, setShowMergeModal] = useState(false)
@@ -184,10 +196,17 @@ const CreditReviewDashboardPage = () => {
         setStudentContext(null)
       }
       try {
-        await api.post(`/api/advisor/credit-queue/${item.completion_id}/grow-this`, {
-          feedback: fb
-        })
-        toast.success('Returned with feedback')
+        if (effectiveRole === 'accreditor') {
+          await api.post(`/api/credit-dashboard/items/${item.completion_id}/return-to-advisor`, {
+            feedback: fb
+          })
+          toast.success('Returned to advisor')
+        } else {
+          await api.post(`/api/advisor/credit-queue/${item.completion_id}/grow-this`, {
+            feedback: fb
+          })
+          toast.success('Returned with feedback')
+        }
         fetchStats()
       } catch (err) {
         toast.error(err.response?.data?.message || 'Failed to return')
@@ -256,8 +275,21 @@ const CreditReviewDashboardPage = () => {
     )
   }, [])
 
+  const isAccreditor = effectiveRole === 'accreditor'
+
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col">
+    <div className={`${isAccreditor ? 'h-screen' : 'h-[calc(100vh-4rem)]'} flex flex-col`}>
+      {/* Logo bar for accreditors */}
+      {isAccreditor && (
+        <div className="flex items-center justify-center py-3 border-b border-gray-200 bg-white">
+          <img
+            src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png"
+            alt="Optio"
+            className="h-8 w-auto"
+          />
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-4">
@@ -296,6 +328,14 @@ const CreditReviewDashboardPage = () => {
           >
             ?
           </button>
+          {isAccreditor && (
+            <button
+              onClick={logout}
+              className="px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50 text-gray-600"
+            >
+              Log out
+            </button>
+          )}
         </div>
       </div>
 
