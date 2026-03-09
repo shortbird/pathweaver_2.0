@@ -130,46 +130,23 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
     }
   }
 
-  const handleFlag = async () => {
-    if (!flagReason.trim()) {
-      toast.error('Flag reason is required')
+  const handleReturnToAdvisor = async () => {
+    if (!feedback.trim()) {
+      toast.error('Feedback is required when returning to advisor')
       return
     }
+    const completionId = item.completion_id
+    const savedFeedback = feedback
+    setFeedback('')
+    if (onAdvance) onAdvance(completionId)
     try {
-      setActionLoading(true)
-      await api.post(`/api/credit-dashboard/items/${item.completion_id}/flag`, {
-        flag_reason: flagReason
+      await api.post(`/api/credit-dashboard/items/${completionId}/return-to-advisor`, {
+        feedback: savedFeedback
       })
-      toast.success('Credit flagged')
-      setFlagReason('')
-      onRefresh()
+      toast.success('Returned to advisor')
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to flag')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const handleOverride = async () => {
-    if (!overrideJustification.trim()) {
-      toast.error('Justification is required for override')
-      return
-    }
-    try {
-      setActionLoading(true)
-      await api.post(`/api/credit-dashboard/items/${item.completion_id}/override`, {
-        justification: overrideJustification,
-        override_xp: overrideXp ? parseInt(overrideXp, 10) : undefined
-      })
-      toast.success('Credit overridden')
-      setOverrideJustification('')
-      setOverrideXp('')
-      setShowOverrideForm(false)
+      toast.error(err.response?.data?.message || 'Failed to return')
       onRefresh()
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to override')
-    } finally {
-      setActionLoading(false)
     }
   }
 
@@ -451,66 +428,32 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
       {/* Action Buttons - Accreditor */}
       {canAccreditorAct && (
         <div className="border-t border-gray-200 pt-4 space-y-3">
+          <textarea
+            value={feedback}
+            onChange={e => {
+              setFeedback(e.target.value)
+              if (onFeedbackChange) onFeedbackChange(e.target.value)
+            }}
+            placeholder="Feedback for advisor (required for return)..."
+            rows={3}
+            className="w-full text-sm rounded-lg border border-gray-300 focus:ring-optio-purple focus:border-optio-purple px-4 py-3"
+          />
           <div className="flex gap-2">
             <button
               onClick={handleConfirm}
               disabled={actionLoading}
               className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
             >
-              {actionLoading ? 'Processing...' : 'Confirm (a)'}
+              Approve (a)
             </button>
             <button
-              onClick={() => setShowOverrideForm(f => !f)}
-              disabled={actionLoading}
-              className="px-4 py-2 text-sm font-medium text-red-700 bg-red-100 rounded-lg hover:bg-red-200 disabled:opacity-50"
-            >
-              Override
-            </button>
-          </div>
-
-          {/* Flag form */}
-          <div className="flex gap-2">
-            <input
-              value={flagReason}
-              onChange={e => setFlagReason(e.target.value)}
-              placeholder="Flag reason..."
-              className="flex-1 text-sm rounded-lg border-gray-300 focus:ring-optio-purple focus:border-optio-purple"
-            />
-            <button
-              onClick={handleFlag}
-              disabled={actionLoading || !flagReason.trim()}
+              onClick={handleReturnToAdvisor}
+              disabled={actionLoading || !feedback.trim()}
               className="px-4 py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-lg hover:bg-orange-200 disabled:opacity-50"
             >
-              Flag (f)
+              Return to Advisor (g)
             </button>
           </div>
-
-          {/* Override form */}
-          {showOverrideForm && (
-            <div className="p-3 bg-red-50 rounded-lg space-y-2">
-              <textarea
-                value={overrideJustification}
-                onChange={e => setOverrideJustification(e.target.value)}
-                placeholder="Justification for override (required)..."
-                rows={2}
-                className="w-full text-sm rounded-lg border-gray-300 focus:ring-optio-purple focus:border-optio-purple"
-              />
-              <input
-                type="number"
-                value={overrideXp}
-                onChange={e => setOverrideXp(e.target.value)}
-                placeholder="Override XP value (optional)"
-                className="w-full text-sm rounded-lg border-gray-300 focus:ring-optio-purple focus:border-optio-purple"
-              />
-              <button
-                onClick={handleOverride}
-                disabled={actionLoading || !overrideJustification.trim()}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
-              >
-                Submit Override
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>

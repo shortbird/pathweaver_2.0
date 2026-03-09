@@ -7,7 +7,7 @@ import TopNavbar from './navigation/TopNavbar'
 const SIDEBAR_PINNED_KEY = 'optio-sidebar-pinned'
 
 const Layout = () => {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, effectiveRole } = useAuth()
   const [siteSettings, setSiteSettings] = React.useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -52,6 +52,15 @@ const Layout = () => {
 
   // Show sidebar for all authenticated users (removed hub page restriction)
   const shouldShowSidebar = isAuthenticated
+
+  // Accreditors get a bare layout -- no sidebar, navbar, or footer
+  if (effectiveRole === 'accreditor') {
+    return (
+      <div className="min-h-screen bg-neutral-50">
+        <Outlet />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-neutral-50">

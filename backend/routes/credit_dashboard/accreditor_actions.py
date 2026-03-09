@@ -69,6 +69,82 @@ def confirm_credit(user_id: str, completion_id: str):
         return error_response(code='CONFIRM_ERROR', message='Failed to confirm credit', status=500)
 
 
+@bp.route('/items/<completion_id>/return-to-advisor', methods=['POST'])
+@require_role('accreditor', 'superadmin')
+def return_to_advisor(user_id: str, completion_id: str):
+    """Return a credit back to advisor review with feedback."""
+    try:
+        admin_supabase = get_supabase_admin_singleton()
+        data = request.get_json() or {}
+
+        feedback = (data.get('feedback') or '').strip()
+        if not feedback:
+            return error_response(code='VALIDATION_ERROR', message='Feedback is required', status=400)
+
+        completion = admin_supabase.table('quest_task_completions') \
+            .select('id, user_id, diploma_status, accreditor_status, credit_reviewer_id, user_quest_task_id') \
+            .eq('id', completion_id) \
+            .single() \
+            .execute()
+
+        if not completion.data:
+            return error_response(code='NOT_FOUND', message='Completion not found', status=404)
+
+        if completion.data['diploma_status'] != 'approved':
+            return error_response(code='INVALID_STATE', message='Can only return approved items', status=400)
+
+        now = datetime.utcnow().isoformat()
+
+        # Create accreditor review record
+        admin_supabase.table('accreditor_reviews').insert({
+            'completion_id': completion_id,
+            'reviewer_id': user_id,
+            'status': 'returned',
+            'notes': feedback,
+            'reviewed_at': now
+        }).execute()
+
+        # Reset completion back to pending_review
+        admin_supabase.table('quest_task_completions').update({
+            'diploma_status': 'pending_review',
+            'accreditor_status': 'returned',
+            'credit_reviewer_id': None,
+            'finalized_at': None
+        }).eq('id', completion_id).execute()
+
+        # Notify the advisor who approved it
+        advisor_id = completion.data.get('credit_reviewer_id')
+        if advisor_id:
+            try:
+                from services.notification_service import NotificationService
+                notification_service = NotificationService()
+                notification_service.create_notification(
+                    user_id=advisor_id,
+                    notification_type='accreditor_return',
+                    title='Credit Returned by Accreditor',
+                    message=f'A credit you approved has been returned for re-review: {feedback}',
+                    link='/credit-dashboard',
+                    metadata={
+                        'completion_id': completion_id,
+                        'feedback': feedback
+                    }
+                )
+            except Exception as notify_err:
+                logger.warning(f"Failed to notify advisor of return: {notify_err}")
+
+        logger.info(f"Accreditor {user_id[:8]} returned credit {completion_id[:8]} to advisor: {feedback}")
+
+        return success_response(data={
+            'completion_id': completion_id,
+            'diploma_status': 'pending_review',
+            'accreditor_status': 'returned'
+        })
+
+    except Exception as e:
+        logger.error(f"Error returning credit {completion_id}: {str(e)}")
+        return error_response(code='RETURN_ERROR', message='Failed to return credit', status=500)
+
+
 @bp.route('/items/<completion_id>/flag', methods=['POST'])
 @require_role('accreditor', 'superadmin')
 def flag_credit(user_id: str, completion_id: str):
