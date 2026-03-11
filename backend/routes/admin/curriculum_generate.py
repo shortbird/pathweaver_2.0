@@ -24,10 +24,14 @@ Endpoints:
 - DELETE /api/admin/curriculum/generate/<id> - Delete draft course
 """
 
+import threading
+import time
+
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_role
 from services.course_generation_service import CourseGenerationService
+from services.course_generation_job_service import CourseGenerationJobService
 from services.base_ai_service import AIGenerationError
 
 from utils.logger import get_logger
@@ -1365,6 +1369,216 @@ def process_next_job(user_id):
 
     except Exception as e:
         logger.error(f"Process job error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# =============================================================================
+# BULK GENERATION
+# =============================================================================
+
+@bp.route('/bulk', methods=['POST'])
+@require_role('superadmin')
+def bulk_generate(user_id):
+    """
+    Generate multiple courses from a list of topics.
+
+    For each topic:
+    1. Generates outline (3 alternatives), auto-selects first
+    2. Creates draft course with slug
+    3. Queues a background job for lessons, tasks, showcase, and optional publish
+
+    Jobs are processed sequentially in a background thread with a delay between them.
+
+    Request body:
+    {
+        "topics": ["Board Games", "Cooking", "Photography"],
+        "auto_publish": true,
+        "delay_seconds": 5
+    }
+
+    Returns:
+    {
+        "success": true,
+        "courses": [
+            {"topic": "Board Games", "course_id": "uuid", "job_id": "uuid", "title": "..."},
+            ...
+        ],
+        "errors": [
+            {"topic": "Bad Topic", "error": "..."}
+        ]
+    }
+    """
+    try:
+        data = request.get_json()
+        topics = data.get('topics', [])
+        auto_publish = data.get('auto_publish', True)
+        delay_seconds = data.get('delay_seconds', 5)
+
+        if not topics:
+            return jsonify({
+                'success': False,
+                'error': 'topics list is required'
+            }), 400
+
+        if len(topics) > 50:
+            return jsonify({
+                'success': False,
+                'error': 'Maximum 50 topics per batch'
+            }), 400
+
+        delay_seconds = max(0, min(60, delay_seconds))
+
+        organization_id = get_organization_id(user_id)
+        service = CourseGenerationService(user_id, organization_id)
+        job_service = CourseGenerationJobService()
+
+        courses = []
+        errors = []
+
+        for topic in topics:
+            topic = topic.strip()
+            if not topic:
+                continue
+
+            try:
+                # Generate outline
+                result = service.generate_outline(topic)
+                alternatives = result.get('alternatives', [])
+
+                if not alternatives:
+                    errors.append({'topic': topic, 'error': 'No outlines generated'})
+                    continue
+
+                # Auto-select first alternative
+                outline = alternatives[0]
+
+                # Save draft course (includes slug generation)
+                course_id = service.save_draft_course(outline)
+
+                # Create background job
+                job_id = job_service.create_job(
+                    course_id=course_id,
+                    user_id=user_id,
+                    organization_id=organization_id,
+                    auto_publish=auto_publish
+                )
+
+                courses.append({
+                    'topic': topic,
+                    'course_id': course_id,
+                    'job_id': job_id,
+                    'title': outline.get('title', topic)
+                })
+
+                logger.info(f"Bulk: created course {course_id} and job {job_id} for topic '{topic}'")
+
+            except Exception as e:
+                logger.error(f"Bulk: failed for topic '{topic}': {str(e)}")
+                errors.append({'topic': topic, 'error': str(e)})
+
+        # Start background thread to process all jobs sequentially
+        if courses:
+            from flask import current_app
+            app = current_app._get_current_object()
+            job_ids = [c['job_id'] for c in courses]
+
+            def process_bulk_jobs(jids, flask_app, delay):
+                with flask_app.app_context():
+                    svc = CourseGenerationJobService()
+                    for i, jid in enumerate(jids):
+                        try:
+                            logger.info(f"Bulk: processing job {i+1}/{len(jids)}: {jid}")
+                            svc.process_job(jid)
+                        except Exception as e:
+                            logger.error(f"Bulk: job {jid} failed: {str(e)}")
+
+                        # Delay between jobs (skip after last)
+                        if i < len(jids) - 1 and delay > 0:
+                            time.sleep(delay)
+
+                    logger.info(f"Bulk: all {len(jids)} jobs processed")
+
+            thread = threading.Thread(
+                target=process_bulk_jobs,
+                args=(job_ids, app, delay_seconds)
+            )
+            thread.daemon = True
+            thread.start()
+
+        return jsonify({
+            'success': True,
+            'courses': courses,
+            'errors': errors
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Bulk generation error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@bp.route('/bulk/status', methods=['GET'])
+@require_role('superadmin')
+def bulk_status(user_id):
+    """
+    Get status of all recent generation jobs for the current user.
+
+    Returns summary counts and per-job details.
+
+    Returns:
+    {
+        "success": true,
+        "summary": {
+            "total": 10,
+            "pending": 2,
+            "running": 1,
+            "completed": 6,
+            "failed": 1
+        },
+        "jobs": [...]
+    }
+    """
+    try:
+        job_service = CourseGenerationJobService()
+        jobs = job_service.get_user_jobs(user_id, limit=100)
+
+        summary = {
+            'total': len(jobs),
+            'pending': 0,
+            'running': 0,
+            'completed': 0,
+            'failed': 0
+        }
+
+        running_statuses = {
+            'generating_lessons', 'generating_tasks',
+            'generating_showcase', 'finalizing'
+        }
+
+        for job in jobs:
+            status = job.get('status', '')
+            if status == 'pending':
+                summary['pending'] += 1
+            elif status in running_statuses:
+                summary['running'] += 1
+            elif status == 'completed':
+                summary['completed'] += 1
+            elif status == 'failed':
+                summary['failed'] += 1
+
+        return jsonify({
+            'success': True,
+            'summary': summary,
+            'jobs': jobs
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Bulk status error: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)

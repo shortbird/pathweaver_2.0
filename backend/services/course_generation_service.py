@@ -127,7 +127,7 @@ class CourseGenerationService(BaseAIService):
 
         logger.info(f"Generating course outline for topic: {topic}")
 
-        result = self.generate_json(prompt, max_retries=3)
+        result = self.generate_json(prompt, max_retries=3, max_output_tokens=8192)
 
         if not result or 'alternatives' not in result:
             raise AIGenerationError("Failed to generate valid course outlines")
@@ -190,10 +190,17 @@ class CourseGenerationService(BaseAIService):
         Returns:
             course_id: The ID of the created draft course
         """
+        from utils.slug_utils import generate_slug, ensure_unique_slug
+
         # Create course
+        title = self._capitalize_title(outline.get('title', 'Untitled Course'))
+        base_slug = generate_slug(title)
+        slug = ensure_unique_slug(self.admin_client, base_slug) if base_slug else None
+
         course_data = {
-            'title': self._capitalize_title(outline.get('title', 'Untitled Course')),
+            'title': title,
             'description': outline.get('description', ''),
+            'slug': slug,
             'status': 'draft',
             'visibility': 'organization',
             'navigation_mode': 'sequential',
@@ -207,7 +214,7 @@ class CourseGenerationService(BaseAIService):
             raise Exception("Failed to create draft course")
 
         course_id = course_result.data[0]['id']
-        logger.info(f"Created draft course: {course_id}")
+        logger.info(f"Created draft course: {course_id} (slug: {slug})")
 
         # Create projects (quests)
         # Projects must work as standalone quests AND as course components
@@ -340,7 +347,7 @@ class CourseGenerationService(BaseAIService):
 
             prompt = get_lessons_prompt(course_title, project_title, project_description)
 
-            result = self.generate_json(prompt, max_retries=3)
+            result = self.generate_json(prompt, max_retries=3, max_output_tokens=8192)
 
             if not result or 'lessons' not in result:
                 logger.error(f"Failed to generate lessons for {project_title}")
@@ -402,7 +409,7 @@ class CourseGenerationService(BaseAIService):
 
         prompt = get_lessons_prompt(course_title, project_title, project_description)
 
-        result = self.generate_json(prompt, max_retries=3)
+        result = self.generate_json(prompt, max_retries=3, max_output_tokens=8192)
 
         if not result or 'lessons' not in result:
             raise AIGenerationError(f"Failed to generate lessons for {project_title}")
@@ -956,21 +963,98 @@ class CourseGenerationService(BaseAIService):
         return self._save_task(quest_id, lesson_id, task)
 
     # =========================================================================
-    # STAGE 4: FINALIZATION
+    # SHOWCASE FIELD GENERATION (for public course page)
     # =========================================================================
 
-    def finalize_course(self, course_id: str) -> Dict[str, Any]:
+    def generate_showcase_fields(self, course_id: str) -> Dict[str, Any]:
         """
-        Finalize a draft course by publishing it.
+        Generate all 6 showcase fields for a course's public catalog page.
+
+        Fields: learning_outcomes, educational_value, parent_guidance,
+        final_deliverable, target_audience, progress_model.
 
         Args:
             course_id: The course ID
 
         Returns:
+            Dict with the generated showcase fields
+        """
+        from prompts.course_generation import get_showcase_prompt
+
+        # Get course info
+        course = self.admin_client.table('courses').select(
+            'title, description'
+        ).eq('id', course_id).execute()
+
+        if not course.data:
+            raise Exception(f"Course {course_id} not found")
+
+        course_title = course.data[0]['title']
+        description = course.data[0].get('description', '')
+
+        # Get projects
+        projects_result = self.admin_client.table('course_quests').select(
+            'quest_id, sequence_order, quests(title, description)'
+        ).eq('course_id', course_id).order('sequence_order').execute()
+
+        projects = []
+        for p in (projects_result.data or []):
+            quest = p.get('quests', {})
+            projects.append({
+                'title': quest.get('title', ''),
+                'description': quest.get('description', '')
+            })
+
+        prompt = get_showcase_prompt(course_title, description, projects)
+
+        logger.info(f"Generating showcase fields for course: {course_title}")
+
+        result = self.generate_json(prompt, max_retries=3, max_output_tokens=8192)
+
+        if not result:
+            raise AIGenerationError("Failed to generate showcase fields")
+
+        # Update course with showcase fields
+        update_data = {}
+        if result.get('learning_outcomes'):
+            update_data['learning_outcomes'] = result['learning_outcomes']
+        if result.get('educational_value'):
+            update_data['educational_value'] = result['educational_value']
+        if result.get('parent_guidance'):
+            update_data['parent_guidance'] = result['parent_guidance']
+        if result.get('final_deliverable'):
+            update_data['final_deliverable'] = result['final_deliverable']
+        if result.get('target_audience'):
+            update_data['target_audience'] = result['target_audience']
+        if result.get('progress_model'):
+            update_data['progress_model'] = result['progress_model']
+
+        if update_data:
+            self.admin_client.table('courses').update(update_data).eq('id', course_id).execute()
+            logger.info(f"Updated {len(update_data)} showcase fields for course {course_id}")
+
+        return result
+
+    # =========================================================================
+    # STAGE 4: FINALIZATION
+    # =========================================================================
+
+    def finalize_course(self, course_id: str, visibility: str = 'public') -> Dict[str, Any]:
+        """
+        Finalize a draft course by publishing it.
+
+        Args:
+            course_id: The course ID
+            visibility: Course visibility ('public', 'organization', 'private'). Default 'public'.
+
+        Returns:
             Dict with success status and course details
         """
-        # Update course status
-        self.admin_client.table('courses').update({'status': 'published'}).eq('id', course_id).execute()
+        # Update course status and visibility
+        self.admin_client.table('courses').update({
+            'status': 'published',
+            'visibility': visibility
+        }).eq('id', course_id).execute()
 
         # Activate all quests
         projects_result = self.admin_client.table('course_quests').select(

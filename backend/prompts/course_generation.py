@@ -719,6 +719,99 @@ Generate 5-10 steps that guide students through this lesson.
 
 
 # =============================================================================
+# STAGE 4: SHOWCASE FIELD GENERATION (for public course page)
+# =============================================================================
+
+SHOWCASE_GENERATION_PROMPT = """
+You are writing the public-facing catalog page content for a hands-on tutorial course.
+This content appears on the course's public page to help families decide if it's right for them.
+
+INPUT:
+- Course Title: {course_title}
+- Course Description: {course_description}
+- Projects in this course:
+{projects_summary}
+
+TASK:
+Generate all 6 showcase fields for the public course page. Write in a warm, encouraging
+tone that speaks directly to homeschool families. Keep language at a 5th-6th grade reading level.
+
+=============================================================================
+READABILITY GUIDELINES (APPLY TO ALL TEXT)
+=============================================================================
+
+Use common words over technical jargon. Keep sentences short and direct.
+One main idea per sentence. Avoid abstract phrasing - be concrete.
+
+WORD CHOICES - Use simpler alternatives:
+- "demonstrate" -> "show"
+- "utilize" -> "use"
+- "implement" -> "build" or "add"
+- "accomplish" -> "complete" or "finish"
+- "facilitate" -> "help"
+- "competent attempt" -> "solid first try"
+- "tangible outcome" -> "something you can see/use/share"
+
+=============================================================================
+FIELD SPECIFICATIONS
+=============================================================================
+
+1. learning_outcomes (array of 4-6 strings):
+   - What students will DO (not learn about) by the end of the course
+   - Start each with an action verb: "Build...", "Create...", "Design..."
+   - Keep each outcome to 1 short sentence
+   - Focus on visible, shareable results
+
+2. educational_value (string, 2-3 sentences):
+   - Why this course matters - connect to real-world skills
+   - Speak to parents: what their child gains beyond the project itself
+   - Avoid buzzwords and edu-speak
+
+3. parent_guidance (object with 3 keys):
+   - ages_5_9: 2-3 sentences of tips for younger learners (simplifications, parent help)
+   - ages_10_14: 2-3 sentences for middle learners (independence, extensions)
+   - ages_15_18: 2-3 sentences for older learners (deeper challenges, real-world connections)
+
+4. final_deliverable (string, 1-2 sentences):
+   - What the student walks away with at the end
+   - Be specific and exciting - make it sound like something worth showing off
+
+5. target_audience (string, 1-2 sentences):
+   - Who this course is best for
+   - Mention interests, not grade levels
+   - Example: "Perfect for kids who love taking things apart to see how they work."
+
+6. progress_model (string, 1-2 sentences):
+   - How students move through the course and track progress
+   - Mention XP, projects, and tasks in simple terms
+
+=============================================================================
+RETURN FORMAT
+=============================================================================
+
+Return EXACTLY this JSON structure:
+
+{{
+  "learning_outcomes": [
+    "Build a working prototype using everyday materials",
+    "Test your ideas with real users and improve based on feedback",
+    "Design eye-catching visuals for your final product",
+    "Present your finished project to family and friends"
+  ],
+  "educational_value": "Students build real problem-solving skills by working through challenges hands-on. They learn to plan, test, and improve their work - skills that help in every subject and beyond school.",
+  "parent_guidance": {{
+    "ages_5_9": "Younger learners will need help with measuring and cutting. Consider working alongside them on the first project. Pre-made templates are available for tricky steps.",
+    "ages_10_14": "Most students this age can work through projects on their own. Encourage them to try their own ideas instead of following examples exactly. The AI tutor is there when they get stuck.",
+    "ages_15_18": "Challenge older students to go beyond the basics. They can research professional techniques, mentor younger learners, or turn their final project into something for their portfolio."
+  }},
+  "final_deliverable": "A complete, polished project they can use, share, or display - something they built from start to finish with their own creative choices.",
+  "target_audience": "Perfect for curious kids who love making things with their hands. No experience needed - just a willingness to try, experiment, and have fun.",
+  "progress_model": "Students earn XP by completing hands-on tasks in each project. Finish all projects to complete the course and unlock a completion badge."
+}}
+"""
+
+
+# =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 
@@ -799,4 +892,21 @@ def get_lesson_content_prompt(
         project_description=project_description,
         lesson_title=lesson_title,
         lesson_description=lesson_description or ''
+    )
+
+
+def get_showcase_prompt(
+    course_title: str,
+    description: str,
+    projects: list
+) -> str:
+    """Get the showcase field generation prompt for a course's public page."""
+    projects_summary = '\n'.join(
+        f"  {i+1}. {p.get('title', 'Untitled')} - {p.get('description', '')}"
+        for i, p in enumerate(projects)
+    )
+    return SHOWCASE_GENERATION_PROMPT.format(
+        course_title=course_title,
+        course_description=description,
+        projects_summary=projects_summary
     )
