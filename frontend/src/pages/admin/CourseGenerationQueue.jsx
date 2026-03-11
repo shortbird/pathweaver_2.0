@@ -12,6 +12,7 @@ const StatusBadge = ({ status }) => {
     pending: { label: 'Queued', className: 'bg-gray-100 text-gray-700' },
     generating_lessons: { label: 'Generating Lessons', className: 'bg-blue-100 text-blue-700' },
     generating_tasks: { label: 'Generating Tasks', className: 'bg-blue-100 text-blue-700' },
+    generating_showcase: { label: 'Generating Showcase', className: 'bg-indigo-100 text-indigo-700' },
     finalizing: { label: 'Finalizing', className: 'bg-purple-100 text-purple-700' },
     completed: { label: 'Completed', className: 'bg-green-100 text-green-700' },
     failed: { label: 'Failed', className: 'bg-red-100 text-red-700' },

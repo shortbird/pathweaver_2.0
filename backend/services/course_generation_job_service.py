@@ -48,6 +48,7 @@ class CourseGenerationJobService:
     STATUS_PENDING = 'pending'
     STATUS_GENERATING_LESSONS = 'generating_lessons'
     STATUS_GENERATING_TASKS = 'generating_tasks'
+    STATUS_GENERATING_SHOWCASE = 'generating_showcase'
     STATUS_FINALIZING = 'finalizing'
     STATUS_COMPLETED = 'completed'
     STATUS_FAILED = 'failed'
@@ -100,6 +101,7 @@ class CourseGenerationJobService:
             self.STATUS_PENDING,
             self.STATUS_GENERATING_LESSONS,
             self.STATUS_GENERATING_TASKS,
+            self.STATUS_GENERATING_SHOWCASE,
             self.STATUS_FINALIZING
         ]).execute()
 
@@ -265,7 +267,25 @@ class CourseGenerationJobService:
             self._add_log(job_id, 'Task generation complete', 'success')
 
             # =========================================================
-            # STAGE 3: Finalize (if auto_publish)
+            # STAGE 3: Generate showcase fields for public page
+            # =========================================================
+
+            self._update_job(job_id, {
+                'status': self.STATUS_GENERATING_SHOWCASE,
+                'current_step': 'showcase',
+                'current_item': 'Generating public page content'
+            })
+            self._add_log(job_id, 'Generating showcase fields for public course page', 'info')
+
+            try:
+                showcase = service.generate_showcase_fields(course_id)
+                field_count = len([v for v in showcase.values() if v])
+                self._add_log(job_id, f'Generated {field_count} showcase fields', 'success')
+            except Exception as e:
+                self._add_log(job_id, f'Showcase generation failed (non-fatal): {str(e)}', 'warning')
+
+            # =========================================================
+            # STAGE 4: Finalize (if auto_publish)
             # =========================================================
 
             if auto_publish:
@@ -276,7 +296,7 @@ class CourseGenerationJobService:
                 })
                 self._add_log(job_id, 'Auto-publishing course', 'info')
 
-                service.finalize_course(course_id)
+                service.finalize_course(course_id, visibility='public')
                 self._add_log(job_id, 'Course published successfully', 'success')
 
             # =========================================================
@@ -381,6 +401,7 @@ class CourseGenerationJobService:
                 self.STATUS_PENDING,
                 self.STATUS_GENERATING_LESSONS,
                 self.STATUS_GENERATING_TASKS,
+                self.STATUS_GENERATING_SHOWCASE,
                 self.STATUS_FINALIZING
             ])
         elif status:
