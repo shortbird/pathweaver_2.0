@@ -771,7 +771,7 @@ def get_admin_quests(user_id):
     try:
         # Get pagination parameters
         page = int(request.args.get('page', 1))
-        per_page = min(int(request.args.get('per_page', 1000)), 10000)  # Default to 1000, max 10000
+        per_page = min(int(request.args.get('per_page', 1000)), 2000)  # Default to 1000, max 2000
         offset = (page - 1) * per_page
 
         # Get filter parameters
@@ -784,8 +784,8 @@ def get_admin_quests(user_id):
         user_role = user.data[0].get('role') if user.data else 'advisor'
 
         # Build query based on role
-        # Join with users table to get creator information
-        query = supabase.table('quests').select('*, creator:created_by(id, display_name, first_name, last_name, email)', count='exact')
+        # Use plain select to avoid PostgREST payload limits on large result sets
+        query = supabase.table('quests').select('*', count='exact')
 
         # Advisors see only their own quests
         if user_role == 'advisor':
@@ -830,17 +830,14 @@ def get_admin_quests(user_id):
                         'course_title': course_data.get('title')
                     })
 
-        # Process quest data to flatten creator info
-        # Collect creator IDs for batch lookup if embedded query didn't work
+        # Batch fetch creator info separately to keep main query lightweight
         creator_ids = set()
         for quest in quests.data:
-            if not quest.get('creator') and quest.get('created_by'):
+            if quest.get('created_by'):
                 creator_ids.add(quest['created_by'])
 
-        # Batch fetch creator info if embedded query didn't return it
         creator_lookup = {}
         if creator_ids:
-            logger.debug(f"Embedded creator query didn't work, fetching {len(creator_ids)} creators manually")
             creators = supabase.table('users')\
                 .select('id, display_name, first_name, last_name, email')\
                 .in_('id', list(creator_ids))\
@@ -851,7 +848,7 @@ def get_admin_quests(user_id):
         processed_quests = []
         for quest in quests.data:
             # Flatten creator data for easier frontend access
-            creator = quest.get('creator') or creator_lookup.get(quest.get('created_by'))
+            creator = creator_lookup.get(quest.get('created_by'))
             if creator:
                 quest['creator_name'] = creator.get('display_name') or f"{creator.get('first_name', '')} {creator.get('last_name', '')}".strip() or creator.get('email', 'Unknown User')
             else:

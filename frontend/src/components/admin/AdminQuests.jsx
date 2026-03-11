@@ -61,7 +61,7 @@ const AdminQuests = () => {
   const fetchQuests = async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ per_page: '10000' })
+      const params = new URLSearchParams({ per_page: '2000' })
       if (activeFilter !== 'all') {
         params.append('is_active', activeFilter === 'active' ? 'true' : 'false')
       }
