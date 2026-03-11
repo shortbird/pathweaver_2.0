@@ -784,8 +784,13 @@ def get_admin_quests(user_id):
         user_role = user.data[0].get('role') if user.data else 'advisor'
 
         # Build query based on role
-        # Use plain select to avoid PostgREST payload limits on large result sets
-        query = supabase.table('quests').select('*', count='exact')
+        # Select only needed columns to avoid PostgREST payload limits
+        query = supabase.table('quests').select(
+            'id, title, description, big_idea, image_url, header_image_url, '
+            'is_active, is_public, quest_type, created_by, created_at, '
+            'organization_id, topic_primary, topics',
+            count='exact'
+        )
 
         # Advisors see only their own quests
         if user_role == 'advisor':
@@ -815,20 +820,36 @@ def get_admin_quests(user_id):
         quest_ids = [q['id'] for q in quests.data]
         course_connections = {}
         if quest_ids:
-            course_links = supabase.table('course_quests')\
-                .select('quest_id, course_id, courses(id, title)')\
-                .in_('quest_id', quest_ids)\
-                .execute()
-            for link in (course_links.data or []):
+            # Fetch in batches to avoid PostgREST URL length limits with large in_() lists
+            batch_size = 200
+            all_course_links = []
+            for i in range(0, len(quest_ids), batch_size):
+                batch = quest_ids[i:i + batch_size]
+                batch_result = supabase.table('course_quests')\
+                    .select('quest_id, course_id')\
+                    .in_('quest_id', batch)\
+                    .execute()
+                all_course_links.extend(batch_result.data or [])
+
+            # Batch fetch course titles
+            course_ids_set = {link['course_id'] for link in all_course_links}
+            course_titles = {}
+            if course_ids_set:
+                courses_result = supabase.table('courses')\
+                    .select('id, title')\
+                    .in_('id', list(course_ids_set))\
+                    .execute()
+                course_titles = {c['id']: c['title'] for c in (courses_result.data or [])}
+
+            for link in all_course_links:
                 quest_id = link.get('quest_id')
+                course_id = link.get('course_id')
                 if quest_id not in course_connections:
                     course_connections[quest_id] = []
-                course_data = link.get('courses')
-                if course_data:
-                    course_connections[quest_id].append({
-                        'course_id': course_data.get('id'),
-                        'course_title': course_data.get('title')
-                    })
+                course_connections[quest_id].append({
+                    'course_id': course_id,
+                    'course_title': course_titles.get(course_id, 'Unknown')
+                })
 
         # Batch fetch creator info separately to keep main query lightweight
         creator_ids = set()
@@ -838,12 +859,15 @@ def get_admin_quests(user_id):
 
         creator_lookup = {}
         if creator_ids:
-            creators = supabase.table('users')\
-                .select('id, display_name, first_name, last_name, email')\
-                .in_('id', list(creator_ids))\
-                .execute()
-            for c in (creators.data or []):
-                creator_lookup[c['id']] = c
+            creator_ids_list = list(creator_ids)
+            for i in range(0, len(creator_ids_list), batch_size):
+                batch = creator_ids_list[i:i + batch_size]
+                creators = supabase.table('users')\
+                    .select('id, display_name, first_name, last_name, email')\
+                    .in_('id', batch)\
+                    .execute()
+                for c in (creators.data or []):
+                    creator_lookup[c['id']] = c
 
         processed_quests = []
         for quest in quests.data:
