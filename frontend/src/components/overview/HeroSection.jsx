@@ -49,6 +49,11 @@ const HeroSection = ({
                 Learning since {formattedMemberSince}
               </p>
             )}
+            {user?.bio && (
+              <p className="text-white/80 text-sm sm:text-base mt-2 max-w-xl leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 400 }}>
+                {user.bio}
+              </p>
+            )}
           </div>
 
         </div>
@@ -109,7 +114,8 @@ HeroSection.propTypes = {
   user: PropTypes.shape({
     first_name: PropTypes.string,
     last_name: PropTypes.string,
-    avatar_url: PropTypes.string
+    avatar_url: PropTypes.string,
+    bio: PropTypes.string
   }),
   memberSince: PropTypes.string,
   totalXp: PropTypes.number,
