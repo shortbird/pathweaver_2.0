@@ -19,21 +19,32 @@ const CourseCatalog = () => {
   const navigate = useNavigate()
 
   const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
 
   // Check if user can manage courses (see drafts, edit)
   // For org-managed users, check org_role; for platform users, check role
   const effectiveRole = user?.role === 'org_managed' ? user?.org_role : user?.role
   const canManageCourses = effectiveRole === 'superadmin' || effectiveRole === 'org_admin' || effectiveRole === 'advisor'
+  const isSuperadmin = effectiveRole === 'superadmin'
 
-  const { data, isLoading: loading, error } = useCourses({}, {
+  // Superadmin uses admin_all filter to see all courses including drafts
+  const queryFilters = isSuperadmin ? { filter: 'admin_all' } : {}
+
+  const { data, isLoading: loading, error } = useCourses(queryFilters, {
     staleTime: 60 * 1000, // 1 minute - cached for quick revisits
   })
 
   const courses = useMemo(() => {
     const allCourses = data?.courses || []
+    if (isSuperadmin) {
+      // Superadmin sees all courses, optionally filtered by status
+      if (statusFilter === 'published') return allCourses.filter(c => c.status === 'published')
+      if (statusFilter === 'draft') return allCourses.filter(c => c.status === 'draft')
+      return allCourses
+    }
     // Only show courses the user is enrolled in (or created, for admins)
     return allCourses.filter(c => c.is_enrolled)
-  }, [data])
+  }, [data, statusFilter, isSuperadmin])
 
   // Error is handled by React Query - shows in UI via loading/empty states
 
@@ -79,16 +90,40 @@ const CourseCatalog = () => {
             )}
           </div>
 
-          {/* Search */}
-          <div className="mt-6 relative max-w-md">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search courses..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-            />
+          {/* Search and Filters */}
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            <div className="relative max-w-md flex-1 min-w-[200px]">
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search courses..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+              />
+            </div>
+
+            {isSuperadmin && (
+              <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
+                {[
+                  { value: 'all', label: 'All' },
+                  { value: 'published', label: 'Published' },
+                  { value: 'draft', label: 'Drafts' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setStatusFilter(opt.value)}
+                    className={`px-3 py-2 font-medium transition-colors ${
+                      statusFilter === opt.value
+                        ? 'bg-optio-purple text-white'
+                        : 'bg-white text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

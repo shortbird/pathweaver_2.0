@@ -3,7 +3,7 @@ Image service for fetching quest images from Pexels API.
 Enhanced with AI-powered educational search term generation.
 """
 import requests
-from typing import Optional, Dict
+from typing import Optional, Dict, List, Set
 from services.base_service import BaseService
 import re
 import google.generativeai as genai
@@ -135,16 +135,22 @@ def extract_key_nouns(quest_title: str) -> Optional[str]:
 # Badge image search functions removed (January 2026 - Badge system removed)
 
 
-def search_quest_image(quest_title: str, quest_description: Optional[str] = None, pillar: Optional[str] = None) -> Optional[str]:
+def search_quest_image(
+    quest_title: str,
+    quest_description: Optional[str] = None,
+    pillar: Optional[str] = None,
+    per_page: int = 1,
+    exclude_urls: Optional[Set[str]] = None
+) -> Optional[str]:
     """
     Search for a relevant image using Pexels API with AI-enhanced search terms.
-
-    Uses ONLY 1 Pexels API call per quest by using AI to optimize the search term.
 
     Args:
         quest_title: The title of the quest
         quest_description: Optional description/big_idea for better AI context
         pillar: Optional pillar name for fallback search
+        per_page: Number of results to request from Pexels (higher = more choices for uniqueness)
+        exclude_urls: Set of image URLs to skip (for ensuring uniqueness within a course)
 
     Returns:
         Image URL if found, None otherwise
@@ -189,7 +195,7 @@ def search_quest_image(quest_title: str, quest_description: Optional[str] = None
                 headers=headers,
                 params={
                     'query': search_term,
-                    'per_page': 1,
+                    'per_page': per_page,
                     'orientation': 'landscape'  # Better for cards
                 },
                 timeout=5
@@ -200,16 +206,83 @@ def search_quest_image(quest_title: str, quest_description: Optional[str] = None
 
             if response.status_code == 200:
                 data = response.json()
-                if data.get('photos') and len(data['photos']) > 0:
-                    # Return the medium-sized image URL
-                    logger.info(f"Found image for '{quest_title}' using term: '{search_term}'")
-                    return data['photos'][0]['src']['medium']
+                if data.get('photos'):
+                    for photo in data['photos']:
+                        url = photo['src']['medium']
+                        if exclude_urls and url in exclude_urls:
+                            continue
+                        logger.info(f"Found image for '{quest_title}' using term: '{search_term}'")
+                        return url
 
         except requests.RequestException as e:
             logger.info(f"Pexels API error for '{search_term}': {str(e)}")
             continue
 
     return None
+
+
+def fetch_course_images(
+    course_title: str,
+    course_description: Optional[str],
+    projects: List[Dict]
+) -> Dict:
+    """
+    Fetch unique images for an entire course (cover + all projects).
+
+    Ensures no two projects in the same course share the same image URL.
+
+    Args:
+        course_title: Course title for cover image search
+        course_description: Course description for better search context
+        projects: List of dicts with 'quest_id', 'title', and optionally 'description'
+
+    Returns:
+        Dict with 'cover_image_url' and 'project_images' mapping quest_id -> url
+    """
+    result = {
+        'cover_image_url': None,
+        'project_images': {}
+    }
+    used_urls: Set[str] = set()
+
+    # Fetch course cover image
+    try:
+        cover_url = search_quest_image(
+            course_title,
+            course_description,
+            per_page=5,
+            exclude_urls=used_urls
+        )
+        if cover_url:
+            result['cover_image_url'] = cover_url
+            used_urls.add(cover_url)
+            logger.info(f"Fetched cover image for course '{course_title}'")
+    except Exception as e:
+        logger.warning(f"Failed to fetch cover image for course '{course_title}': {e}")
+
+    # Fetch unique image for each project
+    for project in projects:
+        quest_id = project.get('quest_id') or project.get('id')
+        title = project.get('title', '')
+        description = project.get('description')
+
+        try:
+            url = search_quest_image(
+                title,
+                description,
+                per_page=15,
+                exclude_urls=used_urls
+            )
+            if url:
+                result['project_images'][quest_id] = url
+                used_urls.add(url)
+                logger.info(f"Fetched image for project '{title}' ({quest_id})")
+            else:
+                logger.warning(f"No image found for project '{title}' ({quest_id})")
+        except Exception as e:
+            logger.warning(f"Failed to fetch image for project '{title}': {e}")
+
+    return result
 
 
 def get_pexels_image_info(quest_title: str, pillar: Optional[str] = None) -> Optional[Dict[str, str]]:

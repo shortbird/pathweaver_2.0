@@ -38,6 +38,15 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Progress tracker for fix-images background job
+_fix_images_progress = {
+    'running': False,
+    'total': 0,
+    'completed': 0,
+    'errors': 0,
+    'logs': []
+}
+
 bp = Blueprint('admin_curriculum_generate', __name__, url_prefix='/api/admin/curriculum/generate')
 
 
@@ -1522,6 +1531,242 @@ def bulk_generate(user_id):
         }), 500
 
 
+@bp.route('/fix-images', methods=['POST'])
+@require_role('superadmin')
+def fix_images(user_id):
+    """
+    Fix missing or duplicate images on existing courses.
+
+    Backfills cover images for courses and project images for quests.
+    Ensures no two projects in the same course share the same image.
+
+    Request body:
+    {
+        "course_ids": [],        // optional, defaults to all published courses
+        "fix_duplicates": true   // replace duplicate images within courses
+    }
+
+    Returns:
+    {
+        "success": true,
+        "message": "Image fix started in background",
+        "courses_to_fix": 10
+    }
+    """
+    try:
+        data = request.get_json() or {}
+        course_ids = data.get('course_ids', [])
+        fix_duplicates = data.get('fix_duplicates', True)
+
+        admin_client = get_supabase_admin_client()
+
+        # Get courses to process
+        if course_ids:
+            courses_q = admin_client.table('courses').select(
+                'id, title, description, cover_image_url'
+            ).in_('id', course_ids).execute()
+        else:
+            courses_q = admin_client.table('courses').select(
+                'id, title, description, cover_image_url'
+            ).eq('status', 'published').execute()
+
+        if not courses_q.data:
+            return jsonify({'success': True, 'message': 'No courses found', 'courses_to_fix': 0}), 200
+
+        all_courses = courses_q.data
+
+        # Get all course-quest mappings with image info
+        c_ids = [c['id'] for c in all_courses]
+        cq_q = admin_client.table('course_quests').select(
+            'course_id, quest_id, quests(id, title, description, image_url)'
+        ).in_('course_id', c_ids).execute()
+
+        # Group projects by course
+        course_projects = {}
+        for row in (cq_q.data or []):
+            cid = row['course_id']
+            if cid not in course_projects:
+                course_projects[cid] = []
+            course_projects[cid].append(row)
+
+        # Filter to courses needing work
+        courses_to_fix = []
+        for course in all_courses:
+            cid = course['id']
+            projs = course_projects.get(cid, [])
+            needs_fix = False
+
+            # Check if course missing cover image
+            if not course.get('cover_image_url'):
+                needs_fix = True
+
+            # Check for missing project images
+            for p in projs:
+                quest = p.get('quests', {})
+                if not quest.get('image_url'):
+                    needs_fix = True
+                    break
+
+            # Check for duplicate project images within the course
+            if fix_duplicates and not needs_fix:
+                urls = [p.get('quests', {}).get('image_url') for p in projs if p.get('quests', {}).get('image_url')]
+                if len(urls) != len(set(urls)):
+                    needs_fix = True
+
+            if needs_fix:
+                courses_to_fix.append({
+                    'course': course,
+                    'projects': projs
+                })
+
+        if not courses_to_fix:
+            return jsonify({'success': True, 'message': 'All courses already have unique images', 'courses_to_fix': 0}), 200
+
+        # Reset and start progress tracking
+        _fix_images_progress['running'] = True
+        _fix_images_progress['total'] = len(courses_to_fix)
+        _fix_images_progress['completed'] = 0
+        _fix_images_progress['errors'] = 0
+        _fix_images_progress['logs'] = []
+
+        # Run in background thread
+        from flask import current_app
+        app = current_app._get_current_object()
+
+        def process_fix_images(courses_data, flask_app, do_fix_dupes, progress):
+            with flask_app.app_context():
+                from services.image_service import search_quest_image
+
+                client = get_supabase_admin_client()
+
+                def log(msg, level='info'):
+                    progress['logs'].append({'message': msg, 'level': level})
+                    if level == 'error':
+                        logger.error(f"Fix-images: {msg}")
+                    else:
+                        logger.info(f"Fix-images: {msg}")
+
+                for i, item in enumerate(courses_data):
+                    course = item['course']
+                    projs = item['projects']
+                    cid = course['id']
+                    course_title = course.get('title', cid)
+
+                    log(f"[{i+1}/{progress['total']}] Processing: {course_title}")
+
+                    try:
+                        # Determine which projects already have good (non-duplicate) images
+                        url_counts = {}
+                        for p in projs:
+                            url = p.get('quests', {}).get('image_url')
+                            if url:
+                                url_counts[url] = url_counts.get(url, 0) + 1
+
+                        # Build existing_urls (only non-duplicate ones)
+                        existing_urls = set()
+                        for url, count in url_counts.items():
+                            if not do_fix_dupes or count == 1:
+                                existing_urls.add(url)
+
+                        # Build list of projects needing images
+                        projects_needing_images = []
+                        for p in projs:
+                            quest = p.get('quests', {})
+                            url = quest.get('image_url')
+                            if not url or (do_fix_dupes and url_counts.get(url, 0) > 1):
+                                projects_needing_images.append({
+                                    'quest_id': p['quest_id'],
+                                    'title': quest.get('title', ''),
+                                    'description': quest.get('description')
+                                })
+
+                        needs_cover = not course.get('cover_image_url')
+
+                        if not needs_cover and not projects_needing_images:
+                            log(f"  Skipped (nothing to fix)")
+                            progress['completed'] += 1
+                            continue
+
+                        # Fetch cover image if missing
+                        if needs_cover:
+                            cover_url = search_quest_image(
+                                course['title'],
+                                course.get('description'),
+                                per_page=5,
+                                exclude_urls=existing_urls
+                            )
+                            if cover_url:
+                                client.table('courses').update({
+                                    'cover_image_url': cover_url
+                                }).eq('id', cid).execute()
+                                existing_urls.add(cover_url)
+                                log(f"  Set cover image")
+
+                        # Fetch project images one by one to maintain uniqueness
+                        imgs_set = 0
+                        for proj in projects_needing_images:
+                            try:
+                                url = search_quest_image(
+                                    proj['title'],
+                                    proj.get('description'),
+                                    per_page=15,
+                                    exclude_urls=existing_urls
+                                )
+                                if url:
+                                    client.table('quests').update({
+                                        'image_url': url,
+                                        'header_image_url': url
+                                    }).eq('id', proj['quest_id']).execute()
+                                    existing_urls.add(url)
+                                    imgs_set += 1
+                            except Exception as e:
+                                log(f"  Failed for project '{proj['title']}': {e}", 'warning')
+
+                        log(f"  Done: {imgs_set}/{len(projects_needing_images)} project images set")
+                        progress['completed'] += 1
+
+                    except Exception as e:
+                        progress['errors'] += 1
+                        log(f"  Failed: {e}", 'error')
+
+                log(f"Complete: {progress['completed']}/{progress['total']} courses, {progress['errors']} errors")
+                progress['running'] = False
+
+        thread = threading.Thread(
+            target=process_fix_images,
+            args=(courses_to_fix, app, fix_duplicates, _fix_images_progress)
+        )
+        thread.daemon = True
+        thread.start()
+
+        return jsonify({
+            'success': True,
+            'message': f'Image fix started in background for {len(courses_to_fix)} courses',
+            'courses_to_fix': len(courses_to_fix)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Fix images error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@bp.route('/fix-images/status', methods=['GET'])
+@require_role('superadmin')
+def fix_images_status(user_id):
+    """Get progress of the running fix-images background job."""
+    return jsonify({
+        'success': True,
+        'running': _fix_images_progress['running'],
+        'total': _fix_images_progress['total'],
+        'completed': _fix_images_progress['completed'],
+        'errors': _fix_images_progress['errors'],
+        'logs': _fix_images_progress['logs'][-50:]  # Last 50 entries
+    }), 200
+
+
 @bp.route('/bulk/status', methods=['GET'])
 @require_role('superadmin')
 def bulk_status(user_id):
@@ -1557,7 +1802,7 @@ def bulk_status(user_id):
 
         running_statuses = {
             'generating_lessons', 'generating_tasks',
-            'generating_showcase', 'finalizing'
+            'generating_showcase', 'generating_images', 'finalizing'
         }
 
         for job in jobs:

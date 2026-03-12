@@ -1204,11 +1204,19 @@ def request_diploma_credit(user_id: str, task_id: str):
 
             if advisor_assignments.data:
                 student_result = admin_supabase.table('users')\
-                    .select('display_name')\
+                    .select('display_name, first_name, last_name, email')\
                     .eq('id', user_id)\
                     .single()\
                     .execute()
-                student_name = student_result.data.get('display_name', 'A student') if student_result.data else 'A student'
+                if student_result.data:
+                    student_name = (
+                        student_result.data.get('display_name')
+                        or f"{student_result.data.get('first_name', '')} {student_result.data.get('last_name', '')}".strip()
+                        or student_result.data.get('email')
+                        or 'A student'
+                    )
+                else:
+                    student_name = 'A student'
 
                 notification_service = NotificationService()
                 for assignment in advisor_assignments.data:

@@ -49,6 +49,7 @@ class CourseGenerationJobService:
     STATUS_GENERATING_LESSONS = 'generating_lessons'
     STATUS_GENERATING_TASKS = 'generating_tasks'
     STATUS_GENERATING_SHOWCASE = 'generating_showcase'
+    STATUS_GENERATING_IMAGES = 'generating_images'
     STATUS_FINALIZING = 'finalizing'
     STATUS_COMPLETED = 'completed'
     STATUS_FAILED = 'failed'
@@ -102,6 +103,7 @@ class CourseGenerationJobService:
             self.STATUS_GENERATING_LESSONS,
             self.STATUS_GENERATING_TASKS,
             self.STATUS_GENERATING_SHOWCASE,
+            self.STATUS_GENERATING_IMAGES,
             self.STATUS_FINALIZING
         ]).execute()
 
@@ -285,6 +287,67 @@ class CourseGenerationJobService:
                 self._add_log(job_id, f'Showcase generation failed (non-fatal): {str(e)}', 'warning')
 
             # =========================================================
+            # STAGE 3.5: Generate images for course and projects
+            # =========================================================
+
+            self._update_job(job_id, {
+                'status': self.STATUS_GENERATING_IMAGES,
+                'current_step': 'images',
+                'current_item': 'Generating cover and project images'
+            })
+            self._add_log(job_id, 'Generating images for course and projects', 'info')
+
+            try:
+                from services.image_service import fetch_course_images
+
+                # Get course info
+                course_info = self.admin_client.table('courses').select(
+                    'id, title, description'
+                ).eq('id', course_id).execute()
+
+                course_title = course_info.data[0]['title'] if course_info.data else 'Course'
+                course_desc = course_info.data[0].get('description') if course_info.data else None
+
+                # Build project list for image fetcher
+                project_list = []
+                for p in projects:
+                    quest_data = p.get('quests', {})
+                    project_list.append({
+                        'quest_id': p['quest_id'],
+                        'title': quest_data.get('title', ''),
+                        'description': quest_data.get('description')
+                    })
+
+                images = fetch_course_images(course_title, course_desc, project_list)
+
+                # Update course cover image
+                if images.get('cover_image_url'):
+                    self.admin_client.table('courses').update({
+                        'cover_image_url': images['cover_image_url']
+                    }).eq('id', course_id).execute()
+                    self._add_log(job_id, 'Set course cover image', 'success')
+
+                # Update project images
+                images_set = 0
+                for quest_id, url in images.get('project_images', {}).items():
+                    self.admin_client.table('quests').update({
+                        'image_url': url,
+                        'header_image_url': url,
+                        'image_generated_at': datetime.utcnow().isoformat()
+                    }).eq('id', quest_id).execute()
+                    images_set += 1
+
+                self._add_log(
+                    job_id,
+                    f'Generated images: 1 cover + {images_set}/{len(project_list)} projects',
+                    'success'
+                )
+
+            except Exception as e:
+                self._add_log(job_id, f'Image generation failed (non-fatal): {str(e)}', 'warning')
+                logger.warning(f"Job {job_id} image generation failed: {str(e)}")
+
+            # =========================================================
             # STAGE 4: Finalize (if auto_publish)
             # =========================================================
 
@@ -402,6 +465,7 @@ class CourseGenerationJobService:
                 self.STATUS_GENERATING_LESSONS,
                 self.STATUS_GENERATING_TASKS,
                 self.STATUS_GENERATING_SHOWCASE,
+                self.STATUS_GENERATING_IMAGES,
                 self.STATUS_FINALIZING
             ])
         elif status:

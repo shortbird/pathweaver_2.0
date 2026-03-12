@@ -1,9 +1,9 @@
 # Product Requirements Document: OpenEd Academy Diploma Plan Integration
 
-**Version:** 1.0 (Draft for OEA Approval)
-**Date:** March 9, 2026
+**Version:** 1.1
+**Date:** March 11, 2026
 **Author:** Optio
-**Status:** Pending OEA Review
+**Status:** Updated with OEA Feedback
 
 ---
 
@@ -113,8 +113,8 @@ Optio serves as the credit-tracking, learning log, and portfolio layer for diplo
 #### Pathway Selection UX
 - Presented as a clear comparison view (card layout or side-by-side)
 - Each pathway shows total credits, foundation vs. elective split, and a short description of who it's best for
-- Parent selects pathway for each student individually (siblings may choose different pathways)
-- Pathway can be changed later with OEA staff approval
+- Parent selects pathway for each student individually -- siblings may choose different pathways
+- Pathway can be changed at any time by the parent with no approval required. It is the parent's responsibility to ensure their student meets the requirements of the selected pathway
 
 ---
 
@@ -152,27 +152,48 @@ Optio serves as the credit-tracking, learning log, and portfolio layer for diplo
 - External course completions or certificates
 - Any evidence that demonstrates credit-level learning
 
-**Credit Approval:**
+**Credit Completion and Grading:**
 - **Parent self-attestation** -- Parents mark credits as complete based on their student's work
-- OEA staff can review progress via their oversight dashboard but do not approve individual credits
+- Upon marking a credit complete, the parent reports a **course grade (A-F)** for that credit
+  - If home-taught: parent assigns the grade they awarded
+  - If using outside curriculum: parent enters the grade assigned by the external provider
+- **Honors/AP/IB weighting** -- Parents can check a box indicating "This is an honors, IB, or AP course and should be weighted" to apply additional GPA weight
+- Optio calculates the student's **cumulative GPA** from all reported course grades, applying standard weighting (unweighted and weighted GPA displayed)
+- OEA staff can review progress and grades via their oversight dashboard but do not approve individual credits
 - This keeps the workflow lightweight and consistent with the homeschool model where parents are the primary educators
 
 ---
 
 ### 4.5 Learning Logs in Optio
 
-**Description:** Parents complete learning logs directly within Optio. These logs serve as progress documentation for the OEA Diploma Plan and are automatically included in the student's portfolio.
+**Description:** Parents complete learning logs directly within Optio. These logs serve as progress documentation for the OEA Diploma Plan and are automatically included in the student's portfolio. Parents are expected to report at least quarterly on progress in each course.
 
-**Learning Log Features:**
-- Parents submit learning logs per student, tagged to credit/subject areas
-- Logs are stored as portfolio entries and contribute to credit progress tracking
+**Weekly Learning Log Entry:**
 
-> **OPEN QUESTION FOR OEA:** What fields/information should each learning log entry capture? For example: date range, subject area, activities completed, hours spent, evidence/attachments, parent notes, etc. Please specify what OEA requires so we can build the log form to match your documentation standards.
+Each week, parents submit a learning log with the following fields:
+
+| Field | Description | Required |
+|-------|-------------|----------|
+| **Diploma subjects** | Parent selects which diploma subjects were worked on this week (multi-select from their pathway's subject list) | Yes |
+| **Reflection** | 3-5 sentence reflection on the week related to any subject area or competency | Yes |
+| **Format** | Reflection can be submitted as: written text, oral recording (audio/video), link to external document or video, or file upload (up to 20 MB) | Yes (one format) |
+
+**Quarterly Summary:**
+
+Parents submit a quarterly summary log that consolidates progress for that period:
+- Summary of weekly logs submitted during the quarter
+- Overall progress narrative per course
+- Parents may copy/paste from their OpenEd platform logs or write an original summary
+
+**Submission Cadence:**
+- **Weekly:** Learning log entries (subject selection + reflection)
+- **Quarterly (minimum):** Progress summary per course. Parents who submit weekly logs can generate a quarterly summary from those entries
 
 **Portfolio Display:**
 Learning logs appear in the student portfolio as entries showing:
-- Fields as specified by OEA (see question above)
+- Subjects worked on, reflection content, and any attached evidence
 - Automatically tagged as part of the OEA Diploma Plan
+- Organized chronologically with quarterly summaries highlighted
 
 ---
 
@@ -185,7 +206,7 @@ Learning logs appear in the student portfolio as entries showing:
 - **Credit breakdown by category** -- Foundation vs. elective progress, broken down by subject area
 - **Subject detail view** -- For each subject (e.g., "Math -- 2 of 3 credits"), view associated tasks, evidence, and completion status
 - **Progress log** -- Timeline view of uploads and learning log entries
-- **Annual metrics** -- Year-over-year progress toward diploma completion
+- **Annual metrics** -- 6 credits per year target pace (6 courses/year x 4 years = 24 credits), with year-over-year progress toward diploma completion
 
 **Task Management:**
 - Parents create tasks representing credit-earning activities
@@ -202,17 +223,22 @@ Learning logs appear in the student portfolio as entries showing:
 **Transcript Contents:**
 - Student name and identifying information
 - Selected diploma pathway
-- Credits earned by subject area with completion dates
+- Credits earned by subject area with completion dates and letter grades (A-F)
 - Credits in progress
-- GPA equivalent (if applicable -- TBD with OEA)
+- Cumulative GPA (unweighted and weighted)
+- Honors/AP/IB designation noted for weighted courses
 - OEA program affiliation noted on transcript
+
+**GPA Calculation:**
+- Standard 4.0 scale: A=4.0, B=3.0, C=2.0, D=1.0, F=0.0
+- Weighted GPA adds +1.0 for courses marked as honors/AP/IB (e.g., an A in an AP course = 5.0)
+- Both unweighted and weighted GPA displayed on transcript
+- GPA calculated automatically from parent-reported course grades
 
 **Availability:**
 - Parents can generate and download transcripts from their dashboard at any time
 - OEA staff can generate transcripts for any enrolled student via oversight dashboard
 - Format options: PDF (printable), HTML (web view)
-
-> **OPEN QUESTION FOR OEA:** Should transcripts include a GPA or grade equivalent? If so, what grading standard should be used? Or is credit/no-credit sufficient for the OEA diploma program?
 
 ---
 
@@ -262,34 +288,48 @@ Learning logs appear in the student portfolio as entries showing:
 
 ---
 
-## 5. Open Questions for OEA
+## 5. Resolved Questions
 
-| # | Question | Impact |
-|---|----------|--------|
-| 1 | **Learning log fields** -- What information should each learning log entry capture? (e.g., date range, subject, activities, hours, evidence, notes) | Learning log form design |
-| 2 | **Grading standard** -- Credit/no-credit or letter grades/GPA on transcripts? | Transcript design |
-| 3 | **Pathway changes** -- Can families switch pathways? If so, what's the approval process? | Policy + workflow |
-| 4 | **Multi-student families** -- Can siblings be on different pathways? | Dashboard design |
-| 5 | **Annual metrics** -- What specific annual milestones does OEA expect (e.g., minimum credits per year)? | Progress tracking rules |
-| 6 | **Timeline** -- Target launch date for the program? | Development planning |
-| 7 | **Volume** -- Estimated number of families at launch and Year 1? | Infrastructure planning |
+| # | Question | Resolution |
+|---|----------|------------|
+| 1 | **Learning log fields** | Weekly: select subjects worked on + 3-5 sentence reflection (written, oral, link, or 20 MB upload). Quarterly summary required at minimum. See Section 4.5. |
+| 2 | **Grading standard** | Parent-reported letter grades (A-F) per completed course. Honors/AP/IB weighting option. Optio calculates unweighted + weighted GPA. See Section 4.4. |
+| 3 | **Pathway changes** | Yes, no approval required. Parent's responsibility to ensure pathway requirements are met. |
+| 4 | **Multi-student families** | Yes, siblings can be on different pathways. |
+| 5 | **Annual metrics** | 6 courses per year x 4 years = 24 credits. |
+| 6 | **Timeline** | August 1, 2026 launch. |
+| 7 | **Volume** | Estimated 150 students during 2026-27. Majority of enrollment expected early in fall enrollment period. |
 
 ---
 
-## 6. Assumptions
+## 6. Program Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **Launch date** | August 1, 2026 |
+| **Year 1 volume** | ~150 students (2026-27), bulk enrollment in fall |
+| **Credit pace** | 6 courses/year x 4 years = 24 credits |
+| **Grading** | Parent-reported A-F with honors/AP/IB weighting option |
+| **GPA** | Calculated by Optio (unweighted + weighted) |
+
+---
+
+## 7. Assumptions
 
 1. All OEA diploma students are minors managed by a parent account (COPPA/FERPA compliant)
 2. Each student is on exactly one diploma pathway at a time
 3. All three pathways require 24 total credits
-4. One credit = one full course equivalent (scope TBD with OEA)
+4. One credit = one full course equivalent (one completed course = one credit)
 5. The OEA program operates as a partnership, not an Optio organization -- OEA families are platform users with a program tag, not org-managed users
 6. Optio handles the platform; OEA handles the diploma certification
+7. Parents are the authoritative source for course grades and pathway selection
+8. Standard GPA weighting: +1.0 for honors/AP/IB courses on a 4.0 scale
 
 ---
-Next Steps
 
-1. OEA reviews this PRD and answers open questions
-2. Agree on grading standard and transcript format
-3. Confirm support routing and annual metrics expectations
-4. Optio produces technical implementation plan and timeline estimate
-5. Development begins
+## 8. Next Steps
+
+1. Optio produces technical implementation plan and timeline estimate
+2. Development begins (target: features ready for August 1, 2026 launch)
+3. QA and testing with OEA staff ahead of fall enrollment
+4. Onboarding materials prepared for OEA families
