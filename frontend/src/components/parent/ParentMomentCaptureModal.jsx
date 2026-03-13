@@ -16,7 +16,11 @@ const ParentMomentCaptureModal = ({
   selectedChildId = null,
   onSuccess = null
 }) => {
-  const [selectedChild, setSelectedChild] = useState(selectedChildId || (children[0]?.id || ''));
+  const [selectedChildren, setSelectedChildren] = useState(() => {
+    if (selectedChildId) return [selectedChildId];
+    if (children.length === 1) return [children[0].id];
+    return [];
+  });
   const [description, setDescription] = useState('');
   const [attachments, setAttachments] = useState([]); // { file, preview, type, uploading, uploaded, file_url, file_name, file_size }
   const [links, setLinks] = useState([]); // { url, title }
@@ -30,7 +34,13 @@ const ParentMomentCaptureModal = ({
 
   // Reset form when modal opens/closes
   const resetForm = () => {
-    setSelectedChild(selectedChildId || (children[0]?.id || ''));
+    if (selectedChildId) {
+      setSelectedChildren([selectedChildId]);
+    } else if (children.length === 1) {
+      setSelectedChildren([children[0].id]);
+    } else {
+      setSelectedChildren([]);
+    }
     setDescription('');
     setAttachments([]);
     setLinks([]);
@@ -136,7 +146,7 @@ const ParentMomentCaptureModal = ({
       formData.append('file', attachment.file);
 
       const response = await api.post(
-        `/api/parent/children/${selectedChild}/learning-moments/upload`,
+        `/api/parent/children/${selectedChildren[0]}/learning-moments/upload`,
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       );
@@ -171,10 +181,19 @@ const ParentMomentCaptureModal = ({
     }
   };
 
+  const toggleChild = (childId) => {
+    setSelectedChildren(prev => {
+      if (prev.includes(childId)) {
+        return prev.filter(id => id !== childId);
+      }
+      return [...prev, childId];
+    });
+  };
+
   const handleSubmit = async () => {
     // Validate
-    if (!selectedChild) {
-      setError('Please select a child');
+    if (selectedChildren.length === 0) {
+      setError('Please select at least one child');
       return;
     }
 
@@ -187,15 +206,13 @@ const ParentMomentCaptureModal = ({
     setError('');
 
     try {
-      // Upload any files that haven't been uploaded yet
+      // Upload any files that haven't been uploaded yet (once, reuse URLs)
       const uploadedAttachments = await Promise.all(
         attachments.map((att, idx) => uploadFile(att, idx))
       );
 
-      // Create the learning moment
-      // Combine uploaded file attachments with links
+      // Build media array (shared across all children)
       const media = [
-        // File attachments (images, documents)
         ...uploadedAttachments
           .filter(att => att.uploaded && att.file_url)
           .map(att => ({
@@ -204,7 +221,6 @@ const ParentMomentCaptureModal = ({
             file_name: att.file_name,
             file_size: att.file_size
           })),
-        // Links
         ...links.map(link => ({
           type: 'link',
           url: link.url,
@@ -212,18 +228,28 @@ const ParentMomentCaptureModal = ({
         }))
       ];
 
-      const response = await api.post(
-        `/api/parent/children/${selectedChild}/learning-moments`,
-        {
-          description: description.trim(),
-          media
-        }
+      // Create moment for each selected child
+      const results = await Promise.all(
+        selectedChildren.map(childId =>
+          api.post(`/api/parent/children/${childId}/learning-moments`, {
+            description: description.trim(),
+            media
+          })
+        )
       );
 
-      toast.success('Learning moment captured!');
+      const childNames = selectedChildren
+        .map(id => children.find(c => c.id === id)?.name)
+        .filter(Boolean);
+
+      if (selectedChildren.length === 1) {
+        toast.success('Learning moment captured!');
+      } else {
+        toast.success(`Moment captured for ${childNames.join(', ')}!`);
+      }
 
       if (onSuccess) {
-        onSuccess(response.data.moment);
+        onSuccess(results[0].data.moment);
       }
 
       handleClose();
@@ -237,7 +263,7 @@ const ParentMomentCaptureModal = ({
   };
 
   // Check if form is valid for submission
-  const isValid = selectedChild && (description.trim() || attachments.length > 0 || links.length > 0);
+  const isValid = selectedChildren.length > 0 && (description.trim() || attachments.length > 0 || links.length > 0);
   const isUploading = attachments.some(att => att.uploading);
 
   // Format file size for display
@@ -281,26 +307,37 @@ const ParentMomentCaptureModal = ({
         {/* Child Selector */}
         <div>
           <label
-            htmlFor="child-select"
             className="block text-sm font-semibold text-gray-700 mb-1"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             For
           </label>
-          <select
-            id="child-select"
-            value={selectedChild}
-            onChange={(e) => setSelectedChild(e.target.value)}
-            disabled={isSubmitting}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent transition-all min-h-[44px]"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
-          >
-            {children.map(child => (
-              <option key={child.id} value={child.id}>
-                {child.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-wrap gap-2">
+            {children.map(child => {
+              const isSelected = selectedChildren.includes(child.id);
+              return (
+                <button
+                  key={child.id}
+                  type="button"
+                  onClick={() => toggleChild(child.id)}
+                  disabled={isSubmitting}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all min-h-[44px] border-2 ${
+                    isSelected
+                      ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white border-transparent shadow-md'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-optio-purple hover:text-optio-purple'
+                  } disabled:opacity-50`}
+                  style={{ fontFamily: 'Poppins, sans-serif' }}
+                >
+                  {child.name}
+                </button>
+              );
+            })}
+          </div>
+          {children.length > 1 && (
+            <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Select multiple to add this moment to each child
+            </p>
+          )}
         </div>
 
         {/* Description */}

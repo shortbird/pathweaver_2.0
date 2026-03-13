@@ -20,7 +20,7 @@ import { queryKeys } from './utils/queryKeys'
 import logger from './utils/logger'
 import api from './services/api'
 import { activityTracker } from './services/activityTracker'
-import { initPostHog } from './services/posthog'
+import { initPostHog, captureErrorToast } from './services/posthog'
 import { toast } from 'react-hot-toast'
 
 // Always-loaded components (critical for initial render)
@@ -323,8 +323,19 @@ function App() {
   }, [])
 
   // Initialize PostHog session replay (no-ops if VITE_POSTHOG_KEY is not set)
+  // Patch toast.error so every error toast is auto-tracked in PostHog
   useEffect(() => {
     initPostHog()
+
+    const originalToastError = toast.error
+    toast.error = (...args) => {
+      captureErrorToast(args[0])
+      return originalToastError(...args)
+    }
+
+    return () => {
+      toast.error = originalToastError
+    }
   }, [])
 
   return (

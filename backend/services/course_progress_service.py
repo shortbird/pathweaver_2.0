@@ -443,30 +443,37 @@ class CourseProgressService(BaseService):
             enrollment_by_quest = {e['quest_id']: e for e in (all_enrollments_result.data or [])}
             enrollment_ids = [e['id'] for e in enrollment_by_quest.values()]
 
-            # 5. Get ALL user tasks with XP in one query
+            # 5. Get ALL user tasks with XP (batched to avoid PostgREST URL length limits)
             task_xp_map: Dict[str, int] = {}
             if all_linked_task_ids and enrollment_ids:
-                all_user_tasks_result = self.client.table('user_quest_tasks')\
-                    .select('id, xp_value')\
-                    .in_('user_quest_id', enrollment_ids)\
-                    .in_('id', all_linked_task_ids)\
-                    .execute()
+                BATCH_SIZE = 100
+                unique_task_ids = list(set(all_linked_task_ids))
+                for i in range(0, len(unique_task_ids), BATCH_SIZE):
+                    batch = unique_task_ids[i:i + BATCH_SIZE]
+                    batch_result = self.client.table('user_quest_tasks')\
+                        .select('id, xp_value')\
+                        .in_('user_quest_id', enrollment_ids)\
+                        .in_('id', batch)\
+                        .execute()
 
-                task_xp_map = {
-                    t['id']: t.get('xp_value', 0) or 0
-                    for t in (all_user_tasks_result.data or [])
-                }
+                    for t in (batch_result.data or []):
+                        task_xp_map[t['id']] = t.get('xp_value', 0) or 0
 
-            # 6. Get ALL completions in one query
+            # 6. Get ALL completions (batched to avoid PostgREST URL length limits)
             completed_task_ids = set()
             if task_xp_map:
-                all_completions_result = self.client.table('quest_task_completions')\
-                    .select('user_quest_task_id')\
-                    .eq('user_id', user_id)\
-                    .in_('user_quest_task_id', list(task_xp_map.keys()))\
-                    .execute()
+                task_id_list = list(task_xp_map.keys())
+                for i in range(0, len(task_id_list), BATCH_SIZE):
+                    batch = task_id_list[i:i + BATCH_SIZE]
+                    batch_result = self.client.table('quest_task_completions')\
+                        .select('user_quest_task_id')\
+                        .eq('user_id', user_id)\
+                        .in_('user_quest_task_id', batch)\
+                        .execute()
 
-                completed_task_ids = {c['user_quest_task_id'] for c in (all_completions_result.data or [])}
+                    completed_task_ids.update(
+                        c['user_quest_task_id'] for c in (batch_result.data or [])
+                    )
 
             # Now build progress for each course using in-memory data
             for cid in course_ids:

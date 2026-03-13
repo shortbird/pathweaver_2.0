@@ -80,3 +80,37 @@ export const captureError = (error, errorInfo) => {
     $exception_component_stack: errorInfo?.componentStack || null,
   })
 }
+
+/**
+ * Capture an error toast event for debugging in PostHog.
+ * Auto-called via the toast.error() patch in App.jsx -- no manual calls needed.
+ */
+export const captureErrorToast = (message) => {
+  if (!POSTHOG_KEY) return
+
+  // Extract readable text from string, React element, or object
+  let errorText = ''
+  if (typeof message === 'string') {
+    errorText = message
+  } else if (message?.props?.children) {
+    // React element (from showErrorToast's JSX)
+    const children = Array.isArray(message.props.children)
+      ? message.props.children
+      : [message.props.children]
+    errorText = children
+      .map(child => {
+        if (typeof child === 'string') return child
+        if (child?.props?.children) return child.props.children
+        return ''
+      })
+      .filter(Boolean)
+      .join(' -- ')
+  } else if (message != null) {
+    errorText = String(message)
+  }
+
+  posthog.capture('error_toast_shown', {
+    error_message: errorText.substring(0, 500),
+    page_path: window.location.pathname,
+  })
+}
