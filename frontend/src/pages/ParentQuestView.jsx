@@ -6,17 +6,15 @@ import {
   ArrowLeftIcon,
   CheckCircleIcon,
   PlusIcon,
-  PhotoIcon,
-  DocumentTextIcon,
-  LinkIcon,
-  VideoCameraIcon
+  PhotoIcon
 } from '@heroicons/react/24/outline';
 import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
-import EvidenceUploadForm from '../components/parent/EvidenceUploadForm';
+import AddEvidenceModal from '../components/evidence/AddEvidenceModal';
+import { submitHelperEvidence } from '../components/evidence/helperEvidenceUtils';
 
 /**
- * ParentQuestView - Streamlined quest view for parents to upload evidence
- * Focused on helping parents contribute to their child's learning
+ * ParentQuestView - Streamlined quest view for parents to upload evidence.
+ * Uses the standard AddEvidenceModal (single source of truth) for evidence upload.
  */
 const ParentQuestView = () => {
   const { studentId, questId } = useParams();
@@ -25,6 +23,8 @@ const ParentQuestView = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedTaskId, setExpandedTaskId] = useState(null);
+  const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
+  const [evidenceModalTaskId, setEvidenceModalTaskId] = useState(null);
 
   const loadQuestData = async () => {
     try {
@@ -44,6 +44,34 @@ const ParentQuestView = () => {
   useEffect(() => {
     loadQuestData();
   }, [studentId, questId]);
+
+  const handleOpenEvidenceModal = (taskId) => {
+    setEvidenceModalTaskId(taskId);
+    setEvidenceModalOpen(true);
+  };
+
+  const handleSaveHelperEvidence = async (newItems) => {
+    if (!evidenceModalTaskId) return;
+
+    try {
+      const { successCount, uploadFailures } = await submitHelperEvidence({
+        items: newItems,
+        studentId,
+        taskId: evidenceModalTaskId
+      });
+
+      if (uploadFailures > 0) {
+        toast.error(`${uploadFailures} item(s) failed to upload`);
+      }
+      if (successCount > 0) {
+        toast.success(`${successCount} evidence item${successCount > 1 ? 's' : ''} uploaded successfully!`);
+        loadQuestData();
+      }
+    } catch (error) {
+      console.error('Error uploading evidence:', error);
+      toast.error(error.response?.data?.error || 'Failed to upload evidence');
+    }
+  };
 
   if (loading) {
     return (
@@ -72,15 +100,12 @@ const ParentQuestView = () => {
   }
 
   const { quest, tasks } = questData;
-
-  // Count incomplete tasks for the CTA
   const incompleteTasks = tasks.filter(t => !t.is_completed).length;
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Compact Hero Header with Overlay */}
       <div className="relative h-48 sm:h-56">
-        {/* Background Image */}
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
@@ -89,10 +114,8 @@ const ParentQuestView = () => {
               : 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)'
           }}
         />
-        {/* Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
 
-        {/* Back Button */}
         <button
           onClick={() => navigate(`/parent/dashboard/${studentId}`)}
           className="absolute top-4 left-4 flex items-center gap-2 text-white/90 hover:text-white font-medium transition-colors z-10"
@@ -102,7 +125,6 @@ const ParentQuestView = () => {
           <span className="hidden sm:inline">Back</span>
         </button>
 
-        {/* Title and Description Overlay */}
         <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
           <div className="max-w-4xl mx-auto">
             <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
@@ -161,7 +183,6 @@ const ParentQuestView = () => {
                   {/* Task Header - Always Visible */}
                   <div className="p-4">
                     <div className="flex items-start gap-3">
-                      {/* Status Icon */}
                       <div className="flex-shrink-0 mt-0.5">
                         {task.is_completed ? (
                           <CheckCircleIcon className="w-6 h-6 text-green-500" />
@@ -170,7 +191,6 @@ const ParentQuestView = () => {
                         )}
                       </div>
 
-                      {/* Task Info */}
                       <div className="flex-1 min-w-0">
                         <h3 className={`font-semibold ${task.is_completed ? 'text-gray-600' : 'text-gray-900'}`} style={{ fontFamily: 'Poppins, sans-serif' }}>
                           {task.title}
@@ -181,7 +201,6 @@ const ParentQuestView = () => {
                           </p>
                         )}
 
-                        {/* Evidence indicators */}
                         {hasEvidence && !isExpanded && (
                           <div className="flex items-center gap-2 mt-2">
                             <span className="inline-flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
@@ -192,7 +211,7 @@ const ParentQuestView = () => {
                         )}
                       </div>
 
-                      {/* Add Evidence Button */}
+                      {/* Toggle expand / Add Evidence button */}
                       <button
                         onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
                         className={`flex-shrink-0 px-3 py-2 rounded-lg text-sm font-semibold transition-all min-h-[44px] ${
@@ -228,16 +247,18 @@ const ParentQuestView = () => {
                         </div>
                       )}
 
-                      {/* Upload Form */}
-                      <EvidenceUploadForm
-                        taskId={task.id}
-                        studentId={studentId}
-                        onCancel={() => setExpandedTaskId(null)}
-                        onSuccess={() => {
-                          setExpandedTaskId(null);
-                          loadQuestData();
-                        }}
-                      />
+                      {/* Add Evidence Button - opens the standard modal */}
+                      <button
+                        onClick={() => handleOpenEvidenceModal(task.id)}
+                        className="w-full px-4 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:shadow-md transition-all min-h-[44px] flex items-center justify-center gap-2"
+                        style={{ fontFamily: 'Poppins, sans-serif' }}
+                      >
+                        <PlusIcon className="w-5 h-5" />
+                        Add Evidence
+                      </button>
+                      <p className="text-xs text-gray-600 mt-2 text-center" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        Your student will see this evidence when they work on this task. They can edit or remove it before completing.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -255,6 +276,16 @@ const ParentQuestView = () => {
           </div>
         )}
       </div>
+
+      {/* Standard Evidence Upload Modal */}
+      <AddEvidenceModal
+        isOpen={evidenceModalOpen}
+        onClose={() => {
+          setEvidenceModalOpen(false);
+          setEvidenceModalTaskId(null);
+        }}
+        onSave={handleSaveHelperEvidence}
+      />
     </div>
   );
 };

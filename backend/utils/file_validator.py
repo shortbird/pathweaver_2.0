@@ -12,7 +12,14 @@ Security improvements (P1-SEC-1):
 OWASP A04:2021 - Insecure Design mitigation
 """
 
-import magic
+try:
+    # python-magic (pip install python-magic) — works on Linux/macOS/production
+    import magic
+    if not hasattr(magic, 'from_buffer'):
+        # python-magic-bin on Windows nests the API under magic.magic
+        from magic import magic
+except ImportError:
+    magic = None
 import subprocess
 import hashlib
 from typing import Optional, Tuple, Dict, List
@@ -320,6 +327,12 @@ class FileValidator:
         cat1 = mime1.split('/')[0]
         cat2 = mime2.split('/')[0]
         if cat1 == cat2:
+            return True
+
+        # application/octet-stream is generic "unknown binary" — libmagic returns
+        # this for arbitrary chunks of binary files (e.g., middle of a JPEG).
+        # This is not a polyglot indicator.
+        if mime2 == 'application/octet-stream' or mime1 == 'application/octet-stream':
             return True
 
         # Known compatible pairs
