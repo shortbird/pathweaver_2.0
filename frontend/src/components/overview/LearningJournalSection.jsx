@@ -5,6 +5,7 @@ import { ArrowRightIcon, SparklesIcon, PhotoIcon, DocumentIcon, VideoCameraIcon,
 import { Document, Page, pdfjs } from 'react-pdf';
 import api from '../../services/api';
 import { getVideoEmbedUrl } from '../../utils/videoUtils';
+import LearningEventDetailModal from '../learning-events/LearningEventDetailModal';
 
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
@@ -92,6 +93,8 @@ const LearningJournalSection = ({
   const [moments, setMoments] = useState(propMoments || []);
   const [loading, setLoading] = useState(!propMoments);
   const [error, setError] = useState(null);
+  const [selectedMoment, setSelectedMoment] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Fetch moments if not provided as props
   useEffect(() => {
@@ -121,6 +124,22 @@ const LearningJournalSection = ({
 
     fetchMoments();
   }, [propMoments, studentId, viewMode, limit]);
+
+  const handleMomentClick = (moment) => {
+    setSelectedMoment(moment);
+    setShowDetailModal(true);
+  };
+
+  const handleMomentUpdate = (updatedMoment) => {
+    if (!updatedMoment) {
+      // Moment was deleted - remove from list
+      setMoments(prev => prev.filter(m => m.id !== selectedMoment?.id));
+    } else {
+      // Moment was edited - update in list
+      setMoments(prev => prev.map(m => m.id === updatedMoment.id ? updatedMoment : m));
+    }
+    setSelectedMoment(null);
+  };
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -412,7 +431,8 @@ const LearningJournalSection = ({
               return (
                 <div
                   key={moment.id}
-                  className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow"
+                  onClick={viewMode !== 'observer' ? () => handleMomentClick(moment) : undefined}
+                  className={`bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow ${viewMode !== 'observer' ? 'cursor-pointer' : ''}`}
                 >
                   {/* Preview thumbnail */}
                   <div className="aspect-square bg-gray-100 relative overflow-hidden">
@@ -460,6 +480,15 @@ const LearningJournalSection = ({
             </Link>
           )}
         </div>
+      )}
+      {viewMode !== 'observer' && (
+        <LearningEventDetailModal
+          event={selectedMoment}
+          isOpen={showDetailModal}
+          onClose={() => { setShowDetailModal(false); setSelectedMoment(null); }}
+          onUpdate={handleMomentUpdate}
+          studentId={viewMode === 'parent' ? studentId : null}
+        />
       )}
     </div>
   );
