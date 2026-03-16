@@ -352,7 +352,7 @@ def approve_credit(user_id: str, completion_id: str):
         feedback = data.get('feedback', '').strip()
         now = datetime.utcnow().isoformat()
 
-        # Update the latest review round
+        # Update the latest review round (or create one for legacy requests)
         latest_round = admin_supabase.table('diploma_review_rounds')\
             .select('id')\
             .eq('completion_id', completion_id)\
@@ -360,14 +360,26 @@ def approve_credit(user_id: str, completion_id: str):
             .limit(1)\
             .execute()
 
+        review_data = {
+            'reviewer_id': user_id,
+            'reviewer_action': 'approved',
+            'reviewer_feedback': feedback if feedback else None,
+            'approved_subjects': approved_subjects,
+            'reviewed_at': now
+        }
         if latest_round.data:
-            admin_supabase.table('diploma_review_rounds').update({
-                'reviewer_id': user_id,
-                'reviewer_action': 'approved',
-                'reviewer_feedback': feedback if feedback else None,
-                'approved_subjects': approved_subjects,
-                'reviewed_at': now
-            }).eq('id', latest_round.data[0]['id']).execute()
+            admin_supabase.table('diploma_review_rounds').update(
+                review_data
+            ).eq('id', latest_round.data[0]['id']).execute()
+        else:
+            # No review round exists (legacy credit request) — create one
+            review_data.update({
+                'completion_id': completion_id,
+                'round_number': 1,
+                'evidence_snapshot': [],
+                'submitted_at': completion_data.get('credit_requested_at', now)
+            })
+            admin_supabase.table('diploma_review_rounds').insert(review_data).execute()
 
         # First remove pending XP (the amount added at request time),
         # then finalize with the approved amount
@@ -472,7 +484,7 @@ def grow_this(user_id: str, completion_id: str):
 
         now = datetime.utcnow().isoformat()
 
-        # Update the latest review round
+        # Update the latest review round (or create one for legacy requests)
         latest_round = admin_supabase.table('diploma_review_rounds')\
             .select('id')\
             .eq('completion_id', completion_id)\
@@ -480,13 +492,25 @@ def grow_this(user_id: str, completion_id: str):
             .limit(1)\
             .execute()
 
+        review_data = {
+            'reviewer_id': user_id,
+            'reviewer_action': 'grow_this',
+            'reviewer_feedback': feedback,
+            'reviewed_at': now
+        }
         if latest_round.data:
-            admin_supabase.table('diploma_review_rounds').update({
-                'reviewer_id': user_id,
-                'reviewer_action': 'grow_this',
-                'reviewer_feedback': feedback,
-                'reviewed_at': now
-            }).eq('id', latest_round.data[0]['id']).execute()
+            admin_supabase.table('diploma_review_rounds').update(
+                review_data
+            ).eq('id', latest_round.data[0]['id']).execute()
+        else:
+            # No review round exists (legacy credit request) — create one
+            review_data.update({
+                'completion_id': completion_id,
+                'round_number': 1,
+                'evidence_snapshot': [],
+                'submitted_at': completion_data.get('credit_requested_at', now)
+            })
+            admin_supabase.table('diploma_review_rounds').insert(review_data).execute()
 
         # Remove pending subject XP
         task_result = admin_supabase.table('user_quest_tasks')\
