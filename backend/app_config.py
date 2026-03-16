@@ -96,6 +96,7 @@ class Config:
             'http://localhost:5173',
             'http://localhost:3000',
             'http://localhost:5000',
+            'http://localhost:8081',  # Expo mobile dev server
         ],
         'methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
         'allow_headers': ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With', 'Cache-Control'],
