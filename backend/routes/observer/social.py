@@ -1,11 +1,11 @@
 """
 Observer Module - Social Features
 
-Likes and completion comments.
+Likes, reactions, and completion comments.
 """
 
 from flask import request, jsonify
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
 from database import get_supabase_admin_client, get_user_client
@@ -14,6 +14,9 @@ from middleware.rate_limiter import rate_limit
 from services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
+
+VALID_REACTION_TYPES = ('proud', 'mind_blown', 'inspired', 'love_it', 'curious')
+VALID_TARGET_TYPES = ('completion', 'learning_event', 'bounty_claim')
 
 
 def register_routes(bp):
@@ -569,3 +572,137 @@ def register_routes(bp):
         except Exception as e:
             logger.error(f"Failed to fetch completion comments: {str(e)}", exc_info=True)
             return jsonify({'error': 'Failed to fetch comments'}), 500
+
+
+    # ──────────────────────────────────────────
+    # Observer Reactions (March 2026 - Mobile app)
+    # ──────────────────────────────────────────
+
+    @bp.route('/api/observers/react', methods=['POST'])
+    @require_auth
+    def add_reaction(user_id):
+        """
+        Add or change a reaction on a feed item.
+        One reaction per observer per target (upsert behavior).
+
+        Request body:
+            target_type: 'completion' | 'learning_event' | 'bounty_claim'
+            target_id: UUID of the target
+            reaction_type: 'proud' | 'mind_blown' | 'inspired' | 'love_it' | 'curious'
+        """
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'Request body required'}), 400
+
+            target_type = data.get('target_type')
+            target_id = data.get('target_id')
+            reaction_type = data.get('reaction_type')
+
+            if not all([target_type, target_id, reaction_type]):
+                return jsonify({'error': 'Missing required fields: target_type, target_id, reaction_type'}), 400
+
+            if target_type not in VALID_TARGET_TYPES:
+                return jsonify({'error': f'Invalid target_type. Must be one of: {VALID_TARGET_TYPES}'}), 400
+
+            if reaction_type not in VALID_REACTION_TYPES:
+                return jsonify({'error': f'Invalid reaction_type. Must be one of: {VALID_REACTION_TYPES}'}), 400
+
+            supabase = get_supabase_admin_client()
+
+            # Upsert: update reaction_type if exists, insert if not
+            response = supabase.table('observer_reactions').upsert({
+                'observer_id': user_id,
+                'target_type': target_type,
+                'target_id': target_id,
+                'reaction_type': reaction_type,
+                'created_at': datetime.now(timezone.utc).isoformat(),
+            }, on_conflict='observer_id,target_type,target_id').execute()
+
+            # Also write to observer_likes for backward compatibility (transition period)
+            if reaction_type == 'love_it':
+                try:
+                    if target_type == 'completion':
+                        existing = supabase.table('observer_likes').select('id').eq('observer_id', user_id).eq('completion_id', target_id).execute()
+                        if not existing.data:
+                            supabase.table('observer_likes').insert({
+                                'observer_id': user_id,
+                                'completion_id': target_id,
+                            }).execute()
+                    elif target_type == 'learning_event':
+                        existing = supabase.table('observer_likes').select('id').eq('observer_id', user_id).eq('learning_event_id', target_id).execute()
+                        if not existing.data:
+                            supabase.table('observer_likes').insert({
+                                'observer_id': user_id,
+                                'learning_event_id': target_id,
+                            }).execute()
+                except Exception as compat_err:
+                    logger.debug(f"observer_likes backward compat write failed (non-fatal): {compat_err}")
+
+            reaction = response.data[0] if response.data else {}
+            logger.info(f"Observer {user_id[:8]} reacted '{reaction_type}' on {target_type}/{target_id[:8]}")
+
+            return jsonify({'success': True, 'reaction': reaction}), 200
+
+        except Exception as e:
+            logger.error(f"Failed to add reaction: {str(e)}", exc_info=True)
+            return jsonify({'error': 'Failed to add reaction'}), 500
+
+
+    @bp.route('/api/observers/react/<reaction_id>', methods=['DELETE'])
+    @require_auth
+    def remove_reaction(user_id, reaction_id):
+        """Remove a reaction."""
+        try:
+            supabase = get_supabase_admin_client()
+
+            # Only delete own reactions
+            response = supabase.table('observer_reactions') \
+                .delete() \
+                .eq('id', reaction_id) \
+                .eq('observer_id', user_id) \
+                .execute()
+
+            if not response.data:
+                return jsonify({'error': 'Reaction not found or not yours'}), 404
+
+            return jsonify({'success': True}), 200
+
+        except Exception as e:
+            logger.error(f"Failed to remove reaction: {str(e)}", exc_info=True)
+            return jsonify({'error': 'Failed to remove reaction'}), 500
+
+
+    @bp.route('/api/observers/reactions/<target_type>/<target_id>', methods=['GET'])
+    @require_auth
+    def get_reactions(user_id, target_type, target_id):
+        """Get all reactions for a feed item."""
+        try:
+            if target_type not in VALID_TARGET_TYPES:
+                return jsonify({'error': f'Invalid target_type'}), 400
+
+            supabase = get_supabase_admin_client()
+
+            reactions = supabase.table('observer_reactions') \
+                .select('*, users:observer_id(id, display_name, first_name, avatar_url)') \
+                .eq('target_type', target_type) \
+                .eq('target_id', target_id) \
+                .order('created_at', desc=True) \
+                .execute()
+
+            # Count by type
+            counts = {}
+            for r in (reactions.data or []):
+                rt = r['reaction_type']
+                counts[rt] = counts.get(rt, 0) + 1
+
+            return jsonify({
+                'success': True,
+                'reactions': reactions.data or [],
+                'counts': counts,
+                'total': len(reactions.data or []),
+            }), 200
+
+        except Exception as e:
+            logger.error(f"Failed to get reactions: {str(e)}", exc_info=True)
+            return jsonify({'error': 'Failed to get reactions'}), 500
