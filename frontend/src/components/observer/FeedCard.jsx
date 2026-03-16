@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { observerAPI } from '../../services/api';
+import api, { observerAPI } from '../../services/api';
 import {
   HeartIcon,
   ChatBubbleLeftIcon,
@@ -12,11 +12,13 @@ import {
   TrashIcon,
   UserCircleIcon,
   ChevronDownIcon,
-  ChevronUpIcon
+  ChevronUpIcon,
+  PencilIcon
 } from '@heroicons/react/24/outline';
 import DocumentPreview from './DocumentPreview';
 import MediaCarousel from './MediaCarousel';
 import LinkPreviewCard from './LinkPreviewCard';
+import LearningEventModal from '../learning-events/LearningEventModal';
 import { getVideoEmbedUrl, getVideoAspectClass } from '../../utils/videoUtils';
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 
@@ -32,7 +34,7 @@ const PILLAR_COLORS = {
 const MAX_COMMENT_LENGTH = 280;
 const TEXT_PREVIEW_LENGTH = 150;
 
-const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
+const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdate }) => {
   const { user } = useAuth();
   const [liked, setLiked] = useState(item.user_has_liked);
   const [likesCount, setLikesCount] = useState(item.likes_count);
@@ -47,10 +49,19 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
   const [deletingCommentId, setDeletingCommentId] = useState(null);
   const [textExpanded, setTextExpanded] = useState(false);
   const [showAllComments, setShowAllComments] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [fullEvent, setFullEvent] = useState(null);
+  const [loadingEdit, setLoadingEdit] = useState(false);
+  const [localItem, setLocalItem] = useState(item);
 
-  const isLearningMoment = item.type === 'learning_moment';
-  const completionId = !isLearningMoment ? (item.completion_id || item.id) : null;
-  const learningEventId = isLearningMoment ? item.learning_event_id : null;
+  // Sync local item when prop changes
+  useEffect(() => {
+    setLocalItem(item);
+  }, [item]);
+
+  const isLearningMoment = localItem.type === 'learning_moment';
+  const completionId = !isLearningMoment ? (localItem.completion_id || localItem.id) : null;
+  const learningEventId = isLearningMoment ? localItem.learning_event_id : null;
 
   // Either completionId or learningEventId must be present for social features
   const hasSocialTarget = completionId || learningEventId;
@@ -110,16 +121,16 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
     try {
       if (isLearningMoment) {
         await observerAPI.postLearningEventComment(
-          item.student.id,
+          localItem.student.id,
           learningEventId,
           newComment.trim()
         );
       } else {
         await observerAPI.postComment(
-          item.student.id,
+          localItem.student.id,
           completionId,
           newComment.trim(),
-          item.quest?.id
+          localItem.quest?.id
         );
       }
       setNewComment('');
@@ -189,17 +200,71 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
       'Observer';
   };
 
-  const pillarColors = item.task?.pillar ? PILLAR_COLORS[item.task.pillar.toLowerCase()] : null;
-  const momentPillars = item.moment?.pillars || [];
-  const topicName = item.moment?.topic_name;
+  // Determine if current user can edit this learning moment
+  const canEditMoment = isLearningMoment && user && (
+    // Student editing their own moment
+    user.id === item.student?.id ||
+    // Parent who captured the moment
+    (user.id === item.moment?.captured_by_user_id)
+  );
+
+  const handleEditClick = async () => {
+    if (!isLearningMoment || !localItem.learning_event_id) return;
+    setLoadingEdit(true);
+    try {
+      const isParentEditing = user.id !== localItem.student?.id;
+      let response;
+      if (isParentEditing) {
+        response = await api.get(`/api/parent/children/${localItem.student.id}/learning-moments?limit=100`);
+        const moments = response.data.moments || [];
+        const match = moments.find(m => m.id === localItem.learning_event_id);
+        if (match) {
+          setFullEvent(match);
+          setShowEditModal(true);
+        }
+      } else {
+        response = await api.get(`/api/learning-events/${localItem.learning_event_id}`);
+        if (response.data.event) {
+          setFullEvent(response.data.event);
+          setShowEditModal(true);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch event for editing:', err);
+    } finally {
+      setLoadingEdit(false);
+    }
+  };
+
+  const handleEditSuccess = (updatedEvent) => {
+    setShowEditModal(false);
+    setFullEvent(null);
+    if (updatedEvent) {
+      // Update local card data to reflect the edit
+      setLocalItem(prev => ({
+        ...prev,
+        moment: {
+          ...prev.moment,
+          title: updatedEvent.title || prev.moment?.title,
+          description: updatedEvent.description || prev.moment?.description,
+          pillars: updatedEvent.pillars || prev.moment?.pillars
+        }
+      }));
+    }
+    if (onUpdate) onUpdate(updatedEvent);
+  };
+
+  const pillarColors = localItem.task?.pillar ? PILLAR_COLORS[localItem.task.pillar.toLowerCase()] : null;
+  const momentPillars = localItem.moment?.pillars || [];
+  const topicName = localItem.moment?.topic_name;
   const remainingChars = MAX_COMMENT_LENGTH - newComment.length;
   const isOverLimit = remainingChars < 0;
-  const hasAvatar = item.student?.avatar_url;
+  const hasAvatar = localItem.student?.avatar_url;
 
   // Get description text
   const descriptionText = isLearningMoment
-    ? item.moment?.description
-    : (item.evidence?.type === 'text' ? item.evidence.preview_text : null);
+    ? localItem.moment?.description
+    : (localItem.evidence?.type === 'text' ? localItem.evidence.preview_text : null);
 
   const isLongText = descriptionText && descriptionText.length > TEXT_PREVIEW_LENGTH;
   const displayText = textExpanded || !isLongText
@@ -207,10 +272,10 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
     : descriptionText.slice(0, TEXT_PREVIEW_LENGTH) + '...';
 
   // Check if we have media evidence (not text-only)
-  const hasMediaEvidence = item.evidence && item.evidence.type !== 'text' && item.evidence.url;
+  const hasMediaEvidence = localItem.evidence && localItem.evidence.type !== 'text' && localItem.evidence.url;
 
   // Check if we have multiple media items (for carousel display)
-  const hasMediaCarousel = isLearningMoment && item.media && item.media.length > 0;
+  const hasMediaCarousel = isLearningMoment && localItem.media && localItem.media.length > 0;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mx-2 sm:mx-0">
@@ -218,13 +283,13 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
       <div className="px-4 py-3 sm:px-5 sm:py-4 flex items-center gap-3">
         {showStudentName && (
           <Link
-            to={`/observer/student/${item.student?.id}`}
+            to={`/observer/student/${localItem.student?.id}`}
             className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity"
           >
             {hasAvatar ? (
               <img
-                src={item.student.avatar_url}
-                alt={item.student?.display_name || 'Student'}
+                src={localItem.student.avatar_url}
+                alt={localItem.student?.display_name || 'Student'}
                 className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover shrink-0"
               />
             ) : (
@@ -232,12 +297,12 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
             )}
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-gray-900 truncate text-sm sm:text-base">
-                {item.student?.display_name}
+                {localItem.student?.display_name}
               </p>
               {/* 2. "completed a task in {quest}" - only for task completions */}
               {!isLearningMoment && (
                 <p className="text-xs sm:text-sm text-gray-500 truncate">
-                  Completed a task in <span className="font-medium text-gray-700">{item.quest?.title}</span>
+                  Completed a task in <span className="font-medium text-gray-700">{localItem.quest?.title}</span>
                 </p>
               )}
             </div>
@@ -246,7 +311,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
         {!showStudentName && !isLearningMoment && (
           <div className="flex-1 min-w-0">
             <p className="text-xs sm:text-sm text-gray-500 truncate">
-              Completed a task in <span className="font-medium text-gray-700">{item.quest?.title}</span>
+              Completed a task in <span className="font-medium text-gray-700">{localItem.quest?.title}</span>
             </p>
           </div>
         )}
@@ -257,8 +322,8 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
       <div className="px-4 sm:px-5 pb-3">
         <h3 className="font-semibold text-gray-900 text-base sm:text-lg">
           {isLearningMoment
-            ? (item.moment?.title || 'Learning Moment')
-            : (item.task?.title || 'Task Completed')}
+            ? (localItem.moment?.title || 'Learning Moment')
+            : (localItem.task?.title || 'Task Completed')}
         </h3>
         <div className="flex items-center gap-2 flex-wrap mt-1">
           {isLearningMoment ? (
@@ -280,11 +345,11 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
             <>
               {pillarColors && (
                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${pillarColors.bg} ${pillarColors.text}`}>
-                  {item.task?.pillar}
+                  {localItem.task?.pillar}
                 </span>
               )}
               <span className="text-sm text-gray-600">
-                +{item.xp_awarded || item.task?.xp_value || 0} XP
+                +{localItem.xp_awarded || localItem.task?.xp_value || 0} XP
               </span>
             </>
           )}
@@ -294,22 +359,22 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
       {/* 5. Evidence (image, video, link, doc, text) */}
       {/* Use MediaCarousel for learning moments with multiple media items */}
       {hasMediaCarousel ? (
-        <MediaCarousel media={item.media} />
+        <MediaCarousel media={localItem.media} />
       ) : hasMediaEvidence && (
         <div className="bg-gray-100">
-          {item.evidence.type === 'image' && (
+          {localItem.evidence.type === 'image' && (
             <div className="aspect-square flex items-center justify-center">
               <img
-                src={item.evidence.url}
+                src={localItem.evidence.url}
                 alt="Evidence"
                 className="max-w-full max-h-full object-contain"
                 loading="lazy"
               />
             </div>
           )}
-          {item.evidence.type === 'video' && (() => {
-            const embedUrl = getVideoEmbedUrl(item.evidence.url);
-            const aspectClass = getVideoAspectClass(item.evidence.url);
+          {localItem.evidence.type === 'video' && (() => {
+            const embedUrl = getVideoEmbedUrl(localItem.evidence.url);
+            const aspectClass = getVideoAspectClass(localItem.evidence.url);
             return (
               <div className={`${aspectClass} bg-black overflow-hidden`}>
                 {embedUrl ? (
@@ -322,7 +387,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
                   />
                 ) : (
                   <a
-                    href={item.evidence.url}
+                    href={localItem.evidence.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-center h-full text-white hover:text-gray-300 min-h-[200px]"
@@ -334,10 +399,10 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
               </div>
             );
           })()}
-          {item.evidence.type === 'link' && (() => {
-            const linkEmbedUrl = getVideoEmbedUrl(item.evidence.url);
+          {localItem.evidence.type === 'link' && (() => {
+            const linkEmbedUrl = getVideoEmbedUrl(localItem.evidence.url);
             if (linkEmbedUrl) {
-              const linkAspectClass = getVideoAspectClass(item.evidence.url);
+              const linkAspectClass = getVideoAspectClass(localItem.evidence.url);
               return (
                 <div className={`${linkAspectClass} bg-black overflow-hidden`}>
                   <iframe
@@ -351,13 +416,13 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
               );
             }
             return (
-              <LinkPreviewCard url={item.evidence.url} title={item.evidence.title} />
+              <LinkPreviewCard url={localItem.evidence.url} title={localItem.evidence.title} />
             );
           })()}
-          {item.evidence.type === 'document' && (
+          {localItem.evidence.type === 'document' && (
             <DocumentPreview
-              url={item.evidence.url}
-              title={item.evidence.title}
+              url={localItem.evidence.url}
+              title={localItem.evidence.title}
             />
           )}
         </div>
@@ -371,7 +436,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
               {displayText}
             </p>
             <span className="text-xs text-gray-400 shrink-0 pt-0.5">
-              {formatDate(item.timestamp)}
+              {formatDate(localItem.timestamp)}
             </span>
           </div>
           {isLongText && (
@@ -393,12 +458,12 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
       {!descriptionText && (
         <div className="px-4 sm:px-5 py-2 border-t border-gray-100 flex justify-end">
           <span className="text-xs text-gray-400">
-            {formatDate(item.timestamp)}
+            {formatDate(localItem.timestamp)}
           </span>
         </div>
       )}
 
-      {/* 6. Like/comment buttons */}
+      {/* 6. Like/comment/edit buttons */}
       <div className="px-4 sm:px-5 py-2 border-t border-gray-100 flex items-center gap-4">
         <button
           onClick={handleLike}
@@ -415,6 +480,16 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
           <ChatBubbleLeftIcon className="w-6 h-6" />
           {commentsCount > 0 && <span className="text-sm">{commentsCount}</span>}
         </button>
+        {canEditMoment && (
+          <button
+            onClick={handleEditClick}
+            disabled={loadingEdit}
+            className="flex items-center gap-1 p-2 text-gray-700 hover:text-optio-purple transition-colors ml-auto disabled:opacity-50"
+          >
+            <PencilIcon className="w-5 h-5" />
+            <span className="text-sm">Edit</span>
+          </button>
+        )}
       </div>
 
       {/* 7. Previous comments */}
@@ -504,6 +579,15 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false }) => {
           </div>
         </div>
       )}
+      {showEditModal && fullEvent && (
+        <LearningEventModal
+          isOpen={showEditModal}
+          onClose={() => { setShowEditModal(false); setFullEvent(null); }}
+          onSuccess={handleEditSuccess}
+          editEvent={fullEvent}
+          studentId={user?.id !== localItem.student?.id ? localItem.student?.id : null}
+        />
+      )}
     </div>
   );
 };
@@ -555,7 +639,8 @@ FeedCard.propTypes = {
     user_has_liked: PropTypes.bool
   }).isRequired,
   showStudentName: PropTypes.bool,
-  isStudentView: PropTypes.bool
+  isStudentView: PropTypes.bool,
+  onUpdate: PropTypes.func
 };
 
 export default FeedCard;
