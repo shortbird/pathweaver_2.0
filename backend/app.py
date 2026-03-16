@@ -277,6 +277,15 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Error registering Family Quests routes: {e}", exc_info=True)
 
+# Register Yeti Virtual Companion blueprint (March 2026 - Mobile app)
+try:
+    from routes.yeti import yeti_bp
+    app.register_blueprint(yeti_bp)  # /api/yeti/* (full paths in route definitions)
+except ImportError as e:
+    logger.warning(f"Warning: Yeti module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Yeti routes: {e}", exc_info=True)
+
 # Register Link Preview blueprint (February 2026 - Rich link previews in feed)
 from routes.link_preview import bp as link_preview_bp
 app.register_blueprint(link_preview_bp)  # /api/utils/link-preview
