@@ -1,8 +1,8 @@
 """
-Advisor Credit Review Routes
+Credit Review Routes (Superadmin Only)
 
-Endpoints for advisors to review and approve/return student diploma credit requests.
-Part of the student-initiated, advisor-reviewed diploma credit approval flow.
+Endpoints for superadmin to review and approve/return student diploma credit requests.
+Part of the student-initiated, superadmin-reviewed diploma credit approval flow.
 
 Endpoints:
 - GET  /api/advisor/credit-queue                     - All pending reviews for advisor's students
@@ -14,7 +14,7 @@ Endpoints:
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client, get_supabase_admin_singleton
-from utils.auth.decorators import require_advisor
+from utils.auth.decorators import require_role
 from utils.api_response_v1 import success_response, error_response
 from datetime import datetime
 
@@ -67,11 +67,10 @@ def verify_advisor_for_completion(admin_supabase, advisor_id, completion_id):
 
 
 @bp.route('/credit-queue', methods=['GET'])
-@require_advisor
+@require_role('superadmin')
 def get_credit_queue(user_id: str):
     """
-    Get all pending credit reviews for the advisor's assigned students.
-    Superadmins see all pending reviews.
+    Get all pending credit reviews. Superadmin only.
     """
     try:
         admin_supabase = get_supabase_admin_singleton()
@@ -207,7 +206,7 @@ def get_credit_queue(user_id: str):
 
 
 @bp.route('/credit-queue/<completion_id>', methods=['GET'])
-@require_advisor
+@require_role('superadmin')
 def get_credit_review_detail(user_id: str, completion_id: str):
     """
     Get full detail for a credit review item including evidence and review history.
@@ -306,7 +305,7 @@ def get_credit_review_detail(user_id: str, completion_id: str):
 
 
 @bp.route('/credit-queue/<completion_id>/approve', methods=['POST'])
-@require_advisor
+@require_role('superadmin')
 def approve_credit(user_id: str, completion_id: str):
     """
     Approve diploma credit for a student's task.
@@ -450,7 +449,7 @@ def approve_credit(user_id: str, completion_id: str):
 
 
 @bp.route('/credit-queue/<completion_id>/grow-this', methods=['POST'])
-@require_advisor
+@require_role('superadmin')
 def grow_this(user_id: str, completion_id: str):
     """
     Return a credit request with feedback ("Grow This").
@@ -585,7 +584,7 @@ def grow_this(user_id: str, completion_id: str):
 
 
 @bp.route('/students/<student_id>/subject-xp', methods=['GET'])
-@require_advisor
+@require_role('superadmin')
 def get_student_subject_xp(user_id: str, student_id: str):
     """
     Get a student's current subject XP breakdown (finalized + pending).

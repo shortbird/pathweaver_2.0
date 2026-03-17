@@ -19,7 +19,7 @@ from . import bp
 
 
 @bp.route('/merge', methods=['POST'])
-@require_role('advisor', 'accreditor', 'superadmin')
+@require_role('accreditor', 'superadmin')
 def merge_tasks(user_id: str):
     """
     Merge multiple task completions into a single survivor.

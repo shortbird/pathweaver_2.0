@@ -5,7 +5,6 @@ import { advisorAPI } from '../services/api';
 import AdvisorStudentListPanel from '../components/advisor/AdvisorStudentListPanel';
 import AdvisorDefaultPanel from '../components/advisor/AdvisorDefaultPanel';
 import AdvisorStudentPanel from '../components/advisor/AdvisorStudentPanel';
-import CreditReviewQueue from '../components/advisor/CreditReviewQueue';
 
 // Helper function to get student display name with fallback
 const getStudentName = (student) => {
@@ -21,8 +20,6 @@ export default function AdvisorDashboard() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showCreditQueue, setShowCreditQueue] = useState(false);
-  const [pendingCreditCount, setPendingCreditCount] = useState(0);
 
   // Mobile breakpoint detection
   const [isMobile, setIsMobile] = useState(false);
@@ -50,8 +47,6 @@ export default function AdvisorDashboard() {
         setCaseloadSummary(caseloadRes.data.summary);
       }
 
-      // Pending credit count will be loaded by CreditReviewQueue component
-      // Don't duplicate the fetch here to avoid race conditions
     } catch (err) {
       console.error('Error fetching advisor dashboard:', err);
       setError(err.response?.data?.error || 'Failed to load dashboard');
@@ -157,23 +152,6 @@ export default function AdvisorDashboard() {
               {(rhythmCounts.in_flow || 0) > 0 && ` -- ${rhythmCounts.in_flow} in flow`}
             </p>
           </div>
-          <button
-            onClick={() => { setShowCreditQueue(!showCreditQueue); setSelectedStudent(null); }}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              showCreditQueue
-                ? 'bg-white text-optio-purple'
-                : 'bg-white/20 text-white hover:bg-white/30'
-            }`}
-          >
-            Credit Reviews
-            {pendingCreditCount > 0 && (
-              <span className={`px-1.5 py-0.5 text-xs font-bold rounded-full ${
-                showCreditQueue ? 'bg-optio-purple text-white' : 'bg-white text-optio-purple'
-              }`}>
-                {pendingCreditCount}
-              </span>
-            )}
-          </button>
         </div>
       </div>
 
@@ -190,13 +168,9 @@ export default function AdvisorDashboard() {
           />
         </div>
 
-        {/* Right panel - Default, student detail, or credit queue */}
+        {/* Right panel - Default or student detail */}
         <div className="flex-1 overflow-hidden">
-          {showCreditQueue ? (
-            <div className="h-full overflow-y-auto p-6">
-              <CreditReviewQueue />
-            </div>
-          ) : selectedStudent ? (
+          {selectedStudent ? (
             <AdvisorStudentPanel
               key={selectedStudent.id}
               student={selectedStudent}
