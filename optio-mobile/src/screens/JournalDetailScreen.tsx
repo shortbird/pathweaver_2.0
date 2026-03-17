@@ -243,8 +243,25 @@ export function JournalDetailScreen() {
       } as any);
       formData.append('block_type', 'image');
 
-      await api.post(`/api/learning-events/${eventId}/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      // Step 1: Upload file to storage
+      const uploadRes = await api.post(`/api/learning-events/${eventId}/upload`, formData);
+      const fileUrl = uploadRes.data.file_url;
+
+      // Step 2: Save evidence block with the uploaded URL
+      const existingBlocks = (event?.evidence_blocks || []).map((b, i) => ({
+        block_type: b.block_type,
+        content: b.content || { url: b.file_url },
+        order_index: i,
+      }));
+      await api.post(`/api/learning-events/${eventId}/evidence`, {
+        blocks: [
+          ...existingBlocks,
+          {
+            block_type: 'image',
+            content: { url: fileUrl, filename: uploadRes.data.filename },
+            order_index: existingBlocks.length,
+          },
+        ],
       });
       await loadEvent();
     } catch (err: any) {

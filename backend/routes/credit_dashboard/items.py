@@ -34,7 +34,7 @@ def resolve_user_name(user_data):
 
 
 @bp.route('/items', methods=['GET'])
-@require_role('advisor', 'accreditor', 'superadmin')
+@require_role('accreditor', 'superadmin')
 def get_dashboard_items(user_id: str):
     """Get credit review items filtered by role and query params."""
     try:
@@ -214,7 +214,7 @@ def get_dashboard_items(user_id: str):
 
 
 @bp.route('/items/<completion_id>', methods=['GET'])
-@require_role('advisor', 'accreditor', 'superadmin')
+@require_role('accreditor', 'superadmin')
 def get_dashboard_item_detail(user_id: str, completion_id: str):
     """Get full detail for a credit review item including evidence and review history."""
     try:
@@ -325,7 +325,7 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
 
 
 @bp.route('/stats', methods=['GET'])
-@require_role('advisor', 'accreditor', 'superadmin')
+@require_role('accreditor', 'superadmin')
 def get_dashboard_stats(user_id: str):
     """Get aggregate counts for dashboard overview."""
     try:
@@ -393,7 +393,7 @@ def get_dashboard_stats(user_id: str):
 
 
 @bp.route('/student-context/<student_id>', methods=['GET'])
-@require_role('advisor', 'accreditor', 'superadmin')
+@require_role('accreditor', 'superadmin')
 def get_student_context(user_id: str, student_id: str):
     """Get student's diploma progress and pending items for context panel."""
     try:

@@ -8,6 +8,7 @@ import {
   BookOpenIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
+import QuestForm from '../../components/admin/QuestForm';
 
 const QuestInvitations = () => {
   const { user } = useAuth();
@@ -20,8 +21,6 @@ const QuestInvitations = () => {
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('my');
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newQuest, setNewQuest] = useState({ title: '', description: '' });
-  const [creating, setCreating] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
@@ -56,40 +55,15 @@ const QuestInvitations = () => {
     }
   };
 
-  const handleCreateQuest = async (e) => {
-    e.preventDefault();
-    const title = newQuest.title.trim();
-    const description = newQuest.description.trim();
-
-    if (!title) {
-      toast.error('Title is required');
-      return;
+  const handleQuestCreated = (newQuest) => {
+    if (newQuest?.id) {
+      setMyQuests(prev => [newQuest, ...prev]);
+      setSelectedQuest(newQuest.id);
+    } else {
+      // Refetch to pick up the new quest
+      fetchData();
     }
-
-    try {
-      setCreating(true);
-      const response = await api.post('/api/admin/quests/create', {
-        title,
-        big_idea: description,
-        organization_id: user?.organization_id || null,
-      });
-
-      if (response.data.success) {
-        const quest = response.data.quest;
-        toast.success('Quest created');
-        setMyQuests(prev => [quest, ...prev]);
-        setSelectedQuest(quest.id);
-        setNewQuest({ title: '', description: '' });
-        setShowCreateForm(false);
-      } else {
-        toast.error(response.data.error || 'Failed to create quest');
-      }
-    } catch (error) {
-      console.error('Error creating quest:', error);
-      toast.error(error.response?.data?.error || 'Failed to create quest');
-    } finally {
-      setCreating(false);
-    }
+    setShowCreateForm(false);
   };
 
   const handleStudentToggle = (studentId) => {
@@ -216,66 +190,23 @@ const QuestInvitations = () => {
 
             <div className="p-4">
               {/* Search */}
-              {!showCreateForm && (
-                <input
-                  type="text"
-                  placeholder="Search quests..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent mb-3"
-                />
-              )}
+              <input
+                type="text"
+                placeholder="Search quests..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent mb-3"
+              />
 
               {/* Create New Quest (My Quests tab only) */}
               {activeTab === 'my' && (
-                showCreateForm ? (
-                  <form onSubmit={handleCreateQuest} className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
-                    <input
-                      type="text"
-                      value={newQuest.title}
-                      onChange={(e) => setNewQuest(prev => ({ ...prev, title: e.target.value }))}
-                      placeholder="Quest title *"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                      maxLength={200}
-                      autoFocus
-                      disabled={creating}
-                    />
-                    <textarea
-                      value={newQuest.description}
-                      onChange={(e) => setNewQuest(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="Description (optional)"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none"
-                      rows={2}
-                      maxLength={2000}
-                      disabled={creating}
-                    />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => { setShowCreateForm(false); setNewQuest({ title: '', description: '' }); }}
-                        className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
-                        disabled={creating}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={creating || !newQuest.title.trim()}
-                        className="px-3 py-1.5 text-xs bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                      >
-                        {creating ? 'Creating...' : 'Create Quest'}
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <button
-                    onClick={() => setShowCreateForm(true)}
-                    className="w-full mb-3 flex items-center justify-center gap-1.5 px-3 py-2 text-sm border-2 border-dashed border-optio-purple/30 text-optio-purple rounded-lg hover:bg-optio-purple/5 hover:border-optio-purple/50 transition-colors"
-                  >
-                    <PlusIcon className="w-4 h-4" />
-                    Create New Quest
-                  </button>
-                )
+                <button
+                  onClick={() => setShowCreateForm(true)}
+                  className="w-full mb-3 flex items-center justify-center gap-1.5 px-3 py-2 text-sm border-2 border-dashed border-optio-purple/30 text-optio-purple rounded-lg hover:bg-optio-purple/5 hover:border-optio-purple/50 transition-colors"
+                >
+                  <PlusIcon className="w-4 h-4" />
+                  Create New Quest
+                </button>
               )}
 
               {/* Quest List */}
@@ -414,6 +345,16 @@ const QuestInvitations = () => {
           </div>
         </div>
       </div>
+
+      {/* Quest Creation Modal */}
+      {showCreateForm && (
+        <QuestForm
+          mode="create"
+          onClose={() => setShowCreateForm(false)}
+          onSuccess={handleQuestCreated}
+          organizationId={user?.organization_id || null}
+        />
+      )}
     </div>
   );
 };

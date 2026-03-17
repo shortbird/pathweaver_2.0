@@ -20,12 +20,16 @@ const api = axios.create({
   },
 });
 
-// Request interceptor: attach auth token
+// Request interceptor: attach auth token + handle FormData
 api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     const token = await storage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // Let React Native set Content-Type with boundary for FormData
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
     }
     return config;
   },

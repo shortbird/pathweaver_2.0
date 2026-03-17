@@ -1073,7 +1073,7 @@ def request_diploma_credit(user_id: str, task_id: str):
     """
     Request diploma credit for a completed task.
     Student-initiated flow: snapshots evidence, creates review round,
-    adds subject XP to pending, notifies assigned advisor.
+    adds subject XP to pending, notifies superadmin.
 
     Can be called on tasks with diploma_status 'none' or 'grow_this' (resubmit).
     """
@@ -1194,16 +1194,15 @@ def request_diploma_credit(user_id: str, task_id: str):
         except Exception as xp_err:
             logger.error(f"Failed to add pending subject XP for credit request: {xp_err}")
 
-        # Notify assigned advisor
+        # Notify superadmin only (credit review is superadmin-only)
         try:
             from services.notification_service import NotificationService
-            advisor_assignments = admin_supabase.table('advisor_student_assignments')\
-                .select('advisor_id')\
-                .eq('student_id', user_id)\
-                .eq('is_active', True)\
+            superadmin_result = admin_supabase.table('users')\
+                .select('id')\
+                .eq('role', 'superadmin')\
                 .execute()
 
-            if advisor_assignments.data:
+            if superadmin_result.data:
                 student_result = admin_supabase.table('users')\
                     .select('display_name, first_name, last_name, email')\
                     .eq('id', user_id)\
@@ -1220,13 +1219,13 @@ def request_diploma_credit(user_id: str, task_id: str):
                     student_name = 'A student'
 
                 notification_service = NotificationService()
-                for assignment in advisor_assignments.data:
+                for sa in superadmin_result.data:
                     notification_service.create_notification(
-                        user_id=assignment['advisor_id'],
+                        user_id=sa['id'],
                         notification_type='diploma_credit_requested',
                         title='Diploma Credit Requested',
                         message=f'{student_name} requested diploma credit for "{task_data.get("title", "a task")}"',
-                        link='/advisor',
+                        link='/credit-dashboard',
                         metadata={
                             'student_id': user_id,
                             'task_id': task_id,
@@ -1234,7 +1233,7 @@ def request_diploma_credit(user_id: str, task_id: str):
                         }
                     )
         except Exception as notify_err:
-            logger.warning(f"Failed to notify advisor of credit request: {notify_err}")
+            logger.warning(f"Failed to notify superadmin of credit request: {notify_err}")
 
         logger.info(f"User {user_id[:8]} requested diploma credit for task {task_id[:8]} (round {round_number})")
 

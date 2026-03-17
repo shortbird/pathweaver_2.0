@@ -97,9 +97,7 @@ export function QuickCapture({
     try {
       const formData = new FormData();
       formData.append('photo', file);
-      const response = await api.post('/api/learning-events/snap-to-learn', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await api.post('/api/learning-events/snap-to-learn', formData);
       if (response.data.description && !description) {
         setDescription(response.data.description);
       }
@@ -115,9 +113,7 @@ export function QuickCapture({
     try {
       const formData = new FormData();
       formData.append('photo', { uri, type: 'image/jpeg', name: 'capture.jpg' } as any);
-      const response = await api.post('/api/learning-events/snap-to-learn', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await api.post('/api/learning-events/snap-to-learn', formData);
       if (response.data.description && !description) {
         setDescription(response.data.description);
       }
@@ -180,9 +176,7 @@ export function QuickCapture({
     try {
       const formData = new FormData();
       formData.append('audio', file);
-      const response = await api.post('/api/learning-events/voice', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await api.post('/api/learning-events/voice', formData);
       const transcription = response.data.transcription || '';
       setDescription((prev) => (prev ? prev + '\n\n' + transcription : transcription));
     } catch {
@@ -197,9 +191,7 @@ export function QuickCapture({
     try {
       const formData = new FormData();
       formData.append('audio', { uri, type: 'audio/m4a', name: 'recording.m4a' } as any);
-      const response = await api.post('/api/learning-events/voice', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await api.post('/api/learning-events/voice', formData);
       const transcription = response.data.transcription || '';
       setDescription((prev) => (prev ? prev + '\n\n' + transcription : transcription));
     } catch {
