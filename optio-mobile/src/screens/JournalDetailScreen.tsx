@@ -1,8 +1,13 @@
 /**
- * Journal Detail Screen - Full view of a learning event with edit capabilities.
+ * Journal Detail Screen - Moment detail, classification, and grouping.
  *
- * Fetches the full event from GET /api/learning-events/:id (includes evidence blocks),
- * and allows editing title, description, pillars via PUT /api/learning-events/:id.
+ * Opened when tapping a journal entry. Provides:
+ *   - View/edit title and description
+ *   - Pillar classification (icon circles + Optio AI toggle)
+ *   - Topic grouping (interest tracks)
+ *   - Evidence gallery (images, links, documents)
+ *   - Add evidence (photo upload)
+ *   - Delete moment
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -15,35 +20,30 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Alert,
   Dimensions,
   Linking,
-  Alert,
-  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import * as ImagePicker from 'expo-image-picker';
 import { tokens, PillarKey } from '../theme/tokens';
+import { pillarIcons } from '../theme/icons';
 import { SurfaceCard } from '../components/common/SurfaceCard';
+import { GlassButton } from '../components/common/GlassButton';
 import { GlassBackground } from '../components/common/GlassBackground';
+import { OptioLogo } from '../components/common/OptioLogo';
 import { useThemeStore } from '../stores/themeStore';
 import api from '../services/api';
 
 const SCREEN_W = Dimensions.get('window').width;
-const IMAGE_HEIGHT = 300;
 
-const PILLARS: { key: PillarKey; label: string }[] = [
-  { key: 'stem', label: 'STEM' },
-  { key: 'art', label: 'Art' },
-  { key: 'communication', label: 'Comm' },
-  { key: 'civics', label: 'Civics' },
-  { key: 'wellness', label: 'Wellness' },
+const PILLARS: { key: PillarKey; label: string; icon: string }[] = [
+  { key: 'stem', label: 'STEM', icon: pillarIcons.stem },
+  { key: 'art', label: 'Art', icon: pillarIcons.art },
+  { key: 'communication', label: 'Comm', icon: pillarIcons.communication },
+  { key: 'civics', label: 'Civics', icon: pillarIcons.civics },
+  { key: 'wellness', label: 'Wellness', icon: pillarIcons.wellness },
 ];
-
-function formatPillar(pillar: string): string {
-  if (pillar.toLowerCase() === 'stem') return 'STEM';
-  return pillar.charAt(0).toUpperCase() + pillar.slice(1);
-}
 
 interface EvidenceBlock {
   id: string;
@@ -52,6 +52,20 @@ interface EvidenceBlock {
   file_url?: string;
   file_name?: string;
   order_index: number;
+}
+
+interface Topic {
+  type: string;
+  id: string;
+  name: string;
+  color?: string;
+}
+
+interface InterestTrack {
+  id: string;
+  name: string;
+  color: string;
+  moment_count: number;
 }
 
 interface FullEvent {
@@ -63,7 +77,7 @@ interface FullEvent {
   source_type: string;
   track_id: string | null;
   evidence_blocks: EvidenceBlock[];
-  topics?: { type: string; id: string; name: string }[];
+  topics?: Topic[];
 }
 
 export function JournalDetailScreen() {
@@ -74,145 +88,165 @@ export function JournalDetailScreen() {
 
   const [event, setEvent] = useState<FullEvent | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-
-  // Edit state
-  type EditMode = 'photo' | 'voice' | 'text';
-  const [editMode, setEditMode] = useState<EditMode>('text');
-  const [editTitle, setEditTitle] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [editPillars, setEditPillars] = useState<string[]>([]);
-  const [editBlocks, setEditBlocks] = useState<EvidenceBlock[]>([]);
-  const [blocksChanged, setBlocksChanged] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Editable fields
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [selectedPillars, setSelectedPillars] = useState<PillarKey[]>([]);
+  const [aiPillars, setAiPillars] = useState(false);
+  const [suggestingPillars, setSuggestingPillars] = useState(false);
+
+  // Topics
+  const [availableTracks, setAvailableTracks] = useState<InterestTrack[]>([]);
+  const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
+  const [showNewTrack, setShowNewTrack] = useState(false);
+  const [newTrackName, setNewTrackName] = useState('');
+  const [creatingTrack, setCreatingTrack] = useState(false);
+
+  // Evidence
   const [uploading, setUploading] = useState(false);
-
-  // Voice state
-  const [recording, setRecording] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
-
-  // Image error tracking
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  // Dirty tracking
+  const [dirty, setDirty] = useState(false);
 
   const loadEvent = useCallback(async () => {
     try {
       const response = await api.get(`/api/learning-events/${eventId}`);
       if (response.data.success) {
-        setEvent(response.data.event);
+        const e = response.data.event;
+        setEvent(e);
+        setTitle(e.title || '');
+        setDescription(e.description || '');
+        setSelectedPillars(
+          (e.pillars || []).filter((p: string): p is PillarKey =>
+            PILLARS.some((def) => def.key === p),
+          ),
+        );
+        setSelectedTopicIds((e.topics || []).filter((t: Topic) => t.type === 'topic').map((t: Topic) => t.id));
+        setAiPillars((e.pillars || []).length === 0);
       }
     } catch {
-      // Silent
+      Alert.alert('Error', 'Could not load moment');
+      navigation.goBack();
     } finally {
       setLoading(false);
     }
   }, [eventId]);
 
+  const loadTracks = useCallback(async () => {
+    try {
+      const response = await api.get('/api/interest-tracks');
+      setAvailableTracks(response.data.tracks || []);
+    } catch {
+      // Interest tracks may not exist yet
+    }
+  }, []);
+
   useEffect(() => {
     loadEvent();
-  }, [loadEvent]);
+    loadTracks();
+  }, [loadEvent, loadTracks]);
 
-  const startEditing = () => {
-    if (!event) return;
-    setEditTitle(event.title || '');
-    setEditDescription(event.description || '');
-    setEditPillars([...(event.pillars || [])]);
-    setEditBlocks([...(event.evidence_blocks || [])]);
-    setBlocksChanged(false);
-    setEditing(true);
-  };
+  // ── Pillar handling ────────────────────────────────────────
 
-  const toggleEditPillar = (key: string) => {
-    setEditPillars((prev) =>
+  const togglePillar = (key: PillarKey) => {
+    setAiPillars(false);
+    setSelectedPillars((prev) =>
       prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key],
     );
+    setDirty(true);
   };
 
-  const handleSave = async () => {
-    if (!editDescription.trim()) {
-      Alert.alert('Required', 'Description cannot be empty.');
+  const handleAiPillars = async () => {
+    if (aiPillars) {
+      // Toggling off
+      setAiPillars(false);
       return;
     }
-    setSaving(true);
+    // Toggling on -- run AI now
+    setAiPillars(true);
+    const trimmed = description.trim();
+    if (!trimmed) return;
+
+    setSuggestingPillars(true);
     try {
-      // Save text/pillars
-      await api.put(`/api/learning-events/${eventId}`, {
-        title: editTitle.trim() || null,
-        description: editDescription.trim(),
-        pillars: editPillars,
+      const response = await api.post('/api/learning-events/ai-suggestions', {
+        description: trimmed,
       });
-
-      // Save evidence blocks if changed
-      if (blocksChanged) {
-        await api.post(`/api/learning-events/${eventId}/evidence`, {
-          blocks: editBlocks.map((b, i) => ({
-            block_type: b.block_type,
-            content: b.content || {},
-            order_index: i,
-          })),
-        });
-      }
-
-      setEditing(false);
-      loadEvent();
-    } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to save changes');
+      const suggested = response.data?.suggestions?.pillars || [];
+      const valid = suggested.filter((p: string): p is PillarKey =>
+        PILLARS.some((def) => def.key === p),
+      );
+      setSelectedPillars(valid.length > 0 ? valid : ['wellness']);
+      setDirty(true);
+    } catch {
+      setSelectedPillars(['wellness']);
+      setDirty(true);
     } finally {
-      setSaving(false);
+      setSuggestingPillars(false);
     }
   };
 
-  const handleRemoveBlock = (index: number) => {
-    setEditBlocks((prev) => prev.filter((_, i) => i !== index));
-    setBlocksChanged(true);
+  // ── Topic handling ─────────────────────────────────────────
+
+  const toggleTopic = (trackId: string) => {
+    setSelectedTopicIds((prev) =>
+      prev.includes(trackId) ? prev.filter((id) => id !== trackId) : [...prev, trackId],
+    );
+    setDirty(true);
   };
+
+  const handleCreateTrack = async () => {
+    const name = newTrackName.trim();
+    if (!name) return;
+    setCreatingTrack(true);
+    try {
+      const response = await api.post('/api/interest-tracks', { name });
+      const track = response.data.track;
+      setAvailableTracks((prev) => [...prev, track]);
+      setSelectedTopicIds((prev) => [...prev, track.id]);
+      setNewTrackName('');
+      setShowNewTrack(false);
+      setDirty(true);
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.error || 'Could not create topic');
+    } finally {
+      setCreatingTrack(false);
+    }
+  };
+
+  // ── Evidence ───────────────────────────────────────────────
 
   const handleAddPhoto = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission needed', 'Please allow access to your photo library.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-      allowsMultipleSelection: false,
-    });
-
-    if (result.canceled || !result.assets?.[0]) return;
-
-    const asset = result.assets[0];
-    setUploading(true);
     try {
+      const ImagePicker = await import('expo-image-picker');
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Photo library access is required.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+
+      setUploading(true);
+      const asset = result.assets[0];
       const formData = new FormData();
-      const uri = asset.uri;
-      const filename = uri.split('/').pop() || 'photo.jpg';
       formData.append('file', {
-        uri,
-        name: filename,
+        uri: asset.uri,
+        name: asset.uri.split('/').pop() || 'photo.jpg',
         type: asset.mimeType || 'image/jpeg',
       } as any);
       formData.append('block_type', 'image');
 
-      const response = await api.post(
-        `/api/learning-events/${eventId}/upload`,
-        formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } },
-      );
-
-      if (response.data.success && response.data.file_url) {
-        setEditBlocks((prev) => [
-          ...prev,
-          {
-            id: `new_${Date.now()}`,
-            block_type: 'image',
-            content: { url: response.data.file_url },
-            order_index: prev.length,
-          },
-        ]);
-        setBlocksChanged(true);
-      }
+      await api.post(`/api/learning-events/${eventId}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      await loadEvent();
     } catch (err: any) {
       Alert.alert('Upload failed', err.response?.data?.error || 'Could not upload photo.');
     } finally {
@@ -220,95 +254,42 @@ export function JournalDetailScreen() {
     }
   };
 
-  const handleStartRecording = async () => {
-    if (Platform.OS === 'web') {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'audio/*';
-      input.onchange = async (e: any) => {
-        const file = e.target.files[0];
-        if (file) await processAudioWeb(file);
-      };
-      input.click();
-    } else {
-      try {
-        const { Audio } = await import('expo-av');
-        const perm = await Audio.requestPermissionsAsync();
-        if (!perm.granted) {
-          Alert.alert('Permission needed', 'Microphone access is required.');
-          return;
+  // ── Save ───────────────────────────────────────────────────
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      let pillars = selectedPillars as string[];
+      if (aiPillars && pillars.length === 0) {
+        try {
+          const aiRes = await api.post('/api/learning-events/ai-suggestions', {
+            description: description.trim(),
+          });
+          pillars = aiRes.data?.suggestions?.pillars || ['wellness'];
+        } catch {
+          pillars = ['wellness'];
         }
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-        const { recording: rec } = await Audio.Recording.createAsync(
-          Audio.RecordingOptionsPresets.HIGH_QUALITY,
-        );
-        setRecording(true);
-        (globalThis as any).__currentRecording = rec;
-      } catch {
-        Alert.alert('Error', 'Could not start recording');
       }
-    }
-  };
 
-  const handleStopRecording = async () => {
-    setRecording(false);
-    try {
-      const rec = (globalThis as any).__currentRecording;
-      if (rec) {
-        await rec.stopAndUnloadAsync();
-        const uri = rec.getURI();
-        (globalThis as any).__currentRecording = null;
-        if (uri) await processAudioNative(uri);
-      }
-    } catch {
-      Alert.alert('Error', 'Could not process recording');
-    }
-  };
-
-  const processAudioWeb = async (file: File) => {
-    setTranscribing(true);
-    try {
-      const formData = new FormData();
-      formData.append('audio', file);
-      const response = await api.post('/api/learning-events/voice', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      await api.put(`/api/learning-events/${eventId}`, {
+        title: title.trim() || null,
+        description: description.trim(),
+        pillars,
+        topics: selectedTopicIds.map((id) => ({ type: 'topic', id })),
       });
-      const transcription = response.data.transcription || '';
-      setEditDescription((prev) => (prev ? prev + '\n\n' + transcription : transcription));
-      if (response.data.suggested_pillar && editPillars.length === 0) {
-        setEditPillars([response.data.suggested_pillar]);
-      }
-      Alert.alert('Transcribed', 'Voice transcription added to description.');
-    } catch {
-      Alert.alert('Error', 'Failed to transcribe audio.');
+      setDirty(false);
+      Alert.alert('Saved', 'Moment updated.');
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to save');
     } finally {
-      setTranscribing(false);
+      setSaving(false);
     }
   };
 
-  const processAudioNative = async (uri: string) => {
-    setTranscribing(true);
-    try {
-      const formData = new FormData();
-      formData.append('audio', { uri, type: 'audio/m4a', name: 'recording.m4a' } as any);
-      const response = await api.post('/api/learning-events/voice', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      const transcription = response.data.transcription || '';
-      setEditDescription((prev) => (prev ? prev + '\n\n' + transcription : transcription));
-      if (response.data.suggested_pillar && editPillars.length === 0) {
-        setEditPillars([response.data.suggested_pillar]);
-      }
-      Alert.alert('Transcribed', 'Voice transcription added to description.');
-    } catch {
-      Alert.alert('Error', 'Failed to transcribe audio.');
-    } finally {
-      setTranscribing(false);
-    }
-  };
+  // ── Delete ─────────────────────────────────────────────────
 
   const handleDelete = () => {
-    Alert.alert('Delete Entry', 'Are you sure? This cannot be undone.', [
+    Alert.alert('Delete Moment', 'This cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -318,26 +299,20 @@ export function JournalDetailScreen() {
             await api.delete(`/api/learning-events/${eventId}`);
             navigation.goBack();
           } catch {
-            Alert.alert('Error', 'Failed to delete entry');
+            Alert.alert('Error', 'Failed to delete');
           }
         },
       },
     ]);
   };
 
-  const handleOpenLink = (url: string) => {
-    Linking.openURL(url).catch(() => {});
-  };
-
-  const handleImageError = (url: string) => {
-    setFailedImages((prev) => new Set(prev).add(url));
-  };
+  // ── Loading / empty ────────────────────────────────────────
 
   if (loading) {
     return (
       <GlassBackground style={{ flex: 1 }}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={tokens.colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </GlassBackground>
     );
@@ -347,9 +322,7 @@ export function JournalDetailScreen() {
     return (
       <GlassBackground style={{ flex: 1 }}>
         <View style={styles.centered}>
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-            Entry not found.
-          </Text>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Moment not found.</Text>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={{ color: colors.primary, marginTop: tokens.spacing.md }}>Go back</Text>
           </TouchableOpacity>
@@ -358,433 +331,269 @@ export function JournalDetailScreen() {
     );
   }
 
-  // Extract images and links from evidence blocks
-  const allImages: string[] = [];
+  // Extract images and links from evidence
+  const images: string[] = [];
   const links: { type: string; url: string; title?: string }[] = [];
-
   for (const block of event.evidence_blocks || []) {
-    const content = block.content || {};
-    const url = content.url || block.file_url;
-    if (block.block_type === 'image' && url) {
-      allImages.push(url);
-    } else if (block.block_type === 'video' && url) {
-      links.push({ type: 'video', url, title: content.title });
-    } else if (block.block_type === 'link' && url) {
-      links.push({ type: 'link', url, title: content.title });
-    } else if (block.block_type === 'document' && url) {
-      links.push({
-        type: 'document',
-        url,
-        title: content.title || content.filename || block.file_name,
-      });
+    const url = block.content?.url || block.file_url;
+    if (block.block_type === 'image' && url && !failedImages.has(url)) images.push(url);
+    else if (['video', 'link', 'document'].includes(block.block_type) && url) {
+      links.push({ type: block.block_type, url, title: block.content?.title || block.file_name });
     }
   }
-  const images = allImages.filter((u) => !failedImages.has(u));
 
   const date = new Date(event.created_at);
 
   return (
     <GlassBackground style={{ flex: 1 }}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-        {/* Header row */}
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        {/* Header */}
         <View style={styles.headerRow}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          {!editing && (
-            <View style={styles.headerActions}>
-              <TouchableOpacity onPress={startEditing} style={styles.headerAction}>
-                <Ionicons name="pencil" size={20} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleDelete} style={styles.headerAction}>
-                <Ionicons name="trash-outline" size={20} color={tokens.colors.error} />
-              </TouchableOpacity>
-            </View>
-          )}
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={handleDelete} style={styles.headerAction}>
+              <Ionicons name="trash-outline" size={20} color={tokens.colors.error} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Timestamp */}
         <Text style={[styles.timestamp, { color: colors.textMuted }]}>
           {date.toLocaleDateString(undefined, {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
+            weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+            hour: 'numeric', minute: '2-digit',
           })}
         </Text>
 
-        {!editing ? (
-          <>
-            {/* Title */}
-            {event.title ? (
-              <Text style={[styles.title, { color: colors.text }]}>{event.title}</Text>
-            ) : null}
+        {/* Evidence gallery */}
+        {images.length > 0 && (
+          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.gallery}>
+            {images.map((url) => (
+              <Image
+                key={url}
+                source={{ uri: url }}
+                style={[styles.galleryImage, { width: SCREEN_W - 32 }]}
+                resizeMode="cover"
+                onError={() => setFailedImages((prev) => new Set(prev).add(url))}
+              />
+            ))}
+          </ScrollView>
+        )}
 
-            {/* Image gallery */}
-            {images.length > 0 && (
-              <View style={styles.gallery}>
-                <ScrollView
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  onMomentumScrollEnd={(e) => {
-                    const idx = Math.round(
-                      e.nativeEvent.contentOffset.x / (SCREEN_W - 32),
-                    );
-                    setActiveImageIndex(idx);
-                  }}
-                >
-                  {images.map((url) => (
-                    <Image
-                      key={url}
-                      source={{ uri: url }}
-                      style={[styles.galleryImage, { width: SCREEN_W - 32 }]}
-                      resizeMode="cover"
-                      onError={() => handleImageError(url)}
-                    />
-                  ))}
-                </ScrollView>
-                {images.length > 1 && (
-                  <View style={styles.paginationDots}>
-                    {images.map((_, i) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.dot,
-                          {
-                            backgroundColor:
-                              i === activeImageIndex ? colors.primary : colors.textMuted,
-                          },
-                        ]}
-                      />
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
+        {/* Add photo */}
+        <TouchableOpacity
+          style={[styles.addPhotoBtn, { backgroundColor: colors.pillars.art + '10', borderColor: colors.border }]}
+          onPress={handleAddPhoto}
+          disabled={uploading}
+        >
+          {uploading ? (
+            <ActivityIndicator size={16} color={colors.pillars.art} />
+          ) : (
+            <>
+              <Ionicons name="camera-outline" size={18} color={colors.pillars.art} />
+              <Text style={[styles.addPhotoText, { color: colors.pillars.art }]}>Add Photo</Text>
+            </>
+          )}
+        </TouchableOpacity>
 
-            {/* Description */}
-            <SurfaceCard style={styles.contentCard}>
-              <Text style={[styles.description, { color: colors.textSecondary }]}>
-                {event.description}
-              </Text>
+        {/* Title */}
+        <SurfaceCard style={styles.card}>
+          <TextInput
+            style={[styles.titleInput, { color: colors.text, borderColor: colors.glass.borderLight, backgroundColor: colors.inputBg }]}
+            placeholder="Title (optional)"
+            placeholderTextColor={colors.textMuted}
+            value={title}
+            onChangeText={(t) => { setTitle(t); setDirty(true); }}
+          />
+          <TextInput
+            style={[styles.descriptionInput, { color: colors.text, borderColor: colors.glass.borderLight, backgroundColor: colors.inputBg }]}
+            placeholder="Description"
+            placeholderTextColor={colors.textMuted}
+            value={description}
+            onChangeText={(t) => { setDescription(t); setDirty(true); }}
+            multiline
+            textAlignVertical="top"
+          />
+        </SurfaceCard>
 
-              {/* Pillars */}
-              {event.pillars?.length > 0 && (
-                <View style={styles.pillarsRow}>
-                  {event.pillars.map((p) => (
-                    <View
-                      key={p}
-                      style={[
-                        styles.pillarChip,
-                        {
-                          backgroundColor:
-                            tokens.colors.pillars[p as PillarKey] || colors.textMuted,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.pillarChipText}>{formatPillar(p)}</Text>
-                    </View>
-                  ))}
+        {/* Pillar classification */}
+        <SurfaceCard style={styles.card}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Pillars</Text>
+          <View style={styles.pillarRow}>
+            <TouchableOpacity
+              style={[
+                styles.pillarChip,
+                {
+                  borderColor: aiPillars ? colors.primary : colors.border,
+                  backgroundColor: aiPillars ? colors.primary + '15' : 'transparent',
+                },
+              ]}
+              onPress={handleAiPillars}
+              activeOpacity={0.6}
+              accessibilityLabel="Let AI pick pillars"
+            >
+              {suggestingPillars ? (
+                <ActivityIndicator size={16} color={colors.primary} />
+              ) : (
+                <View pointerEvents="none">
+                  <OptioLogo size={22} background="none" />
                 </View>
               )}
-
-              {/* Topics */}
-              {event.topics && event.topics.length > 0 && (
-                <View style={styles.topicsSection}>
-                  <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Topics</Text>
-                  <View style={styles.topicsRow}>
-                    {event.topics.map((t) => (
-                      <View
-                        key={t.id}
-                        style={[styles.topicChip, { borderColor: colors.glass.border }]}
-                      >
-                        <Text style={[styles.topicChipText, { color: colors.text }]}>
-                          {t.name}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
-            </SurfaceCard>
-
-            {/* Links / videos / documents */}
-            {links.length > 0 && (
-              <SurfaceCard style={styles.contentCard}>
-                {links.map((link, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={[styles.linkRow, { borderColor: colors.border }]}
-                    onPress={() => handleOpenLink(link.url)}
-                  >
-                    <Ionicons
-                      name={
-                        link.type === 'video'
-                          ? 'play-circle-outline'
-                          : link.type === 'document'
-                            ? 'document-outline'
-                            : 'link-outline'
-                      }
-                      size={20}
-                      color={colors.primary}
-                    />
-                    <Text
-                      style={[styles.linkText, { color: colors.primary }]}
-                      numberOfLines={1}
-                    >
-                      {link.title || link.url}
-                    </Text>
-                    <Ionicons name="open-outline" size={16} color={colors.textMuted} />
-                  </TouchableOpacity>
-                ))}
-              </SurfaceCard>
-            )}
-          </>
-        ) : (
-          // ── Edit mode: Photo / Voice / Text tabs ──
-          <>
-            {/* Mode tabs */}
-            <View style={styles.modeRow}>
-              {([
-                { key: 'photo' as EditMode, icon: 'camera-outline', label: 'Photo' },
-                { key: 'voice' as EditMode, icon: 'mic-outline', label: 'Voice' },
-                { key: 'text' as EditMode, icon: 'create-outline', label: 'Text' },
-              ]).map((m) => (
+            </TouchableOpacity>
+            {PILLARS.map((p) => {
+              const selected = selectedPillars.includes(p.key);
+              const pillarColor = tokens.colors.pillars[p.key];
+              return (
                 <TouchableOpacity
-                  key={m.key}
+                  key={p.key}
                   style={[
-                    styles.modeButton,
-                    { borderColor: colors.border, backgroundColor: colors.surface },
-                    editMode === m.key && { borderColor: colors.primary, backgroundColor: colors.primary + '10' },
+                    styles.pillarChip,
+                    {
+                      borderColor: selected ? pillarColor : colors.border,
+                      backgroundColor: selected ? pillarColor : 'transparent',
+                      opacity: aiPillars ? 0.35 : 1,
+                    },
                   ]}
-                  onPress={() => setEditMode(m.key)}
+                  onPress={() => togglePillar(p.key)}
+                  disabled={aiPillars}
+                  accessibilityLabel={p.label}
                 >
-                  <Ionicons
-                    name={m.icon as any}
-                    size={24}
-                    color={editMode === m.key ? colors.primary : colors.textMuted}
-                  />
-                  <Text
-                    style={[
-                      styles.modeLabel,
-                      { color: colors.textSecondary },
-                      editMode === m.key && { color: colors.primary, fontFamily: tokens.typography.fonts.semiBold },
-                    ]}
-                  >
-                    {m.label}
-                  </Text>
+                  <Ionicons name={p.icon as any} size={16} color={selected ? '#FFF' : pillarColor} />
                 </TouchableOpacity>
-              ))}
-            </View>
+              );
+            })}
+          </View>
+          <Text style={[styles.pillarSubtext, { color: colors.textMuted }]}>
+            {aiPillars ? 'Optio AI will analyze and set pillars' : 'Select related learning pillars'}
+          </Text>
+        </SurfaceCard>
 
-            {/* ── Photo mode ── */}
-            {editMode === 'photo' && (
-              <SurfaceCard style={styles.contentCard}>
-                <View style={styles.mediaGrid}>
-                  {editBlocks.map((block, idx) => {
-                    const url = block.content?.url || block.file_url;
-                    if (!url) return null;
-                    return (
-                      <View key={block.id || idx} style={styles.mediaThumbnailWrapper}>
-                        {block.block_type === 'image' ? (
-                          <Image source={{ uri: url }} style={styles.mediaThumbnail} resizeMode="cover" />
-                        ) : (
-                          <View style={[styles.mediaThumbnail, styles.fileThumbnail, { backgroundColor: colors.surface }]}>
-                            <Ionicons
-                              name={
-                                block.block_type === 'video' ? 'play-circle-outline'
-                                  : block.block_type === 'document' ? 'document-outline'
-                                    : 'link-outline'
-                              }
-                              size={24}
-                              color={colors.textSecondary}
-                            />
-                            <Text style={[styles.fileLabel, { color: colors.textMuted }]} numberOfLines={1}>
-                              {block.content?.title || block.file_name || block.block_type}
-                            </Text>
-                          </View>
-                        )}
-                        <TouchableOpacity style={styles.removeMediaButton} onPress={() => handleRemoveBlock(idx)}>
-                          <Ionicons name="close-circle" size={22} color={tokens.colors.error} />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
+        {/* Topic grouping */}
+        <SurfaceCard style={styles.card}>
+          <View style={styles.topicHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Topics</Text>
+            <TouchableOpacity onPress={() => setShowNewTrack(!showNewTrack)}>
+              <Text style={[styles.addTopicLink, { color: colors.primary }]}>
+                {showNewTrack ? 'Cancel' : '+ New'}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-                  <TouchableOpacity
-                    style={[styles.addMediaButton, { borderColor: colors.glass.border, backgroundColor: colors.inputBg }]}
-                    onPress={handleAddPhoto}
-                    disabled={uploading}
-                  >
-                    {uploading ? (
-                      <ActivityIndicator color={colors.primary} size="small" />
-                    ) : (
-                      <>
-                        <Ionicons name="camera-outline" size={28} color={colors.primary} />
-                        <Text style={[styles.addMediaText, { color: colors.primary }]}>Add Photo</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-
-                {editBlocks.length === 0 && !uploading && (
-                  <Text style={[styles.hintText, { color: colors.textMuted }]}>
-                    Add photos of your learning moment.
-                  </Text>
+          {showNewTrack && (
+            <View style={styles.newTrackRow}>
+              <TextInput
+                style={[styles.newTrackInput, { color: colors.text, borderColor: colors.glass.borderLight, backgroundColor: colors.inputBg }]}
+                placeholder="Topic name"
+                placeholderTextColor={colors.textMuted}
+                value={newTrackName}
+                onChangeText={setNewTrackName}
+                autoFocus
+                onSubmitEditing={handleCreateTrack}
+              />
+              <TouchableOpacity
+                style={[styles.createTrackBtn, { backgroundColor: colors.primary }]}
+                onPress={handleCreateTrack}
+                disabled={creatingTrack || !newTrackName.trim()}
+              >
+                {creatingTrack ? (
+                  <ActivityIndicator size={14} color="#FFF" />
+                ) : (
+                  <Ionicons name="add" size={18} color="#FFF" />
                 )}
-              </SurfaceCard>
-            )}
+              </TouchableOpacity>
+            </View>
+          )}
 
-            {/* ── Voice mode ── */}
-            {editMode === 'voice' && (
-              <SurfaceCard style={styles.contentCard}>
-                <View style={styles.voiceCenter}>
-                  {recording && (
-                    <View style={styles.recordingIndicator}>
-                      <View style={styles.recordingDot} />
-                      <Text style={[styles.recordingLabel, { color: tokens.colors.error }]}>Recording...</Text>
-                    </View>
-                  )}
-
+          {availableTracks.length === 0 && !showNewTrack ? (
+            <Text style={[styles.emptyTopics, { color: colors.textMuted }]}>
+              No topics yet. Create one to group related moments.
+            </Text>
+          ) : (
+            <View style={styles.topicList}>
+              {availableTracks.map((track) => {
+                const selected = selectedTopicIds.includes(track.id);
+                return (
                   <TouchableOpacity
+                    key={track.id}
                     style={[
-                      styles.voiceButton,
-                      recording && { backgroundColor: tokens.colors.error },
-                      transcribing && styles.buttonDisabled,
-                    ]}
-                    onPress={recording ? handleStopRecording : handleStartRecording}
-                    disabled={transcribing}
-                  >
-                    {transcribing ? (
-                      <ActivityIndicator color="#FFF" size="small" />
-                    ) : (
-                      <>
-                        <Ionicons name={recording ? 'stop' : 'mic'} size={28} color="#FFF" />
-                        <Text style={styles.voiceButtonText}>
-                          {recording
-                            ? 'Stop'
-                            : Platform.OS === 'web'
-                              ? 'Upload Audio'
-                              : 'Record'}
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-
-                  <Text style={[styles.hintText, { color: colors.textMuted }]}>
-                    {transcribing
-                      ? 'Transcribing audio...'
-                      : 'Record your thoughts and they will be transcribed into the description.'}
-                  </Text>
-                </View>
-
-                {/* Show current description preview */}
-                {editDescription ? (
-                  <View style={[styles.transcriptPreview, { backgroundColor: colors.inputBg }]}>
-                    <Text style={[styles.transcriptLabel, { color: colors.textMuted }]}>Current description</Text>
-                    <Text style={[styles.transcriptText, { color: colors.textSecondary }]} numberOfLines={6}>
-                      {editDescription}
-                    </Text>
-                  </View>
-                ) : null}
-              </SurfaceCard>
-            )}
-
-            {/* ── Text mode ── */}
-            {editMode === 'text' && (
-              <SurfaceCard style={styles.contentCard}>
-                <TextInput
-                  style={[styles.input, { color: colors.text, borderColor: colors.glass.border, backgroundColor: colors.inputBg }]}
-                  placeholder="Title (optional)"
-                  placeholderTextColor={colors.textMuted}
-                  value={editTitle}
-                  onChangeText={setEditTitle}
-                />
-                <TextInput
-                  style={[styles.input, styles.descriptionInput, { color: colors.text, borderColor: colors.glass.border, backgroundColor: colors.inputBg }]}
-                  placeholder="What did you learn?"
-                  placeholderTextColor={colors.textMuted}
-                  value={editDescription}
-                  onChangeText={setEditDescription}
-                  multiline
-                  textAlignVertical="top"
-                />
-              </SurfaceCard>
-            )}
-
-            {/* Shared: Pillars + Save/Cancel */}
-            <SurfaceCard style={styles.contentCard}>
-              <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Pillars</Text>
-              <View style={styles.editPillarsRow}>
-                {PILLARS.map((p) => (
-                  <TouchableOpacity
-                    key={p.key}
-                    style={[
-                      styles.editPillarChip,
+                      styles.topicChip,
                       {
-                        borderColor: tokens.colors.pillars[p.key],
-                        backgroundColor: editPillars.includes(p.key)
-                          ? tokens.colors.pillars[p.key]
-                          : 'transparent',
+                        borderColor: selected ? (track.color || colors.primary) : colors.border,
+                        backgroundColor: selected ? (track.color || colors.primary) + '20' : 'transparent',
                       },
                     ]}
-                    onPress={() => toggleEditPillar(p.key)}
+                    onPress={() => toggleTopic(track.id)}
                   >
-                    <Text
-                      style={[
-                        styles.editPillarText,
-                        {
-                          color: editPillars.includes(p.key)
-                            ? '#FFF'
-                            : tokens.colors.pillars[p.key],
-                        },
-                      ]}
-                    >
-                      {p.label}
+                    {selected && (
+                      <Ionicons name="checkmark" size={14} color={track.color || colors.primary} style={{ marginRight: 4 }} />
+                    )}
+                    <Text style={[
+                      styles.topicChipText,
+                      { color: selected ? (track.color || colors.primary) : colors.textSecondary },
+                    ]}>
+                      {track.name}
+                    </Text>
+                    <Text style={[styles.topicCount, { color: colors.textMuted }]}>
+                      {track.moment_count}
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </View>
+                );
+              })}
+            </View>
+          )}
+        </SurfaceCard>
 
-              <View style={styles.editActions}>
-                <TouchableOpacity
-                  onPress={() => setEditing(false)}
-                  style={[styles.cancelButton, { borderColor: colors.glass.border }]}
-                >
-                  <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.saveButton, saving && styles.buttonDisabled]}
-                  onPress={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <ActivityIndicator color="#FFF" size="small" />
-                  ) : (
-                    <Text style={styles.saveButtonText}>Save</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </SurfaceCard>
-          </>
+        {/* Links / documents */}
+        {links.length > 0 && (
+          <SurfaceCard style={styles.card}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Links</Text>
+            {links.map((link, i) => (
+              <TouchableOpacity
+                key={i}
+                style={[styles.linkRow, { borderColor: colors.border }]}
+                onPress={() => Linking.openURL(link.url).catch(() => {})}
+              >
+                <Ionicons
+                  name={link.type === 'video' ? 'play-circle-outline' : link.type === 'document' ? 'document-outline' : 'link-outline'}
+                  size={18}
+                  color={colors.primary}
+                />
+                <Text style={[styles.linkText, { color: colors.primary }]} numberOfLines={1}>
+                  {link.title || link.url}
+                </Text>
+                <Ionicons name="open-outline" size={14} color={colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </SurfaceCard>
         )}
+
+        {/* Save button */}
+        {dirty && (
+          <GlassButton
+            title="Save Changes"
+            onPress={handleSave}
+            loading={saving}
+            disabled={saving || !description.trim()}
+            size="lg"
+            icon="checkmark-outline"
+            style={styles.saveButton}
+          />
+        )}
+
+        {/* Bottom spacer */}
+        <View style={{ height: tokens.spacing.xxl + 40 }} />
       </ScrollView>
     </GlassBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    overflow: 'hidden',
-  },
+  container: { flex: 1 },
   scrollContent: {
     paddingTop: 50,
     paddingHorizontal: tokens.spacing.md,
-    paddingBottom: tokens.spacing.xxl + 40,
   },
   centered: {
     flex: 1,
@@ -803,98 +612,147 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: tokens.spacing.sm,
   },
-  backButton: {
-    padding: tokens.spacing.xs,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: tokens.spacing.md,
-  },
-  headerAction: {
-    padding: tokens.spacing.xs,
-  },
+  backButton: { padding: tokens.spacing.xs },
+  headerActions: { flexDirection: 'row', gap: tokens.spacing.md },
+  headerAction: { padding: tokens.spacing.xs },
   timestamp: {
     fontSize: tokens.typography.sizes.xs,
     fontFamily: tokens.typography.fonts.regular,
     marginBottom: tokens.spacing.md,
   },
-  title: {
-    fontSize: tokens.typography.sizes.lg,
-    fontFamily: tokens.typography.fonts.semiBold,
-    marginBottom: tokens.spacing.md,
-  },
 
   // Gallery
-  gallery: {
-    marginBottom: tokens.spacing.md,
-  },
+  gallery: { marginBottom: tokens.spacing.sm },
   galleryImage: {
-    height: IMAGE_HEIGHT,
+    height: 240,
     borderRadius: tokens.radius.lg,
-  },
-  paginationDots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: tokens.spacing.xs,
-    marginTop: tokens.spacing.sm,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    marginRight: tokens.spacing.sm,
   },
 
-  // Content
-  contentCard: {
+  // Add photo
+  addPhotoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: tokens.spacing.sm,
+    paddingVertical: tokens.spacing.sm,
+    borderRadius: tokens.radius.lg,
+    borderWidth: 1,
+    borderStyle: 'dashed',
     marginBottom: tokens.spacing.md,
   },
-  description: {
+  addPhotoText: {
+    fontSize: tokens.typography.sizes.sm,
+    fontFamily: tokens.typography.fonts.medium,
+  },
+
+  // Cards
+  card: { marginBottom: tokens.spacing.md },
+  sectionTitle: {
+    fontSize: tokens.typography.sizes.md,
+    fontFamily: tokens.typography.fonts.semiBold,
+    marginBottom: tokens.spacing.sm,
+  },
+
+  // Text inputs
+  titleInput: {
+    borderWidth: 0.5,
+    borderRadius: tokens.radius.lg,
+    padding: tokens.spacing.sm,
+    fontSize: tokens.typography.sizes.md,
+    fontFamily: tokens.typography.fonts.semiBold,
+    marginBottom: tokens.spacing.sm,
+  },
+  descriptionInput: {
+    borderWidth: 0.5,
+    borderRadius: tokens.radius.lg,
+    padding: tokens.spacing.sm,
     fontSize: tokens.typography.sizes.sm,
     fontFamily: tokens.typography.fonts.regular,
-    lineHeight: 22,
-    marginBottom: tokens.spacing.md,
+    minHeight: 100,
   },
-  pillarsRow: {
+
+  // Pillars
+  pillarRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: tokens.spacing.sm,
+    marginBottom: tokens.spacing.xs,
   },
   pillarChip: {
-    borderRadius: tokens.radius.full,
-    paddingVertical: 3,
-    paddingHorizontal: tokens.spacing.sm,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  pillarChipText: {
+  pillarSubtext: {
     fontSize: tokens.typography.sizes.xs,
-    fontFamily: tokens.typography.fonts.medium,
-    color: '#FFF',
+    fontFamily: tokens.typography.fonts.regular,
+    textAlign: 'center',
   },
 
   // Topics
-  topicsSection: {
-    marginTop: tokens.spacing.md,
-  },
-  sectionLabel: {
-    fontSize: tokens.typography.sizes.xs,
-    fontFamily: tokens.typography.fonts.semiBold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  topicHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: tokens.spacing.sm,
   },
-  topicsRow: {
+  addTopicLink: {
+    fontSize: tokens.typography.sizes.sm,
+    fontFamily: tokens.typography.fonts.semiBold,
+  },
+  newTrackRow: {
+    flexDirection: 'row',
+    gap: tokens.spacing.sm,
+    marginBottom: tokens.spacing.md,
+  },
+  newTrackInput: {
+    flex: 1,
+    borderWidth: 0.5,
+    borderRadius: tokens.radius.lg,
+    padding: tokens.spacing.sm,
+    fontSize: tokens.typography.sizes.sm,
+    fontFamily: tokens.typography.fonts.regular,
+  },
+  createTrackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTopics: {
+    fontSize: tokens.typography.sizes.sm,
+    fontFamily: tokens.typography.fonts.regular,
+    textAlign: 'center',
+    paddingVertical: tokens.spacing.md,
+  },
+  topicList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: tokens.spacing.sm,
   },
   topicChip: {
-    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
     borderRadius: tokens.radius.full,
-    paddingVertical: 3,
-    paddingHorizontal: tokens.spacing.sm,
+    paddingVertical: tokens.spacing.xs,
+    paddingHorizontal: tokens.spacing.md,
   },
   topicChipText: {
-    fontSize: tokens.typography.sizes.xs,
+    fontSize: tokens.typography.sizes.sm,
     fontFamily: tokens.typography.fonts.medium,
+  },
+  topicCount: {
+    fontSize: tokens.typography.sizes.xs,
+    fontFamily: tokens.typography.fonts.regular,
+    marginLeft: tokens.spacing.xs,
   },
 
   // Links
@@ -913,191 +771,8 @@ const styles = StyleSheet.create({
     fontFamily: tokens.typography.fonts.medium,
   },
 
-  // Mode tabs
-  modeRow: {
-    flexDirection: 'row',
-    gap: tokens.spacing.sm,
-    marginBottom: tokens.spacing.md,
-  },
-  modeButton: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: tokens.spacing.sm,
-    borderRadius: tokens.radius.lg,
-    borderWidth: 2,
-    gap: 2,
-  },
-  modeLabel: {
-    fontSize: tokens.typography.sizes.sm,
-    fontFamily: tokens.typography.fonts.regular,
-  },
-
-  // Voice
-  voiceCenter: {
-    alignItems: 'center',
-    paddingVertical: tokens.spacing.md,
-  },
-  voiceButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: tokens.spacing.sm,
-    backgroundColor: tokens.colors.primary,
-    borderRadius: tokens.radius.lg,
-    paddingVertical: tokens.spacing.md,
-    paddingHorizontal: tokens.spacing.xl,
-    marginBottom: tokens.spacing.md,
-  },
-  voiceButtonText: {
-    color: '#FFF',
-    fontSize: tokens.typography.sizes.md,
-    fontFamily: tokens.typography.fonts.semiBold,
-  },
-  recordingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: tokens.spacing.sm,
-    marginBottom: tokens.spacing.md,
-  },
-  recordingDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: tokens.colors.error,
-  },
-  recordingLabel: {
-    fontSize: tokens.typography.sizes.md,
-    fontFamily: tokens.typography.fonts.semiBold,
-  },
-  transcriptPreview: {
-    borderRadius: tokens.radius.md,
-    padding: tokens.spacing.sm,
-    marginTop: tokens.spacing.sm,
-  },
-  transcriptLabel: {
-    fontSize: tokens.typography.sizes.xs,
-    fontFamily: tokens.typography.fonts.semiBold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: tokens.spacing.xs,
-  },
-  transcriptText: {
-    fontSize: tokens.typography.sizes.sm,
-    fontFamily: tokens.typography.fonts.regular,
-    lineHeight: 20,
-  },
-  hintText: {
-    fontSize: tokens.typography.sizes.sm,
-    fontFamily: tokens.typography.fonts.regular,
-    textAlign: 'center',
-  },
-
-  // Media management
-  mediaGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: tokens.spacing.sm,
-    marginBottom: tokens.spacing.md,
-  },
-  mediaThumbnailWrapper: {
-    position: 'relative',
-  },
-  mediaThumbnail: {
-    width: 90,
-    height: 90,
-    borderRadius: tokens.radius.md,
-  },
-  fileThumbnail: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.06)',
-  },
-  fileLabel: {
-    fontSize: 10,
-    fontFamily: tokens.typography.fonts.regular,
-    marginTop: 2,
-    maxWidth: 80,
-    textAlign: 'center',
-  },
-  removeMediaButton: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: '#FFF',
-    borderRadius: 11,
-  },
-  addMediaButton: {
-    width: 90,
-    height: 90,
-    borderRadius: tokens.radius.md,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 4,
-  },
-  addMediaText: {
-    fontSize: 11,
-    fontFamily: tokens.typography.fonts.medium,
-  },
-
-  // Edit mode
-  input: {
-    borderWidth: 0.5,
-    borderRadius: tokens.radius.lg,
-    padding: tokens.spacing.sm,
-    fontSize: tokens.typography.sizes.sm,
-    fontFamily: tokens.typography.fonts.regular,
-    marginBottom: tokens.spacing.sm,
-  },
-  descriptionInput: {
-    minHeight: 120,
-  },
-  editPillarsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: tokens.spacing.sm,
-    marginBottom: tokens.spacing.md,
-  },
-  editPillarChip: {
-    borderWidth: 1.5,
-    borderRadius: tokens.radius.full,
-    paddingVertical: tokens.spacing.xs,
-    paddingHorizontal: tokens.spacing.sm,
-  },
-  editPillarText: {
-    fontSize: tokens.typography.sizes.xs,
-    fontFamily: tokens.typography.fonts.medium,
-  },
-  editActions: {
-    flexDirection: 'row',
-    gap: tokens.spacing.sm,
-    marginTop: tokens.spacing.xs,
-  },
-  cancelButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: tokens.radius.lg,
-    padding: tokens.spacing.sm,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontSize: tokens.typography.sizes.sm,
-    fontFamily: tokens.typography.fonts.semiBold,
-  },
+  // Save
   saveButton: {
-    flex: 1,
-    backgroundColor: tokens.colors.primary,
-    borderRadius: tokens.radius.lg,
-    padding: tokens.spacing.sm,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: '#FFF',
-    fontSize: tokens.typography.sizes.sm,
-    fontFamily: tokens.typography.fonts.semiBold,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
+    marginBottom: tokens.spacing.md,
   },
 });
