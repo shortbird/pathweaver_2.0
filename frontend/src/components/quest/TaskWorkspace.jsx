@@ -350,6 +350,7 @@ const TaskWorkspace = ({
 
   const handleSaveEvidence = async (newItems) => {
     let uploadFailures = 0;
+    const failureReasons = [];
 
     const processedItems = await Promise.all(
       newItems.map(async (item) => {
@@ -366,11 +367,14 @@ const TaskWorkspace = ({
                   } else {
                     logger.error('Upload failed - no URL returned');
                     uploadFailures++;
+                    failureReasons.push(uploadResult.error || 'Upload failed');
                     return null; // Mark for removal
                   }
                 } catch (err) {
                   logger.error('File upload failed:', err);
                   uploadFailures++;
+                  const reason = err.response?.data?.error || err.message || 'Upload failed';
+                  failureReasons.push(reason);
                   return null; // Mark for removal
                 }
               }
@@ -399,11 +403,12 @@ const TaskWorkspace = ({
     });
 
     if (uploadFailures > 0) {
-      toast.error(`${uploadFailures} file(s) failed to upload`);
+      const reason = failureReasons[0] || 'Unknown error';
+      toast.error(`Upload failed: ${reason}`);
     }
 
     if (validProcessedItems.length === 0 && uploadFailures > 0) {
-      toast.error('No evidence was saved due to upload failures');
+      toast.error('No evidence was saved. Please try again.');
       return;
     }
 
@@ -474,6 +479,7 @@ const TaskWorkspace = ({
     // Handle file uploads if any new files were added
     let processedBlock = updatedBlock;
     let uploadFailures = 0;
+    const failureReasons = [];
 
     if ((updatedBlock.type === 'image' || updatedBlock.type === 'document') && updatedBlock.content?.items) {
       const uploadedItems = await Promise.all(
@@ -486,11 +492,13 @@ const TaskWorkspace = ({
                 return { ...item, url: uploadResult.url, file: undefined };
               } else {
                 uploadFailures++;
+                failureReasons.push(uploadResult.error || 'Upload failed');
                 return null;
               }
             } catch (err) {
               logger.error('File upload failed:', err);
               uploadFailures++;
+              failureReasons.push(err.response?.data?.error || err.message || 'Upload failed');
               return null;
             }
           }
@@ -508,7 +516,8 @@ const TaskWorkspace = ({
     }
 
     if (uploadFailures > 0) {
-      toast.error(`${uploadFailures} file(s) failed to upload`);
+      const reason = failureReasons[0] || 'Unknown error';
+      toast.error(`Upload failed: ${reason}`);
     }
 
     const updatedBlocks = evidenceBlocks.map(block =>

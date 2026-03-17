@@ -414,26 +414,6 @@ const OrganizationSignup = () => {
             {errors.acceptedLegalTerms && (
               <p id="legal-terms-error" role="alert" className="ml-6 text-sm text-red-600">{errors.acceptedLegalTerms.message}</p>
             )}
-
-            <div className="flex items-start">
-              <input
-                {...registerField('acceptedPortfolioVisibility', {
-                  required: 'You must acknowledge that your learning portfolio will be publicly visible'
-                })}
-                type="checkbox"
-                id="acceptedPortfolioVisibility"
-                className="mt-1 h-4 w-4 text-optio-purple border-gray-300 rounded focus:ring-optio-purple"
-                aria-invalid={!!errors.acceptedPortfolioVisibility}
-                aria-describedby={errors.acceptedPortfolioVisibility ? "portfolio-visibility-error" : undefined}
-              />
-              <label htmlFor="acceptedPortfolioVisibility" className="ml-2 text-sm text-gray-700">
-                I understand that my learning portfolio (quests, evidence, and achievements) will be{' '}
-                <span className="font-semibold">publicly visible by default</span> and can be viewed by anyone with my portfolio URL. I can change this setting anytime on my Profile page.
-              </label>
-            </div>
-            {errors.acceptedPortfolioVisibility && (
-              <p id="portfolio-visibility-error" role="alert" className="ml-6 text-sm text-red-600">{errors.acceptedPortfolioVisibility.message}</p>
-            )}
           </div>
 
           <div>

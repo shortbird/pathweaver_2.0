@@ -18,7 +18,7 @@ XP_THRESHOLDS = {
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
 MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB for images
-MAX_DOCUMENT_SIZE = 10 * 1024 * 1024  # 10MB for documents (PDFs, etc.)
+MAX_DOCUMENT_SIZE = 25 * 1024 * 1024  # 25MB for documents (PDFs, etc.)
 
 # Allowed File Extensions (by type)
 ALLOWED_FILE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.pdf', '.mp4', '.doc', '.docx', '.txt', '.webp', '.mov', '.webm', '.mp3', '.wav', '.ogg', '.heic', '.heif', '.tiff', '.tif', '.bmp', '.avif', '.jfif'}
