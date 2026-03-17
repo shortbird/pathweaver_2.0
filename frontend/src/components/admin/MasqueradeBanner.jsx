@@ -31,7 +31,7 @@ const MasqueradeBanner = ({ targetUser, onExit, inline = false, isExpanded: cont
         >
           <ExclamationTriangleIcon className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
           <span className="font-semibold text-xs sm:text-sm">
-            Masquerading as {targetUser?.display_name?.split(' ')[0] || 'User'}
+            Masquerading as {targetUser?.first_name || targetUser?.display_name?.split(' ')[0] || 'User'}
           </span>
           <ChevronUpIcon className="w-3 h-3 sm:w-4 sm:h-4" />
         </button>
@@ -61,13 +61,13 @@ const MasqueradeBanner = ({ targetUser, onExit, inline = false, isExpanded: cont
               {targetUser?.avatar_url && (
                 <img
                   src={targetUser.avatar_url}
-                  alt={`Profile picture of ${targetUser.display_name}`}
+                  alt={`Profile picture of ${`${targetUser.first_name || ''} ${targetUser.last_name || ''}`.trim() || targetUser.display_name || 'User'}`}
                   className="w-8 h-8 rounded-full border-2 border-white"
                 />
               )}
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-sm truncate">
-                  {targetUser?.display_name || targetUser?.email}
+                  {`${targetUser?.first_name || ''} ${targetUser?.last_name || ''}`.trim() || targetUser?.display_name || targetUser?.email}
                 </div>
                 <div className="text-xs opacity-90 bg-white/20 px-2 py-0.5 rounded inline-block mt-1">
                   {targetUser?.role || 'User'}

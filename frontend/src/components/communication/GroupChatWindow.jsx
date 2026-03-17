@@ -144,8 +144,8 @@ const GroupChatWindow = ({ group, onBack }) => {
           messages.map((msg, index) => {
             const isOwn = msg.sender_id === user?.id
             const showAvatar = index === 0 || messages[index - 1]?.sender_id !== msg.sender_id
-            const senderName = msg.sender?.display_name ||
-              `${msg.sender?.first_name || ''} ${msg.sender?.last_name || ''}`.trim() || 'Unknown'
+            const senderName = `${msg.sender?.first_name || ''} ${msg.sender?.last_name || ''}`.trim() ||
+              msg.sender?.display_name || 'Unknown'
 
             return (
               <div

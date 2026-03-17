@@ -35,11 +35,11 @@ bp = Blueprint('admin_course_quest_management', __name__, url_prefix='/api/admin
 
 
 @bp.route('/quests/create-course-quest', methods=['POST'])
-@require_advisor
+@require_admin
 def create_course_quest(user_id):
     """
     Create a new course quest with preset tasks.
-    Advisors create unpublished drafts; admins can publish immediately.
+    Superadmin only - course management restricted to superadmin.
 
     Request body:
     {

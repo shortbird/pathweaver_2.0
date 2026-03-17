@@ -58,8 +58,8 @@ const LoginPage = () => {
           logger.debug('[LoginPage] User already authenticated with pending invitation, handling redirect')
           const acceptResult = await handlePendingObserverInvitation()
           if (acceptResult && acceptResult.status === 'success') {
-            logger.debug('[LoginPage] Observer invitation accepted, redirecting to observer feed')
-            navigate('/observer/feed', { replace: true, state: { freshInvitation: true } })
+            logger.debug('[LoginPage] Observer invitation accepted, redirecting to observer welcome')
+            navigate('/observer/welcome', { replace: true })
             return
           }
         }
@@ -91,8 +91,9 @@ const LoginPage = () => {
   // Show account selection screen if already authenticated and not switching
   if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
     const displayName = user.first_name || user.display_name || user.email || 'User'
+    const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
     const defaultPath = user.role === 'parent' ? '/parent/dashboard'
-      : user.role === 'observer' ? '/observer/feed'
+      : user.role === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
       : '/dashboard'
     const redirectPath = fromPath || defaultPath
 

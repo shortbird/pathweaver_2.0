@@ -229,8 +229,8 @@ const PublicEvidenceReport = () => {
 
       // Get student name for PDF header
       const student = reportData?.student;
-      const pdfStudentName = student?.display_name ||
-        `${student?.first_name || ''} ${student?.last_name || ''}`.trim() ||
+      const pdfStudentName = `${student?.first_name || ''} ${student?.last_name || ''}`.trim() ||
+        student?.display_name ||
         'Student';
 
       // Generate document-style HTML content (tables, no website styling)
@@ -330,8 +330,8 @@ const PublicEvidenceReport = () => {
   const { report, student, achievements, xp_summary, skills_breakdown, learning_events } = reportData || {};
 
   // Get student display name
-  const studentName = student?.display_name ||
-    `${student?.first_name || ''} ${student?.last_name || ''}`.trim() ||
+  const studentName = `${student?.first_name || ''} ${student?.last_name || ''}`.trim() ||
+    student?.display_name ||
     'Student';
 
   return (

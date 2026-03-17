@@ -118,7 +118,8 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
   // Get child ID - could be 'id' (dependent) or 'student_id' (linked student)
   const childId = childData.id || childData.student_id
   // Get child name - handle different field names for dependents vs linked students
-  const childName = childData.display_name || childData.student_name ||
+  const childName = `${childData.first_name || ''} ${childData.last_name || ''}`.trim() ||
+    childData.display_name || childData.student_name ||
     (childData.student_first_name ? `${childData.student_first_name} ${childData.student_last_name || ''}`.trim() : null) ||
     'Child'
   const firstName = childName.split(' ')[0]
@@ -755,7 +756,7 @@ const DependentSettingsModal = ({ isOpen, onClose, dependent, child, isDependent
                               )}
                             </div>
                             <p className="font-medium text-gray-900 text-sm">
-                              {observer.observer?.display_name || observer.observer?.email || 'Observer'}
+                              {`${observer.observer?.first_name || ''} ${observer.observer?.last_name || ''}`.trim() || observer.observer?.display_name || observer.observer?.email || 'Observer'}
                             </p>
                           </div>
                           <button

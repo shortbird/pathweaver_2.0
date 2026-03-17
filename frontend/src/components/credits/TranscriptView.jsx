@@ -67,7 +67,7 @@ const TranscriptView = ({ userId }) => {
           <h1 className="text-4xl font-bold mb-2">Academic Transcript</h1>
         </div>
         <div className="text-xl font-semibold text-gray-900 dark:text-white mt-4">
-          {user_info?.display_name || user_info?.first_name || 'Student'}
+          {`${user_info?.first_name || ''} ${user_info?.last_name || ''}`.trim() || user_info?.display_name || 'Student'}
         </div>
         <div className="text-sm text-gray-600 dark:text-gray-400">
           {user_info?.email}

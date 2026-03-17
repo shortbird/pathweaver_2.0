@@ -68,7 +68,7 @@ export function normalizeContact(contact, source) {
     case 'friend':
       // From friendsAPI.getFriends() - direct user object
       userId = contact.id
-      displayName = contact.display_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim()
+      displayName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || contact.display_name
       firstName = contact.first_name
       lastName = contact.last_name
       avatarUrl = contact.avatar_url
@@ -80,7 +80,7 @@ export function normalizeContact(contact, source) {
       // From observerAPI.getMyObservers() - nested observer object
       const observer = contact.observer || contact
       userId = observer.id
-      displayName = `${observer.first_name || ''} ${observer.last_name || ''}`.trim()
+      displayName = `${observer.first_name || ''} ${observer.last_name || ''}`.trim() || observer.display_name
       firstName = observer.first_name
       lastName = observer.last_name
       avatarUrl = observer.avatar_url
@@ -91,7 +91,7 @@ export function normalizeContact(contact, source) {
     case 'child':
       // From parentAPI.getMyChildren() - prefixed fields
       userId = contact.student_id
-      displayName = contact.student_display_name || `${contact.student_first_name || ''} ${contact.student_last_name || ''}`.trim()
+      displayName = `${contact.student_first_name || ''} ${contact.student_last_name || ''}`.trim() || contact.student_display_name
       firstName = contact.student_first_name
       lastName = contact.student_last_name
       avatarUrl = contact.student_avatar_url
@@ -102,7 +102,7 @@ export function normalizeContact(contact, source) {
     case 'advisor_contact':
       // From useMessagingContacts - direct object with relationship field
       userId = contact.id
-      displayName = contact.display_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim()
+      displayName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || contact.display_name
       firstName = contact.first_name
       lastName = contact.last_name
       avatarUrl = contact.avatar_url
@@ -114,7 +114,7 @@ export function normalizeContact(contact, source) {
       // From existing conversation - other_user nested object
       const otherUser = contact.other_user || contact
       userId = otherUser.id
-      displayName = otherUser.display_name || `${otherUser.first_name || ''} ${otherUser.last_name || ''}`.trim()
+      displayName = `${otherUser.first_name || ''} ${otherUser.last_name || ''}`.trim() || otherUser.display_name
       firstName = otherUser.first_name
       lastName = otherUser.last_name
       avatarUrl = otherUser.avatar_url
@@ -125,7 +125,7 @@ export function normalizeContact(contact, source) {
     default:
       // Generic fallback
       userId = contact.id
-      displayName = contact.display_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim()
+      displayName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || contact.display_name
       firstName = contact.first_name
       lastName = contact.last_name
       avatarUrl = contact.avatar_url

@@ -22,7 +22,7 @@ function AssignStudentsModal({
 
   return (
     <Modal
-      title={`Assign Students to ${selectedAdvisor?.display_name || selectedAdvisor?.first_name}`}
+      title={`Assign Students to ${selectedAdvisor?.first_name || selectedAdvisor?.display_name || 'Advisor'}`}
       onClose={onClose}
     >
       <div className="px-6 py-4 border-b">
@@ -88,7 +88,7 @@ function AssignStudentsModal({
                 </div>
                 <div className="flex-1">
                   <p className="font-medium text-gray-900">
-                    {student.display_name || `${student.first_name} ${student.last_name}`}
+                    {`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || 'Student'}
                   </p>
                   <p className="text-sm text-gray-500">{student.email}</p>
                   {!showUnassignedOnly && student.advisor_count > 0 && (

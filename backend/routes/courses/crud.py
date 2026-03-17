@@ -62,7 +62,7 @@ def register_routes(bp):
                 else:
                     # User has no org - show only public published courses
                     query = client.table('courses').select('*').eq('visibility', 'public').eq('status', 'published')
-            elif filter_mode == 'admin_all' and user_role in ['superadmin', 'org_admin', 'advisor']:
+            elif filter_mode == 'admin_all' and user_role == 'superadmin':
                 # For org admins managing course availability - show all courses they could potentially access:
                 # 1. All courses from their own org (any status)
                 # 2. All published courses from other orgs (for toggling availability)
@@ -175,7 +175,7 @@ def register_routes(bp):
             user_id = session_manager.get_effective_user_id()
             client = get_supabase_admin_client()  # Use admin client to bypass RLS
 
-            # Check user role (admin, org_admin, or advisor)
+            # Check user role (superadmin only)
             user_result = client.table('users').select('organization_id, role, org_role').eq('id', user_id).execute()
             if not user_result.data:
                 return jsonify({'error': 'User not found'}), 404
@@ -183,9 +183,9 @@ def register_routes(bp):
             user_data = user_result.data[0]
             effective_role = get_effective_role(user_data)
             logger.info(f"[CREATE_COURSE] User {user_id}: role={user_data.get('role')}, org_role={user_data.get('org_role')}, effective_role={effective_role}")
-            if effective_role not in ['superadmin', 'org_admin', 'advisor']:
+            if effective_role != 'superadmin':
                 logger.warning(f"[CREATE_COURSE] Permission denied for user {user_id}: effective_role={effective_role}")
-                return jsonify({'error': 'Insufficient permissions. Must be org_admin or advisor.'}), 403
+                return jsonify({'error': 'Insufficient permissions. Only superadmin can create courses.'}), 403
 
             data = request.json
             if not data or not data.get('title'):
@@ -290,13 +290,9 @@ def register_routes(bp):
             user_data = user_result.data[0]
             effective_role = get_effective_role(user_data)
 
-            # Must be creator or admin/org_admin/advisor in same org
-            is_creator = course['created_by'] == user_id
-            has_admin_role = effective_role in ['superadmin', 'org_admin', 'advisor']
-            is_admin = has_admin_role and (effective_role == 'superadmin' or user_data['organization_id'] == course['organization_id'])
-
-            if not (is_creator or is_admin):
-                return jsonify({'error': 'Insufficient permissions'}), 403
+            # Only superadmin can manage courses
+            if effective_role != 'superadmin':
+                return jsonify({'error': 'Insufficient permissions. Only superadmin can manage courses.'}), 403
 
             data = request.json
             if not data:
@@ -396,13 +392,9 @@ def register_routes(bp):
             user_data = user_result.data[0]
             effective_role = get_effective_role(user_data)
 
-            # Must be creator or admin/org_admin/advisor in same org
-            is_creator = course['created_by'] == user_id
-            has_admin_role = effective_role in ['superadmin', 'org_admin', 'advisor']
-            is_admin = has_admin_role and (effective_role == 'superadmin' or user_data['organization_id'] == course['organization_id'])
-
-            if not (is_creator or is_admin):
-                return jsonify({'error': 'Insufficient permissions'}), 403
+            # Only superadmin can manage courses
+            if effective_role != 'superadmin':
+                return jsonify({'error': 'Insufficient permissions. Only superadmin can manage courses.'}), 403
 
             # Get projects (quests) for this course
             quests_result = client.table('course_quests').select(
@@ -481,12 +473,10 @@ def register_routes(bp):
 
             user_data = user_result.data[0]
             effective_role = get_effective_role(user_data)
-            is_creator = course['created_by'] == user_id
-            has_admin_role = effective_role in ['superadmin', 'org_admin', 'advisor']
-            is_admin = has_admin_role and (effective_role == 'superadmin' or user_data['organization_id'] == course['organization_id'])
 
-            if not (is_creator or is_admin):
-                return jsonify({'error': 'Insufficient permissions'}), 403
+            # Only superadmin can manage courses
+            if effective_role != 'superadmin':
+                return jsonify({'error': 'Insufficient permissions. Only superadmin can manage courses.'}), 403
 
             if 'image' not in request.files:
                 return jsonify({'error': 'No file provided'}), 400
@@ -551,12 +541,10 @@ def register_routes(bp):
 
             user_data = user_result.data[0]
             effective_role = get_effective_role(user_data)
-            is_creator = quest['created_by'] == user_id
-            has_admin_role = effective_role in ['superadmin', 'org_admin', 'advisor']
-            is_admin = has_admin_role and (effective_role == 'superadmin' or user_data['organization_id'] == quest['organization_id'])
 
-            if not (is_creator or is_admin):
-                return jsonify({'error': 'Insufficient permissions'}), 403
+            # Only superadmin can manage courses
+            if effective_role != 'superadmin':
+                return jsonify({'error': 'Insufficient permissions. Only superadmin can manage courses.'}), 403
 
             if 'image' not in request.files:
                 return jsonify({'error': 'No file provided'}), 400
@@ -627,13 +615,9 @@ def register_routes(bp):
             user_data = user_result.data[0]
             effective_role = get_effective_role(user_data)
 
-            # Must be creator or admin/org_admin/advisor in same org
-            is_creator = course['created_by'] == user_id
-            has_admin_role = effective_role in ['superadmin', 'org_admin', 'advisor']
-            is_admin = has_admin_role and (effective_role == 'superadmin' or user_data['organization_id'] == course['organization_id'])
-
-            if not (is_creator or is_admin):
-                return jsonify({'error': 'Insufficient permissions'}), 403
+            # Only superadmin can manage courses
+            if effective_role != 'superadmin':
+                return jsonify({'error': 'Insufficient permissions. Only superadmin can manage courses.'}), 403
 
             # End user quest enrollments BEFORE deleting (to prevent orphans)
             # We need to do this before cascade deletes course_quests and course_enrollments

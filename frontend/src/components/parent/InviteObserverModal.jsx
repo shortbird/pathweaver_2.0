@@ -196,8 +196,8 @@ const InviteObserverModal = ({ isOpen, onClose, studentId, studentName, onSucces
             </h4>
             <div className="space-y-2">
               {observers.map(obs => {
-                const observerName = obs.observer?.display_name ||
-                  `${obs.observer?.first_name || ''} ${obs.observer?.last_name || ''}`.trim() ||
+                const observerName = `${obs.observer?.first_name || ''} ${obs.observer?.last_name || ''}`.trim() ||
+                  obs.observer?.display_name ||
                   obs.observer?.email ||
                   'Observer';
                 return (

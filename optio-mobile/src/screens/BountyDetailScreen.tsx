@@ -16,7 +16,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { tokens, PillarKey } from '../theme/tokens';
-import { GlassCard } from '../components/common/GlassCard';
+import { SurfaceCard } from '../components/common/SurfaceCard';
 import { useAuthStore } from '../stores/authStore';
 import { useBountyStore, Bounty, BountyClaim } from '../stores/bountyStore';
 import api from '../services/api';
@@ -112,7 +112,7 @@ export function BountyDetailScreen() {
       </TouchableOpacity>
 
       {/* Bounty Info */}
-      <GlassCard style={styles.card}>
+      <SurfaceCard style={styles.card}>
         <View style={styles.headerRow}>
           <View style={[styles.pillarBadge, { backgroundColor: pillarColor }]}>
             <Text style={styles.pillarBadgeText}>
@@ -151,11 +151,11 @@ export function BountyDetailScreen() {
             <Text style={styles.rewardText}>{bounty.sponsored_reward}</Text>
           </View>
         )}
-      </GlassCard>
+      </SurfaceCard>
 
       {/* Claim / Submit Section (students only) */}
       {isStudent && isActive && (
-        <GlassCard style={styles.card}>
+        <SurfaceCard style={styles.card}>
           {!myClaim ? (
             <>
               <Text style={styles.sectionTitle}>Ready to take this on?</Text>
@@ -246,15 +246,15 @@ export function BountyDetailScreen() {
               </TouchableOpacity>
             </>
           ) : null}
-        </GlassCard>
+        </SurfaceCard>
       )}
 
       {!isActive && (
-        <GlassCard style={styles.card}>
+        <SurfaceCard style={styles.card}>
           <Text style={styles.inactiveText}>
             This bounty is {bounty.status === 'pending_review' ? 'pending moderation' : bounty.status}.
           </Text>
-        </GlassCard>
+        </SurfaceCard>
       )}
     </ScrollView>
   );
@@ -263,6 +263,7 @@ export function BountyDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    overflow: 'hidden',
     backgroundColor: tokens.colors.background,
   },
   scrollContent: {

@@ -9,8 +9,8 @@ import CreditReviewQueue from '../components/advisor/CreditReviewQueue';
 
 // Helper function to get student display name with fallback
 const getStudentName = (student) => {
-  return student.display_name ||
-         `${student.first_name || ''} ${student.last_name || ''}`.trim() ||
+  return `${student.first_name || ''} ${student.last_name || ''}`.trim() ||
+         student.display_name ||
          'Student';
 };
 

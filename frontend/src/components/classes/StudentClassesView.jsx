@@ -353,8 +353,8 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
           <div className="space-y-3">
             {advisors.map((assignment) => {
               const advisor = assignment.users || assignment
-              const name = advisor.display_name ||
-                [advisor.first_name, advisor.last_name].filter(Boolean).join(' ') ||
+              const name = [advisor.first_name, advisor.last_name].filter(Boolean).join(' ') ||
+                advisor.display_name ||
                 advisor.email
               return (
                 <div

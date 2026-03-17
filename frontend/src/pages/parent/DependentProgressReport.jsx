@@ -74,7 +74,7 @@ export default function DependentProgressReport() {
       link.href = url;
       link.setAttribute(
         'download',
-        `${student.display_name}_progress_report_${dateRange}.${format}`
+        `${`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name}_progress_report_${dateRange}.${format}`
       );
       document.body.appendChild(link);
       link.click();
@@ -137,7 +137,7 @@ export default function DependentProgressReport() {
               </button>
               <div>
                 <h1 className="text-3xl font-bold">
-                  {student?.display_name || 'Student'}'s Progress Report
+                  {`${student?.first_name || ''} ${student?.last_name || ''}`.trim() || student?.display_name || 'Student'}'s Progress Report
                 </h1>
                 <p className="mt-1 text-white/90">
                   Viewing {DATE_RANGES.find((r) => r.value === dateRange)?.label}
@@ -171,7 +171,7 @@ export default function DependentProgressReport() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                {student?.display_name || 'Student'}'s Progress Report
+                {`${student?.first_name || ''} ${student?.last_name || ''}`.trim() || student?.display_name || 'Student'}'s Progress Report
               </h1>
               <p className="text-gray-600">
                 {DATE_RANGES.find((r) => r.value === dateRange)?.label}

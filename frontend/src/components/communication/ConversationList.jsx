@@ -202,8 +202,8 @@ const ConversationList = ({
   const ConversationItem = ({ conversation }) => {
     const isSelected = selectedConversation?.id === conversation.id
     const isPinned = conversation.type === 'bot' || conversation.type === 'advisor'
-    const displayName = conversation.other_user?.display_name ||
-      `${conversation.other_user?.first_name} ${conversation.other_user?.last_name}`
+    const displayName = `${conversation.other_user?.first_name || ''} ${conversation.other_user?.last_name || ''}`.trim() ||
+      conversation.other_user?.display_name || 'Unknown'
     const initial = displayName?.charAt(0)?.toUpperCase() || '?'
 
     // Get primary relationship for badge

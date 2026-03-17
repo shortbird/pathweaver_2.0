@@ -153,8 +153,9 @@ def upload_evidence(user_id):
             )
             
             # Get public URL for the uploaded file
-            url_response = supabase.storage.from_('quest-evidence').get_public_url(unique_filename)
-            
+            from utils.storage_url import fix_storage_url
+            url_response = fix_storage_url(supabase.storage.from_('quest-evidence').get_public_url(unique_filename))
+
             uploaded_files.append({
                 'original_name': file.filename,
                 'stored_name': unique_filename,
@@ -257,8 +258,9 @@ def upload_evidence_base64(user_id):
             )
             
             # Get public URL for the uploaded file
-            url_response = supabase.storage.from_('quest-evidence').get_public_url(unique_filename)
-            
+            from utils.storage_url import fix_storage_url
+            url_response = fix_storage_url(supabase.storage.from_('quest-evidence').get_public_url(unique_filename))
+
             uploaded_files.append({
                 'original_name': filename,
                 'stored_name': unique_filename,

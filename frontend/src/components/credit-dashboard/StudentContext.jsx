@@ -74,11 +74,11 @@ const StudentContext = ({ context, loading }) => {
           <img src={student.avatar_url} alt="" className="w-10 h-10 rounded-full" />
         ) : (
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center text-white font-medium text-sm">
-            {(student.display_name || '?')[0].toUpperCase()}
+            {(`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || '?')[0].toUpperCase()}
           </div>
         )}
         <div>
-          <p className="font-medium text-sm text-gray-900">{student.display_name}</p>
+          <p className="font-medium text-sm text-gray-900">{`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || 'Student'}</p>
           <p className="text-xs text-gray-500">{totalCredits.toFixed(1)} / 24 credits ({progressPercent.toFixed(0)}%)</p>
         </div>
       </div>

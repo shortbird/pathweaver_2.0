@@ -185,8 +185,9 @@ export const AuthProvider = ({ children }) => {
       }
 
       // Redirect based on user role
+      const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
       const redirectPath = loginUser.role === 'parent' ? '/parent/dashboard'
-        : loginUser.role === 'observer' ? '/observer/feed'
+        : loginUser.role === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
         : '/dashboard'
       navigate(redirectPath)
 
@@ -277,8 +278,9 @@ export const AuthProvider = ({ children }) => {
       }
 
       // Redirect based on user role
+      const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
       const redirectPath = loginUser.role === 'parent' ? '/parent/dashboard'
-        : loginUser.role === 'observer' ? '/observer/feed'
+        : loginUser.role === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
         : '/dashboard'
       navigate(redirectPath)
 
@@ -383,7 +385,7 @@ export const AuthProvider = ({ children }) => {
 
         // Redirect based on user role
         const redirectPath = user.role === 'parent' ? '/parent/dashboard'
-          : user.role === 'observer' ? '/observer/feed'
+          : user.role === 'observer' ? '/observer/welcome'
           : '/dashboard'
         navigate(redirectPath)
       } else {

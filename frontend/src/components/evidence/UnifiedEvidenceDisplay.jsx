@@ -59,7 +59,7 @@ const UnifiedEvidenceDisplay = ({
         import('../../services/api').then(({ default: api }) => {
           api.get(`/users/${owner_user_id}/profile`)
             .then(response => {
-              const name = response.data.display_name || response.data.first_name || 'This student';
+              const name = `${response.data.first_name || ''} ${response.data.last_name || ''}`.trim() || response.data.display_name || 'This student';
               setStudentName(name);
             })
             .catch(() => {

@@ -9,8 +9,8 @@ export default function StudentProgressCard({ enrollment, xpThreshold, onWithdra
   const progress = enrollment.progress || {}
 
   const displayName =
-    student.display_name ||
     `${student.first_name || ''} ${student.last_name || ''}`.trim() ||
+    student.display_name ||
     student.email ||
     'Unknown Student'
 

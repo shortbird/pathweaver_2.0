@@ -159,7 +159,7 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
           <span className="text-sm text-gray-500">{item.xp_value} XP</span>
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-500">
-          <span>{student.display_name}</span>
+          <span>{`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || 'Student'}</span>
           <span>in</span>
           <span className="font-medium">{quest.title || 'Unknown Quest'}</span>
         </div>

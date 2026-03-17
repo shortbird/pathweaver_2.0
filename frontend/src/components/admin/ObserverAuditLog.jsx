@@ -332,14 +332,14 @@ const ObserverAuditLog = () => {
                   {/* Observer -> Student */}
                   <div className="flex items-center gap-3 mb-3">
                     <div className="flex-1">
-                      <div className="font-medium text-gray-900">{log.observer?.display_name || 'Unknown'}</div>
+                      <div className="font-medium text-gray-900">{`${log.observer?.first_name || ''} ${log.observer?.last_name || ''}`.trim() || log.observer?.display_name || 'Unknown'}</div>
                       <div className="text-xs text-gray-500">{log.observer?.email}</div>
                     </div>
                     <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                     <div className="flex-1 text-right">
-                      <div className="font-medium text-gray-900">{log.student?.display_name || 'Unknown'}</div>
+                      <div className="font-medium text-gray-900">{`${log.student?.first_name || ''} ${log.student?.last_name || ''}`.trim() || log.student?.display_name || 'Unknown'}</div>
                       <div className="text-xs text-gray-500">{log.student?.email}</div>
                     </div>
                   </div>
@@ -406,7 +406,7 @@ const ObserverAuditLog = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div>
                         <div className="font-medium text-gray-900">
-                          {log.observer?.display_name || 'Unknown'}
+                          {`${log.observer?.first_name || ''} ${log.observer?.last_name || ''}`.trim() || log.observer?.display_name || 'Unknown'}
                         </div>
                         <div className="text-gray-500 text-xs">{log.observer?.email}</div>
                       </div>
@@ -414,7 +414,7 @@ const ObserverAuditLog = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div>
                         <div className="font-medium text-gray-900">
-                          {log.student?.display_name || 'Unknown'}
+                          {`${log.student?.first_name || ''} ${log.student?.last_name || ''}`.trim() || log.student?.display_name || 'Unknown'}
                         </div>
                         <div className="text-gray-500 text-xs">{log.student?.email}</div>
                       </div>

@@ -35,7 +35,7 @@ const InvitationCard = ({ invitation, onAccept, onDecline, isLoading }) => {
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <span>Invited by</span>
               <span className="font-semibold text-optio-purple">
-                {invited_by?.display_name || invited_by?.first_name || 'Advisor'}
+                {`${invited_by?.first_name || ''} ${invited_by?.last_name || ''}`.trim() || invited_by?.display_name || 'Advisor'}
               </span>
               <span>•</span>
               <span>{formatDate(created_at)}</span>

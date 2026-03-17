@@ -86,7 +86,7 @@ const ParentMessageViewer = ({ studentId, conversation, onBack }) => {
       return message.role === 'user' ? 'Student' : 'AI Tutor';
     }
     const sender = message.sender || {};
-    return sender.display_name || `${sender.first_name || ''} ${sender.last_name || ''}`.trim() || 'Unknown';
+    return `${sender.first_name || ''} ${sender.last_name || ''}`.trim() || sender.display_name || 'Unknown';
   };
 
   const isStudentMessage = (message) => {

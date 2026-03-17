@@ -102,7 +102,7 @@ const CommentModal = ({ isOpen, onClose, completionItem, onCommentPosted }) => {
           <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
             <p className="text-sm text-gray-600">
               Commenting on <span className="font-semibold text-gray-900">{completionItem.task?.title}</span>
-              {' '}by {completionItem.student?.display_name}
+              {' '}by {`${completionItem.student?.first_name || ''} ${completionItem.student?.last_name || ''}`.trim() || completionItem.student?.display_name}
             </p>
           </div>
         )}
@@ -175,8 +175,8 @@ const CommentModal = ({ isOpen, onClose, completionItem, onCommentPosted }) => {
                 <div key={c.id} className="bg-gray-50 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium text-gray-900 text-sm">
-                      {c.observer?.display_name ||
-                        `${c.observer?.first_name || ''} ${c.observer?.last_name || ''}`.trim() ||
+                      {`${c.observer?.first_name || ''} ${c.observer?.last_name || ''}`.trim() ||
+                        c.observer?.display_name ||
                         'Observer'}
                     </span>
                     <span className="text-xs text-gray-400">

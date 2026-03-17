@@ -117,8 +117,8 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
     if (!searchQuery.trim()) return members
     const query = searchQuery.toLowerCase().trim()
     return members.filter(m => {
-      const name = m.user?.display_name ||
-        `${m.user?.first_name || ''} ${m.user?.last_name || ''}`.trim()
+      const name = `${m.user?.first_name || ''} ${m.user?.last_name || ''}`.trim() ||
+        m.user?.display_name
       return name.toLowerCase().includes(query)
     })
   }, [members, searchQuery])
@@ -128,7 +128,7 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
     if (!searchQuery.trim()) return availableMembers
     const query = searchQuery.toLowerCase().trim()
     return availableMembers.filter(m => {
-      const name = m.display_name || `${m.first_name || ''} ${m.last_name || ''}`.trim()
+      const name = `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.display_name
       return name.toLowerCase().includes(query)
     })
   }, [availableMembers, searchQuery])
@@ -216,8 +216,8 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
                   {filteredAvailable.length > 0 ? (
                     <div className="border border-gray-200 rounded-lg divide-y">
                       {filteredAvailable.map(member => {
-                        const name = member.display_name ||
-                          `${member.first_name || ''} ${member.last_name || ''}`.trim() || 'Unknown'
+                        const name = `${member.first_name || ''} ${member.last_name || ''}`.trim() ||
+                          member.display_name || 'Unknown'
                         return (
                           <div
                             key={member.id}
@@ -262,8 +262,8 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
                 <div className="border border-gray-200 rounded-lg divide-y">
                   {filteredMembers.map(member => {
                     const memberUser = member.user || {}
-                    const name = memberUser.display_name ||
-                      `${memberUser.first_name || ''} ${memberUser.last_name || ''}`.trim() || 'Unknown'
+                    const name = `${memberUser.first_name || ''} ${memberUser.last_name || ''}`.trim() ||
+                      memberUser.display_name || 'Unknown'
                     const isCurrentUser = member.user_id === user?.id
                     const isMemberAdmin = member.role === 'admin'
 

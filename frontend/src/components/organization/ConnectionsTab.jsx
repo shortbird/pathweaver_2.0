@@ -132,7 +132,7 @@ export default function ConnectionsTab({ orgId }) {
       {/* Student Advisors Modal */}
       {state.showStudentAdvisorsModal && state.selectedStudentForAdvisors && (
         <Modal
-          title={`Advisors for ${state.selectedStudentForAdvisors.display_name || `${state.selectedStudentForAdvisors.first_name} ${state.selectedStudentForAdvisors.last_name}`}`}
+          title={`Advisors for ${`${state.selectedStudentForAdvisors.first_name || ''} ${state.selectedStudentForAdvisors.last_name || ''}`.trim() || state.selectedStudentForAdvisors.display_name || 'Student'}`}
           onClose={() => {
             state.setShowStudentAdvisorsModal(false)
             state.setSelectedStudentForAdvisors(null)
@@ -153,7 +153,7 @@ export default function ConnectionsTab({ orgId }) {
                 {state.selectedStudentForAdvisors.advisors.map(advisor => (
                   <div key={advisor.assignment_id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
                     <div>
-                      <p className="font-medium text-gray-900">{advisor.display_name}</p>
+                      <p className="font-medium text-gray-900">{`${advisor.first_name || ''} ${advisor.last_name || ''}`.trim() || advisor.display_name || 'Unknown'}</p>
                       <p className="text-sm text-gray-500">{advisor.email}</p>
                       <p className="text-xs text-gray-400 mt-1">
                         Assigned {new Date(advisor.assigned_at).toLocaleDateString()}
@@ -163,7 +163,7 @@ export default function ConnectionsTab({ orgId }) {
                       onClick={() => state.handleUnassignAdvisorFromStudent(
                         state.selectedStudentForAdvisors.id,
                         advisor.advisor_id,
-                        advisor.display_name
+                        `${advisor.first_name || ''} ${advisor.last_name || ''}`.trim() || advisor.display_name || 'Unknown'
                       )}
                       className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
                     >

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
+import { useAuth } from '../../contexts/AuthContext'
 import QuestVisibilityManager from '../admin/QuestVisibilityManager'
 import CourseEnrollmentManager from '../admin/CourseEnrollmentManager'
 import QuestForm from '../admin/QuestForm'
@@ -14,7 +15,7 @@ const VISIBILITY_POLICY_OPTIONS = [
 ]
 
 // Course Card Component
-function CourseCard({ course, onDelete, orgId }) {
+function CourseCard({ course, onDelete, orgId, isSuperadmin }) {
   const projectCount = course.quest_count || course.project_count || 0
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showEnrollmentManager, setShowEnrollmentManager] = useState(false)
@@ -76,17 +77,19 @@ function CourseCard({ course, onDelete, orgId }) {
           <span>{projectCount} {projectCount === 1 ? 'project' : 'projects'}</span>
         </div>
 
-        {/* Actions */}
+        {/* Actions - only superadmin can edit/delete courses */}
         <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
-          <Link
-            to={`/courses/${course.id}/edit`}
-            className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity text-sm"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            Edit
-          </Link>
+          {isSuperadmin && (
+            <Link
+              to={`/courses/${course.id}/edit`}
+              className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit
+            </Link>
+          )}
           <button
             onClick={() => setShowEnrollmentManager(true)}
             className="p-1.5 text-gray-400 hover:text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
@@ -96,15 +99,17 @@ function CourseCard({ course, onDelete, orgId }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
           </button>
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            title="Delete course"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
+          {isSuperadmin && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Delete course"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -324,6 +329,8 @@ function CreateCourseModal({ orgId, navigate, onClose }) {
 
 export default function ContentTab({ orgId, orgData, onUpdate, siteSettings }) {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isSuperadmin = user?.role === 'superadmin'
   const [contentView, setContentView] = useState('quests') // 'quests' | 'courses' | 'availability'
 
   // Visibility policy state
@@ -528,15 +535,17 @@ export default function ContentTab({ orgId, orgData, onUpdate, siteSettings }) {
                 onChange={(e) => setCourseSearchTerm(e.target.value)}
                 className="border border-gray-200 rounded-lg px-3 py-2 w-56 text-sm focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
               />
-              <button
-                onClick={() => setShowCreateCourseModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity text-sm"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Create Course
-              </button>
+              {isSuperadmin && (
+                <button
+                  onClick={() => setShowCreateCourseModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity text-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Create Course
+                </button>
+              )}
             </div>
           </div>
 
@@ -551,7 +560,7 @@ export default function ContentTab({ orgId, orgData, onUpdate, siteSettings }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
               <p className="text-gray-500">
-                {courseSearchTerm ? 'No courses match your search' : 'No courses yet. Click "Create Course" to get started.'}
+                {courseSearchTerm ? 'No courses match your search' : 'No courses yet.'}
               </p>
             </div>
           ) : (
@@ -561,6 +570,7 @@ export default function ContentTab({ orgId, orgData, onUpdate, siteSettings }) {
                   key={course.id}
                   course={course}
                   orgId={orgId}
+                  isSuperadmin={isSuperadmin}
                   onDelete={(id) => setCourses(prev => prev.filter(c => c.id !== id))}
                 />
               ))}

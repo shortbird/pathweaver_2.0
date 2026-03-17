@@ -55,13 +55,9 @@ def register_routes(bp):
             user_data = user_result.data[0]
             effective_role = get_effective_role(user_data)
 
-            # Must be creator or admin/org_admin/advisor in same org
-            is_creator = course['created_by'] == user_id
-            has_admin_role = effective_role in ['superadmin', 'org_admin', 'advisor']
-            is_admin = has_admin_role and (effective_role == 'superadmin' or user_data['organization_id'] == course['organization_id'])
-
-            if not (is_creator or is_admin):
-                return jsonify({'error': 'Insufficient permissions'}), 403
+            # Only superadmin can manage courses
+            if effective_role != 'superadmin':
+                return jsonify({'error': 'Insufficient permissions. Only superadmin can manage courses.'}), 403
 
             data = request.json or {}
             badge_id = course.get('badge_id')

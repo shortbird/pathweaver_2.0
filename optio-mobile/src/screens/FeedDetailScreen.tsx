@@ -19,7 +19,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { tokens, PillarKey } from '../theme/tokens';
-import { GlassCard } from '../components/common/GlassCard';
+import { SurfaceCard } from '../components/common/SurfaceCard';
 import { GlassBackground } from '../components/common/GlassBackground';
 import { ReactionBar } from '../components/feed/ReactionBar';
 import { useAuthStore } from '../stores/authStore';
@@ -222,7 +222,7 @@ export function FeedDetailScreen() {
         )}
 
         {/* Content card */}
-        <GlassCard style={styles.contentCard}>
+        <SurfaceCard style={styles.contentCard}>
           {isTaskCompleted && item.task ? (
             <>
               {item.quest ? (
@@ -323,18 +323,18 @@ export function FeedDetailScreen() {
               ))}
             </View>
           )}
-        </GlassCard>
+        </SurfaceCard>
 
         {/* Reactions */}
-        <GlassCard style={styles.reactionsCard}>
+        <SurfaceCard style={styles.reactionsCard}>
           <ReactionBar
             targetType={isTaskCompleted ? 'completion' : 'learning_event'}
             targetId={entityId}
           />
-        </GlassCard>
+        </SurfaceCard>
 
         {/* Comments */}
-        <GlassCard style={styles.commentsCard}>
+        <SurfaceCard style={styles.commentsCard}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Comments ({comments.length})
           </Text>
@@ -390,7 +390,7 @@ export function FeedDetailScreen() {
               )}
             </TouchableOpacity>
           </View>
-        </GlassCard>
+        </SurfaceCard>
       </ScrollView>
     </GlassBackground>
   );
@@ -412,6 +412,7 @@ function getTimeAgo(date: Date): string {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    overflow: 'hidden',
   },
   scrollContent: {
     paddingTop: 50,

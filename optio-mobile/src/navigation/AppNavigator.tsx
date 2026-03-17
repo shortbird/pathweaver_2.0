@@ -12,6 +12,8 @@ import React from 'react';
 import { View, Text, StyleSheet, Platform, TouchableOpacity, Dimensions } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,6 +36,8 @@ import { FeedDetailScreen } from '../screens/FeedDetailScreen';
 import { JournalDetailScreen } from '../screens/JournalDetailScreen';
 
 import { useAuthStore } from '../stores/authStore';
+import { useOnboardingStore } from '../stores/onboardingStore';
+import { OnboardingScreen } from '../screens/OnboardingScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -111,10 +115,22 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 
   return (
     <View style={[styles.tabBarOuter, { height: containerH }]}>
-      {/* SVG background with arc */}
+      {/* Glass background with arc shape */}
       <Svg width={SCREEN_W} height={svgTotalH} style={styles.tabBarSvg}>
         <Path d={notchedBarPath(SCREEN_W, svgTotalH)} fill={colors.tabBar} />
       </Svg>
+
+      {/* Glass blur overlay on the tab bar area */}
+      {Platform.OS !== 'web' ? (
+        <View style={[styles.tabBarGlass, { top: NOTCH_R, height: TAB_BAR_HEIGHT + bottomPadding }]}>
+          <BlurView intensity={tokens.blur.medium} tint={colors.blurTint} style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glass.background }]} />
+          <LinearGradient
+            colors={[colors.glass.highlight, 'rgba(255, 255, 255, 0.0)']}
+            style={styles.tabBarSpecular}
+          />
+        </View>
+      ) : null}
 
       {/* Raised center logo -- centered at barTop (NOTCH_R from top), so top = NOTCH_GAP */}
       <View style={[styles.logoContainer, { top: NOTCH_GAP }]}>
@@ -263,14 +279,17 @@ function MainStack() {
 
 export function AppNavigator() {
   const { isAuthenticated, isLoading } = useAuthStore();
+  const { hasSeenOnboarding, isLoaded: onboardingLoaded } = useOnboardingStore();
 
-  if (isLoading) {
+  if (isLoading || !onboardingLoaded) {
     return null;
   }
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {isAuthenticated ? (
+      {!hasSeenOnboarding ? (
+        <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+      ) : isAuthenticated ? (
         <Stack.Screen name="Main" component={MainStack} />
       ) : (
         <Stack.Screen name="Login" component={LoginScreen} />
@@ -285,11 +304,26 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+    overflow: 'hidden',
   },
   tabBarSvg: {
     position: 'absolute',
     bottom: 0,
     left: 0,
+    overflow: 'hidden',
+  },
+  tabBarGlass: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    overflow: 'hidden',
+  },
+  tabBarSpecular: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
   },
   logoContainer: {
     position: 'absolute',

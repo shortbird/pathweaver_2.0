@@ -233,7 +233,7 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
 
   const filteredUsers = users.filter(user => {
     const searchLower = searchTerm.toLowerCase()
-    const fullName = user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
+    const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.display_name || ''
     const matchesSearch = (
       fullName.toLowerCase().includes(searchLower) ||
       user.email?.toLowerCase().includes(searchLower)

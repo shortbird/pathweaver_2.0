@@ -293,7 +293,22 @@ describe('LoginPage', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard')
     })
 
-    it('navigates to observer feed when Continue is clicked (observer)', async () => {
+    it('navigates new observer to welcome when Continue is clicked', async () => {
+      localStorage.removeItem('observerWelcomeSeen')
+      authState = {
+        login: mockLogin,
+        isAuthenticated: true,
+        user: { id: '1', role: 'observer', first_name: 'Carol' },
+        loading: false
+      }
+      renderLoginPage()
+
+      fireEvent.click(screen.getByText('Continue as Carol'))
+      expect(mockNavigate).toHaveBeenCalledWith('/observer/welcome')
+    })
+
+    it('navigates returning observer to feed when Continue is clicked', async () => {
+      localStorage.setItem('observerWelcomeSeen', 'true')
       authState = {
         login: mockLogin,
         isAuthenticated: true,
@@ -364,7 +379,7 @@ describe('LoginPage', () => {
       })
 
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/observer/feed', expect.objectContaining({ replace: true }))
+        expect(mockNavigate).toHaveBeenCalledWith('/observer/welcome', expect.objectContaining({ replace: true }))
       })
     })
   })

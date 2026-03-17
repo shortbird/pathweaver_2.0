@@ -85,7 +85,7 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
         {currentProfile?.avatar_url ? (
           <img
             src={currentProfile.avatar_url}
-            alt={`${currentProfile.display_name || 'Profile'} avatar`}
+            alt={`${`${currentProfile.first_name || ''} ${currentProfile.last_name || ''}`.trim() || currentProfile.display_name || 'Profile'} avatar`}
             className="w-8 h-8 rounded-full object-cover"
           />
         ) : (
@@ -96,7 +96,7 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
         <div className="text-left">
           <div className="text-xs text-gray-500">Acting as:</div>
           <div className="font-medium text-gray-900">
-            {currentProfile?.display_name || 'Select Profile'}
+            {`${currentProfile?.first_name || ''} ${currentProfile?.last_name || ''}`.trim() || currentProfile?.display_name || 'Select Profile'}
             {currentProfile?.is_dependent && currentProfile?.age && (
               <span className="text-xs text-gray-500 ml-2">(Age {currentProfile.age})</span>
             )}
@@ -120,13 +120,13 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
                 {currentProfile?.avatar_url ? (
                   <img
                     src={currentProfile.avatar_url}
-                    alt={`${currentProfile.display_name || 'Your'} profile avatar`}
+                    alt={`${`${currentProfile.first_name || ''} ${currentProfile.last_name || ''}`.trim() || currentProfile.display_name || 'Your'} profile avatar`}
                     className="w-6 h-6 rounded-full object-cover"
                   />
                 ) : (
                   <UserCircleIcon className="w-6 h-6 text-gray-400" />
                 )}
-                <span className="font-medium text-gray-900">{currentProfile?.display_name || 'You'}</span>
+                <span className="font-medium text-gray-900">{`${currentProfile?.first_name || ''} ${currentProfile?.last_name || ''}`.trim() || currentProfile?.display_name || 'You'}</span>
                 <span className="ml-auto text-xs bg-optio-purple text-white px-2 py-1 rounded">Current</span>
               </div>
             </div>
@@ -150,7 +150,7 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
                   {profile.avatar_url ? (
                     <img
                       src={profile.avatar_url}
-                      alt={`${profile.display_name} profile avatar`}
+                      alt={`${`${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.display_name} profile avatar`}
                       className="w-8 h-8 rounded-full object-cover"
                     />
                   ) : (
@@ -160,7 +160,7 @@ const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) =>
                   {/* Profile Info */}
                   <div className="flex-1 text-left">
                     <div className="font-medium text-gray-900">
-                      {profile.display_name}
+                      {`${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.display_name}
                     </div>
                     <div className="text-xs text-gray-500">
                       Age {profile.age} • {profile.total_xp || 0} XP • {profile.active_quest_count || 0} active quests

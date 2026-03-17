@@ -136,7 +136,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                   <div className="hidden sm:flex items-center gap-1 text-xs font-poppins bg-gradient-to-r from-optio-purple to-optio-pink text-white px-2 py-1 rounded-full">
                     <span className="font-medium">{parentName}</span>
                     <span className="opacity-80">as</span>
-                    <span className="font-semibold">{actingAsDependent.display_name}</span>
+                    <span className="font-semibold">{`${actingAsDependent.first_name || ''} ${actingAsDependent.last_name || ''}`.trim() || actingAsDependent.display_name}</span>
                   </div>
                 )}
 
@@ -145,7 +145,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                   to="/overview"
                   className="hidden sm:block text-sm font-poppins font-medium text-neutral-700 hover:text-optio-purple transition-colors"
                 >
-                  {actingAsDependent ? actingAsDependent.display_name : `${user?.first_name} ${user?.last_name}`}
+                  {actingAsDependent ? (`${actingAsDependent.first_name || ''} ${actingAsDependent.last_name || ''}`.trim() || actingAsDependent.display_name) : `${user?.first_name} ${user?.last_name}`}
                 </Link>
 
                 {/* Notification Bell */}

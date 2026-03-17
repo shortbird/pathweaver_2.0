@@ -18,7 +18,7 @@ const ServiceInquiryModal = ({ service, onClose, currentUser }) => {
     if (currentUser) {
       setFormData(prev => ({
         ...prev,
-        name: currentUser.display_name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim(),
+        name: `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.display_name,
         email: currentUser.email || ''
       }));
     }

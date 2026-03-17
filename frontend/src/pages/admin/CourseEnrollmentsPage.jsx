@@ -112,9 +112,9 @@ export default function CourseEnrollmentsPage() {
   }, { optio: [], org: [] })
 
   const getDisplayName = (user) => {
+    const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim()
+    if (fullName) return fullName
     if (user.display_name) return user.display_name
-    if (user.first_name && user.last_name) return `${user.first_name} ${user.last_name}`
-    if (user.first_name) return user.first_name
     return user.email?.split('@')[0] || 'Unknown'
   }
 

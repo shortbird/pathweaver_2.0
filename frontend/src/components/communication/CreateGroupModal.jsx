@@ -23,7 +23,7 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
   const availableMembers = React.useMemo(() => {
     return contacts.map(c => ({
       id: c.id,
-      displayName: c.display_name || `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+      displayName: `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.display_name || '',
       firstName: c.first_name,
       lastName: c.last_name,
       avatarUrl: c.avatar_url,

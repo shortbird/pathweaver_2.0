@@ -1,12 +1,12 @@
 /**
  * Home Screen - Buddy companion + quick action buttons.
  *
- * Liquid glass aesthetic throughout. GlassBackground, GlassCard, GlassButton.
+ * Liquid glass aesthetic throughout. GlassBackground, SurfaceCard, GlassButton.
  * Vitality and bond are hidden stats -- the buddy's appearance communicates them.
  * Superadmin gets a debug panel to adjust vitality/bond/stage.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -24,12 +24,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Slider from '@react-native-community/slider';
 import { tokens, textStyles } from '../theme/tokens';
 import { icons } from '../theme/icons';
-import { GlassCard } from '../components/common/GlassCard';
+import { SurfaceCard } from '../components/common/SurfaceCard';
 import { GlassButton } from '../components/common/GlassButton';
 import { GlassBackground } from '../components/common/GlassBackground';
 import OptioBuddy from '../components/buddy/OptioBuddy';
 import useBuddyState from '../components/buddy/useBuddyState';
 import { FOOD_CATALOG, STAGE_PALETTES } from '../components/buddy/buddyConstants';
+import { QuickCapture, CaptureMode } from '../components/capture/QuickCapture';
 import { useAuthStore } from '../stores/authStore';
 import { useBuddyStore } from '../stores/buddyStore';
 import { useThemeStore } from '../stores/themeStore';
@@ -41,6 +42,15 @@ export function HomeScreen() {
   const { colors } = useThemeStore();
   const [showCreate, setShowCreate] = useState(false);
   const [buddyName, setBuddyName] = useState('');
+  const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Scroll to bottom when capture opens or mode changes
+  useEffect(() => {
+    if (captureMode) {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
+    }
+  }, [captureMode]);
   const navigation = useNavigation<any>();
 
   const isSuperadmin = user?.role === 'superadmin';
@@ -71,6 +81,7 @@ export function HomeScreen() {
   return (
     <GlassBackground style={styles.container}>
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
@@ -101,7 +112,7 @@ export function HomeScreen() {
             isSuperadmin={isSuperadmin}
           />
         ) : (
-          <GlassCard style={styles.noPetCard}>
+          <SurfaceCard style={styles.noPetCard}>
             {showCreate ? (
               <View>
                 <Text style={[styles.noPetText, { color: colors.text }]}>Name your buddy</Text>
@@ -153,31 +164,43 @@ export function HomeScreen() {
                 />
               </View>
             )}
-          </GlassCard>
+          </SurfaceCard>
         )}
 
         <View style={styles.quickActions}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Capture</Text>
-          <View style={styles.actionRow}>
-            <ActionButton
-              label="Photo"
-              iconName={icons.photo}
-              color={colors.pillars.art}
-              onPress={() => navigation.navigate('Capture')}
-            />
-            <ActionButton
-              label="Voice"
-              iconName={icons.voice}
-              color={colors.pillars.communication}
-              onPress={() => navigation.navigate('Capture')}
-            />
-            <ActionButton
-              label="Text"
-              iconName={icons.text}
-              color={colors.pillars.stem}
-              onPress={() => navigation.navigate('Journal')}
-            />
-          </View>
+
+          {captureMode ? (
+            <SurfaceCard>
+              <QuickCapture
+                initialMode={captureMode}
+                onSaved={() => setCaptureMode(null)}
+                onCancel={() => setCaptureMode(null)}
+                onModeChange={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150)}
+              />
+            </SurfaceCard>
+          ) : (
+            <View style={styles.actionRow}>
+              <ActionButton
+                label="Photo"
+                iconName={icons.photo}
+                color={colors.pillars.art}
+                onPress={() => setCaptureMode('photo')}
+              />
+              <ActionButton
+                label="Voice"
+                iconName={icons.voice}
+                color={colors.pillars.communication}
+                onPress={() => setCaptureMode('voice')}
+              />
+              <ActionButton
+                label="Text"
+                iconName={icons.text}
+                color={colors.pillars.stem}
+                onPress={() => setCaptureMode('text')}
+              />
+            </View>
+          )}
         </View>
       </ScrollView>
     </GlassBackground>
@@ -290,7 +313,7 @@ function BuddySection({
       <Text style={[styles.stageLabel, { color: palette.body }]}>{palette.name}</Text>
 
       {/* Hunger + Feed card */}
-      <GlassCard style={styles.feedCard}>
+      <SurfaceCard style={styles.feedCard}>
         {/* Hunger bar */}
         <View style={styles.hungerLabelRow}>
           <Text style={[styles.hungerLabel, { color: colors.textSecondary }]}>Hunger</Text>
@@ -335,7 +358,7 @@ function BuddySection({
             {buddy.wallet} XP
           </Text>
         </View>
-      </GlassCard>
+      </SurfaceCard>
 
       {/* Admin debug panel */}
       {isSuperadmin && (
@@ -351,7 +374,7 @@ function BuddySection({
           </TouchableOpacity>
 
           {showAdmin && (
-            <GlassCard style={styles.adminPanel}>
+            <SurfaceCard style={styles.adminPanel}>
               <Text style={[styles.adminTitle, { color: colors.textSecondary }]}>
                 Buddy Debug
               </Text>
@@ -435,7 +458,7 @@ function BuddySection({
                 thumbTintColor={tokens.colors.pillars.art}
                 style={styles.slider}
               />
-            </GlassCard>
+            </SurfaceCard>
           )}
         </View>
       )}

@@ -818,7 +818,7 @@ const DiplomaPage = () => {
 
     const student = displayData.student || effectiveUser;
     if (!student) return 'This student';
-    return student.first_name || student.display_name || student.username || 'This student';
+    return student.first_name || student.username || student.display_name || 'This student';
   };
 
   // Helper function to get possessive text (e.g., "your" vs "Emma's")

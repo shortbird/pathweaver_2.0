@@ -316,7 +316,7 @@ const DashboardPage = () => {
     (new Date() - new Date(user.created_at)) < 5 * 60 * 1000 : false
 
   // Determine display name: dependent's name if acting as one, otherwise logged-in user
-  const displayName = actingAsDependent?.display_name?.split(' ')[0] || user?.first_name
+  const displayName = actingAsDependent?.first_name || user?.first_name
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

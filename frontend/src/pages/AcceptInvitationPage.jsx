@@ -414,7 +414,7 @@ export default function AcceptInvitationPage() {
               </div>
               <div>
                 <p className="font-medium text-gray-900">
-                  {currentUser.display_name || `${currentUser.first_name} ${currentUser.last_name}`}
+                  {`${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.display_name}
                 </p>
                 <p className="text-sm text-gray-500">{currentUser.email}</p>
               </div>

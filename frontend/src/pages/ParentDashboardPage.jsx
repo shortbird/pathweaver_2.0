@@ -130,7 +130,7 @@ const ParentDashboardPage = () => {
   const handleActAsDependent = async (dependent) => {
     try {
       await setActingAs(dependent);
-      toast.success(`Now managing ${dependent.display_name}'s account`);
+      toast.success(`Now managing ${`${dependent.first_name || ''} ${dependent.last_name || ''}`.trim() || dependent.display_name}'s account`);
       navigate('/dashboard', { replace: true });
     } catch (error) {
       console.error('Failed to switch to dependent profile:', error);
@@ -159,7 +159,7 @@ const ParentDashboardPage = () => {
       <div className="max-w-7xl mx-auto px-4 py-12 text-center">
         <UserGroupIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
         <h1 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-          Acting as {actingAsDependent.display_name}
+          Acting as {`${actingAsDependent.first_name || ''} ${actingAsDependent.last_name || ''}`.trim() || actingAsDependent.display_name}
         </h1>
         <p className="text-gray-600 font-medium mb-6" style={{ fontFamily: 'Poppins, sans-serif' }}>
           You're currently managing your child's profile. To view the parent dashboard, switch back to your profile using the banner in the bottom-left corner.
@@ -379,7 +379,7 @@ const ParentDashboardPage = () => {
               }),
               ...dependents.map((dep) => ({
                 id: dep.id,
-                name: dep.display_name,
+                name: `${dep.first_name || ''} ${dep.last_name || ''}`.trim() || dep.display_name,
                 isUnder13: false,
               })),
             ];
@@ -445,7 +445,7 @@ const ParentDashboardPage = () => {
                           style={{ fontFamily: 'Poppins, sans-serif' }}
                         >
                           <UserIcon className="w-5 h-5" />
-                          {dependent.display_name}
+                          {`${dependent.first_name || ''} ${dependent.last_name || ''}`.trim() || dependent.display_name}
                         </button>
                       );
                     })}
@@ -466,7 +466,7 @@ const ParentDashboardPage = () => {
               key={`${selectedStudentId}-${overviewRefreshKey}`}
               studentId={selectedStudentId}
               isDependent={dependents.some(d => d.id === selectedStudentId)}
-              dependentName={dependents.find(d => d.id === selectedStudentId)?.display_name}
+              dependentName={(() => { const d = dependents.find(d => d.id === selectedStudentId); return d ? (`${d.first_name || ''} ${d.last_name || ''}`.trim() || d.display_name) : undefined; })()}
               onEditClick={() => {
                 // Find the selected child/dependent for settings
                 const selectedDependent = dependents.find(d => d.id === selectedStudentId);

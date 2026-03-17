@@ -278,10 +278,11 @@ api.interceptors.response.use(
         const isPublicCoursePage = currentPath.startsWith('/course/')
         const isObserverAcceptPage = currentPath.startsWith('/observer/accept/')
         const isPublicReportPage = currentPath.startsWith('/report/')
+        const isSharedPage = currentPath.startsWith('/shared/')
         const isInvitationPage = currentPath.startsWith('/invitation/')
         const isDocsPage = currentPath.startsWith('/docs')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isInvitationPage && !isDocsPage) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage) {
           window.location.href = '/login'
         }
 
@@ -375,6 +376,10 @@ export const observerAPI = {
 
   deleteComment: (commentId) =>
     api.delete(`/api/observers/comments/${commentId}`),
+
+  // Share a feed item (generates a public link for other observers)
+  shareFeedItem: ({ completion_id, learning_event_id }) =>
+    api.post('/api/observers/feed/share', { completion_id, learning_event_id }),
 
   // Student-facing: get all feedback on my work
   getMyFeedback: (studentId) =>

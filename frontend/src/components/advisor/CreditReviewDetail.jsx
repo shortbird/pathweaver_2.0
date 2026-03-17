@@ -132,12 +132,12 @@ export default function CreditReviewDetail({ completionId, onBack, onActionCompl
       {/* Student info */}
       <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
         {student?.avatar_url ? (
-          <img src={student.avatar_url} alt={student.display_name} className="w-10 h-10 rounded-full object-cover" />
+          <img src={student.avatar_url} alt={`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || 'Student'} className="w-10 h-10 rounded-full object-cover" />
         ) : (
           <UserCircleIcon className="w-10 h-10 text-gray-400" />
         )}
         <div>
-          <p className="text-sm font-medium text-gray-900">{student?.display_name || 'Student'}</p>
+          <p className="text-sm font-medium text-gray-900">{`${student?.first_name || ''} ${student?.last_name || ''}`.trim() || student?.display_name || 'Student'}</p>
           <p className="text-xs text-gray-500">{student?.email}</p>
         </div>
         <div className="ml-auto text-right">

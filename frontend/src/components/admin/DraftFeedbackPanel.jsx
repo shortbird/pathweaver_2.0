@@ -305,7 +305,7 @@ export default function DraftFeedbackPanel() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-gray-900 truncate">
-                          {student.display_name || student.email || 'Unknown Student'}
+                          {`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || student.email || 'Unknown Student'}
                         </span>
                         <span className={`text-xs px-2 py-0.5 rounded-full bg-gradient-to-r ${pillarGradient} text-white`}>
                           {task.pillar || 'unknown'}
@@ -402,7 +402,7 @@ export default function DraftFeedbackPanel() {
                                 Revision {fb.revision_number} | {formatDate(fb.created_at)}
                               </span>
                               <span className="text-xs text-gray-500">
-                                {fb.users?.display_name || 'Reviewer'}
+                                {`${fb.users?.first_name || ''} ${fb.users?.last_name || ''}`.trim() || fb.users?.display_name || 'Reviewer'}
                               </span>
                             </div>
                             <p className="text-gray-800">{fb.feedback_text}</p>

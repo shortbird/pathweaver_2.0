@@ -51,7 +51,9 @@ def _extract_og_metadata(html, url):
         'title': None,
         'description': None,
         'image': None,
-        'site_name': None
+        'site_name': None,
+        'video_url': None,
+        'og_type': None
     }
 
     # Open Graph tags
@@ -60,6 +62,8 @@ def _extract_og_metadata(html, url):
         'description': r'<meta[^>]*property=["\']og:description["\'][^>]*content=["\']([^"\']*)["\']',
         'image': r'<meta[^>]*property=["\']og:image["\'][^>]*content=["\']([^"\']*)["\']',
         'site_name': r'<meta[^>]*property=["\']og:site_name["\'][^>]*content=["\']([^"\']*)["\']',
+        'video_url': r'<meta[^>]*property=["\']og:video(?::url)?["\'][^>]*content=["\']([^"\']*)["\']',
+        'og_type': r'<meta[^>]*property=["\']og:type["\'][^>]*content=["\']([^"\']*)["\']',
     }
 
     # Also check reverse attribute order (content before property)
@@ -68,6 +72,8 @@ def _extract_og_metadata(html, url):
         'description': r'<meta[^>]*content=["\']([^"\']*)["\'][^>]*property=["\']og:description["\']',
         'image': r'<meta[^>]*content=["\']([^"\']*)["\'][^>]*property=["\']og:image["\']',
         'site_name': r'<meta[^>]*content=["\']([^"\']*)["\'][^>]*property=["\']og:site_name["\']',
+        'video_url': r'<meta[^>]*content=["\']([^"\']*)["\'][^>]*property=["\']og:video(?::url)?["\']',
+        'og_type': r'<meta[^>]*content=["\']([^"\']*)["\'][^>]*property=["\']og:type["\']',
     }
 
     for key, pattern in og_patterns.items():
@@ -123,6 +129,11 @@ def _extract_og_metadata(html, url):
         except Exception:
             result['image'] = None
 
+    # Upsize Google Photos thumbnails for better quality
+    # Default og:image is 600x315; request 1200x630 instead
+    if result['image'] and 'lh3.googleusercontent.com' in result['image']:
+        result['image'] = re.sub(r'=w\d+-h\d+', '=w1200-h630', result['image'])
+
     return result
 
 
@@ -171,7 +182,7 @@ def get_link_preview(user_id):
         resp.close()
 
         if resp.status_code != 200:
-            return jsonify({'error': 'Could not fetch URL', 'title': None, 'description': None, 'image': None, 'site_name': None}), 200
+            return jsonify({'error': 'Could not fetch URL', 'title': None, 'description': None, 'image': None, 'site_name': None, 'video_url': None, 'og_type': None}), 200
 
         data = _extract_og_metadata(content, url)
 
@@ -182,7 +193,7 @@ def get_link_preview(user_id):
 
     except http_requests.Timeout:
         logger.warning(f"Link preview timeout for URL: {url}")
-        return jsonify({'error': 'Request timed out', 'title': None, 'description': None, 'image': None, 'site_name': None}), 200
+        return jsonify({'error': 'Request timed out', 'title': None, 'description': None, 'image': None, 'site_name': None, 'video_url': None, 'og_type': None}), 200
     except Exception as e:
         logger.warning(f"Link preview error for URL {url}: {e}")
-        return jsonify({'error': 'Could not fetch metadata', 'title': None, 'description': None, 'image': None, 'site_name': None}), 200
+        return jsonify({'error': 'Could not fetch metadata', 'title': None, 'description': None, 'image': None, 'site_name': None, 'video_url': None, 'og_type': None}), 200

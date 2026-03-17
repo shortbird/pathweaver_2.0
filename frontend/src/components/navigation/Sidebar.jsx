@@ -145,8 +145,8 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     return false
   }
 
-  // Add Courses link: always for advisors/admins, only if enrolled for students
-  const alwaysShowCourses = user?.role === 'superadmin' || userHasRole('advisor') || userHasRole('org_admin')
+  // Add Courses link: always for superadmin, only if enrolled for others
+  const alwaysShowCourses = user?.role === 'superadmin'
   if (alwaysShowCourses || hasEnrolledCourses) {
     navItems.unshift({
       name: 'Courses',
@@ -253,8 +253,8 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     }
   }
 
-  // Credit Review Dashboard for advisors, accreditors, and superadmins
-  if (isAdvisor || user?.role === 'accreditor' || user?.role === 'superadmin') {
+  // Credit Review Dashboard - superadmin only
+  if (user?.role === 'superadmin') {
     navItems.push({
       name: 'Credit Review',
       path: '/credit-dashboard',

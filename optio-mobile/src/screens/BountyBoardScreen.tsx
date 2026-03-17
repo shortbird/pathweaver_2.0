@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { tokens, PillarKey } from '../theme/tokens';
-import { GlassCard } from '../components/common/GlassCard';
+import { SurfaceCard } from '../components/common/SurfaceCard';
 import { GlassBackground } from '../components/common/GlassBackground';
 import { useBountyStore, Bounty } from '../stores/bountyStore';
 
@@ -144,7 +144,7 @@ function BountyCard({ bounty, onPress }: { bounty: Bounty; onPress: () => void }
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-      <GlassCard style={styles.bountyCard}>
+      <SurfaceCard style={styles.bountyCard}>
         <View style={styles.bountyHeader}>
           <View style={[styles.pillarDot, { backgroundColor: pillarColor }]} />
           <Text style={styles.bountyType}>{bounty.bounty_type}</Text>
@@ -166,7 +166,7 @@ function BountyCard({ bounty, onPress }: { bounty: Bounty; onPress: () => void }
             <Text style={styles.rewardLabel}>Prize: {bounty.sponsored_reward}</Text>
           </View>
         )}
-      </GlassCard>
+      </SurfaceCard>
     </TouchableOpacity>
   );
 }
@@ -174,6 +174,7 @@ function BountyCard({ bounty, onPress }: { bounty: Bounty; onPress: () => void }
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    overflow: 'hidden',
     // backgroundColor handled by GlassBackground
     paddingTop: 60,
   },

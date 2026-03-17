@@ -1,8 +1,13 @@
 /**
- * GlassCard - Translucent card with liquid glass effect.
+ * GlassContainer (also exported as GlassCard for backwards compat)
  *
- * Adapts to light/dark theme via themeStore.
- * Light: frosted white glass. Dark: subtle translucent glass.
+ * Translucent glass material for the NAVIGATION/CONTROLS layer only.
+ * Do NOT use for content cards -- use SurfaceCard instead.
+ *
+ * Responds to accessibility settings:
+ *   - Reduce Transparency: near-opaque, heavy blur
+ *   - Increased Contrast: solid bg + 2px border
+ *   - Reduce Motion: no specular animation
  */
 
 import React from 'react';
@@ -11,43 +16,58 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { tokens } from '../../theme/tokens';
 import { useThemeStore } from '../../stores/themeStore';
+import { useAccessibilitySettings } from '../../hooks/useAccessibilitySettings';
 
-interface GlassCardProps {
+interface GlassContainerProps {
   children: React.ReactNode;
   style?: ViewStyle;
   intensity?: number;
   noPadding?: boolean;
   accent?: boolean;
+  /** Use thin glass variant (less blur, no specular) */
+  thin?: boolean;
 }
 
-export function GlassCard({ children, style, intensity = tokens.blur.medium, noPadding, accent }: GlassCardProps) {
+export function GlassContainer({
+  children,
+  style,
+  intensity = tokens.blur.medium,
+  noPadding,
+  accent,
+  thin,
+}: GlassContainerProps) {
   const { colors } = useThemeStore();
+  const { reduceTransparency, highContrast } = useAccessibilitySettings();
 
-  const containerStyle = [
-    styles.container,
-    {
-      borderColor: colors.glass.border,
-      shadowColor: colors.glass.shadow,
-    },
-    style,
-  ];
+  const effectiveIntensity = reduceTransparency ? tokens.blur.heavy : (thin ? tokens.blur.light : intensity);
+  const bgColor = reduceTransparency
+    ? (colors.blurTint === 'dark' ? 'rgba(0, 0, 0, 0.85)' : 'rgba(255, 255, 255, 0.85)')
+    : (thin ? colors.glass.thinBackground : colors.glass.background);
+  const borderColor = highContrast
+    ? colors.text
+    : (thin ? colors.glass.thinBorder : colors.glass.border);
+  const borderWidth = highContrast ? 2 : 0.5;
+  const showSpecular = !thin && !highContrast;
 
   const highlightColor = accent
     ? 'rgba(109, 70, 155, 0.3)'
     : colors.glass.highlight;
 
-  if (Platform.OS === 'web') {
+  const containerStyle = [
+    styles.container,
+    {
+      borderColor,
+      borderWidth,
+      shadowColor: colors.glass.shadow,
+    },
+    !thin && tokens.shadows.md,
+    style,
+  ];
+
+  // High contrast: fully opaque, no blur
+  if (highContrast) {
     return (
-      <View style={[...containerStyle, {
-        // @ts-ignore web-only
-        backdropFilter: 'blur(40px)',
-        WebkitBackdropFilter: 'blur(40px)',
-        backgroundColor: colors.glass.background,
-      } as any]}>
-        <LinearGradient
-          colors={[highlightColor, 'rgba(255, 255, 255, 0.0)']}
-          style={styles.specularHighlight}
-        />
+      <View style={[...containerStyle, { backgroundColor: colors.blurTint === 'dark' ? '#000' : '#FFF' }]}>
         <View style={[styles.content, noPadding && styles.noPadding]}>
           {children}
         </View>
@@ -55,14 +75,39 @@ export function GlassCard({ children, style, intensity = tokens.blur.medium, noP
     );
   }
 
+  // Web fallback: CSS backdrop-filter
+  if (Platform.OS === 'web') {
+    return (
+      <View style={[...containerStyle, {
+        // @ts-ignore web-only
+        backdropFilter: `blur(${effectiveIntensity}px)`,
+        WebkitBackdropFilter: `blur(${effectiveIntensity}px)`,
+        backgroundColor: bgColor,
+      } as any]}>
+        {showSpecular && (
+          <LinearGradient
+            colors={[highlightColor, 'rgba(255, 255, 255, 0.0)']}
+            style={styles.specularHighlight}
+          />
+        )}
+        <View style={[styles.content, noPadding && styles.noPadding]}>
+          {children}
+        </View>
+      </View>
+    );
+  }
+
+  // Native: BlurView
   return (
     <View style={containerStyle}>
-      <BlurView intensity={intensity} style={styles.blur} tint={colors.blurTint}>
-        <LinearGradient
-          colors={[highlightColor, 'rgba(255, 255, 255, 0.0)']}
-          style={styles.specularHighlight}
-        />
-        <View style={[styles.innerFill, { backgroundColor: colors.glass.background }, styles.content, noPadding && styles.noPadding]}>
+      <BlurView intensity={effectiveIntensity} style={styles.blur} tint={colors.blurTint}>
+        {showSpecular && (
+          <LinearGradient
+            colors={[highlightColor, 'rgba(255, 255, 255, 0.0)']}
+            style={styles.specularHighlight}
+          />
+        )}
+        <View style={[styles.innerFill, { backgroundColor: bgColor }, styles.content, noPadding && styles.noPadding]}>
           {children}
         </View>
       </BlurView>
@@ -70,12 +115,13 @@ export function GlassCard({ children, style, intensity = tokens.blur.medium, noP
   );
 }
 
+/** @deprecated Use GlassContainer for glass-layer elements, SurfaceCard for content-layer */
+export const GlassCard = GlassContainer;
+
 const styles = StyleSheet.create({
   container: {
     borderRadius: tokens.radius.xl,
     overflow: 'hidden',
-    borderWidth: 0.5,
-    ...tokens.shadows.md,
   },
   specularHighlight: {
     position: 'absolute',

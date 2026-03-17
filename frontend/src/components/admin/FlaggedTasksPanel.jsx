@@ -355,7 +355,7 @@ export default function FlaggedTasksPanel() {
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins' }}>
-                          {flag.users?.display_name || 'Anonymous'}
+                          {`${flag.users?.first_name || ''} ${flag.users?.last_name || ''}`.trim() || flag.users?.display_name || 'Anonymous'}
                         </span>
                         {flag.users?.email && (
                           <span className="text-xs text-gray-500">

@@ -47,8 +47,8 @@ function MembersTable({
   }
 
   const getUserName = (user) => {
-    const name = user.display_name || (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.first_name || user.last_name)
-    return name
+    const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim()
+    return fullName || user.display_name || null
   }
 
   return (

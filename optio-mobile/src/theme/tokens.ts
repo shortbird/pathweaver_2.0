@@ -29,6 +29,18 @@ export const tokens = {
       borderLight: 'rgba(255, 255, 255, 0.3)',
       highlight: 'rgba(255, 255, 255, 0.8)',  // specular top edge
       shadow: 'rgba(0, 0, 0, 0.08)',
+      // Thin variant -- lighter for small interactive elements
+      thinBackground: 'rgba(255, 255, 255, 0.12)',
+      thinBorder: 'rgba(255, 255, 255, 0.2)',
+      // Clear variant -- for media overlays only
+      clearDimming: 'rgba(0, 0, 0, 0.35)',
+    },
+
+    touch: {
+      glowColor: 'rgba(255, 255, 255, 0.3)',
+      glowRadius: 60,
+      glowDuration: 200,
+      scalePressed: 0.97,
     },
 
     pillars: {
@@ -79,6 +91,16 @@ export const tokens = {
     light: 20,
     medium: 40,
     heavy: 80,
+  },
+
+  scroll: {
+    edgeFadeHeight: 24,
+  },
+
+  materialization: {
+    blurFrom: 20,
+    blurTo: 0,
+    duration: 250,
   },
 
   typography: {
