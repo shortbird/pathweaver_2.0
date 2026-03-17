@@ -169,7 +169,7 @@ export default function ObserverWelcomePage() {
         <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
           <h2 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3">How We Track Engagement</h2>
           <p className="text-sm sm:text-base text-gray-700 leading-relaxed mb-4 sm:mb-6">
-            We measure engagement through daily activity, not test scores. Students earn XP (experience points) by
+            We track engagement through daily activity and learning rhythm. Students earn XP (experience points) by
             completing tasks, and we track their learning rhythm over time. This helps identify when they're in
             a flow state and when they might need encouragement.
           </p>

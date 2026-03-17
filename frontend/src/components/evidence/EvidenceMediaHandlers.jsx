@@ -176,11 +176,12 @@ export class EvidenceMediaHandlers {
         throw new Error(typeCheck.message);
       }
 
-      // Validate file size (10MB limit)
-      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
-      if (file.size > MAX_FILE_SIZE) {
+      // Validate file size
+      const maxSize = blockType === 'document' ? 25 * 1024 * 1024 : 10 * 1024 * 1024;
+      const maxSizeMB = maxSize / (1024 * 1024);
+      if (file.size > maxSize) {
         const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-        const errorMsg = `File "${file.name}" is too large (${fileSizeMB}MB). Maximum size is 10MB.\n\nFor larger files, please:\n1. Upload to Google Drive or Dropbox\n2. Get a shareable link\n3. Use a "Link" block instead`;
+        const errorMsg = `File "${file.name}" is too large (${fileSizeMB}MB). Maximum size is ${maxSizeMB}MB.\n\nFor larger files, please:\n1. Upload to Google Drive or Dropbox\n2. Get a shareable link\n3. Use a "Link" block instead`;
         if (this.onError) {
           this.onError(errorMsg);
         }

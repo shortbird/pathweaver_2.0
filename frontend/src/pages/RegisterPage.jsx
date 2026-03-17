@@ -5,25 +5,21 @@ import { useAuth } from '../contexts/AuthContext'
 import PasswordStrengthMeter from '../components/auth/PasswordStrengthMeter'
 import GoogleButton from '../components/auth/GoogleButton'
 import logger from '../utils/logger'
-import api from '../services/api'
 import toast from 'react-hot-toast'
 
 const RegisterPage = () => {
-  const { register: registerField, handleSubmit, formState: { errors }, watch, setValue } = useForm()
+  const { register: registerField, handleSubmit, formState: { errors }, watch } = useForm()
   const { register, isAuthenticated, user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const invitationCode = searchParams.get('invitation')
-  const promoCodeFromUrl = searchParams.get('promo')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isUnder13, setIsUnder13] = useState(false)
   const [googleError, setGoogleError] = useState('')
-  const [promoCodeStatus, setPromoCodeStatus] = useState({ valid: null, reason: null, loading: false })
   const password = watch('password')
   const dateOfBirth = watch('date_of_birth')
-  const promoCode = watch('promo_code')
 
   // Check if this is an observer registration
   const isObserverRegistration = !!invitationCode
@@ -73,37 +69,6 @@ const RegisterPage = () => {
     }
   }, [dateOfBirth])
 
-  // Pre-fill promo code from URL
-  React.useEffect(() => {
-    if (promoCodeFromUrl) {
-      setValue('promo_code', promoCodeFromUrl)
-    }
-  }, [promoCodeFromUrl, setValue])
-
-  // Validate promo code with debounce
-  React.useEffect(() => {
-    if (!promoCode || promoCode.length < 5) {
-      setPromoCodeStatus({ valid: null, reason: null, loading: false })
-      return
-    }
-
-    const timeoutId = setTimeout(async () => {
-      setPromoCodeStatus({ valid: null, reason: null, loading: true })
-      try {
-        const response = await api.post('/api/promo/validate-code', { code: promoCode })
-        setPromoCodeStatus({
-          valid: response.data.valid,
-          reason: response.data.reason || null,
-          loading: false
-        })
-      } catch (err) {
-        setPromoCodeStatus({ valid: false, reason: 'error', loading: false })
-      }
-    }, 500)
-
-    return () => clearTimeout(timeoutId)
-  }, [promoCode])
-
   const onSubmit = async (data) => {
     setLoading(true)
     try {
@@ -117,11 +82,6 @@ const RegisterPage = () => {
         localStorage.setItem('pendingObserverInvitation', invitationCode)
       }
 
-      // Include promo code if valid
-      if (data.promo_code && promoCodeStatus.valid) {
-        registrationData.promo_code = data.promo_code
-      }
-
       // Let the normal registration flow handle email verification redirect
       await register(registrationData)
     } finally {
@@ -133,12 +93,6 @@ const RegisterPage = () => {
     <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          {isObserverRegistration && (
-            <div className="mb-4 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg p-4 text-center">
-              <p className="font-semibold">Creating Observer Account</p>
-              <p className="text-sm text-purple-100">You'll be able to follow a student's learning journey</p>
-            </div>
-          )}
           <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
             {isObserverRegistration ? 'Create your observer account' : 'Create your account'}
           </h2>
@@ -161,14 +115,8 @@ const RegisterPage = () => {
             mode="signup"
             onError={(error) => setGoogleError(error)}
             disabled={loading}
-            promoCode={promoCodeStatus.valid ? promoCode : null}
             invitationCode={invitationCode}
           />
-          {promoCodeStatus.valid && (
-            <p className="mt-2 text-sm text-center text-green-600">
-              Your promo code will be applied when you sign up with Google
-            </p>
-          )}
         </div>
 
         {/* Divider */}
@@ -301,69 +249,6 @@ const RegisterPage = () => {
               )}
             </div>
 
-            {/* Promo Code Field */}
-            <div>
-              <label htmlFor="promo_code" className="block text-sm font-medium text-gray-700">
-                Promo Code <span className="text-gray-400 font-normal">(optional)</span>
-              </label>
-              <div className="relative mt-1">
-                <input
-                  id="promo_code"
-                  {...registerField('promo_code')}
-                  type="text"
-                  className="input-field pr-10 uppercase"
-                  placeholder="OPTIO-XXXX-XXXX"
-                  aria-describedby="promo-code-status"
-                  style={{ textTransform: 'uppercase' }}
-                />
-                {promoCodeStatus.loading && (
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                    <svg className="animate-spin h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                  </div>
-                )}
-                {!promoCodeStatus.loading && promoCodeStatus.valid === true && (
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                    <svg className="h-5 w-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                )}
-                {!promoCodeStatus.loading && promoCodeStatus.valid === false && (
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                    <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </div>
-                )}
-              </div>
-              {promoCodeStatus.valid === true && (
-                <p id="promo-code-status" className="mt-1 text-sm text-green-600 flex items-center gap-1">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
-                  </svg>
-                  First month free! Your account will be created as a Parent account.
-                </p>
-              )}
-              {promoCodeStatus.valid === false && promoCodeStatus.reason === 'expired' && (
-                <p id="promo-code-status" className="mt-1 text-sm text-red-600">
-                  This promo code has expired.
-                </p>
-              )}
-              {promoCodeStatus.valid === false && promoCodeStatus.reason === 'already_used' && (
-                <p id="promo-code-status" className="mt-1 text-sm text-red-600">
-                  This promo code has already been used.
-                </p>
-              )}
-              {promoCodeStatus.valid === false && promoCodeStatus.reason === 'not_found' && (
-                <p id="promo-code-status" className="mt-1 text-sm text-red-600">
-                  Invalid promo code.
-                </p>
-              )}
-            </div>
-
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
@@ -486,38 +371,6 @@ const RegisterPage = () => {
             {errors.acceptedLegalTerms && (
               <p id="legal-terms-error" role="alert" className="ml-6 text-sm text-red-600">{errors.acceptedLegalTerms.message}</p>
             )}
-
-            {/* Public Portfolio Acknowledgment - FERPA Compliance */}
-            <div className="flex items-start">
-              <input
-                {...registerField('acceptedPortfolioVisibility', {
-                  required: 'You must acknowledge that your learning portfolio will be publicly visible'
-                })}
-                type="checkbox"
-                id="acceptedPortfolioVisibility"
-                className="mt-1 h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
-                aria-invalid={!!errors.acceptedPortfolioVisibility}
-                aria-describedby={errors.acceptedPortfolioVisibility ? "portfolio-visibility-error" : undefined}
-              />
-              <label htmlFor="acceptedPortfolioVisibility" className="ml-2 text-sm text-gray-700">
-                I understand that my learning portfolio (quests, evidence, and achievements) will be{' '}
-                <span className="font-semibold">publicly visible by default</span> and can be viewed by anyone with my portfolio URL. I can change this setting anytime on my Profile page.
-              </label>
-            </div>
-            {errors.acceptedPortfolioVisibility && (
-              <p id="portfolio-visibility-error" role="alert" className="ml-6 text-sm text-red-600">{errors.acceptedPortfolioVisibility.message}</p>
-            )}
-          </div>
-
-          {/* Optional Handbook Link - No checkbox required, signed in person */}
-          <div className="bg-blue-50 border-l-4 border-blue-500 p-4">
-            <p className="text-sm text-blue-900">
-              <strong>Optio Academy Participants:</strong> Please review the{' '}
-              <Link to="/academy-handbook" target="_blank" className="text-primary hover:text-optio-purple underline font-semibold">
-                Optio Academy Participant Handbook
-              </Link>
-              . A signed agreement will be completed during in-person enrollment.
-            </p>
           </div>
 
           <div>
