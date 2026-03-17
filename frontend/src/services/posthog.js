@@ -43,7 +43,7 @@ export const identifyUser = (user) => {
     org_role: user.org_role || null,
     organization_id: user.organization_id || null,
     subscription_tier: user.subscription_tier || null,
-    display_name: user.display_name || null,
+    display_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.display_name || null,
     email: user.email || null,
   })
 }

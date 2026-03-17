@@ -54,7 +54,7 @@ const OrgLoginPage = () => {
     if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
       logger.debug('[OrgLoginPage] User already authenticated, redirecting')
       const redirectPath = user.role === 'parent' ? '/parent/dashboard'
-        : user.role === 'observer' ? '/observer/feed'
+        : user.role === 'observer' ? (localStorage.getItem('observerWelcomeSeen') ? '/observer/feed' : '/observer/welcome')
         : '/dashboard'
       navigate(redirectPath, { replace: true })
     }
@@ -109,7 +109,7 @@ const OrgLoginPage = () => {
   if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
     const displayName = user.first_name || user.display_name || user.email
     const redirectPath = user.role === 'parent' ? '/parent/dashboard'
-      : user.role === 'observer' ? '/observer/feed'
+      : user.role === 'observer' ? (localStorage.getItem('observerWelcomeSeen') ? '/observer/feed' : '/observer/welcome')
       : '/dashboard'
 
     return (

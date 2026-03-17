@@ -7,6 +7,7 @@ import {
   HeartIcon,
   ChatBubbleLeftIcon,
   LinkIcon,
+  ShareIcon,
   VideoCameraIcon,
   PaperAirplaneIcon,
   TrashIcon,
@@ -18,8 +19,9 @@ import {
 import DocumentPreview from './DocumentPreview';
 import MediaCarousel from './MediaCarousel';
 import LinkPreviewCard from './LinkPreviewCard';
+import VideoLinkPreview from './VideoLinkPreview';
 import LearningEventModal from '../learning-events/LearningEventModal';
-import { getVideoEmbedUrl, getVideoAspectClass } from '../../utils/videoUtils';
+import { getVideoEmbedUrl, getVideoAspectClass, isVideoSharingLink } from '../../utils/videoUtils';
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 
 // Pillar colors mapping
@@ -52,6 +54,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
   const [showEditModal, setShowEditModal] = useState(false);
   const [fullEvent, setFullEvent] = useState(null);
   const [loadingEdit, setLoadingEdit] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [localItem, setLocalItem] = useState(item);
 
   // Sync local item when prop changes
@@ -195,8 +198,8 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
 
   const getObserverName = (observer) => {
     if (!observer) return 'Observer';
-    return observer.display_name ||
-      `${observer.first_name || ''} ${observer.last_name || ''}`.trim() ||
+    return `${observer.first_name || ''} ${observer.last_name || ''}`.trim() ||
+      observer.display_name ||
       'Observer';
   };
 
@@ -254,6 +257,32 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
     if (onUpdate) onUpdate(updatedEvent);
   };
 
+  const handleShare = async () => {
+    if (sharing) return;
+    setSharing(true);
+    try {
+      const payload = isLearningMoment
+        ? { learning_event_id: learningEventId }
+        : { completion_id: completionId };
+      const response = await observerAPI.shareFeedItem(payload);
+      const shareUrl = response.data.share_url;
+
+      if (navigator.share) {
+        await navigator.share({ url: shareUrl });
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Link copied to clipboard');
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('Failed to share:', err);
+        toast.error('Failed to create share link');
+      }
+    } finally {
+      setSharing(false);
+    }
+  };
+
   const pillarColors = localItem.task?.pillar ? PILLAR_COLORS[localItem.task.pillar.toLowerCase()] : null;
   const momentPillars = localItem.moment?.pillars || [];
   const topicName = localItem.moment?.topic_name;
@@ -289,7 +318,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
             {hasAvatar ? (
               <img
                 src={localItem.student.avatar_url}
-                alt={localItem.student?.display_name || 'Student'}
+                alt={`${localItem.student?.first_name || ''} ${localItem.student?.last_name || ''}`.trim() || localItem.student?.display_name || 'Student'}
                 className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover shrink-0"
               />
             ) : (
@@ -297,7 +326,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
             )}
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-gray-900 truncate text-sm sm:text-base">
-                {localItem.student?.display_name}
+                {`${localItem.student?.first_name || ''} ${localItem.student?.last_name || ''}`.trim() || localItem.student?.display_name}
               </p>
               {/* 2. "completed a task in {quest}" - only for task completions */}
               {!isLearningMoment && (
@@ -373,6 +402,9 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
             </div>
           )}
           {localItem.evidence.type === 'video' && (() => {
+            if (isVideoSharingLink(localItem.evidence.url)) {
+              return <VideoLinkPreview url={localItem.evidence.url} title={localItem.evidence.title} />;
+            }
             const embedUrl = getVideoEmbedUrl(localItem.evidence.url);
             const aspectClass = getVideoAspectClass(localItem.evidence.url);
             return (
@@ -400,6 +432,9 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
             );
           })()}
           {localItem.evidence.type === 'link' && (() => {
+            if (isVideoSharingLink(localItem.evidence.url)) {
+              return <VideoLinkPreview url={localItem.evidence.url} title={localItem.evidence.title} />;
+            }
             const linkEmbedUrl = getVideoEmbedUrl(localItem.evidence.url);
             if (linkEmbedUrl) {
               const linkAspectClass = getVideoAspectClass(localItem.evidence.url);
@@ -480,6 +515,15 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
           <ChatBubbleLeftIcon className="w-6 h-6" />
           {commentsCount > 0 && <span className="text-sm">{commentsCount}</span>}
         </button>
+        {hasSocialTarget && (
+          <button
+            onClick={handleShare}
+            disabled={sharing}
+            className="flex items-center gap-1 p-2 text-gray-700 hover:text-gray-500 transition-colors disabled:opacity-50"
+          >
+            <ShareIcon className="w-6 h-6" />
+          </button>
+        )}
         {canEditMoment && (
           <button
             onClick={handleEditClick}

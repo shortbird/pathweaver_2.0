@@ -38,6 +38,7 @@ from . import feed
 from . import social
 from . import family
 from . import pending
+from . import sharing
 
 # Register all routes
 student_invitations.register_routes(bp)
@@ -50,3 +51,4 @@ feed.register_routes(bp)
 social.register_routes(bp)
 family.register_routes(bp)
 pending.register_routes(bp)
+sharing.register_routes(bp)

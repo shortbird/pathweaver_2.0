@@ -1,25 +1,38 @@
 /**
- * GlassButton - Button with liquid glass effect.
+ * GlassButton - Button with liquid glass interaction physics.
  *
- * Primary variant: gradient fill (purple) with glass overlay
- * Outline variant: glass-style with subtle border
- * Ghost variant: text-only on dark backgrounds
+ * Primary: purple-to-pink tinted glass (not solid gradient)
+ * Outline: thin glass material
+ * Ghost: text-only, no glass
+ *
+ * Touch response: scale 0.97x with spring physics + glow bloom.
+ * Accessibility: respects Reduce Motion (no springs, no glow).
  */
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
-  TouchableOpacity,
   Text,
   StyleSheet,
   ActivityIndicator,
   ViewStyle,
   Platform,
   View,
+  GestureResponderEvent,
+  Pressable,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  interpolate,
+} from 'react-native-reanimated';
 import { tokens } from '../../theme/tokens';
+import { useThemeStore } from '../../stores/themeStore';
+import { useAccessibilitySettings } from '../../hooks/useAccessibilitySettings';
+import { springTouch, springDefault } from '../../utils/glassAnimations';
 
 interface GlassButtonProps {
   title: string;
@@ -32,6 +45,8 @@ interface GlassButtonProps {
   style?: ViewStyle;
 }
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 export function GlassButton({
   title,
   onPress,
@@ -42,21 +57,59 @@ export function GlassButton({
   size = 'md',
   style,
 }: GlassButtonProps) {
+  const { colors } = useThemeStore();
+  const { reduceMotion, highContrast } = useAccessibilitySettings();
   const isDisabled = disabled || loading;
   const sz = sizeConfig[size];
+  const pressed = useSharedValue(0);
+
+  const handlePressIn = useCallback(() => {
+    if (reduceMotion) {
+      pressed.value = 1;
+      return;
+    }
+    pressed.value = withSpring(1, springTouch);
+  }, [reduceMotion]);
+
+  const handlePressOut = useCallback(() => {
+    if (reduceMotion) {
+      pressed.value = 0;
+      return;
+    }
+    pressed.value = withSpring(0, springDefault);
+  }, [reduceMotion]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    const scale = interpolate(pressed.value, [0, 1], [1, 0.97]);
+    return { transform: [{ scale }] };
+  });
 
   if (variant === 'primary') {
     return (
-      <TouchableOpacity
+      <AnimatedPressable
         onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
         disabled={isDisabled}
-        activeOpacity={0.8}
-        style={[{ borderRadius: tokens.radius.xl, overflow: 'hidden', opacity: isDisabled ? 0.4 : 1 }, style]}
+        style={[
+          animatedStyle,
+          {
+            borderRadius: tokens.radius.xl,
+            overflow: 'hidden',
+            opacity: isDisabled ? 0.4 : 1,
+          },
+          highContrast && {
+            borderWidth: 2,
+            borderColor: '#FFF',
+          },
+          style,
+        ]}
         accessibilityRole="button"
         accessibilityLabel={title}
+        accessibilityState={{ disabled: isDisabled }}
       >
         <LinearGradient
-          colors={[tokens.colors.primary, tokens.colors.accent]}
+          colors={[colors.primary, colors.accent]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[styles.inner, sz.inner]}
@@ -70,7 +123,7 @@ export function GlassButton({
             </>
           )}
         </LinearGradient>
-      </TouchableOpacity>
+      </AnimatedPressable>
     );
   }
 
@@ -78,43 +131,64 @@ export function GlassButton({
     const content = (
       <>
         {loading ? (
-          <ActivityIndicator color={tokens.colors.text} size="small" />
+          <ActivityIndicator color={colors.text} size="small" />
         ) : (
           <>
-            {icon && <Ionicons name={icon} size={sz.iconSize} color={tokens.colors.text} style={styles.icon} />}
-            <Text style={[styles.outlineText, sz.text]}>{title}</Text>
+            {icon && <Ionicons name={icon} size={sz.iconSize} color={colors.text} style={styles.icon} />}
+            <Text style={[styles.outlineText, { color: colors.text }, sz.text]}>{title}</Text>
           </>
         )}
       </>
     );
 
     return (
-      <TouchableOpacity
+      <AnimatedPressable
         onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
         disabled={isDisabled}
-        activeOpacity={0.7}
-        style={[styles.outlineContainer, sz.inner, { opacity: isDisabled ? 0.4 : 1 }, style]}
+        style={[
+          animatedStyle,
+          styles.outlineContainer,
+          sz.inner,
+          {
+            borderColor: highContrast ? colors.text : colors.glass.thinBorder,
+            backgroundColor: colors.glass.thinBackground,
+            opacity: isDisabled ? 0.4 : 1,
+          },
+          highContrast && { borderWidth: 2 },
+          style,
+        ]}
         accessibilityRole="button"
         accessibilityLabel={title}
+        accessibilityState={{ disabled: isDisabled }}
       >
         {content}
-      </TouchableOpacity>
+      </AnimatedPressable>
     );
   }
 
   // ghost
   return (
-    <TouchableOpacity
+    <AnimatedPressable
       onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       disabled={isDisabled}
-      activeOpacity={0.6}
-      style={[styles.ghost, sz.inner, { opacity: isDisabled ? 0.4 : 1 }, style]}
+      style={[
+        animatedStyle,
+        styles.ghost,
+        sz.inner,
+        { opacity: isDisabled ? 0.4 : 1 },
+        style,
+      ]}
       accessibilityRole="button"
       accessibilityLabel={title}
+      accessibilityState={{ disabled: isDisabled }}
     >
-      {icon && <Ionicons name={icon} size={sz.iconSize} color={tokens.colors.text} style={styles.icon} />}
-      <Text style={[styles.ghostText, sz.text]}>{title}</Text>
-    </TouchableOpacity>
+      {icon && <Ionicons name={icon} size={sz.iconSize} color={colors.text} style={styles.icon} />}
+      <Text style={[styles.ghostText, { color: colors.text }, sz.text]}>{title}</Text>
+    </AnimatedPressable>
   );
 }
 
@@ -156,11 +230,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: tokens.radius.xl,
     borderWidth: 0.5,
-    borderColor: tokens.colors.glass.border,
-    backgroundColor: tokens.colors.glass.background,
   },
   outlineText: {
-    color: tokens.colors.text,
     fontFamily: tokens.typography.fonts.semiBold,
   },
   ghost: {
@@ -169,7 +240,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ghostText: {
-    color: tokens.colors.text,
     fontFamily: tokens.typography.fonts.medium,
   },
 });

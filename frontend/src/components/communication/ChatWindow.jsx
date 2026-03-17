@@ -97,7 +97,7 @@ const ChatWindow = ({ conversation, onConversationCreate }) => {
 
   // Render advisor or friend chat
   const isAdvisor = chatType === 'advisor'
-  const displayName = otherUser?.display_name || `${otherUser?.first_name} ${otherUser?.last_name}`
+  const displayName = `${otherUser?.first_name || ''} ${otherUser?.last_name || ''}`.trim() || otherUser?.display_name || 'Unknown'
   const initial = displayName?.charAt(0)?.toUpperCase() || '?'
 
   return (

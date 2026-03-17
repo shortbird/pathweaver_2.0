@@ -24,7 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { tokens, PillarKey } from '../theme/tokens';
-import { GlassCard } from '../components/common/GlassCard';
+import { SurfaceCard } from '../components/common/SurfaceCard';
 import { GlassBackground } from '../components/common/GlassBackground';
 import { useThemeStore } from '../stores/themeStore';
 import api from '../services/api';
@@ -466,7 +466,7 @@ export function JournalDetailScreen() {
             )}
 
             {/* Description */}
-            <GlassCard style={styles.contentCard}>
+            <SurfaceCard style={styles.contentCard}>
               <Text style={[styles.description, { color: colors.textSecondary }]}>
                 {event.description}
               </Text>
@@ -509,11 +509,11 @@ export function JournalDetailScreen() {
                   </View>
                 </View>
               )}
-            </GlassCard>
+            </SurfaceCard>
 
             {/* Links / videos / documents */}
             {links.length > 0 && (
-              <GlassCard style={styles.contentCard}>
+              <SurfaceCard style={styles.contentCard}>
                 {links.map((link, i) => (
                   <TouchableOpacity
                     key={i}
@@ -540,7 +540,7 @@ export function JournalDetailScreen() {
                     <Ionicons name="open-outline" size={16} color={colors.textMuted} />
                   </TouchableOpacity>
                 ))}
-              </GlassCard>
+              </SurfaceCard>
             )}
           </>
         ) : (
@@ -582,7 +582,7 @@ export function JournalDetailScreen() {
 
             {/* ── Photo mode ── */}
             {editMode === 'photo' && (
-              <GlassCard style={styles.contentCard}>
+              <SurfaceCard style={styles.contentCard}>
                 <View style={styles.mediaGrid}>
                   {editBlocks.map((block, idx) => {
                     const url = block.content?.url || block.file_url;
@@ -635,12 +635,12 @@ export function JournalDetailScreen() {
                     Add photos of your learning moment.
                   </Text>
                 )}
-              </GlassCard>
+              </SurfaceCard>
             )}
 
             {/* ── Voice mode ── */}
             {editMode === 'voice' && (
-              <GlassCard style={styles.contentCard}>
+              <SurfaceCard style={styles.contentCard}>
                 <View style={styles.voiceCenter}>
                   {recording && (
                     <View style={styles.recordingIndicator}>
@@ -690,12 +690,12 @@ export function JournalDetailScreen() {
                     </Text>
                   </View>
                 ) : null}
-              </GlassCard>
+              </SurfaceCard>
             )}
 
             {/* ── Text mode ── */}
             {editMode === 'text' && (
-              <GlassCard style={styles.contentCard}>
+              <SurfaceCard style={styles.contentCard}>
                 <TextInput
                   style={[styles.input, { color: colors.text, borderColor: colors.glass.border, backgroundColor: colors.inputBg }]}
                   placeholder="Title (optional)"
@@ -712,11 +712,11 @@ export function JournalDetailScreen() {
                   multiline
                   textAlignVertical="top"
                 />
-              </GlassCard>
+              </SurfaceCard>
             )}
 
             {/* Shared: Pillars + Save/Cancel */}
-            <GlassCard style={styles.contentCard}>
+            <SurfaceCard style={styles.contentCard}>
               <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Pillars</Text>
               <View style={styles.editPillarsRow}>
                 {PILLARS.map((p) => (
@@ -768,7 +768,7 @@ export function JournalDetailScreen() {
                   )}
                 </TouchableOpacity>
               </View>
-            </GlassCard>
+            </SurfaceCard>
           </>
         )}
       </ScrollView>
@@ -779,6 +779,7 @@ export function JournalDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    overflow: 'hidden',
   },
   scrollContent: {
     paddingTop: 50,

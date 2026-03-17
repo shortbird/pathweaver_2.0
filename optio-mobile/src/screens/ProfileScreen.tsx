@@ -20,8 +20,9 @@ import {
   Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Polygon, Line, Circle as SvgCircle } from 'react-native-svg';
 import { tokens, PillarKey } from '../theme/tokens';
-import { GlassCard } from '../components/common/GlassCard';
+import { SurfaceCard } from '../components/common/SurfaceCard';
 import { GlassBackground } from '../components/common/GlassBackground';
 import { useAuthStore } from '../stores/authStore';
 import { useThemeStore } from '../stores/themeStore';
@@ -63,6 +64,183 @@ const PILLAR_LABELS: Record<string, string> = {
   wellness: 'Wellness',
 };
 
+const PILLAR_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  stem: 'flask-outline',
+  art: 'color-palette-outline',
+  communication: 'chatbubbles-outline',
+  civics: 'globe-outline',
+  wellness: 'fitness-outline',
+};
+
+// ── Radar Chart ──────────────────────────────────────────────
+
+const RADAR_PILLARS_DEF = [
+  { key: 'stem', label: 'STEM', icon: 'flask-outline' as keyof typeof Ionicons.glyphMap, color: tokens.colors.pillars.stem },
+  { key: 'art', label: 'Art', icon: 'color-palette-outline' as keyof typeof Ionicons.glyphMap, color: tokens.colors.pillars.art },
+  { key: 'communication', label: 'Comm', icon: 'chatbubbles-outline' as keyof typeof Ionicons.glyphMap, color: tokens.colors.pillars.communication },
+  { key: 'civics', label: 'Civics', icon: 'globe-outline' as keyof typeof Ionicons.glyphMap, color: tokens.colors.pillars.civics },
+  { key: 'wellness', label: 'Wellness', icon: 'fitness-outline' as keyof typeof Ionicons.glyphMap, color: tokens.colors.pillars.wellness },
+];
+
+const RADAR_SVG_SIZE = 160;
+const RADAR_CX = RADAR_SVG_SIZE / 2;
+const RADAR_CY = RADAR_SVG_SIZE / 2;
+const RADAR_R = 55;
+const ICON_OFFSET = RADAR_R + 24;
+const RADAR_VIEW_SIZE = RADAR_SVG_SIZE + 48;
+
+function radarPoint(i: number, r: number): { x: number; y: number } {
+  const angle = (Math.PI * 2 * i) / RADAR_PILLARS_DEF.length - Math.PI / 2;
+  return { x: RADAR_CX + r * Math.cos(angle), y: RADAR_CY + r * Math.sin(angle) };
+}
+
+function PillarRadarChart({ skillBreakdown }: { skillBreakdown: Record<string, number> }) {
+  const maxXp = Math.max(...Object.values(skillBreakdown), 1);
+  const gridLevels = [0.33, 0.66, 1.0];
+  const iconPositions = RADAR_PILLARS_DEF.map((_, i) => radarPoint(i, ICON_OFFSET));
+
+  return (
+    <View style={radarStyles.wrapper}>
+      <View style={radarStyles.svgWrapper}>
+        <Svg width={RADAR_SVG_SIZE} height={RADAR_SVG_SIZE}>
+          {/* Grid rings */}
+          {gridLevels.map((level) => {
+            const pts = RADAR_PILLARS_DEF.map((_, i) => {
+              const p = radarPoint(i, RADAR_R * level);
+              return `${p.x},${p.y}`;
+            }).join(' ');
+            return (
+              <Polygon
+                key={level}
+                points={pts}
+                fill="none"
+                stroke={tokens.colors.textMuted}
+                strokeWidth={0.5}
+                opacity={0.5}
+              />
+            );
+          })}
+
+          {/* Axis lines */}
+          {RADAR_PILLARS_DEF.map((p, i) => {
+            const pt = radarPoint(i, RADAR_R);
+            return (
+              <Line
+                key={i}
+                x1={RADAR_CX}
+                y1={RADAR_CY}
+                x2={pt.x}
+                y2={pt.y}
+                stroke={p.color}
+                strokeWidth={0.5}
+                opacity={0.4}
+              />
+            );
+          })}
+
+          {/* Data polygon */}
+          <Polygon
+            points={RADAR_PILLARS_DEF.map((p, i) => {
+              const value = Math.max((skillBreakdown[p.key] || 0) / maxXp, 0.05);
+              const pt = radarPoint(i, RADAR_R * value);
+              return `${pt.x},${pt.y}`;
+            }).join(' ')}
+            fill={tokens.colors.primary + '25'}
+            stroke={tokens.colors.primary}
+            strokeWidth={2}
+          />
+
+          {/* Data dots */}
+          {RADAR_PILLARS_DEF.map((p, i) => {
+            const value = Math.max((skillBreakdown[p.key] || 0) / maxXp, 0.05);
+            const pt = radarPoint(i, RADAR_R * value);
+            return <SvgCircle key={p.key} cx={pt.x} cy={pt.y} r={4} fill={p.color} />;
+          })}
+        </Svg>
+
+        {/* Icon overlays around the chart */}
+        {RADAR_PILLARS_DEF.map((p, i) => {
+          const pos = iconPositions[i];
+          const offset = (RADAR_VIEW_SIZE - RADAR_SVG_SIZE) / 2;
+          return (
+            <View
+              key={p.key}
+              style={[
+                radarStyles.iconWrap,
+                { left: pos.x + offset - 12, top: pos.y + offset - 12 },
+              ]}
+            >
+              <Ionicons name={p.icon} size={18} color={p.color} />
+            </View>
+          );
+        })}
+      </View>
+
+      {/* Legend */}
+      <View style={radarStyles.legend}>
+        <View style={radarStyles.legendRow}>
+          {RADAR_PILLARS_DEF.slice(0, 3).map((p) => (
+            <View key={p.key} style={radarStyles.legendItem}>
+              <Ionicons name={p.icon} size={14} color={p.color} />
+              <Text style={[radarStyles.legendText, { color: p.color }]}>
+                {p.label} {(skillBreakdown[p.key] || 0).toLocaleString()}
+              </Text>
+            </View>
+          ))}
+        </View>
+        <View style={radarStyles.legendRow}>
+          {RADAR_PILLARS_DEF.slice(3).map((p) => (
+            <View key={p.key} style={radarStyles.legendItem}>
+              <Ionicons name={p.icon} size={14} color={p.color} />
+              <Text style={[radarStyles.legendText, { color: p.color }]}>
+                {p.label} {(skillBreakdown[p.key] || 0).toLocaleString()}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const radarStyles = StyleSheet.create({
+  wrapper: {
+    alignItems: 'center',
+  },
+  svgWrapper: {
+    width: RADAR_VIEW_SIZE,
+    height: RADAR_VIEW_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconWrap: {
+    position: 'absolute',
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  legend: {
+    alignItems: 'center',
+    gap: tokens.spacing.xs,
+    marginTop: tokens.spacing.xs,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: tokens.spacing.md,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  legendText: {
+    fontSize: tokens.typography.sizes.xs,
+    fontFamily: tokens.typography.fonts.semiBold,
+  },
+});
+
 export function ProfileScreen() {
   const { user, logout, loadUser } = useAuthStore();
   const { mode, colors, toggle } = useThemeStore();
@@ -71,6 +249,7 @@ export function ProfileScreen() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [observers, setObservers] = useState<Observer[]>([]);
   const [loadingObservers, setLoadingObservers] = useState(true);
+  const [momentsCaptured, setMomentsCaptured] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
   // Edit mode
@@ -98,6 +277,15 @@ export function ProfileScreen() {
     }
   }, []);
 
+  const loadMomentsCount = useCallback(async () => {
+    try {
+      const response = await api.get('/api/learning-events', { params: { limit: 100, offset: 0 } });
+      setMomentsCaptured((response.data.events || []).length);
+    } catch {
+      // Not critical
+    }
+  }, []);
+
   const loadObservers = useCallback(async () => {
     try {
       const response = await api.get('/api/observers/my-observers');
@@ -112,11 +300,12 @@ export function ProfileScreen() {
   useEffect(() => {
     loadProfile();
     loadObservers();
-  }, [loadProfile, loadObservers]);
+    loadMomentsCount();
+  }, [loadProfile, loadObservers, loadMomentsCount]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.allSettled([loadProfile(), loadObservers()]);
+    await Promise.allSettled([loadProfile(), loadObservers(), loadMomentsCount()]);
     setRefreshing(false);
   };
 
@@ -204,10 +393,7 @@ export function ProfileScreen() {
   const avatarUrl = profile?.user?.avatar_url || user?.avatar_url;
   const displayName = user?.display_name || 'User';
   const totalXp = profile?.total_xp ?? user?.total_xp ?? 0;
-  const completedQuests = profile?.completed_quests ?? 0;
   const skillBreakdown = profile?.skill_breakdown || {};
-  const skillEntries = Object.entries(skillBreakdown).filter(([, xp]) => xp > 0);
-  const maxSkillXp = Math.max(...skillEntries.map(([, xp]) => xp), 1);
   const bio = profile?.user?.bio;
   const memberSince = profile?.user?.created_at || user?.created_at;
   const initials = (user?.first_name?.[0] || displayName[0] || '?').toUpperCase();
@@ -222,7 +408,7 @@ export function ProfileScreen() {
         <Text style={[styles.screenTitle, { color: colors.text }]}>Profile</Text>
 
         {/* User Info Card */}
-        <GlassCard style={styles.card}>
+        <SurfaceCard style={styles.card}>
           {!editing ? (
             <>
               <View style={styles.avatarRow}>
@@ -235,7 +421,7 @@ export function ProfileScreen() {
                 )}
                 <View style={styles.userInfo}>
                   <Text style={[styles.userName, { color: colors.text }]}>{displayName}</Text>
-                  <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
+                  <Text style={[styles.userEmail, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
                     {user?.email}
                   </Text>
                   <Text style={[styles.userRole, { color: colors.textMuted }]}>
@@ -322,71 +508,37 @@ export function ProfileScreen() {
               </View>
             </View>
           )}
-        </GlassCard>
+        </SurfaceCard>
 
         {/* XP Stats Card */}
         {!loadingProfile && (
-          <GlassCard style={styles.card}>
+          <SurfaceCard style={styles.card}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Progress</Text>
             <View style={styles.statsRow}>
               <View style={styles.statBlock}>
-                <Text style={[styles.statValue, { color: colors.primary }]}>{totalXp}</Text>
+                <Text style={[styles.statValue, { color: colors.primary }]}>{totalXp.toLocaleString()}</Text>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total XP</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statBlock}>
-                <Text style={[styles.statValue, { color: colors.primary }]}>{completedQuests}</Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Quests Done</Text>
+                <Text style={[styles.statValue, { color: colors.primary }]}>{momentsCaptured}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Moments</Text>
               </View>
             </View>
 
-            {/* Pillar breakdown */}
-            {skillEntries.length > 0 && (
-              <View style={styles.pillarSection}>
-                {skillEntries.map(([pillar, xp]) => (
-                  <View key={pillar} style={styles.pillarRow}>
-                    <View style={styles.pillarLabelCol}>
-                      <View
-                        style={[
-                          styles.pillarDot,
-                          {
-                            backgroundColor:
-                              tokens.colors.pillars[pillar as PillarKey] || colors.textMuted,
-                          },
-                        ]}
-                      />
-                      <Text style={[styles.pillarName, { color: colors.text }]}>
-                        {PILLAR_LABELS[pillar] || pillar}
-                      </Text>
-                    </View>
-                    <View style={[styles.pillarBarBg, { backgroundColor: colors.border }]}>
-                      <View
-                        style={[
-                          styles.pillarBarFill,
-                          {
-                            width: `${Math.round((xp / maxSkillXp) * 100)}%`,
-                            backgroundColor:
-                              tokens.colors.pillars[pillar as PillarKey] || colors.textMuted,
-                          },
-                        ]}
-                      />
-                    </View>
-                    <Text style={[styles.pillarXp, { color: colors.textSecondary }]}>{xp}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </GlassCard>
+            {/* Pillar radar chart */}
+            <PillarRadarChart skillBreakdown={skillBreakdown} />
+          </SurfaceCard>
         )}
 
         {loadingProfile && (
-          <GlassCard style={styles.card}>
+          <SurfaceCard style={styles.card}>
             <ActivityIndicator color={colors.primary} />
-          </GlassCard>
+          </SurfaceCard>
         )}
 
         {/* Appearance */}
-        <GlassCard style={styles.card}>
+        <SurfaceCard style={styles.card}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Appearance</Text>
           <View style={styles.themeRow}>
             <View style={styles.themeLabel}>
@@ -407,11 +559,11 @@ export function ProfileScreen() {
               thumbColor={mode === 'dark' ? colors.primary : '#f4f3f4'}
             />
           </View>
-        </GlassCard>
+        </SurfaceCard>
 
         {/* Observers Section (students only) */}
         {isStudent && (
-          <GlassCard style={styles.card}>
+          <SurfaceCard style={styles.card}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>My Observers</Text>
               <TouchableOpacity onPress={() => setShowInvite(!showInvite)}>
@@ -476,11 +628,11 @@ export function ProfileScreen() {
                 </View>
               ))
             )}
-          </GlassCard>
+          </SurfaceCard>
         )}
 
         {/* Actions */}
-        <GlassCard style={styles.card}>
+        <SurfaceCard style={styles.card}>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Ionicons
               name="log-out-outline"
@@ -490,7 +642,7 @@ export function ProfileScreen() {
             />
             <Text style={styles.logoutText}>Sign Out</Text>
           </TouchableOpacity>
-        </GlassCard>
+        </SurfaceCard>
       </ScrollView>
     </GlassBackground>
   );
@@ -499,6 +651,7 @@ export function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    overflow: 'hidden',
   },
   scrollContent: {
     paddingTop: 60,
@@ -641,46 +794,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.1)',
   },
 
-  // Pillar breakdown
-  pillarSection: {
-    marginTop: tokens.spacing.xs,
-  },
-  pillarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: tokens.spacing.sm,
-    gap: tokens.spacing.sm,
-  },
-  pillarLabelCol: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: 120,
-    gap: tokens.spacing.sm,
-  },
-  pillarDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  pillarName: {
-    fontSize: tokens.typography.sizes.sm,
-    fontFamily: tokens.typography.fonts.regular,
-  },
-  pillarBarBg: {
-    flex: 1,
-    height: 8,
-    borderRadius: tokens.radius.full,
-    overflow: 'hidden',
-  },
-  pillarBarFill: {
-    height: '100%',
-    borderRadius: tokens.radius.full,
-  },
-  pillarXp: {
-    width: 40,
-    textAlign: 'right',
-    fontSize: tokens.typography.sizes.sm,
-  },
 
   // Theme
   themeRow: {

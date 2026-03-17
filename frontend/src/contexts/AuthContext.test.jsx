@@ -204,7 +204,30 @@ describe('AuthContext', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard')
     })
 
-    it('navigates observer to /observer/feed', async () => {
+    it('navigates new observer to /observer/welcome', async () => {
+      localStorage.removeItem('observerWelcomeSeen')
+      api.post.mockResolvedValue({
+        data: {
+          user: { id: '1', role: 'observer', first_name: 'O', created_at: new Date(Date.now() - 86400000).toISOString() },
+          session: { authenticated: true },
+          app_access_token: 'at',
+          app_refresh_token: 'rt'
+        }
+      })
+
+      const wrapper = createWrapper()
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      await act(async () => {
+        await result.current.login('o@test.com', 'pass')
+      })
+
+      expect(mockNavigate).toHaveBeenCalledWith('/observer/welcome')
+    })
+
+    it('navigates returning observer to /observer/feed', async () => {
+      localStorage.setItem('observerWelcomeSeen', 'true')
       api.post.mockResolvedValue({
         data: {
           user: { id: '1', role: 'observer', first_name: 'O', created_at: new Date(Date.now() - 86400000).toISOString() },

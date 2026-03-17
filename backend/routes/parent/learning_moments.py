@@ -223,7 +223,8 @@ def upload_moment_media(user_id, child_id):
         )
 
         # Get public URL
-        file_url = supabase.storage.from_(bucket_name).get_public_url(unique_filename)
+        from utils.storage_url import fix_storage_url
+        file_url = fix_storage_url(supabase.storage.from_(bucket_name).get_public_url(unique_filename))
 
         logger.info(f"Parent {user_id} uploaded {media_type} for child {child_id}")
 
@@ -1057,7 +1058,8 @@ def upload_child_moment_file(user_id, child_id, moment_id):
         )
 
         # Get public URL
-        file_url = supabase.storage.from_(bucket_name).get_public_url(unique_filename)
+        from utils.storage_url import fix_storage_url
+        file_url = fix_storage_url(supabase.storage.from_(bucket_name).get_public_url(unique_filename))
 
         # Create evidence block
         block_data = {

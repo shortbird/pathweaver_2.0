@@ -230,12 +230,13 @@ def get_contacts(user_id: str):
         supabase = get_supabase_admin_client()
 
         # Get user role and organization
-        user = supabase.table('users').select('role, organization_id').eq('id', user_id).single().execute()
+        from utils.roles import get_effective_role
+        user = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).single().execute()
         if not user.data:
             return error_response('User not found', status_code=404, error_code='not_found')
 
         contacts = []
-        user_role = user.data.get('role')
+        user_role = get_effective_role(user.data)
         user_org_id = user.data.get('organization_id')
 
         # SUPERADMIN: Return ALL users on the platform (no organization isolation)
@@ -287,8 +288,24 @@ def get_contacts(user_id: str):
                             'relationship': 'advisor'
                         })
 
-        # For advisors/admins: add all their assigned students
-        if user_role in ['advisor', 'org_admin']:
+        # For org_admins: show ALL users in their organization
+        if user_role == 'org_admin' and user_org_id:
+            org_users = supabase.table('users').select(
+                'id, display_name, first_name, last_name, avatar_url, role, org_role, organization_id'
+            ).eq('organization_id', user_org_id).neq('id', user_id).order('display_name').execute()
+
+            if org_users.data:
+                for u in org_users.data:
+                    effective_role = u.get('org_role') if u.get('role') == 'org_managed' else u.get('role')
+                    u.pop('organization_id', None)
+                    u.pop('org_role', None)
+                    contacts.append({
+                        **u,
+                        'relationship': effective_role or 'user'
+                    })
+
+        # For advisors: add their assigned students
+        elif user_role == 'advisor':
             # Get student assignments for this advisor
             assignments = supabase.table('advisor_student_assignments').select(
                 'student_id'

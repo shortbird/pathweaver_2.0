@@ -75,3 +75,15 @@ export const getVideoAspectClass = (url) => {
   if (provider === 'youtube' || provider === 'vimeo') return 'aspect-video'
   return 'aspect-square'
 }
+
+/**
+ * Check if a URL is a video-sharing link that can't be iframe-embedded
+ * but should be shown as a video preview card (thumbnail + play button).
+ * Covers Google Photos, iCloud, and similar services.
+ */
+export const isVideoSharingLink = (url) => {
+  if (!url) return false
+  return /photos\.app\.goo\.gl\//.test(url)
+    || /photos\.google\.com\/share/.test(url)
+    || /share\.icloud\.com\/photos\//.test(url)
+}

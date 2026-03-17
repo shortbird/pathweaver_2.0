@@ -1,5 +1,5 @@
 {
-  "name": "Optio Education Platform",
+  "name": "Optio",
   "short_name": "Optio",
   "description": "Create self-validated diplomas through learning quests",
   "start_url": "/",
@@ -13,7 +13,7 @@
       "src": "https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
       "src": "/apple-touch-icon.png",

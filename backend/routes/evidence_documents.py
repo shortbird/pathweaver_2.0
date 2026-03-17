@@ -446,7 +446,8 @@ def upload_task_file(user_id: str, task_id: str):
                 file_options={"content-type": content_type}
             )
 
-            public_url = admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename)
+            from utils.storage_url import fix_storage_url
+            public_url = fix_storage_url(admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename))
 
             return jsonify({
                 'success': True,
@@ -572,7 +573,8 @@ def upload_block_file(user_id: str, block_id: str):
                 file_options={"content-type": content_type}
             )
 
-            public_url = admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename)
+            from utils.storage_url import fix_storage_url
+            public_url = fix_storage_url(admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename))
 
             # Update block content with file information
             current_content = block.get('content', {})

@@ -215,12 +215,12 @@ export default function AdvisorsTab({ orgId }) {
               >
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center text-white font-semibold text-sm">
-                    {(advisor.display_name || advisor.first_name || '?')[0].toUpperCase()}
+                    {(advisor.first_name || advisor.display_name || '?')[0].toUpperCase()}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-semibold text-gray-900">
-                        {advisor.display_name || `${advisor.first_name} ${advisor.last_name}`}
+                        {`${advisor.first_name || ''} ${advisor.last_name || ''}`.trim() || advisor.display_name || 'Unknown'}
                       </p>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                         advisor.role === 'org_admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
@@ -277,7 +277,7 @@ export default function AdvisorsTab({ orgId }) {
                           <div className="flex justify-between items-start">
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-gray-900 text-sm truncate">
-                                {student.display_name || `${student.first_name} ${student.last_name}`}
+                                {`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || 'Student'}
                               </p>
                               <p className="text-xs text-gray-500 truncate">{student.email}</p>
                             </div>
@@ -305,7 +305,7 @@ export default function AdvisorsTab({ orgId }) {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
             <div className="px-6 py-4 border-b flex justify-between items-center">
               <h3 className="text-lg font-semibold text-gray-900">
-                Assign Students to {selectedAdvisor.display_name || selectedAdvisor.first_name}
+                Assign Students to {selectedAdvisor.first_name || selectedAdvisor.display_name || 'Advisor'}
               </h3>
               <button
                 onClick={() => {
@@ -379,7 +379,7 @@ export default function AdvisorsTab({ orgId }) {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-900 text-sm truncate">
-                          {student.display_name || `${student.first_name} ${student.last_name}`}
+                          {`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || 'Student'}
                         </p>
                         <p className="text-xs text-gray-500 truncate">{student.email}</p>
                         {!showUnassignedOnly && student.advisor_count > 0 && (

@@ -19,7 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { tokens } from '../theme/tokens';
 import { shopCategoryIcons } from '../theme/icons';
-import { GlassCard } from '../components/common/GlassCard';
+import { SurfaceCard } from '../components/common/SurfaceCard';
 import { GlassBackground } from '../components/common/GlassBackground';
 import { useYetiStore, ShopItem } from '../stores/yetiStore';
 
@@ -152,7 +152,7 @@ function ShopItemCard({
   if (item.effect?.energy) effectLines.push(`+${item.effect.energy} Energy`);
 
   return (
-    <GlassCard style={styles.itemCard}>
+    <SurfaceCard style={styles.itemCard}>
       <View style={styles.itemIconCircle}>
         <Ionicons name={(shopCategoryIcons[item.category] || 'cube-outline') as any} size={28} color={tokens.colors.primary} />
       </View>
@@ -178,13 +178,14 @@ function ShopItemCard({
           <Text style={styles.buyButtonText}>{item.xp_cost} XP</Text>
         )}
       </TouchableOpacity>
-    </GlassCard>
+    </SurfaceCard>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    overflow: 'hidden',
     // backgroundColor handled by GlassBackground
     paddingTop: 60,
   },

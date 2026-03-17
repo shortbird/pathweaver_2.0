@@ -45,15 +45,29 @@ class DirectMessageService(BaseService):
             print(f"[can_message_user] Checking permission: {user_id} -> {target_id}", file=sys.stderr, flush=True)
 
             # SUPERADMIN: Can message anyone, and anyone can reply to superadmin
-            sender = supabase.table('users').select('role').eq('id', user_id).single().execute()
+            from utils.roles import get_effective_role
+            sender = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).single().execute()
             if sender.data and sender.data.get('role') == 'superadmin':
                 print(f"[can_message_user] ALLOWED: Superadmin can message anyone", file=sys.stderr, flush=True)
                 return True
 
             # Check if target is superadmin - anyone can message superadmin
-            target = supabase.table('users').select('role').eq('id', target_id).single().execute()
+            target = supabase.table('users').select('role, org_role, organization_id').eq('id', target_id).single().execute()
             if target.data and target.data.get('role') == 'superadmin':
                 print(f"[can_message_user] ALLOWED: Anyone can message superadmin", file=sys.stderr, flush=True)
+                return True
+
+            # ORG_ADMIN: Can message anyone in the same organization
+            sender_effective_role = get_effective_role(sender.data) if sender.data else None
+            sender_org_id = sender.data.get('organization_id') if sender.data else None
+            target_org_id = target.data.get('organization_id') if target.data else None
+            if sender_effective_role == 'org_admin' and sender_org_id and sender_org_id == target_org_id:
+                print(f"[can_message_user] ALLOWED: Org admin can message anyone in their org", file=sys.stderr, flush=True)
+                return True
+            # Anyone in the same org can reply to their org_admin
+            target_effective_role = get_effective_role(target.data) if target.data else None
+            if target_effective_role == 'org_admin' and target_org_id and sender_org_id == target_org_id:
+                print(f"[can_message_user] ALLOWED: Anyone can message their org admin", file=sys.stderr, flush=True)
                 return True
 
             # Check for advisor-student relationship via advisor_student_assignments table

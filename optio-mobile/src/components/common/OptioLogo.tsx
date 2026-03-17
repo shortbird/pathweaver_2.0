@@ -10,12 +10,15 @@ import Svg, { Rect, Path } from 'react-native-svg';
 
 interface OptioLogoProps {
   size?: number;
+  background?: string;
 }
 
-export function OptioLogo({ size = 32 }: OptioLogoProps) {
+export function OptioLogo({ size = 32, background = 'white' }: OptioLogoProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 94.14 92.48">
-      <Rect x="0" y="0" width="94.14" height="92.48" fill="white" />
+      {background !== 'none' && (
+        <Rect x="0" y="0" width="94.14" height="92.48" fill={background} />
+      )}
       <Path
         d="M47.06,27.58l19.21,18.77h27.24C93.51,21.09,72.72.6,47.06.6S.62,21.09.62,46.35h27.24l19.21-18.77h0Z"
         fill="#6D469B"

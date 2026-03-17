@@ -55,6 +55,7 @@ interface ThemeColors {
   warning: string;
   background: string;
   surface: string;
+  surfaceOpaque: string; // Fully opaque fallback for a11y
   text: string;
   textSecondary: string;
   textMuted: string;
@@ -66,6 +67,9 @@ interface ThemeColors {
     borderLight: string;
     highlight: string;
     shadow: string;
+    thinBackground: string;
+    thinBorder: string;
+    clearDimming: string;
   };
   pillars: typeof shared.pillars;
   blobs: typeof shared.blobs;
@@ -75,6 +79,7 @@ interface ThemeColors {
   statBarBg: string;
   actionFill: string;
   inputBg: string;
+  glassTint: string | null; // Per-screen glass tint color
 }
 
 export interface BlobColors {
@@ -89,6 +94,7 @@ const lightColors: ThemeColors = {
   ...shared,
   background: '#EEEAF4',
   surface: 'rgba(255, 255, 255, 0.45)',
+  surfaceOpaque: '#FFFFFF',
   text: '#1A1A2E',
   textSecondary: 'rgba(30, 30, 50, 0.55)',
   textMuted: 'rgba(30, 30, 50, 0.3)',
@@ -100,18 +106,23 @@ const lightColors: ThemeColors = {
     borderLight: 'rgba(255, 255, 255, 0.2)',
     highlight: 'rgba(255, 255, 255, 0.5)',
     shadow: 'rgba(0, 0, 0, 0.08)',
+    thinBackground: 'rgba(255, 255, 255, 0.12)',
+    thinBorder: 'rgba(255, 255, 255, 0.2)',
+    clearDimming: 'rgba(0, 0, 0, 0.35)',
   },
   tabBar: '#FFFFFF',
   blurTint: 'light',
   statBarBg: 'rgba(0, 0, 0, 0.06)',
   actionFill: 'rgba(255, 255, 255, 0.25)',
   inputBg: 'rgba(255, 255, 255, 0.5)',
+  glassTint: null,
 };
 
 const darkColors: ThemeColors = {
   ...shared,
   background: '#0D0F1A',
   surface: 'rgba(255, 255, 255, 0.06)',
+  surfaceOpaque: '#1A1C2E',
   text: '#F5F5F7',
   textSecondary: 'rgba(255, 255, 255, 0.6)',
   textMuted: 'rgba(255, 255, 255, 0.35)',
@@ -123,12 +134,16 @@ const darkColors: ThemeColors = {
     borderLight: 'rgba(255, 255, 255, 0.06)',
     highlight: 'rgba(255, 255, 255, 0.15)',
     shadow: 'rgba(0, 0, 0, 0.4)',
+    thinBackground: 'rgba(255, 255, 255, 0.03)',
+    thinBorder: 'rgba(255, 255, 255, 0.06)',
+    clearDimming: 'rgba(0, 0, 0, 0.5)',
   },
   tabBar: '#0D0F1A',
   blurTint: 'dark',
   statBarBg: 'rgba(255, 255, 255, 0.08)',
   actionFill: 'rgba(255, 255, 255, 0.08)',
   inputBg: 'rgba(255, 255, 255, 0.06)',
+  glassTint: null,
 };
 
 const lightBlobs: BlobColors = {
@@ -155,6 +170,7 @@ interface ThemeState {
   blobColors: BlobColors;
   toggle: () => void;
   setMode: (mode: ThemeMode) => void;
+  setGlassTint: (tint: string | null) => void;
   hydrate: () => Promise<void>;
 }
 
@@ -189,4 +205,9 @@ export const useThemeStore = create<ThemeState>((set) => ({
     storage.setItem('theme-mode', mode);
     set({ mode, colors: colorsForMode(mode), blobColors: blobsForMode(mode) });
   },
+
+  setGlassTint: (tint: string | null) =>
+    set((state) => ({
+      colors: { ...state.colors, glassTint: tint },
+    })),
 }));

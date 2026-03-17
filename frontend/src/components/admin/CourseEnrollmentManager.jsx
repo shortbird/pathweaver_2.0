@@ -214,10 +214,9 @@ export default function CourseEnrollmentManager({
 
   // Get display name for a user
   const getDisplayName = (user) => {
+    const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim()
+    if (fullName) return fullName
     if (user.display_name) return user.display_name
-    if (user.first_name && user.last_name) return `${user.first_name} ${user.last_name}`
-    if (user.first_name) return user.first_name
-    if (user.last_name) return user.last_name
     return user.email?.split('@')[0] || 'Unknown'
   }
 

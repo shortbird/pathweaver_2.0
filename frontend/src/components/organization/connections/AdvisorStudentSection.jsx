@@ -42,7 +42,7 @@ function AdvisorStudentSection({
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-gray-900">
-                      {advisor.display_name || `${advisor.first_name} ${advisor.last_name}`}
+                      {`${advisor.first_name || ''} ${advisor.last_name || ''}`.trim() || advisor.display_name || 'Unknown'}
                     </p>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                       advisor.role === 'org_admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
@@ -91,7 +91,7 @@ function AdvisorStudentSection({
                           <div className="flex justify-between items-start">
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-gray-900 text-sm truncate">
-                                {student.display_name || `${student.first_name} ${student.last_name}`}
+                                {`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || 'Student'}
                               </p>
                               <p className="text-xs text-gray-500 truncate">{student.email}</p>
                             </div>

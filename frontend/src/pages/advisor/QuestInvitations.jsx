@@ -382,7 +382,7 @@ const QuestInvitations = () => {
                           className="w-4 h-4 text-optio-purple focus:ring-optio-purple border-gray-300 rounded"
                         />
                         <span className={`text-sm ${isSelected ? 'text-gray-900 font-medium' : 'text-gray-700'}`}>
-                          {student.display_name || student.first_name || 'Student'}
+                          {`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || 'Student'}
                         </span>
                       </label>
                     );

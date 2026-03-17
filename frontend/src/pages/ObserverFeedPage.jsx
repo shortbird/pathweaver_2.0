@@ -377,8 +377,8 @@ export default function ObserverFeedPage() {
             >
               <option value="">All Students ({students.length})</option>
               {students.map(link => {
-                const studentName = link.student?.display_name ||
-                  `${link.student?.first_name || ''} ${link.student?.last_name || ''}`.trim() ||
+                const studentName = `${link.student?.first_name || ''} ${link.student?.last_name || ''}`.trim() ||
+                  link.student?.display_name ||
                   'Student';
                 return (
                   <option key={link.student_id} value={link.student_id}>
@@ -393,7 +393,7 @@ export default function ObserverFeedPage() {
           <div>
             <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
               {selectedStudentId
-                ? `${selectedStudent?.student?.display_name || selectedStudent?.student?.first_name || 'Student'}'s Activity`
+                ? `${`${selectedStudent?.student?.first_name || ''} ${selectedStudent?.student?.last_name || ''}`.trim() || selectedStudent?.student?.display_name || 'Student'}'s Activity`
                 : 'Recent Activity'}
             </h2>
             <p className="text-sm text-gray-500">

@@ -11,8 +11,8 @@ const RHYTHM_COLORS = {
 };
 
 const getStudentName = (student) => {
-  return student.display_name ||
-    `${student.first_name || ''} ${student.last_name || ''}`.trim() ||
+  return `${student.first_name || ''} ${student.last_name || ''}`.trim() ||
+    student.display_name ||
     'Student';
 };
 

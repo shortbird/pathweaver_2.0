@@ -226,7 +226,7 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
             <button
               type="button"
               onClick={() => {
-                const name = user.display_name || (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.first_name || user.last_name) || user.email
+                const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.display_name || user.email
                 if (confirm(`Remove ${name} from this organization?`)) {
                   onRemove()
                 }

@@ -523,7 +523,8 @@ def upload_event_file(user_id, event_id):
                 file_options={"content-type": content_type}
             )
 
-            public_url = admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename)
+            from utils.storage_url import fix_storage_url
+            public_url = fix_storage_url(admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename))
 
             # Return the URL only -- evidence blocks are saved via
             # the /evidence endpoint (which uses the service layer)

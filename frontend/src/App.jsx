@@ -20,6 +20,7 @@ import { queryKeys } from './utils/queryKeys'
 import logger from './utils/logger'
 import api from './services/api'
 import { activityTracker } from './services/activityTracker'
+import InstallPrompt from './components/common/InstallPrompt'
 import { initPostHog, captureErrorToast } from './services/posthog'
 import { toast } from 'react-hot-toast'
 
@@ -112,6 +113,7 @@ const StudentFeedbackPage = lazy(() => import('./pages/StudentFeedbackPage'))
 const MyEvidenceReports = lazy(() => import('./pages/MyEvidenceReports'))
 const EvidenceReportBuilder = lazy(() => import('./pages/EvidenceReportBuilder'))
 const PublicEvidenceReport = lazy(() => import('./pages/PublicEvidenceReport'))
+const SharedFeedPostPage = lazy(() => import('./pages/SharedFeedPostPage'))
 // Credit Review Dashboard (March 2026 - Unified credit review for advisors/accreditors)
 const CreditReviewDashboardPage = lazy(() => import('./pages/CreditReviewDashboardPage'))
 
@@ -356,6 +358,7 @@ function App() {
             <OrganizationProvider>
             <ActingAsProvider>
             <AppContent />
+            <InstallPrompt />
             <Toaster
             position="top-right"
             toastOptions={{
@@ -448,6 +451,11 @@ function App() {
               
               <Route element={<PrivateRoute requiredRole="superadmin" />}>
                 <Route path="admin/*" element={<AdminPage />} />
+                {/* Course Builder - superadmin only */}
+                <Route path="courses/:id/edit" element={<CourseBuilder />} />
+                <Route path="courses/new" element={<CourseBuilder />} />
+                <Route path="course-plan" element={<CoursePlanMode />} />
+                <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
               </Route>
 
               {/* Organization Management - accessible to org admins and platform admins */}
@@ -476,16 +484,10 @@ function App() {
                 {/* LMS Features - Advisor */}
                 <Route path="advisor/invitations" element={<QuestInvitations />} />
                 <Route path="quests/:questId/curriculum/edit" element={<CurriculumBuilder />} />
-                {/* Course Builder */}
-                <Route path="courses/:id/edit" element={<CourseBuilder />} />
-                <Route path="courses/new" element={<CourseBuilder />} />
-                {/* AI Course Plan - accessible to advisors and org_admins */}
-                <Route path="course-plan" element={<CoursePlanMode />} />
-                <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
               </Route>
 
-              {/* Credit Review Dashboard - accessible to advisors, accreditors, and superadmin */}
-              <Route element={<PrivateRoute requiredRole={["advisor", "accreditor", "org_admin", "superadmin"]} />}>
+              {/* Credit Review Dashboard - superadmin only */}
+              <Route element={<PrivateRoute requiredRole="superadmin" />}>
                 <Route path="credit-dashboard" element={<CreditReviewDashboardPage />} />
               </Route>
 
@@ -513,6 +515,9 @@ function App() {
 
             {/* Public evidence report view (no auth required) */}
             <Route path="report/:token" element={<PublicEvidenceReport />} />
+
+            {/* Public shared feed post view (no auth required) */}
+            <Route path="shared/feed/:token" element={<SharedFeedPostPage />} />
 
             {/* Invitation pages - standalone full-screen layouts */}
             <Route path="invitation/:code" element={<AcceptInvitationPage />} />

@@ -76,13 +76,13 @@ const AdminConnections = () => {
               type: 'advisor',
               person: {
                 id: advisor.id,
-                name: advisor.display_name || `${advisor.first_name} ${advisor.last_name}`,
+                name: `${advisor.first_name || ''} ${advisor.last_name || ''}`.trim() || advisor.display_name || 'Unknown',
                 email: advisor.email,
                 role: advisor.role
               },
               student: {
                 id: student.id,
-                name: student.display_name || `${student.first_name} ${student.last_name}`,
+                name: `${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || 'Unknown',
                 email: student.email
               },
               created_at: student.assigned_at
@@ -525,7 +525,7 @@ const AdminConnections = () => {
                   <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
                     <div>
                       <p className="font-medium text-gray-900">
-                        {selectedPerson.display_name || `${selectedPerson.first_name} ${selectedPerson.last_name}`}
+                        {`${selectedPerson.first_name || ''} ${selectedPerson.last_name || ''}`.trim() || selectedPerson.display_name || 'Unknown'}
                       </p>
                       <p className="text-sm text-gray-500">{selectedPerson.email}</p>
                     </div>
@@ -554,7 +554,7 @@ const AdminConnections = () => {
                             className="w-full text-left p-3 hover:bg-purple-50 transition-colors"
                           >
                             <p className="font-medium text-gray-900">
-                              {person.display_name || `${person.first_name} ${person.last_name}`}
+                              {`${person.first_name || ''} ${person.last_name || ''}`.trim() || person.display_name || 'Unknown'}
                             </p>
                             <p className="text-sm text-gray-500">{person.email}</p>
                           </button>

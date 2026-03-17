@@ -9,20 +9,21 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   FlatList,
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
-  Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { tokens, PillarKey } from '../theme/tokens';
+import { pillarIcons } from '../theme/icons';
 import { useNavigation } from '@react-navigation/native';
-import { GlassCard } from '../components/common/GlassCard';
+import { SurfaceCard } from '../components/common/SurfaceCard';
 import { GlassBackground } from '../components/common/GlassBackground';
+import { QuickCapture } from '../components/capture/QuickCapture';
 import api from '../services/api';
-import { addToQueue, syncQueue, getPendingCount } from '../utils/offlineQueue';
+import { syncQueue, getPendingCount } from '../utils/offlineQueue';
 
 const PILLARS: { key: PillarKey; label: string }[] = [
   { key: 'stem', label: 'STEM' },
@@ -46,9 +47,6 @@ export function JournalScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showCompose, setShowCompose] = useState(false);
-  const [text, setText] = useState('');
-  const [selectedPillars, setSelectedPillars] = useState<PillarKey[]>([]);
-  const [submitting, setSubmitting] = useState(false);
   const [filterPillar, setFilterPillar] = useState<PillarKey | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -83,59 +81,9 @@ export function JournalScreen() {
     loadEvents();
   };
 
-  const togglePillar = (key: PillarKey) => {
-    setSelectedPillars((prev) =>
-      prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key],
-    );
-  };
-
-  const handleSubmit = async () => {
-    const trimmed = text.trim();
-    if (trimmed.length < 10) {
-      Alert.alert('Too short', 'Please write at least 10 characters.');
-      return;
-    }
-
-    setSubmitting(true);
-    let pillars = selectedPillars as string[];
-    try {
-      // Get AI pillar suggestion if none selected
-      if (pillars.length === 0) {
-        try {
-          const aiResponse = await api.post('/api/learning-events/ai-suggestions', {
-            description: trimmed,
-          });
-          pillars = aiResponse.data.suggestions?.pillars || ['wellness'];
-        } catch {
-          pillars = ['wellness'];
-        }
-      }
-
-      await api.post('/api/learning-events', {
-        description: trimmed,
-        pillars,
-        source_type: 'realtime',
-      });
-
-      setText('');
-      setSelectedPillars([]);
-      setShowCompose(false);
-      loadEvents();
-    } catch (error: any) {
-      // Offline fallback: queue for later sync
-      if (!error.response) {
-        await addToQueue({ description: trimmed, pillars, source_type: 'realtime' });
-        setPendingCount(await getPendingCount());
-        Alert.alert('Saved Offline', 'Your entry will sync when you are back online.');
-        setText('');
-        setSelectedPillars([]);
-        setShowCompose(false);
-        return;
-      }
-      Alert.alert('Error', error.response?.data?.error || 'Failed to save entry');
-    } finally {
-      setSubmitting(false);
-    }
+  const handleCaptureSaved = () => {
+    setShowCompose(false);
+    loadEvents();
   };
 
   const filteredEvents = filterPillar
@@ -171,91 +119,54 @@ export function JournalScreen() {
       </View>
 
       {showCompose && (
-        <GlassCard style={styles.composeCard}>
-          <TextInput
-            style={styles.composeInput}
-            placeholder="What did you learn today? (min 10 chars)"
-            placeholderTextColor={tokens.colors.textMuted}
-            value={text}
-            onChangeText={setText}
-            multiline
-            maxLength={2000}
-            autoFocus
+        <SurfaceCard style={styles.composeCard}>
+          <QuickCapture
+            initialMode="text"
+            onSaved={handleCaptureSaved}
+            onCancel={() => setShowCompose(false)}
           />
-
-          <Text style={styles.pillarLabel}>Tag pillars (optional - AI will suggest):</Text>
-          <View style={styles.pillarRow}>
-            {PILLARS.map((p) => (
-              <TouchableOpacity
-                key={p.key}
-                style={[
-                  styles.pillarChip,
-                  {
-                    borderColor: tokens.colors.pillars[p.key],
-                    backgroundColor: selectedPillars.includes(p.key)
-                      ? tokens.colors.pillars[p.key]
-                      : 'transparent',
-                  },
-                ]}
-                onPress={() => togglePillar(p.key)}
-              >
-                <Text
-                  style={[
-                    styles.pillarChipText,
-                    { color: selectedPillars.includes(p.key) ? '#FFF' : tokens.colors.pillars[p.key] },
-                  ]}
-                >
-                  {p.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <TouchableOpacity
-            style={[styles.submitButton, submitting && styles.buttonDisabled]}
-            onPress={handleSubmit}
-            disabled={submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#FFF" size="small" />
-            ) : (
-              <Text style={styles.submitText}>Save Entry</Text>
-            )}
-          </TouchableOpacity>
-        </GlassCard>
+        </SurfaceCard>
       )}
 
       <View style={styles.filterRow}>
         <TouchableOpacity
-          style={[styles.filterChip, !filterPillar && styles.filterChipActive]}
+          style={[
+            styles.filterIcon,
+            {
+              borderColor: !filterPillar ? tokens.colors.primary : tokens.colors.border,
+              backgroundColor: !filterPillar ? tokens.colors.primary : 'transparent',
+            },
+          ]}
           onPress={() => setFilterPillar(null)}
         >
-          <Text style={[styles.filterChipText, !filterPillar && styles.filterChipTextActive]}>
+          <Text style={{ fontSize: 15, color: !filterPillar ? '#FFF' : tokens.colors.textMuted, fontFamily: tokens.typography.fonts.semiBold }}>
             All
           </Text>
         </TouchableOpacity>
-        {PILLARS.map((p) => (
-          <TouchableOpacity
-            key={p.key}
-            style={[
-              styles.filterChip,
-              filterPillar === p.key && {
-                backgroundColor: tokens.colors.pillars[p.key],
-                borderColor: tokens.colors.pillars[p.key],
-              },
-            ]}
-            onPress={() => setFilterPillar(filterPillar === p.key ? null : p.key)}
-          >
-            <Text
+        {PILLARS.map((p) => {
+          const active = filterPillar === p.key;
+          const pillarColor = tokens.colors.pillars[p.key];
+          return (
+            <TouchableOpacity
+              key={p.key}
               style={[
-                styles.filterChipText,
-                filterPillar === p.key && { color: '#FFF' },
+                styles.filterIcon,
+                {
+                  borderColor: active ? pillarColor : tokens.colors.border,
+                  backgroundColor: active ? pillarColor : 'transparent',
+                },
               ]}
+              onPress={() => setFilterPillar(active ? null : p.key)}
+              accessibilityLabel={p.label}
             >
-              {p.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Ionicons
+                name={pillarIcons[p.key] as any}
+                size={22}
+                color={active ? '#FFF' : pillarColor}
+              />
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <FlatList
@@ -294,7 +205,7 @@ function JournalEntry({ event }: { event: LearningEvent }) {
       activeOpacity={0.85}
       onPress={() => navigation.navigate('JournalDetail', { eventId: event.id })}
     >
-      <GlassCard style={styles.entryCard}>
+      <SurfaceCard style={styles.entryCard}>
         {event.title ? <Text style={styles.entryTitle}>{event.title}</Text> : null}
         <Text style={styles.entryDescription} numberOfLines={4}>
           {event.description}
@@ -315,7 +226,7 @@ function JournalEntry({ event }: { event: LearningEvent }) {
             {dateStr} at {timeStr}
           </Text>
         </View>
-      </GlassCard>
+      </SurfaceCard>
     </TouchableOpacity>
   );
 }
@@ -323,6 +234,7 @@ function JournalEntry({ event }: { event: LearningEvent }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    overflow: 'hidden',
     // backgroundColor handled by GlassBackground
     paddingTop: 60,
   },
@@ -359,75 +271,19 @@ const styles = StyleSheet.create({
     marginHorizontal: tokens.spacing.md,
     marginBottom: tokens.spacing.md,
   },
-  composeInput: {
-    borderWidth: 1,
-    borderColor: tokens.colors.border,
-    borderRadius: tokens.radius.sm,
-    padding: tokens.spacing.md,
-    fontSize: tokens.typography.sizes.md,
-    color: tokens.colors.text,
-    minHeight: 80,
-    textAlignVertical: 'top',
-    marginBottom: tokens.spacing.sm,
-  },
-  pillarLabel: {
-    fontSize: tokens.typography.sizes.xs,
-    color: tokens.colors.textSecondary,
-    marginBottom: tokens.spacing.sm,
-  },
-  pillarRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: tokens.spacing.sm,
-    marginBottom: tokens.spacing.md,
-  },
-  pillarChip: {
-    borderWidth: 1.5,
-    borderRadius: tokens.radius.full,
-    paddingVertical: tokens.spacing.xs,
-    paddingHorizontal: tokens.spacing.sm,
-  },
-  pillarChipText: {
-    fontSize: tokens.typography.sizes.xs,
-    fontWeight: tokens.typography.weights.medium,
-  },
-  submitButton: {
-    backgroundColor: tokens.colors.primary,
-    borderRadius: tokens.radius.md,
-    padding: tokens.spacing.md,
-    alignItems: 'center',
-  },
-  submitText: {
-    color: '#FFF',
-    fontSize: tokens.typography.sizes.md,
-    fontWeight: tokens.typography.weights.semiBold,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
   filterRow: {
     flexDirection: 'row',
     paddingHorizontal: tokens.spacing.md,
     gap: tokens.spacing.sm,
     marginBottom: tokens.spacing.md,
   },
-  filterChip: {
-    borderWidth: 1,
-    borderColor: tokens.colors.border,
-    borderRadius: tokens.radius.full,
-    paddingVertical: tokens.spacing.xs,
-    paddingHorizontal: tokens.spacing.sm,
-  },
-  filterChipActive: {
-    backgroundColor: tokens.colors.primary,
-    borderColor: tokens.colors.primary,
-  },
-  filterChipText: {
-    fontSize: tokens.typography.sizes.xs,
-    color: tokens.colors.textSecondary,
-  },
-  filterChipTextActive: {
-    color: '#FFF',
+  filterIcon: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 9999,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   listContent: {
     paddingHorizontal: tokens.spacing.md,

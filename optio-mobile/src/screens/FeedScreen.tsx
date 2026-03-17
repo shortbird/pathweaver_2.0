@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { tokens, PillarKey } from '../theme/tokens';
-import { GlassCard } from '../components/common/GlassCard';
+import { SurfaceCard } from '../components/common/SurfaceCard';
 import { GlassBackground } from '../components/common/GlassBackground';
 import { ReactionBar } from '../components/feed/ReactionBar';
 import { useAuthStore } from '../stores/authStore';
@@ -184,7 +184,7 @@ function FeedCard({ item }: { item: FeedItem }) {
 
   return (
     <TouchableOpacity activeOpacity={0.85} onPress={handlePress}>
-      <GlassCard style={styles.feedCard}>
+      <SurfaceCard style={styles.feedCard}>
         <View style={styles.feedHeader}>
           <View style={styles.avatarCircle}>
             {item.student.avatar_url ? (
@@ -297,7 +297,7 @@ function FeedCard({ item }: { item: FeedItem }) {
               : (item.learning_event_id || item.id)
           }
         />
-      </GlassCard>
+      </SurfaceCard>
     </TouchableOpacity>
   );
 }
@@ -338,6 +338,7 @@ function getTimeAgo(date: Date): string {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    overflow: 'hidden',
     paddingTop: 60,
   },
   centered: {

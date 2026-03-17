@@ -3,7 +3,8 @@ import PropTypes from 'prop-types';
 import { ChevronLeftIcon, ChevronRightIcon, LinkIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
 import DocumentPreview from './DocumentPreview';
 import LinkPreviewCard from './LinkPreviewCard';
-import { getVideoEmbedUrl, getVideoAspectClass } from '../../utils/videoUtils';
+import VideoLinkPreview from './VideoLinkPreview';
+import { getVideoEmbedUrl, getVideoAspectClass, isVideoSharingLink } from '../../utils/videoUtils';
 
 /**
  * Instagram-style media carousel for displaying multiple images/media items.
@@ -172,6 +173,9 @@ const MediaCarousel = ({ media = [] }) => {
       {otherItems.map((item, index) => (
         <div key={`other-${index}`} className="bg-gray-100">
           {item.type === 'video' && (() => {
+            if (isVideoSharingLink(item.url)) {
+              return <VideoLinkPreview url={item.url} title={item.title} />;
+            }
             const embedUrl = getVideoEmbedUrl(item.url);
             const aspectClass = getVideoAspectClass(item.url);
             return (
@@ -199,6 +203,9 @@ const MediaCarousel = ({ media = [] }) => {
             );
           })()}
           {item.type === 'link' && (() => {
+            if (isVideoSharingLink(item.url)) {
+              return <VideoLinkPreview url={item.url} title={item.title} />;
+            }
             const linkEmbedUrl = getVideoEmbedUrl(item.url);
             if (linkEmbedUrl) {
               const linkAspectClass = getVideoAspectClass(item.url);

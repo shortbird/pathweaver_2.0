@@ -122,8 +122,8 @@ export default function ClassAdvisorsTab({ orgId, classId, classData, onUpdate }
           {advisors.map((item) => {
             const advisor = item.users || {}
             const displayName =
-              advisor.display_name ||
               `${advisor.first_name || ''} ${advisor.last_name || ''}`.trim() ||
+              advisor.display_name ||
               advisor.email ||
               'Unknown Advisor'
 
@@ -277,8 +277,8 @@ function AddAdvisorModal({ orgId, existingAdvisorIds = [], onClose, onSubmit }) 
             <div className="space-y-2">
               {filteredAdvisors.map((advisor) => {
                 const displayName =
-                  advisor.display_name ||
                   `${advisor.first_name || ''} ${advisor.last_name || ''}`.trim() ||
+                  advisor.display_name ||
                   advisor.email
 
                 return (

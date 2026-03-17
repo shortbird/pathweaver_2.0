@@ -235,7 +235,7 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
             <button
               type="button"
               onClick={() => {
-                const name = user.display_name || (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.first_name || user.last_name) || user.email
+                const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.display_name || user.email
                 if (confirm(`Remove ${name} from this organization?`)) {
                   onRemove()
                 }
@@ -329,9 +329,12 @@ export default function UsersTab({ orgId, orgSlug, users, onUpdate }) {
 
   const filteredUsers = users.filter(user => {
     const searchLower = searchTerm.toLowerCase()
-    const fullName = user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
+    const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.display_name || ''
     const matchesSearch = (
       fullName.toLowerCase().includes(searchLower) ||
+      (user.first_name || '').toLowerCase().includes(searchLower) ||
+      (user.last_name || '').toLowerCase().includes(searchLower) ||
+      (user.display_name || '').toLowerCase().includes(searchLower) ||
       user.email?.toLowerCase().includes(searchLower)
     )
     const matchesRole = roleFilter === 'all' || user.role === roleFilter
@@ -494,7 +497,7 @@ export default function UsersTab({ orgId, orgSlug, users, onUpdate }) {
                       </td>
                       <td className="px-6 py-4">
                         {(() => {
-                          const name = user.display_name || (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.first_name || user.last_name)
+                          const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.display_name || null
                           return name ? (
                             <span className="text-gray-900">{name}</span>
                           ) : (

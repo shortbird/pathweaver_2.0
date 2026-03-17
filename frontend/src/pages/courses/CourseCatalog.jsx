@@ -21,10 +21,9 @@ const CourseCatalog = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
 
-  // Check if user can manage courses (see drafts, edit)
-  // For org-managed users, check org_role; for platform users, check role
+  // Only superadmin can manage courses (create, see drafts, edit)
   const effectiveRole = user?.role === 'org_managed' ? user?.org_role : user?.role
-  const canManageCourses = effectiveRole === 'superadmin' || effectiveRole === 'org_admin' || effectiveRole === 'advisor'
+  const canManageCourses = effectiveRole === 'superadmin'
   const isSuperadmin = effectiveRole === 'superadmin'
 
   // Superadmin uses admin_all filter to see all courses including drafts

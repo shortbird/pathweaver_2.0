@@ -240,7 +240,8 @@ def complete_task(user_id: str, task_id: str):
                 )
 
                 # Get public URL
-                public_url = admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename)
+                from utils.storage_url import fix_storage_url
+                public_url = fix_storage_url(admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename))
 
                 evidence_data['file_url'] = public_url
                 evidence_data['file_size'] = file_size

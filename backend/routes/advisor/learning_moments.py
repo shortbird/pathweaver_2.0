@@ -193,7 +193,8 @@ def upload_moment_media(user_id, student_id):
             file_options={"content-type": file.content_type}
         )
 
-        file_url = supabase.storage.from_(bucket_name).get_public_url(unique_filename)
+        from utils.storage_url import fix_storage_url
+        file_url = fix_storage_url(supabase.storage.from_(bucket_name).get_public_url(unique_filename))
 
         logger.info(f"Advisor {user_id} uploaded {media_type} for student {student_id}")
 

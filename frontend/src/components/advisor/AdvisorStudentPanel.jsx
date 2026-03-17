@@ -19,8 +19,8 @@ import api, { observerAPI } from '../../services/api';
 import FeedCard from '../observer/FeedCard';
 
 const getStudentName = (student) => {
-  return student.display_name ||
-    `${student.first_name || ''} ${student.last_name || ''}`.trim() ||
+  return `${student.first_name || ''} ${student.last_name || ''}`.trim() ||
+    student.display_name ||
     'Student';
 };
 

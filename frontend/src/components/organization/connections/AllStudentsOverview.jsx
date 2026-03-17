@@ -33,7 +33,7 @@ function AllStudentsOverview({ allStudentsWithAdvisors, handleViewStudentAdvisor
                   <td className="px-6 py-4">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
-                        {student.display_name || `${student.first_name} ${student.last_name}`}
+                        {`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || 'Student'}
                       </div>
                       <div className="text-sm text-gray-500">{student.email}</div>
                     </div>
@@ -51,7 +51,7 @@ function AllStudentsOverview({ allStudentsWithAdvisors, handleViewStudentAdvisor
                         {student.advisors?.slice(0, 2).map((advisor, idx) => (
                           <span key={advisor.advisor_id} className="text-xs text-gray-500">
                             {idx > 0 && ', '}
-                            {advisor.display_name}
+                            {`${advisor.first_name || ''} ${advisor.last_name || ''}`.trim() || advisor.display_name || 'Unknown'}
                           </span>
                         ))}
                         {student.advisor_count > 2 && (

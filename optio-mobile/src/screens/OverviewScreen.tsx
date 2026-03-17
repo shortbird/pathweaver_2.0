@@ -15,7 +15,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { tokens, PillarKey } from '../theme/tokens';
-import { GlassCard } from '../components/common/GlassCard';
+import { SurfaceCard } from '../components/common/SurfaceCard';
 import { GlassBackground } from '../components/common/GlassBackground';
 import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
@@ -143,7 +143,7 @@ export function OverviewScreen() {
       <Text style={styles.screenTitle}>My Progress</Text>
 
       {/* XP & Level Card */}
-      <GlassCard style={styles.card}>
+      <SurfaceCard style={styles.card}>
         <View style={styles.xpRow}>
           <View style={styles.xpBlock}>
             <Text style={styles.xpValue}>{stats?.total_xp ?? user?.total_xp ?? 0}</Text>
@@ -195,11 +195,11 @@ export function OverviewScreen() {
             <Text style={styles.statLabel}>Quests Done</Text>
           </View>
         </View>
-      </GlassCard>
+      </SurfaceCard>
 
       {/* Pillar Breakdown */}
       {skillXp.length > 0 && (
-        <GlassCard style={styles.card}>
+        <SurfaceCard style={styles.card}>
           <Text style={styles.sectionTitle}>Pillar Breakdown</Text>
           {skillXp.map((entry) => (
             <View key={entry.category} style={styles.pillarRow}>
@@ -232,12 +232,12 @@ export function OverviewScreen() {
               <Text style={styles.pillarXp}>{entry.xp}</Text>
             </View>
           ))}
-        </GlassCard>
+        </SurfaceCard>
       )}
 
       {/* Engagement Rhythm */}
       {engagement?.rhythm && (
-        <GlassCard style={styles.card}>
+        <SurfaceCard style={styles.card}>
           <Text style={styles.sectionTitle}>Engagement</Text>
           <Text style={styles.rhythmState}>{engagement.rhythm.state_display}</Text>
           <Text style={styles.rhythmMessage}>{engagement.rhythm.message}</Text>
@@ -255,12 +255,12 @@ export function OverviewScreen() {
               <Text style={styles.engagementLabel}>days this month</Text>
             </View>
           </View>
-        </GlassCard>
+        </SurfaceCard>
       )}
 
       {/* Active Quests / Projects */}
       {(dashboard?.active_quests?.length ?? 0) > 0 && (
-        <GlassCard style={styles.card}>
+        <SurfaceCard style={styles.card}>
           <Text style={styles.sectionTitle}>Active Quests</Text>
           {dashboard!.active_quests.map((aq) => {
             const totalTasks = aq.quests?.task_count ?? 0;
@@ -283,12 +283,12 @@ export function OverviewScreen() {
               </View>
             );
           })}
-        </GlassCard>
+        </SurfaceCard>
       )}
 
       {/* Enrolled Courses (Projects) */}
       {(dashboard?.enrolled_courses?.length ?? 0) > 0 && (
-        <GlassCard style={styles.card}>
+        <SurfaceCard style={styles.card}>
           <Text style={styles.sectionTitle}>Courses</Text>
           {dashboard!.enrolled_courses.map((course) => (
             <View key={course.id} style={styles.questRow}>
@@ -311,7 +311,7 @@ export function OverviewScreen() {
               </View>
             </View>
           ))}
-        </GlassCard>
+        </SurfaceCard>
       )}
     </ScrollView>
     </GlassBackground>
@@ -321,6 +321,7 @@ export function OverviewScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    overflow: 'hidden',
     // backgroundColor handled by GlassBackground
   },
   scrollContent: {

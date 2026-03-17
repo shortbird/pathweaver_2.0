@@ -111,12 +111,9 @@ def register_routes(bp):
             user_data = user_result.data[0]
             effective_role = get_effective_role(user_data)
 
-            is_creator = course['created_by'] == user_id
-            has_admin_role = effective_role in ['superadmin', 'org_admin', 'advisor']
-            is_admin = has_admin_role and (effective_role == 'superadmin' or user_data['organization_id'] == course['organization_id'])
-
-            if not (is_creator or is_admin):
-                return jsonify({'error': 'Insufficient permissions'}), 403
+            # Only superadmin can manage courses
+            if effective_role != 'superadmin':
+                return jsonify({'error': 'Insufficient permissions. Only superadmin can manage courses.'}), 403
 
             data = request.json
             if not data or not data.get('quest_id'):
@@ -185,12 +182,9 @@ def register_routes(bp):
             user_data = user_result.data[0]
             effective_role = get_effective_role(user_data)
 
-            is_creator = course['created_by'] == user_id
-            has_admin_role = effective_role in ['superadmin', 'org_admin', 'advisor']
-            is_admin = has_admin_role and (effective_role == 'superadmin' or user_data['organization_id'] == course['organization_id'])
-
-            if not (is_creator or is_admin):
-                return jsonify({'error': 'Insufficient permissions'}), 403
+            # Only superadmin can manage courses
+            if effective_role != 'superadmin':
+                return jsonify({'error': 'Insufficient permissions. Only superadmin can manage courses.'}), 403
 
             delete_quest = request.args.get('delete_quest', 'false').lower() == 'true'
 
@@ -271,12 +265,9 @@ def register_routes(bp):
             user_data = user_result.data[0]
             effective_role = get_effective_role(user_data)
 
-            is_creator = course['created_by'] == user_id
-            has_admin_role = effective_role in ['superadmin', 'org_admin', 'advisor']
-            is_admin = has_admin_role and (effective_role == 'superadmin' or user_data['organization_id'] == course['organization_id'])
-
-            if not (is_creator or is_admin):
-                return jsonify({'error': 'Insufficient permissions'}), 403
+            # Only superadmin can manage courses
+            if effective_role != 'superadmin':
+                return jsonify({'error': 'Insufficient permissions. Only superadmin can manage courses.'}), 403
 
             data = request.json
             if not data:
@@ -324,7 +315,7 @@ def register_routes(bp):
     def update_project_details(user_id, course_id: str, quest_id: str):
         """
         Update a project's title and description.
-        Accessible to course creator, org_admin, advisor, and superadmin.
+        Accessible to superadmin only.
 
         Path params:
             course_id: Course UUID
@@ -351,12 +342,9 @@ def register_routes(bp):
             user_data = user_result.data[0]
             effective_role = get_effective_role(user_data)
 
-            is_creator = course['created_by'] == user_id
-            has_admin_role = effective_role in ['superadmin', 'org_admin', 'advisor']
-            is_admin = has_admin_role and (effective_role == 'superadmin' or user_data['organization_id'] == course['organization_id'])
-
-            if not (is_creator or is_admin):
-                return jsonify({'error': 'Insufficient permissions'}), 403
+            # Only superadmin can manage courses
+            if effective_role != 'superadmin':
+                return jsonify({'error': 'Insufficient permissions. Only superadmin can manage courses.'}), 403
 
             # Verify quest is in this course
             course_quest = client.table('course_quests').select('id').eq('course_id', course_id).eq('quest_id', quest_id).execute()
@@ -455,12 +443,9 @@ def register_routes(bp):
             user_data = user_result.data[0]
             effective_role = get_effective_role(user_data)
 
-            is_creator = course['created_by'] == user_id
-            has_admin_role = effective_role in ['superadmin', 'org_admin', 'advisor']
-            is_admin = has_admin_role and (effective_role == 'superadmin' or user_data['organization_id'] == course['organization_id'])
-
-            if not (is_creator or is_admin):
-                return jsonify({'error': 'Insufficient permissions'}), 403
+            # Only superadmin can manage courses
+            if effective_role != 'superadmin':
+                return jsonify({'error': 'Insufficient permissions. Only superadmin can manage courses.'}), 403
 
             data = request.json
             if not data or not data.get('quest_order'):

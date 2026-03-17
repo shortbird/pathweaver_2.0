@@ -172,8 +172,8 @@ export default function AddStudentsModal({
               {/* Student Items */}
               {filteredStudents.map((student) => {
                 const displayName =
-                  student.display_name ||
                   `${student.first_name || ''} ${student.last_name || ''}`.trim() ||
+                  student.display_name ||
                   student.email
                 const isSelected = selectedIds.has(student.id)
 

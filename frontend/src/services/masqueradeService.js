@@ -111,7 +111,7 @@ export const startMasquerade = async (userId, reason = '', apiCall) => {
     };
 
     localStorage.setItem(MASQUERADE_STORAGE_KEY, JSON.stringify(masqueradeState));
-    logger.debug('[Masquerade] Started masquerading as:', target_user.display_name || target_user.email);
+    logger.debug('[Masquerade] Started masquerading as:', `${target_user.first_name || ''} ${target_user.last_name || ''}`.trim() || target_user.display_name || target_user.email);
 
     // CRITICAL FIX: Force full page reload to clear React Query cache
     // Without this, cached data from admin session shows instead of target user data

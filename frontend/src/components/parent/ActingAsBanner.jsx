@@ -35,7 +35,7 @@ const ActingAsBanner = ({ dependent, onSwitchBack, inline = false, isExpanded: c
         >
           <UserCircleIcon className="w-4 h-4 sm:w-5 sm:h-5" />
           <span className="font-semibold text-xs sm:text-sm">
-            Acting as {dependent.display_name?.split(' ')[0] || 'Child'}
+            Acting as {dependent.first_name || dependent.display_name?.split(' ')[0] || 'Child'}
           </span>
           <ChevronUpIcon className="w-3 h-3 sm:w-4 sm:h-4" />
         </button>
@@ -65,7 +65,7 @@ const ActingAsBanner = ({ dependent, onSwitchBack, inline = false, isExpanded: c
               {dependent?.avatar_url ? (
                 <img
                   src={dependent.avatar_url}
-                  alt={`${dependent.display_name || 'Child'} profile avatar`}
+                  alt={`${`${dependent.first_name || ''} ${dependent.last_name || ''}`.trim() || dependent.display_name || 'Child'} profile avatar`}
                   className="w-8 h-8 rounded-full border-2 border-white"
                 />
               ) : (
@@ -75,7 +75,7 @@ const ActingAsBanner = ({ dependent, onSwitchBack, inline = false, isExpanded: c
               )}
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-sm truncate">
-                  {dependent?.display_name || 'Child'}
+                  {`${dependent?.first_name || ''} ${dependent?.last_name || ''}`.trim() || dependent?.display_name || 'Child'}
                 </div>
                 {dependent?.age && (
                   <div className="text-xs opacity-90 bg-white/20 px-2 py-0.5 rounded inline-block mt-1">

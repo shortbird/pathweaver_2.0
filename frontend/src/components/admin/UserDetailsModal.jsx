@@ -212,7 +212,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     }
 
     // Confirm masquerade action
-    if (!window.confirm(`Masquerade as ${user.display_name || user.email}?\n\nYou will be viewing the platform as this user.`)) {
+    if (!window.confirm(`Masquerade as ${`${user.first_name || ''} ${user.last_name || ''}`.trim() || user.display_name || user.email}?\n\nYou will be viewing the platform as this user.`)) {
       return
     }
 
@@ -222,7 +222,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
       const result = await startMasquerade(user.id, '', api)
 
       if (result.success) {
-        toast.success(`Now masquerading as ${result.targetUser.display_name || result.targetUser.email}`)
+        toast.success(`Now masquerading as ${`${result.targetUser.first_name || ''} ${result.targetUser.last_name || ''}`.trim() || result.targetUser.display_name || result.targetUser.email}`)
 
         // Close modal
         onClose()
