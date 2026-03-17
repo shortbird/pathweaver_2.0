@@ -150,6 +150,15 @@ class XPService(BaseService):
             # Update user mastery level
             self.update_user_mastery(user_id)
 
+            # Award Spendable XP (for Yeti shop economy)
+            try:
+                from repositories.yeti_repository import YetiRepository
+                yeti_repo = YetiRepository()
+                yeti_repo.add_spendable_xp(user_id, xp_amount)
+            except Exception as spendable_err:
+                # Non-fatal: student may not have a Yeti pet yet
+                logger.debug(f"Spendable XP update skipped for user {user_id[:8]}: {spendable_err}")
+
             logger.info(f"XP award success: {bool(result.data)}")
             logger.info("===============================")
 

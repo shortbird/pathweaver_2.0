@@ -68,6 +68,7 @@ const CommunicationPage = lazy(() => import('./pages/CommunicationPage'))
 const CalendarPage = lazy(() => import('./pages/CalendarPage'))
 // Admin & Special Pages
 const AdminPage = lazy(() => import('./pages/AdminPage'))
+const MobileDemoPage = lazy(() => import('./pages/MobileDemoPage'))
 const OrganizationManagement = lazy(() => import('./pages/admin/OrganizationManagement'))
 const OrgStudentOverviewPage = lazy(() => import('./pages/admin/OrgStudentOverviewPage'))
 const AdvisorDashboard = lazy(() => import('./pages/AdvisorDashboard'))
@@ -516,6 +517,11 @@ function App() {
             {/* Invitation pages - standalone full-screen layouts */}
             <Route path="invitation/:code" element={<AcceptInvitationPage />} />
             <Route path="observer/accept/:invitationCode" element={<ObserverAcceptInvitationPage />} />
+
+            {/* Mobile demo - superadmin only, full-screen iframe */}
+            <Route element={<PrivateRoute requiredRole="superadmin" />}>
+              <Route path="mobile" element={<MobileDemoPage />} />
+            </Route>
           </Routes>
           </Suspense>
             </ActingAsProvider>

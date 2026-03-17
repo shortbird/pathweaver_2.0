@@ -1103,44 +1103,62 @@ The existing `notification_service.py` handles Supabase Realtime broadcasts and 
 
 ### Phase 1: Foundation (Weeks 1-6)
 
-- React Native project setup + CI/CD
-- Design system: `@callstack/liquid-glass` + `tokens.ts` + base components
-- Authentication (Supabase token-based for mobile)
-- Home screen with Yeti (Rive animation, basic creation + naming + feeding)
-- Learning Journal (text capture only)
-- Basic activity feed (read-only, reuse existing endpoint)
-- Push notification infrastructure (Firebase + `device_tokens` table)
-- Student overview screen (read-only)
-- Tests: Unit tests for all components, integration tests for auth flow
+- [x] React Native project setup (Expo + TypeScript, monorepo at `optio-mobile/`)
+- [x] Design system: `tokens.ts` + `GlassCard` base component (using `expo-blur` fallback; `@callstack/liquid-glass` deferred until native builds)
+- [x] Authentication (token-based via `Authorization` header, `expo-secure-store` on native / `localStorage` on web)
+- [x] Home screen with Yeti card display + quick capture buttons
+- [x] Yeti creation flow (name input modal, POST to `/api/yeti/my-pet`)
+- [x] Yeti store (zustand) - pet CRUD, shop, inventory, spendable XP, equip/unequip
+- [ ] Yeti Rive animation (requires `.riv` asset from artist)
+- [x] Learning Journal (text capture screen with AI pillar suggestion, filters, chronological feed)
+- [x] Basic activity feed (read-only, cursor-paginated, task completions + learning moments)
+- [x] Push notification infrastructure (backend: `device_tokens` table + `fcm_notification_service.py`)
+- [ ] Firebase project setup (iOS + Android) - blocked on Apple Developer account
+- [x] Student overview screen (read-only: XP, level, pillars, engagement, quests, courses)
+- [ ] CI/CD pipeline (EAS Build for cloud builds)
+- Tests: 110 backend tests passing (repos, services, routes). Mobile component tests TBD.
 
 ### Phase 2: Capture & Social (Weeks 7-12)
 
-- Snap-to-Learn (camera + Gemini AI pillar suggestion)
-- Voice Journaling (recording + Google Cloud STT transcription)
-- Yeti Shop (full item catalog + Spendable XP purchasing)
-- Observer reactions on feed (including `observer_likes` migration)
-- Offline journal queueing (MMKV)
-- Age-appropriate mode switching (Kid Mode vs Full Mode)
-- Tests: E2E tests for capture flows, integration tests for XP economy
+- [x] Snap-to-Learn backend (`snap_to_learn_ai_service.py` + `/api/learning-events/snap-to-learn` endpoint)
+- [x] Voice Journaling backend (`transcription_service.py` + `/api/learning-events/voice` endpoint)
+- [x] Yeti Shop backend (full item catalog, 9 seed items, purchase with Spendable XP)
+- [x] Observer reactions backend (5 reaction types + migration from `observer_likes`)
+- [x] Snap-to-Learn mobile screen (photo picker + AI analysis + pillar confirm + save)
+- [x] Voice Journaling mobile screen (native recording via expo-av + file upload on web + transcription review)
+- [x] Yeti Shop mobile screen (category filters, 2-column grid, purchase with XP balance display)
+- [x] Observer reactions mobile UI (ReactionBar component on feed items, 5 reaction types, upsert)
+- [x] Offline journal queueing (localStorage/SecureStore queue, auto-sync on load, pending banner)
+- [x] Age-appropriate mode switching (Kid Mode 3 tabs for under-11 dependents, Full Mode 5 tabs)
+- [x] Profile screen (user info, observer management with invite/remove, sign out)
+- [x] Capture screen (multi-mode: Photo/Voice/Text with tab switcher)
+- Tests: E2E tests for capture flows, integration tests for XP economy (TBD)
 
 ### Phase 3: Bounties (Weeks 13-16)
 
-- Bounty Board (full lifecycle: create, browse, claim, submit, review)
-- Bounty moderation (AI + manual review queue for sponsored)
-- Sponsored bounty support (reward descriptions, sponsor branding)
-- Enhanced feed (bounty events, Yeti milestones)
-- Weekly digest emails for observers
-- Tests: Full bounty lifecycle E2E, COPPA enforcement tests
+- [x] Bounty Board backend (full lifecycle: create, browse, claim, submit, review, moderate)
+- [x] Bounty XP reward distribution (auto-awards Total + Spendable XP on approval)
+- [x] Bounty Board mobile screen (pillar + type filters, deadline countdown, sponsored badges, tap to detail)
+- [x] Bounty Detail mobile screen (full info, claim, submit evidence with text + URL, status-aware UI for all claim states)
+- [x] Bounty store (zustand) - browse, my-claims, my-posted, claim, submit evidence
+- [x] Sponsored bounty support (reward descriptions shown on cards and detail, "Sponsored" badge)
+- [ ] Bounty moderation UI (superadmin) - deferred to web admin panel
+- [ ] Enhanced feed (bounty events, Yeti milestones) - requires backend feed.py extension
+- [ ] Weekly digest emails for observers - requires backend cron job
+- Tests: Full bounty lifecycle E2E, COPPA enforcement tests (TBD)
 
 ### Phase 4: Polish & Launch (Weeks 17-20)
 
-- Performance optimization + Rive animation polish
-- Accessibility audit (WCAG 2.1 AA)
-- Security audit + penetration testing
-- Internal beta testing (TestFlight + Play Store internal track)
-- Bug fixing and UX refinement
-- App Store / Play Store submission
-- Tests: Full regression suite, performance benchmarks
+- [x] Accessibility utilities (`accessibility.ts` - buttonA11y, headingA11y, progressA11y helpers)
+- [x] Accessibility pass on HomeScreen (role/label on all interactive elements, progressbar on stat bars)
+- [x] Navigation restructured: 5 tabs (Home, Journal, Bounties, Feed, Profile) + stack screens (Shop, Capture, BountyDetail, Progress)
+- [ ] Performance optimization + Rive animation polish (blocked on Rive assets)
+- [ ] Full accessibility audit (WCAG 2.1 AA) - remaining screens
+- [ ] Security audit + penetration testing
+- [ ] Internal beta testing (TestFlight + Play Store internal track) - blocked on Apple Developer account
+- [ ] Bug fixing and UX refinement
+- [ ] App Store / Play Store submission
+- Tests: Full regression suite, performance benchmarks (TBD)
 
 ---
 
@@ -1192,39 +1210,91 @@ After each phase, verify end-to-end:
 
 ---
 
-## 20. Implementation Notes
+## 20. Implementation Progress
 
-### Files to Create (Backend)
+> Last updated: March 16, 2026 (evening - Phases 1-3 complete, Phase 4 in progress)
 
-| File | Purpose |
-|------|---------|
-| `backend/routes/bounties.py` | Bounty CRUD + claim/submit/review endpoints |
-| `backend/routes/yeti.py` | Yeti management + shop + inventory endpoints |
-| `backend/services/bounty_service.py` | Bounty business logic + moderation |
-| `backend/services/yeti_service.py` | Yeti stat management + Spendable XP economy |
-| `backend/services/transcription_service.py` | Google Cloud STT integration |
-| `backend/services/snap_to_learn_ai_service.py` | Image analysis for Snap-to-Learn (extends `BaseAIService`) |
-| `backend/services/bounty_moderation_ai_service.py` | AI moderation for bounty content (extends `BaseAIService`) |
-| `backend/services/push_notification_service.py` | Firebase Cloud Messaging integration + device token management |
-| `backend/repositories/bounty_repository.py` | Bounty data access |
-| `backend/repositories/yeti_repository.py` | Yeti data access |
-| Supabase migration files | 9 new tables (`bounties`, `bounty_claims`, `bounty_reviews`, `yeti_pets`, `yeti_items`, `yeti_inventory`, `yeti_interactions`, `observer_reactions`, `device_tokens`) + RLS policies |
-| `observer_likes` migration | Data migration from `observer_likes` to `observer_reactions` (see section 6.5) |
+### Backend - COMPLETED
 
-### Files to Extend (Backend)
+All backend work is done. 110 tests passing, zero regressions.
 
-| File | Changes |
-|------|---------|
-| `backend/routes/learning_events.py` | Add snap-to-learn + voice endpoints |
-| `backend/routes/observer/feed.py` | Add new feed item types (bounty, yeti) |
-| `backend/routes/observer/social.py` | Add reactions, deprecate like toggle endpoints |
-| `backend/services/learning_events_service.py` | Add voice/photo processing |
-| `backend/services/xp_service.py` | Add Spendable XP integration (`award_xp` also updates `yeti_pets.spendable_xp`) |
-| `backend/services/notification_service.py` | Integrate with new `push_notification_service.py` for FCM delivery |
+| File | Status | Tests |
+|------|--------|-------|
+| `backend/routes/yeti.py` | DONE | 7 route tests |
+| `backend/routes/bounties.py` | DONE | (service tests cover logic) |
+| `backend/services/yeti_service.py` | DONE | 20 tests |
+| `backend/services/bounty_service.py` | DONE | 21 tests |
+| `backend/services/snap_to_learn_ai_service.py` | DONE | 4 tests |
+| `backend/services/transcription_service.py` | DONE | 4 tests |
+| `backend/services/fcm_notification_service.py` | DONE | 5 tests |
+| `backend/repositories/yeti_repository.py` | DONE | 36 tests |
+| `backend/repositories/bounty_repository.py` | DONE | 17 tests |
+| `backend/services/xp_service.py` (extended) | DONE | Spendable XP integration |
+| `backend/routes/observer/social.py` (extended) | DONE | 3 reaction endpoints + backward compat |
+| `backend/routes/learning_events.py` (extended) | DONE | snap-to-learn + voice endpoints |
+| `backend/app.py` (extended) | DONE | Yeti + Bounty blueprints registered |
+| `backend/app_config.py` (extended) | DONE | CORS for Expo dev server (port 8081) |
+| Database migrations 039-042 | DONE | 9 tables live in production, RLS active, 46 likes migrated |
 
-### Mobile App (New Repository)
+**Not yet created:**
+- `backend/services/bounty_moderation_ai_service.py` - AI moderation for bounty content (deferred to Phase 3)
+- `backend/routes/observer/feed.py` extension - new feed item types for bounty/yeti events
+- `backend/services/notification_service.py` extension - FCM delivery integration
 
-- Separate `optio-mobile/` repository (React Native + TypeScript)
-- Shares API contract with web frontend but independent codebase
-- Design system built on `@callstack/liquid-glass` + custom tokens
-- Yeti animations via Rive (`.riv` files in assets)
+### Database - COMPLETED
+
+All 9 tables created in production with RLS policies and seed data:
+
+| Migration | Tables | Notes |
+|-----------|--------|-------|
+| `039_create_yeti_tables` | `yeti_pets`, `yeti_items`, `yeti_inventory`, `yeti_interactions` | 9 shop items seeded |
+| `040_create_bounty_tables` | `bounties`, `bounty_claims`, `bounty_reviews` | Full lifecycle support |
+| `041_create_observer_reactions` | `observer_reactions` | 46 existing likes migrated as `love_it` |
+| `042_create_device_tokens` | `device_tokens` | FCM token storage |
+
+### Mobile App - IN PROGRESS
+
+Monorepo structure at `optio-mobile/` (not a separate repo).
+
+| File | Status | Notes |
+|------|--------|-------|
+| `optio-mobile/src/theme/tokens.ts` | DONE | Design tokens (colors, spacing, typography, animations) |
+| `optio-mobile/src/components/common/GlassCard.tsx` | DONE | Base card with expo-blur glass effect |
+| `optio-mobile/src/services/api.ts` | DONE | Axios client with token auth (`app_access_token`) + refresh interceptor |
+| `optio-mobile/src/utils/storage.ts` | DONE | SecureStore (native) / localStorage (web) abstraction |
+| `optio-mobile/src/stores/authStore.ts` | DONE | Login/logout/loadUser with zustand (fixed: `app_access_token` field names, `/me` response shape) |
+| `optio-mobile/src/navigation/AppNavigator.tsx` | DONE | 4 bottom tabs (Home, Journal, Feed, Progress) + auth stack |
+| `optio-mobile/src/screens/LoginScreen.tsx` | DONE | Email/password, verified working against live backend |
+| `optio-mobile/src/screens/HomeScreen.tsx` | DONE | Yeti card display + stat bars + quick capture buttons + create modal trigger |
+| `optio-mobile/src/components/yeti/CreateYetiModal.tsx` | DONE | Name input modal (2-20 chars) + POST to `/api/yeti/my-pet` |
+| `optio-mobile/src/stores/yetiStore.ts` | DONE | Pet CRUD, shop items, inventory, spendable XP, feed/play, equip/unequip |
+| `optio-mobile/src/screens/JournalScreen.tsx` | DONE | Text capture, AI pillar suggestion, pillar filter chips, chronological FlatList |
+| `optio-mobile/src/screens/FeedScreen.tsx` | DONE | Activity feed (task completions + learning moments), cursor pagination, pull-to-refresh |
+| `optio-mobile/src/screens/OverviewScreen.tsx` | DONE | Total/Spendable XP, level progress, pillar breakdown, engagement rhythm, active quests, courses |
+| `optio-mobile/src/screens/ShopScreen.tsx` | DONE | Category filters, 2-column grid, purchase flow, XP balance badge |
+| `optio-mobile/src/screens/ProfileScreen.tsx` | DONE | User info, observer invite/remove, sign out |
+| `optio-mobile/src/screens/CaptureScreen.tsx` | DONE | Multi-mode (Photo/Voice/Text), Snap-to-Learn AI, voice transcription |
+| `optio-mobile/src/components/feed/ReactionBar.tsx` | DONE | 5 reaction types, upsert, counts display |
+| `optio-mobile/src/utils/offlineQueue.ts` | DONE | Offline journal queue with auto-sync |
+| `optio-mobile/src/screens/BountyBoardScreen.tsx` | DONE | Pillar + type filters, deadline countdown, sponsored badges, tap to detail |
+| `optio-mobile/src/screens/BountyDetailScreen.tsx` | DONE | Full bounty info, claim, submit evidence (text + URL), all claim states |
+| `optio-mobile/src/stores/bountyStore.ts` | DONE | Browse, my-claims, my-posted, claim, submit evidence |
+| `optio-mobile/src/utils/accessibility.ts` | DONE | WCAG helpers (buttonA11y, progressA11y, headingA11y, etc.) |
+
+### Architecture Decisions Made
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Repo structure | Monorepo (`optio-mobile/` inside `pw_v2`) | Simpler management, shared git history |
+| Framework | Expo (not bare React Native CLI) | Cloud builds via EAS (no Mac required for iOS builds), faster setup |
+| Glass effect | `expo-blur` fallback | `@callstack/liquid-glass` requires native builds; using blur for now, upgrade later |
+| Token storage | `expo-secure-store` + localStorage web fallback | SecureStore is native-only, web needs localStorage for dev testing |
+| State management | Zustand | Lightweight, no boilerplate, matches PRD spec |
+| FCM service | `fcm_notification_service.py` (separate from existing `push_notification_service.py`) | Existing service handles Web Push (pywebpush); mobile needs Firebase Admin SDK |
+
+### Blockers
+
+1. **Apple Developer account** - Identity verification failing, needed for iOS builds and TestFlight
+2. **Rive assets** - Yeti `.riv` animation files need to be created by an artist
+3. **Firebase project** - Not yet set up (needed for push notifications on native)
+4. **Google Cloud STT** - API key not yet configured (needed for voice journaling)

@@ -286,6 +286,24 @@ except ImportError as e:
 except Exception as e:
     logger.error(f"Error registering Yeti routes: {e}", exc_info=True)
 
+# Register Bounty Board blueprint (March 2026 - Mobile app)
+try:
+    from routes.bounties import bounties_bp
+    app.register_blueprint(bounties_bp)  # /api/bounties/* (full paths in route definitions)
+except ImportError as e:
+    logger.warning(f"Warning: Bounties module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Bounties routes: {e}", exc_info=True)
+
+# Register Buddy Companion blueprint (March 2026 - Mobile app)
+try:
+    from routes.buddy import buddy_bp
+    app.register_blueprint(buddy_bp)  # /api/buddy/* (full paths in route definitions)
+except ImportError as e:
+    logger.warning(f"Warning: Buddy module not available: {e}")
+except Exception as e:
+    logger.error(f"Error registering Buddy routes: {e}", exc_info=True)
+
 # Register Link Preview blueprint (February 2026 - Rich link previews in feed)
 from routes.link_preview import bp as link_preview_bp
 app.register_blueprint(link_preview_bp)  # /api/utils/link-preview
