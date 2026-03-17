@@ -1,113 +1,509 @@
 /**
- * Home Screen - Yeti companion + quick action buttons.
+ * Home Screen - Buddy companion + quick action buttons.
  *
- * Shows the Yeti pet (Rive animation placeholder for now),
- * Spendable XP balance, and quick capture buttons.
+ * Liquid glass aesthetic throughout. GlassBackground, GlassCard, GlassButton.
+ * Vitality and bond are hidden stats -- the buddy's appearance communicates them.
+ * Superadmin gets a debug panel to adjust vitality/bond/stage.
  */
 
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { tokens } from '../theme/tokens';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Platform,
+  ScrollView,
+  TextInput,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import Slider from '@react-native-community/slider';
+import { tokens, textStyles } from '../theme/tokens';
+import { icons } from '../theme/icons';
 import { GlassCard } from '../components/common/GlassCard';
+import { GlassButton } from '../components/common/GlassButton';
+import { GlassBackground } from '../components/common/GlassBackground';
+import OptioBuddy from '../components/buddy/OptioBuddy';
+import useBuddyState from '../components/buddy/useBuddyState';
+import { FOOD_CATALOG, STAGE_PALETTES } from '../components/buddy/buddyConstants';
 import { useAuthStore } from '../stores/authStore';
-import api from '../services/api';
-
-interface YetiPet {
-  id: string;
-  name: string;
-  hunger: number;
-  happiness: number;
-  energy: number;
-  spendable_xp: number;
-}
+import { useBuddyStore } from '../stores/buddyStore';
+import { useThemeStore } from '../stores/themeStore';
 
 export function HomeScreen() {
   const { user, logout } = useAuthStore();
-  const [pet, setPet] = useState<YetiPet | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { buddy, isLoading, loadBuddy, createBuddy, feedBuddy, tapBuddy, updateBuddy } =
+    useBuddyStore();
+  const { colors } = useThemeStore();
+  const [showCreate, setShowCreate] = useState(false);
+  const [buddyName, setBuddyName] = useState('');
+  const navigation = useNavigation<any>();
+
+  const isSuperadmin = user?.role === 'superadmin';
 
   useEffect(() => {
-    loadPet();
+    loadBuddy();
   }, []);
 
-  const loadPet = async () => {
+  const handleCreate = useCallback(async () => {
+    if (!buddyName.trim()) return;
     try {
-      const response = await api.get('/api/yeti/my-pet');
-      setPet(response.data.pet);
+      await createBuddy(buddyName.trim());
+      setShowCreate(false);
+      setBuddyName('');
     } catch {
-      // No pet yet - that's ok
-    } finally {
-      setLoading(false);
+      // Error shown via store
     }
-  };
+  }, [buddyName, createBuddy]);
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={tokens.colors.primary} />
-      </View>
+      <GlassBackground style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </GlassBackground>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.greeting}>
-          Hey, {user?.display_name || 'there'}
-        </Text>
-        <TouchableOpacity onPress={logout}>
-          <Text style={styles.logoutText}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
-
-      {pet ? (
-        <GlassCard style={styles.yetiCard}>
-          <Text style={styles.yetiName}>{pet.name}</Text>
-          <View style={styles.statsRow}>
-            <StatBar label="Hunger" value={pet.hunger} color={tokens.colors.pillars.wellness} />
-            <StatBar label="Happy" value={pet.happiness} color={tokens.colors.pillars.art} />
-            <StatBar label="Energy" value={pet.energy} color={tokens.colors.pillars.stem} />
-          </View>
-          <Text style={styles.xpBalance}>{pet.spendable_xp} XP to spend</Text>
-        </GlassCard>
-      ) : (
-        <GlassCard style={styles.yetiCard}>
-          <Text style={styles.noPetText}>You don't have a Yeti yet!</Text>
-          <TouchableOpacity style={styles.createButton}>
-            <Text style={styles.createButtonText}>Create Your Yeti</Text>
+    <GlassBackground style={styles.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        style={styles.scrollView}
+      >
+        <View style={styles.header}>
+          <Text style={[styles.greeting, { color: colors.text }]}>
+            Hey, {user?.first_name || user?.display_name?.split(' ')[0] || 'there'}!
+          </Text>
+          <TouchableOpacity
+            onPress={logout}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+            style={styles.logoutBtn}
+          >
+            <Ionicons name={icons.logout as any} size={20} color={colors.textSecondary} />
           </TouchableOpacity>
-        </GlassCard>
-      )}
-
-      <View style={styles.quickActions}>
-        <Text style={styles.sectionTitle}>Quick Capture</Text>
-        <View style={styles.actionRow}>
-          <ActionButton label="Photo" icon="📷" color={tokens.colors.pillars.art} />
-          <ActionButton label="Voice" icon="🎤" color={tokens.colors.pillars.communication} />
-          <ActionButton label="Text" icon="✏️" color={tokens.colors.pillars.stem} />
         </View>
+
+        {buddy ? (
+          <BuddySection
+            buddy={buddy}
+            colors={colors}
+            navigation={navigation}
+            feedBuddy={feedBuddy}
+            tapBuddy={tapBuddy}
+            updateBuddy={updateBuddy}
+            isSuperadmin={isSuperadmin}
+          />
+        ) : (
+          <GlassCard style={styles.noPetCard}>
+            {showCreate ? (
+              <View>
+                <Text style={[styles.noPetText, { color: colors.text }]}>Name your buddy</Text>
+                <TextInput
+                  value={buddyName}
+                  onChangeText={setBuddyName}
+                  placeholder="Enter a name..."
+                  placeholderTextColor={colors.textMuted}
+                  style={[
+                    styles.nameInput,
+                    {
+                      color: colors.text,
+                      borderColor: colors.glass.border,
+                      backgroundColor: colors.glass.background,
+                    },
+                  ]}
+                  maxLength={30}
+                  autoFocus
+                  onSubmitEditing={handleCreate}
+                />
+                <View style={styles.createActions}>
+                  <GlassButton
+                    title="Cancel"
+                    variant="ghost"
+                    size="sm"
+                    onPress={() => {
+                      setShowCreate(false);
+                      setBuddyName('');
+                    }}
+                  />
+                  <GlassButton
+                    title="Hatch!"
+                    size="sm"
+                    onPress={handleCreate}
+                    disabled={!buddyName.trim()}
+                  />
+                </View>
+              </View>
+            ) : (
+              <View>
+                <Text style={[styles.eggEmoji]}>🥚</Text>
+                <Text style={[styles.noPetText, { color: colors.textSecondary }]}>
+                  Your buddy egg is waiting...
+                </Text>
+                <GlassButton
+                  title="Hatch Your Buddy"
+                  onPress={() => setShowCreate(true)}
+                  icon="egg-outline"
+                />
+              </View>
+            )}
+          </GlassCard>
+        )}
+
+        <View style={styles.quickActions}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Capture</Text>
+          <View style={styles.actionRow}>
+            <ActionButton
+              label="Photo"
+              iconName={icons.photo}
+              color={colors.pillars.art}
+              onPress={() => navigation.navigate('Capture')}
+            />
+            <ActionButton
+              label="Voice"
+              iconName={icons.voice}
+              color={colors.pillars.communication}
+              onPress={() => navigation.navigate('Capture')}
+            />
+            <ActionButton
+              label="Text"
+              iconName={icons.text}
+              color={colors.pillars.stem}
+              onPress={() => navigation.navigate('Journal')}
+            />
+          </View>
+        </View>
+      </ScrollView>
+    </GlassBackground>
+  );
+}
+
+// ── Buddy Section ──
+
+function BuddySection({
+  buddy,
+  colors,
+  navigation,
+  feedBuddy,
+  tapBuddy,
+  updateBuddy,
+  isSuperadmin,
+}: {
+  buddy: any;
+  colors: any;
+  navigation: any;
+  feedBuddy: (foodId: string, xpCost: number, v: number, b: number, txp: number, xpt: number) => Promise<void>;
+  tapBuddy: (bond: number) => Promise<void>;
+  updateBuddy: (u: any) => Promise<void>;
+  isSuperadmin: boolean;
+}) {
+  const {
+    vitality,
+    bond,
+    stage,
+    xpFedToday,
+    isFull,
+    feedsRemaining,
+    feedReaction,
+    tapBurst,
+    feed,
+    tap,
+    checkEvolution,
+    setVitality,
+    setBond,
+    setStage,
+  } = useBuddyState({
+    name: buddy.name,
+    vitality: buddy.vitality,
+    bond: buddy.bond,
+    stage: buddy.stage,
+    highest_stage: buddy.highest_stage,
+    last_interaction: buddy.last_interaction,
+    food_journal: buddy.food_journal,
+    equipped: buddy.equipped || {},
+    wallet: buddy.wallet,
+    total_xp_fed: buddy.total_xp_fed || 0,
+    xp_fed_today: buddy.xp_fed_today || 0,
+    last_fed_date: buddy.last_fed_date,
+  });
+
+  const [showAdmin, setShowAdmin] = useState(false);
+  const palette = STAGE_PALETTES[stage];
+
+  const handleTap = useCallback(() => {
+    const result = tap();
+    if (!result) return;
+    tapBuddy(result.newBond);
+  }, [tap, tapBuddy]);
+
+  const handleFeed = useCallback(
+    (food: (typeof FOOD_CATALOG)[number]) => {
+      const result = feed(food);
+      if (!result) return;
+
+      feedBuddy(result.foodId, result.xpCost, result.newVitality, result.newBond, result.newTotalXpFed, result.newXpFedToday);
+
+      if (result.didHatch) {
+        updateBuddy({
+          stage: 1,
+          highest_stage: Math.max(buddy.highest_stage, 1),
+        });
+      }
+
+      setTimeout(() => {
+        const evolution = checkEvolution();
+        if (evolution) {
+          updateBuddy({
+            stage: evolution.newStage,
+            highest_stage: Math.max(buddy.highest_stage, evolution.newStage),
+          });
+        }
+      }, 2200);
+    },
+    [feed, feedBuddy, checkEvolution, updateBuddy, buddy],
+  );
+
+  return (
+    <View>
+      {/* Buddy character */}
+      <View style={styles.buddyContainer}>
+        <OptioBuddy
+          vitality={vitality}
+          bond={bond}
+          stage={stage}
+          onTap={handleTap}
+          feedReaction={feedReaction}
+          tapBurst={tapBurst}
+          width={280}
+          height={150}
+        />
       </View>
+
+      {/* Name + stage label */}
+      <Text style={[styles.buddyName, { color: colors.text }]}>{buddy.name}</Text>
+      <Text style={[styles.stageLabel, { color: palette.body }]}>{palette.name}</Text>
+
+      {/* Hunger + Feed card */}
+      <GlassCard style={styles.feedCard}>
+        {/* Hunger bar */}
+        <View style={styles.hungerLabelRow}>
+          <Text style={[styles.hungerLabel, { color: colors.textSecondary }]}>Hunger</Text>
+          <Text style={[styles.hungerLabel, { color: colors.textSecondary }]}>
+            {feedsRemaining} feed{feedsRemaining !== 1 ? 's' : ''} left today
+          </Text>
+        </View>
+        <View style={[styles.hungerBarBg, { backgroundColor: colors.statBarBg }]}>
+          <LinearGradient
+            colors={
+              isFull
+                ? [colors.success, colors.success + '88']
+                : [tokens.colors.pillars.civics, tokens.colors.pillars.civics + '88']
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[styles.hungerBarFill, { width: `${Math.round((xpFedToday / 50) * 100)}%` }]}
+          />
+        </View>
+
+        {/* Feed button or full message */}
+        {isFull ? (
+          <View style={styles.fullMessage}>
+            <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+            <Text style={[styles.fullMessageText, { color: colors.textSecondary }]}>
+              Full! Come back tomorrow
+            </Text>
+          </View>
+        ) : (
+          <GlassButton
+            title="Feed  -10 XP"
+            onPress={() => handleFeed({ id: 'basic_food', name: 'Food', emoji: '', type: 'crunch', xpCost: 10, stageUnlock: 0, rotation: 'permanent' })}
+            disabled={!!feedReaction || buddy.wallet < 10}
+            style={styles.feedBtn}
+          />
+        )}
+
+        {/* Wallet */}
+        <View style={styles.walletRow}>
+          <Ionicons name="star" size={14} color={colors.accent} />
+          <Text style={[styles.walletText, { color: colors.accent }]}>
+            {buddy.wallet} XP
+          </Text>
+        </View>
+      </GlassCard>
+
+      {/* Admin debug panel */}
+      {isSuperadmin && (
+        <View style={styles.adminSection}>
+          <TouchableOpacity
+            onPress={() => setShowAdmin(!showAdmin)}
+            style={styles.adminToggle}
+          >
+            <Ionicons name="construct-outline" size={16} color={colors.textMuted} />
+            <Text style={[styles.adminToggleText, { color: colors.textMuted }]}>
+              {showAdmin ? 'Hide' : 'Show'} Admin Controls
+            </Text>
+          </TouchableOpacity>
+
+          {showAdmin && (
+            <GlassCard style={styles.adminPanel}>
+              <Text style={[styles.adminTitle, { color: colors.textSecondary }]}>
+                Buddy Debug
+              </Text>
+
+              <GlassButton
+                title="Reset to Egg (100 XP)"
+                variant="outline"
+                size="sm"
+                onPress={async () => {
+                  setStage(0);
+                  setVitality(1);
+                  setBond(0);
+                  await updateBuddy({
+                    stage: 0,
+                    highest_stage: 0,
+                    vitality: 1.0,
+                    bond: 0.0,
+                    wallet: 100,
+                    total_xp_fed: 0,
+                    xp_fed_today: 0,
+                    last_interaction: new Date().toISOString(),
+                  } as any);
+                  await useBuddyStore.getState().loadBuddy();
+                }}
+                style={styles.resetBtn}
+              />
+
+              {/* Stage */}
+              <View style={styles.sliderRow}>
+                <Text style={[styles.sliderLabel, { color: colors.textSecondary }]}>Stage</Text>
+                <Text style={[styles.sliderValue, { color: colors.text }]}>
+                  {stage} - {STAGE_PALETTES[stage].name}
+                </Text>
+              </View>
+              <Slider
+                minimumValue={0}
+                maximumValue={6}
+                step={1}
+                value={stage}
+                onValueChange={(v: number) => setStage(v)}
+                minimumTrackTintColor={colors.primary}
+                maximumTrackTintColor={colors.statBarBg}
+                thumbTintColor={colors.primary}
+                style={styles.slider}
+              />
+
+              {/* Vitality */}
+              <View style={styles.sliderRow}>
+                <Text style={[styles.sliderLabel, { color: colors.textSecondary }]}>Vitality</Text>
+                <Text style={[styles.sliderValue, { color: colors.text }]}>
+                  {Math.round(vitality * 100)}%
+                </Text>
+              </View>
+              <Slider
+                minimumValue={0}
+                maximumValue={1}
+                step={0.01}
+                value={vitality}
+                onValueChange={(v: number) => setVitality(v)}
+                minimumTrackTintColor={tokens.colors.pillars.wellness}
+                maximumTrackTintColor={colors.statBarBg}
+                thumbTintColor={tokens.colors.pillars.wellness}
+                style={styles.slider}
+              />
+
+              {/* Bond */}
+              <View style={styles.sliderRow}>
+                <Text style={[styles.sliderLabel, { color: colors.textSecondary }]}>Bond</Text>
+                <Text style={[styles.sliderValue, { color: colors.text }]}>
+                  {Math.round(bond * 100)}%
+                </Text>
+              </View>
+              <Slider
+                minimumValue={0}
+                maximumValue={1}
+                step={0.01}
+                value={bond}
+                onValueChange={(v: number) => setBond(v)}
+                minimumTrackTintColor={tokens.colors.pillars.art}
+                maximumTrackTintColor={colors.statBarBg}
+                thumbTintColor={tokens.colors.pillars.art}
+                style={styles.slider}
+              />
+            </GlassCard>
+          )}
+        </View>
+      )}
     </View>
   );
 }
 
-function StatBar({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <View style={styles.statContainer}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <View style={styles.statBarBg}>
-        <View style={[styles.statBarFill, { width: `${value}%`, backgroundColor: color }]} />
-      </View>
-      <Text style={styles.statValue}>{value}</Text>
-    </View>
-  );
-}
+// ── Action Button ──
 
-function ActionButton({ label, icon, color }: { label: string; icon: string; color: string }) {
+function ActionButton({
+  label,
+  iconName,
+  color,
+  onPress,
+}: {
+  label: string;
+  iconName: string;
+  color: string;
+  onPress?: () => void;
+}) {
+  const { colors } = useThemeStore();
+
+  const inner = (
+    <>
+      <View style={[styles.actionIconCircle, { backgroundColor: color + '20' }]}>
+        <Ionicons name={iconName as any} size={24} color={color} />
+      </View>
+      <Text style={[styles.actionLabel, { color: colors.text }]}>{label}</Text>
+    </>
+  );
+
+  if (Platform.OS === 'web') {
+    return (
+      <TouchableOpacity
+        style={
+          [
+            styles.actionButton,
+            {
+              borderColor: colors.glass.border,
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              backgroundColor: colors.glass.background,
+            },
+          ] as any
+        }
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Quick capture: ${label}`}
+        activeOpacity={0.7}
+      >
+        {inner}
+      </TouchableOpacity>
+    );
+  }
+
   return (
-    <TouchableOpacity style={[styles.actionButton, { borderColor: color }]}>
-      <Text style={styles.actionIcon}>{icon}</Text>
-      <Text style={styles.actionLabel}>{label}</Text>
+    <TouchableOpacity
+      style={[styles.actionButtonNative, { borderColor: colors.glass.border }]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Quick capture: ${label}`}
+      activeOpacity={0.7}
+    >
+      <BlurView intensity={tokens.blur.light} tint={colors.blurTint} style={styles.actionButton}>
+        <View style={[styles.actionInnerFill, { backgroundColor: colors.actionFill }]}>
+          {inner}
+        </View>
+      </BlurView>
     </TouchableOpacity>
   );
 }
@@ -115,124 +511,208 @@ function ActionButton({ label, icon, color }: { label: string; icon: string; col
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: tokens.colors.background,
-    paddingTop: 60,
+    overflow: 'hidden',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scroll: {
+    paddingTop: 32,
     paddingHorizontal: tokens.spacing.md,
+    paddingBottom: 120,
+    flexGrow: 1,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: tokens.colors.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: tokens.spacing.lg,
+    marginBottom: -8,
   },
   greeting: {
-    fontSize: tokens.typography.sizes.xl,
-    fontWeight: tokens.typography.weights.bold,
-    color: tokens.colors.text,
+    ...textStyles.h2,
   },
-  logoutText: {
-    fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.textSecondary,
+  logoutBtn: {
+    padding: tokens.spacing.sm,
   },
-  yetiCard: {
-    marginBottom: tokens.spacing.lg,
+  // Buddy
+  buddyContainer: {
+    alignItems: 'center',
+    marginBottom: 0,
   },
-  yetiName: {
-    fontSize: tokens.typography.sizes.xxl,
-    fontWeight: tokens.typography.weights.bold,
-    color: tokens.colors.primary,
+  buddyName: {
+    ...textStyles.h1,
+    textAlign: 'center',
+  },
+  stageLabel: {
+    ...textStyles.label,
     textAlign: 'center',
     marginBottom: tokens.spacing.md,
   },
-  statsRow: {
-    gap: tokens.spacing.sm,
-    marginBottom: tokens.spacing.md,
+  // Feed card
+  feedCard: {
+    marginBottom: tokens.spacing.lg,
   },
-  statContainer: {
+  hungerLabelRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: tokens.spacing.sm,
+    justifyContent: 'space-between',
+    marginBottom: tokens.spacing.xs,
   },
-  statLabel: {
-    width: 55,
-    fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.textSecondary,
+  hungerLabel: {
+    ...textStyles.caption,
   },
-  statBarBg: {
-    flex: 1,
+  hungerBarBg: {
     height: 8,
-    backgroundColor: tokens.colors.border,
     borderRadius: tokens.radius.full,
     overflow: 'hidden',
+    marginBottom: tokens.spacing.md,
   },
-  statBarFill: {
+  hungerBarFill: {
     height: '100%',
     borderRadius: tokens.radius.full,
   },
-  statValue: {
-    width: 30,
-    fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.text,
-    textAlign: 'right',
+  fullMessage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: tokens.spacing.xs,
+    marginBottom: tokens.spacing.sm,
   },
-  xpBalance: {
-    fontSize: tokens.typography.sizes.md,
-    fontWeight: tokens.typography.weights.semiBold,
-    color: tokens.colors.accent,
-    textAlign: 'center',
+  fullMessageText: {
+    ...textStyles.bodySm,
   },
-  noPetText: {
-    fontSize: tokens.typography.sizes.lg,
-    color: tokens.colors.textSecondary,
+  feedBtn: {
+    alignSelf: 'center',
+    marginBottom: tokens.spacing.sm,
+  },
+  walletRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: tokens.spacing.xs,
+  },
+  walletText: {
+    ...textStyles.buttonSm,
+  },
+  // Create
+  noPetCard: {
+    marginBottom: tokens.spacing.lg,
+    alignItems: 'center',
+  },
+  eggEmoji: {
+    fontSize: 64,
     textAlign: 'center',
     marginBottom: tokens.spacing.md,
   },
-  createButton: {
-    backgroundColor: tokens.colors.primary,
+  noPetText: {
+    ...textStyles.h3,
+    textAlign: 'center',
+    marginBottom: tokens.spacing.md,
+  },
+  nameInput: {
+    borderWidth: 1,
     borderRadius: tokens.radius.md,
-    padding: tokens.spacing.md,
+    paddingHorizontal: tokens.spacing.md,
+    paddingVertical: tokens.spacing.sm,
+    ...textStyles.body,
+    marginBottom: tokens.spacing.md,
+  },
+  createActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: tokens.spacing.md,
+  },
+  // Admin
+  adminSection: {
+    marginBottom: tokens.spacing.lg,
+  },
+  adminToggle: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: tokens.spacing.xs,
+    paddingVertical: tokens.spacing.sm,
   },
-  createButtonText: {
-    color: '#FFF',
-    fontSize: tokens.typography.sizes.md,
-    fontWeight: tokens.typography.weights.semiBold,
+  adminToggleText: {
+    ...textStyles.caption,
   },
+  adminPanel: {
+    marginTop: tokens.spacing.sm,
+  },
+  adminTitle: {
+    ...textStyles.label,
+    marginBottom: tokens.spacing.md,
+    textAlign: 'center',
+  },
+  resetBtn: {
+    alignSelf: 'center',
+    marginBottom: tokens.spacing.lg,
+  },
+  sliderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: tokens.spacing.xs,
+  },
+  sliderLabel: {
+    ...textStyles.bodySm,
+  },
+  sliderValue: {
+    ...textStyles.label,
+    minWidth: 80,
+    textAlign: 'right',
+  },
+  slider: {
+    height: 32,
+    marginBottom: tokens.spacing.md,
+  },
+  // Quick actions
   quickActions: {
     marginBottom: tokens.spacing.lg,
   },
   sectionTitle: {
-    fontSize: tokens.typography.sizes.lg,
-    fontWeight: tokens.typography.weights.semiBold,
-    color: tokens.colors.text,
+    ...textStyles.h3,
     marginBottom: tokens.spacing.md,
   },
   actionRow: {
     flexDirection: 'row',
     gap: tokens.spacing.md,
   },
-  actionButton: {
+  actionButtonNative: {
     flex: 1,
-    backgroundColor: tokens.colors.surface,
-    borderRadius: tokens.radius.lg,
-    padding: tokens.spacing.md,
-    alignItems: 'center',
-    borderWidth: 2,
+    borderRadius: tokens.radius.xl,
+    overflow: 'hidden',
+    borderWidth: 0.5,
     ...tokens.shadows.sm,
   },
-  actionIcon: {
-    fontSize: 28,
-    marginBottom: tokens.spacing.xs,
+  actionButton: {
+    flex: 1,
+    paddingVertical: tokens.spacing.md,
+    alignItems: 'center',
+    borderRadius: tokens.radius.xl,
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    ...tokens.shadows.sm,
+  },
+  actionInnerFill: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: tokens.spacing.md,
+  },
+  actionIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: tokens.spacing.sm,
   },
   actionLabel: {
-    fontSize: tokens.typography.sizes.sm,
-    fontWeight: tokens.typography.weights.medium,
-    color: tokens.colors.text,
+    ...textStyles.label,
   },
 });

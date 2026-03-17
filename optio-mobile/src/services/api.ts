@@ -41,9 +41,11 @@ api.interceptors.response.use(
       const refreshToken = await storage.getItem('refresh_token');
       if (refreshToken) {
         try {
-          const refreshResponse = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {}, {
-            headers: { Authorization: `Bearer ${refreshToken}` },
-          });
+          const refreshResponse = await axios.post(
+            `${API_BASE_URL}/api/auth/refresh`,
+            { refresh_token: refreshToken },
+            { headers: { 'Content-Type': 'application/json' } },
+          );
 
           const { access_token, refresh_token } = refreshResponse.data;
           await storage.setItem('access_token', access_token);

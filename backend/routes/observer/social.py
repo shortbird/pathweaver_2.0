@@ -619,25 +619,25 @@ def register_routes(bp):
                 'created_at': datetime.now(timezone.utc).isoformat(),
             }, on_conflict='observer_id,target_type,target_id').execute()
 
-            # Also write to observer_likes for backward compatibility (transition period)
-            if reaction_type == 'love_it':
-                try:
-                    if target_type == 'completion':
-                        existing = supabase.table('observer_likes').select('id').eq('observer_id', user_id).eq('completion_id', target_id).execute()
-                        if not existing.data:
-                            supabase.table('observer_likes').insert({
-                                'observer_id': user_id,
-                                'completion_id': target_id,
-                            }).execute()
-                    elif target_type == 'learning_event':
-                        existing = supabase.table('observer_likes').select('id').eq('observer_id', user_id).eq('learning_event_id', target_id).execute()
-                        if not existing.data:
-                            supabase.table('observer_likes').insert({
-                                'observer_id': user_id,
-                                'learning_event_id': target_id,
-                            }).execute()
-                except Exception as compat_err:
-                    logger.debug(f"observer_likes backward compat write failed (non-fatal): {compat_err}")
+            # Sync ALL reaction types to observer_likes for web platform compatibility.
+            # Mobile shows granular reactions; web sees a single "like".
+            try:
+                if target_type == 'completion':
+                    existing = supabase.table('observer_likes').select('id').eq('observer_id', user_id).eq('completion_id', target_id).execute()
+                    if not existing.data:
+                        supabase.table('observer_likes').insert({
+                            'observer_id': user_id,
+                            'completion_id': target_id,
+                        }).execute()
+                elif target_type == 'learning_event':
+                    existing = supabase.table('observer_likes').select('id').eq('observer_id', user_id).eq('learning_event_id', target_id).execute()
+                    if not existing.data:
+                        supabase.table('observer_likes').insert({
+                            'observer_id': user_id,
+                            'learning_event_id': target_id,
+                        }).execute()
+            except Exception as compat_err:
+                logger.debug(f"observer_likes sync failed (non-fatal): {compat_err}")
 
             reaction = response.data[0] if response.data else {}
             logger.info(f"Observer {user_id[:8]} reacted '{reaction_type}' on {target_type}/{target_id[:8]}")
@@ -652,7 +652,7 @@ def register_routes(bp):
     @bp.route('/api/observers/react/<reaction_id>', methods=['DELETE'])
     @require_auth
     def remove_reaction(user_id, reaction_id):
-        """Remove a reaction."""
+        """Remove a reaction and its corresponding observer_like."""
         try:
             supabase = get_supabase_admin_client()
 
@@ -665,6 +665,20 @@ def register_routes(bp):
 
             if not response.data:
                 return jsonify({'error': 'Reaction not found or not yours'}), 404
+
+            # Also remove corresponding observer_like for web platform sync
+            removed = response.data[0]
+            try:
+                target_type = removed.get('target_type')
+                target_id = removed.get('target_id')
+                if target_type == 'completion':
+                    supabase.table('observer_likes').delete() \
+                        .eq('observer_id', user_id).eq('completion_id', target_id).execute()
+                elif target_type == 'learning_event':
+                    supabase.table('observer_likes').delete() \
+                        .eq('observer_id', user_id).eq('learning_event_id', target_id).execute()
+            except Exception as compat_err:
+                logger.debug(f"observer_likes removal sync failed (non-fatal): {compat_err}")
 
             return jsonify({'success': True}), 200
 

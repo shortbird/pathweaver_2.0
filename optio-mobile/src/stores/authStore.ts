@@ -12,12 +12,17 @@ interface User {
   id: string;
   email: string;
   display_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
   role: string;
   org_role: string | null;
   is_dependent: boolean;
   date_of_birth: string | null;
   organization_id: string | null;
   total_xp: number;
+  created_at: string | null;
 }
 
 interface AuthState {
@@ -42,11 +47,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await api.post('/api/auth/login', { email, password });
-      const { access_token, refresh_token, user } = response.data;
+      const { app_access_token, app_refresh_token, user } = response.data;
 
-      await storage.setItem('access_token', access_token);
-      if (refresh_token) {
-        await storage.setItem('refresh_token', refresh_token);
+      await storage.setItem('access_token', app_access_token);
+      if (app_refresh_token) {
+        await storage.setItem('refresh_token', app_refresh_token);
       }
 
       set({ user, isAuthenticated: true, isLoading: false });
@@ -73,7 +78,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
 
       const response = await api.get('/api/auth/me');
-      set({ user: response.data.user, isAuthenticated: true, isLoading: false });
+      set({ user: response.data, isAuthenticated: true, isLoading: false });
     } catch {
       // Token expired or invalid
       await storage.deleteItem('access_token');

@@ -2,7 +2,7 @@
  * Design Token System - Single source of truth for all design values.
  * Change once, updates everywhere.
  *
- * Based on Optio brand colors + Liquid Glass aesthetic.
+ * Based on Optio brand colors + Liquid Glass aesthetic (light mode).
  */
 
 export const tokens = {
@@ -12,21 +12,23 @@ export const tokens = {
     accent: '#EF597B',        // optio-pink
     accentDark: '#E73862',    // optio-pink hover
 
-    background: '#F8F9FA',
-    surface: '#FFFFFF',
+    background: '#EEEAF4',    // Soft lavender-white for glass
+    surface: 'rgba(255, 255, 255, 0.45)',
     text: '#1A1A2E',
-    textSecondary: '#6B7280',
-    textMuted: '#9CA3AF',
-    border: '#E5E7EB',
+    textSecondary: 'rgba(30, 30, 50, 0.55)',
+    textMuted: 'rgba(30, 30, 50, 0.3)',
+    border: 'rgba(0, 0, 0, 0.06)',
     error: '#EF4444',
     success: '#10B981',
     warning: '#F59E0B',
 
     glass: {
-      background: 'rgba(255, 255, 255, 0.12)',
-      backgroundSolid: 'rgba(255, 255, 255, 0.85)',
-      border: 'rgba(255, 255, 255, 0.2)',
-      shadow: 'rgba(0, 0, 0, 0.1)',
+      background: 'rgba(255, 255, 255, 0.35)',
+      backgroundHover: 'rgba(255, 255, 255, 0.5)',
+      border: 'rgba(255, 255, 255, 0.6)',
+      borderLight: 'rgba(255, 255, 255, 0.3)',
+      highlight: 'rgba(255, 255, 255, 0.8)',  // specular top edge
+      shadow: 'rgba(0, 0, 0, 0.08)',
     },
 
     pillars: {
@@ -35,6 +37,15 @@ export const tokens = {
       communication: '#3DA24A',
       civics: '#FF9028',
       wellness: '#E65C5C',
+    },
+
+    // Blob colors - vivid shapes behind glass
+    blobs: {
+      purple: '#6D469B',
+      pink: '#C74B8B',
+      teal: '#2BA5A5',
+      olive: '#8B9A3C',
+      blue: '#3366CC',
     },
 
     reactions: {
@@ -60,17 +71,24 @@ export const tokens = {
     md: 12,
     lg: 16,
     xl: 24,
+    xxl: 32,
     full: 9999,
   },
 
   blur: {
-    light: 10,
-    medium: 20,
-    heavy: 40,
+    light: 20,
+    medium: 40,
+    heavy: 80,
   },
 
   typography: {
-    fontFamily: 'System',  // Will use Poppins when loaded
+    fontFamily: 'Poppins-Regular',
+    fonts: {
+      regular: 'Poppins-Regular',
+      medium: 'Poppins-Medium',
+      semiBold: 'Poppins-SemiBold',
+      bold: 'Poppins-Bold',
+    },
     sizes: {
       xs: 12,
       sm: 14,
@@ -104,26 +122,47 @@ export const tokens = {
     sm: {
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.05,
-      shadowRadius: 2,
+      shadowOpacity: 0.06,
+      shadowRadius: 3,
       elevation: 1,
     },
     md: {
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
+      shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.1,
-      shadowRadius: 4,
+      shadowRadius: 8,
       elevation: 3,
     },
     lg: {
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
+      shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.15,
-      shadowRadius: 8,
-      elevation: 5,
+      shadowRadius: 16,
+      elevation: 6,
     },
+    glow: (color: string) => ({
+      shadowColor: color,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 4,
+    }),
   },
 } as const;
 
 export type PillarKey = keyof typeof tokens.colors.pillars;
 export type ReactionType = keyof typeof tokens.colors.reactions;
+
+/** Pre-built text styles with Poppins font applied */
+export const textStyles = {
+  hero: { fontFamily: tokens.typography.fonts.bold, fontSize: tokens.typography.sizes.hero },
+  h1: { fontFamily: tokens.typography.fonts.bold, fontSize: tokens.typography.sizes.xxl },
+  h2: { fontFamily: tokens.typography.fonts.bold, fontSize: tokens.typography.sizes.xl },
+  h3: { fontFamily: tokens.typography.fonts.semiBold, fontSize: tokens.typography.sizes.lg },
+  body: { fontFamily: tokens.typography.fonts.regular, fontSize: tokens.typography.sizes.md },
+  bodySm: { fontFamily: tokens.typography.fonts.regular, fontSize: tokens.typography.sizes.sm },
+  label: { fontFamily: tokens.typography.fonts.medium, fontSize: tokens.typography.sizes.sm },
+  caption: { fontFamily: tokens.typography.fonts.regular, fontSize: tokens.typography.sizes.xs },
+  button: { fontFamily: tokens.typography.fonts.semiBold, fontSize: tokens.typography.sizes.md },
+  buttonSm: { fontFamily: tokens.typography.fonts.semiBold, fontSize: tokens.typography.sizes.sm },
+} as const;

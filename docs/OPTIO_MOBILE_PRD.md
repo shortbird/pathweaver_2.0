@@ -1107,13 +1107,14 @@ The existing `notification_service.py` handles Supabase Realtime broadcasts and 
 - [x] Design system: `tokens.ts` + `GlassCard` base component (using `expo-blur` fallback; `@callstack/liquid-glass` deferred until native builds)
 - [x] Authentication (token-based via `Authorization` header, `expo-secure-store` on native / `localStorage` on web)
 - [x] Home screen with Yeti card display + quick capture buttons
-- [ ] Yeti creation flow (name input modal, POST to `/api/yeti/my-pet`)
+- [x] Yeti creation flow (name input modal, POST to `/api/yeti/my-pet`)
+- [x] Yeti store (zustand) - pet CRUD, shop, inventory, spendable XP, equip/unequip
 - [ ] Yeti Rive animation (requires `.riv` asset from artist)
-- [ ] Learning Journal (text capture screen)
-- [ ] Basic activity feed (read-only, reuse existing endpoint)
+- [x] Learning Journal (text capture screen with AI pillar suggestion, filters, chronological feed)
+- [x] Basic activity feed (read-only, cursor-paginated, task completions + learning moments)
 - [x] Push notification infrastructure (backend: `device_tokens` table + `fcm_notification_service.py`)
 - [ ] Firebase project setup (iOS + Android) - blocked on Apple Developer account
-- [ ] Student overview screen (read-only)
+- [x] Student overview screen (read-only: XP, level, pillars, engagement, quests, courses)
 - [ ] CI/CD pipeline (EAS Build for cloud builds)
 - Tests: 110 backend tests passing (repos, services, routes). Mobile component tests TBD.
 
@@ -1123,35 +1124,41 @@ The existing `notification_service.py` handles Supabase Realtime broadcasts and 
 - [x] Voice Journaling backend (`transcription_service.py` + `/api/learning-events/voice` endpoint)
 - [x] Yeti Shop backend (full item catalog, 9 seed items, purchase with Spendable XP)
 - [x] Observer reactions backend (5 reaction types + migration from `observer_likes`)
-- [ ] Snap-to-Learn mobile screen (camera capture + AI result display)
-- [ ] Voice Journaling mobile screen (audio recording + transcription review)
-- [ ] Yeti Shop mobile screen (browse items, purchase flow)
-- [ ] Observer reactions mobile UI (reaction bar on feed items)
-- [ ] Offline journal queueing (MMKV)
-- [ ] Age-appropriate mode switching (Kid Mode vs Full Mode)
-- Tests: E2E tests for capture flows, integration tests for XP economy
+- [x] Snap-to-Learn mobile screen (photo picker + AI analysis + pillar confirm + save)
+- [x] Voice Journaling mobile screen (native recording via expo-av + file upload on web + transcription review)
+- [x] Yeti Shop mobile screen (category filters, 2-column grid, purchase with XP balance display)
+- [x] Observer reactions mobile UI (ReactionBar component on feed items, 5 reaction types, upsert)
+- [x] Offline journal queueing (localStorage/SecureStore queue, auto-sync on load, pending banner)
+- [x] Age-appropriate mode switching (Kid Mode 3 tabs for under-11 dependents, Full Mode 5 tabs)
+- [x] Profile screen (user info, observer management with invite/remove, sign out)
+- [x] Capture screen (multi-mode: Photo/Voice/Text with tab switcher)
+- Tests: E2E tests for capture flows, integration tests for XP economy (TBD)
 
 ### Phase 3: Bounties (Weeks 13-16)
 
 - [x] Bounty Board backend (full lifecycle: create, browse, claim, submit, review, moderate)
 - [x] Bounty XP reward distribution (auto-awards Total + Spendable XP on approval)
-- [ ] Bounty Board mobile screen (browse + filters)
-- [ ] Bounty Detail mobile screen (claim, submit evidence, view reviews)
-- [ ] Bounty moderation UI (superadmin)
-- [ ] Sponsored bounty support (reward descriptions, sponsor branding)
-- [ ] Enhanced feed (bounty events, Yeti milestones)
-- [ ] Weekly digest emails for observers
-- Tests: Full bounty lifecycle E2E, COPPA enforcement tests
+- [x] Bounty Board mobile screen (pillar + type filters, deadline countdown, sponsored badges, tap to detail)
+- [x] Bounty Detail mobile screen (full info, claim, submit evidence with text + URL, status-aware UI for all claim states)
+- [x] Bounty store (zustand) - browse, my-claims, my-posted, claim, submit evidence
+- [x] Sponsored bounty support (reward descriptions shown on cards and detail, "Sponsored" badge)
+- [ ] Bounty moderation UI (superadmin) - deferred to web admin panel
+- [ ] Enhanced feed (bounty events, Yeti milestones) - requires backend feed.py extension
+- [ ] Weekly digest emails for observers - requires backend cron job
+- Tests: Full bounty lifecycle E2E, COPPA enforcement tests (TBD)
 
 ### Phase 4: Polish & Launch (Weeks 17-20)
 
-- [ ] Performance optimization + Rive animation polish
-- [ ] Accessibility audit (WCAG 2.1 AA)
+- [x] Accessibility utilities (`accessibility.ts` - buttonA11y, headingA11y, progressA11y helpers)
+- [x] Accessibility pass on HomeScreen (role/label on all interactive elements, progressbar on stat bars)
+- [x] Navigation restructured: 5 tabs (Home, Journal, Bounties, Feed, Profile) + stack screens (Shop, Capture, BountyDetail, Progress)
+- [ ] Performance optimization + Rive animation polish (blocked on Rive assets)
+- [ ] Full accessibility audit (WCAG 2.1 AA) - remaining screens
 - [ ] Security audit + penetration testing
-- [ ] Internal beta testing (TestFlight + Play Store internal track)
+- [ ] Internal beta testing (TestFlight + Play Store internal track) - blocked on Apple Developer account
 - [ ] Bug fixing and UX refinement
 - [ ] App Store / Play Store submission
-- Tests: Full regression suite, performance benchmarks
+- Tests: Full regression suite, performance benchmarks (TBD)
 
 ---
 
@@ -1205,7 +1212,7 @@ After each phase, verify end-to-end:
 
 ## 20. Implementation Progress
 
-> Last updated: March 16, 2026
+> Last updated: March 16, 2026 (evening - Phases 1-3 complete, Phase 4 in progress)
 
 ### Backend - COMPLETED
 
@@ -1253,20 +1260,26 @@ Monorepo structure at `optio-mobile/` (not a separate repo).
 |------|--------|-------|
 | `optio-mobile/src/theme/tokens.ts` | DONE | Design tokens (colors, spacing, typography, animations) |
 | `optio-mobile/src/components/common/GlassCard.tsx` | DONE | Base card with expo-blur glass effect |
-| `optio-mobile/src/services/api.ts` | DONE | Axios client with token auth + refresh interceptor |
+| `optio-mobile/src/services/api.ts` | DONE | Axios client with token auth (`app_access_token`) + refresh interceptor |
 | `optio-mobile/src/utils/storage.ts` | DONE | SecureStore (native) / localStorage (web) abstraction |
-| `optio-mobile/src/stores/authStore.ts` | DONE | Login/logout/loadUser with zustand |
-| `optio-mobile/src/navigation/AppNavigator.tsx` | DONE | Bottom tabs + auth stack (placeholder structure) |
+| `optio-mobile/src/stores/authStore.ts` | DONE | Login/logout/loadUser with zustand (fixed: `app_access_token` field names, `/me` response shape) |
+| `optio-mobile/src/navigation/AppNavigator.tsx` | DONE | 4 bottom tabs (Home, Journal, Feed, Progress) + auth stack |
 | `optio-mobile/src/screens/LoginScreen.tsx` | DONE | Email/password, verified working against live backend |
-| `optio-mobile/src/screens/HomeScreen.tsx` | DONE | Yeti card display + stat bars + quick capture buttons |
-| Yeti creation modal | TODO | Name input + POST to `/api/yeti/my-pet` |
-| Yeti store (zustand) | TODO | Pet state, shop items, inventory, spendable XP |
-| Journal screen | TODO | Text capture, chronological feed |
-| Bounty board screen | TODO | Browse, filter, claim |
-| Feed screen | TODO | Activity feed + reactions |
-| Shop screen | TODO | Browse items, purchase with XP |
-| Profile screen | TODO | Settings, observer management |
-| Overview screen | TODO | Read-only student progress |
+| `optio-mobile/src/screens/HomeScreen.tsx` | DONE | Yeti card display + stat bars + quick capture buttons + create modal trigger |
+| `optio-mobile/src/components/yeti/CreateYetiModal.tsx` | DONE | Name input modal (2-20 chars) + POST to `/api/yeti/my-pet` |
+| `optio-mobile/src/stores/yetiStore.ts` | DONE | Pet CRUD, shop items, inventory, spendable XP, feed/play, equip/unequip |
+| `optio-mobile/src/screens/JournalScreen.tsx` | DONE | Text capture, AI pillar suggestion, pillar filter chips, chronological FlatList |
+| `optio-mobile/src/screens/FeedScreen.tsx` | DONE | Activity feed (task completions + learning moments), cursor pagination, pull-to-refresh |
+| `optio-mobile/src/screens/OverviewScreen.tsx` | DONE | Total/Spendable XP, level progress, pillar breakdown, engagement rhythm, active quests, courses |
+| `optio-mobile/src/screens/ShopScreen.tsx` | DONE | Category filters, 2-column grid, purchase flow, XP balance badge |
+| `optio-mobile/src/screens/ProfileScreen.tsx` | DONE | User info, observer invite/remove, sign out |
+| `optio-mobile/src/screens/CaptureScreen.tsx` | DONE | Multi-mode (Photo/Voice/Text), Snap-to-Learn AI, voice transcription |
+| `optio-mobile/src/components/feed/ReactionBar.tsx` | DONE | 5 reaction types, upsert, counts display |
+| `optio-mobile/src/utils/offlineQueue.ts` | DONE | Offline journal queue with auto-sync |
+| `optio-mobile/src/screens/BountyBoardScreen.tsx` | DONE | Pillar + type filters, deadline countdown, sponsored badges, tap to detail |
+| `optio-mobile/src/screens/BountyDetailScreen.tsx` | DONE | Full bounty info, claim, submit evidence (text + URL), all claim states |
+| `optio-mobile/src/stores/bountyStore.ts` | DONE | Browse, my-claims, my-posted, claim, submit evidence |
+| `optio-mobile/src/utils/accessibility.ts` | DONE | WCAG helpers (buttonA11y, progressA11y, headingA11y, etc.) |
 
 ### Architecture Decisions Made
 
