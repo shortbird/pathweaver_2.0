@@ -4,6 +4,7 @@ import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSe
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { evidenceDocumentService } from '../../services/evidenceDocumentService';
+import { useAuth } from '../../contexts/AuthContext';
 import logger from '../../utils/logger';
 import toast from 'react-hot-toast';
 
@@ -93,6 +94,8 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
     skipNextAutoSaveRef
   } = useEvidenceEditor();
 
+  const { isSuperadmin } = useAuth();
+
   // Track newly added blocks for animation
   const [newBlockIds, setNewBlockIds] = useState(new Set());
 
@@ -119,8 +122,9 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
     taskId,
     setUploadingBlocks,
     setUploadErrors,
-    onError
-  }), [blocks, documentStatus, taskId, onError]);
+    onError,
+    isSuperadmin,
+  }), [blocks, documentStatus, taskId, onError, isSuperadmin]);
 
   const addBlock = (rawType, position) => {
     // Camera type opens as image block -- the block renderer supports both photo and video uploads

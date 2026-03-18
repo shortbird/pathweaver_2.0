@@ -108,7 +108,8 @@ export class EvidenceMediaHandlers {
     taskId,
     setUploadingBlocks,
     setUploadErrors,
-    onError
+    onError,
+    isSuperadmin = false,
   }) {
     this.blocks = blocks;
     this.setBlocks = setBlocks;
@@ -117,6 +118,7 @@ export class EvidenceMediaHandlers {
     this.setUploadingBlocks = setUploadingBlocks;
     this.setUploadErrors = setUploadErrors;
     this.onError = onError;
+    this.isSuperadmin = isSuperadmin;
   }
 
   async uploadFileImmediately(file, blockId, blockType) {
@@ -237,6 +239,10 @@ export class EvidenceMediaHandlers {
       const maxSize = blockType === 'video' ? 100 * 1024 * 1024 : blockType === 'document' ? 25 * 1024 * 1024 : 10 * 1024 * 1024;
       const maxSizeMB = maxSize / (1024 * 1024);
       if (file.size > maxSize) {
+        // Superadmin can bypass the 100MB limit via direct-to-Supabase upload
+        if (this.isSuperadmin && blockType === 'video') {
+          return this._handleDirectUpload(file, blockId, blockType);
+        }
         const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
         const errorMsg = `File "${file.name}" is too large (${fileSizeMB}MB). Maximum size is ${maxSizeMB}MB.\n\nFor larger files, please:\n1. Upload to Google Drive or Dropbox\n2. Get a shareable link\n3. Use a "Link" block instead`;
         if (this.onError) {
@@ -268,6 +274,43 @@ export class EvidenceMediaHandlers {
       }
       throw error;
     }
+  }
+
+  async _handleDirectUpload(file, blockId, blockType) {
+    // Direct-to-Supabase upload for superadmin with large files
+    const localUrl = URL.createObjectURL(file);
+    const fileInfo = { file, localUrl, name: file.name, size: file.size, type: file.type };
+
+    // Show preview immediately
+    this.setBlocks(prevBlocks => prevBlocks.map(block =>
+      block.id === blockId
+        ? { ...block, content: { ...block.content, url: localUrl, _retryFile: file } }
+        : block
+    ));
+    this.setUploadingBlocks(prev => new Set(prev).add(blockId));
+
+    try {
+      const { directUploadLargeFile } = await import('../../services/evidenceDocumentService');
+      const result = await directUploadLargeFile(file, {
+        contextType: 'block',
+        contextId: blockId,
+      });
+
+      // Update block with the real URL
+      this.setBlocks(prevBlocks => prevBlocks.map(block =>
+        block.id === blockId
+          ? { ...block, content: { ...block.content, url: result.file_url } }
+          : block
+      ));
+      this.setUploadingBlocks(prev => { const next = new Set(prev); next.delete(blockId); return next; });
+    } catch (error) {
+      logger.error('Direct upload failed:', error);
+      this.setUploadErrors(prev => ({ ...prev, [blockId]: error.message || 'Upload failed' }));
+      this.setUploadingBlocks(prev => { const next = new Set(prev); next.delete(blockId); return next; });
+      if (this.onError) this.onError(`Upload failed: ${error.message}`);
+    }
+
+    return fileInfo;
   }
 
   cleanBlocksForSave(blocksToClean) {
