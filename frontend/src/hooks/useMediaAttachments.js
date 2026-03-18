@@ -16,8 +16,9 @@ import {
  *
  * @param {Object} options
  * @param {boolean} options.validateDuration - Run client-side video duration check (default false)
+ * @param {boolean} options.skipVideoSizeLimit - Skip video file size limit (for superadmin direct upload)
  */
-export default function useMediaAttachments({ validateDuration = false } = {}) {
+export default function useMediaAttachments({ validateDuration = false, skipVideoSizeLimit = false } = {}) {
   const [attachments, setAttachments] = useState([]);
   const [links, setLinks] = useState([]);
   const [linkInput, setLinkInput] = useState('');
@@ -49,11 +50,13 @@ export default function useMediaAttachments({ validateDuration = false } = {}) {
         mediaType = detectMediaType(file);
       }
 
-      // Size check
-      const sizeResult = validateFileSize(file, mediaType);
-      if (!sizeResult.valid) {
-        errors.push(sizeResult.error);
-        continue;
+      // Size check (superadmin can bypass for videos via direct-to-Supabase upload)
+      if (!(skipVideoSizeLimit && mediaType === 'video')) {
+        const sizeResult = validateFileSize(file, mediaType);
+        if (!sizeResult.valid) {
+          errors.push(sizeResult.error);
+          continue;
+        }
       }
 
       // Optional duration check for video

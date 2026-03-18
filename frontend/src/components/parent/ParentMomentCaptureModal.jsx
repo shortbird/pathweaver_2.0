@@ -4,6 +4,7 @@ import { Modal, Alert } from '../ui';
 import { PhotoIcon, DocumentIcon, LinkIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import api from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 import useMediaAttachments from '../../hooks/useMediaAttachments';
 import AttachmentPreviewList from '../shared/AttachmentPreviewList';
 import { CAMERA_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING } from '../../utils/mediaUtils';
@@ -28,7 +29,8 @@ const ParentMomentCaptureModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const media = useMediaAttachments();
+  const { isSuperadmin } = useAuth();
+  const media = useMediaAttachments({ skipVideoSizeLimit: isSuperadmin });
   const photoInputRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -80,30 +82,42 @@ const ParentMomentCaptureModal = ({
     media.markUploading(attachment.id);
 
     try {
-      const formData = new FormData();
-      formData.append('file', attachment.file);
+      let result;
+      const isLargeVideo = attachment.file.size > 100 * 1024 * 1024 && attachment.mediaType === 'video';
 
-      const response = await api.post(
-        `/api/parent/children/${selectedChildren[0]}/learning-moments/upload`,
-        formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
-      );
+      if (isLargeVideo && isSuperadmin) {
+        // Direct-to-Supabase upload for large videos (superadmin only)
+        const { directUploadLargeFile } = await import('../../services/evidenceDocumentService');
+        result = await directUploadLargeFile(attachment.file, {
+          contextType: 'moment',
+          contextId: selectedChildren[0],
+        });
+      } else {
+        // Normal upload through backend
+        const formData = new FormData();
+        formData.append('file', attachment.file);
 
-      const result = response.data;
+        const response = await api.post(
+          `/api/parent/children/${selectedChildren[0]}/learning-moments/upload`,
+          formData,
+          { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 300000 }
+        );
+        result = response.data;
+      }
+
       media.markUploaded(attachment.id, result.file_url, {
-        file_name: result.file_name,
-        file_size: result.file_size,
+        file_name: result.file_name || attachment.file.name,
+        file_size: result.file_size || attachment.file.size,
       });
 
       return {
         ...attachment,
         uploaded: true,
         fileUrl: result.file_url,
-        filename: result.file_name,
-        size: result.file_size,
+        filename: result.file_name || attachment.file.name,
+        size: result.file_size || attachment.file.size,
       };
     } catch (err) {
-      // Reset uploading state on failure
       media.markUploaded(attachment.id, null);
       throw err;
     }
