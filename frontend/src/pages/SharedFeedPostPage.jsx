@@ -133,6 +133,8 @@ export default function SharedFeedPostPage() {
 }
 
 function Header() {
+  const { isAuthenticated } = useAuth();
+
   return (
     <div className="bg-white border-b border-gray-200">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -146,12 +148,21 @@ function Header() {
             Optio
           </span>
         </Link>
-        <Link
-          to="/login"
-          className="text-sm text-gray-600 hover:text-gray-900 font-medium"
-        >
-          Log in
-        </Link>
+        {isAuthenticated ? (
+          <Link
+            to="/dashboard"
+            className="text-sm text-gray-600 hover:text-gray-900 font-medium"
+          >
+            Go to Dashboard
+          </Link>
+        ) : (
+          <Link
+            to="/login"
+            className="text-sm text-gray-600 hover:text-gray-900 font-medium"
+          >
+            Log in
+          </Link>
+        )}
       </div>
     </div>
   );

@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { tokens } from '../../theme/tokens';
+import { useThemeStore } from '../../stores/themeStore';
 
 interface InterestTrack {
   id: string;
@@ -46,6 +47,7 @@ export function TopicAssignModal({
   onAssign,
   onCreateAndAssign,
 }: TopicAssignModalProps) {
+  const { colors } = useThemeStore();
   const [showNewInput, setShowNewInput] = useState(false);
   const [newName, setNewName] = useState('');
   const [assigning, setAssigning] = useState(false);
@@ -97,10 +99,10 @@ export function TopicAssignModal({
         style={styles.overlay}
       >
         <Pressable style={styles.backdrop} onPress={handleClose} />
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
+        <View style={[styles.sheet, { backgroundColor: colors.surfaceOpaque }]}>
+          <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
-          <Text style={styles.title}>
+          <Text style={[styles.title, { color: colors.text }]}>
             Assign {selectedCount} {selectedCount === 1 ? 'moment' : 'moments'}
           </Text>
 
@@ -116,6 +118,7 @@ export function TopicAssignModal({
                   key={track.id}
                   style={[
                     styles.trackRow,
+                    { borderBottomColor: colors.border },
                     isAssigning && { opacity: 0.6 },
                   ]}
                   onPress={() => handleAssign(track.id)}
@@ -125,23 +128,25 @@ export function TopicAssignModal({
                   <View
                     style={[
                       styles.trackDot,
-                      { backgroundColor: track.color || tokens.colors.primary },
+                      { backgroundColor: track.color || colors.primary },
                     ]}
                   />
-                  <Text style={styles.trackName} numberOfLines={1}>
+                  <Text style={[styles.trackName, { color: colors.text }]} numberOfLines={1}>
                     {track.name}
                   </Text>
-                  <Text style={styles.trackCount}>{track.moment_count}</Text>
+                  <Text style={[styles.trackCount, { color: colors.textMuted }]}>
+                    {track.moment_count}
+                  </Text>
                   {isAssigning ? (
                     <ActivityIndicator
                       size={16}
-                      color={track.color || tokens.colors.primary}
+                      color={track.color || colors.primary}
                     />
                   ) : (
                     <Ionicons
                       name="chevron-forward"
                       size={16}
-                      color={tokens.colors.textMuted}
+                      color={colors.textMuted}
                     />
                   )}
                 </TouchableOpacity>
@@ -152,9 +157,12 @@ export function TopicAssignModal({
             {showNewInput ? (
               <View style={styles.newTrackRow}>
                 <TextInput
-                  style={styles.newTrackInput}
+                  style={[
+                    styles.newTrackInput,
+                    { borderColor: colors.border, color: colors.text },
+                  ]}
                   placeholder="Topic name"
-                  placeholderTextColor={tokens.colors.textMuted}
+                  placeholderTextColor={colors.textMuted}
                   value={newName}
                   onChangeText={setNewName}
                   autoFocus
@@ -163,6 +171,7 @@ export function TopicAssignModal({
                 <TouchableOpacity
                   style={[
                     styles.createBtn,
+                    { backgroundColor: colors.primary },
                     (!newName.trim() || assigning) && { opacity: 0.5 },
                   ]}
                   onPress={handleCreate}
@@ -181,7 +190,9 @@ export function TopicAssignModal({
                   }}
                   style={styles.cancelNewBtn}
                 >
-                  <Text style={styles.cancelNewText}>Cancel</Text>
+                  <Text style={[styles.cancelNewText, { color: colors.textMuted }]}>
+                    Cancel
+                  </Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -193,9 +204,11 @@ export function TopicAssignModal({
                 <Ionicons
                   name="add-circle-outline"
                   size={20}
-                  color={tokens.colors.primary}
+                  color={colors.primary}
                 />
-                <Text style={styles.newTopicText}>New Topic</Text>
+                <Text style={[styles.newTopicText, { color: colors.primary }]}>
+                  New Topic
+                </Text>
               </TouchableOpacity>
             )}
           </ScrollView>
@@ -215,7 +228,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
   sheet: {
-    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: tokens.radius.xl,
     borderTopRightRadius: tokens.radius.xl,
     paddingBottom: tokens.spacing.xl,
@@ -226,7 +238,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: tokens.colors.border,
     alignSelf: 'center',
     marginTop: tokens.spacing.sm,
     marginBottom: tokens.spacing.sm,
@@ -234,7 +245,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: tokens.typography.sizes.lg,
     fontFamily: tokens.typography.fonts.semiBold,
-    color: tokens.colors.text,
     paddingHorizontal: tokens.spacing.lg,
     marginBottom: tokens.spacing.md,
   },
@@ -250,7 +260,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: tokens.spacing.md,
     borderBottomWidth: 0.5,
-    borderBottomColor: tokens.colors.border,
     gap: tokens.spacing.sm,
   },
   trackDot: {
@@ -262,12 +271,10 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: tokens.typography.sizes.md,
     fontFamily: tokens.typography.fonts.medium,
-    color: tokens.colors.text,
   },
   trackCount: {
     fontSize: tokens.typography.sizes.xs,
     fontFamily: tokens.typography.fonts.regular,
-    color: tokens.colors.textMuted,
     marginRight: tokens.spacing.xs,
   },
   newTopicRow: {
@@ -279,7 +286,6 @@ const styles = StyleSheet.create({
   newTopicText: {
     fontSize: tokens.typography.sizes.md,
     fontFamily: tokens.typography.fonts.medium,
-    color: tokens.colors.primary,
   },
   newTrackRow: {
     flexDirection: 'row',
@@ -290,18 +296,15 @@ const styles = StyleSheet.create({
   newTrackInput: {
     flex: 1,
     borderWidth: 0.5,
-    borderColor: tokens.colors.border,
     borderRadius: tokens.radius.lg,
     padding: tokens.spacing.sm,
     fontSize: tokens.typography.sizes.sm,
     fontFamily: tokens.typography.fonts.regular,
-    color: tokens.colors.text,
   },
   createBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: tokens.colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -311,6 +314,5 @@ const styles = StyleSheet.create({
   cancelNewText: {
     fontSize: tokens.typography.sizes.sm,
     fontFamily: tokens.typography.fonts.medium,
-    color: tokens.colors.textMuted,
   },
 });

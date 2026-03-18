@@ -17,6 +17,7 @@ import {
   Platform,
 } from 'react-native';
 import { tokens } from '../../theme/tokens';
+import { useThemeStore } from '../../stores/themeStore';
 import { useYetiStore } from '../../stores/yetiStore';
 
 interface CreateYetiModalProps {
@@ -26,6 +27,7 @@ interface CreateYetiModalProps {
 }
 
 export function CreateYetiModal({ visible, onClose, onCreated }: CreateYetiModalProps) {
+  const { colors } = useThemeStore();
   const [name, setName] = useState('');
   const { createPet, isLoading, error, clearError } = useYetiStore();
 
@@ -54,23 +56,23 @@ export function CreateYetiModal({ visible, onClose, onCreated }: CreateYetiModal
         style={styles.overlay}
       >
         <View style={styles.backdrop}>
-          <View style={styles.card}>
-            <Text style={styles.title}>Name Your Yeti</Text>
-            <Text style={styles.subtitle}>
+          <View style={[styles.card, { backgroundColor: colors.surfaceOpaque }]}>
+            <Text style={[styles.title, { color: colors.primary }]}>Name Your Yeti</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
               Your Yeti companion will be with you on your learning journey.
               Give them a name!
             </Text>
 
             {error ? (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorText}>{error}</Text>
+              <View style={[styles.errorBox, { backgroundColor: colors.error + '15' }]}>
+                <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
               </View>
             ) : null}
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { borderColor: colors.border, color: colors.text }]}
               placeholder="Enter a name..."
-              placeholderTextColor={tokens.colors.textMuted}
+              placeholderTextColor={colors.textMuted}
               value={name}
               onChangeText={(text) => {
                 setName(text);
@@ -81,16 +83,17 @@ export function CreateYetiModal({ visible, onClose, onCreated }: CreateYetiModal
               autoCapitalize="words"
             />
 
-            <Text style={styles.charCount}>{name.trim().length}/20</Text>
+            <Text style={[styles.charCount, { color: colors.textMuted }]}>{name.trim().length}/20</Text>
 
             <View style={styles.buttonRow}>
-              <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
-                <Text style={styles.cancelText}>Cancel</Text>
+              <TouchableOpacity style={[styles.cancelButton, { borderColor: colors.border }]} onPress={handleClose}>
+                <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
                   styles.createButton,
+                  { backgroundColor: colors.primary },
                   (isLoading || name.trim().length < 2) && styles.buttonDisabled,
                 ]}
                 onPress={handleCreate}
@@ -124,7 +127,6 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: tokens.colors.surface,
     borderRadius: tokens.radius.xl,
     padding: tokens.spacing.lg,
     ...tokens.shadows.lg,
@@ -132,40 +134,33 @@ const styles = StyleSheet.create({
   title: {
     fontSize: tokens.typography.sizes.xl,
     fontWeight: tokens.typography.weights.bold,
-    color: tokens.colors.primary,
     textAlign: 'center',
     marginBottom: tokens.spacing.sm,
   },
   subtitle: {
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.textSecondary,
     textAlign: 'center',
     marginBottom: tokens.spacing.lg,
     lineHeight: 20,
   },
   errorBox: {
-    backgroundColor: '#FEE2E2',
     borderRadius: tokens.radius.sm,
     padding: tokens.spacing.sm,
     marginBottom: tokens.spacing.md,
   },
   errorText: {
-    color: tokens.colors.error,
     fontSize: tokens.typography.sizes.sm,
     textAlign: 'center',
   },
   input: {
     borderWidth: 1,
-    borderColor: tokens.colors.border,
     borderRadius: tokens.radius.md,
     padding: tokens.spacing.md,
     fontSize: tokens.typography.sizes.lg,
-    color: tokens.colors.text,
     textAlign: 'center',
   },
   charCount: {
     fontSize: tokens.typography.sizes.xs,
-    color: tokens.colors.textMuted,
     textAlign: 'right',
     marginTop: tokens.spacing.xs,
     marginBottom: tokens.spacing.md,
@@ -180,16 +175,13 @@ const styles = StyleSheet.create({
     padding: tokens.spacing.md,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: tokens.colors.border,
   },
   cancelText: {
     fontSize: tokens.typography.sizes.md,
     fontWeight: tokens.typography.weights.medium,
-    color: tokens.colors.textSecondary,
   },
   createButton: {
     flex: 1,
-    backgroundColor: tokens.colors.primary,
     borderRadius: tokens.radius.md,
     padding: tokens.spacing.md,
     alignItems: 'center',

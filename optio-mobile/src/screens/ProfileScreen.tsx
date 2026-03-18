@@ -95,6 +95,7 @@ function radarPoint(i: number, r: number): { x: number; y: number } {
 }
 
 function PillarRadarChart({ skillBreakdown }: { skillBreakdown: Record<string, number> }) {
+  const { colors } = useThemeStore();
   const maxXp = Math.max(...Object.values(skillBreakdown), 1);
   const gridLevels = [0.33, 0.66, 1.0];
   const iconPositions = RADAR_PILLARS_DEF.map((_, i) => radarPoint(i, ICON_OFFSET));
@@ -114,7 +115,7 @@ function PillarRadarChart({ skillBreakdown }: { skillBreakdown: Record<string, n
                 key={level}
                 points={pts}
                 fill="none"
-                stroke={tokens.colors.textMuted}
+                stroke={colors.textMuted}
                 strokeWidth={0.5}
                 opacity={0.5}
               />
@@ -145,8 +146,8 @@ function PillarRadarChart({ skillBreakdown }: { skillBreakdown: Record<string, n
               const pt = radarPoint(i, RADAR_R * value);
               return `${pt.x},${pt.y}`;
             }).join(' ')}
-            fill={tokens.colors.primary + '25'}
-            stroke={tokens.colors.primary}
+            fill={colors.primary + '25'}
+            stroke={colors.primary}
             strokeWidth={2}
           />
 
@@ -415,7 +416,7 @@ export function ProfileScreen() {
                 {avatarUrl ? (
                   <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
                 ) : (
-                  <View style={styles.avatarCircle}>
+                  <View style={[styles.avatarCircle, { backgroundColor: colors.primary }]}>
                     <Text style={styles.avatarInitials}>{initials}</Text>
                   </View>
                 )}
@@ -495,7 +496,7 @@ export function ProfileScreen() {
                   <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.saveButton, saving && styles.buttonDisabled]}
+                  style={[styles.saveButton, { backgroundColor: colors.primary }, saving && styles.buttonDisabled]}
                   onPress={handleSaveProfile}
                   disabled={saving}
                 >
@@ -519,7 +520,7 @@ export function ProfileScreen() {
                 <Text style={[styles.statValue, { color: colors.primary }]}>{totalXp.toLocaleString()}</Text>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total XP</Text>
               </View>
-              <View style={styles.statDivider} />
+              <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
               <View style={styles.statBlock}>
                 <Text style={[styles.statValue, { color: colors.primary }]}>{momentsCaptured}</Text>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Moments</Text>
@@ -592,7 +593,7 @@ export function ProfileScreen() {
                   autoCapitalize="none"
                 />
                 <TouchableOpacity
-                  style={[styles.sendButton, inviting && styles.buttonDisabled]}
+                  style={[styles.sendButton, { backgroundColor: colors.primary }, inviting && styles.buttonDisabled]}
                   onPress={handleInvite}
                   disabled={inviting}
                 >
@@ -623,7 +624,7 @@ export function ProfileScreen() {
                     </Text>
                   </View>
                   <TouchableOpacity onPress={() => handleRemoveObserver(obs)}>
-                    <Text style={styles.removeText}>Remove</Text>
+                    <Text style={[styles.removeText, { color: colors.error }]}>Remove</Text>
                   </TouchableOpacity>
                 </View>
               ))
@@ -633,14 +634,14 @@ export function ProfileScreen() {
 
         {/* Actions */}
         <SurfaceCard style={styles.card}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <TouchableOpacity style={[styles.logoutButton, { borderColor: colors.error }]} onPress={handleLogout}>
             <Ionicons
               name="log-out-outline"
               size={20}
-              color={tokens.colors.error}
+              color={colors.error}
               style={{ marginRight: tokens.spacing.sm }}
             />
-            <Text style={styles.logoutText}>Sign Out</Text>
+            <Text style={[styles.logoutText, { color: colors.error }]}>Sign Out</Text>
           </TouchableOpacity>
         </SurfaceCard>
       </ScrollView>
@@ -677,7 +678,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: tokens.colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -755,7 +755,6 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 1,
-    backgroundColor: tokens.colors.primary,
     borderRadius: tokens.radius.lg,
     padding: tokens.spacing.sm,
     alignItems: 'center',
@@ -791,7 +790,6 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     height: 36,
-    backgroundColor: 'rgba(0,0,0,0.1)',
   },
 
 
@@ -840,7 +838,6 @@ const styles = StyleSheet.create({
     fontFamily: tokens.typography.fonts.regular,
   },
   sendButton: {
-    backgroundColor: tokens.colors.primary,
     borderRadius: tokens.radius.lg,
     padding: tokens.spacing.sm,
     alignItems: 'center',
@@ -877,14 +874,12 @@ const styles = StyleSheet.create({
   removeText: {
     fontSize: tokens.typography.sizes.sm,
     fontFamily: tokens.typography.fonts.regular,
-    color: tokens.colors.error,
   },
 
   // Actions
   logoutButton: {
     flexDirection: 'row',
     borderWidth: 1,
-    borderColor: tokens.colors.error,
     borderRadius: tokens.radius.lg,
     padding: tokens.spacing.md,
     alignItems: 'center',
@@ -893,6 +888,5 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: tokens.typography.sizes.md,
     fontFamily: tokens.typography.fonts.semiBold,
-    color: tokens.colors.error,
   },
 });

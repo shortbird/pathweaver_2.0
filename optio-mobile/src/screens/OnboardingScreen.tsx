@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Polygon, Line, Circle as SvgCircle } from 'react-native-svg';
 import { tokens, textStyles } from '../theme/tokens';
+import { useThemeStore } from '../stores/themeStore';
 import { GlassCard } from '../components/common/GlassCard';
 import { GlassButton } from '../components/common/GlassButton';
 import { GlassBackground } from '../components/common/GlassBackground';
@@ -123,6 +124,7 @@ const CONFETTI_PIECES = [
 ];
 
 function XpAwardAnimation({ active }: { active: boolean }) {
+  const { colors } = useThemeStore();
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const toastTranslateY = useRef(new Animated.Value(20)).current;
   const xpScale = useRef(new Animated.Value(0.3)).current;
@@ -211,13 +213,15 @@ function XpAwardAnimation({ active }: { active: boolean }) {
         style={[
           styles.xpToast,
           {
+            backgroundColor: colors.surface,
+            borderColor: colors.glass.borderLight,
             opacity: toastOpacity,
             transform: [{ translateY: toastTranslateY }],
           },
         ]}
       >
-        <Ionicons name="checkmark-circle" size={20} color={tokens.colors.success} />
-        <Text style={styles.xpToastText}>Learning moment captured!</Text>
+        <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+        <Text style={[styles.xpToastText, { color: colors.text }]}>Learning moment captured!</Text>
       </Animated.View>
 
       {/* XP badge + confetti wrapper */}
@@ -306,6 +310,7 @@ function radarPoint(i: number, r: number): { x: number; y: number } {
 const RADAR_VIEW_SIZE = RADAR_SVG_SIZE + 48;
 
 function PillarRadar() {
+  const { colors } = useThemeStore();
   const gridLevels = [0.33, 0.66, 1.0];
   const iconPositions = RADAR_PILLARS.map((_, i) => radarPoint(i, ICON_OFFSET));
 
@@ -325,7 +330,7 @@ function PillarRadar() {
                 key={level}
                 points={pts}
                 fill="none"
-                stroke={tokens.colors.textMuted}
+                stroke={colors.textMuted}
                 strokeWidth={0.5}
                 opacity={0.5}
               />
@@ -355,8 +360,8 @@ function PillarRadar() {
               const pt = radarPoint(i, RADAR_R * p.value);
               return `${pt.x},${pt.y}`;
             }).join(' ')}
-            fill={tokens.colors.primary + '25'}
-            stroke={tokens.colors.primary}
+            fill={colors.primary + '25'}
+            stroke={colors.primary}
             strokeWidth={2}
           />
 
@@ -455,6 +460,7 @@ const LOGO_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
 
 export function OnboardingScreen() {
+  const { colors } = useThemeStore();
   const [activeIndex, setActiveIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const completeOnboarding = useOnboardingStore((s) => s.complete);
@@ -476,7 +482,7 @@ export function OnboardingScreen() {
   const renderSlide = ({ item }: { item: Slide }) => (
     <View style={styles.slide}>
       <GlassCard style={styles.card}>
-        <Text style={styles.slideTitle}>{item.title}</Text>
+        <Text style={[styles.slideTitle, { color: colors.text }]}>{item.title}</Text>
         <Text style={styles.slideSubtitle}>{item.subtitle}</Text>
 
         {item.id === 'capture' ? (
@@ -522,7 +528,7 @@ export function OnboardingScreen() {
           />
         ) : null}
 
-        <Text style={styles.slideDescription}>{item.description}</Text>
+        <Text style={[styles.slideDescription, { color: colors.textSecondary }]}>{item.description}</Text>
       </GlassCard>
     </View>
   );
@@ -574,7 +580,7 @@ export function OnboardingScreen() {
                 styles.dot,
                 i === activeIndex
                   ? [styles.dotActive, { backgroundColor: SLIDES[activeIndex].dotColor }]
-                  : styles.dotInactive,
+                  : { width: 8, backgroundColor: colors.textMuted },
               ]}
             />
           ))}
@@ -660,18 +666,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: tokens.spacing.sm,
-    backgroundColor: tokens.colors.surface,
     borderRadius: tokens.radius.full,
     paddingVertical: tokens.spacing.sm,
     paddingHorizontal: tokens.spacing.md,
     borderWidth: 0.5,
-    borderColor: tokens.colors.glass.borderLight,
     ...tokens.shadows.sm,
   },
   xpToastText: {
     fontFamily: tokens.typography.fonts.medium,
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.text,
   },
   xpBadgeWrapper: {
     alignItems: 'center',
@@ -729,7 +732,6 @@ const styles = StyleSheet.create({
   },
   slideTitle: {
     ...textStyles.h1,
-    color: tokens.colors.text,
     textAlign: 'center',
     marginBottom: tokens.spacing.xs,
   },
@@ -741,7 +743,6 @@ const styles = StyleSheet.create({
   },
   slideDescription: {
     ...textStyles.body,
-    color: tokens.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
     paddingHorizontal: tokens.spacing.sm,
@@ -762,10 +763,6 @@ const styles = StyleSheet.create({
   },
   dotActive: {
     width: 24,
-  },
-  dotInactive: {
-    width: 8,
-    backgroundColor: tokens.colors.textMuted,
   },
   buttonRow: {
     flexDirection: 'row',
