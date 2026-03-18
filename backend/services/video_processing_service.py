@@ -15,6 +15,7 @@ from typing import Optional
 from utils.logger import get_logger
 from config.constants import (
     MAX_VIDEO_DURATION_SECONDS,
+    MAX_VIDEO_COMPRESSION_THRESHOLD,
     VIDEO_THUMBNAIL_WIDTH,
     VIDEO_THUMBNAIL_QUALITY,
 )
@@ -96,10 +97,11 @@ class VideoProcessingService:
 
     def ensure_h264(self, file_content: bytes) -> bytes:
         """
-        Transcode video to H.264 if needed for universal browser playback.
+        Transcode video to H.264 if needed and compress large files.
 
-        Returns the original bytes if already H.264 or if FFmpeg is unavailable.
-        Returns transcoded bytes if the video was HEVC or another non-H.264 codec.
+        - Non-H.264 codecs (HEVC, VP9, etc.) are transcoded to H.264.
+        - Files over 50MB are compressed (capped at 720p, higher CRF).
+        - Already-H.264 files under 50MB pass through unchanged.
         """
         if not self._ffmpeg_available:
             return file_content
@@ -113,27 +115,44 @@ class VideoProcessingService:
 
             probe = self._probe_video(tmp_input)
             codec = self._get_video_codec(probe)
+            needs_transcode = self._needs_transcoding(codec)
+            needs_compression = len(file_content) > MAX_VIDEO_COMPRESSION_THRESHOLD
 
-            if not self._needs_transcoding(codec):
-                logger.info(f"[VideoProcessing] Video is already {codec or 'unknown'}, no transcoding needed")
+            if not needs_transcode and not needs_compression:
+                logger.info(f"[VideoProcessing] Video is {codec or 'unknown'}, {len(file_content) / (1024*1024):.1f}MB -- no processing needed")
                 return file_content
 
-            logger.info(f"[VideoProcessing] Transcoding from {codec} to H.264...")
+            reason = []
+            if needs_transcode:
+                reason.append(f"codec {codec} -> H.264")
+            if needs_compression:
+                reason.append(f"compress {len(file_content) / (1024*1024):.1f}MB -> <=50MB")
+            logger.info(f"[VideoProcessing] Processing video: {', '.join(reason)}")
+
             tmp_output = tmp_input + '_h264.mp4'
 
+            args = [
+                'ffmpeg', '-y',
+                '-i', tmp_input,
+                '-c:v', 'libx264',
+                '-c:a', 'aac',
+                '-movflags', '+faststart',
+            ]
+
+            if needs_compression:
+                # Compress: cap resolution at 720p and use higher CRF
+                args.extend(['-preset', 'fast', '-crf', '28'])
+                args.extend(['-vf', 'scale=-2:min(ih\\,720)'])
+            else:
+                # Just transcode codec, preserve quality
+                args.extend(['-preset', 'veryfast', '-crf', '23'])
+
+            args.append(tmp_output)
+
             result = subprocess.run(
-                [
-                    'ffmpeg', '-y',
-                    '-i', tmp_input,
-                    '-c:v', 'libx264',
-                    '-preset', 'veryfast',
-                    '-crf', '23',
-                    '-c:a', 'aac',
-                    '-movflags', '+faststart',
-                    tmp_output,
-                ],
+                args,
                 capture_output=True,
-                timeout=300,  # 5 minute timeout for transcoding
+                timeout=300,
             )
 
             if result.returncode == 0 and os.path.exists(tmp_output):
@@ -142,19 +161,19 @@ class VideoProcessingService:
                 original_size = len(file_content) / (1024 * 1024)
                 new_size = len(transcoded) / (1024 * 1024)
                 logger.info(
-                    f"[VideoProcessing] Transcoded {codec} -> H.264 "
+                    f"[VideoProcessing] Done: "
                     f"({original_size:.1f}MB -> {new_size:.1f}MB)"
                 )
                 return transcoded
             else:
-                logger.warning(f"[VideoProcessing] Transcoding failed: {result.stderr[-500:]}")
+                logger.warning(f"[VideoProcessing] Processing failed: {result.stderr[-500:]}")
                 return file_content
 
         except subprocess.TimeoutExpired:
-            logger.warning("[VideoProcessing] Transcoding timed out, using original file")
+            logger.warning("[VideoProcessing] Processing timed out, using original file")
             return file_content
         except Exception as e:
-            logger.error(f"[VideoProcessing] Transcoding error: {e}")
+            logger.error(f"[VideoProcessing] Processing error: {e}")
             return file_content
         finally:
             if tmp_input and os.path.exists(tmp_input):

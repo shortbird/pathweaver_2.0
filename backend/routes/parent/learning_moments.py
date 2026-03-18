@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 bp = Blueprint('parent_learning_moments', __name__, url_prefix='/api/parent')
 
 # Constants for file uploads
-MAX_MEDIA_SIZE = 100 * 1024 * 1024  # 100MB
+MAX_MEDIA_SIZE = 250 * 1024 * 1024  # 250MB (server compresses videos >50MB)
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
 ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx'}
 ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov'}

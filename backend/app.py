@@ -51,7 +51,7 @@ if not os.getenv('FLASK_ENV'):
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max request size (matches frontend upload limit)
+app.config['MAX_CONTENT_LENGTH'] = 250 * 1024 * 1024  # 250MB max request size (server compresses videos >50MB)
 
 # Validate configuration on startup
 try:
