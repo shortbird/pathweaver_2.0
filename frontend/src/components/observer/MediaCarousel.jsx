@@ -4,7 +4,7 @@ import { ChevronLeftIcon, ChevronRightIcon, LinkIcon, VideoCameraIcon } from '@h
 import DocumentPreview from './DocumentPreview';
 import LinkPreviewCard from './LinkPreviewCard';
 import VideoLinkPreview from './VideoLinkPreview';
-import { getVideoEmbedUrl, getVideoAspectClass, isVideoSharingLink } from '../../utils/videoUtils';
+import { getVideoEmbedUrl, getVideoAspectClass, isVideoSharingLink, isUploadedVideoUrl } from '../../utils/videoUtils';
 
 /**
  * Instagram-style media carousel for displaying multiple images/media items.
@@ -173,6 +173,18 @@ const MediaCarousel = ({ media = [] }) => {
       {otherItems.map((item, index) => (
         <div key={`other-${index}`} className="bg-gray-100">
           {item.type === 'video' && (() => {
+            if (isUploadedVideoUrl(item.url)) {
+              return (
+                <div className="bg-black">
+                  <video
+                    src={item.url}
+                    controls
+                    preload="metadata"
+                    className="w-full max-h-[480px]"
+                  />
+                </div>
+              );
+            }
             if (isVideoSharingLink(item.url)) {
               return <VideoLinkPreview url={item.url} title={item.title} />;
             }

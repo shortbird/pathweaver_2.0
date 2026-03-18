@@ -9,7 +9,7 @@
  */
 
 import React from 'react';
-import { StyleSheet, View, ViewStyle } from 'react-native';
+import { StyleSheet, View, ViewStyle, Platform } from 'react-native';
 import { tokens } from '../../theme/tokens';
 import { useThemeStore } from '../../stores/themeStore';
 import { useAccessibilitySettings } from '../../hooks/useAccessibilitySettings';
@@ -42,12 +42,15 @@ export function SurfaceCard({ children, style, noPadding, accent }: SurfaceCardP
     ? { borderLeftWidth: 3, borderLeftColor: colors.primary }
     : {};
 
+  // Strip elevation on Android — it creates gray outlines with borderRadius + overflow:hidden
+  const effectiveShadow = Platform.OS === 'android' ? { ...shadow, elevation: 0 } : shadow;
+
   return (
     <View
       style={[
         styles.container,
         { backgroundColor: bgColor },
-        shadow,
+        effectiveShadow,
         borderStyle,
         accentBorder,
         style,

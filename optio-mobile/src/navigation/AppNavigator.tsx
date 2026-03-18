@@ -107,7 +107,7 @@ function notchedBarPath(width: number, totalHeight: number): string {
 function CustomTabBar({ state, descriptors, navigation }: any) {
   const { colors } = useThemeStore();
   const insets = useSafeAreaInsets();
-  const bottomPadding = Platform.OS === 'web' ? 6 : insets.bottom;
+  const bottomPadding = Platform.OS === 'web' ? 6 : Math.max(insets.bottom, 12);
   const svgTotalH = NOTCH_R + TAB_BAR_HEIGHT + bottomPadding;
   const containerH = svgTotalH;
 
@@ -121,7 +121,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
       </Svg>
 
       {/* Glass blur overlay on the tab bar area */}
-      {Platform.OS !== 'web' ? (
+      {Platform.OS === 'ios' ? (
         <View style={[styles.tabBarGlass, { top: NOTCH_R, height: TAB_BAR_HEIGHT + bottomPadding }]}>
           <BlurView intensity={tokens.blur.medium} tint={colors.blurTint} style={StyleSheet.absoluteFill} />
           <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glass.background }]} />
@@ -130,6 +130,8 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             style={styles.tabBarSpecular}
           />
         </View>
+      ) : Platform.OS === 'android' ? (
+        <View style={[styles.tabBarGlass, { top: NOTCH_R, height: TAB_BAR_HEIGHT + bottomPadding, backgroundColor: colors.glass.background }]} />
       ) : null}
 
       {/* Raised center logo -- centered at barTop (NOTCH_R from top), so top = NOTCH_GAP */}
@@ -151,7 +153,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
       </View>
 
       {/* Tab buttons sit below the arc */}
-      <View style={[styles.tabRow, { height: TAB_BAR_HEIGHT, marginTop: NOTCH_R, paddingBottom: bottomPadding }]}>
+      <View style={[styles.tabRow, { top: NOTCH_R, height: TAB_BAR_HEIGHT, paddingBottom: 0 }]}>
         {state.routes.map((route: any, index: number) => {
           const { options } = descriptors[route.key];
           const isFocused = state.index === index;
@@ -338,6 +340,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   tabRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     flexDirection: 'row',
   },
   tabItem: {

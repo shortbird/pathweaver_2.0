@@ -18,6 +18,8 @@ import {
   TextInput,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -35,11 +37,15 @@ import { useAuthStore } from '../stores/authStore';
 import { useBuddyStore } from '../stores/buddyStore';
 import { useThemeStore } from '../stores/themeStore';
 
+const LOGO_URI =
+  'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
+
 export function HomeScreen() {
   const { user, logout } = useAuthStore();
   const { buddy, isLoading, loadBuddy, createBuddy, feedBuddy, tapBuddy, updateBuddy } =
     useBuddyStore();
   const { colors } = useThemeStore();
+  const insets = useSafeAreaInsets();
   const [showCreate, setShowCreate] = useState(false);
   const [buddyName, setBuddyName] = useState('');
   const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
@@ -80,6 +86,19 @@ export function HomeScreen() {
 
   return (
     <GlassBackground style={styles.container}>
+      {/* Top app bar */}
+      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
+        <Image source={{ uri: LOGO_URI }} style={styles.topLogo} resizeMode="contain" />
+        <TouchableOpacity
+          onPress={logout}
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+          style={styles.logoutBtn}
+        >
+          <Ionicons name={icons.logout as any} size={22} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
@@ -87,19 +106,9 @@ export function HomeScreen() {
         contentContainerStyle={styles.scroll}
         style={styles.scrollView}
       >
-        <View style={styles.header}>
-          <Text style={[styles.greeting, { color: colors.text }]}>
-            Hey, {user?.first_name || user?.display_name?.split(' ')[0] || 'there'}!
-          </Text>
-          <TouchableOpacity
-            onPress={logout}
-            accessibilityRole="button"
-            accessibilityLabel="Sign out"
-            style={styles.logoutBtn}
-          >
-            <Ionicons name={icons.logout as any} size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
+        <Text style={[styles.greeting, { color: colors.text }]}>
+          Hey, {user?.first_name || user?.display_name?.split(' ')[0] || 'there'}!
+        </Text>
 
         {buddy ? (
           <BuddySection
@@ -182,10 +191,10 @@ export function HomeScreen() {
           ) : (
             <View style={styles.actionRow}>
               <ActionButton
-                label="Photo"
+                label="Camera"
                 iconName={icons.photo}
                 color={colors.pillars.art}
-                onPress={() => setCaptureMode('photo')}
+                onPress={() => setCaptureMode('camera')}
               />
               <ActionButton
                 label="Voice"
@@ -304,13 +313,13 @@ function BuddySection({
           feedReaction={feedReaction}
           tapBurst={tapBurst}
           width={280}
-          height={150}
+          height={154}
         />
       </View>
 
       {/* Name + stage label */}
       <Text style={[styles.buddyName, { color: colors.text }]}>{buddy.name}</Text>
-      <Text style={[styles.stageLabel, { color: palette.body }]}>{palette.name}</Text>
+      <Text style={[styles.stageLabel, { color: colors.primary }]}>{palette.name}</Text>
 
       {/* Hunger + Feed card */}
       <SurfaceCard style={styles.feedCard}>
@@ -514,6 +523,28 @@ function ActionButton({
     );
   }
 
+  // Android: skip BlurView, use simple translucent background
+  if (Platform.OS === 'android') {
+    return (
+      <TouchableOpacity
+        style={[
+          styles.actionButton,
+          {
+            borderColor: colors.glass.border,
+            backgroundColor: colors.glass.background,
+            elevation: 0,
+          },
+        ]}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Quick capture: ${label}`}
+        activeOpacity={0.7}
+      >
+        {inner}
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <TouchableOpacity
       style={[styles.actionButtonNative, { borderColor: colors.glass.border }]}
@@ -540,7 +571,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scroll: {
-    paddingTop: 32,
+    paddingTop: tokens.spacing.md,
     paddingHorizontal: tokens.spacing.md,
     paddingBottom: 120,
     flexGrow: 1,
@@ -550,14 +581,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
+  topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: -8,
+    paddingHorizontal: tokens.spacing.md,
+    paddingBottom: tokens.spacing.sm,
+  },
+  topLogo: {
+    width: 100,
+    height: 32,
   },
   greeting: {
     ...textStyles.h2,
+    marginBottom: tokens.spacing.sm,
   },
   logoutBtn: {
     padding: tokens.spacing.sm,

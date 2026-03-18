@@ -8,9 +8,12 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { storage } from '../utils/storage';
 
-const API_BASE_URL = __DEV__
-  ? 'http://localhost:5001'  // Local dev
-  : 'https://optio-dev-backend.onrender.com';  // Dev server
+// Set to true when running `npx expo start --tunnel` for external demos
+const DEMO_MODE = false;
+
+const API_BASE_URL = __DEV__ && !DEMO_MODE
+  ? 'http://192.168.86.20:5001'  // Local dev (LAN IP for physical device testing)
+  : 'https://optio-dev-backend.onrender.com';  // Dev server / demo
 
 const api = axios.create({
   baseURL: API_BASE_URL,

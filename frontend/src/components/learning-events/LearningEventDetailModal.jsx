@@ -4,6 +4,7 @@ import { XMarkIcon, CalendarIcon, PencilIcon, PlusIcon, TrashIcon } from '@heroi
 import LearningEventModal from './LearningEventModal';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { getVideoEmbedUrl, isUploadedVideoUrl } from '../../utils/videoUtils';
 
 const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate, studentId = null }) => {
   const [showEditModal, setShowEditModal] = useState(false);
@@ -92,7 +93,25 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate, studentId 
             {content.title && (
               <p className="text-gray-800 font-medium mb-2">{content.title}</p>
             )}
-            {content.url && (
+            {content.url && isUploadedVideoUrl(content.url) ? (
+              <video
+                src={content.url}
+                controls
+                preload="metadata"
+                className="w-full max-h-[400px] rounded-lg bg-black"
+              />
+            ) : content.url && getVideoEmbedUrl(content.url) ? (
+              <div className="relative rounded-lg overflow-hidden" style={{ paddingBottom: '56.25%' }}>
+                <iframe
+                  src={getVideoEmbedUrl(content.url)}
+                  title={content.title || 'Video'}
+                  className="absolute inset-0 w-full h-full"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            ) : content.url ? (
               <a
                 href={content.url}
                 target="_blank"
@@ -101,7 +120,7 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate, studentId 
               >
                 {content.url}
               </a>
-            )}
+            ) : null}
           </div>
         );
 

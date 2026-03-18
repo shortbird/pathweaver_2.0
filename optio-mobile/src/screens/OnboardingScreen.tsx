@@ -505,8 +505,8 @@ export function OnboardingScreen() {
               vitality={0.8}
               bond={0.7}
               stage={3}
-              width={200}
-              height={120}
+              width={240}
+              height={132}
             />
           </View>
         ) : item.id === 'journey' ? (
@@ -531,13 +531,11 @@ export function OnboardingScreen() {
     <GlassBackground style={styles.container}>
       {/* Logo at top */}
       <View style={styles.logoContainer}>
-        <GlassCard style={styles.logoBg} noPadding>
-          <Image
-            source={{ uri: LOGO_URI }}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-        </GlassCard>
+        <Image
+          source={{ uri: LOGO_URI }}
+          style={styles.logo}
+          resizeMode="contain"
+        />
       </View>
 
       {/* Slides */}
@@ -646,8 +644,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   slideImage: {
-    width: '100%',
-    height: 140,
+    width: SCREEN_W - tokens.spacing.lg * 2 - tokens.spacing.md * 2,
+    height: 200,
     borderRadius: tokens.radius.lg,
     marginBottom: tokens.spacing.md,
     alignSelf: 'center',

@@ -21,8 +21,8 @@ services:
     env: python
     branch: main
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    buildCommand: apt-get update && apt-get install -y ffmpeg && pip install -r requirements.txt
+    startCommand: gunicorn app:app --timeout 120
     envVars:
       - key: FLASK_ENV
         value: production
@@ -47,8 +47,8 @@ services:
     env: python
     branch: develop
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    buildCommand: apt-get update && apt-get install -y ffmpeg && pip install -r requirements.txt
+    startCommand: gunicorn app:app --timeout 120
     envVars:
       - key: FLASK_ENV
         value: development

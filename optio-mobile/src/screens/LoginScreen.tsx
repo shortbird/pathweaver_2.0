@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { tokens, textStyles } from '../theme/tokens';
 import { GlassCard } from '../components/common/GlassCard';
 import { GlassButton } from '../components/common/GlassButton';
+import { GlassBackground } from '../components/common/GlassBackground';
 import { useAuthStore } from '../stores/authStore';
 import { useOnboardingStore } from '../stores/onboardingStore';
 import { storage } from '../utils/storage';
@@ -111,10 +112,7 @@ export function LoginScreen() {
   // TOS acceptance screen for new Google users
   if (pendingTosToken) {
     return (
-      <LinearGradient
-        colors={[tokens.colors.primary + '15', tokens.colors.background, tokens.colors.accent + '08']}
-        style={styles.gradient}
-      >
+      <GlassBackground style={styles.gradient}>
         <View style={styles.tosContent}>
           <Image source={{ uri: LOGO_URI }} style={styles.logo} resizeMode="contain" />
           <GlassCard style={styles.tosCard}>
@@ -132,7 +130,7 @@ export function LoginScreen() {
             />
           </GlassCard>
         </View>
-      </LinearGradient>
+      </GlassBackground>
     );
   }
 
@@ -142,10 +140,7 @@ export function LoginScreen() {
     : email.trim() && password.trim() && firstName.trim() && lastName.trim() && confirmPassword;
 
   return (
-    <LinearGradient
-      colors={[tokens.colors.primary + '15', tokens.colors.background, tokens.colors.accent + '08']}
-      style={styles.gradient}
-    >
+    <GlassBackground style={styles.gradient}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -304,7 +299,7 @@ export function LoginScreen() {
               activeOpacity={0.7}
             >
               <Image
-                source={{ uri: 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg' }}
+                source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
                 style={styles.googleIcon}
                 resizeMode="contain"
               />
@@ -333,7 +328,7 @@ export function LoginScreen() {
           <Text style={styles.resetText}>Reset App</Text>
         </TouchableOpacity>
       </KeyboardAvoidingView>
-    </LinearGradient>
+    </GlassBackground>
   );
 }
 
@@ -391,9 +386,7 @@ const styles = StyleSheet.create({
   },
 
   // Form
-  formCard: {
-    gap: tokens.spacing.md,
-  },
+  formCard: {},
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -410,6 +403,7 @@ const styles = StyleSheet.create({
   nameRow: {
     flexDirection: 'row',
     gap: tokens.spacing.sm,
+    marginBottom: tokens.spacing.sm,
   },
   nameInput: {
     flex: 1,
@@ -422,6 +416,7 @@ const styles = StyleSheet.create({
     borderColor: tokens.colors.glass.border,
     borderRadius: tokens.radius.lg,
     overflow: 'hidden',
+    marginBottom: tokens.spacing.sm,
   },
   inputIcon: {
     paddingLeft: tokens.spacing.md,
@@ -443,6 +438,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: tokens.spacing.md,
+    marginTop: tokens.spacing.sm,
+    marginBottom: tokens.spacing.sm,
   },
   dividerLine: {
     flex: 1,

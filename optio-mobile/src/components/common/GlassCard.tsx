@@ -97,7 +97,29 @@ export function GlassContainer({
     );
   }
 
-  // Native: BlurView
+  // Native: Use simple translucent background on Android (BlurView unreliable),
+  // BlurView on iOS only
+  if (Platform.OS === 'android') {
+    // Strip elevation on Android — it creates ugly gray outlines with borderRadius + overflow:hidden
+    const androidStyle = containerStyle.map((s: any) =>
+      s && typeof s === 'object' && 'elevation' in s ? { ...s, elevation: 0 } : s
+    );
+    return (
+      <View style={[...androidStyle, { backgroundColor: bgColor }]}>
+        {showSpecular && (
+          <LinearGradient
+            colors={[highlightColor, 'rgba(255, 255, 255, 0.0)']}
+            style={styles.specularHighlight}
+          />
+        )}
+        <View style={[styles.content, noPadding && styles.noPadding]}>
+          {children}
+        </View>
+      </View>
+    );
+  }
+
+  // iOS: BlurView
   return (
     <View style={containerStyle}>
       <BlurView intensity={effectiveIntensity} style={styles.blur} tint={colors.blurTint}>

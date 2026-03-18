@@ -1,6 +1,6 @@
 /**
- * VideoBlock - Displays video evidence with embed support
- * Supports both old format (content.url) and new format (content.items)
+ * VideoBlock - Displays video evidence with both file upload and embed support
+ * Supports uploaded files (with inline <video> player) and external URLs (embed/link)
  */
 
 import React from 'react';
@@ -11,7 +11,7 @@ const VideoBlock = ({ block, displayMode }) => {
   const { content } = block;
 
   // Handle both old format (content.url) and new format (content.items)
-  const items = content?.items || (content?.url ? [{ url: content.url, title: content.title, platform: content.platform }] : []);
+  const items = content?.items || (content?.url ? [{ url: content.url, title: content.title, platform: content.platform, thumbnail_url: content.thumbnail_url, duration_seconds: content.duration_seconds, filename: content.filename, content_type: content.content_type }] : []);
 
   // Handle empty items
   if (items.length === 0) {
@@ -22,12 +22,58 @@ const VideoBlock = ({ block, displayMode }) => {
     );
   }
 
+  const formatDuration = (seconds) => {
+    if (!seconds) return '';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.round(seconds % 60);
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+  };
+
+  // Determine if an item is an uploaded file (not a YouTube/Vimeo link)
+  const isUploadedFile = (item) => {
+    if (!item.url) return false;
+    if (item.filename || item.content_type?.startsWith('video/')) return true;
+    if (item.url.includes('supabase.co')) return true;
+    // Not a known embed platform
+    const embedUrl = getVideoEmbedUrl(item.url);
+    return !embedUrl && (item.url.endsWith('.mp4') || item.url.endsWith('.mov') || item.url.endsWith('.webm'));
+  };
+
   // Render a single video item
   const renderVideoItem = (item, index) => {
-    const { url, title, platform } = item;
+    const { url, title } = item;
 
     if (!url) {
       return null;
+    }
+
+    // Render uploaded file with inline player
+    if (isUploadedFile(item)) {
+      return (
+        <div key={index} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <video
+            src={url}
+            controls
+            preload="metadata"
+            poster={item.thumbnail_url}
+            className="w-full max-h-[480px] bg-black"
+          />
+          {(title || item.duration_seconds) && (
+            <div className="p-3 flex items-center gap-2">
+              {title && (
+                <h4 className="font-bold text-gray-900 flex-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  {title}
+                </h4>
+              )}
+              {item.duration_seconds && (
+                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                  {formatDuration(item.duration_seconds)}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      );
     }
 
     const embedUrl = getVideoEmbedUrl(url);
@@ -109,7 +155,10 @@ VideoBlock.propTypes = {
       PropTypes.shape({
         url: PropTypes.string,
         title: PropTypes.string,
-        platform: PropTypes.string
+        platform: PropTypes.string,
+        thumbnail_url: PropTypes.string,
+        duration_seconds: PropTypes.number,
+        filename: PropTypes.string,
       }),
       PropTypes.shape({
         items: PropTypes.arrayOf(PropTypes.shape({

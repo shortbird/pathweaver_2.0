@@ -87,3 +87,15 @@ export const isVideoSharingLink = (url) => {
     || /photos\.google\.com\/share/.test(url)
     || /share\.icloud\.com\/photos\//.test(url)
 }
+
+/**
+ * Check if a video URL points to a directly-playable uploaded file
+ * (e.g. stored in Supabase Storage) rather than an embeddable service.
+ * When true, render with an HTML5 <video> element instead of an iframe.
+ */
+export const isUploadedVideoUrl = (url) => {
+  if (!url) return false
+  if (url.includes('supabase.co')) return true
+  if (/\.(mp4|mov|webm)(\?|$)/i.test(url)) return true
+  return false
+}

@@ -11,12 +11,12 @@ import {
   CheckIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
-import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, IMAGE_FORMAT_LABEL, DOCUMENT_FORMAT_LABEL } from './EvidenceMediaHandlers';
+import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, VIDEO_ACCEPT_STRING, IMAGE_FORMAT_LABEL, DOCUMENT_FORMAT_LABEL, VIDEO_FORMAT_LABEL, ALLOWED_VIDEO_EXTENSIONS, validateVideoDuration } from './EvidenceMediaHandlers';
+import { detectMediaType, validateFileSize, CAMERA_ACCEPT_STRING } from '../../utils/mediaUtils';
 
 export const EVIDENCE_TYPES = [
   { id: 'text', label: 'Text', Icon: DocumentTextIcon, description: 'Write notes or reflections' },
-  { id: 'image', label: 'Image', Icon: PhotoIcon, description: 'Upload photos' },
-  { id: 'video', label: 'Video', Icon: VideoCameraIcon, description: 'Add video links' },
+  { id: 'camera', label: 'Camera', Icon: PhotoIcon, description: 'Upload photos or videos' },
   { id: 'link', label: 'Link', Icon: LinkIcon, description: 'Share URLs' },
   { id: 'document', label: 'Document', Icon: DocumentIcon, description: 'Upload files' },
 ];
@@ -72,6 +72,8 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
     switch (type) {
       case 'text':
         return { type: 'text', content: { text: '' } };
+      case 'camera':
+        return { type: 'camera', content: { items: [] } };
       case 'image':
         return { type: 'image', content: { items: [] } };
       case 'video':
@@ -95,6 +97,36 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
     toast.success('Evidence added - you can add more or save all');
   };
 
+  // Convert camera items into proper image/video blocks
+  const expandCameraItems = (items) => {
+    const expanded = [];
+    for (const item of items) {
+      if (item.type === 'camera' && item.content?.items) {
+        // Split into separate image and video blocks
+        const imageItems = item.content.items.filter(i => i.mediaType !== 'video');
+        const videoItems = item.content.items.filter(i => i.mediaType === 'video');
+        if (imageItems.length > 0) {
+          expanded.push({
+            ...item,
+            type: 'image',
+            content: { items: imageItems.map(({ mediaType, ...rest }) => rest) },
+          });
+        }
+        if (videoItems.length > 0) {
+          expanded.push({
+            ...item,
+            id: `temp_${Date.now()}_v`,
+            type: 'video',
+            content: { items: videoItems.map(({ mediaType, ...rest }) => rest) },
+          });
+        }
+      } else {
+        expanded.push(item);
+      }
+    }
+    return expanded;
+  };
+
   const handleSaveAll = () => {
     // Edit mode - update single block
     if (isEditMode && currentItem) {
@@ -102,10 +134,14 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
         toast.error('Please add content before saving');
         return;
       }
-      onUpdate?.({
-        ...currentItem,
-        id: editingBlock.id
-      });
+      // For camera edits, expand into proper types
+      const expanded = expandCameraItems([{ ...currentItem, id: editingBlock.id }]);
+      if (expanded.length === 1) {
+        onUpdate?.(expanded[0]);
+      } else {
+        // Multiple blocks from camera -- save as new items
+        onSave(expanded);
+      }
       resetState();
       return;
     }
@@ -121,6 +157,9 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
       return;
     }
 
+    // Expand camera items into proper image/video blocks
+    allItems = expandCameraItems(allItems);
+
     onSave(allItems);
     resetState();
   };
@@ -130,6 +169,7 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
     switch (currentItem.type) {
       case 'text':
         return currentItem.content.text?.trim().length > 0;
+      case 'camera':
       case 'image':
       case 'video':
       case 'link':
@@ -197,7 +237,7 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
       <h3 className="text-lg font-semibold text-gray-900 mb-4" style={{ fontFamily: 'Poppins' }}>
         What type of evidence?
       </h3>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {EVIDENCE_TYPES.map((type) => (
           <button
             key={type.id}
@@ -290,43 +330,117 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
     </div>
   );
 
-  // Render video input
-  const renderVideoInput = () => (
-    <div className="space-y-4">
-      {currentItem?.content.items?.map((item, index) => (
-        <div key={index} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-          <div className="flex-1 space-y-2">
-            <input
-              type="url"
-              value={item.url || ''}
-              onChange={(e) => handleUpdateUrlItem(index, 'url', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple text-sm"
-              placeholder="YouTube, Vimeo, or video URL"
-            />
-            <input
-              type="text"
-              value={item.title || ''}
-              onChange={(e) => handleUpdateUrlItem(index, 'title', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple text-sm"
-              placeholder="Video title (optional)"
-            />
-          </div>
-          <button
-            onClick={() => handleRemoveCurrentItem(index)}
-            className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-          >
-            <TrashIcon className="w-4 h-4" />
-          </button>
-        </div>
-      ))}
+  // Render camera upload (photos + videos)
+  const handleCameraFileUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
 
-      <button
-        onClick={handleAddUrl}
-        className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors flex items-center justify-center gap-2"
+    const newItems = [];
+    for (const file of files) {
+      const mediaType = detectMediaType(file);
+      // Also check extension for video detection
+      const isVideoFile = mediaType === 'video' || ALLOWED_VIDEO_EXTENSIONS.includes(file.name.split('.').pop()?.toLowerCase());
+      const effectiveType = isVideoFile ? 'video' : mediaType;
+
+      // Validate file size
+      const sizeCheck = validateFileSize(file, effectiveType);
+      if (!sizeCheck.valid) {
+        toast.error(sizeCheck.error);
+        continue;
+      }
+
+      // Validate video duration
+      if (isVideoFile) {
+        const durationCheck = await validateVideoDuration(file);
+        if (!durationCheck.valid) {
+          toast.error(durationCheck.message);
+          continue;
+        }
+      }
+
+      newItems.push({
+        url: URL.createObjectURL(file),
+        file: file,
+        filename: file.name,
+        title: file.name,
+        mediaType: isVideoFile ? 'video' : 'image',
+      });
+    }
+
+    if (newItems.length > 0) {
+      setCurrentItem({
+        ...currentItem,
+        content: {
+          items: [...(currentItem.content.items || []), ...newItems]
+        }
+      });
+    }
+
+    e.target.value = '';
+  };
+
+  const renderCameraUpload = () => (
+    <div className="space-y-4">
+      {currentItem?.content.items?.length > 0 && (
+        <div className="space-y-4">
+          {currentItem.content.items.map((item, index) => (
+            <div key={index} className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+              <div className="relative">
+                {item.mediaType === 'video' ? (
+                  <video
+                    src={item.url}
+                    controls
+                    preload="metadata"
+                    className="w-full h-40 bg-black object-contain"
+                  />
+                ) : (
+                  <img
+                    src={item.url}
+                    alt={item.filename || `Media ${index + 1}`}
+                    className="w-full h-40 object-cover"
+                  />
+                )}
+                <button
+                  onClick={() => handleRemoveCurrentItem(index)}
+                  className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
+                >
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Description (optional)</label>
+                <textarea
+                  value={item.caption || ''}
+                  onChange={(e) => handleUpdateUrlItem(index, 'caption', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent text-sm resize-none"
+                  rows={2}
+                  placeholder="Add a description..."
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div
+        onClick={() => fileInputRef.current?.click()}
+        className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-optio-purple hover:bg-optio-purple/5 transition-colors min-h-[150px] flex flex-col items-center justify-center"
       >
-        <PlusIcon className="w-5 h-5" />
-        <span className="font-medium" style={{ fontFamily: 'Poppins' }}>Add video URL</span>
-      </button>
+        <PhotoIcon className="w-10 h-10 mx-auto mb-3 text-gray-400" />
+        <p className="font-medium text-gray-700" style={{ fontFamily: 'Poppins' }}>
+          Click to upload photos or videos
+        </p>
+        <p className="text-sm text-gray-500 mt-1">Images up to 10MB, videos (MP4/MOV) up to 100MB, max 3 min</p>
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={CAMERA_ACCEPT_STRING}
+        multiple
+        onChange={handleCameraFileUpload}
+        className="hidden"
+      />
     </div>
   );
 
@@ -457,8 +571,8 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
 
         {/* Content input */}
         {selectedType === 'text' && renderTextInput()}
+        {selectedType === 'camera' && renderCameraUpload()}
         {selectedType === 'image' && renderImageUpload()}
-        {selectedType === 'video' && renderVideoInput()}
         {selectedType === 'link' && renderLinkInput()}
         {selectedType === 'document' && renderDocumentUpload()}
 

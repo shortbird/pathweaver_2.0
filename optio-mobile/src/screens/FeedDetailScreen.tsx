@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Linking,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -83,16 +84,24 @@ export function FeedDetailScreen() {
     setFailedImages((prev) => new Set(prev).add(url));
   };
 
-  // Collect link/video/document items
+  // Collect video items separately for inline playback
+  const videos: { url: string; thumbnail_url?: string; duration_seconds?: number; title?: string | null }[] = [];
+  // Collect link/document items
   const links: { type: string; url: string; title?: string | null }[] = [];
   if (item.media && item.media.length > 0) {
     for (const m of item.media) {
-      if (m.type !== 'image' && m.url) {
+      if (m.type === 'video' && m.url) {
+        videos.push({ url: m.url, thumbnail_url: m.thumbnail_url, duration_seconds: m.duration_seconds, title: m.title });
+      } else if (m.type !== 'image' && m.url) {
         links.push({ type: m.type, url: m.url, title: m.title });
       }
     }
   } else if (item.evidence?.type && item.evidence.type !== 'image' && item.evidence.type !== 'text' && item.evidence.url) {
-    links.push({ type: item.evidence.type, url: item.evidence.url, title: item.evidence.title });
+    if (item.evidence.type === 'video') {
+      videos.push({ url: item.evidence.url, title: item.evidence.title });
+    } else {
+      links.push({ type: item.evidence.type, url: item.evidence.url, title: item.evidence.title });
+    }
   }
 
   const loadComments = useCallback(async () => {
@@ -292,7 +301,44 @@ export function FeedDetailScreen() {
             </View>
           ) : null}
 
-          {/* Links / videos / documents */}
+          {/* Inline video playback */}
+          {videos.length > 0 && (
+            <View style={styles.linksSection}>
+              {videos.map((vid, i) => (
+                <View key={`video-${i}`} style={{ marginBottom: 8, borderRadius: 12, overflow: 'hidden' }}>
+                  {Platform.OS === 'web' ? (
+                    <video
+                      src={vid.url}
+                      controls
+                      poster={vid.thumbnail_url}
+                      style={{ width: '100%', height: 200, borderRadius: 12, backgroundColor: '#000' } as any}
+                    />
+                  ) : (
+                    <TouchableOpacity
+                      style={{
+                        width: '100%',
+                        height: 200,
+                        backgroundColor: 'rgba(0,0,0,0.05)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: 12,
+                      }}
+                      onPress={() => handleOpenLink(vid.url)}
+                    >
+                      <Ionicons name="play-circle" size={48} color={colors.primary} />
+                      {vid.duration_seconds && (
+                        <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
+                          {Math.floor(vid.duration_seconds / 60)}:{String(Math.round(vid.duration_seconds % 60)).padStart(2, '0')}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Links / documents */}
           {links.length > 0 && (
             <View style={styles.linksSection}>
               {links.map((link, i) => (
@@ -303,11 +349,9 @@ export function FeedDetailScreen() {
                 >
                   <Ionicons
                     name={
-                      link.type === 'video'
-                        ? 'play-circle-outline'
-                        : link.type === 'document'
-                          ? 'document-outline'
-                          : 'link-outline'
+                      link.type === 'document'
+                        ? 'document-outline'
+                        : 'link-outline'
                     }
                     size={20}
                     color={colors.primary}

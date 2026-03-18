@@ -62,16 +62,26 @@ export const evidenceDocumentService = {
   },
 
   // Upload file for a content block
-  async uploadBlockFile(blockId, file) {
+  async uploadBlockFile(blockId, file, { onProgress } = {}) {
     try {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await evidenceApi.post(`/blocks/${blockId}/upload`, formData, {
+      const config = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-      });
+        timeout: 120000, // 2 minute timeout for video uploads
+      };
+
+      if (onProgress) {
+        config.onUploadProgress = (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(percentCompleted);
+        };
+      }
+
+      const response = await evidenceApi.post(`/blocks/${blockId}/upload`, formData, config);
       return response.data;
     } catch (error) {
       logger.error('Error uploading file:', error);
@@ -80,16 +90,26 @@ export const evidenceDocumentService = {
   },
 
   // Upload file for a task (before block is created)
-  async uploadFile(file, taskId) {
+  async uploadFile(file, taskId, { onProgress } = {}) {
     try {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await evidenceApi.post(`/documents/${taskId}/upload`, formData, {
+      const config = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-      });
+        timeout: 120000, // 2 minute timeout for video uploads
+      };
+
+      if (onProgress) {
+        config.onUploadProgress = (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(percentCompleted);
+        };
+      }
+
+      const response = await evidenceApi.post(`/documents/${taskId}/upload`, formData, config);
       return response.data;
     } catch (error) {
       logger.error('Error uploading file:', error);
@@ -105,6 +125,19 @@ export const evidenceDocumentService = {
     } catch (error) {
       logger.error('Error deleting file:', error);
       throw error;
+    }
+  },
+
+  // Delete files from Supabase storage by URL
+  async deleteStorageUrls(urls) {
+    if (!urls || urls.length === 0) return { success: true, deleted: 0 };
+    try {
+      const response = await evidenceApi.post('/storage/delete-urls', { urls });
+      return response.data;
+    } catch (error) {
+      logger.error('Error deleting storage files:', error);
+      // Don't throw - storage cleanup is best-effort
+      return { success: false, deleted: 0 };
     }
   },
 

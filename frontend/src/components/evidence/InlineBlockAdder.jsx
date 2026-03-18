@@ -2,7 +2,6 @@ import React from 'react';
 import {
   DocumentTextIcon,
   PhotoIcon,
-  VideoCameraIcon,
   LinkIcon,
   DocumentIcon,
   PlusIcon
@@ -12,8 +11,7 @@ import MobileBlockAdder from './MobileBlockAdder';
 
 const BLOCK_TYPES = [
   { id: 'text', label: 'Text', icon: DocumentTextIcon },
-  { id: 'image', label: 'Image', icon: PhotoIcon },
-  { id: 'video', label: 'Video', icon: VideoCameraIcon },
+  { id: 'camera', label: 'Camera', icon: PhotoIcon },
   { id: 'link', label: 'Link', icon: LinkIcon },
   { id: 'document', label: 'Document', icon: DocumentIcon },
 ];

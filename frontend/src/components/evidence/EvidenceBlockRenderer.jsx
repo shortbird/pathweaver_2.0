@@ -10,7 +10,7 @@ import {
   DocumentIcon
 } from '@heroicons/react/24/outline';
 import { useEvidenceEditor } from './EvidenceEditorContext';
-import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, IMAGE_FORMAT_LABEL, DOCUMENT_FORMAT_LABEL } from './EvidenceMediaHandlers';
+import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, VIDEO_ACCEPT_STRING, IMAGE_FORMAT_LABEL, DOCUMENT_FORMAT_LABEL, VIDEO_FORMAT_LABEL, validateVideoDuration } from './EvidenceMediaHandlers';
 import { TouchActionGroup } from '../ui/mobile/TouchActionButton';
 import { ResponsiveGrid } from '../ui/mobile/ResponsiveGrid';
 import { useIsMobile } from '../../hooks/useSwipeGesture';
@@ -26,14 +26,14 @@ const blockTypes = {
   },
   image: {
     Icon: PhotoIcon,
-    label: 'Images',
+    label: 'Media',
     color: 'from-green-500 to-emerald-500',
     bgColor: 'bg-green-50',
     borderColor: 'border-green-200'
   },
   video: {
     Icon: VideoCameraIcon,
-    label: 'Videos',
+    label: 'Video',
     color: 'from-orange-500 to-red-500',
     bgColor: 'bg-orange-50',
     borderColor: 'border-orange-200'
@@ -218,13 +218,34 @@ export const EvidenceBlockRenderer = ({
       if (files.length === 0) return;
 
       for (const file of files) {
+        const isVideoFile = file.type?.startsWith('video/');
         try {
-          const fileInfo = await mediaHandlers.handleFileUpload(file, block.id, 'image');
-          addItem({
-            url: fileInfo.localUrl,
-            alt: file.name,
-            caption: ''
-          });
+          if (isVideoFile) {
+            // Video: validate duration, then upload as video type
+            const durationCheck = await validateVideoDuration(file);
+            if (!durationCheck.valid) {
+              toast.error(durationCheck.message);
+              continue;
+            }
+            if (file.size > 100 * 1024 * 1024) {
+              toast.error(`"${file.name}" is too large. Videos must be under 100MB.`);
+              continue;
+            }
+            const fileInfo = await mediaHandlers.handleFileUpload(file, block.id, 'video');
+            addItem({
+              url: fileInfo.localUrl,
+              filename: file.name,
+              title: '',
+              mediaType: 'video',
+            });
+          } else {
+            const fileInfo = await mediaHandlers.handleFileUpload(file, block.id, 'image');
+            addItem({
+              url: fileInfo.localUrl,
+              alt: file.name,
+              caption: ''
+            });
+          }
         } catch (err) {
           toast.error(`Failed to upload ${file.name}`);
         }
@@ -234,30 +255,39 @@ export const EvidenceBlockRenderer = ({
 
     return (
       <div className="space-y-4">
-        {/* Image List with Descriptions */}
+        {/* Media List with Descriptions */}
         {items.length > 0 && (
           <div className="space-y-4">
             {items.map((item, itemIndex) => (
               <div key={itemIndex} className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
-                {/* Image Preview */}
+                {/* Preview */}
                 <div className="relative">
-                  <img
-                    src={item.url}
-                    alt={item.alt || `Image ${itemIndex + 1}`}
-                    className="w-full h-48 object-cover"
-                  />
+                  {item.mediaType === 'video' ? (
+                    <video
+                      src={item.url}
+                      controls
+                      preload="metadata"
+                      className="w-full h-48 bg-black object-contain"
+                    />
+                  ) : (
+                    <img
+                      src={item.url}
+                      alt={item.alt || `Image ${itemIndex + 1}`}
+                      className="w-full h-48 object-cover"
+                    />
+                  )}
                   <TouchActionGroup className="absolute top-2 right-2">
                     <button
                       onClick={() => removeItem(itemIndex)}
                       className="min-h-[44px] min-w-[44px] p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg touch-manipulation"
-                      title="Remove image"
-                      aria-label={`Remove image ${itemIndex + 1}`}
+                      title="Remove"
+                      aria-label={`Remove item ${itemIndex + 1}`}
                     >
                       <XMarkIcon className="w-5 h-5" />
                     </button>
                   </TouchActionGroup>
                 </div>
-                {/* Description input below image */}
+                {/* Description input */}
                 <div className="p-3 bg-blue-50 border-t-2 border-blue-300">
                   <label className="block text-xs font-semibold text-blue-700 mb-1">Description (optional)</label>
                   <textarea
@@ -265,7 +295,7 @@ export const EvidenceBlockRenderer = ({
                     onChange={(e) => updateItem(itemIndex, { caption: e.target.value })}
                     className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent text-sm resize-none bg-white"
                     rows={2}
-                    placeholder="Add a description for this image..."
+                    placeholder="Add a description..."
                   />
                 </div>
               </div>
@@ -280,15 +310,15 @@ export const EvidenceBlockRenderer = ({
         >
           <PhotoIcon className="w-8 h-8 mx-auto mb-2 text-gray-400" />
           <p className="text-sm font-medium text-gray-700">
-            {items.length > 0 ? 'Add more images' : 'Click to upload images'}
+            {items.length > 0 ? 'Add more photos or videos' : 'Click to upload photos or videos'}
           </p>
-          <p className="text-xs text-gray-500 mt-1">{IMAGE_FORMAT_LABEL} up to 10MB</p>
+          <p className="text-xs text-gray-500 mt-1">Images up to 10MB, videos (MP4/MOV) up to 100MB, max 3 min</p>
         </div>
 
         <input
           ref={fileInputRef}
           type="file"
-          accept={`image/*,${IMAGE_ACCEPT_STRING}`}
+          accept={`image/*,${IMAGE_ACCEPT_STRING},video/mp4,video/quicktime,${VIDEO_ACCEPT_STRING}`}
           multiple
           onChange={handleFileSelect}
           className="hidden"
@@ -298,58 +328,137 @@ export const EvidenceBlockRenderer = ({
   };
 
   const renderVideoBlock = (block) => {
-    const addVideoUrl = () => {
-      addItem({ url: '', title: '' });
+    const handleVideoFileSelect = async (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+
+      for (const file of files) {
+        try {
+          // Client-side duration validation
+          const durationCheck = await validateVideoDuration(file);
+          if (!durationCheck.valid) {
+            toast.error(durationCheck.message);
+            continue;
+          }
+          const fileInfo = await mediaHandlers.handleFileUpload(file, block.id, 'video');
+          addItem({
+            url: fileInfo.localUrl,
+            filename: file.name,
+            title: '',
+          });
+        } catch (err) {
+          toast.error(`Failed to upload ${file.name}`);
+        }
+      }
+      e.target.value = '';
     };
+
+    // Check if this block has a directly uploaded video file (content.url points to storage)
+    const hasUploadedFile = block.content.url && !block.content.items;
+    const isStorageVideo = block.content.url && (
+      block.content.url.includes('supabase') ||
+      block.content.content_type?.startsWith('video/') ||
+      block.content.filename
+    );
 
     return (
       <div className="space-y-4">
-        {/* Video List */}
-        {items.map((item, itemIndex) => (
-          <div key={itemIndex} className="space-y-2 p-4 bg-orange-50/50 rounded-lg border border-orange-200">
-            <div className="flex items-center gap-2">
-              <input
-                type="url"
-                value={item.url || ''}
-                onChange={(e) => updateItem(itemIndex, { url: e.target.value })}
-                className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent text-sm"
-                placeholder="YouTube, Vimeo, or video URL"
-              />
-              <button
-                onClick={() => removeItem(itemIndex)}
-                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                title="Remove video"
-              >
-                <TrashIcon className="w-4 h-4" />
-              </button>
-            </div>
-            <input
-              type="text"
-              value={item.title || ''}
-              onChange={(e) => updateItem(itemIndex, { title: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent text-sm"
-              placeholder="Video title (optional)"
-            />
-            {item.url && (
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-optio-purple hover:text-optio-pink break-all"
-              >
-                Open video
-              </a>
-            )}
-          </div>
-        ))}
+        {/* Uploaded video files */}
+        {items.map((item, itemIndex) => {
+          const isFileVideo = item.url && (
+            item.filename ||
+            item.url.includes('supabase') ||
+            item.url.startsWith('blob:')
+          );
 
-        {/* Add Video Button */}
-        <button
-          onClick={addVideoUrl}
-          className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors flex items-center justify-center gap-2"
+          return (
+            <div key={itemIndex} className="bg-orange-50/50 rounded-lg border border-orange-200 overflow-hidden">
+              {isFileVideo && item.url ? (
+                <>
+                  <video
+                    src={item.url}
+                    controls
+                    preload="metadata"
+                    poster={item.thumbnail_url}
+                    className="w-full max-h-80 bg-black"
+                  />
+                  <div className="flex items-center justify-between p-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <VideoCameraIcon className="w-5 h-5 text-orange-500 flex-shrink-0" />
+                      <span className="text-sm text-gray-700 truncate">{item.filename || item.title || 'Video'}</span>
+                      {item.duration_seconds && (
+                        <span className="text-xs text-gray-500 flex-shrink-0">
+                          {Math.floor(item.duration_seconds / 60)}:{String(Math.round(item.duration_seconds % 60)).padStart(2, '0')}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => removeItem(itemIndex)}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors ml-2"
+                      title="Remove video"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2 p-4">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="url"
+                      value={item.url || ''}
+                      onChange={(e) => updateItem(itemIndex, { url: e.target.value })}
+                      className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent text-sm"
+                      placeholder="YouTube, Vimeo, or video URL"
+                    />
+                    <button
+                      onClick={() => removeItem(itemIndex)}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Remove video"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={item.title || ''}
+                    onChange={(e) => updateItem(itemIndex, { title: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent text-sm"
+                    placeholder="Video title (optional)"
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Upload Area */}
+        <div
+          className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-optio-purple hover:bg-optio-purple/5 transition-colors"
+          onClick={() => fileInputRef.current?.click()}
         >
-          <PlusIcon className="w-4 h-4" />
-          <span className="text-sm font-medium">Add video URL</span>
+          <VideoCameraIcon className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+          <p className="text-sm font-medium text-gray-700">
+            {items.length > 0 ? 'Add another video' : 'Click to upload a video'}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">{VIDEO_FORMAT_LABEL} up to 100MB, max 3 minutes</p>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={`video/mp4,video/quicktime,${VIDEO_ACCEPT_STRING}`}
+          onChange={handleVideoFileSelect}
+          className="hidden"
+        />
+
+        {/* Or add a link */}
+        <button
+          onClick={() => addItem({ url: '', title: '' })}
+          className="w-full py-2 text-gray-500 hover:text-optio-purple transition-colors flex items-center justify-center gap-2 text-xs"
+        >
+          <LinkIcon className="w-3 h-3" />
+          <span>Or paste a video URL instead</span>
         </button>
       </div>
     );

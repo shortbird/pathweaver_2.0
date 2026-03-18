@@ -5,6 +5,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
+import { formatFileSize } from '../../../utils/mediaUtils';
 
 const DocumentBlock = ({ block, displayMode }) => {
   const { content } = block;
@@ -37,14 +38,6 @@ const DocumentBlock = ({ block, displayMode }) => {
       return typeMap[item.content_type] || 'FILE';
     }
     return 'FILE';
-  };
-
-  // Format file size
-  const formatFileSize = (bytes) => {
-    if (!bytes) return '';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   // Handle empty items

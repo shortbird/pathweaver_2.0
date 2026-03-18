@@ -5,10 +5,16 @@ import {
   ALLOWED_IMAGE_MIME_TYPES,
   ALLOWED_DOCUMENT_EXTENSIONS,
   ALLOWED_DOCUMENT_MIME_TYPES,
+  ALLOWED_VIDEO_EXTENSIONS,
+  ALLOWED_VIDEO_MIME_TYPES,
   IMAGE_ACCEPT_STRING,
   DOCUMENT_ACCEPT_STRING,
+  VIDEO_ACCEPT_STRING,
   IMAGE_FORMAT_LABEL,
-  DOCUMENT_FORMAT_LABEL
+  DOCUMENT_FORMAT_LABEL,
+  VIDEO_FORMAT_LABEL,
+  MAX_VIDEO_DURATION_SECONDS,
+  validateVideoDuration,
 } from './EvidenceMediaHandlers';
 
 const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescription = '', onTypeChange }) => {
@@ -25,7 +31,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
 
   // File size limits
   const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-  const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
+  const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
   const MAX_DOCUMENT_SIZE = 25 * 1024 * 1024; // 25MB
 
   // Evidence type icons and colors
@@ -44,19 +50,12 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
       bgColor: 'bg-purple-50',
       borderColor: 'border-purple-200'
     },
-    image: {
+    camera: {
       icon: '📸',
-      label: 'Image',
+      label: 'Camera',
       color: 'from-green-500 to-emerald-500',
       bgColor: 'bg-green-50',
       borderColor: 'border-green-200'
-    },
-    video: {
-      icon: '🎥',
-      label: 'Video Link',
-      color: 'from-orange-500 to-red-500',
-      bgColor: 'bg-orange-50',
-      borderColor: 'border-orange-200'
     },
     document: {
       icon: '📄',
@@ -98,17 +97,11 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
         tip: 'Share a detailed write-up of your learning journey'
       }
     ],
-    image: [
-      { tip: 'Include full screen context', icon: '🖥️' },
-      { tip: 'Show completion status clearly', icon: '✅' },
-      { tip: 'Highlight relevant sections', icon: '🎯' },
-      { tip: 'Ensure text is readable', icon: '👁️' }
-    ],
-    video: [
-      { tip: 'Keep under 2 minutes', icon: '⏱️' },
-      { tip: 'Explain your process clearly', icon: '🎤' },
-      { tip: 'Show your work in action', icon: '🎬' },
-      { tip: 'Good lighting and audio', icon: '💡' }
+    camera: [
+      { tip: 'Photos up to 10MB', icon: '📷' },
+      { tip: 'Videos up to 100MB, max 3 min', icon: '🎬' },
+      { tip: 'Show your work in action', icon: '🎯' },
+      { tip: 'Good lighting and framing', icon: '💡' }
     ],
     document: [
       { tip: 'Include your name and date', icon: '📅' },
@@ -176,7 +169,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
     }
   };
 
-  const handleFileSelect = (e) => {
+  const handleFileSelect = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -185,12 +178,22 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
     let maxSize = 0;
     let formatLabel = '';
 
+    const isVideoFile = file.type?.startsWith('video/') || ALLOWED_VIDEO_EXTENSIONS.includes(file.name.split('.').pop()?.toLowerCase());
+
     switch (evidenceType) {
-      case 'image':
-        allowedMimeTypes = ALLOWED_IMAGE_MIME_TYPES;
-        allowedExts = ALLOWED_IMAGE_EXTENSIONS;
-        maxSize = MAX_IMAGE_SIZE;
-        formatLabel = IMAGE_FORMAT_LABEL;
+      case 'camera':
+        // Camera accepts both images and videos
+        if (isVideoFile) {
+          allowedMimeTypes = ALLOWED_VIDEO_MIME_TYPES;
+          allowedExts = ALLOWED_VIDEO_EXTENSIONS;
+          maxSize = MAX_VIDEO_SIZE;
+          formatLabel = VIDEO_FORMAT_LABEL;
+        } else {
+          allowedMimeTypes = ALLOWED_IMAGE_MIME_TYPES;
+          allowedExts = ALLOWED_IMAGE_EXTENSIONS;
+          maxSize = MAX_IMAGE_SIZE;
+          formatLabel = IMAGE_FORMAT_LABEL;
+        }
         break;
       case 'document':
         allowedMimeTypes = ALLOWED_DOCUMENT_MIME_TYPES;
@@ -206,7 +209,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
     const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
 
     if (!allowedMimeTypes.includes(file.type) && !allowedExts.includes(fileExtension)) {
-      alert(`"${file.name}" is not a supported ${evidenceType} format.\n\nSupported formats: ${formatLabel}.\n\nIf your file is in a different format, try converting it first.`);
+      alert(`"${file.name}" is not a supported format.\n\nSupported formats: ${formatLabel}.\n\nIf your file is in a different format, try converting it first.`);
       return;
     }
 
@@ -216,11 +219,23 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
       return;
     }
 
+    // Client-side duration check for videos
+    if (isVideoFile) {
+      const durationCheck = await validateVideoDuration(file);
+      if (!durationCheck.valid) {
+        alert(durationCheck.message);
+        return;
+      }
+    }
+
     setSelectedFile(file);
     onChange({ file });
 
-    // Create preview for images
-    if (evidenceType === 'image') {
+    // Create preview
+    if (isVideoFile) {
+      const videoUrl = URL.createObjectURL(file);
+      setFilePreview(videoUrl);
+    } else if (evidenceType === 'camera') {
       const reader = new FileReader();
       reader.onloadend = () => {
         setFilePreview(reader.result);
@@ -481,7 +496,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
               {isDragging ? 'Drop your file here!' : 'Click to upload or drag and drop'}
             </p>
             <p className="text-xs text-gray-500">
-              {evidenceType === 'image' && `${IMAGE_FORMAT_LABEL} up to 10MB`}
+              {evidenceType === 'camera' && 'Photos up to 10MB, videos (MP4/MOV) up to 100MB, max 3 min'}
               {evidenceType === 'document' && `${DOCUMENT_FORMAT_LABEL} up to 25MB`}
             </p>
             
@@ -491,11 +506,21 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
           </div>
         ) : (
           <div className={`border-2 ${config.borderColor} ${config.bgColor} rounded-xl p-4`}>
-            {filePreview && evidenceType === 'image' && (
+            {filePreview && evidenceType === 'camera' && selectedFile?.type?.startsWith('video/') && (
+              <div className="mb-4">
+                <video
+                  src={filePreview}
+                  controls
+                  preload="metadata"
+                  className="max-h-64 w-full mx-auto rounded-lg shadow-md"
+                />
+              </div>
+            )}
+            {filePreview && evidenceType === 'camera' && !selectedFile?.type?.startsWith('video/') && (
               <div className="mb-4">
                 <img
                   src={filePreview}
-                  alt={selectedFile?.name || 'Uploaded evidence image'}
+                  alt={selectedFile?.name || 'Uploaded evidence'}
                   className="max-h-64 mx-auto rounded-lg shadow-md"
                 />
               </div>
@@ -555,7 +580,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
           type="file"
           onChange={handleFileSelect}
           accept={
-            evidenceType === 'image' ? `image/*,${IMAGE_ACCEPT_STRING}` :
+            evidenceType === 'camera' ? `image/*,${IMAGE_ACCEPT_STRING},video/mp4,video/quicktime,${VIDEO_ACCEPT_STRING}` :
             evidenceType === 'document' ? DOCUMENT_ACCEPT_STRING : ''
           }
           className="hidden"
@@ -570,8 +595,8 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
       
       <div className="bg-white rounded-xl p-6 border border-gray-200">
         {evidenceType === 'text' && renderTextInput()}
-        {(evidenceType === 'link' || evidenceType === 'video') && renderLinkInput()}
-        {['image', 'document'].includes(evidenceType) && renderFileInput()}
+        {evidenceType === 'link' && renderLinkInput()}
+        {['camera', 'document'].includes(evidenceType) && renderFileInput()}
         
         {error && (
           <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-start gap-2">
