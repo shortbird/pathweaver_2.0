@@ -177,13 +177,11 @@ def register_routes(bp):
                 .eq('id', share['id']) \
                 .execute()
 
-            # Try to identify the caller (optional auth)
+            # Try to identify the caller (optional auth via cookie or Authorization header)
             caller_id = None
             try:
                 from utils.session_manager import session_manager
-                session_data = session_manager.get_session(request)
-                if session_data:
-                    caller_id = session_data.get('user_id')
+                caller_id = session_manager.get_current_user_id()
             except Exception:
                 pass
 
