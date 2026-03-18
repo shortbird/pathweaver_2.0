@@ -612,8 +612,10 @@ class AuthService {
       const response = await api.get('/api/auth/token-health')
       return response.data
     } catch (error) {
-      console.error('Token health check failed:', error)
-      return { compatible: false, reason: 'Network error', authenticated: false }
+      // Network errors, 404s, etc. should NOT be treated as token incompatibility.
+      // Only an explicit server response of { compatible: false } should trigger logout.
+      console.warn('[AuthService] Token health check unavailable:', error.message)
+      return { compatible: true, reason: 'Health check unavailable, assuming OK', authenticated: true }
     }
   }
 
