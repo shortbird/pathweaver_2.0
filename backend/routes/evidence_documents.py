@@ -464,10 +464,7 @@ def upload_task_file(user_id: str, task_id: str):
                         'error': f'Video is too long ({duration:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.'
                     }), 400
 
-                # Transcode to H.264 if needed (HEVC from iPhones won't play in Firefox)
-                file_content = video_processing_service.ensure_h264(file_content)
-
-                # Process video (thumbnail + metadata)
+                # Process video (thumbnail + metadata) -- uses raw file, fast
                 def upload_thumbnail(thumb_bytes, thumb_name):
                     thumb_path = f"evidence-tasks/{user_id}/thumbnails/{task_id}_{timestamp}_{thumb_name}"
                     admin_supabase.storage.from_('quest-evidence').upload(
@@ -494,6 +491,15 @@ def upload_task_file(user_id: str, task_id: str):
 
             from utils.storage_url import fix_storage_url
             public_url = fix_storage_url(admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename))
+
+            # Transcode/compress video in background (HEVC, large files)
+            if is_video:
+                video_processing_service.process_video_background(
+                    public_url=public_url,
+                    storage_path=unique_filename,
+                    bucket_name='quest-evidence',
+                    user_id=user_id,
+                )
 
             response_data = {
                 'success': True,
@@ -630,9 +636,6 @@ def upload_block_file(user_id: str, block_id: str):
                         'error': f'Video is too long ({duration:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.'
                     }), 400
 
-                # Transcode to H.264 if needed (HEVC from iPhones won't play in Firefox)
-                file_content = video_processing_service.ensure_h264(file_content)
-
                 def upload_thumbnail(thumb_bytes, thumb_name):
                     thumb_path = f"evidence-blocks/{user_id}/thumbnails/{block_id}_{timestamp}_{thumb_name}"
                     admin_supabase.storage.from_('quest-evidence').upload(
@@ -659,6 +662,15 @@ def upload_block_file(user_id: str, block_id: str):
 
             from utils.storage_url import fix_storage_url
             public_url = fix_storage_url(admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename))
+
+            # Transcode/compress video in background
+            if is_video:
+                video_processing_service.process_video_background(
+                    public_url=public_url,
+                    storage_path=unique_filename,
+                    bucket_name='quest-evidence',
+                    user_id=user_id,
+                )
 
             # Update block content with file information
             current_content = block.get('content', {})

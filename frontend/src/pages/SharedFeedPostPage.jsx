@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { FeedCard } from '../components/observer';
-import { LockClosedIcon } from '@heroicons/react/24/outline';
+import { LockClosedIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 export default function SharedFeedPostPage() {
   const { token } = useParams();
@@ -140,20 +140,18 @@ function Header() {
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
         <Link to="/" className="flex items-center">
           <img
-            src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg"
+            src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png"
             alt="Optio"
-            className="h-8 w-8 mr-2"
+            className="h-8 w-auto"
           />
-          <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent">
-            Optio
-          </span>
         </Link>
         {isAuthenticated ? (
           <Link
-            to="/dashboard"
-            className="text-sm text-gray-600 hover:text-gray-900 font-medium"
+            to="/observer/feed"
+            className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 font-medium"
           >
-            Go to Dashboard
+            <ArrowLeftIcon className="h-4 w-4" />
+            Back to Feed
           </Link>
         ) : (
           <Link

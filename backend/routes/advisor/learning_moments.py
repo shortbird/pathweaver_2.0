@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 bp = Blueprint('advisor_learning_moments', __name__, url_prefix='/api/advisor')
 
 # Constants for file uploads
-MAX_MEDIA_SIZE = 250 * 1024 * 1024  # 250MB (server compresses videos >50MB)
+MAX_MEDIA_SIZE = 100 * 1024 * 1024  # 100MB
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
 ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx'}
 ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov'}
@@ -203,11 +203,6 @@ def upload_moment_media(user_id, student_id):
         else:
             media_type = 'document'
 
-        # Transcode video to H.264 if needed (HEVC from iPhones won't play in Firefox)
-        if media_type == 'video':
-            from services.video_processing_service import video_processing_service
-            file_data = video_processing_service.ensure_h264(file_data)
-
         unique_filename = f"learning_moments/{student_id}/{uuid.uuid4()}.{file_ext}"
 
         bucket_name = 'user-uploads'
@@ -220,6 +215,16 @@ def upload_moment_media(user_id, student_id):
 
         from utils.storage_url import fix_storage_url
         file_url = fix_storage_url(supabase.storage.from_(bucket_name).get_public_url(unique_filename))
+
+        # Process video in background (transcode HEVC, compress if needed)
+        if media_type == 'video':
+            from services.video_processing_service import video_processing_service
+            video_processing_service.process_video_background(
+                public_url=file_url,
+                storage_path=unique_filename,
+                bucket_name=bucket_name,
+                user_id=user_id,
+            )
 
         logger.info(f"Advisor {user_id} uploaded {media_type} for student {student_id}")
 

@@ -533,9 +533,6 @@ def upload_event_file(user_id, event_id):
                         'error': f'Video is too long ({duration:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.'
                     }), 400
 
-                # Transcode to H.264 if needed (HEVC from iPhones won't play in Firefox)
-                file_content = video_processing_service.ensure_h264(file_content)
-
                 def upload_thumbnail(thumb_bytes, thumb_name):
                     thumb_path = f"learning-events/{user_id}/thumbnails/{event_id}_{timestamp}_{thumb_name}"
                     admin_supabase.storage.from_('quest-evidence').upload(
@@ -562,6 +559,15 @@ def upload_event_file(user_id, event_id):
 
             from utils.storage_url import fix_storage_url
             public_url = fix_storage_url(admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename))
+
+            # Transcode/compress video in background
+            if block_type == 'video':
+                video_processing_service.process_video_background(
+                    public_url=public_url,
+                    storage_path=unique_filename,
+                    bucket_name='quest-evidence',
+                    user_id=user_id,
+                )
 
             # Return the URL only -- evidence blocks are saved via
             # the /evidence endpoint (which uses the service layer)
