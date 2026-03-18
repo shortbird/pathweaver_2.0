@@ -284,8 +284,7 @@ def upload_evidence_base64(user_id):
 
 # --- Direct-to-Supabase upload for large files (superadmin only) ---
 
-@bp.route('/api/uploads/request-signed-url', methods=['POST'])
-@require_auth
+@bp.route('/request-signed-url', methods=['POST'])
 @require_role('superadmin')
 def request_signed_upload_url(user_id):
     """
@@ -355,8 +354,7 @@ def request_signed_upload_url(user_id):
         return jsonify({'error': 'Failed to create upload URL'}), 500
 
 
-@bp.route('/api/uploads/process-uploaded', methods=['POST'])
-@require_auth
+@bp.route('/process-uploaded', methods=['POST'])
 @require_role('superadmin')
 def process_uploaded_file(user_id):
     """

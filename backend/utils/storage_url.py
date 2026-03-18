@@ -37,4 +37,8 @@ def fix_storage_url(url: str) -> str:
     if supabase_url and supabase_url in url:
         url = url.replace(supabase_url, _CUSTOM_DOMAIN)
 
+    # Strip trailing ? (Supabase SDK sometimes appends empty query string)
+    if url.endswith('?'):
+        url = url[:-1]
+
     return url

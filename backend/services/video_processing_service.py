@@ -6,6 +6,7 @@ Uses FFmpeg/FFprobe for processing with graceful degradation when unavailable.
 """
 
 import subprocess
+import sys
 import tempfile
 import os
 import json
@@ -38,24 +39,31 @@ class VideoProcessingService:
     """Processes uploaded videos: validates duration, extracts metadata, generates thumbnails."""
 
     def __init__(self):
+        self._ffprobe_path = 'ffprobe'
+        self._ffmpeg_path = 'ffmpeg'
         self._ffmpeg_available = self._check_ffmpeg()
 
     def _check_ffmpeg(self) -> bool:
-        try:
-            result = subprocess.run(
-                ['ffprobe', '-version'],
-                capture_output=True,
-                timeout=5,
-            )
-            available = result.returncode == 0
-            if available:
-                logger.info("[VideoProcessing] FFmpeg/FFprobe available")
-            else:
-                logger.warning("[VideoProcessing] FFprobe not available")
-            return available
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            logger.warning("[VideoProcessing] FFmpeg not installed, video processing will be skipped")
-            return False
+        # Try system PATH first, then check next to the Python executable
+        for ffprobe_candidate in ['ffprobe', os.path.join(os.path.dirname(sys.executable), 'ffprobe')]:
+            try:
+                result = subprocess.run(
+                    [ffprobe_candidate, '-version'],
+                    capture_output=True,
+                    timeout=5,
+                )
+                if result.returncode == 0:
+                    self._ffprobe_path = ffprobe_candidate
+                    # Derive ffmpeg path from the same directory
+                    ffmpeg_dir = os.path.dirname(ffprobe_candidate) if os.sep in ffprobe_candidate else ''
+                    self._ffmpeg_path = os.path.join(ffmpeg_dir, 'ffmpeg') if ffmpeg_dir else 'ffmpeg'
+                    logger.info(f"[VideoProcessing] FFmpeg/FFprobe available at: {ffprobe_candidate}")
+                    return True
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                continue
+
+        logger.warning("[VideoProcessing] FFmpeg not installed, video processing will be skipped")
+        return False
 
     def _probe_video(self, file_path: str) -> Optional[dict]:
         """Use ffprobe to get video metadata."""
@@ -64,7 +72,7 @@ class VideoProcessingService:
         try:
             result = subprocess.run(
                 [
-                    'ffprobe', '-v', 'quiet',
+                    self._ffprobe_path, '-v', 'quiet',
                     '-print_format', 'json',
                     '-show_format', '-show_streams',
                     file_path,
@@ -134,7 +142,7 @@ class VideoProcessingService:
             tmp_output = tmp_input + '_h264.mp4'
 
             args = [
-                'ffmpeg', '-y',
+                self._ffmpeg_path, '-y',
                 '-i', tmp_input,
                 '-c:v', 'libx264',
                 '-c:a', 'aac',
@@ -217,8 +225,10 @@ class VideoProcessingService:
                     return
 
                 # Re-upload the processed version (overwrite original)
-                from database import get_supabase_admin_client
-                supabase = get_supabase_admin_client()
+                # Create client directly (background thread has no Flask app context)
+                from supabase import create_client
+                from app_config import Config
+                supabase = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
 
                 # Delete old file first, then upload new one (Supabase doesn't support overwrite)
                 try:
@@ -249,8 +259,7 @@ class VideoProcessingService:
         """Send a notification to the user about a video processing failure."""
         try:
             from services.notification_service import NotificationService
-            from database import get_supabase_admin_client
-            svc = NotificationService(get_supabase_admin_client())
+            svc = NotificationService()
             svc.create_notification(
                 user_id=user_id,
                 notification_type='video_processing',
@@ -328,7 +337,7 @@ class VideoProcessingService:
             tmp_thumb_path = tmp_video_path + '_thumb.jpg'
             thumb_result = subprocess.run(
                 [
-                    'ffmpeg', '-y',
+                    self._ffmpeg_path, '-y',
                     '-i', tmp_video_path,
                     '-ss', '00:00:01',  # 1 second in (avoids black frames)
                     '-vframes', '1',
