@@ -198,6 +198,7 @@ def register_routes(bp):
             if not has_access:
                 return jsonify({
                     'access': 'denied',
+                    'logged_in': caller_id is not None,
                     'message': 'This post belongs to a student on Optio. To view their learning journey, contact their parent about observer access.'
                 }), 200
 

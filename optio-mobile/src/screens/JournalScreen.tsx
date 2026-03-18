@@ -30,6 +30,7 @@ import { GlassBackground } from '../components/common/GlassBackground';
 import { QuickCapture } from '../components/capture/QuickCapture';
 import { TopicAssignModal } from '../components/journal/TopicAssignModal';
 import { TopicManageModal } from '../components/journal/TopicManageModal';
+import { useThemeStore } from '../stores/themeStore';
 import api from '../services/api';
 import { syncQueue, getPendingCount } from '../utils/offlineQueue';
 
@@ -73,6 +74,7 @@ interface InterestTrack {
 }
 
 export function JournalScreen() {
+  const { colors } = useThemeStore();
   const [events, setEvents] = useState<LearningEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -280,7 +282,7 @@ export function JournalScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={tokens.colors.primary} />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -288,8 +290,8 @@ export function JournalScreen() {
   return (
     <GlassBackground style={styles.container}>
       {pendingCount > 0 && (
-        <View style={styles.pendingBanner}>
-          <Text style={styles.pendingText}>
+        <View style={[styles.pendingBanner, { backgroundColor: colors.warning + '20' }]}>
+          <Text style={[styles.pendingText, { color: colors.warning }]}>
             {pendingCount} offline {pendingCount === 1 ? 'entry' : 'entries'} waiting to sync
           </Text>
         </View>
@@ -300,9 +302,9 @@ export function JournalScreen() {
         <View style={styles.header}>
           <View style={styles.selectionHeaderLeft}>
             <TouchableOpacity onPress={exitSelectionMode} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="close" size={24} color={tokens.colors.text} />
+              <Ionicons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.selectionCount}>{selectedIds.size} selected</Text>
+            <Text style={[styles.selectionCount, { color: colors.text }]}>{selectedIds.size} selected</Text>
           </View>
           <TouchableOpacity
             style={[styles.assignButton, selectedIds.size === 0 && { opacity: 0.4 }]}
@@ -314,7 +316,7 @@ export function JournalScreen() {
         </View>
       ) : (
         <View style={styles.header}>
-          <Text style={styles.title}>Learning Journal</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Learning Journal</Text>
           <TouchableOpacity
             style={styles.composeButton}
             onPress={() => setShowCompose(!showCompose)}
@@ -341,26 +343,26 @@ export function JournalScreen() {
           style={[
             styles.filterIcon,
             {
-              borderColor: !filterPillar ? tokens.colors.primary : tokens.colors.border,
-              backgroundColor: !filterPillar ? tokens.colors.primary : 'transparent',
+              borderColor: !filterPillar ? colors.primary : colors.border,
+              backgroundColor: !filterPillar ? colors.primary : 'transparent',
             },
           ]}
           onPress={() => setFilterPillar(null)}
         >
-          <Text style={{ fontSize: 15, color: !filterPillar ? '#FFF' : tokens.colors.textMuted, fontFamily: tokens.typography.fonts.semiBold }}>
+          <Text style={{ fontSize: 15, color: !filterPillar ? '#FFF' : colors.textMuted, fontFamily: tokens.typography.fonts.semiBold }}>
             All
           </Text>
         </TouchableOpacity>
         {PILLARS.map((p) => {
           const active = filterPillar === p.key;
-          const pillarColor = tokens.colors.pillars[p.key];
+          const pillarColor = colors.pillars[p.key];
           return (
             <TouchableOpacity
               key={p.key}
               style={[
                 styles.filterIcon,
                 {
-                  borderColor: active ? pillarColor : tokens.colors.border,
+                  borderColor: active ? pillarColor : colors.border,
                   backgroundColor: active ? pillarColor : 'transparent',
                 },
               ]}
@@ -381,8 +383,8 @@ export function JournalScreen() {
             style={[
               styles.filterIcon,
               {
-                borderColor: (filterTopicId || filterUnassigned) ? tokens.colors.primary : tokens.colors.border,
-                backgroundColor: (filterTopicId || filterUnassigned) ? tokens.colors.primary : 'transparent',
+                borderColor: (filterTopicId || filterUnassigned) ? colors.primary : colors.border,
+                backgroundColor: (filterTopicId || filterUnassigned) ? colors.primary : 'transparent',
               },
             ]}
             onPress={() => setShowTopicSheet(true)}
@@ -391,10 +393,10 @@ export function JournalScreen() {
             <Ionicons
               name="funnel-outline"
               size={20}
-              color={(filterTopicId || filterUnassigned) ? '#FFF' : tokens.colors.textMuted}
+              color={(filterTopicId || filterUnassigned) ? '#FFF' : colors.textMuted}
             />
             {(filterTopicId || filterUnassigned) && (
-              <View style={styles.filterBadge} />
+              <View style={[styles.filterBadge, { backgroundColor: colors.accent }]} />
             )}
           </TouchableOpacity>
         )}
@@ -407,16 +409,16 @@ export function JournalScreen() {
           onPress={() => { setFilterTopicId(null); setFilterUnassigned(false); }}
           activeOpacity={0.7}
         >
-          <View style={styles.activeFilterChip}>
+          <View style={[styles.activeFilterChip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             {filterUnassigned ? (
-              <Ionicons name="help-circle-outline" size={14} color={tokens.colors.warning} style={{ marginRight: 4 }} />
+              <Ionicons name="help-circle-outline" size={14} color={colors.warning} style={{ marginRight: 4 }} />
             ) : (
-              <View style={[styles.activeFilterDot, { backgroundColor: availableTracks.find(t => t.id === filterTopicId)?.color || tokens.colors.primary }]} />
+              <View style={[styles.activeFilterDot, { backgroundColor: availableTracks.find(t => t.id === filterTopicId)?.color || colors.primary }]} />
             )}
-            <Text style={styles.activeFilterText}>
+            <Text style={[styles.activeFilterText, { color: colors.text }]}>
               {filterUnassigned ? 'Unassigned' : availableTracks.find(t => t.id === filterTopicId)?.name || 'Topic'}
             </Text>
-            <Ionicons name="close-circle" size={16} color={tokens.colors.textMuted} style={{ marginLeft: 4 }} />
+            <Ionicons name="close-circle" size={16} color={colors.textMuted} style={{ marginLeft: 4 }} />
           </View>
         </TouchableOpacity>
       )}
@@ -449,7 +451,7 @@ export function JournalScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
               {filterUnassigned
                 ? 'All moments have topics assigned.'
                 : filterTopicId
@@ -457,7 +459,7 @@ export function JournalScreen() {
                   : 'No journal entries yet.'}
             </Text>
             {!filterUnassigned && !filterTopicId && (
-              <Text style={styles.emptySubtext}>Tap "+ New" to capture a learning moment.</Text>
+              <Text style={[styles.emptySubtext, { color: colors.textMuted }]}>Tap "+ New" to capture a learning moment.</Text>
             )}
           </View>
         }
@@ -483,15 +485,15 @@ export function JournalScreen() {
         <Pressable style={styles.sheetBackdrop} onPress={() => setShowTopicSheet(false)}>
           <View />
         </Pressable>
-        <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Filter by Topic</Text>
+        <View style={[styles.sheet, { backgroundColor: colors.surfaceOpaque }]}>
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>Filter by Topic</Text>
             <ScrollView style={styles.sheetList} contentContainerStyle={styles.sheetListContent}>
               {/* All topics */}
               <TouchableOpacity
                 style={[
                   styles.sheetRow,
-                  !filterTopicId && !filterUnassigned && styles.sheetRowActive,
+                  !filterTopicId && !filterUnassigned && [styles.sheetRowActive, { backgroundColor: colors.primary + '08' }],
                 ]}
                 onPress={() => {
                   setFilterTopicId(null);
@@ -502,22 +504,23 @@ export function JournalScreen() {
                 <Ionicons
                   name="layers-outline"
                   size={18}
-                  color={!filterTopicId && !filterUnassigned ? tokens.colors.primary : tokens.colors.textMuted}
+                  color={!filterTopicId && !filterUnassigned ? colors.primary : colors.textMuted}
                 />
                 <Text style={[
                   styles.sheetRowText,
-                  !filterTopicId && !filterUnassigned && { color: tokens.colors.primary },
+                  { color: colors.text },
+                  !filterTopicId && !filterUnassigned && { color: colors.primary },
                 ]}>
                   All Topics
                 </Text>
                 {!filterTopicId && !filterUnassigned && (
-                  <Ionicons name="checkmark" size={18} color={tokens.colors.primary} />
+                  <Ionicons name="checkmark" size={18} color={colors.primary} />
                 )}
               </TouchableOpacity>
 
               {/* Unassigned */}
               <TouchableOpacity
-                style={[styles.sheetRow, filterUnassigned && styles.sheetRowActive]}
+                style={[styles.sheetRow, filterUnassigned && [styles.sheetRowActive, { backgroundColor: colors.primary + '08' }]]}
                 onPress={() => {
                   handleUnassignedTap();
                   setShowTopicSheet(false);
@@ -526,30 +529,31 @@ export function JournalScreen() {
                 <Ionicons
                   name="help-circle-outline"
                   size={18}
-                  color={filterUnassigned ? tokens.colors.warning : tokens.colors.textMuted}
+                  color={filterUnassigned ? colors.warning : colors.textMuted}
                 />
                 <Text style={[
                   styles.sheetRowText,
-                  filterUnassigned && { color: tokens.colors.warning },
+                  { color: colors.text },
+                  filterUnassigned && { color: colors.warning },
                 ]}>
                   Unassigned
                 </Text>
                 {filterUnassigned && (
-                  <Ionicons name="checkmark" size={18} color={tokens.colors.warning} />
+                  <Ionicons name="checkmark" size={18} color={colors.warning} />
                 )}
               </TouchableOpacity>
 
               {/* Divider */}
-              <View style={styles.sheetDivider} />
+              <View style={[styles.sheetDivider, { backgroundColor: colors.border }]} />
 
               {/* Individual tracks */}
               {availableTracks.map((track) => {
                 const active = filterTopicId === track.id;
-                const chipColor = track.color || tokens.colors.primary;
+                const chipColor = track.color || colors.primary;
                 return (
                   <TouchableOpacity
                     key={track.id}
-                    style={[styles.sheetRow, active && styles.sheetRowActive]}
+                    style={[styles.sheetRow, active && [styles.sheetRowActive, { backgroundColor: colors.primary + '08' }]]}
                     onPress={() => {
                       handleTopicFilterTap(track.id);
                       setShowTopicSheet(false);
@@ -557,12 +561,12 @@ export function JournalScreen() {
                   >
                     <View style={[styles.sheetDot, { backgroundColor: chipColor }]} />
                     <Text
-                      style={[styles.sheetRowText, active && { color: chipColor }]}
+                      style={[styles.sheetRowText, { color: colors.text }, active && { color: chipColor }]}
                       numberOfLines={1}
                     >
                       {track.name}
                     </Text>
-                    <Text style={styles.sheetRowCount}>{track.moment_count}</Text>
+                    <Text style={[styles.sheetRowCount, { color: colors.textMuted }]}>{track.moment_count}</Text>
                     {active && (
                       <Ionicons name="checkmark" size={18} color={chipColor} />
                     )}
@@ -571,7 +575,7 @@ export function JournalScreen() {
               })}
 
               {/* Manage topics link */}
-              <View style={styles.sheetDivider} />
+              <View style={[styles.sheetDivider, { backgroundColor: colors.border }]} />
               <TouchableOpacity
                 style={styles.sheetRow}
                 onPress={() => {
@@ -579,11 +583,11 @@ export function JournalScreen() {
                   setTimeout(() => setShowManageSheet(true), 300);
                 }}
               >
-                <Ionicons name="settings-outline" size={18} color={tokens.colors.textMuted} />
-                <Text style={[styles.sheetRowText, { color: tokens.colors.textSecondary }]}>
+                <Ionicons name="settings-outline" size={18} color={colors.textMuted} />
+                <Text style={[styles.sheetRowText, { color: colors.textSecondary }]}>
                   Manage Topics
                 </Text>
-                <Ionicons name="chevron-forward" size={16} color={tokens.colors.textMuted} />
+                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -613,6 +617,7 @@ interface JournalEntryProps {
 }
 
 function JournalEntry({ event, selectionMode, isSelected, onPress, onLongPress }: JournalEntryProps) {
+  const { colors } = useThemeStore();
   const navigation = useNavigation<any>();
   const date = new Date(event.created_at);
   const dateStr = date.toLocaleDateString(undefined, {
@@ -647,7 +652,7 @@ function JournalEntry({ event, selectionMode, isSelected, onPress, onLongPress }
     >
       <SurfaceCard
         style={isSelected
-          ? { ...styles.entryCard, ...styles.entryCardSelected }
+          ? { ...styles.entryCard, ...styles.entryCardSelected, borderColor: colors.primary }
           : styles.entryCard
         }
       >
@@ -658,8 +663,8 @@ function JournalEntry({ event, selectionMode, isSelected, onPress, onLongPress }
               style={[
                 styles.checkCircle,
                 isSelected
-                  ? { backgroundColor: tokens.colors.primary, borderColor: tokens.colors.primary }
-                  : { backgroundColor: 'transparent', borderColor: tokens.colors.textMuted },
+                  ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                  : { backgroundColor: 'transparent', borderColor: colors.textMuted },
               ]}
             >
               {isSelected && (
@@ -674,8 +679,8 @@ function JournalEntry({ event, selectionMode, isSelected, onPress, onLongPress }
             <Image source={{ uri: thumbUrl }} style={styles.entryThumb} resizeMode="cover" />
           </View>
         )}
-        {event.title ? <Text style={styles.entryTitle}>{event.title}</Text> : null}
-        <Text style={styles.entryDescription} numberOfLines={4}>
+        {event.title ? <Text style={[styles.entryTitle, { color: colors.text }]}>{event.title}</Text> : null}
+        <Text style={[styles.entryDescription, { color: colors.textSecondary }]} numberOfLines={4}>
           {event.description}
         </Text>
         <View style={styles.entryFooter}>
@@ -686,7 +691,7 @@ function JournalEntry({ event, selectionMode, isSelected, onPress, onLongPress }
                 key={`p-${p}`}
                 style={[
                   styles.entryPillarDot,
-                  { backgroundColor: tokens.colors.pillars[p as PillarKey] || tokens.colors.textMuted },
+                  { backgroundColor: colors.pillars[p as PillarKey] || colors.textMuted },
                 ]}
               />
             ))}
@@ -696,12 +701,12 @@ function JournalEntry({ event, selectionMode, isSelected, onPress, onLongPress }
                 key={`t-${t.id}`}
                 style={[
                   styles.entryTopicDot,
-                  { backgroundColor: t.color || tokens.colors.primary },
+                  { backgroundColor: t.color || colors.primary },
                 ]}
               />
             ))}
           </View>
-          <Text style={styles.entryDate}>
+          <Text style={[styles.entryDate, { color: colors.textMuted }]}>
             {dateStr} at {timeStr}
           </Text>
         </View>
@@ -731,7 +736,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: tokens.typography.sizes.xl,
     fontWeight: tokens.typography.weights.bold,
-    color: tokens.colors.text,
   },
   composeButton: {
     backgroundColor: tokens.colors.primary,
@@ -758,7 +762,6 @@ const styles = StyleSheet.create({
   selectionCount: {
     fontSize: tokens.typography.sizes.lg,
     fontFamily: tokens.typography.fonts.semiBold,
-    color: tokens.colors.text,
   },
   assignButton: {
     backgroundColor: tokens.colors.primary,
@@ -796,7 +799,6 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: tokens.colors.accent,
   },
 
   // Active topic filter label row
@@ -808,12 +810,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: tokens.colors.surface,
     borderRadius: tokens.radius.full,
     paddingVertical: tokens.spacing.xs,
     paddingHorizontal: tokens.spacing.md,
     borderWidth: 1,
-    borderColor: tokens.colors.border,
   },
   activeFilterDot: {
     width: 8,
@@ -824,7 +824,6 @@ const styles = StyleSheet.create({
   activeFilterText: {
     fontSize: tokens.typography.sizes.sm,
     fontFamily: tokens.typography.fonts.medium,
-    color: tokens.colors.text,
   },
 
   // Topic filter bottom sheet
@@ -837,7 +836,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: tokens.radius.xl,
     borderTopRightRadius: tokens.radius.xl,
     paddingBottom: tokens.spacing.xl,
@@ -847,7 +845,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: tokens.colors.border,
     alignSelf: 'center',
     marginTop: tokens.spacing.sm,
     marginBottom: tokens.spacing.sm,
@@ -855,7 +852,6 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: tokens.typography.sizes.lg,
     fontFamily: tokens.typography.fonts.semiBold,
-    color: tokens.colors.text,
     paddingHorizontal: tokens.spacing.lg,
     marginBottom: tokens.spacing.sm,
   },
@@ -873,7 +869,6 @@ const styles = StyleSheet.create({
     gap: tokens.spacing.sm,
   },
   sheetRowActive: {
-    backgroundColor: tokens.colors.primary + '08',
     borderRadius: tokens.radius.md,
     marginHorizontal: -tokens.spacing.sm,
     paddingHorizontal: tokens.spacing.sm,
@@ -882,12 +877,10 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: tokens.typography.sizes.md,
     fontFamily: tokens.typography.fonts.medium,
-    color: tokens.colors.text,
   },
   sheetRowCount: {
     fontSize: tokens.typography.sizes.xs,
     fontFamily: tokens.typography.fonts.regular,
-    color: tokens.colors.textMuted,
   },
   sheetDot: {
     width: 12,
@@ -896,7 +889,6 @@ const styles = StyleSheet.create({
   },
   sheetDivider: {
     height: 1,
-    backgroundColor: tokens.colors.border,
     marginVertical: tokens.spacing.xs,
   },
 
@@ -912,7 +904,6 @@ const styles = StyleSheet.create({
   },
   entryCardSelected: {
     borderWidth: 2,
-    borderColor: tokens.colors.primary,
     borderRadius: tokens.radius.lg,
   },
   entryThumbWrap: {
@@ -929,12 +920,10 @@ const styles = StyleSheet.create({
   entryTitle: {
     fontSize: tokens.typography.sizes.md,
     fontWeight: tokens.typography.weights.semiBold,
-    color: tokens.colors.text,
     marginBottom: tokens.spacing.xs,
   },
   entryDescription: {
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.textSecondary,
     lineHeight: 20,
     marginBottom: tokens.spacing.sm,
   },
@@ -961,7 +950,6 @@ const styles = StyleSheet.create({
   },
   entryDate: {
     fontSize: tokens.typography.sizes.xs,
-    color: tokens.colors.textMuted,
   },
 
   // Selection overlay
@@ -987,17 +975,14 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: tokens.typography.sizes.lg,
-    color: tokens.colors.textSecondary,
     marginBottom: tokens.spacing.sm,
   },
   emptySubtext: {
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.textMuted,
   },
 
   // Pending sync banner
   pendingBanner: {
-    backgroundColor: tokens.colors.warning + '20',
     borderRadius: tokens.radius.sm,
     padding: tokens.spacing.sm,
     marginHorizontal: tokens.spacing.md,
@@ -1005,7 +990,6 @@ const styles = StyleSheet.create({
   },
   pendingText: {
     fontSize: tokens.typography.sizes.xs,
-    color: tokens.colors.warning,
     textAlign: 'center',
     fontWeight: tokens.typography.weights.medium,
   },

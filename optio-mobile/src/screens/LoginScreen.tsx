@@ -26,6 +26,7 @@ import { GlassButton } from '../components/common/GlassButton';
 import { GlassBackground } from '../components/common/GlassBackground';
 import { useAuthStore } from '../stores/authStore';
 import { useOnboardingStore } from '../stores/onboardingStore';
+import { useThemeStore } from '../stores/themeStore';
 import { storage } from '../utils/storage';
 
 type AuthMode = 'login' | 'register';
@@ -34,6 +35,7 @@ const LOGO_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
 
 export function LoginScreen() {
+  const { colors } = useThemeStore();
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -116,9 +118,9 @@ export function LoginScreen() {
         <View style={styles.tosContent}>
           <Image source={{ uri: LOGO_URI }} style={styles.logo} resizeMode="contain" />
           <GlassCard style={styles.tosCard}>
-            <Ionicons name="document-text-outline" size={40} color={tokens.colors.primary} />
-            <Text style={styles.tosTitle}>Welcome to Optio!</Text>
-            <Text style={styles.tosBody}>
+            <Ionicons name="document-text-outline" size={40} color={colors.primary} />
+            <Text style={[styles.tosTitle, { color: colors.text }]}>Welcome to Optio!</Text>
+            <Text style={[styles.tosBody, { color: colors.textSecondary }]}>
               By continuing, you agree to our Terms of Service and Privacy Policy.
             </Text>
             <GlassButton
@@ -156,18 +158,18 @@ export function LoginScreen() {
           </View>
 
           {/* Mode tabs */}
-          <View style={styles.tabRow}>
+          <View style={[styles.tabRow, { backgroundColor: colors.glass.background }]}>
             <TouchableOpacity
-              style={[styles.tab, isLogin && styles.tabActive]}
+              style={[styles.tab, isLogin && [styles.tabActive, { backgroundColor: colors.surfaceOpaque }]]}
               onPress={() => switchMode('login')}
             >
-              <Text style={[styles.tabText, isLogin && styles.tabTextActive]}>Sign In</Text>
+              <Text style={[styles.tabText, { color: colors.textMuted }, isLogin && { color: colors.primary, fontFamily: tokens.typography.fonts.semiBold }]}>Sign In</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.tab, !isLogin && styles.tabActive]}
+              style={[styles.tab, !isLogin && [styles.tabActive, { backgroundColor: colors.surfaceOpaque }]]}
               onPress={() => switchMode('register')}
             >
-              <Text style={[styles.tabText, !isLogin && styles.tabTextActive]}>Create Account</Text>
+              <Text style={[styles.tabText, { color: colors.textMuted }, !isLogin && { color: colors.primary, fontFamily: tokens.typography.fonts.semiBold }]}>Create Account</Text>
             </TouchableOpacity>
           </View>
 
@@ -175,30 +177,30 @@ export function LoginScreen() {
           <GlassCard style={styles.formCard}>
             {error && (
               <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={16} color={tokens.colors.error} />
-                <Text style={styles.errorText}>{error}</Text>
+                <Ionicons name="alert-circle" size={16} color={colors.error} />
+                <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
               </View>
             )}
 
             {/* Name fields (register only) */}
             {!isLogin && (
               <View style={styles.nameRow}>
-                <View style={[styles.inputWrapper, styles.nameInput]}>
-                  <Ionicons name="person-outline" size={20} color={tokens.colors.textMuted} style={styles.inputIcon} />
+                <View style={[styles.inputWrapper, styles.nameInput, { backgroundColor: colors.inputBg, borderColor: colors.glass.border }]}>
+                  <Ionicons name="person-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { color: colors.text }]}
                     placeholder="First name"
-                    placeholderTextColor={tokens.colors.textMuted}
+                    placeholderTextColor={colors.textMuted}
                     value={firstName}
                     onChangeText={(t) => { setFirstName(t); if (error) clearError(); }}
                     autoCapitalize="words"
                   />
                 </View>
-                <View style={[styles.inputWrapper, styles.nameInput]}>
+                <View style={[styles.inputWrapper, styles.nameInput, { backgroundColor: colors.inputBg, borderColor: colors.glass.border }]}>
                   <TextInput
-                    style={[styles.input, { paddingLeft: tokens.spacing.md }]}
+                    style={[styles.input, { paddingLeft: tokens.spacing.md, color: colors.text }]}
                     placeholder="Last name"
-                    placeholderTextColor={tokens.colors.textMuted}
+                    placeholderTextColor={colors.textMuted}
                     value={lastName}
                     onChangeText={(t) => { setLastName(t); if (error) clearError(); }}
                     autoCapitalize="words"
@@ -208,12 +210,12 @@ export function LoginScreen() {
             )}
 
             {/* Email */}
-            <View style={styles.inputWrapper}>
-              <Ionicons name="mail-outline" size={20} color={tokens.colors.textMuted} style={styles.inputIcon} />
+            <View style={[styles.inputWrapper, { backgroundColor: colors.inputBg, borderColor: colors.glass.border }]}>
+              <Ionicons name="mail-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 placeholder="Email"
-                placeholderTextColor={tokens.colors.textMuted}
+                placeholderTextColor={colors.textMuted}
                 value={email}
                 onChangeText={(t) => { setEmail(t); if (error) clearError(); }}
                 autoCapitalize="none"
@@ -223,12 +225,12 @@ export function LoginScreen() {
             </View>
 
             {/* Password */}
-            <View style={styles.inputWrapper}>
-              <Ionicons name="lock-closed-outline" size={20} color={tokens.colors.textMuted} style={styles.inputIcon} />
+            <View style={[styles.inputWrapper, { backgroundColor: colors.inputBg, borderColor: colors.glass.border }]}>
+              <Ionicons name="lock-closed-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 placeholder="Password"
-                placeholderTextColor={tokens.colors.textMuted}
+                placeholderTextColor={colors.textMuted}
                 value={password}
                 onChangeText={(t) => { setPassword(t); if (error) clearError(); }}
                 secureTextEntry={!showPassword}
@@ -242,19 +244,19 @@ export function LoginScreen() {
                 <Ionicons
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                   size={20}
-                  color={tokens.colors.textMuted}
+                  color={colors.textMuted}
                 />
               </TouchableOpacity>
             </View>
 
             {/* Confirm password (register only) */}
             {!isLogin && (
-              <View style={styles.inputWrapper}>
-                <Ionicons name="shield-checkmark-outline" size={20} color={tokens.colors.textMuted} style={styles.inputIcon} />
+              <View style={[styles.inputWrapper, { backgroundColor: colors.inputBg, borderColor: colors.glass.border }]}>
+                <Ionicons name="shield-checkmark-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: colors.text }]}
                   placeholder="Confirm password"
-                  placeholderTextColor={tokens.colors.textMuted}
+                  placeholderTextColor={colors.textMuted}
                   value={confirmPassword}
                   onChangeText={(t) => { setConfirmPassword(t); if (error) clearError(); }}
                   secureTextEntry={!showConfirmPassword}
@@ -268,7 +270,7 @@ export function LoginScreen() {
                   <Ionicons
                     name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={20}
-                    color={tokens.colors.textMuted}
+                    color={colors.textMuted}
                   />
                 </TouchableOpacity>
               </View>
@@ -286,14 +288,14 @@ export function LoginScreen() {
 
             {/* Divider */}
             <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.dividerText, { color: colors.textMuted }]}>or</Text>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
             </View>
 
             {/* Google sign-in */}
             <TouchableOpacity
-              style={styles.googleButton}
+              style={[styles.googleButton, { backgroundColor: colors.surfaceOpaque, borderColor: colors.border }]}
               onPress={handleGoogle}
               disabled={isLoading}
               activeOpacity={0.7}
@@ -303,13 +305,13 @@ export function LoginScreen() {
                 style={styles.googleIcon}
                 resizeMode="contain"
               />
-              <Text style={styles.googleText}>Continue with Google</Text>
+              <Text style={[styles.googleText, { color: colors.text }]}>Continue with Google</Text>
             </TouchableOpacity>
           </GlassCard>
 
           {/* Terms notice (register) */}
           {!isLogin && (
-            <Text style={styles.termsText}>
+            <Text style={[styles.termsText, { color: colors.textMuted }]}>
               By creating an account, you agree to our Terms of Service and Privacy Policy.
             </Text>
           )}
@@ -324,8 +326,8 @@ export function LoginScreen() {
           }}
           activeOpacity={0.6}
         >
-          <Ionicons name="refresh-outline" size={14} color={tokens.colors.textMuted} />
-          <Text style={styles.resetText}>Reset App</Text>
+          <Ionicons name="refresh-outline" size={14} color={colors.textMuted} />
+          <Text style={[styles.resetText, { color: colors.textMuted }]}>Reset App</Text>
         </TouchableOpacity>
       </KeyboardAvoidingView>
     </GlassBackground>
@@ -362,7 +364,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: tokens.spacing.md,
     borderRadius: tokens.radius.xl,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     padding: 3,
   },
   tab: {
@@ -372,17 +373,11 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radius.xl - 2,
   },
   tabActive: {
-    backgroundColor: '#FFF',
     ...tokens.shadows.sm,
   },
   tabText: {
     fontFamily: tokens.typography.fonts.medium,
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.textMuted,
-  },
-  tabTextActive: {
-    color: tokens.colors.primary,
-    fontFamily: tokens.typography.fonts.semiBold,
   },
 
   // Form
@@ -397,7 +392,6 @@ const styles = StyleSheet.create({
   },
   errorText: {
     ...textStyles.bodySm,
-    color: tokens.colors.error,
     flex: 1,
   },
   nameRow: {
@@ -411,9 +405,7 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
     borderWidth: 0.5,
-    borderColor: tokens.colors.glass.border,
     borderRadius: tokens.radius.lg,
     overflow: 'hidden',
     marginBottom: tokens.spacing.sm,
@@ -426,7 +418,6 @@ const styles = StyleSheet.create({
     padding: tokens.spacing.md,
     fontFamily: tokens.typography.fonts.regular,
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.text,
   },
   eyeButton: {
     paddingRight: tokens.spacing.md,
@@ -444,12 +435,10 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: tokens.colors.border,
   },
   dividerText: {
     fontFamily: tokens.typography.fonts.regular,
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.textMuted,
   },
 
   // Google
@@ -458,11 +447,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: tokens.spacing.sm,
-    backgroundColor: '#FFF',
     borderRadius: tokens.radius.xl,
     paddingVertical: tokens.spacing.sm + 4,
     borderWidth: 0.5,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
     ...tokens.shadows.sm,
   },
   googleIcon: {
@@ -472,14 +459,12 @@ const styles = StyleSheet.create({
   googleText: {
     fontFamily: tokens.typography.fonts.medium,
     fontSize: tokens.typography.sizes.md,
-    color: tokens.colors.text,
   },
 
   // Terms
   termsText: {
     fontFamily: tokens.typography.fonts.regular,
     fontSize: tokens.typography.sizes.xs,
-    color: tokens.colors.textMuted,
     textAlign: 'center',
     marginTop: tokens.spacing.md,
     paddingHorizontal: tokens.spacing.md,
@@ -501,11 +486,9 @@ const styles = StyleSheet.create({
   },
   tosTitle: {
     ...textStyles.h2,
-    color: tokens.colors.text,
   },
   tosBody: {
     ...textStyles.body,
-    color: tokens.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -524,6 +507,5 @@ const styles = StyleSheet.create({
   resetText: {
     fontSize: tokens.typography.sizes.xs,
     fontFamily: tokens.typography.fonts.regular,
-    color: tokens.colors.textMuted,
   },
 });

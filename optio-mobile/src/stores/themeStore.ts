@@ -45,7 +45,7 @@ const shared = {
   },
 };
 
-interface ThemeColors {
+export interface ThemeColors {
   primary: string;
   primaryDark: string;
   accent: string;

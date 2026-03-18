@@ -12,29 +12,9 @@ export const tokens = {
     accent: '#EF597B',        // optio-pink
     accentDark: '#E73862',    // optio-pink hover
 
-    background: '#EEEAF4',    // Soft lavender-white for glass
-    surface: 'rgba(255, 255, 255, 0.45)',
-    text: '#1A1A2E',
-    textSecondary: 'rgba(30, 30, 50, 0.55)',
-    textMuted: 'rgba(30, 30, 50, 0.3)',
-    border: 'rgba(0, 0, 0, 0.06)',
-    error: '#EF4444',
-    success: '#10B981',
-    warning: '#F59E0B',
-
-    glass: {
-      background: 'rgba(255, 255, 255, 0.35)',
-      backgroundHover: 'rgba(255, 255, 255, 0.5)',
-      border: 'rgba(255, 255, 255, 0.6)',
-      borderLight: 'rgba(255, 255, 255, 0.3)',
-      highlight: 'rgba(255, 255, 255, 0.8)',  // specular top edge
-      shadow: 'rgba(0, 0, 0, 0.08)',
-      // Thin variant -- lighter for small interactive elements
-      thinBackground: 'rgba(255, 255, 255, 0.12)',
-      thinBorder: 'rgba(255, 255, 255, 0.2)',
-      // Clear variant -- for media overlays only
-      clearDimming: 'rgba(0, 0, 0, 0.35)',
-    },
+    // Theme-dependent colors REMOVED -- use useThemeStore().colors instead:
+    // background, surface, text, textSecondary, textMuted, border,
+    // error, success, warning, glass.*
 
     touch: {
       glowColor: 'rgba(255, 255, 255, 0.3)',
