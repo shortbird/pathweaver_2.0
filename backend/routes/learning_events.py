@@ -434,12 +434,6 @@ def upload_event_file(user_id, event_id):
     """Upload a file for a learning event evidence block"""
     try:
         from database import get_supabase_admin_client
-        from werkzeug.utils import secure_filename
-        from datetime import datetime
-        import os
-        import mimetypes
-
-        # Admin client: Auth verified by decorator (ADR-002, Rule 3)
         admin_supabase = get_supabase_admin_client()
 
         # Verify event belongs to user
@@ -451,151 +445,46 @@ def upload_event_file(user_id, event_id):
             .execute()
 
         if not event_check.data:
-            return jsonify({
-                'success': False,
-                'error': 'Learning event not found or access denied'
-            }), 404
+            return jsonify({'success': False, 'error': 'Learning event not found or access denied'}), 404
 
-        # Handle file upload
-        if 'file' not in request.files:
-            return jsonify({
-                'success': False,
-                'error': 'No file provided'
-            }), 400
-
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({
-                'success': False,
-                'error': 'No file selected'
-            }), 400
-
-        # Get block type for file validation
+        file = request.files.get('file')
         block_type = request.form.get('block_type', 'document')
 
-        # Validate file
-        filename = secure_filename(file.filename)
-        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        from services.media_upload_service import MediaUploadService
+        result = MediaUploadService(admin_supabase).upload_evidence_file(
+            file,
+            user_id=user_id,
+            context_type='event',
+            context_id=event_id,
+            block_type=block_type,
+        )
 
-        # Determine allowed extensions based on block type
-        if block_type == 'image':
-            allowed_extensions = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
-            max_file_size = 10 * 1024 * 1024  # 10MB
-        elif block_type == 'video':
-            allowed_extensions = {'mp4', 'mov'}
-            max_file_size = 100 * 1024 * 1024  # 100MB
-        elif block_type == 'document':
-            allowed_extensions = {'pdf', 'doc', 'docx', 'txt'}
-            max_file_size = 10 * 1024 * 1024  # 10MB
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'Invalid block type for file upload'
-            }), 400
+        if not result.success:
+            status = 413 if result.error_code == 'FILE_TOO_LARGE' else 400
+            return jsonify({'success': False, 'error': result.error_message}), status
 
-        if ext not in allowed_extensions:
-            return jsonify({
-                'success': False,
-                'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'
-            }), 400
+        response_data = {
+            'success': True,
+            'message': 'File uploaded successfully',
+            'file_url': result.file_url,
+            'filename': result.filename,
+            'file_size': result.file_size,
+            'content_type': result.content_type,
+        }
+        if result.thumbnail_url:
+            response_data['thumbnail_url'] = result.thumbnail_url
+        if result.duration_seconds is not None:
+            response_data['duration_seconds'] = result.duration_seconds
+        if result.width is not None:
+            response_data['width'] = result.width
+        if result.height is not None:
+            response_data['height'] = result.height
 
-        # Check file size
-        file.seek(0, os.SEEK_END)
-        file_size = file.tell()
-        file.seek(0)
-
-        if file_size > max_file_size:
-            max_size_mb = max_file_size // (1024*1024)
-            file_size_mb = file_size / (1024*1024)
-            return jsonify({
-                'success': False,
-                'error': f'File too large ({file_size_mb:.1f}MB). Maximum: {max_size_mb}MB.'
-            }), 413
-
-        # Upload to Supabase storage
-        try:
-            from config.constants import MAX_VIDEO_DURATION_SECONDS
-            from services.video_processing_service import video_processing_service
-
-            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-            unique_filename = f"learning-events/{user_id}/{event_id}_{timestamp}_{filename}"
-
-            file_content = file.read()
-            content_type = file.content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
-
-            # Video-specific processing
-            video_metadata = {}
-            if block_type == 'video':
-                duration_ok, duration = video_processing_service.validate_duration(file_content)
-                if not duration_ok:
-                    return jsonify({
-                        'success': False,
-                        'error': f'Video is too long ({duration:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.'
-                    }), 400
-
-                def upload_thumbnail(thumb_bytes, thumb_name):
-                    thumb_path = f"learning-events/{user_id}/thumbnails/{event_id}_{timestamp}_{thumb_name}"
-                    admin_supabase.storage.from_('quest-evidence').upload(
-                        path=thumb_path,
-                        file=thumb_bytes,
-                        file_options={"content-type": "image/jpeg"}
-                    )
-                    from utils.storage_url import fix_storage_url as fix_url
-                    return fix_url(admin_supabase.storage.from_('quest-evidence').get_public_url(thumb_path))
-
-                meta = video_processing_service.process_video(file_content, storage_upload_fn=upload_thumbnail)
-                video_metadata = {
-                    'thumbnail_url': meta.thumbnail_url,
-                    'duration_seconds': meta.duration_seconds,
-                    'width': meta.width,
-                    'height': meta.height,
-                }
-
-            storage_response = admin_supabase.storage.from_('quest-evidence').upload(
-                path=unique_filename,
-                file=file_content,
-                file_options={"content-type": content_type}
-            )
-
-            from utils.storage_url import fix_storage_url
-            public_url = fix_storage_url(admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename))
-
-            # Transcode/compress video in background
-            if block_type == 'video':
-                video_processing_service.process_video_background(
-                    public_url=public_url,
-                    storage_path=unique_filename,
-                    bucket_name='quest-evidence',
-                    user_id=user_id,
-                )
-
-            # Return the URL only -- evidence blocks are saved via
-            # the /evidence endpoint (which uses the service layer)
-            response_data = {
-                'success': True,
-                'message': 'File uploaded successfully',
-                'file_url': public_url,
-                'filename': filename,
-                'file_size': file_size,
-                'content_type': content_type,
-            }
-            response_data.update(video_metadata)
-
-            return jsonify(response_data)
-
-        except Exception as upload_error:
-            logger.error(f"Error uploading file: {str(upload_error)}")
-            return jsonify({
-                'success': False,
-                'error': 'Failed to upload file'
-            }), 500
+        return jsonify(response_data)
 
     except Exception as e:
         logger.error(f"Error in upload_event_file: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to process file upload'
-        }), 500
+        return jsonify({'success': False, 'error': 'Failed to process file upload'}), 500
 
 
 @learning_events_bp.route('/api/users/<target_user_id>/learning-events/public', methods=['GET'])

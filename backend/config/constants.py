@@ -31,6 +31,19 @@ ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov'}
 ALLOWED_VIDEO_MIME_TYPES = {'video/mp4', 'video/quicktime'}
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'mp4', 'mov'}  # Legacy compatibility
 
+# Grouped evidence upload lookups (used by MediaUploadService)
+EVIDENCE_SIZE_LIMITS = {
+    'image': MAX_IMAGE_SIZE,
+    'video': MAX_VIDEO_SIZE,
+    'document': MAX_DOCUMENT_SIZE,
+}
+
+EVIDENCE_ALLOWED_EXTENSIONS = {
+    'image': ALLOWED_IMAGE_EXTENSIONS,
+    'video': ALLOWED_VIDEO_EXTENSIONS,
+    'document': ALLOWED_DOCUMENT_EXTENSIONS,
+}
+
 # Human-readable format labels for error messages
 IMAGE_FORMAT_LABEL = 'JPG, JPEG, PNG, GIF, WebP, HEIC, HEIF, TIFF, BMP, AVIF'
 DOCUMENT_FORMAT_LABEL = 'PDF, DOC, DOCX, TXT'

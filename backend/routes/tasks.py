@@ -45,12 +45,6 @@ bp = Blueprint('tasks', __name__, url_prefix='/api/tasks')
 evidence_service = EvidenceService()
 xp_service = XPService()
 
-# Import file upload configuration from centralized config
-from config.constants import MAX_IMAGE_SIZE, ALLOWED_IMAGE_EXTENSIONS
-
-# File upload configuration
-UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads/evidence')
-MAX_FILE_SIZE = int(os.getenv('MAX_IMAGE_UPLOAD_SIZE', MAX_IMAGE_SIZE))  # Use centralized constant as default
 
 # Using repository pattern for database access
 @bp.route('/<task_id>/complete', methods=['POST'])
@@ -164,98 +158,30 @@ def complete_task(user_id: str, task_id: str):
             evidence_content = evidence_data['url']
             
         elif evidence_type == 'image' or evidence_type == 'document':
-            # Handle file upload to Supabase storage
-            if 'file' not in request.files:
+            file = request.files.get('file')
+
+            from services.media_upload_service import MediaUploadService
+            result = MediaUploadService(admin_supabase).upload_evidence_file(
+                file,
+                user_id=effective_user_id,
+                context_type='task_evidence',
+                context_id=task_id,
+                block_type=evidence_type,
+            )
+
+            if not result.success:
+                status = 400 if result.error_code != 'FILE_TOO_LARGE' else 400
                 return error_response(
-                    code='VALIDATION_ERROR',
-                    message=f'File is required for {evidence_type} evidence',
-                    status=400
+                    code=result.error_code or 'VALIDATION_ERROR',
+                    message=result.error_message,
+                    status=status,
                 )
 
-            file = request.files['file']
-            if file.filename == '':
-                return error_response(
-                    code='VALIDATION_ERROR',
-                    message='No file selected',
-                    status=400
-                )
-
-            # Validate file extension
-            filename = secure_filename(file.filename)
-            ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-
-            # Set allowed extensions based on evidence type
-            if evidence_type == 'image':
-                allowed_extensions = ALLOWED_IMAGE_EXTENSIONS
-                max_file_size = MAX_FILE_SIZE
-            elif evidence_type == 'document':
-                allowed_extensions = {'pdf', 'doc', 'docx', 'txt'}
-                max_file_size = 25 * 1024 * 1024  # 25MB for documents
-            else:
-                return error_response(
-                    code='VALIDATION_ERROR',
-                    message=f'Unsupported file evidence type: {evidence_type}',
-                    status=400
-                )
-
-            if ext not in allowed_extensions:
-                return error_response(
-                    code='INVALID_FILE_TYPE',
-                    message=f'Invalid {evidence_type} format. Extension "{ext}" not allowed. Allowed: {", ".join(allowed_extensions)}',
-                    details={'allowed_extensions': list(allowed_extensions)},
-                    status=400
-                )
-
-            # Check file size
-            file.seek(0, os.SEEK_END)
-            file_size = file.tell()
-            file.seek(0)
-
-            if file_size > max_file_size:
-                return error_response(
-                    code='FILE_TOO_LARGE',
-                    message=f'File too large. Maximum size: {max_file_size // (1024*1024)}MB',
-                    details={'max_size_mb': max_file_size // (1024*1024)},
-                    status=400
-                )
-
-            # Upload to Supabase storage
-            try:
-                # Generate unique filename for Supabase storage
-                timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-                unique_filename = f"task-evidence/{effective_user_id}/{task_id}_{timestamp}_{filename}"
-
-                # Read file content
-                file_content = file.read()
-                file.seek(0)  # Reset file pointer
-
-                # Determine content type
-                content_type = file.content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
-
-                # Upload to Supabase storage
-                storage_response = admin_supabase.storage.from_('quest-evidence').upload(
-                    path=unique_filename,
-                    file=file_content,
-                    file_options={"content-type": content_type}
-                )
-
-                # Get public URL
-                from utils.storage_url import fix_storage_url
-                public_url = fix_storage_url(admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename))
-
-                evidence_data['file_url'] = public_url
-                evidence_data['file_size'] = file_size
-                evidence_data['original_name'] = filename
-                evidence_data['validated_extension'] = ext  # Flag that we already validated this
-                evidence_content = public_url
-
-            except Exception as upload_error:
-                logger.error(f"Error uploading to Supabase storage: {str(upload_error)}")
-                return error_response(
-                    code='UPLOAD_ERROR',
-                    message='Failed to upload image. Please try again.',
-                    status=500
-                )
+            evidence_data['file_url'] = result.file_url
+            evidence_data['file_size'] = result.file_size
+            evidence_data['original_name'] = result.filename
+            evidence_data['validated_extension'] = result.filename.rsplit('.', 1)[1].lower() if '.' in result.filename else ''
+            evidence_content = result.file_url
 
         # Validate evidence
         is_valid, error_msg = evidence_service.validate_evidence(evidence_type, evidence_data)
