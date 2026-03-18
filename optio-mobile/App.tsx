@@ -45,6 +45,7 @@ export default function App() {
   const hydrateTheme = useThemeStore((state) => state.hydrate);
   const hydrateOnboarding = useOnboardingStore((state) => state.hydrate);
   const themeMode = useThemeStore((state) => state.mode);
+  const themeColors = useThemeStore((state) => state.colors);
 
   const [fontsLoaded] = useFonts({
     'Poppins-Regular': Poppins_400Regular,
@@ -110,7 +111,7 @@ export default function App() {
 
   if (!fontsLoaded) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: tokens.colors.background }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: themeColors.background }}>
         <ActivityIndicator size="large" color={tokens.colors.primary} />
       </View>
     );

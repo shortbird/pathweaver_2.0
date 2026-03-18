@@ -638,7 +638,7 @@ export function JournalDetailScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.evidenceBtn, {
-                backgroundColor: recordingAudio ? tokens.colors.error + '20' : colors.pillars.communication + '15',
+                backgroundColor: recordingAudio ? colors.error + '20' : colors.pillars.communication + '15',
               }]}
               onPress={handleAddAudio}
               disabled={uploading && !recordingAudio}
@@ -647,9 +647,9 @@ export function JournalDetailScreen() {
               <Ionicons
                 name={recordingAudio ? 'stop-circle' : 'mic-outline'}
                 size={20}
-                color={recordingAudio ? tokens.colors.error : colors.pillars.communication}
+                color={recordingAudio ? colors.error : colors.pillars.communication}
               />
-              <Text style={[styles.evidenceBtnText, { color: recordingAudio ? tokens.colors.error : colors.pillars.communication }]}>
+              <Text style={[styles.evidenceBtnText, { color: recordingAudio ? colors.error : colors.pillars.communication }]}>
                 {recordingAudio ? 'Stop' : 'Audio'}
               </Text>
             </TouchableOpacity>
@@ -809,7 +809,7 @@ export function JournalDetailScreen() {
           <View style={styles.pillarRow}>
             {PILLARS.map((p) => {
               const selected = selectedPillars.includes(p.key);
-              const pillarColor = tokens.colors.pillars[p.key];
+              const pillarColor = colors.pillars[p.key];
               return (
                 <TouchableOpacity
                   key={p.key}
@@ -947,13 +947,13 @@ export function JournalDetailScreen() {
 
         {/* Save status */}
         {lastSaved && (
-          <Text style={[styles.saveStatus, { color: lastSaved === 'Saved' ? colors.textMuted : tokens.colors.error }]}>{lastSaved}</Text>
+          <Text style={[styles.saveStatus, { color: lastSaved === 'Saved' ? colors.textMuted : colors.error }]}>{lastSaved}</Text>
         )}
 
         {/* Delete */}
-        <TouchableOpacity style={[styles.deleteBtn, { backgroundColor: tokens.colors.error + '12' }]} onPress={handleDelete} activeOpacity={0.7}>
-          <Ionicons name="trash-outline" size={16} color={tokens.colors.error} />
-          <Text style={styles.deleteBtnText}>Delete Moment</Text>
+        <TouchableOpacity style={[styles.deleteBtn, { backgroundColor: colors.error + '12' }]} onPress={handleDelete} activeOpacity={0.7}>
+          <Ionicons name="trash-outline" size={16} color={colors.error} />
+          <Text style={[styles.deleteBtnText, { color: colors.error }]}>Delete Moment</Text>
         </TouchableOpacity>
 
         {/* Bottom spacer */}
@@ -1302,6 +1302,5 @@ const styles = StyleSheet.create({
   deleteBtnText: {
     fontSize: tokens.typography.sizes.sm,
     fontFamily: tokens.typography.fonts.medium,
-    color: tokens.colors.error,
   },
 });

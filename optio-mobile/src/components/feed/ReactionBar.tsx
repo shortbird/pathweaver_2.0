@@ -9,6 +9,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { tokens, ReactionType } from '../../theme/tokens';
+import { useThemeStore } from '../../stores/themeStore';
 import api from '../../services/api';
 
 const REACTIONS: { type: ReactionType; iconName: keyof typeof Ionicons.glyphMap; label: string }[] = [
@@ -33,6 +34,7 @@ interface ReactionCounts {
 }
 
 export function ReactionBar({ targetType, targetId }: ReactionBarProps) {
+  const { colors } = useThemeStore();
   const [counts, setCounts] = useState<ReactionCounts>({
     proud: 0,
     mind_blown: 0,
@@ -98,7 +100,7 @@ export function ReactionBar({ targetType, targetId }: ReactionBarProps) {
       <View style={styles.compactRow}>
         {REACTIONS.map((r) => (
           <TouchableOpacity key={r.type} style={styles.compactButton} onPress={() => handleReact(r.type)}>
-            <Ionicons name={r.iconName} size={16} color={tokens.colors.textMuted} />
+            <Ionicons name={r.iconName} size={16} color={colors.textMuted} />
           </TouchableOpacity>
         ))}
       </View>
@@ -114,19 +116,27 @@ export function ReactionBar({ targetType, targetId }: ReactionBarProps) {
         return (
           <TouchableOpacity
             key={r.type}
-            style={[styles.reactionChip, isActive && styles.reactionChipActive]}
+            style={[
+              styles.reactionChip,
+              { borderColor: colors.border },
+              isActive && { borderColor: colors.primary, backgroundColor: colors.primary + '10' },
+            ]}
             onPress={() => handleReact(r.type)}
           >
-            <Ionicons name={r.iconName} size={14} color={isActive ? tokens.colors.reactions[r.type] : tokens.colors.textSecondary} />
-            <Text style={[styles.reactionCount, isActive && styles.reactionCountActive]}>
+            <Ionicons name={r.iconName} size={14} color={isActive ? colors.reactions[r.type] : colors.textSecondary} />
+            <Text style={[
+              styles.reactionCount,
+              { color: colors.textSecondary },
+              isActive && { color: colors.primary },
+            ]}>
               {count}
             </Text>
           </TouchableOpacity>
         );
       })}
       {/* Show add button for reactions with 0 count */}
-      <TouchableOpacity style={styles.addReaction}>
-        <Text style={styles.addReactionText}>+</Text>
+      <TouchableOpacity style={[styles.addReaction, { borderColor: colors.border }]}>
+        <Text style={[styles.addReactionText, { color: colors.textMuted }]}>+</Text>
       </TouchableOpacity>
     </View>
   );
@@ -156,37 +166,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 3,
     borderWidth: 1,
-    borderColor: tokens.colors.border,
     borderRadius: tokens.radius.full,
     paddingVertical: 2,
     paddingHorizontal: tokens.spacing.sm,
-  },
-  reactionChipActive: {
-    borderColor: tokens.colors.primary,
-    backgroundColor: tokens.colors.primary + '10',
   },
   reactionIcon: {
     fontSize: 14,
   },
   reactionCount: {
     fontSize: tokens.typography.sizes.xs,
-    color: tokens.colors.textSecondary,
-  },
-  reactionCountActive: {
-    color: tokens.colors.primary,
-    fontWeight: tokens.typography.weights.semiBold,
   },
   addReaction: {
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: tokens.colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   addReactionText: {
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.textMuted,
   },
 });

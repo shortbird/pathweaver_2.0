@@ -429,14 +429,14 @@ export function QuickCapture({
         <View style={styles.section}>
           {recording && (
             <View style={styles.recordingIndicator}>
-              <View style={styles.recordingDot} />
-              <Text style={[styles.recordingLabel, { color: tokens.colors.error }]}>Recording...</Text>
+              <View style={[styles.recordingDot, { backgroundColor: colors.error }]} />
+              <Text style={[styles.recordingLabel, { color: colors.error }]}>Recording...</Text>
             </View>
           )}
           <TouchableOpacity
             style={[
               styles.captureAction,
-              { backgroundColor: recording ? tokens.colors.error + '15' : colors.pillars.communication + '15' },
+              { backgroundColor: recording ? colors.error + '15' : colors.pillars.communication + '15' },
               transcribing && styles.disabled,
             ]}
             onPress={recording ? stopRecording : startRecording}
@@ -449,11 +449,11 @@ export function QuickCapture({
                 <Ionicons
                   name={recording ? 'stop' : 'mic-outline'}
                   size={24}
-                  color={recording ? tokens.colors.error : colors.pillars.communication}
+                  color={recording ? colors.error : colors.pillars.communication}
                 />
                 <Text style={[
                   styles.captureActionText,
-                  { color: recording ? tokens.colors.error : colors.pillars.communication },
+                  { color: recording ? colors.error : colors.pillars.communication },
                 ]}>
                   {recording ? 'Stop Recording' : 'Record Audio'}
                 </Text>
@@ -561,7 +561,6 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: tokens.colors.error,
   },
   recordingLabel: {
     fontSize: tokens.typography.sizes.md,

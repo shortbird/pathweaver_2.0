@@ -22,6 +22,7 @@ import { shopCategoryIcons } from '../theme/icons';
 import { SurfaceCard } from '../components/common/SurfaceCard';
 import { GlassBackground } from '../components/common/GlassBackground';
 import { useYetiStore, ShopItem } from '../stores/yetiStore';
+import { useThemeStore } from '../stores/themeStore';
 
 const CATEGORIES = [
   { key: null, label: 'All' },
@@ -32,6 +33,7 @@ const CATEGORIES = [
 
 export function ShopScreen() {
   const navigation = useNavigation();
+  const { colors } = useThemeStore();
   const { shopItems, spendableXp, isLoading, error, loadShop, loadBalance, buyItem, clearError } =
     useYetiStore();
   const [category, setCategory] = useState<string | null>(null);
@@ -73,7 +75,7 @@ export function ShopScreen() {
   if (isLoading && shopItems.length === 0) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={tokens.colors.primary} />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -82,11 +84,11 @@ export function ShopScreen() {
     <GlassBackground style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color={tokens.colors.primary} />
-          <Text style={styles.backButton}>Back</Text>
+          <Ionicons name="chevron-back" size={22} color={colors.primary} />
+          <Text style={[styles.backButton, { color: colors.primary }]}>Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Yeti Shop</Text>
-        <View style={styles.balanceBadge}>
+        <Text style={[styles.title, { color: colors.text }]}>Yeti Shop</Text>
+        <View style={[styles.balanceBadge, { backgroundColor: colors.accent }]}>
           <Text style={styles.balanceText}>{spendableXp} XP</Text>
         </View>
       </View>
@@ -95,12 +97,17 @@ export function ShopScreen() {
         {CATEGORIES.map((cat) => (
           <TouchableOpacity
             key={cat.key ?? 'all'}
-            style={[styles.categoryChip, category === cat.key && styles.categoryChipActive]}
+            style={[
+              styles.categoryChip,
+              { borderColor: colors.border },
+              category === cat.key && { backgroundColor: colors.primary, borderColor: colors.primary },
+            ]}
             onPress={() => setCategory(cat.key)}
           >
             <Text
               style={[
                 styles.categoryChipText,
+                { color: colors.textSecondary },
                 category === cat.key && styles.categoryChipTextActive,
               ]}
             >
@@ -127,7 +134,7 @@ export function ShopScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No items available.</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No items available.</Text>
           </View>
         }
       />
@@ -146,6 +153,8 @@ function ShopItemCard({
   buying: boolean;
   onBuy: () => void;
 }) {
+  const { colors } = useThemeStore();
+
   const effectLines: string[] = [];
   if (item.effect?.hunger) effectLines.push(`+${item.effect.hunger} Hunger`);
   if (item.effect?.happiness) effectLines.push(`+${item.effect.happiness} Happy`);
@@ -153,22 +162,22 @@ function ShopItemCard({
 
   return (
     <SurfaceCard style={styles.itemCard}>
-      <View style={styles.itemIconCircle}>
-        <Ionicons name={(shopCategoryIcons[item.category] || 'cube-outline') as any} size={28} color={tokens.colors.primary} />
+      <View style={[styles.itemIconCircle, { backgroundColor: colors.primary + '10' }]}>
+        <Ionicons name={(shopCategoryIcons[item.category] || 'cube-outline') as any} size={28} color={colors.primary} />
       </View>
-      <Text style={styles.itemName} numberOfLines={1}>
+      <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={1}>
         {item.name}
       </Text>
       {item.rarity !== 'common' && (
-        <Text style={[styles.rarityBadge, item.rarity === 'legendary' && styles.legendary]}>
+        <Text style={[styles.rarityBadge, { color: colors.pillars.art }, item.rarity === 'legendary' && { color: colors.warning }]}>
           {item.rarity}
         </Text>
       )}
       {effectLines.length > 0 && (
-        <Text style={styles.itemEffect}>{effectLines.join(', ')}</Text>
+        <Text style={[styles.itemEffect, { color: colors.textSecondary }]}>{effectLines.join(', ')}</Text>
       )}
       <TouchableOpacity
-        style={[styles.buyButton, !canAfford && styles.buyButtonDisabled]}
+        style={[styles.buyButton, { backgroundColor: colors.primary }, !canAfford && styles.buyButtonDisabled]}
         onPress={onBuy}
         disabled={!canAfford || buying}
       >
@@ -209,16 +218,13 @@ const styles = StyleSheet.create({
   },
   backButton: {
     fontSize: tokens.typography.sizes.md,
-    color: tokens.colors.primary,
     fontWeight: tokens.typography.weights.semiBold,
   },
   title: {
     fontSize: tokens.typography.sizes.xl,
     fontWeight: tokens.typography.weights.bold,
-    color: tokens.colors.text,
   },
   balanceBadge: {
-    backgroundColor: tokens.colors.accent,
     borderRadius: tokens.radius.full,
     paddingVertical: tokens.spacing.xs,
     paddingHorizontal: tokens.spacing.md,
@@ -236,18 +242,12 @@ const styles = StyleSheet.create({
   },
   categoryChip: {
     borderWidth: 1,
-    borderColor: tokens.colors.border,
     borderRadius: tokens.radius.full,
     paddingVertical: tokens.spacing.xs,
     paddingHorizontal: tokens.spacing.md,
   },
-  categoryChipActive: {
-    backgroundColor: tokens.colors.primary,
-    borderColor: tokens.colors.primary,
-  },
   categoryChipText: {
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.textSecondary,
   },
   categoryChipTextActive: {
     color: '#FFF',
@@ -268,7 +268,6 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: tokens.colors.primary + '10',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: tokens.spacing.sm,
@@ -276,27 +275,20 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: tokens.typography.sizes.sm,
     fontWeight: tokens.typography.weights.semiBold,
-    color: tokens.colors.text,
     textAlign: 'center',
     marginBottom: tokens.spacing.xs,
   },
   rarityBadge: {
     fontSize: tokens.typography.sizes.xs,
-    color: tokens.colors.pillars.art,
     fontWeight: tokens.typography.weights.medium,
     marginBottom: tokens.spacing.xs,
   },
-  legendary: {
-    color: tokens.colors.warning,
-  },
   itemEffect: {
     fontSize: tokens.typography.sizes.xs,
-    color: tokens.colors.textSecondary,
     textAlign: 'center',
     marginBottom: tokens.spacing.sm,
   },
   buyButton: {
-    backgroundColor: tokens.colors.primary,
     borderRadius: tokens.radius.sm,
     paddingVertical: tokens.spacing.xs,
     paddingHorizontal: tokens.spacing.md,
@@ -317,6 +309,5 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: tokens.typography.sizes.lg,
-    color: tokens.colors.textSecondary,
   },
 });
