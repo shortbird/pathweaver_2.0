@@ -71,7 +71,7 @@ export const evidenceDocumentService = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 120000, // 2 minute timeout for video uploads
+        timeout: 300000, // 5 minute timeout for large video uploads + server-side compression
       };
 
       if (onProgress) {
@@ -99,7 +99,7 @@ export const evidenceDocumentService = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 120000, // 2 minute timeout for video uploads
+        timeout: 300000, // 5 minute timeout for large video uploads + server-side compression
       };
 
       if (onProgress) {

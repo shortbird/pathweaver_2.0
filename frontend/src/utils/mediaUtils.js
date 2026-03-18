@@ -78,7 +78,7 @@ export function detectMediaType(file) {
 export function validateFileSize(file, mediaType) {
   const limits = {
     image: 10 * 1024 * 1024,
-    video: 100 * 1024 * 1024,
+    video: 250 * 1024 * 1024, // Server compresses videos >50MB
     document: 25 * 1024 * 1024,
   };
   const maxBytes = limits[mediaType] || limits.document;
