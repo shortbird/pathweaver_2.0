@@ -145,6 +145,7 @@ class VideoProcessingService:
                 self._ffmpeg_path, '-y',
                 '-i', tmp_input,
                 '-c:v', 'libx264',
+                '-pix_fmt', 'yuv420p',  # Force 8-bit (10-bit H.264 not supported by Firefox/WMF)
                 '-c:a', 'aac',
                 '-movflags', '+faststart',
             ]
