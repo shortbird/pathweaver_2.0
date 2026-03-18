@@ -43,20 +43,6 @@ evidence_service = EvidenceService()
 xp_service = XPService()
 
 # Import file upload configuration from centralized config
-from config.constants import (
-    MAX_IMAGE_SIZE,
-    MAX_DOCUMENT_SIZE,
-    MAX_VIDEO_SIZE,
-    MAX_VIDEO_DURATION_SECONDS,
-    ALLOWED_IMAGE_EXTENSIONS,
-    ALLOWED_DOCUMENT_EXTENSIONS,
-    ALLOWED_VIDEO_EXTENSIONS,
-    ALLOWED_VIDEO_MIME_TYPES,
-    IMAGE_FORMAT_LABEL,
-    DOCUMENT_FORMAT_LABEL,
-    VIDEO_FORMAT_LABEL,
-)
-from services.video_processing_service import video_processing_service
 
 # File upload configuration
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads/evidence')
@@ -385,146 +371,47 @@ def upload_task_file(user_id: str, task_id: str):
             .execute()
 
         if not task_check.data:
-            return jsonify({
-                'success': False,
-                'error': 'Task not found'
-            }), 404
-
+            return jsonify({'success': False, 'error': 'Task not found'}), 404
         if task_check.data[0]['user_id'] != user_id:
-            return jsonify({
-                'success': False,
-                'error': 'Access denied'
-            }), 403
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
 
-        # Handle file upload
-        if 'file' not in request.files:
-            return jsonify({
-                'success': False,
-                'error': 'No file provided'
-            }), 400
+        file = request.files.get('file')
+        block_type = request.form.get('block_type') or None
 
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({
-                'success': False,
-                'error': 'No file selected'
-            }), 400
+        from services.media_upload_service import MediaUploadService
+        result = MediaUploadService(admin_supabase).upload_evidence_file(
+            file,
+            user_id=user_id,
+            context_type='task',
+            context_id=task_id,
+            block_type=block_type,
+        )
 
-        # Validate file
-        filename = secure_filename(file.filename)
-        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        if not result.success:
+            status = 413 if result.error_code == 'FILE_TOO_LARGE' else 400
+            return jsonify({'success': False, 'error': result.error_message}), status
 
-        # Determine block type from form data or extension
-        block_type = request.form.get('block_type', '')
-        is_video = block_type == 'video' or ext in ALLOWED_VIDEO_EXTENSIONS
+        response_data = {
+            'success': True,
+            'url': result.file_url,
+            'filename': result.filename,
+            'file_size': result.file_size,
+            'content_type': result.content_type,
+        }
+        if result.thumbnail_url:
+            response_data['thumbnail_url'] = result.thumbnail_url
+        if result.duration_seconds is not None:
+            response_data['duration_seconds'] = result.duration_seconds
+        if result.width is not None:
+            response_data['width'] = result.width
+        if result.height is not None:
+            response_data['height'] = result.height
 
-        # Allow image, document, and video extensions
-        allowed_extensions = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS | ALLOWED_VIDEO_EXTENSIONS
-        if is_video:
-            max_file_size = MAX_VIDEO_SIZE
-        else:
-            max_file_size = max(MAX_IMAGE_SIZE, MAX_DOCUMENT_SIZE)
-
-        if ext not in allowed_extensions:
-            format_label = f'{IMAGE_FORMAT_LABEL}, {DOCUMENT_FORMAT_LABEL}, {VIDEO_FORMAT_LABEL}'
-            return jsonify({
-                'success': False,
-                'error': f'File type ".{ext}" is not supported. Supported formats: {format_label}.'
-            }), 400
-
-        # Check file size
-        file.seek(0, os.SEEK_END)
-        file_size = file.tell()
-        file.seek(0)
-
-        if file_size > max_file_size:
-            max_size_mb = max_file_size // (1024*1024)
-            file_size_mb = file_size / (1024*1024)
-            return jsonify({
-                'success': False,
-                'error': f'File is too large ({file_size_mb:.1f}MB). Maximum allowed size is {max_size_mb}MB. Try compressing the file or use a link instead.'
-            }), 413
-
-        # Upload to Supabase storage
-        try:
-            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-            unique_filename = f"evidence-tasks/{user_id}/{task_id}_{timestamp}_{filename}"
-
-            file_content = file.read()
-            content_type = file.content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
-
-            # Video-specific processing
-            video_metadata = {}
-            if is_video:
-                # Validate duration
-                duration_ok, duration = video_processing_service.validate_duration(file_content)
-                if not duration_ok:
-                    return jsonify({
-                        'success': False,
-                        'error': f'Video is too long ({duration:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.'
-                    }), 400
-
-                # Process video (thumbnail + metadata) -- uses raw file, fast
-                def upload_thumbnail(thumb_bytes, thumb_name):
-                    thumb_path = f"evidence-tasks/{user_id}/thumbnails/{task_id}_{timestamp}_{thumb_name}"
-                    admin_supabase.storage.from_('quest-evidence').upload(
-                        path=thumb_path,
-                        file=thumb_bytes,
-                        file_options={"content-type": "image/jpeg"}
-                    )
-                    from utils.storage_url import fix_storage_url
-                    return fix_storage_url(admin_supabase.storage.from_('quest-evidence').get_public_url(thumb_path))
-
-                meta = video_processing_service.process_video(file_content, storage_upload_fn=upload_thumbnail)
-                video_metadata = {
-                    'thumbnail_url': meta.thumbnail_url,
-                    'duration_seconds': meta.duration_seconds,
-                    'width': meta.width,
-                    'height': meta.height,
-                }
-
-            storage_response = admin_supabase.storage.from_('quest-evidence').upload(
-                path=unique_filename,
-                file=file_content,
-                file_options={"content-type": content_type}
-            )
-
-            from utils.storage_url import fix_storage_url
-            public_url = fix_storage_url(admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename))
-
-            # Transcode/compress video in background (HEVC, large files)
-            if is_video:
-                video_processing_service.process_video_background(
-                    public_url=public_url,
-                    storage_path=unique_filename,
-                    bucket_name='quest-evidence',
-                    user_id=user_id,
-                )
-
-            response_data = {
-                'success': True,
-                'url': public_url,
-                'filename': filename,
-                'file_size': file_size,
-                'content_type': content_type,
-            }
-            response_data.update(video_metadata)
-
-            return jsonify(response_data)
-
-        except Exception as upload_error:
-            logger.error(f"Error uploading file: {str(upload_error)}")
-            return jsonify({
-                'success': False,
-                'error': 'Failed to upload file'
-            }), 500
+        return jsonify(response_data)
 
     except Exception as e:
         logger.error(f"Error in upload_task_file: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to process file upload'
-        }), 500
+        return jsonify({'success': False, 'error': 'Failed to process file upload'}), 500
 
 @bp.route('/blocks/<block_id>/upload', methods=['POST'])
 @rate_limit(limit=20, per=3600)  # CVE-OPTIO-2025-017 FIX: 20 uploads per hour
@@ -534,10 +421,9 @@ def upload_block_file(user_id: str, block_id: str):
     Upload a file for a specific content block (image or document).
     """
     try:
-        # Admin client: Spark SSO compatibility (ADR-002, Rule 4)
         admin_supabase = get_supabase_admin_client()
 
-        # Validate the block exists and belongs to the user
+        # Validate block exists and user owns it
         block_response = admin_supabase.table('evidence_document_blocks')\
             .select('*, user_task_evidence_documents(user_id)')\
             .eq('id', block_id)\
@@ -545,175 +431,78 @@ def upload_block_file(user_id: str, block_id: str):
             .execute()
 
         if not block_response.data:
-            return jsonify({
-                'success': False,
-                'error': 'Block not found'
-            }), 404
+            return jsonify({'success': False, 'error': 'Block not found'}), 404
 
         block = block_response.data
-
-        # Validate user owns the document (manual RLS check)
         document_user_id = block.get('user_task_evidence_documents', {}).get('user_id') if isinstance(block.get('user_task_evidence_documents'), dict) else None
         if document_user_id != user_id:
-            return jsonify({
-                'success': False,
-                'error': 'Access denied'
-            }), 403
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         block_type = block['block_type']
-
         if block_type not in ['image', 'document', 'video']:
-            return jsonify({
-                'success': False,
-                'error': 'File upload only supported for image, document, and video blocks'
-            }), 400
+            return jsonify({'success': False, 'error': 'File upload only supported for image, document, and video blocks'}), 400
 
-        # Handle file upload
-        if 'file' not in request.files:
-            return jsonify({
-                'success': False,
-                'error': 'No file provided'
-            }), 400
+        file = request.files.get('file')
 
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({
-                'success': False,
-                'error': 'No file selected'
-            }), 400
+        from services.media_upload_service import MediaUploadService
+        result = MediaUploadService(admin_supabase).upload_evidence_file(
+            file,
+            user_id=user_id,
+            context_type='block',
+            context_id=block_id,
+            block_type=block_type,
+        )
 
-        # Validate file
-        filename = secure_filename(file.filename)
-        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        if not result.success:
+            status = 413 if result.error_code == 'FILE_TOO_LARGE' else 400
+            return jsonify({'success': False, 'error': result.error_message}), status
 
-        if block_type == 'image':
-            allowed_extensions = ALLOWED_IMAGE_EXTENSIONS
-            max_file_size = MAX_IMAGE_SIZE
-        elif block_type == 'video':
-            allowed_extensions = ALLOWED_VIDEO_EXTENSIONS
-            max_file_size = MAX_VIDEO_SIZE
-        else:  # document
-            allowed_extensions = ALLOWED_DOCUMENT_EXTENSIONS
-            max_file_size = MAX_DOCUMENT_SIZE
+        # Update block content with file information
+        current_content = block.get('content', {})
+        current_content.update({
+            'url': result.file_url,
+            'filename': result.filename,
+            'file_size': result.file_size,
+            'content_type': result.content_type,
+        })
+        if result.thumbnail_url:
+            current_content['thumbnail_url'] = result.thumbnail_url
+        if result.duration_seconds is not None:
+            current_content['duration_seconds'] = result.duration_seconds
+        if result.width is not None:
+            current_content['width'] = result.width
+        if result.height is not None:
+            current_content['height'] = result.height
 
-        if ext not in allowed_extensions:
-            format_label = IMAGE_FORMAT_LABEL if block_type == 'image' else VIDEO_FORMAT_LABEL if block_type == 'video' else DOCUMENT_FORMAT_LABEL
-            return jsonify({
-                'success': False,
-                'error': f'File type ".{ext}" is not supported for {block_type} uploads. Supported formats: {format_label}.'
-            }), 400
+        if block_type == 'image' and not current_content.get('alt'):
+            current_content['alt'] = result.filename
 
-        # Check file size
-        file.seek(0, os.SEEK_END)
-        file_size = file.tell()
-        file.seek(0)
+        admin_supabase.table('evidence_document_blocks')\
+            .update({'content': current_content})\
+            .eq('id', block_id)\
+            .execute()
 
-        if file_size > max_file_size:
-            max_size_mb = max_file_size // (1024*1024)
-            file_size_mb = file_size / (1024*1024)
-            return jsonify({
-                'success': False,
-                'error': f'File is too large ({file_size_mb:.1f}MB). Maximum allowed size is {max_size_mb}MB. For larger files, upload to Google Drive or Dropbox and use a link instead.',
-                'file_size': file_size,
-                'max_size': max_file_size
-            }), 413
+        response_data = {
+            'success': True,
+            'message': 'File uploaded successfully',
+            'file_url': result.file_url,
+            'filename': result.filename,
+            'file_size': result.file_size,
+        }
+        if result.thumbnail_url:
+            response_data['thumbnail_url'] = result.thumbnail_url
+        if result.duration_seconds is not None:
+            response_data['duration_seconds'] = result.duration_seconds
+        if result.width is not None:
+            response_data['width'] = result.width
+        if result.height is not None:
+            response_data['height'] = result.height
 
-        # Upload to Supabase storage
-        try:
-            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-            unique_filename = f"evidence-blocks/{user_id}/{block_id}_{timestamp}_{filename}"
-
-            file_content = file.read()
-            content_type = file.content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
-
-            # Video-specific processing
-            video_metadata = {}
-            if block_type == 'video':
-                duration_ok, duration = video_processing_service.validate_duration(file_content)
-                if not duration_ok:
-                    return jsonify({
-                        'success': False,
-                        'error': f'Video is too long ({duration:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.'
-                    }), 400
-
-                def upload_thumbnail(thumb_bytes, thumb_name):
-                    thumb_path = f"evidence-blocks/{user_id}/thumbnails/{block_id}_{timestamp}_{thumb_name}"
-                    admin_supabase.storage.from_('quest-evidence').upload(
-                        path=thumb_path,
-                        file=thumb_bytes,
-                        file_options={"content-type": "image/jpeg"}
-                    )
-                    from utils.storage_url import fix_storage_url as fix_url
-                    return fix_url(admin_supabase.storage.from_('quest-evidence').get_public_url(thumb_path))
-
-                meta = video_processing_service.process_video(file_content, storage_upload_fn=upload_thumbnail)
-                video_metadata = {
-                    'thumbnail_url': meta.thumbnail_url,
-                    'duration_seconds': meta.duration_seconds,
-                    'width': meta.width,
-                    'height': meta.height,
-                }
-
-            storage_response = admin_supabase.storage.from_('quest-evidence').upload(
-                path=unique_filename,
-                file=file_content,
-                file_options={"content-type": content_type}
-            )
-
-            from utils.storage_url import fix_storage_url
-            public_url = fix_storage_url(admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename))
-
-            # Transcode/compress video in background
-            if is_video:
-                video_processing_service.process_video_background(
-                    public_url=public_url,
-                    storage_path=unique_filename,
-                    bucket_name='quest-evidence',
-                    user_id=user_id,
-                )
-
-            # Update block content with file information
-            current_content = block.get('content', {})
-            current_content.update({
-                'url': public_url,
-                'filename': filename,
-                'file_size': file_size,
-                'content_type': content_type
-            })
-            current_content.update(video_metadata)
-
-            if block_type == 'image' and not current_content.get('alt'):
-                current_content['alt'] = filename
-
-            admin_supabase.table('evidence_document_blocks')\
-                .update({'content': current_content})\
-                .eq('id', block_id)\
-                .execute()
-
-            response_data = {
-                'success': True,
-                'message': 'File uploaded successfully',
-                'file_url': public_url,
-                'filename': filename,
-                'file_size': file_size,
-            }
-            response_data.update(video_metadata)
-
-            return jsonify(response_data)
-
-        except Exception as upload_error:
-            logger.error(f"Error uploading file: {str(upload_error)}")
-            return jsonify({
-                'success': False,
-                'error': 'Failed to upload file'
-            }), 500
+        return jsonify(response_data)
 
     except Exception as e:
         logger.error(f"Error in upload_block_file: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to process file upload'
-        }), 500
+        return jsonify({'success': False, 'error': 'Failed to process file upload'}), 500
 
 def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], status: str = 'completed'):
     """

@@ -6,7 +6,7 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED
 """
 
 from flask import Blueprint, request, jsonify
-from utils.auth.decorators import require_auth
+from utils.auth.decorators import require_auth, require_role
 from database import get_supabase_admin_client
 from repositories import (
     UserRepository,
@@ -280,3 +280,127 @@ def upload_evidence_base64(user_id):
         # Log upload error with details (P1-QUAL-1: specific exception handling)
         logger.error(f"[Upload] Base64 upload failed for user {user_id}: {e}", exc_info=True)
         return jsonify({'error': 'Upload failed. Please try again.'}), 500
+
+
+# --- Direct-to-Supabase upload for large files (superadmin only) ---
+
+@bp.route('/api/uploads/request-signed-url', methods=['POST'])
+@require_auth
+@require_role('superadmin')
+def request_signed_upload_url(user_id):
+    """
+    Generate a signed upload URL for direct-to-Supabase file upload.
+    Bypasses Render's 100MB request body limit.
+    Superadmin only for now.
+
+    Body JSON: { filename, content_type, context_type, context_id, sub_id? }
+    Returns: { upload_url, storage_path, bucket, token }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
+
+        filename = data.get('filename')
+        content_type = data.get('content_type', 'video/mp4')
+        context_type = data.get('context_type')
+        context_id = data.get('context_id')
+        sub_id = data.get('sub_id')
+
+        if not filename or not context_type or not context_id:
+            return jsonify({'error': 'filename, context_type, and context_id required'}), 400
+
+        from services.media_upload_service import MediaUploadService
+        service = MediaUploadService()
+
+        # Validate the file type first
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        block_type = service._detect_media_type(ext)
+        validation = service.validate_file(filename, 0, block_type)
+        if not validation.success and validation.error_code == 'INVALID_TYPE':
+            return jsonify({'error': validation.error_message}), 400
+
+        # Generate storage path
+        storage_path = service._generate_storage_path(
+            context_type=context_type,
+            context_id=context_id,
+            user_id=user_id,
+            filename=secure_filename(filename),
+            ext=ext,
+            sub_id=sub_id,
+        )
+
+        from services.media_upload_service import DEFAULT_BUCKETS
+        bucket = DEFAULT_BUCKETS.get(context_type, 'quest-evidence')
+
+        # Create signed upload URL
+        supabase = get_supabase_admin_client()
+        result = supabase.storage.from_(bucket).create_signed_upload_url(storage_path)
+
+        if not result or not result.get('signed_url'):
+            logger.error(f"[Upload] Failed to create signed URL for {storage_path}: {result}")
+            return jsonify({'error': 'Failed to create upload URL'}), 500
+
+        logger.info(f"[Upload] Signed URL created for superadmin {user_id}: {bucket}/{storage_path}")
+
+        return jsonify({
+            'upload_url': result['signed_url'],
+            'storage_path': storage_path,
+            'bucket': bucket,
+            'token': result.get('token', ''),
+        }), 200
+
+    except Exception as e:
+        logger.error(f"[Upload] Failed to create signed URL: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to create upload URL'}), 500
+
+
+@bp.route('/api/uploads/process-uploaded', methods=['POST'])
+@require_auth
+@require_role('superadmin')
+def process_uploaded_file(user_id):
+    """
+    Trigger background processing for a file uploaded directly to Supabase.
+    Called after the frontend completes a direct upload via signed URL.
+
+    Body JSON: { storage_path, bucket }
+    Returns: { success, file_url }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
+
+        storage_path = data.get('storage_path')
+        bucket = data.get('bucket', 'quest-evidence')
+
+        if not storage_path:
+            return jsonify({'error': 'storage_path required'}), 400
+
+        supabase = get_supabase_admin_client()
+
+        # Get public URL
+        from utils.storage_url import fix_storage_url
+        public_url = fix_storage_url(supabase.storage.from_(bucket).get_public_url(storage_path))
+
+        # Kick off background video processing
+        ext = storage_path.rsplit('.', 1)[1].lower() if '.' in storage_path else ''
+        if ext in ('mp4', 'mov'):
+            from services.video_processing_service import video_processing_service
+            video_processing_service.process_video_background(
+                public_url=public_url,
+                storage_path=storage_path,
+                bucket_name=bucket,
+                user_id=user_id,
+            )
+
+        logger.info(f"[Upload] Processing triggered for direct upload: {bucket}/{storage_path}")
+
+        return jsonify({
+            'success': True,
+            'file_url': public_url,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"[Upload] Failed to process uploaded file: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to process uploaded file'}), 500

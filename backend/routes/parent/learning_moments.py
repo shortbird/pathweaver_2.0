@@ -12,18 +12,11 @@ from services.file_upload_service import FileUploadService
 from services.interest_tracks_service import InterestTracksService
 from services.learning_events_service import LearningEventsService
 from utils.logger import get_logger
-import uuid
 
 logger = get_logger(__name__)
 
 bp = Blueprint('parent_learning_moments', __name__, url_prefix='/api/parent')
 
-# Constants for file uploads
-MAX_MEDIA_SIZE = 100 * 1024 * 1024  # 100MB
-ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
-ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx'}
-ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov'}
-ALLOWED_UPLOAD_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS | ALLOWED_VIDEO_EXTENSIONS
 
 
 @bp.route('/children/<child_id>/learning-moments', methods=['POST'])
@@ -195,75 +188,27 @@ def upload_moment_media(user_id, child_id):
     """
     try:
         supabase = get_supabase_admin_client()
-
-        # Verify parent has access to this child
         verify_parent_access(supabase, user_id, child_id)
 
-        if 'file' not in request.files:
-            raise ValidationError("No file provided")
-
-        file = request.files['file']
-
-        if not file or not file.filename:
-            raise ValidationError("No file selected")
-
-        # Get file extension
-        filename = file.filename
-        file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-
-        if file_ext not in ALLOWED_UPLOAD_EXTENSIONS:
-            allowed = ', '.join(sorted(ALLOWED_UPLOAD_EXTENSIONS))
-            raise ValidationError(f'Invalid file type ".{file_ext}". Allowed: {allowed}')
-
-        # Read file content
-        file_data = file.read()
-        file_size = len(file_data)
-
-        if file_size > MAX_MEDIA_SIZE:
-            raise ValidationError(f"File size exceeds {MAX_MEDIA_SIZE // (1024*1024)}MB limit")
-
-        # Determine media type
-        if file_ext in ALLOWED_VIDEO_EXTENSIONS:
-            media_type = 'video'
-        elif file_ext in ALLOWED_IMAGE_EXTENSIONS:
-            media_type = 'image'
-        else:
-            media_type = 'document'
-
-        # Generate unique filename
-        unique_filename = f"learning_moments/{child_id}/{uuid.uuid4()}.{file_ext}"
-
-        # Upload to Supabase storage immediately (raw file)
-        bucket_name = 'user-uploads'
-
-        upload_response = supabase.storage.from_(bucket_name).upload(
-            path=unique_filename,
-            file=file_data,
-            file_options={"content-type": file.content_type}
+        file = request.files.get('file')
+        from services.media_upload_service import MediaUploadService
+        result = MediaUploadService(supabase).upload_evidence_file(
+            file,
+            user_id=user_id,
+            context_type='moment',
+            context_id=child_id,
         )
 
-        # Get public URL
-        from utils.storage_url import fix_storage_url
-        file_url = fix_storage_url(supabase.storage.from_(bucket_name).get_public_url(unique_filename))
-
-        # Process video in background (transcode HEVC, compress if needed)
-        if media_type == 'video':
-            from services.video_processing_service import video_processing_service
-            video_processing_service.process_video_background(
-                public_url=file_url,
-                storage_path=unique_filename,
-                bucket_name=bucket_name,
-                user_id=user_id,
-            )
-
-        logger.info(f"Parent {user_id} uploaded {media_type} for child {child_id}")
+        if not result.success:
+            status = 413 if result.error_code == 'FILE_TOO_LARGE' else 400
+            return jsonify({'error': result.error_message}), status
 
         return jsonify({
             'success': True,
-            'file_url': file_url,
-            'file_name': filename,
-            'file_size': file_size,
-            'media_type': media_type
+            'file_url': result.file_url,
+            'file_name': result.filename,
+            'file_size': result.file_size,
+            'media_type': result.media_type,
         }), 200
 
     except AuthorizationError as e:
@@ -887,13 +832,7 @@ def delete_child_learning_moment(user_id, child_id, moment_id):
                 except Exception as e:
                     logger.warning(f"Failed to delete storage file during moment deletion: {e}")
 
-        # Delete evidence blocks
-        supabase.table('learning_event_evidence_blocks') \
-            .delete() \
-            .eq('learning_event_id', moment_id) \
-            .execute()
-
-        # Delete the moment (junction rows cascade-delete)
+        # Delete the moment (evidence blocks and junction rows cascade-delete)
         delete_response = supabase.table('learning_events') \
             .delete() \
             .eq('id', moment_id) \
@@ -1059,79 +998,33 @@ def upload_child_moment_file(user_id, child_id, moment_id):
 
         moment = moment_response.data
 
-        # Check if parent captured this moment
         if moment.get('captured_by_user_id') != user_id:
             raise AuthorizationError('You can only upload to moments you captured')
 
-        if 'file' not in request.files:
-            raise ValidationError('No file provided')
-
-        file = request.files['file']
+        file = request.files.get('file')
         block_type = request.form.get('block_type', 'image')
-        order_index = request.form.get('order_index', 0, type=int)
 
-        if not file or not file.filename:
-            raise ValidationError('No file selected')
-
-        # Get file extension
-        filename = file.filename
-        file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-
-        # Validate file type based on block_type
-        if block_type == 'image':
-            allowed = ALLOWED_IMAGE_EXTENSIONS
-        elif block_type == 'video':
-            allowed = ALLOWED_VIDEO_EXTENSIONS
-        elif block_type == 'document':
-            allowed = ALLOWED_DOCUMENT_EXTENSIONS
-        else:
-            allowed = ALLOWED_UPLOAD_EXTENSIONS
-
-        if file_ext not in allowed:
-            raise ValidationError(f'Invalid file type for {block_type}')
-
-        # Read file content
-        file_data = file.read()
-        file_size = len(file_data)
-
-        if file_size > MAX_MEDIA_SIZE:
-            raise ValidationError(f"File size exceeds {MAX_MEDIA_SIZE // (1024*1024)}MB limit")
-
-        # Generate unique filename
-        unique_filename = f"learning_moments/{child_id}/{moment_id}/{uuid.uuid4()}.{file_ext}"
-
-        # Upload raw file to Supabase storage immediately
-        bucket_name = 'user-uploads'
-
-        supabase.storage.from_(bucket_name).upload(
-            path=unique_filename,
-            file=file_data,
-            file_options={"content-type": file.content_type}
+        from services.media_upload_service import MediaUploadService
+        result = MediaUploadService(supabase).upload_evidence_file(
+            file,
+            user_id=user_id,
+            context_type='moment_block',
+            context_id=child_id,
+            block_type=block_type,
+            sub_id=moment_id,
         )
 
-        # Get public URL
-        from utils.storage_url import fix_storage_url
-        file_url = fix_storage_url(supabase.storage.from_(bucket_name).get_public_url(unique_filename))
-
-        # Process video in background (transcode HEVC, compress if needed)
-        if block_type == 'video':
-            from services.video_processing_service import video_processing_service
-            video_processing_service.process_video_background(
-                public_url=file_url,
-                storage_path=unique_filename,
-                bucket_name=bucket_name,
-                user_id=user_id,
-            )
-
-        logger.info(f"Parent {user_id} uploaded file for moment {moment_id}")
+        if not result.success:
+            status = 413 if result.error_code == 'FILE_TOO_LARGE' else 400
+            return jsonify({'error': result.error_message}), status
 
         return jsonify({
             'success': True,
-            'file_url': file_url,
-            'filename': filename,
-            'file_name': filename,
-            'file_size': file_size,
-            'message': 'File uploaded successfully'
+            'file_url': result.file_url,
+            'filename': result.filename,
+            'file_name': result.filename,
+            'file_size': result.file_size,
+            'message': 'File uploaded successfully',
         }), 200
 
     except AuthorizationError as e:

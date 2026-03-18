@@ -9,18 +9,11 @@ from utils.auth.decorators import require_auth
 from middleware.error_handler import AuthorizationError, ValidationError
 from routes.advisor.student_overview import verify_advisor_access
 from utils.logger import get_logger
-import uuid
 
 logger = get_logger(__name__)
 
 bp = Blueprint('advisor_learning_moments', __name__, url_prefix='/api/advisor')
 
-# Constants for file uploads
-MAX_MEDIA_SIZE = 100 * 1024 * 1024  # 100MB
-ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
-ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx'}
-ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov'}
-ALLOWED_UPLOAD_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS | ALLOWED_VIDEO_EXTENSIONS
 
 
 @bp.route('/students/<student_id>/learning-moments', methods=['POST'])
@@ -171,69 +164,27 @@ def upload_moment_media(user_id, student_id):
     """
     try:
         supabase = get_supabase_admin_client()
-
-        # Verify advisor has access to this student
         verify_advisor_access(supabase, user_id, student_id)
 
-        if 'file' not in request.files:
-            raise ValidationError("No file provided")
-
-        file = request.files['file']
-
-        if not file or not file.filename:
-            raise ValidationError("No file selected")
-
-        filename = file.filename
-        file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-
-        if file_ext not in ALLOWED_UPLOAD_EXTENSIONS:
-            allowed = ', '.join(sorted(ALLOWED_UPLOAD_EXTENSIONS))
-            raise ValidationError(f'Invalid file type ".{file_ext}". Allowed: {allowed}')
-
-        file_data = file.read()
-        file_size = len(file_data)
-
-        if file_size > MAX_MEDIA_SIZE:
-            raise ValidationError(f"File size exceeds {MAX_MEDIA_SIZE // (1024*1024)}MB limit")
-
-        if file_ext in ALLOWED_VIDEO_EXTENSIONS:
-            media_type = 'video'
-        elif file_ext in ALLOWED_IMAGE_EXTENSIONS:
-            media_type = 'image'
-        else:
-            media_type = 'document'
-
-        unique_filename = f"learning_moments/{student_id}/{uuid.uuid4()}.{file_ext}"
-
-        bucket_name = 'user-uploads'
-
-        supabase.storage.from_(bucket_name).upload(
-            path=unique_filename,
-            file=file_data,
-            file_options={"content-type": file.content_type}
+        file = request.files.get('file')
+        from services.media_upload_service import MediaUploadService
+        result = MediaUploadService(supabase).upload_evidence_file(
+            file,
+            user_id=user_id,
+            context_type='moment',
+            context_id=student_id,
         )
 
-        from utils.storage_url import fix_storage_url
-        file_url = fix_storage_url(supabase.storage.from_(bucket_name).get_public_url(unique_filename))
-
-        # Process video in background (transcode HEVC, compress if needed)
-        if media_type == 'video':
-            from services.video_processing_service import video_processing_service
-            video_processing_service.process_video_background(
-                public_url=file_url,
-                storage_path=unique_filename,
-                bucket_name=bucket_name,
-                user_id=user_id,
-            )
-
-        logger.info(f"Advisor {user_id} uploaded {media_type} for student {student_id}")
+        if not result.success:
+            status = 413 if result.error_code == 'FILE_TOO_LARGE' else 400
+            return jsonify({'error': result.error_message}), status
 
         return jsonify({
             'success': True,
-            'file_url': file_url,
-            'file_name': filename,
-            'file_size': file_size,
-            'media_type': media_type
+            'file_url': result.file_url,
+            'file_name': result.filename,
+            'file_size': result.file_size,
+            'media_type': result.media_type,
         }), 200
 
     except AuthorizationError as e:

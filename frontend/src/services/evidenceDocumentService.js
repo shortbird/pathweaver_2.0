@@ -212,4 +212,57 @@ export const evidenceDocumentService = {
   }
 };
 
+/**
+ * Direct-to-Supabase upload for large files (superadmin only).
+ * Bypasses Render's 100MB limit by uploading directly to Supabase storage.
+ */
+export async function directUploadLargeFile(file, { contextType, contextId, subId, onProgress } = {}) {
+  // Step 1: Request a signed upload URL from the backend
+  const signedResponse = await api.post('/api/uploads/request-signed-url', {
+    filename: file.name,
+    content_type: file.type || 'video/mp4',
+    context_type: contextType,
+    context_id: contextId,
+    sub_id: subId,
+  });
+
+  const { upload_url, storage_path, bucket, token } = signedResponse.data;
+
+  // Step 2: Upload directly to Supabase via the signed URL
+  await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', upload_url);
+    xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+    if (token) {
+      xhr.setRequestHeader('x-upsert', 'true');
+    }
+
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Upload failed with status ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Upload failed'));
+    xhr.send(file);
+  });
+
+  // Step 3: Tell the backend to process the uploaded file
+  const processResponse = await api.post('/api/uploads/process-uploaded', {
+    storage_path,
+    bucket,
+  });
+
+  return processResponse.data;
+}
+
 export default evidenceDocumentService;
