@@ -9,6 +9,8 @@ import subprocess
 import tempfile
 import os
 import json
+import threading
+import requests
 from dataclasses import dataclass
 from typing import Optional
 
@@ -180,6 +182,83 @@ class VideoProcessingService:
                 os.unlink(tmp_input)
             if tmp_output and os.path.exists(tmp_output):
                 os.unlink(tmp_output)
+
+    def process_video_background(self, public_url, storage_path, bucket_name, user_id):
+        """
+        Process a video in a background thread after it has already been uploaded.
+
+        Downloads the raw video from Supabase, transcodes/compresses as needed,
+        then re-uploads the processed version to the same path.
+        Sends a notification to the user if processing fails.
+        """
+        if not self._ffmpeg_available:
+            return
+
+        def _process():
+            try:
+                logger.info(f"[VideoProcessing:BG] Starting background processing for {storage_path}")
+
+                # Download the raw video from Supabase
+                response = requests.get(public_url, timeout=120)
+                if response.status_code != 200:
+                    logger.error(f"[VideoProcessing:BG] Failed to download video: HTTP {response.status_code}")
+                    self._notify_failure(user_id, "Could not download video for processing")
+                    return
+
+                file_content = response.content
+                original_size = len(file_content)
+
+                # Process (transcode + compress if needed)
+                processed = self.ensure_h264(file_content)
+
+                # If nothing changed, no need to re-upload
+                if processed is file_content:
+                    logger.info(f"[VideoProcessing:BG] No processing needed for {storage_path}")
+                    return
+
+                # Re-upload the processed version (overwrite original)
+                from database import get_supabase_admin_client
+                supabase = get_supabase_admin_client()
+
+                # Delete old file first, then upload new one (Supabase doesn't support overwrite)
+                try:
+                    supabase.storage.from_(bucket_name).remove([storage_path])
+                except Exception:
+                    pass  # File may already be gone
+
+                supabase.storage.from_(bucket_name).upload(
+                    path=storage_path,
+                    file=processed,
+                    file_options={"content-type": "video/mp4"}
+                )
+
+                new_size = len(processed)
+                logger.info(
+                    f"[VideoProcessing:BG] Done: {storage_path} "
+                    f"({original_size / (1024*1024):.1f}MB -> {new_size / (1024*1024):.1f}MB)"
+                )
+
+            except Exception as e:
+                logger.error(f"[VideoProcessing:BG] Failed for {storage_path}: {e}", exc_info=True)
+                self._notify_failure(user_id, f"Video processing failed. The original video was kept.")
+
+        thread = threading.Thread(target=_process, daemon=True)
+        thread.start()
+
+    def _notify_failure(self, user_id, message):
+        """Send a notification to the user about a video processing failure."""
+        try:
+            from services.notification_service import NotificationService
+            from database import get_supabase_admin_client
+            svc = NotificationService(get_supabase_admin_client())
+            svc.create_notification(
+                user_id=user_id,
+                notification_type='video_processing',
+                title='Video Processing Issue',
+                message=message,
+            )
+        except Exception as e:
+            logger.error(f"[VideoProcessing:BG] Failed to send notification: {e}")
 
     def validate_duration(self, file_content: bytes) -> tuple[bool, Optional[float]]:
         """

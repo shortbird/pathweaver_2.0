@@ -33,7 +33,7 @@ class ObserverAuditService(BaseService):
             user_id: UUID of authenticated user (for RLS enforcement)
         """
         super().__init__()
-        self.audit_repo = ObserverAuditRepository(user_id=user_id)
+        self.audit_repo = ObserverAuditRepository(user_id=None)
 
     def log_observer_access(
         self,

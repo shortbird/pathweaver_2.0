@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 bp = Blueprint('parent_learning_moments', __name__, url_prefix='/api/parent')
 
 # Constants for file uploads
-MAX_MEDIA_SIZE = 250 * 1024 * 1024  # 250MB (server compresses videos >50MB)
+MAX_MEDIA_SIZE = 100 * 1024 * 1024  # 100MB
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
 ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx'}
 ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov'}
@@ -230,16 +230,10 @@ def upload_moment_media(user_id, child_id):
         else:
             media_type = 'document'
 
-        # Transcode video to H.264 if needed (HEVC from iPhones won't play in Firefox)
-        if media_type == 'video':
-            from services.video_processing_service import video_processing_service
-            file_data = video_processing_service.ensure_h264(file_data)
-
         # Generate unique filename
         unique_filename = f"learning_moments/{child_id}/{uuid.uuid4()}.{file_ext}"
 
-        # Upload to Supabase storage
-        # Use 'user-uploads' bucket which is commonly used for user-generated content
+        # Upload to Supabase storage immediately (raw file)
         bucket_name = 'user-uploads'
 
         upload_response = supabase.storage.from_(bucket_name).upload(
@@ -251,6 +245,16 @@ def upload_moment_media(user_id, child_id):
         # Get public URL
         from utils.storage_url import fix_storage_url
         file_url = fix_storage_url(supabase.storage.from_(bucket_name).get_public_url(unique_filename))
+
+        # Process video in background (transcode HEVC, compress if needed)
+        if media_type == 'video':
+            from services.video_processing_service import video_processing_service
+            video_processing_service.process_video_background(
+                public_url=file_url,
+                storage_path=unique_filename,
+                bucket_name=bucket_name,
+                user_id=user_id,
+            )
 
         logger.info(f"Parent {user_id} uploaded {media_type} for child {child_id}")
 
@@ -1093,15 +1097,10 @@ def upload_child_moment_file(user_id, child_id, moment_id):
         if file_size > MAX_MEDIA_SIZE:
             raise ValidationError(f"File size exceeds {MAX_MEDIA_SIZE // (1024*1024)}MB limit")
 
-        # Transcode video to H.264 if needed (HEVC from iPhones won't play in Firefox)
-        if block_type == 'video':
-            from services.video_processing_service import video_processing_service
-            file_data = video_processing_service.ensure_h264(file_data)
-
         # Generate unique filename
         unique_filename = f"learning_moments/{child_id}/{moment_id}/{uuid.uuid4()}.{file_ext}"
 
-        # Upload to Supabase storage
+        # Upload raw file to Supabase storage immediately
         bucket_name = 'user-uploads'
 
         supabase.storage.from_(bucket_name).upload(
@@ -1113,6 +1112,16 @@ def upload_child_moment_file(user_id, child_id, moment_id):
         # Get public URL
         from utils.storage_url import fix_storage_url
         file_url = fix_storage_url(supabase.storage.from_(bucket_name).get_public_url(unique_filename))
+
+        # Process video in background (transcode HEVC, compress if needed)
+        if block_type == 'video':
+            from services.video_processing_service import video_processing_service
+            video_processing_service.process_video_background(
+                public_url=file_url,
+                storage_path=unique_filename,
+                bucket_name=bucket_name,
+                user_id=user_id,
+            )
 
         logger.info(f"Parent {user_id} uploaded file for moment {moment_id}")
 

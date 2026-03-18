@@ -234,7 +234,7 @@ export class EvidenceMediaHandlers {
       }
 
       // Validate file size
-      const maxSize = blockType === 'video' ? 250 * 1024 * 1024 : blockType === 'document' ? 25 * 1024 * 1024 : 10 * 1024 * 1024;
+      const maxSize = blockType === 'video' ? 100 * 1024 * 1024 : blockType === 'document' ? 25 * 1024 * 1024 : 10 * 1024 * 1024;
       const maxSizeMB = maxSize / (1024 * 1024);
       if (file.size > maxSize) {
         const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
