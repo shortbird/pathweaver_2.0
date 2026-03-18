@@ -1,17 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { FeedCard } from '../components/observer';
 import { LockClosedIcon } from '@heroicons/react/24/outline';
 
 export default function SharedFeedPostPage() {
   const { token } = useParams();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Fetch (or re-fetch) whenever auth state changes
   useEffect(() => {
+    if (authLoading) return;
+
     const fetchPost = async () => {
+      setLoading(true);
+      setError(null);
       try {
         const response = await api.get(`/api/public/feed/${token}`);
         setData(response.data);
@@ -26,9 +33,9 @@ export default function SharedFeedPostPage() {
       }
     };
     fetchPost();
-  }, [token]);
+  }, [token, isAuthenticated, authLoading]);
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600" />
@@ -57,8 +64,31 @@ export default function SharedFeedPostPage() {
     );
   }
 
-  // Access denied -- non-observer
-  if (data?.access === 'denied') {
+  // Access denied -- not logged in
+  if (data?.access === 'denied' && !data?.logged_in) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-md mx-auto px-4 pt-20 text-center">
+          <div className="bg-white rounded-2xl shadow-lg p-8">
+            <LockClosedIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Log In to View</h2>
+            <p className="text-gray-600 mb-6">You need to be logged in as an approved observer to view this post.</p>
+            <Link
+              to="/login"
+              state={{ from: `/shared/feed/${token}` }}
+              className="inline-block px-6 py-2 text-sm font-medium rounded-lg text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 transition-all"
+            >
+              Log in
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Access denied -- logged in but not an approved observer
+  if (data?.access === 'denied' && data?.logged_in) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header />
@@ -66,8 +96,7 @@ export default function SharedFeedPostPage() {
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <LockClosedIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-gray-900 mb-2">Observer Access Required</h2>
-            <p className="text-gray-600 mb-4">{data.message}</p>
-            <p className="text-gray-500 text-sm mb-6">Already have an account? <Link to="/login" className="text-purple-600 hover:text-purple-700 font-medium">Log in</Link> to view this post.</p>
+            <p className="text-gray-600 mb-6">You need to be an approved observer for this student to view their posts. Contact their parent about getting observer access.</p>
             <Link
               to="/"
               className="text-purple-600 hover:text-purple-700 font-medium text-sm"

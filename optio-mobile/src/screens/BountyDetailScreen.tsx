@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { tokens, PillarKey } from '../theme/tokens';
 import { SurfaceCard } from '../components/common/SurfaceCard';
 import { useAuthStore } from '../stores/authStore';
+import { useThemeStore } from '../stores/themeStore';
 import { useBountyStore, Bounty, BountyClaim } from '../stores/bountyStore';
 import api from '../services/api';
 
@@ -26,6 +27,7 @@ export function BountyDetailScreen() {
   const route = useRoute<any>();
   const bountyId = route.params?.bountyId;
   const { user } = useAuthStore();
+  const { colors } = useThemeStore();
   const { myClaims, claimBounty, submitEvidence, loadMyClaims } = useBountyStore();
 
   const [bounty, setBounty] = useState<Bounty | null>(null);
@@ -91,8 +93,8 @@ export function BountyDetailScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={tokens.colors.primary} />
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -101,14 +103,14 @@ export function BountyDetailScreen() {
 
   const deadline = new Date(bounty.deadline);
   const daysLeft = Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-  const pillarColor = tokens.colors.pillars[bounty.pillar as PillarKey] || tokens.colors.textMuted;
+  const pillarColor = colors.pillars[bounty.pillar as PillarKey] || colors.textMuted;
   const isActive = bounty.status === 'active';
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-        <Ionicons name="chevron-back" size={22} color={tokens.colors.primary} />
-        <Text style={styles.backButton}>Back</Text>
+        <Ionicons name="chevron-back" size={22} color={colors.primary} />
+        <Text style={[styles.backButton, { color: colors.primary }]}>Back</Text>
       </TouchableOpacity>
 
       {/* Bounty Info */}
@@ -119,36 +121,36 @@ export function BountyDetailScreen() {
               {bounty.pillar.charAt(0).toUpperCase() + bounty.pillar.slice(1)}
             </Text>
           </View>
-          <Text style={styles.typeBadge}>{bounty.bounty_type}</Text>
+          <Text style={[styles.typeBadge, { color: colors.textMuted }]}>{bounty.bounty_type}</Text>
         </View>
 
-        <Text style={styles.bountyTitle}>{bounty.title}</Text>
-        <Text style={styles.bountyDescription}>{bounty.description}</Text>
+        <Text style={[styles.bountyTitle, { color: colors.text }]}>{bounty.title}</Text>
+        <Text style={[styles.bountyDescription, { color: colors.textSecondary }]}>{bounty.description}</Text>
 
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-        <Text style={styles.sectionLabel}>Requirements</Text>
-        <Text style={styles.requirements}>{bounty.requirements}</Text>
+        <Text style={[styles.sectionLabel, { color: colors.text }]}>Requirements</Text>
+        <Text style={[styles.requirements, { color: colors.textSecondary }]}>{bounty.requirements}</Text>
 
-        <View style={styles.statsRow}>
+        <View style={[styles.statsRow, { borderTopColor: colors.border }]}>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>+{bounty.xp_reward}</Text>
-            <Text style={styles.statLabel}>XP Reward</Text>
+            <Text style={[styles.statValue, { color: colors.primary }]}>+{bounty.xp_reward}</Text>
+            <Text style={[styles.statLabel, { color: colors.textMuted }]}>XP Reward</Text>
           </View>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>{bounty.max_participants}</Text>
-            <Text style={styles.statLabel}>Max Slots</Text>
+            <Text style={[styles.statValue, { color: colors.primary }]}>{bounty.max_participants}</Text>
+            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Max Slots</Text>
           </View>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>{daysLeft}d</Text>
-            <Text style={styles.statLabel}>Left</Text>
+            <Text style={[styles.statValue, { color: colors.primary }]}>{daysLeft}d</Text>
+            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Left</Text>
           </View>
         </View>
 
         {bounty.sponsored_reward && (
-          <View style={styles.rewardCard}>
-            <Text style={styles.rewardTitle}>Sponsored Prize</Text>
-            <Text style={styles.rewardText}>{bounty.sponsored_reward}</Text>
+          <View style={[styles.rewardCard, { backgroundColor: colors.success + '10' }]}>
+            <Text style={[styles.rewardTitle, { color: colors.success }]}>Sponsored Prize</Text>
+            <Text style={[styles.rewardText, { color: colors.text }]}>{bounty.sponsored_reward}</Text>
           </View>
         )}
       </SurfaceCard>
@@ -158,9 +160,9 @@ export function BountyDetailScreen() {
         <SurfaceCard style={styles.card}>
           {!myClaim ? (
             <>
-              <Text style={styles.sectionTitle}>Ready to take this on?</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Ready to take this on?</Text>
               <TouchableOpacity
-                style={[styles.claimButton, claiming && styles.buttonDisabled]}
+                style={[styles.claimButton, { backgroundColor: colors.accent }, claiming && styles.buttonDisabled]}
                 onPress={handleClaim}
                 disabled={claiming}
               >
@@ -173,27 +175,27 @@ export function BountyDetailScreen() {
             </>
           ) : myClaim.status === 'claimed' ? (
             <>
-              <Text style={styles.sectionTitle}>Submit Your Evidence</Text>
-              <Text style={styles.claimStatus}>Status: Claimed - Waiting for your submission</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Submit Your Evidence</Text>
+              <Text style={[styles.claimStatus, { color: colors.textSecondary }]}>Status: Claimed - Waiting for your submission</Text>
               <TextInput
-                style={styles.evidenceInput}
+                style={[styles.evidenceInput, { borderColor: colors.border, color: colors.text }]}
                 placeholder="Describe what you did..."
-                placeholderTextColor={tokens.colors.textMuted}
+                placeholderTextColor={colors.textMuted}
                 value={evidenceText}
                 onChangeText={setEvidenceText}
                 multiline
               />
               <TextInput
-                style={styles.urlInput}
+                style={[styles.urlInput, { borderColor: colors.border, color: colors.text }]}
                 placeholder="Link to evidence (optional)"
-                placeholderTextColor={tokens.colors.textMuted}
+                placeholderTextColor={colors.textMuted}
                 value={evidenceUrl}
                 onChangeText={setEvidenceUrl}
                 autoCapitalize="none"
                 keyboardType="url"
               />
               <TouchableOpacity
-                style={[styles.submitButton, submitting && styles.buttonDisabled]}
+                style={[styles.submitButton, { backgroundColor: colors.primary }, submitting && styles.buttonDisabled]}
                 onPress={handleSubmit}
                 disabled={submitting}
               >
@@ -206,35 +208,35 @@ export function BountyDetailScreen() {
             </>
           ) : myClaim.status === 'submitted' ? (
             <>
-              <Text style={styles.sectionTitle}>Evidence Submitted</Text>
-              <Text style={styles.claimStatus}>Waiting for review by the bounty poster.</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Evidence Submitted</Text>
+              <Text style={[styles.claimStatus, { color: colors.textSecondary }]}>Waiting for review by the bounty poster.</Text>
               {myClaim.evidence?.text && (
-                <Text style={styles.evidencePreview}>{myClaim.evidence.text}</Text>
+                <Text style={[styles.evidencePreview, { color: colors.textSecondary }]}>{myClaim.evidence.text}</Text>
               )}
             </>
           ) : myClaim.status === 'approved' ? (
             <>
-              <Text style={styles.sectionTitle}>Bounty Completed!</Text>
-              <Text style={styles.approvedText}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Bounty Completed!</Text>
+              <Text style={[styles.approvedText, { color: colors.success }]}>
                 You earned +{bounty.xp_reward} XP for completing this bounty.
               </Text>
             </>
           ) : myClaim.status === 'rejected' ? (
-            <Text style={styles.rejectedText}>Your submission was not accepted.</Text>
+            <Text style={[styles.rejectedText, { color: colors.error }]}>Your submission was not accepted.</Text>
           ) : myClaim.status === 'revision_requested' ? (
             <>
-              <Text style={styles.sectionTitle}>Revision Requested</Text>
-              <Text style={styles.claimStatus}>The poster asked for changes. Resubmit below.</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Revision Requested</Text>
+              <Text style={[styles.claimStatus, { color: colors.textSecondary }]}>The poster asked for changes. Resubmit below.</Text>
               <TextInput
-                style={styles.evidenceInput}
+                style={[styles.evidenceInput, { borderColor: colors.border, color: colors.text }]}
                 placeholder="Updated evidence..."
-                placeholderTextColor={tokens.colors.textMuted}
+                placeholderTextColor={colors.textMuted}
                 value={evidenceText}
                 onChangeText={setEvidenceText}
                 multiline
               />
               <TouchableOpacity
-                style={[styles.submitButton, submitting && styles.buttonDisabled]}
+                style={[styles.submitButton, { backgroundColor: colors.primary }, submitting && styles.buttonDisabled]}
                 onPress={handleSubmit}
                 disabled={submitting}
               >
@@ -251,7 +253,7 @@ export function BountyDetailScreen() {
 
       {!isActive && (
         <SurfaceCard style={styles.card}>
-          <Text style={styles.inactiveText}>
+          <Text style={[styles.inactiveText, { color: colors.textMuted }]}>
             This bounty is {bounty.status === 'pending_review' ? 'pending moderation' : bounty.status}.
           </Text>
         </SurfaceCard>
@@ -264,7 +266,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     overflow: 'hidden',
-    backgroundColor: tokens.colors.background,
   },
   scrollContent: {
     paddingTop: 60,
@@ -275,7 +276,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: tokens.colors.background,
   },
   backBtn: {
     flexDirection: 'row',
@@ -285,7 +285,6 @@ const styles = StyleSheet.create({
   },
   backButton: {
     fontSize: tokens.typography.sizes.md,
-    color: tokens.colors.primary,
     fontWeight: tokens.typography.weights.semiBold,
   },
   card: {
@@ -309,34 +308,28 @@ const styles = StyleSheet.create({
   },
   typeBadge: {
     fontSize: tokens.typography.sizes.xs,
-    color: tokens.colors.textMuted,
     textTransform: 'capitalize',
   },
   bountyTitle: {
     fontSize: tokens.typography.sizes.xl,
     fontWeight: tokens.typography.weights.bold,
-    color: tokens.colors.text,
     marginBottom: tokens.spacing.sm,
   },
   bountyDescription: {
     fontSize: tokens.typography.sizes.md,
-    color: tokens.colors.textSecondary,
     lineHeight: 24,
   },
   divider: {
     height: 1,
-    backgroundColor: tokens.colors.border,
     marginVertical: tokens.spacing.md,
   },
   sectionLabel: {
     fontSize: tokens.typography.sizes.sm,
     fontWeight: tokens.typography.weights.semiBold,
-    color: tokens.colors.text,
     marginBottom: tokens.spacing.xs,
   },
   requirements: {
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.textSecondary,
     lineHeight: 22,
   },
   statsRow: {
@@ -345,7 +338,6 @@ const styles = StyleSheet.create({
     marginTop: tokens.spacing.lg,
     paddingTop: tokens.spacing.md,
     borderTopWidth: 1,
-    borderTopColor: tokens.colors.border,
   },
   stat: {
     alignItems: 'center',
@@ -353,14 +345,11 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: tokens.typography.sizes.xl,
     fontWeight: tokens.typography.weights.bold,
-    color: tokens.colors.primary,
   },
   statLabel: {
     fontSize: tokens.typography.sizes.xs,
-    color: tokens.colors.textMuted,
   },
   rewardCard: {
-    backgroundColor: tokens.colors.success + '10',
     borderRadius: tokens.radius.sm,
     padding: tokens.spacing.md,
     marginTop: tokens.spacing.md,
@@ -368,26 +357,21 @@ const styles = StyleSheet.create({
   rewardTitle: {
     fontSize: tokens.typography.sizes.sm,
     fontWeight: tokens.typography.weights.semiBold,
-    color: tokens.colors.success,
     marginBottom: tokens.spacing.xs,
   },
   rewardText: {
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.text,
   },
   sectionTitle: {
     fontSize: tokens.typography.sizes.lg,
     fontWeight: tokens.typography.weights.semiBold,
-    color: tokens.colors.text,
     marginBottom: tokens.spacing.sm,
   },
   claimStatus: {
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.textSecondary,
     marginBottom: tokens.spacing.md,
   },
   claimButton: {
-    backgroundColor: tokens.colors.accent,
     borderRadius: tokens.radius.md,
     padding: tokens.spacing.md,
     alignItems: 'center',
@@ -399,26 +383,21 @@ const styles = StyleSheet.create({
   },
   evidenceInput: {
     borderWidth: 1,
-    borderColor: tokens.colors.border,
     borderRadius: tokens.radius.sm,
     padding: tokens.spacing.md,
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.text,
     minHeight: 80,
     textAlignVertical: 'top',
     marginBottom: tokens.spacing.sm,
   },
   urlInput: {
     borderWidth: 1,
-    borderColor: tokens.colors.border,
     borderRadius: tokens.radius.sm,
     padding: tokens.spacing.sm,
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.text,
     marginBottom: tokens.spacing.md,
   },
   submitButton: {
-    backgroundColor: tokens.colors.primary,
     borderRadius: tokens.radius.md,
     padding: tokens.spacing.md,
     alignItems: 'center',
@@ -433,22 +412,18 @@ const styles = StyleSheet.create({
   },
   evidencePreview: {
     fontSize: tokens.typography.sizes.sm,
-    color: tokens.colors.textSecondary,
     fontStyle: 'italic',
     marginTop: tokens.spacing.sm,
   },
   approvedText: {
     fontSize: tokens.typography.sizes.md,
-    color: tokens.colors.success,
     fontWeight: tokens.typography.weights.semiBold,
   },
   rejectedText: {
     fontSize: tokens.typography.sizes.md,
-    color: tokens.colors.error,
   },
   inactiveText: {
     fontSize: tokens.typography.sizes.md,
-    color: tokens.colors.textMuted,
     textAlign: 'center',
     textTransform: 'capitalize',
   },
