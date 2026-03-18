@@ -203,6 +203,11 @@ def upload_moment_media(user_id, student_id):
         else:
             media_type = 'document'
 
+        # Transcode video to H.264 if needed (HEVC from iPhones won't play in Firefox)
+        if media_type == 'video':
+            from services.video_processing_service import video_processing_service
+            file_data = video_processing_service.ensure_h264(file_data)
+
         unique_filename = f"learning_moments/{student_id}/{uuid.uuid4()}.{file_ext}"
 
         bucket_name = 'user-uploads'
