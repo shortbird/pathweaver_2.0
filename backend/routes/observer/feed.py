@@ -100,6 +100,11 @@ def register_routes(bp):
                     student_ids.append(sid)
                     evidence_permissions[sid] = True  # Parents can view their children's evidence
 
+            # Always include the user's own activity in the feed
+            if observer_id not in student_ids:
+                student_ids.append(observer_id)
+                evidence_permissions[observer_id] = True
+
             if not student_ids:
                 return jsonify({'items': [], 'has_more': False}), 200
 
@@ -378,7 +383,9 @@ def register_routes(bp):
                             media_item = {
                                 'type': 'video',
                                 'url': content.get('url') or block.get('file_url'),
-                                'title': content.get('title')
+                                'title': content.get('title'),
+                                'thumbnail_url': content.get('thumbnail_url'),
+                                'duration_seconds': content.get('duration_seconds'),
                             }
                         elif block['block_type'] == 'link':
                             media_item = {

@@ -309,14 +309,17 @@ export default function OptioBuddy({
     outputRange: [0, -bounceAmplitude],
   });
 
-  const armRotL = armVal.interpolate({
+  // On native Android, AnimatedG rotation with originX/originY is unreliable —
+  // arms rotate around (0,0) instead of the shoulder. Use translateY for a
+  // subtle bob instead of rotation.
+  const armBobL = armVal.interpolate({
     inputRange: [-1, 0, 1],
-    outputRange: [-armSwingDeg, 0, armSwingDeg],
+    outputRange: [-armSwingDeg * 0.3, 0, armSwingDeg * 0.3],
   });
 
-  const armRotR = armVal.interpolate({
+  const armBobR = armVal.interpolate({
     inputRange: [-1, 0, 1],
-    outputRange: [armSwingDeg, 0, -armSwingDeg],
+    outputRange: [armSwingDeg * 0.3, 0, -armSwingDeg * 0.3],
   });
 
   const eggRotation = eggSwayVal.interpolate({
@@ -345,7 +348,7 @@ export default function OptioBuddy({
   if (isEgg) {
     return (
       <TouchableOpacity onPress={onTap} activeOpacity={0.8}>
-        <Svg viewBox="0 185 400 150" width={width} height={height}>
+        <Svg viewBox="0 140 400 220" width={width} height={height}>
           {/* Shadow */}
           <Ellipse cx={200} cy={310} rx={40} ry={8} fill="black" opacity={0.08} />
           {/* Egg group with sway */}
@@ -380,7 +383,7 @@ export default function OptioBuddy({
   // ── Buddy render ──
   return (
     <TouchableOpacity onPress={onTap} activeOpacity={0.9}>
-      <Svg viewBox="0 185 400 150" width={width} height={height}>
+      <Svg viewBox="0 140 400 220" width={width} height={height}>
         {/* Shadow */}
         <Ellipse cx={200} cy={320} rx={50 * scale} ry={10} fill="black" opacity={0.1} />
 
@@ -389,7 +392,7 @@ export default function OptioBuddy({
           {/* Scale group for tap/feed reactions */}
           <AnimatedG scale={tapScaleVal} originX={200} originY={bodyCy}>
             {/* Back arm */}
-            <AnimatedG rotation={armRotL} originX={armLx} originY={armCy}>
+            <AnimatedG y={armBobL}>
               <Ellipse
                 cx={armLx}
                 cy={armCy}
@@ -422,7 +425,7 @@ export default function OptioBuddy({
             />
 
             {/* Front arm */}
-            <AnimatedG rotation={armRotR} originX={armRxPos} originY={armCy}>
+            <AnimatedG y={armBobR}>
               <Ellipse
                 cx={armRxPos}
                 cy={armCy}

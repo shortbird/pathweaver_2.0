@@ -122,7 +122,9 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
     onError
   }), [blocks, documentStatus, taskId, onError]);
 
-  const addBlock = (type, position) => {
+  const addBlock = (rawType, position) => {
+    // Camera type opens as image block -- the block renderer supports both photo and video uploads
+    const type = rawType === 'camera' ? 'image' : rawType;
     const newBlock = {
       id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type,

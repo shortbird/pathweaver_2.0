@@ -481,6 +481,9 @@ def upload_event_file(user_id, event_id):
         if block_type == 'image':
             allowed_extensions = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
             max_file_size = 10 * 1024 * 1024  # 10MB
+        elif block_type == 'video':
+            allowed_extensions = {'mp4', 'mov'}
+            max_file_size = 100 * 1024 * 1024  # 100MB
         elif block_type == 'document':
             allowed_extensions = {'pdf', 'doc', 'docx', 'txt'}
             max_file_size = 10 * 1024 * 1024  # 10MB
@@ -511,11 +514,42 @@ def upload_event_file(user_id, event_id):
 
         # Upload to Supabase storage
         try:
+            from config.constants import MAX_VIDEO_DURATION_SECONDS
+            from services.video_processing_service import video_processing_service
+
             timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
             unique_filename = f"learning-events/{user_id}/{event_id}_{timestamp}_{filename}"
 
             file_content = file.read()
             content_type = file.content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+
+            # Video-specific processing
+            video_metadata = {}
+            if block_type == 'video':
+                duration_ok, duration = video_processing_service.validate_duration(file_content)
+                if not duration_ok:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Video is too long ({duration:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.'
+                    }), 400
+
+                def upload_thumbnail(thumb_bytes, thumb_name):
+                    thumb_path = f"learning-events/{user_id}/thumbnails/{event_id}_{timestamp}_{thumb_name}"
+                    admin_supabase.storage.from_('quest-evidence').upload(
+                        path=thumb_path,
+                        file=thumb_bytes,
+                        file_options={"content-type": "image/jpeg"}
+                    )
+                    from utils.storage_url import fix_storage_url as fix_url
+                    return fix_url(admin_supabase.storage.from_('quest-evidence').get_public_url(thumb_path))
+
+                meta = video_processing_service.process_video(file_content, storage_upload_fn=upload_thumbnail)
+                video_metadata = {
+                    'thumbnail_url': meta.thumbnail_url,
+                    'duration_seconds': meta.duration_seconds,
+                    'width': meta.width,
+                    'height': meta.height,
+                }
 
             storage_response = admin_supabase.storage.from_('quest-evidence').upload(
                 path=unique_filename,
@@ -528,14 +562,17 @@ def upload_event_file(user_id, event_id):
 
             # Return the URL only -- evidence blocks are saved via
             # the /evidence endpoint (which uses the service layer)
-            return jsonify({
+            response_data = {
                 'success': True,
                 'message': 'File uploaded successfully',
                 'file_url': public_url,
                 'filename': filename,
                 'file_size': file_size,
-                'content_type': content_type
-            })
+                'content_type': content_type,
+            }
+            response_data.update(video_metadata)
+
+            return jsonify(response_data)
 
         except Exception as upload_error:
             logger.error(f"Error uploading file: {str(upload_error)}")

@@ -46,11 +46,17 @@ xp_service = XPService()
 from config.constants import (
     MAX_IMAGE_SIZE,
     MAX_DOCUMENT_SIZE,
+    MAX_VIDEO_SIZE,
+    MAX_VIDEO_DURATION_SECONDS,
     ALLOWED_IMAGE_EXTENSIONS,
     ALLOWED_DOCUMENT_EXTENSIONS,
+    ALLOWED_VIDEO_EXTENSIONS,
+    ALLOWED_VIDEO_MIME_TYPES,
     IMAGE_FORMAT_LABEL,
-    DOCUMENT_FORMAT_LABEL
+    DOCUMENT_FORMAT_LABEL,
+    VIDEO_FORMAT_LABEL,
 )
+from services.video_processing_service import video_processing_service
 
 # File upload configuration
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads/evidence')
@@ -408,12 +414,19 @@ def upload_task_file(user_id: str, task_id: str):
         filename = secure_filename(file.filename)
         ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
 
-        # Allow both image and document extensions
-        allowed_extensions = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS
-        max_file_size = max(MAX_IMAGE_SIZE, MAX_DOCUMENT_SIZE)
+        # Determine block type from form data or extension
+        block_type = request.form.get('block_type', '')
+        is_video = block_type == 'video' or ext in ALLOWED_VIDEO_EXTENSIONS
+
+        # Allow image, document, and video extensions
+        allowed_extensions = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS | ALLOWED_VIDEO_EXTENSIONS
+        if is_video:
+            max_file_size = MAX_VIDEO_SIZE
+        else:
+            max_file_size = max(MAX_IMAGE_SIZE, MAX_DOCUMENT_SIZE)
 
         if ext not in allowed_extensions:
-            format_label = f'{IMAGE_FORMAT_LABEL}, {DOCUMENT_FORMAT_LABEL}'
+            format_label = f'{IMAGE_FORMAT_LABEL}, {DOCUMENT_FORMAT_LABEL}, {VIDEO_FORMAT_LABEL}'
             return jsonify({
                 'success': False,
                 'error': f'File type ".{ext}" is not supported. Supported formats: {format_label}.'
@@ -440,6 +453,36 @@ def upload_task_file(user_id: str, task_id: str):
             file_content = file.read()
             content_type = file.content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
 
+            # Video-specific processing
+            video_metadata = {}
+            if is_video:
+                # Validate duration
+                duration_ok, duration = video_processing_service.validate_duration(file_content)
+                if not duration_ok:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Video is too long ({duration:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.'
+                    }), 400
+
+                # Process video (thumbnail + metadata)
+                def upload_thumbnail(thumb_bytes, thumb_name):
+                    thumb_path = f"evidence-tasks/{user_id}/thumbnails/{task_id}_{timestamp}_{thumb_name}"
+                    admin_supabase.storage.from_('quest-evidence').upload(
+                        path=thumb_path,
+                        file=thumb_bytes,
+                        file_options={"content-type": "image/jpeg"}
+                    )
+                    from utils.storage_url import fix_storage_url
+                    return fix_storage_url(admin_supabase.storage.from_('quest-evidence').get_public_url(thumb_path))
+
+                meta = video_processing_service.process_video(file_content, storage_upload_fn=upload_thumbnail)
+                video_metadata = {
+                    'thumbnail_url': meta.thumbnail_url,
+                    'duration_seconds': meta.duration_seconds,
+                    'width': meta.width,
+                    'height': meta.height,
+                }
+
             storage_response = admin_supabase.storage.from_('quest-evidence').upload(
                 path=unique_filename,
                 file=file_content,
@@ -449,12 +492,16 @@ def upload_task_file(user_id: str, task_id: str):
             from utils.storage_url import fix_storage_url
             public_url = fix_storage_url(admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename))
 
-            return jsonify({
+            response_data = {
                 'success': True,
                 'url': public_url,
                 'filename': filename,
-                'file_size': file_size
-            })
+                'file_size': file_size,
+                'content_type': content_type,
+            }
+            response_data.update(video_metadata)
+
+            return jsonify(response_data)
 
         except Exception as upload_error:
             logger.error(f"Error uploading file: {str(upload_error)}")
@@ -506,10 +553,10 @@ def upload_block_file(user_id: str, block_id: str):
 
         block_type = block['block_type']
 
-        if block_type not in ['image', 'document']:
+        if block_type not in ['image', 'document', 'video']:
             return jsonify({
                 'success': False,
-                'error': 'File upload only supported for image and document blocks'
+                'error': 'File upload only supported for image, document, and video blocks'
             }), 400
 
         # Handle file upload
@@ -533,12 +580,15 @@ def upload_block_file(user_id: str, block_id: str):
         if block_type == 'image':
             allowed_extensions = ALLOWED_IMAGE_EXTENSIONS
             max_file_size = MAX_IMAGE_SIZE
+        elif block_type == 'video':
+            allowed_extensions = ALLOWED_VIDEO_EXTENSIONS
+            max_file_size = MAX_VIDEO_SIZE
         else:  # document
             allowed_extensions = ALLOWED_DOCUMENT_EXTENSIONS
             max_file_size = MAX_DOCUMENT_SIZE
 
         if ext not in allowed_extensions:
-            format_label = IMAGE_FORMAT_LABEL if block_type == 'image' else DOCUMENT_FORMAT_LABEL
+            format_label = IMAGE_FORMAT_LABEL if block_type == 'image' else VIDEO_FORMAT_LABEL if block_type == 'video' else DOCUMENT_FORMAT_LABEL
             return jsonify({
                 'success': False,
                 'error': f'File type ".{ext}" is not supported for {block_type} uploads. Supported formats: {format_label}.'
@@ -567,6 +617,34 @@ def upload_block_file(user_id: str, block_id: str):
             file_content = file.read()
             content_type = file.content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
 
+            # Video-specific processing
+            video_metadata = {}
+            if block_type == 'video':
+                duration_ok, duration = video_processing_service.validate_duration(file_content)
+                if not duration_ok:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Video is too long ({duration:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.'
+                    }), 400
+
+                def upload_thumbnail(thumb_bytes, thumb_name):
+                    thumb_path = f"evidence-blocks/{user_id}/thumbnails/{block_id}_{timestamp}_{thumb_name}"
+                    admin_supabase.storage.from_('quest-evidence').upload(
+                        path=thumb_path,
+                        file=thumb_bytes,
+                        file_options={"content-type": "image/jpeg"}
+                    )
+                    from utils.storage_url import fix_storage_url as fix_url
+                    return fix_url(admin_supabase.storage.from_('quest-evidence').get_public_url(thumb_path))
+
+                meta = video_processing_service.process_video(file_content, storage_upload_fn=upload_thumbnail)
+                video_metadata = {
+                    'thumbnail_url': meta.thumbnail_url,
+                    'duration_seconds': meta.duration_seconds,
+                    'width': meta.width,
+                    'height': meta.height,
+                }
+
             storage_response = admin_supabase.storage.from_('quest-evidence').upload(
                 path=unique_filename,
                 file=file_content,
@@ -584,6 +662,7 @@ def upload_block_file(user_id: str, block_id: str):
                 'file_size': file_size,
                 'content_type': content_type
             })
+            current_content.update(video_metadata)
 
             if block_type == 'image' and not current_content.get('alt'):
                 current_content['alt'] = filename
@@ -593,13 +672,16 @@ def upload_block_file(user_id: str, block_id: str):
                 .eq('id', block_id)\
                 .execute()
 
-            return jsonify({
+            response_data = {
                 'success': True,
                 'message': 'File uploaded successfully',
                 'file_url': public_url,
                 'filename': filename,
-                'file_size': file_size
-            })
+                'file_size': file_size,
+            }
+            response_data.update(video_metadata)
+
+            return jsonify(response_data)
 
         except Exception as upload_error:
             logger.error(f"Error uploading file: {str(upload_error)}")
@@ -889,15 +971,64 @@ def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
         logger.error(f"Error checking quest completion: {str(e)}")
         return False
 
+def _delete_storage_file(admin_supabase, file_url):
+    """
+    Delete a file from Supabase Storage given its public URL.
+    Supports quest-evidence and user-uploads buckets.
+    Returns True if deleted (or no action needed), False on error.
+    """
+    if not file_url or not isinstance(file_url, str):
+        return True
+    # Skip non-Supabase URLs (external links, blob URLs, etc.)
+    if 'supabase.co' not in file_url:
+        return True
+
+    # Known buckets and their URL path segments
+    buckets = ['quest-evidence', 'user-uploads', 'curriculum']
+    for bucket in buckets:
+        marker = f'/{bucket}/'
+        if marker in file_url:
+            file_path = file_url.split(marker, 1)[1]
+            # Strip query params
+            if '?' in file_path:
+                file_path = file_path.split('?')[0]
+            try:
+                admin_supabase.storage.from_(bucket).remove([file_path])
+                logger.info(f"Deleted storage file: {bucket}/{file_path}")
+                return True
+            except Exception as e:
+                logger.error(f"Failed to delete storage file {bucket}/{file_path}: {e}")
+                return False
+    return True
+
+
+def _collect_file_urls_from_content(content):
+    """
+    Extract all Supabase file URLs from a block's content.
+    Handles both single-URL format (content.url) and items format (content.items[].url).
+    """
+    urls = []
+    if not content or not isinstance(content, dict):
+        return urls
+    # Single URL format
+    if content.get('url') and 'supabase.co' in content.get('url', ''):
+        urls.append(content['url'])
+    # Items array format
+    for item in content.get('items', []):
+        if isinstance(item, dict) and item.get('url') and 'supabase.co' in item.get('url', ''):
+            urls.append(item['url'])
+    return urls
+
+
 @bp.route('/blocks/<block_id>/file', methods=['DELETE'])
 @require_auth
 def delete_block_file(user_id: str, block_id: str):
     """
-    Delete file from Supabase storage when a block is deleted or replaced.
+    Delete file(s) from Supabase storage when a block is deleted or replaced.
+    Handles both single-URL and items-array content formats.
     """
     try:
         supabase = get_user_client()
-        # Admin client: Storage operations only (ADR-002, Rule 2)
         admin_supabase = get_supabase_admin_client()
 
         # Validate the block exists and belongs to the user
@@ -916,62 +1047,80 @@ def delete_block_file(user_id: str, block_id: str):
 
         block = block_response.data
         content = block.get('content', {})
-        file_url = content.get('url')
 
-        if not file_url:
+        file_urls = _collect_file_urls_from_content(content)
+
+        if not file_urls:
             return jsonify({
                 'success': True,
-                'message': 'No file to delete'
+                'message': 'No files to delete'
             })
 
-        # Extract file path from URL
-        # Supabase URLs look like: https://[project].supabase.co/storage/v1/object/public/quest-evidence/[path]
-        try:
-            if '/quest-evidence/' in file_url:
-                file_path = file_url.split('/quest-evidence/')[1]
+        deleted = 0
+        for url in file_urls:
+            if _delete_storage_file(admin_supabase, url):
+                deleted += 1
 
-                # Delete from storage
-                admin_supabase.storage.from_('quest-evidence').remove([file_path])
+        # Clear file references from block content
+        updated_content = {k: v for k, v in content.items()
+                          if k not in ['url', 'filename', 'file_size', 'content_type']}
+        if 'items' in updated_content:
+            updated_content['items'] = []
 
-                # Update block content to remove file info
-                updated_content = {k: v for k, v in content.items() if k not in ['url', 'filename', 'file_size', 'content_type']}
+        supabase.table('evidence_document_blocks')\
+            .update({'content': updated_content})\
+            .eq('id', block_id)\
+            .execute()
 
-                supabase.table('evidence_document_blocks')\
-                    .update({'content': updated_content})\
-                    .eq('id', block_id)\
-                    .execute()
-
-                return jsonify({
-                    'success': True,
-                    'message': 'File deleted successfully'
-                })
-            else:
-                # External URL, just remove from block
-                updated_content = {k: v for k, v in content.items() if k not in ['url', 'filename', 'file_size', 'content_type']}
-
-                supabase.table('evidence_document_blocks')\
-                    .update({'content': updated_content})\
-                    .eq('id', block_id)\
-                    .execute()
-
-                return jsonify({
-                    'success': True,
-                    'message': 'File reference removed'
-                })
-
-        except Exception as delete_error:
-            logger.error(f"Error deleting file from storage: {str(delete_error)}")
-            # Don't fail the request if storage deletion fails
-            return jsonify({
-                'success': True,
-                'message': 'File reference removed (storage cleanup may have failed)'
-            })
+        return jsonify({
+            'success': True,
+            'message': f'Deleted {deleted} file(s) from storage'
+        })
 
     except Exception as e:
         logger.error(f"Error in delete_block_file: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to delete file'
+        }), 500
+
+
+@bp.route('/storage/delete-urls', methods=['POST'])
+@require_auth
+def delete_storage_urls(user_id: str):
+    """
+    Delete files from Supabase storage by URL.
+    Used by frontend when removing evidence items without a block ID
+    (e.g. removing individual items from a block, or cleaning up
+    parent/advisor moment media).
+
+    Request body: { "urls": ["https://...supabase.co/...", ...] }
+    """
+    try:
+        admin_supabase = get_supabase_admin_client()
+
+        data = request.get_json() or {}
+        urls = data.get('urls', [])
+
+        if not urls or not isinstance(urls, list):
+            return jsonify({'success': True, 'deleted': 0, 'message': 'No URLs provided'})
+
+        deleted = 0
+        for url in urls[:50]:  # Cap at 50 to prevent abuse
+            if _delete_storage_file(admin_supabase, url):
+                deleted += 1
+
+        return jsonify({
+            'success': True,
+            'deleted': deleted,
+            'message': f'Deleted {deleted} file(s) from storage'
+        })
+
+    except Exception as e:
+        logger.error(f"Error in delete_storage_urls: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to delete files'
         }), 500
 
 @bp.route('/documents/<task_id>/complete', methods=['POST'])

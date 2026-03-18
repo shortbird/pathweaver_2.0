@@ -21,7 +21,7 @@ import MediaCarousel from './MediaCarousel';
 import LinkPreviewCard from './LinkPreviewCard';
 import VideoLinkPreview from './VideoLinkPreview';
 import LearningEventModal from '../learning-events/LearningEventModal';
-import { getVideoEmbedUrl, getVideoAspectClass, isVideoSharingLink } from '../../utils/videoUtils';
+import { getVideoEmbedUrl, getVideoAspectClass, isVideoSharingLink, isUploadedVideoUrl } from '../../utils/videoUtils';
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 
 // Pillar colors mapping
@@ -402,6 +402,18 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
             </div>
           )}
           {localItem.evidence.type === 'video' && (() => {
+            if (isUploadedVideoUrl(localItem.evidence.url)) {
+              return (
+                <div className="bg-black">
+                  <video
+                    src={localItem.evidence.url}
+                    controls
+                    preload="metadata"
+                    className="w-full max-h-[480px]"
+                  />
+                </div>
+              );
+            }
             if (isVideoSharingLink(localItem.evidence.url)) {
               return <VideoLinkPreview url={localItem.evidence.url} title={localItem.evidence.title} />;
             }

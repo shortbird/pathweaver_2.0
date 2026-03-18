@@ -19,10 +19,11 @@ logger = get_logger(__name__)
 bp = Blueprint('parent_learning_moments', __name__, url_prefix='/api/parent')
 
 # Constants for file uploads
-MAX_MEDIA_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_MEDIA_SIZE = 100 * 1024 * 1024  # 100MB
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
 ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx'}
-ALLOWED_UPLOAD_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS
+ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov'}
+ALLOWED_UPLOAD_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS | ALLOWED_VIDEO_EXTENSIONS
 
 
 @bp.route('/children/<child_id>/learning-moments', methods=['POST'])
@@ -122,6 +123,21 @@ def create_child_learning_moment(user_id, child_id):
                     'file_name': media_item.get('file_name'),
                     'file_size': media_item.get('file_size', 0)
                 }
+            elif media_type == 'video':
+                block_type = 'video'
+                block_data = {
+                    'learning_event_id': event_id,
+                    'block_type': block_type,
+                    'content': {
+                        'url': media_item.get('file_url'),
+                        'filename': media_item.get('file_name', ''),
+                        'caption': ''
+                    },
+                    'order_index': idx,
+                    'file_url': media_item.get('file_url'),
+                    'file_name': media_item.get('file_name'),
+                    'file_size': media_item.get('file_size', 0)
+                }
             else:
                 # Default to image
                 block_type = 'image'
@@ -207,7 +223,12 @@ def upload_moment_media(user_id, child_id):
             raise ValidationError(f"File size exceeds {MAX_MEDIA_SIZE // (1024*1024)}MB limit")
 
         # Determine media type
-        media_type = 'image' if file_ext in ALLOWED_IMAGE_EXTENSIONS else 'document'
+        if file_ext in ALLOWED_VIDEO_EXTENSIONS:
+            media_type = 'video'
+        elif file_ext in ALLOWED_IMAGE_EXTENSIONS:
+            media_type = 'image'
+        else:
+            media_type = 'document'
 
         # Generate unique filename
         unique_filename = f"learning_moments/{child_id}/{uuid.uuid4()}.{file_ext}"
@@ -837,7 +858,27 @@ def delete_child_learning_moment(user_id, child_id, moment_id):
             .execute()
         affected_track_ids = [r['topic_id'] for r in (junction_response.data or []) if r['topic_type'] == 'topic']
 
-        # Delete evidence blocks first
+        # Fetch evidence blocks to clean up storage files
+        blocks_response = supabase.table('learning_event_evidence_blocks') \
+            .select('content, file_url') \
+            .eq('learning_event_id', moment_id) \
+            .execute()
+
+        # Delete storage files from evidence blocks
+        for block in (blocks_response.data or []):
+            file_url = block.get('file_url') or (block.get('content') or {}).get('url')
+            if file_url and 'supabase.co' in file_url:
+                try:
+                    for bucket in ['user-uploads', 'quest-evidence']:
+                        marker = f'/{bucket}/'
+                        if marker in file_url:
+                            file_path = file_url.split(marker, 1)[1].split('?')[0]
+                            supabase.storage.from_(bucket).remove([file_path])
+                            break
+                except Exception as e:
+                    logger.warning(f"Failed to delete storage file during moment deletion: {e}")
+
+        # Delete evidence blocks
         supabase.table('learning_event_evidence_blocks') \
             .delete() \
             .eq('learning_event_id', moment_id) \
@@ -1030,10 +1071,12 @@ def upload_child_moment_file(user_id, child_id, moment_id):
         # Validate file type based on block_type
         if block_type == 'image':
             allowed = ALLOWED_IMAGE_EXTENSIONS
+        elif block_type == 'video':
+            allowed = ALLOWED_VIDEO_EXTENSIONS
         elif block_type == 'document':
-            allowed = {'pdf', 'doc', 'docx'}
+            allowed = ALLOWED_DOCUMENT_EXTENSIONS
         else:
-            allowed = ALLOWED_MEDIA_EXTENSIONS
+            allowed = ALLOWED_UPLOAD_EXTENSIONS
 
         if file_ext not in allowed:
             raise ValidationError(f'Invalid file type for {block_type}')
@@ -1061,31 +1104,14 @@ def upload_child_moment_file(user_id, child_id, moment_id):
         from utils.storage_url import fix_storage_url
         file_url = fix_storage_url(supabase.storage.from_(bucket_name).get_public_url(unique_filename))
 
-        # Create evidence block
-        block_data = {
-            'learning_event_id': moment_id,
-            'block_type': block_type,
-            'content': {
-                'url': file_url,
-                'filename': filename,
-                'alt_text': filename
-            },
-            'order_index': order_index,
-            'file_url': file_url,
-            'file_name': filename,
-            'file_size': file_size
-        }
-
-        block_response = supabase.table('learning_event_evidence_blocks') \
-            .insert(block_data) \
-            .execute()
-
         logger.info(f"Parent {user_id} uploaded file for moment {moment_id}")
 
         return jsonify({
             'success': True,
             'file_url': file_url,
-            'block_id': block_response.data[0]['id'] if block_response.data else None,
+            'filename': filename,
+            'file_name': filename,
+            'file_size': file_size,
             'message': 'File uploaded successfully'
         }), 200
 

@@ -1,8 +1,6 @@
 import React, { memo } from 'react';
 import {
   CameraIcon,
-  PhotoIcon,
-  VideoCameraIcon,
   LinkIcon,
   DocumentTextIcon,
   Bars3BottomLeftIcon
@@ -16,7 +14,7 @@ import {
  * - 'compact': Horizontal scrollable row with snap points
  * - 'fab': Radial menu (floating action button style)
  *
- * Camera is always FIRST and larger to encourage photo capture on mobile.
+ * Camera is always FIRST and larger to encourage photo/video capture on mobile.
  *
  * @param {Object} props
  * @param {Function} props.onAddBlock - Called with block type when selected
@@ -36,18 +34,6 @@ const MobileBlockAdder = ({ onAddBlock, mode = 'compact' }) => {
       label: 'Text',
       icon: Bars3BottomLeftIcon,
       color: 'from-blue-500 to-blue-600'
-    },
-    {
-      type: 'image',
-      label: 'Image',
-      icon: PhotoIcon,
-      color: 'from-green-500 to-green-600'
-    },
-    {
-      type: 'video',
-      label: 'Video',
-      icon: VideoCameraIcon,
-      color: 'from-purple-500 to-purple-600'
     },
     {
       type: 'link',

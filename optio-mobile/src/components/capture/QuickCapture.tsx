@@ -25,7 +25,7 @@ import { useThemeStore } from '../../stores/themeStore';
 import { addToQueue } from '../../utils/offlineQueue';
 import api from '../../services/api';
 
-export type CaptureMode = 'photo' | 'voice' | 'text';
+export type CaptureMode = 'camera' | 'voice' | 'text';
 
 interface QuickCaptureProps {
   initialMode?: CaptureMode;
@@ -47,9 +47,13 @@ export function QuickCapture({
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Photo
+  // Camera (photo + video)
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null); // Web only
   const [analyzing, setAnalyzing] = useState(false);
+  const [videoUri, setVideoUri] = useState<string | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null); // Web only
+  const [isVideo, setIsVideo] = useState(false);
 
   // Voice
   const [recording, setRecording] = useState(false);
@@ -57,15 +61,33 @@ export function QuickCapture({
 
   // ── Photo ────────────────────────────────────────────────
 
-  const pickImage = useCallback(async () => {
+  const pickMedia = useCallback(async () => {
     if (Platform.OS === 'web') {
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = 'image/*';
+      input.accept = 'image/*,video/mp4,video/quicktime,.mp4,.mov';
       input.onchange = async (e: any) => {
         const file = e.target.files[0];
-        if (file) {
+        if (!file) return;
+
+        if (file.type?.startsWith('video/')) {
+          // Video selected
+          if (file.size > 50 * 1024 * 1024) {
+            Alert.alert('Too large', 'Video must be under 50MB.');
+            return;
+          }
+          setIsVideo(true);
+          setVideoFile(file);
+          setVideoUri(URL.createObjectURL(file));
+          setImageUri(null);
+          setImageFile(null);
+        } else {
+          // Photo selected
+          setIsVideo(false);
+          setImageFile(file);
           setImageUri(URL.createObjectURL(file));
+          setVideoUri(null);
+          setVideoFile(null);
           await analyzeImageWeb(file);
         }
       };
@@ -79,15 +101,29 @@ export function QuickCapture({
           return;
         }
         const picked = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
+          mediaTypes: ['images', 'videos'],
           quality: 0.8,
+          videoMaxDuration: 180,
+          videoQuality: 1, // Medium quality (~720p)
+          allowsEditing: true,
         });
         if (!picked.canceled && picked.assets[0]) {
-          setImageUri(picked.assets[0].uri);
-          await analyzeImageNative(picked.assets[0].uri);
+          const asset = picked.assets[0];
+          if (asset.type === 'video') {
+            // Video selected
+            setIsVideo(true);
+            setVideoUri(asset.uri);
+            setImageUri(null);
+          } else {
+            // Photo selected
+            setIsVideo(false);
+            setImageUri(asset.uri);
+            setVideoUri(null);
+            await analyzeImageNative(asset.uri);
+          }
         }
       } catch {
-        Alert.alert('Error', 'Could not open image picker');
+        Alert.alert('Error', 'Could not open media picker');
       }
     }
   }, []);
@@ -209,12 +245,88 @@ export function QuickCapture({
 
     setSaving(true);
     try {
-      await api.post('/api/learning-events', {
+      const res = await api.post('/api/learning-events', {
         description: trimmed,
         source_type: 'realtime',
       });
+      const eventId = res.data.event?.id;
+
+      // Upload captured media as evidence if present
+      if (eventId && (imageUri || videoUri)) {
+        try {
+          const formData = new FormData();
+          if (isVideo && videoUri) {
+            // Video upload
+            if (Platform.OS === 'web' && videoFile) {
+              formData.append('file', videoFile);
+            } else {
+              formData.append('file', {
+                uri: videoUri,
+                name: 'capture.mp4',
+                type: 'video/mp4',
+              } as any);
+            }
+            formData.append('block_type', 'video');
+
+            const uploadRes = await api.post(
+              `/api/learning-events/${eventId}/upload`,
+              formData,
+              { timeout: 120000 },
+            );
+            if (uploadRes.data.file_url) {
+              await api.post(`/api/learning-events/${eventId}/evidence`, {
+                blocks: [{
+                  block_type: 'video',
+                  content: {
+                    url: uploadRes.data.file_url,
+                    filename: uploadRes.data.filename,
+                    thumbnail_url: uploadRes.data.thumbnail_url,
+                    duration_seconds: uploadRes.data.duration_seconds,
+                    width: uploadRes.data.width,
+                    height: uploadRes.data.height,
+                  },
+                  order_index: 0,
+                }],
+              });
+            }
+          } else if (imageUri) {
+            // Photo upload (existing behavior)
+            if (Platform.OS === 'web' && imageFile) {
+              formData.append('file', imageFile);
+            } else {
+              formData.append('file', {
+                uri: imageUri,
+                name: 'capture.jpg',
+                type: 'image/jpeg',
+              } as any);
+            }
+            formData.append('block_type', 'image');
+
+            const uploadRes = await api.post(
+              `/api/learning-events/${eventId}/upload`,
+              formData,
+            );
+            if (uploadRes.data.file_url) {
+              await api.post(`/api/learning-events/${eventId}/evidence`, {
+                blocks: [{
+                  block_type: 'image',
+                  content: { url: uploadRes.data.file_url, filename: uploadRes.data.filename },
+                  order_index: 0,
+                }],
+              });
+            }
+          }
+        } catch {
+          // Media upload failed but moment was saved -- don't block
+        }
+      }
+
       setDescription('');
       setImageUri(null);
+      setImageFile(null);
+      setVideoUri(null);
+      setVideoFile(null);
+      setIsVideo(false);
       onSaved?.();
     } catch (error: any) {
       if (!error.response) {
@@ -222,6 +334,10 @@ export function QuickCapture({
         Alert.alert('Saved Offline', 'Your entry will sync when you are back online.');
         setDescription('');
         setImageUri(null);
+        setImageFile(null);
+        setVideoUri(null);
+        setVideoFile(null);
+        setIsVideo(false);
         onSaved?.();
         return;
       }
@@ -239,7 +355,7 @@ export function QuickCapture({
       {!compact && (
         <View style={styles.modeRow}>
           {([
-            { key: 'photo' as CaptureMode, icon: icons.photoMode, label: 'Photo' },
+            { key: 'camera' as CaptureMode, icon: icons.photoMode, label: 'Camera' },
             { key: 'voice' as CaptureMode, icon: icons.voiceMode, label: 'Voice' },
             { key: 'text' as CaptureMode, icon: icons.textMode, label: 'Text' },
           ]).map((m) => (
@@ -272,13 +388,26 @@ export function QuickCapture({
         </View>
       )}
 
-      {/* Photo */}
-      {mode === 'photo' && (
+      {/* Camera (photo + video) */}
+      {mode === 'camera' && (
         <View style={styles.section}>
-          {imageUri && <Image source={{ uri: imageUri }} style={styles.imagePreview} resizeMode="cover" />}
+          {imageUri && !isVideo && (
+            <Image source={{ uri: imageUri }} style={styles.imagePreview} resizeMode="cover" />
+          )}
+          {videoUri && isVideo && Platform.OS !== 'web' && (
+            <View style={styles.videoPreviewPlaceholder}>
+              <Ionicons name="videocam" size={40} color={colors.pillars.art} />
+              <Text style={[styles.videoPreviewText, { color: colors.textSecondary }]}>Video selected</Text>
+            </View>
+          )}
+          {videoUri && isVideo && Platform.OS === 'web' && (
+            <View style={styles.imagePreview}>
+              <video src={videoUri} controls style={{ width: '100%', height: '100%', borderRadius: 12, objectFit: 'cover' } as any} />
+            </View>
+          )}
           <TouchableOpacity
             style={[styles.captureAction, { backgroundColor: colors.pillars.art + '15' }, analyzing && styles.disabled]}
-            onPress={pickImage}
+            onPress={pickMedia}
             disabled={analyzing}
           >
             {analyzing ? (
@@ -287,7 +416,7 @@ export function QuickCapture({
               <>
                 <Ionicons name="camera-outline" size={24} color={colors.pillars.art} />
                 <Text style={[styles.captureActionText, { color: colors.pillars.art }]}>
-                  {imageUri ? 'Change Photo' : 'Select Photo'}
+                  {imageUri || videoUri ? 'Change Media' : 'Photo or Video'}
                 </Text>
               </>
             )}
@@ -396,6 +525,19 @@ const styles = StyleSheet.create({
     height: 180,
     borderRadius: tokens.radius.lg,
     marginBottom: tokens.spacing.sm,
+  },
+  videoPreviewPlaceholder: {
+    width: '100%',
+    height: 180,
+    borderRadius: tokens.radius.lg,
+    marginBottom: tokens.spacing.sm,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  videoPreviewText: {
+    fontSize: tokens.typography.sizes.sm,
+    marginTop: tokens.spacing.xs,
   },
   captureAction: {
     flexDirection: 'row',

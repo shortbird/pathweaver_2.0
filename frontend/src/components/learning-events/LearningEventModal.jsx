@@ -8,6 +8,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import TrackSelector from '../interest-tracks/TrackSelector';
 import SparkSelector from '../curiosity-threads/SparkSelector';
+import { validateFileSize, detectMediaType, CAMERA_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING } from '../../utils/mediaUtils';
 
 const PILLAR_CONFIG = {
   art: {
@@ -80,8 +81,7 @@ const LearningEventModal = ({
 
   const blockTypes = {
     text: { label: 'Text Note', color: 'bg-gray-50', border: 'border-gray-200' },
-    image: { label: 'Image', color: 'bg-gray-50', border: 'border-gray-200' },
-    video: { label: 'Video', color: 'bg-gray-50', border: 'border-gray-200' },
+    camera: { label: 'Camera', color: 'bg-gray-50', border: 'border-gray-200' },
     link: { label: 'Link', color: 'bg-gray-50', border: 'border-gray-200' },
     document: { label: 'Document', color: 'bg-gray-50', border: 'border-gray-200' }
   };
@@ -207,10 +207,12 @@ const LearningEventModal = ({
   };
 
   const addBlock = (type) => {
+    // Camera maps to image block type (accepts both photos and videos)
+    const blockType = type === 'camera' ? 'image' : type;
     const newBlock = {
       id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      block_type: type,
-      content: getDefaultContent(type),
+      block_type: blockType,
+      content: getDefaultContent(blockType),
       order_index: evidenceBlocks.length
     };
     setEvidenceBlocks([...evidenceBlocks, newBlock]);
@@ -223,8 +225,6 @@ const LearningEventModal = ({
         return { text: '' };
       case 'image':
         return { url: '', alt: '', caption: '' };
-      case 'video':
-        return { url: '', title: '' };
       case 'link':
         return { url: '', title: '', description: '' };
       case 'document':
@@ -252,10 +252,10 @@ const LearningEventModal = ({
 
   const handleFileUpload = async (file, blockId, type) => {
     try {
-      const MAX_FILE_SIZE = 50 * 1024 * 1024;
-      if (file.size > MAX_FILE_SIZE) {
-        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-        toast.error(`File is too large (${fileSizeMB}MB). Maximum size is 50MB.`);
+      const mediaType = detectMediaType(file);
+      const sizeCheck = validateFileSize(file, mediaType);
+      if (!sizeCheck.valid) {
+        toast.error(sizeCheck.error);
         return;
       }
 
@@ -279,7 +279,9 @@ const LearningEventModal = ({
         try {
           const formData = new FormData();
           formData.append('file', file);
-          formData.append('block_type', block.block_type);
+          // Detect actual type: if file is video, use 'video' block_type even if block is 'image'
+          const actualBlockType = file.type?.startsWith('video/') ? 'video' : block.block_type;
+          formData.append('block_type', actualBlockType);
 
           // Use parent API when studentId is provided
           const uploadEndpoint = studentId
@@ -382,6 +384,7 @@ const LearningEventModal = ({
           // Step 2: Build final blocks with uploaded file URLs filled in
           const finalBlocks = evidenceBlocks.map((block, index) => {
             const cleanContent = { ...block.content };
+            const file = cleanContent._fileToUpload;
             delete cleanContent._fileToUpload;
             if (cleanContent.url?.startsWith('blob:')) {
               delete cleanContent.url;
@@ -394,8 +397,11 @@ const LearningEventModal = ({
               cleanContent.filename = uploadResult.filename;
             }
 
+            // Use correct block_type based on actual file type
+            const actualBlockType = file?.type?.startsWith('video/') ? 'video' : block.block_type;
+
             return {
-              block_type: block.block_type,
+              block_type: actualBlockType,
               content: cleanContent,
               order_index: index
             };
@@ -460,59 +466,64 @@ const LearningEventModal = ({
     />
   );
 
-  const renderImageBlock = (block) => (
-    <div>
-      {block.content.url ? (
-        <div className="relative">
-          <img
-            src={block.content.url}
-            alt={block.content.alt || ''}
-            className="w-full max-h-64 object-contain rounded-lg border border-gray-200"
-          />
-          <button
-            onClick={() => updateBlock(block.id, { url: '', alt: '', caption: '' })}
-            className="absolute top-2 right-2 p-1.5 bg-gray-900/70 text-white rounded-lg hover:bg-gray-900"
-          >
-            <XMarkIcon className="w-4 h-4" />
-          </button>
-        </div>
-      ) : (
-        <div
-          className="border border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-optio-purple hover:bg-purple-50/50 transition-colors"
-          onClick={() => {
-            fileInputRef.current.accept = '.jpg,.jpeg,.png,.gif,.webp,.heic,.heif';
-            fileInputRef.current.onchange = (e) => {
-              const file = e.target.files[0];
-              if (file) handleFileUpload(file, block.id, 'image');
-            };
-            fileInputRef.current.click();
-          }}
-        >
-          <p className="text-sm text-gray-500">Click to upload an image</p>
-          <p className="text-xs text-gray-400 mt-1">JPG, PNG, GIF, WebP, HEIC up to 50MB</p>
-        </div>
-      )}
-    </div>
-  );
+  const renderImageBlock = (block) => {
+    const isVideoContent = block.content.url && (
+      block.content._fileToUpload?.type?.startsWith('video/') ||
+      block.content.filename?.match(/\.(mp4|mov)$/i)
+    );
 
-  const renderVideoBlock = (block) => (
-    <div className="space-y-2">
-      <input
-        type="url"
-        value={block.content.url || ''}
-        onChange={(e) => updateBlock(block.id, { url: e.target.value })}
-        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent text-base bg-white"
-        placeholder="YouTube, Vimeo, or video URL"
-      />
-      <input
-        type="text"
-        value={block.content.title || ''}
-        onChange={(e) => updateBlock(block.id, { title: e.target.value })}
-        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent text-base bg-white"
-        placeholder="Title (optional)"
-      />
-    </div>
-  );
+    return (
+      <div>
+        {block.content.url ? (
+          <div className="relative">
+            {isVideoContent ? (
+              <video
+                src={block.content.url}
+                controls
+                preload="metadata"
+                className="w-full max-h-64 rounded-lg border border-gray-200 bg-black"
+              />
+            ) : (
+              <img
+                src={block.content.url}
+                alt={block.content.alt || ''}
+                className="w-full max-h-64 object-contain rounded-lg border border-gray-200"
+              />
+            )}
+            <button
+              onClick={() => updateBlock(block.id, { url: '', alt: '', caption: '', filename: '', _fileToUpload: undefined })}
+              className="absolute top-2 right-2 p-1.5 bg-gray-900/70 text-white rounded-lg hover:bg-gray-900"
+            >
+              <XMarkIcon className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div
+            className="border border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-optio-purple hover:bg-purple-50/50 transition-colors"
+            onClick={() => {
+              fileInputRef.current.accept = CAMERA_ACCEPT_STRING;
+              fileInputRef.current.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  const mediaType = detectMediaType(file);
+                  const sizeCheck = validateFileSize(file, mediaType);
+                  if (!sizeCheck.valid) {
+                    toast.error(sizeCheck.error);
+                    return;
+                  }
+                  handleFileUpload(file, block.id, mediaType === 'video' ? 'video' : 'image');
+                }
+              };
+              fileInputRef.current.click();
+            }}
+          >
+            <p className="text-sm text-gray-500">Click to upload a photo or video</p>
+            <p className="text-xs text-gray-400 mt-1">Images up to 10MB, videos (MP4/MOV) up to 100MB</p>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderLinkBlock = (block) => (
     <div className="space-y-2">
@@ -551,7 +562,7 @@ const LearningEventModal = ({
         <div
           className="border border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-optio-purple hover:bg-purple-50/50 transition-colors"
           onClick={() => {
-            fileInputRef.current.accept = '.pdf,.doc,.docx';
+            fileInputRef.current.accept = DOCUMENT_ACCEPT_STRING;
             fileInputRef.current.onchange = (e) => {
               const file = e.target.files[0];
               if (file) handleFileUpload(file, block.id, 'document');
@@ -560,7 +571,7 @@ const LearningEventModal = ({
           }}
         >
           <p className="text-sm text-gray-500">Click to upload a document</p>
-          <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX up to 50MB</p>
+          <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX up to 100MB</p>
         </div>
       )}
     </div>
@@ -766,7 +777,8 @@ const LearningEventModal = ({
                   </label>
                   <div className="space-y-3">
                     {evidenceBlocks.map((block) => {
-                      const config = blockTypes[block.block_type];
+                      const blockLabels = { text: 'Text Note', image: 'Camera', link: 'Link', document: 'Document', video: 'Video' };
+                      const config = blockTypes[block.block_type] || { label: blockLabels[block.block_type] || block.block_type };
                       return (
                         <div key={block.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                           <div className="flex items-center justify-between mb-3">
@@ -780,7 +792,6 @@ const LearningEventModal = ({
                           </div>
                           {block.block_type === 'text' && renderTextBlock(block)}
                           {block.block_type === 'image' && renderImageBlock(block)}
-                          {block.block_type === 'video' && renderVideoBlock(block)}
                           {block.block_type === 'link' && renderLinkBlock(block)}
                           {block.block_type === 'document' && renderDocumentBlock(block)}
                         </div>

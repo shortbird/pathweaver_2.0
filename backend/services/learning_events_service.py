@@ -556,6 +556,28 @@ class LearningEventsService(BaseService):
             except Exception as e:
                 logger.warning(f"Failed to fetch junction rows before delete: {e}")
 
+            # Clean up storage files before deleting
+            try:
+                blocks_response = supabase.table('learning_event_evidence_blocks') \
+                    .select('content, file_url') \
+                    .eq('learning_event_id', event_id) \
+                    .execute()
+
+                for block in (blocks_response.data or []):
+                    file_url = block.get('file_url') or (block.get('content') or {}).get('url')
+                    if file_url and 'supabase.co' in file_url:
+                        try:
+                            for bucket in ['user-uploads', 'quest-evidence']:
+                                marker = f'/{bucket}/'
+                                if marker in file_url:
+                                    file_path = file_url.split(marker, 1)[1].split('?')[0]
+                                    supabase.storage.from_(bucket).remove([file_path])
+                                    break
+                        except Exception as e:
+                            logger.warning(f"Failed to delete storage file during event deletion: {e}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch evidence blocks for storage cleanup: {e}")
+
             # Delete event (cascade will handle evidence blocks and junction rows)
             response = supabase.table('learning_events') \
                 .delete() \

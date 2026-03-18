@@ -308,9 +308,9 @@ function getPreviewImageUrl(item: FeedItem): string | null {
   if (item.media && item.media.length > 0) {
     const img = item.media.find((m) => m.type === 'image');
     if (img?.url) return img.url;
-    // Fall back to first media item if it's a video thumbnail or other visual
+    // Use video thumbnail if available
     const visual = item.media.find((m) => m.type === 'video');
-    if (visual?.url) return null; // Don't show video URLs as images
+    if (visual?.thumbnail_url) return visual.thumbnail_url;
   }
 
   // Check evidence object

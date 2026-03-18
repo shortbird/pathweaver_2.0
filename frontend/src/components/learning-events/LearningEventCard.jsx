@@ -196,6 +196,7 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
     if (!hasEvidence) return null;
 
     const images = localEvent.evidence_blocks.filter(b => b.block_type === 'image' && b.content?.url);
+    const videos = localEvent.evidence_blocks.filter(b => b.block_type === 'video' && b.content?.url);
     const links = localEvent.evidence_blocks.filter(b => b.block_type === 'link' && b.content?.url);
     const documents = localEvent.evidence_blocks.filter(b => b.block_type === 'document');
 
@@ -218,6 +219,25 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign, onTrackAssigned, 
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Videos - inline player */}
+        {videos.length > 0 && (
+          <div className="space-y-2">
+            {videos.slice(0, 2).map((block, idx) => (
+              <div key={`vid-${idx}`} className="rounded-lg overflow-hidden bg-black">
+                <video
+                  src={block.content.url}
+                  controls
+                  preload="metadata"
+                  className="w-full max-h-[300px]"
+                />
+              </div>
+            ))}
+            {videos.length > 2 && (
+              <span className="text-xs text-gray-400">+{videos.length - 2} more videos</span>
+            )}
           </div>
         )}
 

@@ -16,10 +16,11 @@ logger = get_logger(__name__)
 bp = Blueprint('advisor_learning_moments', __name__, url_prefix='/api/advisor')
 
 # Constants for file uploads
-MAX_MEDIA_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_MEDIA_SIZE = 100 * 1024 * 1024  # 100MB
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'}
 ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx'}
-ALLOWED_UPLOAD_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS
+ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov'}
+ALLOWED_UPLOAD_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS | ALLOWED_VIDEO_EXTENSIONS
 
 
 @bp.route('/students/<student_id>/learning-moments', methods=['POST'])
@@ -106,6 +107,20 @@ def create_student_learning_moment(user_id, student_id):
                     'file_name': media_item.get('file_name'),
                     'file_size': media_item.get('file_size', 0)
                 }
+            elif media_type == 'video':
+                block_data = {
+                    'learning_event_id': event_id,
+                    'block_type': 'video',
+                    'content': {
+                        'url': media_item.get('file_url'),
+                        'filename': media_item.get('file_name', ''),
+                        'caption': ''
+                    },
+                    'order_index': idx,
+                    'file_url': media_item.get('file_url'),
+                    'file_name': media_item.get('file_name'),
+                    'file_size': media_item.get('file_size', 0)
+                }
             else:
                 block_data = {
                     'learning_event_id': event_id,
@@ -181,7 +196,12 @@ def upload_moment_media(user_id, student_id):
         if file_size > MAX_MEDIA_SIZE:
             raise ValidationError(f"File size exceeds {MAX_MEDIA_SIZE // (1024*1024)}MB limit")
 
-        media_type = 'image' if file_ext in ALLOWED_IMAGE_EXTENSIONS else 'document'
+        if file_ext in ALLOWED_VIDEO_EXTENSIONS:
+            media_type = 'video'
+        elif file_ext in ALLOWED_IMAGE_EXTENSIONS:
+            media_type = 'image'
+        else:
+            media_type = 'document'
 
         unique_filename = f"learning_moments/{student_id}/{uuid.uuid4()}.{file_ext}"
 
@@ -394,7 +414,27 @@ def delete_student_learning_moment(user_id, student_id, moment_id):
         if moment.get('captured_by_user_id') != user_id:
             raise AuthorizationError('You can only delete moments you captured')
 
-        # Delete evidence blocks first
+        # Fetch evidence blocks to clean up storage files
+        blocks_response = supabase.table('learning_event_evidence_blocks') \
+            .select('content, file_url') \
+            .eq('learning_event_id', moment_id) \
+            .execute()
+
+        # Delete storage files from evidence blocks
+        for block in (blocks_response.data or []):
+            file_url = block.get('file_url') or (block.get('content') or {}).get('url')
+            if file_url and 'supabase.co' in file_url:
+                try:
+                    for bucket in ['user-uploads', 'quest-evidence']:
+                        marker = f'/{bucket}/'
+                        if marker in file_url:
+                            file_path = file_url.split(marker, 1)[1].split('?')[0]
+                            supabase.storage.from_(bucket).remove([file_path])
+                            break
+                except Exception as e:
+                    logger.warning(f"Failed to delete storage file during moment deletion: {e}")
+
+        # Delete evidence blocks
         supabase.table('learning_event_evidence_blocks') \
             .delete() \
             .eq('learning_event_id', moment_id) \

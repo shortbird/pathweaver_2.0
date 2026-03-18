@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
 import api from '../../services/api'
 import { toast } from 'react-hot-toast'
+import { formatFileSize } from '../../utils/mediaUtils'
 
 const FileUploader = ({ questId, attachments, onChange }) => {
   const [uploading, setUploading] = useState(false)
@@ -171,12 +172,6 @@ const FileUploader = ({ questId, attachments, onChange }) => {
         </svg>
       )
     }
-  }
-
-  const formatFileSize = (bytes) => {
-    if (bytes < 1024) return bytes + ' B'
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-    return (bytes / 1024 / 1024).toFixed(1) + ' MB'
   }
 
   return (

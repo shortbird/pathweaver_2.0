@@ -352,9 +352,16 @@ const TaskWorkspace = ({
     let uploadFailures = 0;
     const failureReasons = [];
 
+    const hasFiles = newItems.some(item =>
+      item.content?.items?.some(ci => ci.file)
+    );
+    const uploadToastId = hasFiles
+      ? toast.loading('Uploading evidence...', { duration: Infinity })
+      : null;
+
     const processedItems = await Promise.all(
       newItems.map(async (item) => {
-        if ((item.type === 'image' || item.type === 'document') && item.content.items) {
+        if ((item.type === 'image' || item.type === 'video' || item.type === 'document') && item.content.items) {
           const uploadedItems = await Promise.all(
             item.content.items.map(async (contentItem) => {
               // Only upload if there's a file object (new upload)
@@ -408,26 +415,51 @@ const TaskWorkspace = ({
     }
 
     if (validProcessedItems.length === 0 && uploadFailures > 0) {
+      if (uploadToastId) toast.dismiss(uploadToastId);
       toast.error('No evidence was saved. Please try again.');
       return;
     }
+
+    if (uploadToastId) toast.loading('Saving evidence...', { id: uploadToastId, duration: Infinity });
 
     const updatedBlocks = [...evidenceBlocks, ...validProcessedItems];
     setEvidenceBlocks(updatedBlocks);
 
     const result = await saveEvidence(updatedBlocks);
+    if (uploadToastId) toast.dismiss(uploadToastId);
     if (!result.success) {
       toast.error('Failed to save evidence');
+    } else if (validProcessedItems.length > 0) {
+      toast.success('Evidence saved');
     }
   };
 
+  // Collect Supabase storage URLs from a block's content
+  const collectStorageUrls = (content) => {
+    const urls = [];
+    if (!content) return urls;
+    if (content.url && content.url.includes('supabase.co')) urls.push(content.url);
+    if (content.items) {
+      content.items.forEach(item => {
+        if (item.url && item.url.includes('supabase.co')) urls.push(item.url);
+      });
+    }
+    return urls;
+  };
+
   const handleDeleteEvidence = async (blockId) => {
+    const deletedBlock = evidenceBlocks.find(b => b.id === blockId);
     const updatedBlocks = evidenceBlocks.filter(b => b.id !== blockId);
     setEvidenceBlocks(updatedBlocks);
 
     const result = await saveEvidence(updatedBlocks);
     if (result.success) {
       toast.success('Evidence removed');
+      // Clean up storage files in background
+      const urls = collectStorageUrls(deletedBlock?.content);
+      if (urls.length > 0) {
+        evidenceDocumentService.deleteStorageUrls(urls);
+      }
     } else {
       setEvidenceBlocks(evidenceBlocks);
       toast.error('Failed to remove evidence');
@@ -436,14 +468,14 @@ const TaskWorkspace = ({
 
   // Handle deleting individual item from a block (e.g., single image from image block)
   const handleDeleteItem = async (blockId, itemIndex, remainingItems) => {
-    const updatedBlocks = evidenceBlocks.map(block => {
-      if (block.id === blockId) {
-        return {
-          ...block,
-          content: { items: remainingItems }
-        };
+    const block = evidenceBlocks.find(b => b.id === blockId);
+    const removedItem = block?.content?.items?.[itemIndex];
+
+    const updatedBlocks = evidenceBlocks.map(b => {
+      if (b.id === blockId) {
+        return { ...b, content: { items: remainingItems } };
       }
-      return block;
+      return b;
     });
     setEvidenceBlocks(updatedBlocks);
 
@@ -451,6 +483,11 @@ const TaskWorkspace = ({
     if (!result.success) {
       setEvidenceBlocks(evidenceBlocks);
       toast.error('Failed to remove item');
+    } else {
+      // Clean up storage file in background
+      if (removedItem?.url && removedItem.url.includes('supabase.co')) {
+        evidenceDocumentService.deleteStorageUrls([removedItem.url]);
+      }
     }
   };
 
