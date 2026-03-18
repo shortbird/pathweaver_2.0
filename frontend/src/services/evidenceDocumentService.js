@@ -226,35 +226,20 @@ export async function directUploadLargeFile(file, { contextType, contextId, subI
     sub_id: subId,
   });
 
-  const { upload_url, storage_path, bucket, token } = signedResponse.data;
+  const { storage_path, bucket, token } = signedResponse.data;
 
-  // Step 2: Upload directly to Supabase via the signed URL
-  await new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', upload_url);
-    xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
-    if (token) {
-      xhr.setRequestHeader('x-upsert', 'true');
-    }
+  // Step 2: Upload directly to Supabase using the JS client
+  const { supabase } = await import('./supabaseClient');
+  const { error: uploadError } = await supabase.storage
+    .from(bucket)
+    .uploadToSignedUrl(storage_path, token, file, {
+      upsert: true,
+    });
 
-    if (onProgress) {
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          onProgress(Math.round((e.loaded / e.total) * 100));
-        }
-      };
-    }
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve();
-      } else {
-        reject(new Error(`Upload failed with status ${xhr.status}`));
-      }
-    };
-    xhr.onerror = () => reject(new Error('Upload failed'));
-    xhr.send(file);
-  });
+  if (uploadError) {
+    console.error('[DirectUpload] Supabase error:', uploadError);
+    throw new Error(`Direct upload failed: ${uploadError.message}`);
+  }
 
   // Step 3: Tell the backend to process the uploaded file
   const processResponse = await api.post('/api/uploads/process-uploaded', {
