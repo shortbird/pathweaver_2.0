@@ -533,6 +533,9 @@ def upload_event_file(user_id, event_id):
                         'error': f'Video is too long ({duration:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.'
                     }), 400
 
+                # Transcode to H.264 if needed (HEVC from iPhones won't play in Firefox)
+                file_content = video_processing_service.ensure_h264(file_content)
+
                 def upload_thumbnail(thumb_bytes, thumb_name):
                     thumb_path = f"learning-events/{user_id}/thumbnails/{event_id}_{timestamp}_{thumb_name}"
                     admin_supabase.storage.from_('quest-evidence').upload(

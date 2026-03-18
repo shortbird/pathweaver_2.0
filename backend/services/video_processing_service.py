@@ -78,6 +78,90 @@ class VideoProcessingService:
             logger.warning(f"[VideoProcessing] ffprobe error: {e}")
             return None
 
+    def _get_video_codec(self, probe_data: dict) -> Optional[str]:
+        """Extract the video codec name from ffprobe output."""
+        if not probe_data:
+            return None
+        for stream in probe_data.get('streams', []):
+            if stream.get('codec_type') == 'video':
+                return stream.get('codec_name', '').lower()
+        return None
+
+    def _needs_transcoding(self, codec_name: Optional[str]) -> bool:
+        """Check if the video codec needs transcoding to H.264."""
+        if not codec_name:
+            return False
+        # H.264 is universally supported -- everything else may not be
+        return codec_name != 'h264'
+
+    def ensure_h264(self, file_content: bytes) -> bytes:
+        """
+        Transcode video to H.264 if needed for universal browser playback.
+
+        Returns the original bytes if already H.264 or if FFmpeg is unavailable.
+        Returns transcoded bytes if the video was HEVC or another non-H.264 codec.
+        """
+        if not self._ffmpeg_available:
+            return file_content
+
+        tmp_input = None
+        tmp_output = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp:
+                tmp.write(file_content)
+                tmp_input = tmp.name
+
+            probe = self._probe_video(tmp_input)
+            codec = self._get_video_codec(probe)
+
+            if not self._needs_transcoding(codec):
+                logger.info(f"[VideoProcessing] Video is already {codec or 'unknown'}, no transcoding needed")
+                return file_content
+
+            logger.info(f"[VideoProcessing] Transcoding from {codec} to H.264...")
+            tmp_output = tmp_input + '_h264.mp4'
+
+            result = subprocess.run(
+                [
+                    'ffmpeg', '-y',
+                    '-i', tmp_input,
+                    '-c:v', 'libx264',
+                    '-preset', 'veryfast',
+                    '-crf', '23',
+                    '-c:a', 'aac',
+                    '-movflags', '+faststart',
+                    tmp_output,
+                ],
+                capture_output=True,
+                timeout=300,  # 5 minute timeout for transcoding
+            )
+
+            if result.returncode == 0 and os.path.exists(tmp_output):
+                with open(tmp_output, 'rb') as f:
+                    transcoded = f.read()
+                original_size = len(file_content) / (1024 * 1024)
+                new_size = len(transcoded) / (1024 * 1024)
+                logger.info(
+                    f"[VideoProcessing] Transcoded {codec} -> H.264 "
+                    f"({original_size:.1f}MB -> {new_size:.1f}MB)"
+                )
+                return transcoded
+            else:
+                logger.warning(f"[VideoProcessing] Transcoding failed: {result.stderr[-500:]}")
+                return file_content
+
+        except subprocess.TimeoutExpired:
+            logger.warning("[VideoProcessing] Transcoding timed out, using original file")
+            return file_content
+        except Exception as e:
+            logger.error(f"[VideoProcessing] Transcoding error: {e}")
+            return file_content
+        finally:
+            if tmp_input and os.path.exists(tmp_input):
+                os.unlink(tmp_input)
+            if tmp_output and os.path.exists(tmp_output):
+                os.unlink(tmp_output)
+
     def validate_duration(self, file_content: bytes) -> tuple[bool, Optional[float]]:
         """
         Validate video duration is within allowed limit.
