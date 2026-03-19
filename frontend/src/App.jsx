@@ -116,6 +116,11 @@ const PublicEvidenceReport = lazy(() => import('./pages/PublicEvidenceReport'))
 const SharedFeedPostPage = lazy(() => import('./pages/SharedFeedPostPage'))
 // Credit Review Dashboard (March 2026 - Unified credit review for advisors/accreditors)
 const CreditReviewDashboardPage = lazy(() => import('./pages/CreditReviewDashboardPage'))
+// Bounty Board & Buddy (March 2026 - Integrated from mobile app plan)
+const BountyBoardPage = lazy(() => import('./pages/BountyBoardPage'))
+const BountyDetailPage = lazy(() => import('./pages/BountyDetailPage'))
+const BountyCreatePage = lazy(() => import('./pages/BountyCreatePage'))
+const BuddyPage = lazy(() => import('./pages/BuddyPage'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -447,6 +452,12 @@ function App() {
                 <Route path="evidence-reports" element={<MyEvidenceReports />} />
                 <Route path="evidence-reports/new" element={<EvidenceReportBuilder />} />
                 <Route path="evidence-reports/:id/edit" element={<EvidenceReportBuilder />} />
+                {/* Bounty Board & Buddy (March 2026) */}
+                <Route path="bounties" element={<BountyBoardPage />} />
+                <Route path="bounties/create" element={<BountyCreatePage />} />
+                <Route path="bounties/:bountyId/edit" element={<BountyCreatePage />} />
+                <Route path="bounties/:bountyId" element={<BountyDetailPage />} />
+                <Route path="buddy" element={<BuddyPage />} />
               </Route>
               
               <Route element={<PrivateRoute requiredRole="superadmin" />}>

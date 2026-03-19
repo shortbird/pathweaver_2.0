@@ -64,7 +64,8 @@ const StudentOverviewSections = ({
   journalViewMode = 'student',
   journalMoments,
   afterPortfolio,
-  afterJournal
+  afterJournal,
+  onEvidenceDeleted
 }) => {
   // Determine which sections have data (for hideEmptySections mode)
   const hasSnapshotData = !hideEmptySections || (data.activeQuests?.length > 0) || (data.recentCompletions?.length > 0);
@@ -126,6 +127,7 @@ const StudentOverviewSections = ({
             privacyLoading={privacyLoading}
             readOnly={portfolioReadOnly}
             hideHeader
+            onEvidenceDeleted={onEvidenceDeleted}
           />
         </CollapsibleSection>
       )}
@@ -175,7 +177,8 @@ StudentOverviewSections.propTypes = {
   journalViewMode: PropTypes.oneOf(['student', 'parent', 'observer']),
   journalMoments: PropTypes.array,
   afterPortfolio: PropTypes.node,
-  afterJournal: PropTypes.node
+  afterJournal: PropTypes.node,
+  onEvidenceDeleted: PropTypes.func
 };
 
 export default StudentOverviewSections;

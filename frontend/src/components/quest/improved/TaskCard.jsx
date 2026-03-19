@@ -2,7 +2,6 @@ import React, { useState, memo } from 'react';
 import Button from '../../ui/Button';
 import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings';
 import SubjectBadges from '../../common/SubjectBadges';
-import TaskFeedbackStatus from '../TaskFeedbackStatus';
 
 const TaskCard = memo(({ task, index, isCompleted, isEnrolled, onComplete, hasCollaboration }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -150,12 +149,6 @@ const TaskCard = memo(({ task, index, isCompleted, isEnrolled, onComplete, hasCo
           </div>
         )}
 
-        {/* Feedback Status for Completed Tasks (Draft Feedback System) */}
-        {isCompleted && (
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <TaskFeedbackStatus taskId={task.id} />
-          </div>
-        )}
       </div>
 
       {/* Completion Animation Overlay */}

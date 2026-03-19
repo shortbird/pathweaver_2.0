@@ -332,6 +332,7 @@ const StudentOverviewPage = () => {
           onPrivacyToggle={handlePrivacyToggle}
           privacyLoading={privacyLoading}
           afterJournal={accountSettingsSection}
+          onEvidenceDeleted={fetchData}
         />
       </div>
 

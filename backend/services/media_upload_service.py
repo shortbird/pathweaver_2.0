@@ -195,10 +195,10 @@ class MediaUploadService:
 
         # Convert HEIF/HEIC to JPEG (browsers can't display HEIF natively)
         if ext in ('heic', 'heif') and block_type == 'image':
-            converted = self._convert_heif_to_jpeg(file_content, filename)
-            if converted:
-                file_content, filename, ext, content_type = converted
-                file_size = len(file_content)
+            from utils.image_utils import convert_heif_if_needed
+            file_content, filename, content_type = convert_heif_if_needed(file_content, filename, content_type)
+            ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ext
+            file_size = len(file_content)
 
         is_video = block_type == 'video'
 

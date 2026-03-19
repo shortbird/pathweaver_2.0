@@ -5,6 +5,8 @@ import api from '../../services/api'
 import toast from 'react-hot-toast'
 import ChatLogsModal from './ChatLogsModal'
 import CheckinHistoryModal from '../advisor/CheckinHistoryModal'
+import UserConnectionsTab from './UserConnectionsTab'
+import UserEnrollmentsTab from './UserEnrollmentsTab'
 import { startMasquerade } from '../../services/masqueradeService'
 import { queryKeys } from '../../utils/queryKeys'
 
@@ -347,31 +349,47 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-full sm:max-w-2xl mx-2 sm:mx-0 w-full max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center sm:p-4 z-50">
+      <div className="bg-white rounded-t-2xl sm:rounded-lg w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 p-6 border-b">
-          <h2 className="text-2xl font-bold">User Details</h2>
+        <div className="flex items-center justify-between px-4 py-3 sm:p-6 border-b flex-shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Mobile avatar + name in header */}
+            <div className="sm:hidden flex items-center gap-2.5 min-w-0">
+              {currentAvatarUrl ? (
+                <img src={currentAvatarUrl} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-sm font-bold">{(formData.first_name?.[0] || user.email[0]).toUpperCase()}</span>
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-gray-900 truncate">{formData.first_name} {formData.last_name}</p>
+                <p className="text-xs text-gray-500 truncate">{user.email}</p>
+              </div>
+            </div>
+            <h2 className="hidden sm:block text-2xl font-bold">User Details</h2>
+          </div>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="p-2 -mr-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b overflow-x-auto">
-          {['profile', 'role', 'actions'].map((tab) => (
+        <div className="flex border-b overflow-x-auto flex-shrink-0" style={{ WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+          {['profile', 'role', 'connections', 'enrollments', 'actions'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-3 sm:px-6 py-3 min-h-[44px] font-medium capitalize whitespace-nowrap ${
+              className={`px-3 sm:px-5 py-2.5 sm:py-3 min-h-[44px] text-sm sm:text-base font-medium capitalize whitespace-nowrap flex-shrink-0 ${
                 activeTab === tab
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'text-optio-purple border-b-2 border-optio-purple'
+                  : 'text-gray-500 hover:text-gray-900'
               }`}
             >
               {tab}
@@ -380,42 +398,44 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[60vh]">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0">
           {activeTab === 'profile' && (
             <div className="space-y-4">
               {/* Profile Picture Section */}
-              <div className="flex flex-col items-center py-4 border-b border-gray-200">
-                <div className="relative mb-4">
+              <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
+                <div className="relative flex-shrink-0">
                   {currentAvatarUrl ? (
                     <img
                       src={currentAvatarUrl}
                       alt={`Profile picture of ${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User profile picture'}
-                      className="w-24 h-24 rounded-full object-cover border-4 border-gray-200"
+                      className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-2 border-gray-200"
                     />
                   ) : (
-                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center border-4 border-gray-200">
-                      <span className="text-white text-3xl font-bold">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center border-2 border-gray-200">
+                      <span className="text-white text-xl sm:text-2xl font-bold">
                         {(formData.first_name?.[0] || user.email[0]).toUpperCase()}
                       </span>
                     </div>
                   )}
                   {uploadingAvatar && (
                     <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={handleUploadAvatar}
-                  disabled={uploadingAvatar}
-                  className="px-4 py-2 min-h-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  {uploadingAvatar ? 'Uploading...' : 'Upload Profile Picture'}
-                </button>
-                <p className="text-xs text-gray-500 mt-2">JPEG, PNG, GIF, or WEBP (max 5MB)</p>
+                <div>
+                  <button
+                    onClick={handleUploadAvatar}
+                    disabled={uploadingAvatar}
+                    className="px-3 py-1.5 min-h-[36px] text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-1.5"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    {uploadingAvatar ? 'Uploading...' : 'Change Photo'}
+                  </button>
+                  <p className="text-xs text-gray-400 mt-1">JPEG, PNG, GIF, WEBP (max 5MB)</p>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -779,6 +799,14 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 </button>
               </div>
             </div>
+          )}
+
+          {activeTab === 'connections' && (
+            <UserConnectionsTab user={user} />
+          )}
+
+          {activeTab === 'enrollments' && (
+            <UserEnrollmentsTab user={user} />
           )}
 
           {activeTab === 'actions' && (

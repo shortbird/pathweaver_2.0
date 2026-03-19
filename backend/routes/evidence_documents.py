@@ -930,6 +930,78 @@ def delete_storage_urls(user_id: str):
             'error': 'Failed to delete files'
         }), 500
 
+@bp.route('/blocks/<block_id>/delete', methods=['DELETE'])
+@require_auth
+def delete_evidence_block(user_id: str, block_id: str):
+    """
+    Student deletes an evidence block from their portfolio.
+    Deletes associated files from Supabase storage.
+    If this is the last block in the document, also deletes the document.
+    """
+    try:
+        admin_supabase = get_supabase_admin_client()
+
+        # Verify the block exists and belongs to this user
+        block_result = admin_supabase.table('evidence_document_blocks') \
+            .select('id, document_id, content, block_type') \
+            .eq('id', block_id) \
+            .single() \
+            .execute()
+
+        if not block_result.data:
+            return jsonify({'error': 'Evidence block not found'}), 404
+
+        block = block_result.data
+        document_id = block['document_id']
+
+        # Verify document ownership
+        doc_result = admin_supabase.table('user_task_evidence_documents') \
+            .select('id, user_id, task_id') \
+            .eq('id', document_id) \
+            .single() \
+            .execute()
+
+        if not doc_result.data or doc_result.data['user_id'] != user_id:
+            return jsonify({'error': 'Not authorized to delete this evidence'}), 403
+
+        # Delete files from storage
+        content = block.get('content', {})
+        file_urls = _collect_file_urls_from_content(content)
+        for url in file_urls:
+            _delete_storage_file(admin_supabase, url)
+
+        # Delete the block
+        admin_supabase.table('evidence_document_blocks') \
+            .delete() \
+            .eq('id', block_id) \
+            .execute()
+
+        # Check if document has any remaining blocks
+        remaining = admin_supabase.table('evidence_document_blocks') \
+            .select('id') \
+            .eq('document_id', document_id) \
+            .limit(1) \
+            .execute()
+
+        if not remaining.data:
+            # No blocks left - delete the document too
+            admin_supabase.table('user_task_evidence_documents') \
+                .delete() \
+                .eq('id', document_id) \
+                .execute()
+
+        logger.info(f"Evidence block deleted: block_id={block_id}, user_id={user_id}")
+
+        return jsonify({
+            'success': True,
+            'document_empty': not remaining.data
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Failed to delete evidence block: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to delete evidence'}), 500
+
+
 @bp.route('/documents/<task_id>/complete', methods=['POST'])
 @require_auth
 def complete_task_with_evidence(user_id: str, task_id: str):

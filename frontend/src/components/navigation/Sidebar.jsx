@@ -77,22 +77,19 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
 
   const hasEnrolledCourses = coursesData === true
 
-  // Check if student has class enrollments (for conditional Classes nav item)
-  const { data: hasClassEnrollments } = useQuery({
-    queryKey: ['classes-sidebar-check', user?.id],
-    queryFn: async () => {
-      const response = await api.get('/api/student/classes')
-      const classes = response.data?.classes || []
-      return classes.length > 0
-    },
-    enabled: !!user?.id && !!user?.organization_id && (user?.role === 'student' || user?.role === 'org_managed'),
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-    refetchOnWindowFocus: false
-  })
+  // Classes sidebar check removed (March 2026 - Classes nav removed)
 
   // Base navigation items for all users
   const baseNavItems = [
+    {
+      name: 'Bounty Board',
+      path: '/bounties',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+      )
+    },
     // Calendar nav item commented out (March 2026 - Feature pruning, keep code for future re-enabling)
     // {
     //   name: 'Calendar',
@@ -121,15 +118,16 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
         </svg>
       )
     },
-    {
-      name: 'Profile',
-      path: '/overview',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-      )
-    }
+    // Profile nav item removed (March 2026 - accessed via user name in top-right header)
+    // {
+    //   name: 'Profile',
+    //   path: '/overview',
+    //   icon: (
+    //     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    //       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    //     </svg>
+    //   )
+    // }
   ]
 
   // Start with base navigation items
@@ -148,7 +146,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // Add Courses link: always for superadmin, only if enrolled for others
   const alwaysShowCourses = user?.role === 'superadmin'
   if (alwaysShowCourses || hasEnrolledCourses) {
-    navItems.unshift({
+    navItems.push({
       name: 'Courses',
       path: '/courses',
       icon: (
@@ -159,14 +157,28 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
-  // Add My Activity link for students to view their activity feed with observer comments/likes
-  if (user?.role === 'student') {
+  // Buddy nav - superadmin only for now
+  if (user?.role === 'superadmin') {
     navItems.push({
-      name: 'My Activity',
+      name: 'Buddy',
+      path: '/buddy',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+        </svg>
+      )
+    })
+  }
+
+  // Add Activity Feed link for students to view their evidence feed and invite observers
+  const isStudent = user?.role === 'student' || user?.org_role === 'student' || (user?.org_roles && user.org_roles.includes('student'))
+  if (isStudent) {
+    navItems.push({
+      name: 'Activity Feed',
       path: '/feedback',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
         </svg>
       )
     })
@@ -200,30 +212,10 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
         </svg>
       )
     })
-    // Classes nav for advisors (organization classes)
-    navItems.push({
-      name: 'Classes',
-      path: '/classes',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342" />
-        </svg>
-      )
-    })
+    // Classes nav removed (March 2026 - Feature pruning)
   }
 
-  // Classes nav for org students enrolled in classes
-  if (!isAdvisor && hasClassEnrollments) {
-    navItems.push({
-      name: 'Classes',
-      path: '/classes',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342" />
-        </svg>
-      )
-    })
-  }
+  // Classes nav for org students removed (March 2026 - Feature pruning)
 
   // Add Parent/Advisor links for admins and superadmins (if not already added above)
   if (user?.role === 'admin' || user?.role === 'superadmin') {
@@ -253,18 +245,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     }
   }
 
-  // Credit Review Dashboard - superadmin only
-  if (user?.role === 'superadmin') {
-    navItems.push({
-      name: 'Credit Review',
-      path: '/credit-dashboard',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      )
-    })
-  }
+  // Credit Review moved to advisor dashboard (March 2026 - superadmin-only button there)
 
   // Add global Admin panel link ONLY for superadmins
   if (user?.role === 'superadmin') {

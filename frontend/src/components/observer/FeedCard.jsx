@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import api, { observerAPI } from '../../services/api';
+import toast from 'react-hot-toast';
 import {
   HeartIcon,
   ChatBubbleLeftIcon,
@@ -56,6 +57,8 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [localItem, setLocalItem] = useState(item);
+  const [isHidden, setIsHidden] = useState(item.is_confidential || false);
+  const [togglingVisibility, setTogglingVisibility] = useState(false);
 
   // Sync local item when prop changes
   useEffect(() => {
@@ -280,6 +283,26 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
       }
     } finally {
       setSharing(false);
+    }
+  };
+
+  const handleToggleVisibility = async () => {
+    if (togglingVisibility) return;
+    const newHidden = !isHidden;
+    setTogglingVisibility(true);
+    setIsHidden(newHidden); // Optimistic update
+    try {
+      await observerAPI.toggleFeedItemVisibility({
+        completion_id: completionId || undefined,
+        learning_event_id: learningEventId || undefined,
+        hidden: newHidden
+      });
+    } catch (err) {
+      console.error('Failed to toggle visibility:', err);
+      setIsHidden(!newHidden); // Revert
+      toast.error('Failed to update visibility');
+    } finally {
+      setTogglingVisibility(false);
     }
   };
 
@@ -540,11 +563,31 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
           <button
             onClick={handleEditClick}
             disabled={loadingEdit}
-            className="flex items-center gap-1 p-2 text-gray-700 hover:text-optio-purple transition-colors ml-auto disabled:opacity-50"
+            className="flex items-center gap-1 p-2 text-gray-700 hover:text-optio-purple transition-colors disabled:opacity-50"
           >
             <PencilIcon className="w-5 h-5" />
             <span className="text-sm">Edit</span>
           </button>
+        )}
+        {isStudentView && (
+          <label
+            className={`flex items-center gap-1.5 ml-auto cursor-pointer select-none p-2 rounded transition-colors ${isHidden ? 'text-amber-600' : 'text-gray-400 hover:text-gray-600'}`}
+            title={isHidden ? 'Hidden from observers' : 'Visible to observers'}
+          >
+            <input
+              type="checkbox"
+              checked={!isHidden}
+              onChange={handleToggleVisibility}
+              disabled={togglingVisibility}
+              className="sr-only peer"
+            />
+            <div className={`relative w-8 h-[18px] rounded-full transition-colors ${isHidden ? 'bg-gray-300' : 'bg-optio-purple'}`}>
+              <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform ${isHidden ? 'left-[2px]' : 'left-[14px]'}`} />
+            </div>
+            <span className="text-xs font-medium whitespace-nowrap">
+              {isHidden ? 'Hidden' : 'Public'}
+            </span>
+          </label>
         )}
       </div>
 
@@ -692,7 +735,8 @@ FeedCard.propTypes = {
     xp_awarded: PropTypes.number,
     likes_count: PropTypes.number,
     comments_count: PropTypes.number,
-    user_has_liked: PropTypes.bool
+    user_has_liked: PropTypes.bool,
+    is_confidential: PropTypes.bool
   }).isRequired,
   showStudentName: PropTypes.bool,
   isStudentView: PropTypes.bool,

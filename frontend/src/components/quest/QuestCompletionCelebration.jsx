@@ -14,7 +14,13 @@ const QuestCompletionCelebration = ({
   const navigate = useNavigate();
   const [showDialog, setShowDialog] = useState(false);
 
+  // Detect empty quest (no tasks remaining) vs all tasks completed
+  const isEmptyQuest = !quest?.quest_tasks?.length;
+
   useEffect(() => {
+    // Skip confetti for empty quests
+    if (isEmptyQuest) return;
+
     // Fire celebration confetti
     const duration = 3000;
     const animationEnd = Date.now() + duration;
@@ -56,7 +62,7 @@ const QuestCompletionCelebration = ({
     }, 250);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isEmptyQuest]);
 
   const handleFinishClick = () => {
     setShowDialog(true);
@@ -80,45 +86,69 @@ const QuestCompletionCelebration = ({
           {/* Gradient background decoration */}
           <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-br from-optio-purple/10 via-optio-pink/10 to-yellow-400/10 -z-10" />
 
-          {/* Trophy icon */}
+          {/* Icon */}
           <div className="flex justify-center mb-6">
-            <div className="w-24 h-24 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
-              <TrophyIcon className="w-14 h-14 text-white" />
-            </div>
+            {isEmptyQuest ? (
+              <div className="w-24 h-24 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center shadow-lg">
+                <BookOpenIcon className="w-14 h-14 text-white" />
+              </div>
+            ) : (
+              <div className="w-24 h-24 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
+                <TrophyIcon className="w-14 h-14 text-white" />
+              </div>
+            )}
           </div>
 
-          {/* Celebration message */}
+          {/* Message */}
           <div className="text-center mb-8">
-            <h2 className="text-4xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent mb-3" style={{ fontFamily: 'Poppins' }}>
-              Quest Complete!
-            </h2>
-            <p className="text-2xl font-semibold text-gray-800 mb-2" style={{ fontFamily: 'Poppins' }}>
-              {quest?.title || 'Your Quest'}
-            </p>
-            <p className="text-gray-600 text-lg" style={{ fontFamily: 'Poppins' }}>
-              Amazing work! You've completed all tasks in this quest.
-            </p>
+            {isEmptyQuest ? (
+              <>
+                <h2 className="text-3xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins' }}>
+                  No Tasks in Quest
+                </h2>
+                <p className="text-2xl font-semibold text-gray-800 mb-2" style={{ fontFamily: 'Poppins' }}>
+                  {quest?.title || 'Your Quest'}
+                </p>
+                <p className="text-gray-600 text-lg" style={{ fontFamily: 'Poppins' }}>
+                  This quest doesn't have any tasks yet. Add some tasks to get started, or finish the quest.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-4xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent mb-3" style={{ fontFamily: 'Poppins' }}>
+                  Quest Complete!
+                </h2>
+                <p className="text-2xl font-semibold text-gray-800 mb-2" style={{ fontFamily: 'Poppins' }}>
+                  {quest?.title || 'Your Quest'}
+                </p>
+                <p className="text-gray-600 text-lg" style={{ fontFamily: 'Poppins' }}>
+                  Amazing work! You've completed all tasks in this quest.
+                </p>
+              </>
+            )}
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="bg-gradient-to-br from-optio-purple/10 to-optio-purple/5 rounded-2xl p-6 text-center">
-              <div className="text-3xl font-bold text-optio-purple mb-1" style={{ fontFamily: 'Poppins' }}>
-                {completedTasksCount}
+          {/* Stats - only show when there are completed tasks */}
+          {!isEmptyQuest && (
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              <div className="bg-gradient-to-br from-optio-purple/10 to-optio-purple/5 rounded-2xl p-6 text-center">
+                <div className="text-3xl font-bold text-optio-purple mb-1" style={{ fontFamily: 'Poppins' }}>
+                  {completedTasksCount}
+                </div>
+                <div className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins' }}>
+                  Tasks Completed
+                </div>
               </div>
-              <div className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins' }}>
-                Tasks Completed
+              <div className="bg-gradient-to-br from-yellow-400/10 to-yellow-400/5 rounded-2xl p-6 text-center">
+                <div className="text-3xl font-bold text-yellow-600 mb-1" style={{ fontFamily: 'Poppins' }}>
+                  {totalXP}
+                </div>
+                <div className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins' }}>
+                  XP Earned
+                </div>
               </div>
             </div>
-            <div className="bg-gradient-to-br from-yellow-400/10 to-yellow-400/5 rounded-2xl p-6 text-center">
-              <div className="text-3xl font-bold text-yellow-600 mb-1" style={{ fontFamily: 'Poppins' }}>
-                {totalXP}
-              </div>
-              <div className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins' }}>
-                XP Earned
-              </div>
-            </div>
-          </div>
+          )}
 
           {/* Question prompt */}
           <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-2xl p-6 mb-6 border-2 border-optio-purple/20">
@@ -126,7 +156,9 @@ const QuestCompletionCelebration = ({
               What would you like to do next?
             </p>
             <p className="text-center text-gray-600 text-sm" style={{ fontFamily: 'Poppins' }}>
-              Add more tasks to keep learning, or finish this quest and return to your dashboard.
+              {isEmptyQuest
+                ? 'Add tasks to personalize your quest, or finish and return to your dashboard.'
+                : 'Add more tasks to keep learning, or finish this quest and return to your dashboard.'}
             </p>
           </div>
 
@@ -138,7 +170,7 @@ const QuestCompletionCelebration = ({
               style={{ fontFamily: 'Poppins' }}
             >
               <PlusIcon className="w-5 h-5" />
-              Add More Tasks
+              {isEmptyQuest ? 'Add Tasks' : 'Add More Tasks'}
             </button>
             <button
               onClick={handleFinishClick}
@@ -150,17 +182,19 @@ const QuestCompletionCelebration = ({
             </button>
           </div>
 
-          {/* View diploma link */}
-          <div className="text-center mt-6">
-            <button
-              onClick={() => navigate('/diploma')}
-              className="inline-flex items-center gap-2 text-optio-purple hover:text-optio-pink transition-colors font-medium"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              <BookOpenIcon className="w-4 h-4" />
-              View on Diploma
-            </button>
-          </div>
+          {/* View diploma link - only show when there are completed tasks */}
+          {!isEmptyQuest && (
+            <div className="text-center mt-6">
+              <button
+                onClick={() => navigate('/diploma')}
+                className="inline-flex items-center gap-2 text-optio-purple hover:text-optio-pink transition-colors font-medium"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                <BookOpenIcon className="w-4 h-4" />
+                View on Diploma
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

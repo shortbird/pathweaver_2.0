@@ -53,6 +53,21 @@ export const queryKeys = {
     progress: (courseId) => [...queryKeys.courses.all, 'progress', courseId],
   },
 
+  // Bounty queries
+  bounties: {
+    all: ['bounties'],
+    list: (filters) => [...queryKeys.bounties.all, 'list', filters],
+    detail: (bountyId) => [...queryKeys.bounties.all, 'detail', bountyId],
+    myClaims: ['bounties', 'my-claims'],
+    myPosted: ['bounties', 'my-posted'],
+  },
+
+  // Buddy queries
+  buddy: {
+    all: ['buddy'],
+    record: (userId) => [...queryKeys.buddy.all, 'record', userId],
+  },
+
   // Admin queries
   admin: {
     all: ['admin'],
@@ -100,6 +115,18 @@ export const mutationKeys = {
   updateProfile: 'updateProfile',
   updateSettings: 'updateSettings',
   updateSubscription: 'updateSubscription',
+
+  // Bounty mutations
+  claimBounty: 'claimBounty',
+  submitBountyEvidence: 'submitBountyEvidence',
+  createBounty: 'createBounty',
+  reviewBounty: 'reviewBounty',
+  moderateBounty: 'moderateBounty',
+
+  // Buddy mutations
+  createBuddy: 'createBuddy',
+  feedBuddy: 'feedBuddy',
+  tapBuddy: 'tapBuddy',
 
   // Quest mutations
   enrollQuest: 'enrollQuest',

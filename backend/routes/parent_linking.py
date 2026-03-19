@@ -666,8 +666,8 @@ def get_family_parents(user_id):
                 if other_parent_id != user_id:
                     co_parent_ids.add(other_parent_id)
 
-        # Find other parents linked to the same students
-        for student_id in linked_student_ids:
+        # Find other parents linked to any of this parent's children
+        for student_id in all_child_ids:
             other_links = supabase.table('parent_student_links').select('parent_user_id').eq('student_user_id', student_id).eq('status', 'approved').neq('parent_user_id', user_id).execute()
             for link in (other_links.data or []):
                 co_parent_ids.add(link['parent_user_id'])
@@ -693,57 +693,86 @@ def get_family_parents(user_id):
         return jsonify({'error': 'Failed to fetch family parents'}), 500
 
 
-@bp.route('/invite-parent', methods=['POST'])
+@bp.route('/promote-observer', methods=['POST'])
 @require_auth
-def invite_parent(user_id):
+def promote_observer_to_parent(user_id):
     """
-    Invite another parent to join the family.
-    The invited parent will gain access to all children managed by this parent.
+    Promote an observer to a parent role for this family.
+    The observer must have been invited by this parent.
+    Changes their role from 'observer' to 'parent' and converts
+    observer_student_links into proper parent-child relationships.
 
     Request body:
     {
-        "email": "coparent@example.com"
+        "observer_id": "<uuid>"
     }
     """
     try:
         data = request.get_json()
-        email = data.get('email', '').strip().lower()
+        observer_id = data.get('observer_id', '').strip()
 
-        if not email:
-            raise ValidationError("Email is required")
+        if not observer_id:
+            raise ValidationError("observer_id is required")
 
         supabase = get_supabase_admin_client()
 
-        # Check if user with this email already exists
-        existing_user = supabase.table('users').select('id, email, role').eq('email', email).execute()
+        # Verify requesting user is a parent
+        parent = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        if not parent.data or parent.data['role'] not in ('parent', 'superadmin'):
+            return jsonify({'error': 'Only parents can promote observers'}), 403
 
-        if existing_user.data:
-            # User exists - check if they're already a co-parent
-            existing_id = existing_user.data[0]['id']
+        # Verify user exists and is an observer (or already a parent)
+        observer = supabase.table('users').select('id, role, display_name, first_name, last_name, email').eq('id', observer_id).single().execute()
+        if not observer.data:
+            raise NotFoundError("User not found")
 
-            # Check if they already have access to any of our children
-            # For now, just return an error that they already have an account
-            return jsonify({
-                'success': False,
-                'error': 'This email is already registered. Please ask them to create their own parent account and contact support to be linked.'
-            }), 400
+        if observer.data['role'] not in ('observer', 'parent'):
+            return jsonify({'error': 'This user cannot be made a parent'}), 400
 
-        # TODO: Implement invitation system
-        # For now, return a placeholder response
-        # In a full implementation, this would:
-        # 1. Create an invitation record in a parent_invitations table
-        # 2. Send an email with a signup link
-        # 3. When they sign up, automatically grant them co-parent access
+        # Verify this user was invited by this parent (via observer links)
+        links = supabase.table('observer_student_links') \
+            .select('id, student_id') \
+            .eq('observer_id', observer_id) \
+            .eq('invited_by_parent_id', user_id) \
+            .execute()
 
-        logger.info(f"Parent {user_id} requested to invite {email} as co-parent")
+        if not links.data:
+            return jsonify({'error': 'This user is not part of your family'}), 403
+
+        student_ids = [link['student_id'] for link in links.data]
+
+        # Change role to parent if not already
+        if observer.data['role'] != 'parent':
+            supabase.table('users').update({'role': 'parent'}).eq('id', observer_id).execute()
+
+        # Create parent_student_links for all children (dependents and linked)
+        for student_id in student_ids:
+            existing_link = supabase.table('parent_student_links') \
+                .select('id') \
+                .eq('parent_user_id', observer_id) \
+                .eq('student_user_id', student_id) \
+                .execute()
+
+            if not existing_link.data:
+                supabase.table('parent_student_links').insert({
+                    'parent_user_id': observer_id,
+                    'student_user_id': student_id,
+                    'status': 'approved'
+                }).execute()
+
+        observer_name = observer.data.get('display_name') or \
+            f"{observer.data.get('first_name', '')} {observer.data.get('last_name', '')}".strip() or \
+            observer.data.get('email', 'Observer')
+
+        logger.info(f"Parent {user_id} promoted observer {observer_id} ({observer_name}) to parent role")
 
         return jsonify({
             'success': True,
-            'message': f'Invitation functionality coming soon. For now, please have {email} create their own account and contact support@optioeducation.com to be linked as a co-parent.'
+            'message': f'{observer_name} is now a parent in your family'
         }), 200
 
-    except ValidationError as e:
+    except (ValidationError, NotFoundError) as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
-        logger.error(f"Error inviting parent: {str(e)}")
-        return jsonify({'success': False, 'error': 'Failed to send invitation'}), 500
+        logger.error(f"Error promoting observer to parent: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Failed to promote observer'}), 500

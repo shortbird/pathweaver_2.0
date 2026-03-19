@@ -408,9 +408,13 @@ export default function AuthCallback() {
               <p className="text-red-600 mt-2" style={{ fontFamily: 'Poppins' }}>
                 {error}
               </p>
-              <p className="text-gray-500 mt-4 text-sm" style={{ fontFamily: 'Poppins' }}>
-                Redirecting to login page...
-              </p>
+              <a
+                href="/login"
+                className="inline-block mt-4 px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold rounded-lg hover:opacity-90 transition-opacity text-sm"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                Go to Login
+              </a>
             </>
           )}
         </div>

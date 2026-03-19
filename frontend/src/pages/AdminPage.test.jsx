@@ -16,9 +16,6 @@ vi.mock('../components/admin/AdminQuests', () => ({
 vi.mock('../components/admin/AdminUsers', () => ({
   default: () => <div data-testid="admin-users">Admin Users</div>
 }))
-vi.mock('../components/admin/AdminConnections', () => ({
-  default: () => <div data-testid="admin-connections">Admin Connections</div>
-}))
 vi.mock('../components/admin/FlaggedTasksPanel', () => ({
   default: () => <div data-testid="flagged-tasks">Flagged Tasks</div>
 }))
@@ -43,17 +40,12 @@ vi.mock('./admin/CourseGeneratorWizard', () => ({
 vi.mock('./admin/CourseGenerationQueue', () => ({
   default: () => <div>Generation Queue</div>
 }))
-vi.mock('./admin/CourseEnrollmentsPage', () => ({
-  default: () => <div>Course Enrollments</div>
-}))
+// CourseEnrollmentsPage mock removed (March 2026 - moved to user modal)
 vi.mock('./admin/TransferCreditForm', () => ({
   default: () => <div>Transfer Credits</div>
 }))
 vi.mock('./admin/CoursePlanMode', () => ({
   default: () => <div>Course Plan</div>
-}))
-vi.mock('../components/admin/DraftFeedbackPanel', () => ({
-  default: () => <div>Draft Feedback</div>
 }))
 vi.mock('../components/admin/DocsManager', () => ({
   default: () => <div>Docs Manager</div>
@@ -91,15 +83,14 @@ describe('AdminPage', () => {
       await waitFor(() => {
         // Tabs appear in both mobile select and desktop links
         expect(screen.getAllByText('Users').length).toBeGreaterThanOrEqual(1)
-        expect(screen.getAllByText('Connections').length).toBeGreaterThanOrEqual(1)
+        expect(screen.getAllByText('Emails').length).toBeGreaterThanOrEqual(1)
       })
     })
 
     it('shows superadmin-only tabs', async () => {
       renderAdmin()
       await waitFor(() => {
-        expect(screen.getAllByText('Draft Feedback').length).toBeGreaterThanOrEqual(1)
-        expect(screen.getAllByText('Course Enrollments').length).toBeGreaterThanOrEqual(1)
+expect(screen.getAllByText('Docs').length).toBeGreaterThanOrEqual(1)
         expect(screen.getAllByText('Docs').length).toBeGreaterThanOrEqual(1)
       })
     })
@@ -148,8 +139,8 @@ describe('AdminPage', () => {
     it('does not show superadmin-only tabs', async () => {
       renderAdmin()
       await waitFor(() => {
-        expect(screen.queryByText('Draft Feedback')).not.toBeInTheDocument()
-        expect(screen.queryByText('Course Enrollments')).not.toBeInTheDocument()
+        // Draft Feedback tab removed (March 2026 - replaced by credit review)
+        // Course Enrollments tab removed (March 2026 - moved to user modal)
       })
     })
   })

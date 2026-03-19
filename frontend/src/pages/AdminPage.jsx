@@ -5,7 +5,6 @@ import { useAuth } from '../contexts/AuthContext'
 // Lazy load all admin components to reduce initial bundle size
 const AdminQuests = lazy(() => import('../components/admin/AdminQuests'))
 const AdminUsers = lazy(() => import('../components/admin/AdminUsers'))
-const AdminConnections = lazy(() => import('../components/admin/AdminConnections'))
 const FlaggedTasksPanel = lazy(() => import('../components/admin/FlaggedTasksPanel'))
 const AutomatedEmailsList = lazy(() => import('../components/admin/AutomatedEmailsList'))
 const OrganizationDashboard = lazy(() => import('./admin/OrganizationDashboard'))
@@ -14,10 +13,8 @@ const ParentalConsentReviewPage = lazy(() => import('./admin/ParentalConsentRevi
 const CurriculumUploadPage = lazy(() => import('./admin/CurriculumUploadPage'))
 const CourseGeneratorWizard = lazy(() => import('./admin/CourseGeneratorWizard'))
 const CourseGenerationQueue = lazy(() => import('./admin/CourseGenerationQueue'))
-const CourseEnrollmentsPage = lazy(() => import('./admin/CourseEnrollmentsPage'))
 const TransferCreditForm = lazy(() => import('./admin/TransferCreditForm'))
 const CoursePlanMode = lazy(() => import('./admin/CoursePlanMode'))
-const DraftFeedbackPanel = lazy(() => import('../components/admin/DraftFeedbackPanel'))
 const DocsManager = lazy(() => import('../components/admin/DocsManager'))
 const BulkCourseGeneration = lazy(() => import('./admin/BulkCourseGeneration'))
 
@@ -53,16 +50,13 @@ const AdminPage = () => {
   const adminTabs = [
     { path: '', label: 'Quests', pathMatch: ['admin', 'quests', ''] },
     { path: 'users', label: 'Users' },
-    { path: 'connections', label: 'Connections' },
-    { path: 'emails', label: 'Emails' },
+{ path: 'emails', label: 'Emails' },
     { path: 'organizations', label: 'Organizations' },
     { path: 'parental-consent', label: 'Parental Consent' }
   ]
 
   const superadminTabs = [
-    { path: 'draft-feedback', label: 'Draft Feedback' },
-    { path: 'course-enrollments', label: 'Course Enrollments' },
-    { path: 'curriculum-upload', label: 'AI Upload' },
+{ path: 'curriculum-upload', label: 'AI Upload' },
     { path: 'bulk-generate', label: 'Bulk Generate' },
     { path: 'docs', label: 'Docs' }
   ]
@@ -153,19 +147,16 @@ const AdminPage = () => {
           <Route index element={<AdminQuests />} />
           <Route path="quests" element={<AdminQuests />} />
           <Route path="users" element={<AdminUsers />} />
-          <Route path="connections" element={<AdminConnections />} />
           <Route path="flagged-tasks" element={<FlaggedTasksPanel />} />
           <Route path="user/:userId/transfer-credits" element={<TransferCreditForm />} />
           <Route path="emails" element={<AutomatedEmailsList />} />
           <Route path="organizations" element={<OrganizationDashboard />} />
           <Route path="organizations/:orgId" element={<OrganizationManagement />} />
           <Route path="parental-consent" element={<ParentalConsentReviewPage />} />
-          <Route path="draft-feedback" element={<DraftFeedbackPanel />} />
           <Route path="curriculum-upload" element={<CurriculumUploadPage />} />
           <Route path="generate-course" element={<CourseGeneratorWizard />} />
           <Route path="generate-course/:courseId" element={<CourseGeneratorWizard />} />
           <Route path="course-generation-queue" element={<CourseGenerationQueue />} />
-          <Route path="course-enrollments" element={<CourseEnrollmentsPage />} />
           <Route path="course-plan" element={<CoursePlanMode />} />
           <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
           <Route path="bulk-generate" element={<BulkCourseGeneration />} />

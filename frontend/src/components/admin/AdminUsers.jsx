@@ -24,9 +24,23 @@ const AdminUsers = () => {
   })
   const [organizations, setOrganizations] = useState([])
   // Default to card view on mobile (< 768px), list view on larger screens
+  // Automatically switches when crossing the 768px breakpoint
   const [viewMode, setViewMode] = useState(() =>
     window.innerWidth < 768 ? 'card' : 'list'
   )
+  const [manualViewMode, setManualViewMode] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    const handler = (e) => {
+      if (!manualViewMode) {
+        setViewMode(e.matches ? 'list' : 'card')
+      }
+    }
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [manualViewMode])
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [selectedUsers, setSelectedUsers] = useState(new Set())
   const [showUserModal, setShowUserModal] = useState(false)
   const [showBulkEmailModal, setShowBulkEmailModal] = useState(false)
@@ -192,11 +206,11 @@ const AdminUsers = () => {
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
         <h2 className="text-2xl font-bold">Manage Users</h2>
-        <div className="flex gap-3">
+        <div className="hidden sm:flex gap-3">
           {/* View Toggle */}
           <div className="flex bg-gray-100 rounded-lg p-1">
             <button
-              onClick={() => setViewMode('list')}
+              onClick={() => { setViewMode('list'); setManualViewMode(true) }}
               className={`px-3 py-2 rounded-md transition-colors flex items-center gap-2 ${
                 viewMode === 'list'
                   ? 'bg-white shadow-sm text-gray-900'
@@ -210,7 +224,7 @@ const AdminUsers = () => {
               List
             </button>
             <button
-              onClick={() => setViewMode('card')}
+              onClick={() => { setViewMode('card'); setManualViewMode(true) }}
               className={`px-3 py-2 rounded-md transition-colors flex items-center gap-2 ${
                 viewMode === 'card'
                   ? 'bg-white shadow-sm text-gray-900'
@@ -250,69 +264,94 @@ const AdminUsers = () => {
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white p-4 rounded-lg shadow mb-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <div className="md:col-span-2">
-            <form onSubmit={handleSearch}>
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                aria-label="Search users by name or email"
-              />
-            </form>
-          </div>
-          <select
-            value={filters.organization}
-            onChange={(e) => handleFilterChange('organization', e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Filter by organization"
+      <div className="bg-white rounded-lg shadow mb-6">
+        {/* Search bar + filter toggle - always visible */}
+        <div className="flex items-center gap-2 p-3 sm:p-4">
+          <form onSubmit={handleSearch} className="flex-1">
+            <input
+              type="text"
+              placeholder="Search by name or email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+              aria-label="Search users by name or email"
+            />
+          </form>
+          <button
+            onClick={() => setFiltersOpen(prev => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-lg border text-sm font-medium transition-colors flex-shrink-0 ${
+              filtersOpen
+                ? 'bg-optio-purple/10 border-optio-purple/30 text-optio-purple'
+                : 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100'
+            }`}
+            aria-expanded={filtersOpen}
+            aria-label="Toggle filters"
           >
-            <option value="all">All Orgs</option>
-            <option value="none">No Org</option>
-            {organizations.map(org => (
-              <option key={org.id} value={org.id}>{org.name}</option>
-            ))}
-          </select>
-          <select
-            value={filters.role}
-            onChange={(e) => handleFilterChange('role', e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Filter by role"
-          >
-            <option value="all">All Roles</option>
-            <option value="superadmin">Superadmins</option>
-            <option value="org_admin">Org Admins</option>
-            <option value="advisor">Advisors</option>
-            <option value="parent">Parents</option>
-            <option value="student">Students</option>
-            <option value="observer">Observers</option>
-          </select>
-          <select
-            value={filters.activity}
-            onChange={(e) => handleFilterChange('activity', e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Filter by activity status"
-          >
-            <option value="all">All Activity</option>
-            <option value="active_7">Active (7 days)</option>
-            <option value="active_30">Active (30 days)</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          <select
-            value={filters.sortBy}
-            onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Sort users by"
-          >
-            <option value="created_at">Join Date</option>
-            <option value="last_active">Last Active</option>
-            <option value="total_xp">Total XP</option>
-            <option value="first_name">Name</option>
-          </select>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            <span className="hidden sm:inline">Filters</span>
+            <svg className={`w-3.5 h-3.5 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
         </div>
+
+        {/* Collapsible filters */}
+        {filtersOpen && (
+          <div className="border-t border-gray-200 px-3 sm:px-4 pb-3 sm:pb-4 pt-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <select
+                value={filters.organization}
+                onChange={(e) => handleFilterChange('organization', e.target.value)}
+                className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                aria-label="Filter by organization"
+              >
+                <option value="all">All Orgs</option>
+                <option value="none">No Org</option>
+                {organizations.map(org => (
+                  <option key={org.id} value={org.id}>{org.name}</option>
+                ))}
+              </select>
+              <select
+                value={filters.role}
+                onChange={(e) => handleFilterChange('role', e.target.value)}
+                className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                aria-label="Filter by role"
+              >
+                <option value="all">All Roles</option>
+                <option value="superadmin">Superadmins</option>
+                <option value="org_admin">Org Admins</option>
+                <option value="advisor">Advisors</option>
+                <option value="parent">Parents</option>
+                <option value="student">Students</option>
+                <option value="observer">Observers</option>
+              </select>
+              <select
+                value={filters.activity}
+                onChange={(e) => handleFilterChange('activity', e.target.value)}
+                className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                aria-label="Filter by activity status"
+              >
+                <option value="all">All Activity</option>
+                <option value="active_7">Active (7 days)</option>
+                <option value="active_30">Active (30 days)</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              <select
+                value={filters.sortBy}
+                onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+                className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                aria-label="Sort users by"
+              >
+                <option value="created_at">Join Date</option>
+                <option value="last_active">Last Active</option>
+                <option value="total_xp">Total XP</option>
+                <option value="first_name">Name</option>
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Users Table - List View */}
@@ -460,79 +499,56 @@ const AdminUsers = () => {
 
       {/* Users Cards - Card View */}
       {viewMode === 'card' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {users.map((user) => (
             <div
               key={user.id}
-              className="group bg-white rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100"
+              className="bg-white rounded-lg border border-gray-200 p-4 flex items-center gap-3 hover:shadow-md transition-shadow"
             >
-              {/* Avatar Section with Gradient Background */}
-              <div className="relative h-32 bg-gradient-to-br from-blue-500 to-purple-600">
-                {/* Checkbox - Top Left */}
-                <div className="absolute top-3 left-3 min-w-[44px] min-h-[44px] flex items-center justify-center">
-                  <input
-                    type="checkbox"
-                    checked={selectedUsers.has(user.id)}
-                    onChange={() => toggleUserSelection(user.id)}
-                    className="w-5 h-5 rounded cursor-pointer touch-manipulation"
-                  />
-                </div>
+              {/* Checkbox */}
+              <input
+                type="checkbox"
+                checked={selectedUsers.has(user.id)}
+                onChange={() => toggleUserSelection(user.id)}
+                className="w-5 h-5 rounded cursor-pointer touch-manipulation flex-shrink-0"
+              />
 
-                {/* Role Badge - Top Right */}
-                <div className="absolute top-3 right-3">
-                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getRoleBadge(user.role || 'student')}`}>
+              {/* Avatar */}
+              {user.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt={`${user.first_name} ${user.last_name}`}
+                  className="h-10 w-10 rounded-full object-cover flex-shrink-0"
+                />
+              ) : (
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-sm font-bold">
+                    {(user.first_name?.[0] || user.email[0]).toUpperCase()}
+                  </span>
+                </div>
+              )}
+
+              {/* Info */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-gray-900 truncate">
+                    {user.first_name} {user.last_name}
+                  </p>
+                  <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-full flex-shrink-0 ${getRoleBadge(user.role || 'student')}`}>
                     {getRoleDisplayName(user.role || 'student')}
                   </span>
                 </div>
-
-                {/* Avatar - Centered */}
-                <div className="absolute inset-x-0 bottom-0 translate-y-1/2 flex justify-center">
-                  {user.avatar_url ? (
-                    <img
-                      src={user.avatar_url}
-                      alt={`Profile picture of ${user.first_name} ${user.last_name}`}
-                      className="h-20 w-20 rounded-full object-cover shadow-lg border-4 border-white"
-                    />
-                  ) : (
-                    <div className="h-20 w-20 rounded-full bg-white shadow-lg flex items-center justify-center border-4 border-white">
-                      <span className="text-gray-700 text-2xl font-bold">
-                        {(user.first_name?.[0] || user.email[0]).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{formatDate(user.last_active)}</p>
               </div>
 
-              {/* Content Section */}
-              <div className="pt-12 px-6 pb-6">
-                {/* User Info */}
-                <div className="text-center mb-4">
-                  <h3 className="text-lg font-bold text-gray-900">
-                    {user.first_name} {user.last_name}
-                  </h3>
-                  <p className="text-sm text-gray-500 truncate">{user.email}</p>
-                </div>
-
-                {/* Stats Row */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="bg-gray-50 rounded-lg p-3 text-center">
-                    <p className="text-xs text-gray-600 mb-1">Total XP</p>
-                    <p className="text-lg font-bold text-gray-900">{user.total_xp || 0}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3 text-center">
-                    <p className="text-xs text-gray-600 mb-1">Last Active</p>
-                    <p className="text-xs font-medium text-gray-900">{formatDate(user.last_active)}</p>
-                  </div>
-                </div>
-
-                {/* Action Button */}
-                <button
-                  onClick={() => handleEditUser(user)}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
-                >
-                  View User
-                </button>
-              </div>
+              {/* View Button */}
+              <button
+                onClick={() => handleEditUser(user)}
+                className="px-3 py-1.5 text-xs font-medium text-optio-purple bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors flex-shrink-0 min-h-[36px] touch-manipulation"
+              >
+                View
+              </button>
             </div>
           ))}
         </div>

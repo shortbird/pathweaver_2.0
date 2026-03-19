@@ -29,7 +29,7 @@ from routes.public import bp as public_bp
 # Import routes
 from routes import tasks, admin_core, evidence_documents, analytics as analytics_routes
 from routes.quest import register_quest_blueprints  # Refactored quest routes (P2-ARCH-1)
-from routes.admin import user_management, quest_management, student_task_management, sample_task_management, course_quest_management, task_flags, advisor_management, parent_connections, masquerade, course_import, organization_management, observer_audit, ferpa_compliance, bulk_import, user_invitations, curriculum_upload, curriculum_generate, org_connections, course_enrollments, course_refine, transfer_credits, plan_mode, xp_reconciliation, task_feedback
+from routes.admin import user_management, quest_management, student_task_management, sample_task_management, course_quest_management, task_flags, advisor_management, parent_connections, masquerade, course_import, organization_management, observer_audit, ferpa_compliance, bulk_import, user_invitations, curriculum_upload, curriculum_generate, org_connections, course_enrollments, course_refine, transfer_credits, plan_mode, xp_reconciliation
 # badge_management import removed (January 2026 - Microschool client feedback)
 from cors_config import configure_cors
 from middleware.security import security_middleware
@@ -210,7 +210,7 @@ app.register_blueprint(observer_audit.bp)  # /api/admin/observer-audit (Observer
 app.register_blueprint(ferpa_compliance.bp)  # /api/admin/ferpa (FERPA disclosure reporting and student access logging)
 app.register_blueprint(transfer_credits.bp)  # /api/admin/transfer-credits (Import external transcript credits toward diploma)
 app.register_blueprint(xp_reconciliation.bp)  # /api/admin/xp (XP audit and reconciliation tools)
-app.register_blueprint(task_feedback.bp)  # /api/admin/drafts (Iterative draft feedback for diploma credits)
+# task_feedback blueprint removed (March 2026 - replaced by credit review system)
 # Webhooks blueprint removed (March 2026 - LTI/Canvas feature pruning)
 # Register quest types routes (sample tasks, course tasks)
 try:

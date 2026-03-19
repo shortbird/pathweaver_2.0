@@ -32,7 +32,7 @@ class DashboardService:
     def get_user_subject_xp(self, user_id: str) -> List[Dict[str, Any]]:
         """
         Get user's XP by school subject for diploma credits.
-        Returns both finalized (xp_amount) and pending XP for draft feedback system.
+        Returns both finalized (xp_amount) and pending XP for the credit review system.
 
         Args:
             user_id: User ID

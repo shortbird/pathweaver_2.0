@@ -17,7 +17,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: false, // We handle token refresh in authService
     persistSession: false,   // We use our own session management
-    detectSessionInUrl: true // Required for OAuth callback
+    detectSessionInUrl: true, // Required for OAuth callback
+    flowType: 'implicit'     // PKCE requires persisted storage for code_verifier; since we use persistSession: false, use implicit flow instead
   },
   realtime: {
     params: {

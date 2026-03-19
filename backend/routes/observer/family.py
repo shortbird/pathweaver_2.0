@@ -224,9 +224,6 @@ def register_routes(bp):
                     observer_links = [l for l in links.data if l['observer_id'] == observer_id]
                     linked_child_ids = [l['student_id'] for l in observer_links]
 
-                    # Get relationship from first link
-                    relationship = observer_links[0]['relationship'] if observer_links else 'other'
-
                     children_access = []
                     for child in all_children:
                         children_access.append({
@@ -244,7 +241,6 @@ def register_routes(bp):
                             f"{observer_info.get('first_name', '')} {observer_info.get('last_name', '')}".strip(),
                         'observer_email': observer_info.get('email'),
                         'avatar_url': observer_info.get('avatar_url'),
-                        'relationship': relationship,
                         'children': children_access
                     })
 

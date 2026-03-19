@@ -13,7 +13,8 @@ const PortfolioSection = ({
   onPrivacyToggle,
   privacyLoading = false,
   hideHeader = false,
-  readOnly = false // When true, hide privacy toggle and show status badge only
+  readOnly = false, // When true, hide privacy toggle and show status badge only
+  onEvidenceDeleted // Callback when evidence is deleted (to refresh data)
 }) => {
   const [selectedEvidenceItem, setSelectedEvidenceItem] = useState(null);
   const [showShareOptions, setShowShareOptions] = useState(false);
@@ -302,6 +303,10 @@ const PortfolioSection = ({
           isOpen={!!selectedEvidenceItem}
           onClose={() => setSelectedEvidenceItem(null)}
           evidenceItem={selectedEvidenceItem}
+          onDelete={!readOnly ? () => {
+            setSelectedEvidenceItem(null);
+            if (onEvidenceDeleted) onEvidenceDeleted();
+          } : undefined}
         />
 
         {/* Click outside to close share options */}
@@ -367,7 +372,8 @@ PortfolioSection.propTypes = {
   userId: PropTypes.string,
   onPrivacyToggle: PropTypes.func,
   privacyLoading: PropTypes.bool,
-  readOnly: PropTypes.bool
+  readOnly: PropTypes.bool,
+  onEvidenceDeleted: PropTypes.func
 };
 
 export default PortfolioSection;

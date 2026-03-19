@@ -92,7 +92,8 @@ const LoginPage = () => {
   if (isAuthenticated && user && !authLoading && !wantsToSwitch) {
     const displayName = user.first_name || user.display_name || user.email || 'User'
     const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
-    const defaultPath = user.role === 'parent' ? '/parent/dashboard'
+    const defaultPath = user.role === 'superadmin' ? '/parent/dashboard'
+      : user.role === 'parent' ? '/parent/dashboard'
       : user.role === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
       : '/dashboard'
     const redirectPath = fromPath || defaultPath
