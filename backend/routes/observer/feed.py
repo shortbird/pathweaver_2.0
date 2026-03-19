@@ -132,6 +132,7 @@ def register_routes(bp):
             learning_events_query = supabase.table('learning_events') \
                 .select('id, user_id, title, description, pillars, created_at, source_type, captured_by_user_id, track_id') \
                 .in_('user_id', student_ids) \
+                .eq('is_confidential', False) \
                 .order('created_at', desc=True) \
                 .limit(limit + 1)
 

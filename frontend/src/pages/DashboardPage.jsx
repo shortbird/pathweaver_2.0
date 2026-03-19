@@ -318,6 +318,27 @@ const DashboardPage = () => {
   // Determine display name: dependent's name if acting as one, otherwise logged-in user
   const displayName = actingAsDependent?.first_name || user?.first_name
 
+  // Split active quests into in-progress vs completed (100% task completion)
+  const allActiveQuests = dashboardData?.active_quests || [];
+  const inProgressQuests = allActiveQuests.filter(quest => {
+    const questData = quest.quests || quest;
+    const completedTasks = quest.tasks_completed || quest.completed_tasks || 0;
+    const totalTasks = questData.task_count || questData.total_tasks || 0;
+    // Quest is completed if all tasks are done (and there are tasks)
+    if (totalTasks > 0 && completedTasks >= totalTasks) return false;
+    // Also check status field
+    if (quest.status === 'completed') return false;
+    return true;
+  });
+  const completedActiveQuests = allActiveQuests.filter(quest => {
+    const questData = quest.quests || quest;
+    const completedTasks = quest.tasks_completed || quest.completed_tasks || 0;
+    const totalTasks = questData.task_count || questData.total_tasks || 0;
+    if (totalTasks > 0 && completedTasks >= totalTasks) return true;
+    if (quest.status === 'completed') return true;
+    return false;
+  });
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header Section with Capture Button */}
@@ -366,7 +387,7 @@ const DashboardPage = () => {
           </Link>
         </div>
         <ActiveQuests
-          activeQuests={dashboardData?.active_quests}
+          activeQuests={inProgressQuests}
           enrolledCourses={dashboardData?.enrolled_courses}
           completedQuestsCount={dashboardData?.stats?.completed_quests_count || 0}
         />
@@ -410,7 +431,7 @@ const DashboardPage = () => {
           <h2 className="text-lg font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins' }}>
             Next Up
           </h2>
-          <UpcomingTasks activeQuests={dashboardData?.active_quests} />
+          <UpcomingTasks activeQuests={inProgressQuests} />
         </div>
       </div>
 
@@ -420,66 +441,97 @@ const DashboardPage = () => {
       </div>
 
       {/* Completed Quests Section */}
-      {dashboardData?.recent_completed_quests && dashboardData.recent_completed_quests.length > 0 && (
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-800" style={{ fontFamily: 'Poppins' }}>
-              Recently Completed
-            </h2>
-          </div>
+      {(completedActiveQuests.length > 0 || (dashboardData?.recent_completed_quests && dashboardData.recent_completed_quests.length > 0)) && (
+        <div className="mb-8">
+          <h2 className="text-xl font-bold text-gray-900 font-['Poppins'] mb-6">Completed Quests</h2>
 
-          <div className="space-y-3">
-            {dashboardData.recent_completed_quests.map((completedQuest) => {
-              const quest = completedQuest.quests;
-              const completedDate = new Date(completedQuest.completed_at).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
-              });
+          {/* Quest cards for quests with 100% progress (still technically active in DB) */}
+          {completedActiveQuests.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+              {completedActiveQuests.map(quest => {
+                const questData = quest.quests || quest;
+                const completedTasks = quest.tasks_completed || quest.completed_tasks || 0;
+                const totalTasks = questData.task_count || questData.total_tasks || 1;
 
-              return (
-                <Link
-                  key={completedQuest.id}
-                  to={`/quests/${completedQuest.quest_id}`}
-                  className="flex items-center gap-4 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors group"
-                >
-                  {/* Quest Image */}
-                  <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-200">
-                    {quest.image_url || quest.header_image_url ? (
-                      <img
-                        src={quest.image_url || quest.header_image_url}
-                        alt={quest.title}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400">
-                        <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                const transformedQuest = {
+                  id: quest.quest_id || quest.id,
+                  title: questData.title,
+                  description: questData.description || questData.big_idea,
+                  image_url: questData.image_url,
+                  header_image_url: questData.header_image_url,
+                  user_enrollment: true,
+                  completed_enrollment: true,
+                  progress: {
+                    completed_tasks: completedTasks,
+                    total_tasks: totalTasks,
+                    percentage: totalTasks > 0
+                      ? Math.round((completedTasks / totalTasks) * 100)
+                      : 0
+                  },
+                  quest_tasks: questData.quest_tasks || []
+                };
+                return <QuestCardSimple key={transformedQuest.id} quest={transformedQuest} />;
+              })}
+            </div>
+          )}
+
+          {/* List-style entries for officially completed quests (is_active=false in DB) */}
+          {dashboardData?.recent_completed_quests && dashboardData.recent_completed_quests.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="space-y-3">
+                {dashboardData.recent_completed_quests.map((completedQuest) => {
+                  const quest = completedQuest.quests;
+                  const completedDate = new Date(completedQuest.completed_at).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  });
+
+                  return (
+                    <Link
+                      key={completedQuest.id}
+                      to={`/quests/${completedQuest.quest_id}`}
+                      className="flex items-center gap-4 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors group"
+                    >
+                      {/* Quest Image */}
+                      <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-200">
+                        {quest.image_url || quest.header_image_url ? (
+                          <img
+                            src={quest.image_url || quest.header_image_url}
+                            alt={quest.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quest Info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg font-semibold text-gray-800 group-hover:text-optio-purple transition-colors truncate" style={{ fontFamily: 'Poppins' }}>
+                          {quest.title}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          Completed on {completedDate}
+                        </p>
+                      </div>
+
+                      {/* Checkmark Badge */}
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                        <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Quest Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold text-gray-800 group-hover:text-optio-purple transition-colors truncate" style={{ fontFamily: 'Poppins' }}>
-                      {quest.title}
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      Completed on {completedDate}
-                    </p>
-                  </div>
-
-                  {/* Checkmark Badge */}
-                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                    <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

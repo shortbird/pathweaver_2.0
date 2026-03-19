@@ -160,7 +160,8 @@ def register_routes(bp):
                                 'quest_id': completion['quest_id'],
                                 'quest_title': quest_info.get('title', 'Quest'),
                                 'evidence_type': evidence_type,
-                                'evidence_preview': evidence_preview
+                                'evidence_preview': evidence_preview,
+                                'is_confidential': completion.get('is_confidential', False)
                             })
                 else:
                     # Fallback: legacy evidence
@@ -199,8 +200,101 @@ def register_routes(bp):
                             'quest_id': completion['quest_id'],
                             'quest_title': quest_info.get('title', 'Quest'),
                             'evidence_type': evidence_type,
-                            'evidence_preview': evidence_preview
+                            'evidence_preview': evidence_preview,
+                            'is_confidential': completion.get('is_confidential', False)
                         })
+
+            # Include bounty completion learning events
+            try:
+                bounty_events_q = supabase.table('learning_events') \
+                    .select('id, title, description, pillars, created_at') \
+                    .eq('user_id', student_id) \
+                    .like('title', 'Bounty:%') \
+                    .order('created_at', desc=True) \
+                    .limit(limit)
+
+                if cursor:
+                    bounty_events_q = bounty_events_q.lt('created_at', cursor)
+
+                bounty_events = bounty_events_q.execute()
+
+                if bounty_events.data:
+                    be_ids = [e['id'] for e in bounty_events.data]
+                    be_blocks = supabase.table('learning_event_evidence_blocks') \
+                        .select('id, learning_event_id, block_type, content, order_index, created_at') \
+                        .in_('learning_event_id', be_ids) \
+                        .order('order_index') \
+                        .execute()
+
+                    be_blocks_map = {}
+                    for block in (be_blocks.data or []):
+                        eid = block['learning_event_id']
+                        if eid not in be_blocks_map:
+                            be_blocks_map[eid] = []
+                        be_blocks_map[eid].append(block)
+
+                    for event in bounty_events.data:
+                        blocks = be_blocks_map.get(event['id'], [])
+                        if blocks:
+                            for block in blocks:
+                                content = block.get('content', {})
+                                evidence_type = None
+                                evidence_preview = None
+
+                                if block['block_type'] == 'image':
+                                    evidence_type = 'image'
+                                    evidence_preview = content.get('url')
+                                elif block['block_type'] == 'video':
+                                    evidence_type = 'video'
+                                    evidence_preview = content.get('url')
+                                elif block['block_type'] == 'link':
+                                    evidence_type = 'link'
+                                    evidence_preview = content.get('url')
+                                elif block['block_type'] == 'text':
+                                    evidence_type = 'text'
+                                    text = content.get('text', '')
+                                    evidence_preview = text[:200] + '...' if len(text) > 200 else text
+                                elif block['block_type'] == 'document':
+                                    evidence_type = 'link'
+                                    evidence_preview = content.get('url')
+
+                                if evidence_type:
+                                    raw_feed_items.append({
+                                        'id': f"bounty_{event['id']}_{block['id']}",
+                                        'completion_id': event['id'],
+                                        'block_id': block['id'],
+                                        'timestamp': block.get('created_at') or event['created_at'],
+                                        'task_id': None,
+                                        'task_title': event.get('title', 'Bounty'),
+                                        'task_pillar': (event.get('pillars') or ['stem'])[0] if event.get('pillars') else 'stem',
+                                        'task_xp': 0,
+                                        'quest_id': None,
+                                        'quest_title': 'Bounty Board',
+                                        'evidence_type': evidence_type,
+                                        'evidence_preview': evidence_preview,
+                                        'is_confidential': False,
+                                        'is_bounty': True,
+                                    })
+                        else:
+                            # No evidence blocks -- show the description as text
+                            raw_feed_items.append({
+                                'id': f"bounty_{event['id']}",
+                                'completion_id': event['id'],
+                                'block_id': None,
+                                'timestamp': event['created_at'],
+                                'task_id': None,
+                                'task_title': event.get('title', 'Bounty'),
+                                'task_pillar': (event.get('pillars') or ['stem'])[0] if event.get('pillars') else 'stem',
+                                'task_xp': 0,
+                                'quest_id': None,
+                                'quest_title': 'Bounty Board',
+                                'evidence_type': 'text',
+                                'evidence_preview': event.get('description', ''),
+                                'is_confidential': False,
+                                'is_bounty': True,
+                            })
+            except Exception as e:
+                logger.warning(f"Failed to fetch bounty learning events for feed: {e}")
 
             # Sort and paginate
             raw_feed_items.sort(key=lambda x: x['timestamp'], reverse=True)
@@ -263,7 +357,8 @@ def register_routes(bp):
                     },
                     'xp_awarded': item['task_xp'],
                     'likes_count': likes_count.get(item['completion_id'], 0),
-                    'comments_count': comments_count.get(item['completion_id'], 0)
+                    'comments_count': comments_count.get(item['completion_id'], 0),
+                    'is_confidential': item.get('is_confidential', False)
                 })
 
             next_cursor = paginated_items[-1]['timestamp'] if paginated_items and has_more else None
@@ -277,3 +372,71 @@ def register_routes(bp):
         except Exception as e:
             logger.error(f"Failed to fetch student activity feed: {str(e)}", exc_info=True)
             return jsonify({'error': 'Failed to fetch activity feed'}), 500
+
+    @bp.route('/api/observers/feed-item/toggle-visibility', methods=['POST'])
+    @require_auth
+    def toggle_feed_item_visibility(user_id):
+        """
+        Student toggles visibility of a feed item for observers.
+
+        Sets is_confidential on the completion or learning event.
+        When is_confidential=true, the item is hidden from the observer feed.
+
+        Body:
+            completion_id: UUID (for task completions)
+            learning_event_id: UUID (for learning moments)
+            hidden: boolean (true = hide from observers)
+
+        Returns:
+            200: { status: success, hidden: bool }
+        """
+        data = request.json or {}
+        completion_id = data.get('completion_id')
+        learning_event_id = data.get('learning_event_id')
+        hidden = data.get('hidden', True)
+
+        if not completion_id and not learning_event_id:
+            return jsonify({'error': 'completion_id or learning_event_id is required'}), 400
+
+        try:
+            supabase = get_supabase_admin_client()
+
+            if completion_id:
+                # Verify ownership
+                record = supabase.table('quest_task_completions') \
+                    .select('id') \
+                    .eq('id', completion_id) \
+                    .eq('user_id', user_id) \
+                    .execute()
+
+                if not record.data:
+                    return jsonify({'error': 'Completion not found'}), 404
+
+                supabase.table('quest_task_completions') \
+                    .update({'is_confidential': hidden}) \
+                    .eq('id', completion_id) \
+                    .execute()
+
+            elif learning_event_id:
+                # Verify ownership
+                record = supabase.table('learning_events') \
+                    .select('id') \
+                    .eq('id', learning_event_id) \
+                    .eq('user_id', user_id) \
+                    .execute()
+
+                if not record.data:
+                    return jsonify({'error': 'Learning event not found'}), 404
+
+                supabase.table('learning_events') \
+                    .update({'is_confidential': hidden}) \
+                    .eq('id', learning_event_id) \
+                    .execute()
+
+            logger.info(f"Feed item visibility toggled: user={user_id}, hidden={hidden}")
+
+            return jsonify({'status': 'success', 'hidden': hidden}), 200
+
+        except Exception as e:
+            logger.error(f"Failed to toggle feed item visibility: {str(e)}", exc_info=True)
+            return jsonify({'error': 'Failed to update visibility'}), 500

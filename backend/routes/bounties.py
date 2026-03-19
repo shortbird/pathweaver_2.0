@@ -1,8 +1,8 @@
 """
 Bounty Board API Routes - Community educational challenges.
 
-Students browse/claim/submit. Parents/advisors/orgs post bounties.
-Superadmin can moderate.
+Non-student roles post bounties with deliverables. Students claim, complete
+deliverables, and submit for approval. Superadmin can moderate.
 """
 
 from flask import Blueprint, request, jsonify
@@ -18,9 +18,9 @@ bounties_bp = Blueprint('bounties', __name__)
 
 
 @bounties_bp.route('/api/bounties', methods=['POST', 'OPTIONS'])
-@require_role('student', 'parent', 'advisor', 'org_admin', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'superadmin')
 def create_bounty(user_id):
-    """Create a new bounty."""
+    """Create a new bounty with deliverables."""
     try:
         data = request.get_json()
         if not data:
@@ -47,7 +47,7 @@ def list_bounties(user_id):
         bounty_type = request.args.get('type')
 
         service = BountyService()
-        bounties = service.list_bounties(pillar=pillar, bounty_type=bounty_type)
+        bounties = service.list_bounties(user_id=user_id, pillar=pillar, bounty_type=bounty_type)
 
         return jsonify({'success': True, 'bounties': bounties}), 200
 
@@ -59,10 +59,15 @@ def list_bounties(user_id):
 @bounties_bp.route('/api/bounties/<bounty_id>', methods=['GET', 'OPTIONS'])
 @require_role('student', 'parent', 'advisor', 'org_admin', 'superadmin')
 def get_bounty(user_id, bounty_id):
-    """Get bounty details."""
+    """Get bounty details with claims (if poster)."""
     try:
         service = BountyService()
         bounty = service.get_bounty(bounty_id)
+
+        # Include claims if the requester is the poster
+        if bounty['poster_id'] == user_id:
+            claims = service.repository.get_bounty_claims(bounty_id)
+            bounty['claims'] = claims
 
         return jsonify({'success': True, 'bounty': bounty}), 200
 
@@ -71,6 +76,54 @@ def get_bounty(user_id, bounty_id):
     except Exception as e:
         logger.error(f"Error getting bounty {bounty_id}: {e}")
         return jsonify({'error': 'Failed to get bounty', 'message': str(e)}), 500
+
+
+@bounties_bp.route('/api/bounties/<bounty_id>', methods=['DELETE', 'OPTIONS'])
+@require_role('parent', 'advisor', 'org_admin', 'superadmin')
+def delete_bounty(user_id, bounty_id):
+    """Delete a bounty (poster or superadmin only)."""
+    try:
+        service = BountyService()
+        bounty = service.get_bounty(bounty_id)
+
+        if bounty['poster_id'] != user_id:
+            # Check if superadmin
+            supabase = service.repository.client
+            user_result = supabase.table('users').select('role').eq('id', user_id).execute()
+            if not user_result.data or user_result.data[0].get('role') != 'superadmin':
+                return jsonify({'error': 'Only the poster or superadmin can delete this bounty'}), 403
+
+        service.repository.delete_bounty(bounty_id)
+        return jsonify({'success': True}), 200
+
+    except NotFoundError as e:
+        return jsonify({'error': 'Not found', 'message': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error deleting bounty {bounty_id}: {e}")
+        return jsonify({'error': 'Failed to delete bounty', 'message': str(e)}), 500
+
+
+@bounties_bp.route('/api/bounties/<bounty_id>', methods=['PUT', 'OPTIONS'])
+@require_role('parent', 'advisor', 'org_admin', 'superadmin')
+def update_bounty(user_id, bounty_id):
+    """Update a bounty (poster only)."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
+
+        service = BountyService()
+        bounty = service.update_bounty(bounty_id, user_id, data)
+
+        return jsonify({'success': True, 'bounty': bounty}), 200
+
+    except ValidationError as e:
+        return jsonify({'error': 'Validation error', 'message': str(e)}), 400
+    except NotFoundError as e:
+        return jsonify({'error': 'Not found', 'message': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error updating bounty {bounty_id}: {e}")
+        return jsonify({'error': 'Failed to update bounty', 'message': str(e)}), 500
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>/claim', methods=['POST', 'OPTIONS'])
@@ -92,17 +145,24 @@ def claim_bounty(user_id, bounty_id):
         return jsonify({'error': 'Failed to claim bounty', 'message': str(e)}), 500
 
 
-@bounties_bp.route('/api/bounties/<bounty_id>/submit', methods=['POST', 'OPTIONS'])
+@bounties_bp.route('/api/bounties/<bounty_id>/claims/<claim_id>/deliverables', methods=['PUT', 'OPTIONS'])
 @require_role('student', 'superadmin')
-def submit_evidence(user_id, bounty_id):
-    """Submit evidence for a claimed bounty."""
+def toggle_deliverable(user_id, bounty_id, claim_id):
+    """Toggle a deliverable as completed/uncompleted. Auto-submits when all done."""
     try:
         data = request.get_json()
-        if not data or 'claim_id' not in data or 'evidence' not in data:
-            return jsonify({'error': 'Missing required fields: claim_id, evidence'}), 400
+        if not data or 'deliverable_id' not in data:
+            return jsonify({'error': 'deliverable_id is required'}), 400
 
         service = BountyService()
-        claim = service.submit_evidence(data['claim_id'], user_id, data['evidence'])
+        claim = service.toggle_deliverable(
+            claim_id=claim_id,
+            student_id=user_id,
+            bounty_id=bounty_id,
+            deliverable_id=data['deliverable_id'],
+            completed=data.get('completed', True),
+            deliverable_evidence=data.get('evidence'),
+        )
 
         return jsonify({'success': True, 'claim': claim}), 200
 
@@ -111,8 +171,55 @@ def submit_evidence(user_id, bounty_id):
     except NotFoundError as e:
         return jsonify({'error': 'Not found', 'message': str(e)}), 404
     except Exception as e:
-        logger.error(f"Error submitting evidence: {e}")
-        return jsonify({'error': 'Failed to submit evidence', 'message': str(e)}), 500
+        logger.error(f"Error toggling deliverable: {e}")
+        return jsonify({'error': 'Failed to update deliverable', 'message': str(e)}), 500
+
+
+@bounties_bp.route('/api/bounties/<bounty_id>/claims/<claim_id>/turn-in', methods=['POST', 'OPTIONS'])
+@require_role('student', 'superadmin')
+def turn_in_bounty(user_id, bounty_id, claim_id):
+    """Student turns in a bounty for review."""
+    try:
+        service = BountyService()
+        claim = service.turn_in_bounty(
+            claim_id=claim_id,
+            student_id=user_id,
+            bounty_id=bounty_id,
+        )
+
+        return jsonify({'success': True, 'claim': claim}), 200
+
+    except ValidationError as e:
+        return jsonify({'error': 'Validation error', 'message': str(e)}), 400
+    except NotFoundError as e:
+        return jsonify({'error': 'Not found', 'message': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error turning in bounty: {e}")
+        return jsonify({'error': 'Failed to turn in bounty', 'message': str(e)}), 500
+
+
+@bounties_bp.route('/api/bounties/<bounty_id>/claims/<claim_id>/evidence/<deliverable_id>/<int:evidence_index>', methods=['DELETE', 'OPTIONS'])
+@require_role('student', 'superadmin')
+def delete_deliverable_evidence(user_id, bounty_id, claim_id, deliverable_id, evidence_index):
+    """Delete a specific evidence item from a deliverable."""
+    try:
+        service = BountyService()
+        claim = service.delete_evidence_item(
+            claim_id=claim_id,
+            student_id=user_id,
+            deliverable_id=deliverable_id,
+            evidence_index=evidence_index,
+        )
+
+        return jsonify({'success': True, 'claim': claim}), 200
+
+    except ValidationError as e:
+        return jsonify({'error': 'Validation error', 'message': str(e)}), 400
+    except NotFoundError as e:
+        return jsonify({'error': 'Not found', 'message': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error deleting evidence: {e}")
+        return jsonify({'error': 'Failed to delete evidence', 'message': str(e)}), 500
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>/review/<claim_id>', methods=['POST', 'OPTIONS'])
@@ -144,12 +251,12 @@ def review_submission(user_id, bounty_id, claim_id):
 
 
 @bounties_bp.route('/api/bounties/my-posted', methods=['GET', 'OPTIONS'])
-@require_role('student', 'parent', 'advisor', 'org_admin', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'superadmin')
 def get_my_posted(user_id):
-    """Get bounties posted by current user."""
+    """Get bounties posted by current user, with claims."""
     try:
         service = BountyService()
-        bounties = service.get_my_posted(user_id)
+        bounties = service.get_my_posted_with_claims(user_id)
 
         return jsonify({'success': True, 'bounties': bounties}), 200
 
@@ -161,10 +268,10 @@ def get_my_posted(user_id):
 @bounties_bp.route('/api/bounties/my-claims', methods=['GET', 'OPTIONS'])
 @require_role('student', 'superadmin')
 def get_my_claims(user_id):
-    """Get bounties claimed by current user."""
+    """Get bounties claimed by current user, enriched with bounty data."""
     try:
         service = BountyService()
-        claims = service.get_my_claims(user_id)
+        claims = service.get_my_claims_with_bounties(user_id)
 
         return jsonify({'success': True, 'claims': claims}), 200
 

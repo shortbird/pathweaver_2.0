@@ -1099,3 +1099,118 @@ def revoke_advisor_role(user_id, target_user_id):
             'success': False,
             'error': 'Failed to revoke advisor role'
         }), 500
+
+
+@bp.route('/users/<user_id>/observer-links', methods=['GET'])
+@require_admin
+def get_user_observer_links(admin_user_id: str, user_id: str):
+    """Get observer-student links for a user (as observer or as student)."""
+    try:
+        supabase = get_supabase_admin_client()
+        links = []
+
+        # Links where user is an observer
+        as_observer = supabase.table('observer_student_links') \
+            .select('id, student_id, relationship, created_at') \
+            .eq('observer_id', user_id) \
+            .execute()
+
+        if as_observer.data:
+            student_ids = list(set(l['student_id'] for l in as_observer.data))
+            students = supabase.table('users') \
+                .select('id, email, first_name, last_name, display_name') \
+                .in_('id', student_ids) \
+                .execute()
+            student_map = {s['id']: s for s in (students.data or [])}
+            for link in as_observer.data:
+                s = student_map.get(link['student_id'], {})
+                links.append({
+                    'id': link['id'],
+                    'direction': 'observing',
+                    'user': s,
+                    'relationship': link.get('relationship'),
+                    'created_at': link.get('created_at')
+                })
+
+        # Links where user is a student being observed
+        as_student = supabase.table('observer_student_links') \
+            .select('id, observer_id, relationship, created_at') \
+            .eq('student_id', user_id) \
+            .execute()
+
+        if as_student.data:
+            observer_ids = list(set(l['observer_id'] for l in as_student.data))
+            observers = supabase.table('users') \
+                .select('id, email, first_name, last_name, display_name') \
+                .in_('id', observer_ids) \
+                .execute()
+            observer_map = {o['id']: o for o in (observers.data or [])}
+            for link in as_student.data:
+                o = observer_map.get(link['observer_id'], {})
+                links.append({
+                    'id': link['id'],
+                    'direction': 'observed_by',
+                    'user': o,
+                    'relationship': link.get('relationship'),
+                    'created_at': link.get('created_at')
+                })
+
+        return success_response(data={'links': links})
+
+    except Exception as e:
+        logger.error(f"Error fetching observer links for {user_id}: {str(e)}")
+        return error_response(code='FETCH_ERROR', message='Failed to load observer links', status=500)
+
+
+@bp.route('/users/<user_id>/observer-links', methods=['POST'])
+@require_admin
+def add_observer_link(admin_user_id: str, user_id: str):
+    """Create an observer-student link. Body: { other_user_id, direction: 'observing'|'observed_by' }"""
+    try:
+        data = request.get_json()
+        other_id = data.get('other_user_id')
+        direction = data.get('direction')
+        if not other_id or direction not in ('observing', 'observed_by'):
+            return error_response(code='BAD_REQUEST', message='other_user_id and direction required', status=400)
+
+        observer_id = user_id if direction == 'observing' else other_id
+        student_id = other_id if direction == 'observing' else user_id
+
+        supabase = get_supabase_admin_client()
+
+        # Check for existing
+        existing = supabase.table('observer_student_links') \
+            .select('id') \
+            .eq('observer_id', observer_id) \
+            .eq('student_id', student_id) \
+            .execute()
+        if existing.data:
+            return error_response(code='DUPLICATE', message='Observer link already exists', status=409)
+
+        result = supabase.table('observer_student_links').insert({
+            'observer_id': observer_id,
+            'student_id': student_id,
+            'relationship': 'other',
+            'can_comment': True,
+            'can_view_evidence': True,
+            'notifications_enabled': True
+        }).execute()
+
+        return success_response(data={'link': result.data[0] if result.data else None}, message='Observer link created')
+
+    except Exception as e:
+        logger.error(f"Error creating observer link for {user_id}: {str(e)}")
+        return error_response(code='CREATE_ERROR', message='Failed to create observer link', status=500)
+
+
+@bp.route('/users/<user_id>/observer-links/<link_id>', methods=['DELETE'])
+@require_admin
+def remove_observer_link(admin_user_id: str, user_id: str, link_id: str):
+    """Delete an observer-student link."""
+    try:
+        supabase = get_supabase_admin_client()
+        supabase.table('observer_student_links').delete().eq('id', link_id).execute()
+        return success_response(message='Observer link removed')
+    except Exception as e:
+        logger.error(f"Error removing observer link {link_id}: {str(e)}")
+        return error_response(code='DELETE_ERROR', message='Failed to remove observer link', status=500)

@@ -302,9 +302,13 @@ export const observerAPI = {
   // Get list of linked observers for current student
   getMyObservers: () => api.get('/api/observers/my-observers'),
 
-  // Send invitation to observer (student-initiated)
+  // Send invitation to observer (student-initiated, email-based - legacy)
   sendInvitation: (observerEmail, observerName, relationship) =>
     api.post('/api/observers/invite', { observer_email: observerEmail, observer_name: observerName, relationship }),
+
+  // Generate shareable invite link (student-initiated, link-based)
+  generateInviteLink: () =>
+    api.post('/api/observers/generate-link', {}),
 
   // Accept an observer invitation (creates observer-student link)
   acceptInvitation: (invitationCode, data = {}) =>
@@ -329,6 +333,10 @@ export const observerAPI = {
   // Remove observer from student (parent action)
   removeObserverFromStudent: (studentId, linkId) =>
     api.delete(`/api/observers/student/${studentId}/observers/${linkId}`),
+
+  // Remove observer (student action - removes own observer link)
+  removeMyObserver: (linkId) =>
+    api.delete(`/api/observers/${linkId}/remove`),
 
   // Feed endpoints
   getFeed: (params = {}) => {
@@ -384,6 +392,10 @@ export const observerAPI = {
   // Student-facing: get all feedback on my work
   getMyFeedback: (studentId) =>
     api.get(`/api/observers/student/${studentId}/comments`),
+
+  // Student-facing: toggle feed item visibility for observers
+  toggleFeedItemVisibility: ({ completion_id, learning_event_id, hidden }) =>
+    api.post('/api/observers/feed-item/toggle-visibility', { completion_id, learning_event_id, hidden }),
 
   // Student-facing: get my activity feed (same format as observer feed)
   getMyActivityFeed: (studentId, params = {}) => {
@@ -507,7 +519,7 @@ export const parentAPI = {
 
   // Family Settings - Co-Parents management
   getFamilyParents: () => api.get('/api/parents/family-parents'),
-  inviteParent: (data) => api.post('/api/parents/invite-parent', data),
+  promoteObserver: (observerId) => api.post('/api/parents/promote-observer', { observer_id: observerId }),
 
   // Parent task management for dependents (under-13 managed accounts)
   createTaskForDependent: (questId, data) =>
@@ -651,6 +663,12 @@ export const advisorAPI = {
 
   deleteLearningMoment: (studentId, momentId) =>
     api.delete(`/api/advisor/students/${studentId}/learning-moments/${momentId}`),
+}
+
+// Evidence Management API (student-facing)
+export const evidenceAPI = {
+  // Delete an evidence block and its storage files
+  deleteBlock: (blockId) => api.delete(`/api/evidence/blocks/${blockId}/delete`),
 }
 
 // Helper Evidence API (Advisors/Parents uploading evidence for students)

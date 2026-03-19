@@ -138,12 +138,18 @@ def upload_evidence(user_id):
                     f"user={user_id}, file={safe_filename}, warnings={validation_result.warnings}"
                 )
             
+            # Convert HEIF/HEIC to JPEG for browser compatibility
+            from utils.image_utils import convert_heif_if_needed
+            file_content, safe_filename, _ = convert_heif_if_needed(
+                file_content, safe_filename, validation_result.detected_mime
+            )
+
             # Generate unique filename
             file_extension = safe_filename.rsplit('.', 1)[1].lower() if '.' in safe_filename else ''
             unique_filename = f"{user_id}/{uuid.uuid4()}.{file_extension}"
-            
+
             # Use detected MIME type from validation (more secure than trusting client)
-            content_type = validation_result.detected_mime
+            content_type = 'image/jpeg' if file_extension == 'jpg' else validation_result.detected_mime
 
             # Upload to Supabase Storage (use file_content we already read)
             response = supabase.storage.from_('quest-evidence').upload(
@@ -243,12 +249,18 @@ def upload_evidence_base64(user_id):
                     f"user={user_id}, file={safe_filename}, warnings={validation_result.warnings}"
                 )
             
+            # Convert HEIF/HEIC to JPEG for browser compatibility
+            from utils.image_utils import convert_heif_if_needed
+            file_content, safe_filename, _ = convert_heif_if_needed(
+                file_content, safe_filename, validation_result.detected_mime
+            )
+
             # Generate unique filename
             file_extension = safe_filename.rsplit('.', 1)[1].lower() if '.' in safe_filename else ''
             unique_filename = f"{user_id}/{uuid.uuid4()}.{file_extension}"
 
             # Use detected MIME type from validation (more secure than trusting client)
-            validated_content_type = validation_result.detected_mime
+            validated_content_type = 'image/jpeg' if file_extension == 'jpg' else validation_result.detected_mime
 
             # Upload to Supabase Storage
             response = supabase.storage.from_('quest-evidence').upload(

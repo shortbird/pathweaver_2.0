@@ -174,12 +174,45 @@ const QuestDetail = () => {
 
     setDroppingTaskId(taskId);
 
+    // Optimistically update cache to remove the task immediately
+    const previousData = queryClient.getQueryData(queryKeys.quests.detail(id));
+    queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
+      if (!oldData) return oldData;
+      const updatedTasks = (oldData.quest_tasks || []).filter(t => t.id !== taskId);
+      const completedCount = updatedTasks.filter(t => t.is_completed).length;
+      const totalCount = updatedTasks.length;
+      return {
+        ...oldData,
+        quest_tasks: updatedTasks,
+        progress: {
+          ...oldData.progress,
+          completed_tasks: completedCount,
+          total_tasks: totalCount,
+          percentage: totalCount > 0 ? (completedCount / totalCount) * 100 : 0
+        }
+      };
+    });
+
+    // Clear selected task if it's the one being removed
+    if (selectedTask?.id === taskId) {
+      setSelectedTask(null);
+    }
+
     try {
       await api.delete(`/api/tasks/${taskId}`);
       queryClient.invalidateQueries(queryKeys.quests.detail(id));
       await refetchQuest();
       toast.success('Task removed from your quest');
+
+      // After refetch, check if quest now has 0 tasks - show add/finish prompt
+      const updatedData = queryClient.getQueryData(queryKeys.quests.detail(id));
+      const remainingTasks = updatedData?.quest_tasks || [];
+      if (remainingTasks.length === 0 && updatedData?.user_enrollment) {
+        setShowQuestCompletionCelebration(true);
+      }
     } catch (err) {
+      // Revert optimistic update on error
+      queryClient.setQueryData(queryKeys.quests.detail(id), previousData);
       console.error('Error removing task:', err);
       toast.error(err.response?.data?.error || 'Failed to remove task');
     } finally {

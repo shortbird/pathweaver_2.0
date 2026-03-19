@@ -115,17 +115,22 @@ def update_buddy(user_id):
 @buddy_bp.route('/api/buddy/feed', methods=['POST', 'OPTIONS'])
 @require_role('student', 'superadmin')
 def feed_buddy(user_id):
-    """Feed the buddy - deducts XP from wallet, updates vitality/bond."""
+    """Feed the buddy - optionally deducts XP from wallet, updates vitality/bond.
+
+    Supports free feeding (xp_cost=0) with a daily feed limit of 5.
+    """
+    DAILY_FEED_LIMIT = 5
+
     try:
         data = request.get_json()
-        if not data or 'food_id' not in data or 'xp_cost' not in data:
-            return jsonify({'error': 'food_id and xp_cost are required'}), 400
+        if not data or 'food_id' not in data:
+            return jsonify({'error': 'food_id is required'}), 400
 
-        xp_cost = int(data['xp_cost'])
+        xp_cost = int(data.get('xp_cost', 0))
         food_id = str(data['food_id'])
 
-        if xp_cost <= 0:
-            return jsonify({'error': 'xp_cost must be positive'}), 400
+        if xp_cost < 0:
+            return jsonify({'error': 'xp_cost cannot be negative'}), 400
 
         supabase = get_supabase_admin_client()
 
@@ -136,19 +141,37 @@ def feed_buddy(user_id):
 
         buddy = buddy_result.data[0]
 
-        if buddy['wallet'] < xp_cost:
+        # Check if superadmin (bypass daily limit)
+        user_result = supabase.table('users').select('role').eq('id', user_id).execute()
+        is_superadmin = user_result.data and user_result.data[0].get('role') == 'superadmin'
+
+        # Reset daily counter if new day
+        today = date.today().isoformat()
+        feeds_today = buddy.get('xp_fed_today') or 0
+        if buddy.get('last_fed_date') != today:
+            feeds_today = 0
+
+        # Check daily feed limit (superadmin bypasses)
+        if not is_superadmin and feeds_today >= DAILY_FEED_LIMIT:
+            return jsonify({'error': 'Daily feed limit reached (5 per day)', 'feeds_today': feeds_today}), 400
+
+        # Check wallet if XP cost > 0
+        if xp_cost > 0 and buddy['wallet'] < xp_cost:
             return jsonify({'error': 'Not enough XP'}), 400
 
         # Build update
         updates = {
-            'wallet': buddy['wallet'] - xp_cost,
             'vitality': max(0.0, min(1.0, float(data.get('new_vitality', buddy['vitality'])))),
             'bond': max(0.0, min(1.0, float(data.get('new_bond', buddy['bond'])))),
-            'total_xp_fed': int(data.get('new_total_xp_fed', (buddy.get('total_xp_fed') or 0) + xp_cost)),
-            'xp_fed_today': int(data.get('new_xp_fed_today', (buddy.get('xp_fed_today') or 0) + xp_cost)),
-            'last_fed_date': date.today().isoformat(),
+            'total_xp_fed': (buddy.get('total_xp_fed') or 0) + 1,
+            'xp_fed_today': feeds_today + 1,
+            'last_fed_date': today,
             'last_interaction': data.get('last_interaction', 'now()'),
         }
+
+        # Only deduct wallet if XP cost > 0
+        if xp_cost > 0:
+            updates['wallet'] = buddy['wallet'] - xp_cost
 
         # Add to food journal if first taste
         journal = list(buddy.get('food_journal') or [])
@@ -158,7 +181,7 @@ def feed_buddy(user_id):
 
         result = supabase.table('buddies').update(updates).eq('user_id', user_id).execute()
 
-        logger.info(f"Buddy fed for user {user_id}: {food_id} (-{xp_cost} XP)")
+        logger.info(f"Buddy fed for user {user_id}: {food_id} (feed #{feeds_today + 1}/{DAILY_FEED_LIMIT})")
         return jsonify({'buddy': result.data[0]}), 200
 
     except Exception as e:

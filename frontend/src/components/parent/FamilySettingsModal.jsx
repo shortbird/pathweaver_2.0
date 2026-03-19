@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { Modal, Alert } from '../ui';
 import { observerAPI, parentAPI } from '../../services/api';
 import { createDependent, updateDependentAIFeatures } from '../../services/dependentAPI';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   ClipboardDocumentIcon,
   CheckIcon,
@@ -17,7 +18,8 @@ import {
   SparklesIcon,
   ChatBubbleLeftRightIcon,
   LightBulbIcon,
-  ClipboardDocumentListIcon
+  ClipboardDocumentListIcon,
+  ArrowUpCircleIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
@@ -34,6 +36,7 @@ const FamilySettingsModal = ({
   onChildSettingsClick,
   onRefresh
 }) => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('children');
 
   // Children state
@@ -54,9 +57,7 @@ const FamilySettingsModal = ({
   // Parents state
   const [parents, setParents] = useState([]);
   const [loadingParents, setLoadingParents] = useState(false);
-  const [showInviteParentForm, setShowInviteParentForm] = useState(false);
-  const [parentEmail, setParentEmail] = useState('');
-  const [isInvitingParent, setIsInvitingParent] = useState(false);
+  const [promotingObserver, setPromotingObserver] = useState(null);
 
   // AI Settings state - only track loading states (settings come from props)
   const [aiSettingsLoading, setAiSettingsLoading] = useState({});
@@ -118,11 +119,15 @@ const FamilySettingsModal = ({
   const loadParents = async () => {
     setLoadingParents(true);
     try {
-      const response = await parentAPI.getFamilyParents();
-      setParents(response.data.parents || []);
+      const [parentsResponse, observersResponse] = await Promise.all([
+        parentAPI.getFamilyParents(),
+        observerAPI.getFamilyObservers()
+      ]);
+      setParents(parentsResponse.data.parents || []);
+      // Also refresh observers so the "Add Parent" list is current
+      setObservers(observersResponse.data.observers || []);
     } catch (err) {
       console.error('Failed to load parents:', err);
-      // Expected to fail if endpoint doesn't exist yet
     } finally {
       setLoadingParents(false);
     }
@@ -273,24 +278,21 @@ const FamilySettingsModal = ({
   };
 
   // Parent handlers
-  const handleInviteParent = async (e) => {
-    e.preventDefault();
-    if (!parentEmail.trim()) {
-      toast.error('Email is required');
+  const handlePromoteObserver = async (observerId, observerName) => {
+    if (!window.confirm(`Make ${observerName} a parent? They will have full access to manage your children's accounts.`)) {
       return;
     }
 
-    setIsInvitingParent(true);
+    setPromotingObserver(observerId);
     try {
-      await parentAPI.inviteParent({ email: parentEmail.trim() });
-      toast.success(`Invitation sent to ${parentEmail}`);
-      setParentEmail('');
-      setShowInviteParentForm(false);
-      loadParents();
+      const response = await parentAPI.promoteObserver(observerId);
+      toast.success(response.data.message || `${observerName} is now a parent`);
+      // Reload both parents and observers lists
+      await loadParents();
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to send invitation');
+      toast.error(err.response?.data?.error || 'Failed to add parent');
     } finally {
-      setIsInvitingParent(false);
+      setPromotingObserver(null);
     }
   };
 
@@ -299,8 +301,6 @@ const FamilySettingsModal = ({
     setChildForm({ first_name: '', last_name: '', date_of_birth: '' });
     setChildFormError('');
     setGeneratedLink(null);
-    setShowInviteParentForm(false);
-    setParentEmail('');
     onClose();
   };
 
@@ -324,21 +324,22 @@ const FamilySettingsModal = ({
       title="Family Settings"
       size="lg"
     >
-      <div className="min-h-[400px]">
+      <div className="min-h-[200px] sm:min-h-[400px]">
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 mb-6">
+        <div className="flex border-b border-gray-200 mb-4 sm:mb-6 overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-3 font-medium text-sm border-b-2 transition-colors ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 min-h-[44px] font-medium text-sm border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
                 activeTab === tab.id
                   ? 'border-optio-purple text-optio-purple'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
               <tab.icon className="w-4 h-4" />
-              {tab.label}
+              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
               {tab.count > 0 && (
                 <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                   activeTab === tab.id ? 'bg-optio-purple/10' : 'bg-gray-100'
@@ -416,14 +417,14 @@ const FamilySettingsModal = ({
                     placeholder="First name"
                     value={childForm.first_name}
                     onChange={(e) => setChildForm({ ...childForm, first_name: e.target.value })}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                    className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-optio-purple focus:border-transparent"
                   />
                   <input
                     type="text"
                     placeholder="Last name"
                     value={childForm.last_name}
                     onChange={(e) => setChildForm({ ...childForm, last_name: e.target.value })}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                    className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-optio-purple focus:border-transparent"
                   />
                 </div>
 
@@ -434,7 +435,7 @@ const FamilySettingsModal = ({
                     value={childForm.date_of_birth}
                     onChange={(e) => setChildForm({ ...childForm, date_of_birth: e.target.value })}
                     max={new Date().toISOString().split('T')[0]}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                    className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-optio-purple focus:border-transparent"
                   />
                 </div>
 
@@ -445,7 +446,7 @@ const FamilySettingsModal = ({
                 <button
                   type="submit"
                   disabled={isAddingChild}
-                  className="w-full py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
+                  className="w-full py-2 min-h-[44px] bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
                 >
                   {isAddingChild ? 'Creating...' : 'Create Profile'}
                 </button>
@@ -653,7 +654,7 @@ const FamilySettingsModal = ({
                 <button
                   onClick={handleGenerateObserverLink}
                   disabled={isGeneratingLink || selectedChildrenForInvite.length === 0}
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 py-3 min-h-[44px] bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
                 >
                   <LinkIcon className="w-5 h-5" />
                   {isGeneratingLink ? 'Generating...' : 'Generate Invitation Link'}
@@ -761,97 +762,102 @@ const FamilySettingsModal = ({
         {/* Parents Tab */}
         {activeTab === 'parents' && (
           <div className="space-y-4">
-            <Alert variant="info">
-              Invite another parent or guardian to have full access to manage your children's accounts.
-            </Alert>
-
             {/* Current Parents */}
-            {loadingParents ? (
-              <div className="text-center py-4">
-                <div className="w-6 h-6 border-2 border-gray-200 border-t-optio-purple rounded-full animate-spin mx-auto" />
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {/* You (current user) */}
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center text-white font-medium">
-                      You
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">You</p>
-                      <p className="text-xs text-gray-500">Account owner</p>
-                    </div>
-                  </div>
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Current Parents</h4>
+              {loadingParents ? (
+                <div className="text-center py-4">
+                  <div className="w-6 h-6 border-2 border-gray-200 border-t-optio-purple rounded-full animate-spin mx-auto" />
                 </div>
-
-                {/* Other parents */}
-                {parents.map(parent => (
-                  <div key={parent.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              ) : (
+                <div className="space-y-2">
+                  {/* You (current user) */}
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center gap-3">
-                      {parent.avatar_url ? (
-                        <img src={parent.avatar_url} alt="" className="w-10 h-10 rounded-full" />
+                      {user?.avatar_url ? (
+                        <img src={user.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
                       ) : (
                         <div className="w-10 h-10 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center text-white font-medium">
-                          {(parent.name || 'P').charAt(0).toUpperCase()}
+                          {(user?.display_name || user?.first_name || user?.email || 'Y').charAt(0).toUpperCase()}
                         </div>
                       )}
                       <div>
-                        <p className="font-medium text-gray-900">{parent.name || parent.email}</p>
-                        <p className="text-xs text-gray-500">{parent.status === 'pending' ? 'Invitation pending' : 'Co-parent'}</p>
+                        <p className="font-medium text-gray-900">
+                          {user?.display_name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'You'}
+                        </p>
+                        <p className="text-xs text-gray-500">Account owner</p>
                       </div>
                     </div>
-                    {parent.status === 'pending' && (
-                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">Pending</span>
-                    )}
                   </div>
-                ))}
-              </div>
-            )}
 
-            {/* Invite Parent Form */}
-            {showInviteParentForm ? (
-              <form onSubmit={handleInviteParent} className="p-4 border border-gray-200 rounded-lg space-y-3">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-gray-900">Invite Parent/Guardian</h4>
-                  <button
-                    type="button"
-                    onClick={() => setShowInviteParentForm(false)}
-                    className="p-1 hover:bg-gray-100 rounded"
-                  >
-                    <XMarkIcon className="w-5 h-5 text-gray-400" />
-                  </button>
+                  {/* Other parents */}
+                  {parents.map(parent => (
+                    <div key={parent.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {parent.avatar_url ? (
+                          <img src={parent.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-10 h-10 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center text-white font-medium">
+                            {(parent.name || 'P').charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-medium text-gray-900">{parent.name || parent.email}</p>
+                          <p className="text-xs text-gray-500">Co-parent</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              )}
+            </div>
 
-                <p className="text-sm text-gray-600">
-                  They'll receive an email invitation and will have full access to manage all your children's accounts.
+            {/* Add Parent from Observers */}
+            {!loadingParents && (() => {
+              const parentIds = new Set([user?.id, ...parents.map(p => p.id)].filter(Boolean));
+              const promotableObservers = observers.filter(obs => !parentIds.has(obs.observer_id));
+              return (
+              <div className="border-t pt-4 space-y-3">
+                <h4 className="text-sm font-medium text-gray-700">Add Parent</h4>
+
+                {promotableObservers.length > 0 ? (
+                  <div className="space-y-2">
+                    {promotableObservers.map(obs => (
+                      <div key={obs.observer_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          {obs.avatar_url ? (
+                            <img src={obs.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center text-white text-sm font-medium">
+                              {(obs.observer_name || 'O').charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <p className="font-medium text-gray-900 text-sm">{obs.observer_name || 'Observer'}</p>
+                        </div>
+                        <button
+                          onClick={() => handlePromoteObserver(obs.observer_id, obs.observer_name || 'this observer')}
+                          disabled={promotingObserver === obs.observer_id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] text-sm font-medium text-optio-purple bg-optio-purple/10 rounded-lg hover:bg-optio-purple/20 disabled:opacity-50 transition-colors"
+                        >
+                          <ArrowUpCircleIcon className="w-4 h-4" />
+                          {promotingObserver === obs.observer_id ? 'Adding...' : 'Make Parent'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-gray-500">
+                    <UserGroupIcon className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm">No observers to add as parent</p>
+                  </div>
+                )}
+
+                <p className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
+                  To add another parent, first invite them as an observer in the Observers tab. You will then be able to add them as a parent here.
                 </p>
-
-                <input
-                  type="email"
-                  placeholder="Email address"
-                  value={parentEmail}
-                  onChange={(e) => setParentEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                />
-
-                <button
-                  type="submit"
-                  disabled={isInvitingParent || !parentEmail.trim()}
-                  className="w-full py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
-                >
-                  {isInvitingParent ? 'Sending...' : 'Send Invitation'}
-                </button>
-              </form>
-            ) : (
-              <button
-                onClick={() => setShowInviteParentForm(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors"
-              >
-                <UserPlusIcon className="w-5 h-5" />
-                Add Another Parent/Guardian
-              </button>
-            )}
+              </div>
+              );
+            })()}
           </div>
         )}
       </div>

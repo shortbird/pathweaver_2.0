@@ -200,6 +200,24 @@ class BountyRepository(BaseRepository):
             logger.error(f"Error submitting evidence for claim {claim_id}: {e}")
             raise DatabaseError("Failed to submit evidence") from e
 
+    def update_claim_evidence(self, claim_id: str, evidence: Dict[str, Any]) -> Dict[str, Any]:
+        """Update evidence on a claim without changing status."""
+        try:
+            response = (
+                self.client.table('bounty_claims')
+                .update({'evidence': evidence})
+                .eq('id', claim_id)
+                .execute()
+            )
+            if not response.data:
+                raise NotFoundError(f"Claim {claim_id} not found")
+            return response.data[0]
+        except (NotFoundError,):
+            raise
+        except APIError as e:
+            logger.error(f"Error updating evidence for claim {claim_id}: {e}")
+            raise DatabaseError("Failed to update evidence") from e
+
     def update_claim_status(self, claim_id: str, status: str) -> Dict[str, Any]:
         """Update claim status."""
         try:

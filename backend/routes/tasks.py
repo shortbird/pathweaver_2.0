@@ -197,7 +197,7 @@ def complete_task(user_id: str, task_id: str):
         final_xp = base_xp
 
         # Create task completion record using repository
-        # Draft feedback system: completions start as 'draft' status
+        # Create completion record
         try:
             completion_data = completion_repo.create_completion({
                 'user_id': effective_user_id,
@@ -748,12 +748,6 @@ def finalize_task(user_id: str, task_id: str):
             'finalized_at': now
         }).eq('id', completion_data['id']).execute()
 
-        # Clear the feedback notification on the task
-        admin_supabase.table('user_quest_tasks').update({
-            'latest_feedback': None,
-            'feedback_at': None
-        }).eq('id', task_id).execute()
-
         task_title = task_data.get('title', 'Task')
         logger.info(f"User {user_id[:8]} finalized task {task_id[:8]} for {total_xp_finalized} subject XP")
 
@@ -776,71 +770,29 @@ def finalize_task(user_id: str, task_id: str):
         )
 
 
-@bp.route('/<task_id>/draft-status', methods=['GET'])
+@bp.route('/<task_id>/credit-status', methods=['GET'])
 @require_auth
-def get_draft_status(user_id: str, task_id: str):
-    """
-    Get the draft/feedback status for a completed task.
-
-    Returns:
-        diploma_status, feedback history, and finalization eligibility
-    """
+def get_credit_status(user_id: str, task_id: str):
+    """Get the diploma credit status for a completed task."""
     try:
         admin_supabase = get_supabase_admin_client()
-
-        # Get completion record (use admin client to avoid RLS issues)
         completion = admin_supabase.table('quest_task_completions')\
-            .select('''
-                id, diploma_status, revision_number,
-                reviewed_at, ready_suggested_at, finalized_at
-            ''')\
+            .select('diploma_status')\
             .eq('user_quest_task_id', task_id)\
             .eq('user_id', user_id)\
             .single()\
             .execute()
 
         if not completion.data:
-            return success_response(data={
-                'has_completion': False,
-                'diploma_status': None
-            })
-
-        completion_data = completion.data
-
-        # Get feedback history
-        feedback = admin_supabase.table('task_feedback')\
-            .select('id, feedback_text, revision_number, created_at')\
-            .eq('completion_id', completion_data['id'])\
-            .order('created_at', desc=False)\
-            .execute()
-
-        # Get latest feedback from task record
-        task_feedback = admin_supabase.table('user_quest_tasks')\
-            .select('latest_feedback, feedback_at')\
-            .eq('id', task_id)\
-            .single()\
-            .execute()
+            return success_response(data={'has_completion': False, 'diploma_status': None})
 
         return success_response(data={
             'has_completion': True,
-            'diploma_status': completion_data['diploma_status'],
-            'revision_number': completion_data['revision_number'],
-            'reviewed_at': completion_data['reviewed_at'],
-            'ready_suggested_at': completion_data['ready_suggested_at'],
-            'finalized_at': completion_data['finalized_at'],
-            'can_finalize': completion_data['diploma_status'] in ('ready_for_credit', 'approved'),
-            'feedback_history': feedback.data,
-            'latest_feedback': task_feedback.data.get('latest_feedback') if task_feedback.data else None,
-            'feedback_at': task_feedback.data.get('feedback_at') if task_feedback.data else None
+            'diploma_status': completion.data['diploma_status']
         })
-
     except Exception as e:
-        logger.error(f"Error getting draft status for task {task_id}: {str(e)}")
-        return error_response(
-            code='FETCH_ERROR',
-            message='Failed to get draft status',
-            status=500
-        )
+        logger.error(f"Error getting credit status for task {task_id}: {str(e)}")
+        return error_response(code='FETCH_ERROR', message='Failed to get credit status', status=500)
 
 
 # Subject name normalization mapping (shared across credit endpoints)

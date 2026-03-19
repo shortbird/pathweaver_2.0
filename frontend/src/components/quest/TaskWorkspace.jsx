@@ -172,7 +172,6 @@ const TaskWorkspace = ({
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isRequestingCredit, setIsRequestingCredit] = useState(false);
   const [creditStatus, setCreditStatus] = useState(null); // tracks diploma_status for current task
-  const [creditFeedback, setCreditFeedback] = useState(null); // advisor feedback for grow_this
 
   // Drag sensors for task reordering
   const sensors = useSensors(
@@ -184,7 +183,6 @@ const TaskWorkspace = ({
   useEffect(() => {
     setIsDescriptionExpanded(false);
     setCreditStatus(null);
-    setCreditFeedback(null);
     if (task?.id) {
       loadEvidence();
       if (task.is_completed) {
@@ -246,16 +244,10 @@ const TaskWorkspace = ({
 
   const loadCreditStatus = async () => {
     try {
-      const response = await api.get(`/api/tasks/${task.id}/draft-status`);
+      const response = await api.get(`/api/tasks/${task.id}/credit-status`);
       const data = response.data.data;
       if (data?.has_completion) {
         setCreditStatus(data.diploma_status);
-        if (data.latest_feedback) {
-          setCreditFeedback({
-            text: data.latest_feedback,
-            at: data.feedback_at,
-          });
-        }
       }
     } catch {
       // Not critical, silently ignore
@@ -1017,17 +1009,6 @@ const TaskWorkspace = ({
               </div>
 
               <div className="p-6">
-                {/* Advisor feedback banner for grow_this */}
-                {creditStatus === 'grow_this' && creditFeedback?.text && (
-                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-xs font-semibold text-blue-800 mb-1" style={{ fontFamily: 'Poppins' }}>Advisor Feedback</p>
-                    <p className="text-sm text-blue-900 whitespace-pre-wrap">{creditFeedback.text}</p>
-                    {creditFeedback.at && (
-                      <p className="text-xs text-blue-500 mt-1">{new Date(creditFeedback.at).toLocaleDateString()}</p>
-                    )}
-                  </div>
-                )}
-
                 {error && (
                   <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                     <div className="flex items-start gap-2">
