@@ -192,6 +192,14 @@ class MediaUploadService:
             )
 
         content_type = file.content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+
+        # Convert HEIF/HEIC to JPEG (browsers can't display HEIF natively)
+        if ext in ('heic', 'heif') and block_type == 'image':
+            converted = self._convert_heif_to_jpeg(file_content, filename)
+            if converted:
+                file_content, filename, ext, content_type = converted
+                file_size = len(file_content)
+
         is_video = block_type == 'video'
 
         # Video duration validation
@@ -338,6 +346,36 @@ class MediaUploadService:
         except Exception as e:
             logger.warning(f"[MediaUpload] Failed to delete file: {e}")
         return False
+
+    @staticmethod
+    def _convert_heif_to_jpeg(file_content: bytes, filename: str):
+        """
+        Convert HEIF/HEIC image to JPEG for browser compatibility.
+        Returns (file_content, filename, ext, content_type) or None on failure.
+        """
+        try:
+            import pillow_heif
+            pillow_heif.register_heif_opener()
+            from PIL import Image, ImageOps
+            import io
+
+            img = Image.open(io.BytesIO(file_content))
+            img = ImageOps.exif_transpose(img)
+            if img.mode not in ('RGB', 'L'):
+                img = img.convert('RGB')
+
+            output = io.BytesIO()
+            img.save(output, format='JPEG', quality=90)
+            new_content = output.getvalue()
+            new_filename = filename.rsplit('.', 1)[0] + '.jpg'
+            logger.info(f"[MediaUpload] Converted HEIF to JPEG: {filename} -> {new_filename} ({len(file_content)} -> {len(new_content)} bytes)")
+            return new_content, new_filename, 'jpg', 'image/jpeg'
+        except ImportError:
+            logger.warning("[MediaUpload] pillow-heif not installed, HEIF images will not be converted")
+            return None
+        except Exception as e:
+            logger.error(f"[MediaUpload] HEIF conversion failed for {filename}: {e}")
+            return None
 
     def _detect_media_type(self, ext: str) -> str:
         """Detect media type from file extension."""
