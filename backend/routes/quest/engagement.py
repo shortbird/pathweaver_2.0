@@ -11,7 +11,6 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from utils.logger import get_logger
 from datetime import datetime, timedelta, date as date_type
-from collections import defaultdict
 
 logger = get_logger(__name__)
 
@@ -159,49 +158,26 @@ def get_quest_engagement(user_id: str, quest_id: str):
         supabase = get_supabase_admin_client()
         today = datetime.now().date()
 
-        # Get task completions for this quest (last 12 weeks max)
+        # Aggregate activities by date using database function
+        # (avoids Supabase client's 1000-row default limit)
         twelve_weeks_ago = today - timedelta(weeks=12)
 
-        completions = supabase.table('quest_task_completions')\
-            .select('completed_at')\
-            .eq('user_id', user_id)\
-            .eq('quest_id', quest_id)\
-            .gte('completed_at', twelve_weeks_ago.isoformat())\
-            .execute()
+        result = supabase.rpc('get_engagement_summary', {
+            'p_user_id': user_id,
+            'p_quest_id': quest_id,
+            'p_since': twelve_weeks_ago.isoformat()
+        }).execute()
 
-        # Get activity events for this quest (task views, evidence uploads, tutor chats)
-        # Filter directly on JSONB field to avoid fetching unnecessary data
-        events = supabase.table('user_activity_events')\
-            .select('event_type, created_at')\
-            .eq('user_id', user_id)\
-            .in_('event_type', ['task_viewed', 'evidence_uploaded', 'tutor_message_sent', 'quest_viewed'])\
-            .gte('created_at', twelve_weeks_ago.isoformat())\
-            .filter('event_data->>quest_id', 'eq', quest_id)\
-            .execute()
-
-        quest_events = events.data or []
-
-        # Aggregate activities by date
-        daily_activities = defaultdict(lambda: {'count': 0, 'activities': set()})
+        daily_activities = {}
         all_activity_dates = set()
 
-        # Add completions
-        for completion in (completions.data or []):
-            completed_at = completion.get('completed_at')
-            if completed_at:
-                date_str = completed_at[:10]  # Extract YYYY-MM-DD
-                daily_activities[date_str]['count'] += 1
-                daily_activities[date_str]['activities'].add('task_completed')
-                all_activity_dates.add(datetime.strptime(date_str, '%Y-%m-%d').date())
-
-        # Add events
-        for event in quest_events:
-            created_at = event.get('created_at')
-            if created_at:
-                date_str = created_at[:10]
-                daily_activities[date_str]['count'] += 1
-                daily_activities[date_str]['activities'].add(event.get('event_type'))
-                all_activity_dates.add(datetime.strptime(date_str, '%Y-%m-%d').date())
+        for row in (result.data or []):
+            date_str = row['activity_date']
+            daily_activities[date_str] = {
+                'count': row['activity_count'],
+                'activities': row['activity_types'] or []
+            }
+            all_activity_dates.add(datetime.strptime(date_str, '%Y-%m-%d').date())
 
         # Determine calendar range based on first activity (adaptive sizing)
         if all_activity_dates:
@@ -219,7 +195,7 @@ def get_quest_engagement(user_id: str, quest_id: str):
         current_date = calendar_start
         while current_date <= today:
             date_str = current_date.strftime('%Y-%m-%d')
-            day_data = daily_activities.get(date_str, {'count': 0, 'activities': set()})
+            day_data = daily_activities.get(date_str, {'count': 0, 'activities': []})
 
             calendar_days.append({
                 'date': date_str,

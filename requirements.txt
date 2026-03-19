@@ -36,6 +36,7 @@ PyYAML==6.0.1  # Email copy configuration
 beautifulsoup4==4.12.3  # HTML parsing for Khan Academy scraper
 lxml==5.1.0  # Fast XML/HTML parser for BeautifulSoup
 Pillow>=10.0.0  # Image processing for curriculum images
+pillow-heif>=0.18.0  # HEIF/HEIC support for Pillow (iPhone photos)
 
 # Document Parsing (AI Curriculum Upload)
 pdfplumber>=0.10.0  # PDF parsing with layout awareness
