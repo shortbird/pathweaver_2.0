@@ -1,6 +1,6 @@
 # Optio Platform - AI Agent Guide
 
-**Last Updated**: February 3, 2026 | **Local Dev**: Enabled | **Multi-Agent**: Available
+**Last Updated**: March 20, 2026 | **Local Dev**: Enabled | **Multi-Agent**: Available
 
 ---
 
@@ -332,12 +332,19 @@ user_quest_tasks         - id, user_id, quest_id, title, pillar, xp_value, appro
 quest_task_completions   - id, user_id, quest_id, task_id, xp_awarded, completed_at
 user_skill_xp            - user_id, pillar, xp_amount
 badges                   - id, name, pillar_primary, min_quests, min_xp, image_url
-friendships              - id, requester_id, addressee_id, status
 organizations            - id, name, slug, quest_visibility_policy, is_active
 ```
 
 ### Deleted Tables (Don't Query)
-`task_collaborations`, `subscription_tiers`
+`task_collaborations`, `subscription_tiers`, `friendships`, `calendar_view_preferences`,
+`user_quest_deadlines`, `promo_signups`, `promo_codes`, `services`, `service_inquiries`,
+`email_campaigns`, `email_campaign_sends`, `user_segments`, `quest_collaborations`,
+`quest_collaboration_members`, `shared_evidence`, `shared_evidence_approvals`,
+`ai_content_metrics`, `ai_generation_metrics`, `ai_improvement_logs`, `ai_prompt_templates`,
+`ai_prompt_versions`, `ai_quest_review_history`, `quality_action_logs`, `quest_task_flags`,
+`quest_template_task_flags`, `task_merges`, `task_merge_sources`, `parent_connection_requests`,
+`parent_evidence_uploads`, `observer_requests`, `quest_conversions`, `tutor_analytics`,
+`tutor_parent_access`, `accreditor_reviews`
 
 ### Schema Check Pattern
 ```sql
@@ -409,7 +416,7 @@ cd frontend && npm run test:run    # Must be 95%+ pass rate
 npm run test:coverage              # Must be 60%+ coverage
 ```
 
-**Current stats:** 505 tests, 97.8% pass rate, 60.61% coverage
+**Current stats:** 345 tests, 97.9% pass rate, 60.61% coverage
 
 **Full testing guide:** [frontend/TESTING.md](frontend/TESTING.md)
 
@@ -440,7 +447,7 @@ npm run test:coverage              # Must be 60%+ coverage
 backend/
 ├── routes/           # API endpoints (use repositories for new code)
 ├── repositories/     # Data access layer (15 repos)
-├── services/         # Business logic (29 services)
+├── services/         # Business logic (22 services)
 └── middleware/       # CSRF, rate limiting
 
 frontend/src/
@@ -448,6 +455,11 @@ frontend/src/
 ├── components/       # UI components
 └── services/         # API + auth
 ```
+
+### Removed in March 2026 Audit
+- **Frontend**: Calendar, Payments/Stripe, curiosity-threads, hub, quest-library components deleted
+- **Backend**: v1 API routes, calendar route, admin services route, 7 unused AI/recommendation services deleted
+- **Dependencies**: @fullcalendar/*, @stripe/*, react-ga4 removed from frontend
 
 ---
 
@@ -566,6 +578,8 @@ claude mcp add -s user posthog -- npx -y mcp-remote@latest https://mcp.posthog.c
 | Error | Fix |
 |-------|-----|
 | "quest_tasks does not exist" | Use `user_quest_tasks` |
+| "friendships does not exist" | Table dropped (Mar 2026 audit) |
+| "calendar_view_preferences does not exist" | Table dropped (Mar 2026 audit) |
 | "Content-Type must be application/json" | Add body: `api.post(url, {})` |
 | 401 Unauthorized | Check httpOnly cookies |
 | Wrong brand colors | Use `optio-purple`/`optio-pink` |
