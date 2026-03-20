@@ -34,6 +34,7 @@ import { BountyBoardScreen } from '../screens/BountyBoardScreen';
 import { BountyDetailScreen } from '../screens/BountyDetailScreen';
 import { FeedDetailScreen } from '../screens/FeedDetailScreen';
 import { JournalDetailScreen } from '../screens/JournalDetailScreen';
+import { UITestScreen } from '../screens/UITestScreen';
 
 import { useAuthStore } from '../stores/authStore';
 import { useOnboardingStore } from '../stores/onboardingStore';
@@ -275,6 +276,7 @@ function MainStack() {
       <Stack.Screen name="FeedDetail" component={FeedDetailScreen} />
       <Stack.Screen name="JournalDetail" component={JournalDetailScreen} />
       <Stack.Screen name="Capture" component={CaptureScreen} />
+      <Stack.Screen name="UITest" component={UITestScreen} />
     </Stack.Navigator>
   );
 }
@@ -296,6 +298,7 @@ export function AppNavigator() {
       ) : (
         <Stack.Screen name="Login" component={LoginScreen} />
       )}
+      <Stack.Screen name="UITest" component={UITestScreen} />
     </Stack.Navigator>
   );
 }

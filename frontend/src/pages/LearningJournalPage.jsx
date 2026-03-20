@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Navigate, Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import InterestTracksList from '../components/interest-tracks/InterestTracksList';
@@ -13,8 +13,7 @@ import EvolveTopicModal from '../components/interest-tracks/EvolveTopicModal';
 import {
   FolderOpenIcon,
   SparklesIcon,
-  ArrowPathIcon,
-  ArrowLeftIcon
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 
 const LearningJournalPage = () => {
@@ -181,55 +180,31 @@ const LearningJournalPage = () => {
   // Auth loading
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-64">
         <div className="w-8 h-8 border-4 border-optio-purple border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
-  // Auth check
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-4 py-3 sm:px-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <img
-              src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png"
-              alt="Optio"
-              className="h-7 sm:h-8 w-auto"
-            />
-            <div className="h-6 w-px bg-gray-300" />
-            <div>
-              <h1 className="text-lg sm:text-2xl font-bold text-gray-900">
-                {isParentView && childInfo
-                  ? `${childInfo.first_name || childInfo.display_name}'s Learning Journal`
-                  : 'Learning Journal'}
-              </h1>
-              <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">
-                {isParentView
-                  ? 'View and organize learning moments'
-                  : 'Track your spontaneous learning and organize it by topics of interest'}
-              </p>
-            </div>
-          </div>
-
-          {/* Back to Platform/Dashboard - top right */}
-          <Link
-            to={isParentView ? '/parent/dashboard' : '/dashboard'}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeftIcon className="w-4 h-4" />
-            <span className="hidden sm:inline">{isParentView ? 'Dashboard' : 'Platform'}</span>
-          </Link>
+    <div className="h-[calc(100vh-4rem)] flex flex-col bg-gray-50">
+      {/* Page Header with Mobile Tabs */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 sm:px-6">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900">
+            {isParentView && childInfo
+              ? `${childInfo.first_name || childInfo.display_name}'s Learning Journal`
+              : 'Learning Journal'}
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">
+            {isParentView
+              ? 'View and organize learning moments'
+              : 'Track your spontaneous learning and organize it by topics of interest'}
+          </p>
         </div>
 
         {/* Mobile Tab Navigation */}
-        <div className="lg:hidden mt-3 flex bg-gray-100 rounded-lg p-1">
+        <div className="lg:hidden mt-3 flex bg-gray-100 rounded-lg p-1 max-w-7xl mx-auto">
           <button
             onClick={() => setMobileView('list')}
             className={`
@@ -253,7 +228,7 @@ const LearningJournalPage = () => {
             {getDetailViewLabel()}
           </button>
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden max-w-7xl mx-auto w-full">

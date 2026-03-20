@@ -17,23 +17,16 @@ const ObserverStudentOverviewPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sticky header with back button */}
-      <div className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-3">
-          <button
-            onClick={handleBack}
-            className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg font-medium transition-colors"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
-          >
-            <ArrowLeftIcon className="w-5 h-5" />
-            Back to Activity Feed
-          </button>
-        </div>
-      </div>
-
-      {/* Student overview content */}
+    <div className="bg-gray-50 min-h-0">
       <div className="max-w-4xl mx-auto px-4 py-6">
+        {/* Back to feed */}
+        <button
+          onClick={handleBack}
+          className="flex items-center gap-2 mb-4 text-gray-600 hover:text-gray-900 transition-colors"
+        >
+          <ArrowLeftIcon className="w-4 h-4" />
+          Back to Activity Feed
+        </button>
         <ChildOverviewContent
           studentId={studentId}
           isDependent={false}

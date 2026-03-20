@@ -41,9 +41,7 @@ vi.mock('../components/observer', () => ({
 vi.mock('@heroicons/react/24/outline', () => ({
   UsersIcon: (props) => <svg data-testid="users-icon" {...props} />,
   SparklesIcon: (props) => <svg data-testid="sparkles-icon" {...props} />,
-  ArrowRightOnRectangleIcon: (props) => <svg data-testid="logout-icon" {...props} />,
-  ChevronDownIcon: (props) => <svg data-testid="chevron-down" {...props} />,
-  ArrowRightIcon: (props) => <svg data-testid="arrow-right" {...props} />
+  ChevronDownIcon: (props) => <svg data-testid="chevron-down" {...props} />
 }))
 
 import { observerAPI } from '../services/api'
@@ -151,18 +149,10 @@ describe('ObserverFeedPage', () => {
       })
     })
 
-    it('shows Observer Feed header for observer role', async () => {
+    it('shows activity description for all students', async () => {
       renderObserverFeed()
       await waitFor(() => {
-        expect(screen.getByText('Observer Feed')).toBeInTheDocument()
-      })
-    })
-
-    it('shows Family Activity Feed header for parent role', async () => {
-      authState = { user: { id: 'parent-1', role: 'parent' }, logout: vi.fn() }
-      renderObserverFeed()
-      await waitFor(() => {
-        expect(screen.getByText('Family Activity Feed')).toBeInTheDocument()
+        expect(screen.getByText(/Activity from all 2 linked students/)).toBeInTheDocument()
       })
     })
   })
@@ -180,27 +170,18 @@ describe('ObserverFeedPage', () => {
     })
   })
 
-  // --- Observer-only features ---
-  describe('observer-only features', () => {
-    it('shows Tips link for observer role', async () => {
+  // --- Student filter ---
+  describe('student filter', () => {
+    it('filters feed by selected student', async () => {
       renderObserverFeed()
       await waitFor(() => {
-        expect(screen.getByText('Tips')).toBeInTheDocument()
+        expect(screen.getByText(/All Students/)).toBeInTheDocument()
       })
-    })
-
-    it('shows Log out button for observer role', async () => {
-      renderObserverFeed()
-      await waitFor(() => {
-        expect(screen.getByTitle('Log out')).toBeInTheDocument()
-      })
-    })
-
-    it('shows Access Platform link for observer role', async () => {
-      renderObserverFeed()
-      await waitFor(() => {
-        expect(screen.getByText('Access Platform')).toBeInTheDocument()
-      })
+      // Select a specific student
+      const select = screen.getByRole('combobox')
+      fireEvent.change(select, { target: { value: 'stu-1' } })
+      // The filter change should trigger a new fetch
+      expect(observerAPI.getFeed).toHaveBeenCalled()
     })
   })
 })

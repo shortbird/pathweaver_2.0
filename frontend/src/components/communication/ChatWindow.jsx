@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { UserIcon } from '@heroicons/react/24/outline'
+import { UserIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import { useConversationMessages, useSendMessage, useMarkAsRead } from '../../hooks/api/useDirectMessages'
 import ChatInterface from '../tutor/ChatInterface'
@@ -7,7 +7,7 @@ import MessageThread from './MessageThread'
 import MessageInput from './MessageInput'
 import toast from 'react-hot-toast'
 
-const ChatWindow = ({ conversation, onConversationCreate }) => {
+const ChatWindow = ({ conversation, onConversationCreate, onBack }) => {
   const { user } = useAuth()
   const [tutorConversationId, setTutorConversationId] = useState(null)
 
@@ -76,14 +76,26 @@ const ChatWindow = ({ conversation, onConversationCreate }) => {
   // Render OptioBot chat
   if (chatType === 'bot') {
     return (
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Mobile-only back button */}
+        {onBack && (
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 bg-white md:hidden">
+            <button
+              onClick={onBack}
+              className="p-2 text-gray-600 hover:bg-gray-100 rounded-full"
+            >
+              <ArrowLeftIcon className="w-5 h-5" />
+            </button>
+            <span className="font-medium text-gray-700">Back</span>
+          </div>
+        )}
         <ChatInterface
           conversationId={conversation?.tutorConversationId || tutorConversationId}
           currentQuest={null}
           currentTask={null}
           onClose={null}
           hideHeader={false}
-          className="h-full border-0 shadow-none rounded-none"
+          className="h-full border-0 shadow-none rounded-none flex-1"
           onConversationCreate={(convId) => {
             setTutorConversationId(convId)
             if (onConversationCreate) {
@@ -105,6 +117,15 @@ const ChatWindow = ({ conversation, onConversationCreate }) => {
       {/* Header */}
       <div className="border-b border-gray-200 bg-white p-4">
         <div className="flex items-center space-x-3">
+          {/* Mobile back button */}
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="p-2 text-gray-600 hover:bg-gray-100 rounded-full md:hidden flex-shrink-0"
+            >
+              <ArrowLeftIcon className="w-5 h-5" />
+            </button>
+          )}
           {otherUser?.avatar_url ? (
             <img
               src={otherUser.avatar_url}

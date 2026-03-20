@@ -52,6 +52,7 @@ Thumbs.db
 
 # Testing
 coverage/
+coverage.xml
 .nyc_output/
 *.lcov
 
@@ -94,6 +95,7 @@ temp/
 .DS_Store
 Thumbs.db
 desktop.ini
+*.stackdump
 
 # Security - Never commit these
 *.pem

@@ -41,7 +41,6 @@ const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'))
 const DemoPage = lazy(() => import('./pages/DemoPage'))
-// Promo/marketing page imports removed (March 2026 - Feature pruning)
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const LearningJournalPage = lazy(() => import('./pages/LearningJournalPage'))
@@ -51,10 +50,8 @@ const OptioAcademyAgreement = lazy(() => import('./pages/OptioAcademyAgreement')
 const OptioAcademyHandbook = lazy(() => import('./pages/OptioAcademyHandbook'))
 // Quest Pages
 const QuestDiscovery = lazy(() => import('./pages/QuestDiscovery'))
-// Badge system removed (January 2026 - Microschool client feedback)
 const QuestDetail = lazy(() => import('./pages/QuestDetail'))
 const TaskLibraryBrowser = lazy(() => import('./pages/TaskLibraryBrowser'))
-// Badge Pages removed (January 2026 - Microschool client feedback)
 const ConstellationPage = lazy(() => import('./pages/ConstellationPage'))
 // Credit & Transcript Pages
 const CreditTrackerPage = lazy(() => import('./pages/CreditTrackerPage'))
@@ -62,11 +59,7 @@ const TranscriptPage = lazy(() => import('./pages/TranscriptPage'))
 // Other Pages
 const DiplomaPage = lazy(() => import('./pages/DiplomaPage'))
 const StudentOverviewPage = lazy(() => import('./pages/StudentOverviewPage'))
-// ProfilePage removed - redirects to StudentOverviewPage (January 2026)
-// FriendsPage removed - redirects to ConnectionsPage (January 2025)
-// ConnectionsPage removed (March 2026 - Feature pruning)
 const CommunicationPage = lazy(() => import('./pages/CommunicationPage'))
-const CalendarPage = lazy(() => import('./pages/CalendarPage'))
 // Admin & Special Pages
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const MobileDemoPage = lazy(() => import('./pages/MobileDemoPage'))
@@ -74,10 +67,8 @@ const OrganizationManagement = lazy(() => import('./pages/admin/OrganizationMana
 const OrgStudentOverviewPage = lazy(() => import('./pages/admin/OrgStudentOverviewPage'))
 const AdvisorDashboard = lazy(() => import('./pages/AdvisorDashboard'))
 const AdvisorClassesPage = lazy(() => import('./pages/AdvisorClassesPage'))
-// AdvisorBadgeForm removed (January 2026 - Microschool client feedback)
 const AdvisorCheckinPage = lazy(() => import('./pages/AdvisorCheckinPage'))
 const TeacherVerificationPage = lazy(() => import('./pages/TeacherVerificationPage'))
-// CollaborationsPage removed (March 2026 - Feature pruning)
 const ParentDashboardPage = lazy(() => import('./pages/ParentDashboardPage'))
 const ParentQuestView = lazy(() => import('./pages/ParentQuestView'))
 // Observer Pages (January 2025)
@@ -379,23 +370,8 @@ function App() {
           />
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              {/* Observer routes - full-screen without main navigation
-                  Accessible to observer-role users AND parents/advisors/superadmin who may have observer access
-                  The ObserverFeedPage handles conditional rendering based on user role */}
-              <Route element={<PrivateRoute requiredRole={['observer', 'parent', 'advisor', 'superadmin']} />}>
-                <Route path="observer/welcome" element={<ObserverWelcomePage />} />
-                <Route path="observer/feed" element={<ObserverFeedPage />} />
-                <Route path="observer/student/:studentId" element={<ObserverStudentOverviewPage />} />
-              </Route>
-
-              {/* Learning Journal - full-screen experience for all authenticated users */}
-              <Route element={<PrivateRoute />}>
-                <Route path="learning-journal" element={<LearningJournalPage />} />
-              </Route>
-
               <Route path="/" element={<Layout />}>
                 <Route index element={<HomePage />} />
-                {/* Promo/marketing routes removed (March 2026 - Feature pruning) */}
                 <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />
                 <Route path="login" element={<LoginPage />} />
                 <Route path="login/:slug" element={<OrgLoginPage />} />
@@ -423,7 +399,6 @@ function App() {
                 <Route path="quests/:id" element={<QuestDetail />} />
                 <Route path="quests/:id/curriculum" element={<CurriculumPage />} />
                 <Route path="quests/:questId/library" element={<TaskLibraryBrowser />} />
-                {/* Badge Routes removed (January 2026 - Microschool client feedback) */}
                 <Route path="constellation" element={<ConstellationPage />} />
                 {/* Course Routes */}
                 <Route path="courses" element={<CourseCatalog />} />
@@ -435,19 +410,19 @@ function App() {
                 <Route path="overview" element={<StudentOverviewPage />} />
                 {/* Legacy routes - redirect to overview with hash anchors */}
                 <Route path="profile" element={<Navigate to="/overview" replace />} />
-                {/* Connections/friends routes removed (March 2026 - Feature pruning) */}
                 <Route path="friends" element={<Navigate to="/dashboard" replace />} />
                 <Route path="connections" element={<Navigate to="/dashboard" replace />} />
                 <Route path="communication" element={<CommunicationPage />} />
-                {/* <Route path="calendar" element={<CalendarPage />} /> */}{/* Calendar route commented out (March 2026 - Feature pruning) */}
+                <Route path="learning-journal" element={<LearningJournalPage />} />
                 {/* LMS Features */}
                 <Route path="invitations" element={<MyInvitations />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 {/* Observer Feedback */}
                 <Route path="feedback" element={<StudentFeedbackPage />} />
-                {/* <Route path="subscription" element={<SubscriptionPage />} /> REMOVED - Phase 3 refactoring (January 2025) */}
-                {/* Observer feed inside Layout for users with other roles (parent, advisor, etc.) */}
+                {/* Observer pages */}
                 <Route path="observer/feed" element={<ObserverFeedPage />} />
+                <Route path="observer/welcome" element={<ObserverWelcomePage />} />
+                <Route path="observer/student/:studentId" element={<ObserverStudentOverviewPage />} />
                 {/* Evidence Reports - shareable evidence with PDF download (February 2026) */}
                 <Route path="evidence-reports" element={<MyEvidenceReports />} />
                 <Route path="evidence-reports/new" element={<EvidenceReportBuilder />} />
@@ -490,8 +465,6 @@ function App() {
                 <Route path="advisor/dashboard" element={<AdvisorDashboard />} />
                 <Route path="advisor/checkin/:studentId" element={<AdvisorCheckinPage />} />
                 <Route path="advisor/verification" element={<TeacherVerificationPage />} />
-                {/* advisor/collaborations route removed (March 2026 - Feature pruning) */}
-                {/* Advisor badge routes removed (January 2026 - Microschool client feedback) */}
                 {/* LMS Features - Advisor */}
                 <Route path="advisor/invitations" element={<QuestInvitations />} />
                 <Route path="quests/:questId/curriculum/edit" element={<CurriculumBuilder />} />

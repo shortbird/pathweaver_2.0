@@ -28,12 +28,6 @@ vi.mock('./admin/OrganizationDashboard', () => ({
 vi.mock('./admin/OrganizationManagement', () => ({
   default: () => <div>Org Management</div>
 }))
-vi.mock('./admin/ParentalConsentReviewPage', () => ({
-  default: () => <div>Parental Consent</div>
-}))
-vi.mock('./admin/CurriculumUploadPage', () => ({
-  default: () => <div>Curriculum Upload</div>
-}))
 vi.mock('./admin/CourseGeneratorWizard', () => ({
   default: () => <div>Course Generator</div>
 }))
@@ -109,10 +103,10 @@ expect(screen.getAllByText('Docs').length).toBeGreaterThanOrEqual(1)
       })
     })
 
-    it('renders Parental Consent tab', async () => {
+    it('renders Bulk Generate tab', async () => {
       renderAdmin()
       await waitFor(() => {
-        expect(screen.getAllByText('Parental Consent').length).toBeGreaterThanOrEqual(1)
+        expect(screen.getAllByText('Bulk Generate').length).toBeGreaterThanOrEqual(1)
       })
     })
   })
