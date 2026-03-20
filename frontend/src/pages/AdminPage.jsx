@@ -9,8 +9,6 @@ const FlaggedTasksPanel = lazy(() => import('../components/admin/FlaggedTasksPan
 const AutomatedEmailsList = lazy(() => import('../components/admin/AutomatedEmailsList'))
 const OrganizationDashboard = lazy(() => import('./admin/OrganizationDashboard'))
 const OrganizationManagement = lazy(() => import('./admin/OrganizationManagement'))
-const ParentalConsentReviewPage = lazy(() => import('./admin/ParentalConsentReviewPage'))
-const CurriculumUploadPage = lazy(() => import('./admin/CurriculumUploadPage'))
 const CourseGeneratorWizard = lazy(() => import('./admin/CourseGeneratorWizard'))
 const CourseGenerationQueue = lazy(() => import('./admin/CourseGenerationQueue'))
 const TransferCreditForm = lazy(() => import('./admin/TransferCreditForm'))
@@ -51,12 +49,10 @@ const AdminPage = () => {
     { path: '', label: 'Quests', pathMatch: ['admin', 'quests', ''] },
     { path: 'users', label: 'Users' },
 { path: 'emails', label: 'Emails' },
-    { path: 'organizations', label: 'Organizations' },
-    { path: 'parental-consent', label: 'Parental Consent' }
+    { path: 'organizations', label: 'Organizations' }
   ]
 
   const superadminTabs = [
-{ path: 'curriculum-upload', label: 'AI Upload' },
     { path: 'bulk-generate', label: 'Bulk Generate' },
     { path: 'docs', label: 'Docs' }
   ]
@@ -152,8 +148,6 @@ const AdminPage = () => {
           <Route path="emails" element={<AutomatedEmailsList />} />
           <Route path="organizations" element={<OrganizationDashboard />} />
           <Route path="organizations/:orgId" element={<OrganizationManagement />} />
-          <Route path="parental-consent" element={<ParentalConsentReviewPage />} />
-          <Route path="curriculum-upload" element={<CurriculumUploadPage />} />
           <Route path="generate-course" element={<CourseGeneratorWizard />} />
           <Route path="generate-course/:courseId" element={<CourseGeneratorWizard />} />
           <Route path="course-generation-queue" element={<CourseGenerationQueue />} />

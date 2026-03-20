@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { observerAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -7,40 +7,19 @@ import { FeedCard } from '../components/observer';
 import {
   UsersIcon,
   SparklesIcon,
-  ArrowRightOnRectangleIcon,
-  ChevronDownIcon,
-  ArrowRightIcon
+  ChevronDownIcon
 } from '@heroicons/react/24/outline';
 
 export default function ObserverFeedPage() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [siteSettings, setSiteSettings] = useState(null);
   const retryCountRef = useRef(0);
   // Check both state (from navigate) and query param (from window.location.href redirect)
   const freshInvitation = location.state?.freshInvitation || searchParams.get('fresh') === '1';
   const wasFreshInvitationRef = useRef(freshInvitation); // Store in ref for retry logic
-
-  // Fetch site settings for logo
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        const response = await fetch(`${apiUrl}/api/settings`);
-        if (response.ok) {
-          const data = await response.json();
-          setSiteSettings(data);
-        }
-      } catch (error) {
-        // Silent fail - use fallback
-      }
-    };
-    fetchSettings();
-  }, []);
   const [selectedStudentId, setSelectedStudentId] = useState(null); // null = all students
   const [feedItems, setFeedItems] = useState([]);
   const [feedLoading, setFeedLoading] = useState(false);
@@ -220,67 +199,26 @@ export default function ObserverFeedPage() {
     };
   }, [hasMore, feedLoading, fetchFeed]);
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/login');
-    } catch (error) {
-      console.error('Logout failed:', error);
-      toast.error('Failed to log out');
-    }
-  };
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
       </div>
     );
   }
 
   if (students.length === 0) {
-    const isObserverRole = user?.role === 'observer';
     return (
-      <div className={`min-h-screen ${isObserverRole ? 'bg-gradient-to-br from-purple-50 via-white to-pink-50' : ''}`}>
-        {/* Simple header for empty state - only for observer-role users */}
-        {isObserverRole && (
-          <div className="bg-white border-b border-gray-200">
-            <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center">
-                {siteSettings?.logo_url ? (
-                  <img
-                    src={siteSettings.logo_url}
-                    alt={siteSettings.site_name || "Optio"}
-                    className="h-8 w-auto"
-                  />
-                ) : (
-                  <span className="text-2xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent">
-                    Optio
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-1 text-sm text-gray-600 hover:text-red-600 transition-colors px-2 py-1 rounded hover:bg-red-50"
-              >
-                <ArrowRightOnRectangleIcon className="w-5 h-5" />
-                <span>Log out</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className={`flex items-center justify-center p-3 sm:p-4 ${isObserverRole ? 'mt-12 sm:mt-20' : 'mt-6 sm:mt-8'}`}>
-          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-5 sm:p-8 text-center">
-            <UsersIcon className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-3 sm:mb-4" />
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">No Students Linked Yet</h2>
-            <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
-              You haven't been linked to any students yet. Ask a parent to send you an invitation link so you can follow their child's learning journey.
-            </p>
-            <p className="text-xs sm:text-sm text-gray-500">
-              Once connected, you'll see student activity and achievements here.
-            </p>
-          </div>
+      <div className="flex items-center justify-center p-4 mt-8 sm:mt-16">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-5 sm:p-8 text-center">
+          <UsersIcon className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-3 sm:mb-4" />
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">No Students Linked Yet</h2>
+          <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
+            You haven't been linked to any students yet. Ask a parent to send you an invitation link so you can follow their child's learning journey.
+          </p>
+          <p className="text-xs sm:text-sm text-gray-500">
+            Once connected, you'll see student activity and achievements here.
+          </p>
         </div>
       </div>
     );
@@ -288,83 +226,10 @@ export default function ObserverFeedPage() {
 
   const selectedStudent = students.find(s => s.student_id === selectedStudentId);
 
-  const isObserverOnly = user?.role === 'observer';
   const isParent = user?.role === 'parent';
-  // Show full-screen experience with own header for all users accessing this page
-  // Observer-role users get observer-specific header; others get a simplified header with back link
-
-  // Determine back link based on user role
-  const getBackLink = () => {
-    if (isParent) return '/parent/dashboard';
-    if (user?.role === 'advisor') return '/dashboard';
-    if (user?.role === 'superadmin') return '/admin';
-    return '/dashboard';
-  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header - show for all users */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            {/* Logo and Title */}
-            <div className="flex items-center gap-4">
-              <Link to={isObserverOnly ? "/observer/feed" : getBackLink()} className="flex items-center">
-                {siteSettings?.logo_url ? (
-                  <img
-                    src={siteSettings.logo_url}
-                    alt={siteSettings.site_name || "Optio"}
-                    className="h-8 w-auto"
-                  />
-                ) : (
-                  <span className="text-2xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent">
-                    Optio
-                  </span>
-                )}
-              </Link>
-              <div className="h-6 w-px bg-gray-200 hidden sm:block" />
-              <div className="hidden sm:block">
-                <h1 className="text-lg font-semibold text-gray-900">
-                  {isParent ? 'Family Activity Feed' : 'Observer Feed'}
-                </h1>
-              </div>
-            </div>
-
-            {/* User Controls */}
-            <div className="flex items-center gap-2 sm:gap-3">
-              {isObserverOnly && (
-                <Link
-                  to="/observer/welcome"
-                  className="text-optio-purple hover:text-optio-pink font-medium text-sm flex items-center gap-1"
-                >
-                  <SparklesIcon className="w-4 h-4" />
-                  Tips
-                </Link>
-              )}
-
-              <Link
-                to={isObserverOnly ? "/dashboard" : getBackLink()}
-                className="flex items-center gap-1 text-sm bg-gradient-to-r from-optio-purple to-optio-pink text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity font-medium"
-              >
-                <ArrowRightIcon className="w-4 h-4" />
-                {isObserverOnly ? 'Access Platform' : 'Back to Dashboard'}
-              </Link>
-
-              {isObserverOnly && (
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-1 text-sm text-gray-600 hover:text-red-600 transition-colors px-2 py-1 rounded hover:bg-red-50"
-                  title="Log out"
-                >
-                  <ArrowRightOnRectangleIcon className="w-5 h-5" />
-                  <span className="hidden sm:inline">Log out</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <div className="bg-gray-50 min-h-0">
       <div className="max-w-3xl mx-auto px-0 sm:px-6 py-4 sm:py-6">
         {/* Header with Student Filter Dropdown */}
         <div className="flex flex-col gap-3 mb-4 sm:mb-6 px-4 sm:px-0">

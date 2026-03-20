@@ -25,6 +25,7 @@ import { GlassCard } from '../components/common/GlassCard';
 import { GlassButton } from '../components/common/GlassButton';
 import { GlassBackground } from '../components/common/GlassBackground';
 import { useAuthStore } from '../stores/authStore';
+import { useNavigation } from '@react-navigation/native';
 import { useOnboardingStore } from '../stores/onboardingStore';
 import { useThemeStore } from '../stores/themeStore';
 import { storage } from '../utils/storage';
@@ -35,6 +36,7 @@ const LOGO_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
 
 export function LoginScreen() {
+  const navigation = useNavigation<any>();
   const { colors } = useThemeStore();
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
@@ -328,6 +330,14 @@ export function LoginScreen() {
         >
           <Ionicons name="refresh-outline" size={14} color={colors.textMuted} />
           <Text style={[styles.resetText, { color: colors.textMuted }]}>Reset App</Text>
+        </TouchableOpacity>
+
+        {/* Dev: UI Test */}
+        <TouchableOpacity
+          style={{ alignSelf: 'center', marginTop: 12, paddingVertical: 8, paddingHorizontal: 20, backgroundColor: tokens.colors.primary, borderRadius: 8 }}
+          onPress={() => navigation.navigate('UITest')}
+        >
+          <Text style={{ color: '#fff', fontFamily: tokens.typography.fonts.semiBold, fontSize: 14 }}>UI Test (Dev)</Text>
         </TouchableOpacity>
       </KeyboardAvoidingView>
     </GlassBackground>

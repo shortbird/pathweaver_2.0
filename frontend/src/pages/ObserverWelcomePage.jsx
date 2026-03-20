@@ -1,8 +1,6 @@
-import React, { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
-import { ArrowRightIcon, ArrowRightOnRectangleIcon, ArrowLeftIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
-import toast from 'react-hot-toast'
+import React from 'react'
+import { Link } from 'react-router-dom'
+import { ArrowRightIcon } from '@heroicons/react/24/outline'
 import EngagementCalendar from '../components/quest/EngagementCalendar'
 import SkillsRadarChart from '../components/diploma/SkillsRadarChart'
 
@@ -48,92 +46,13 @@ const exampleSkillsXP = {
 }
 
 export default function ObserverWelcomePage() {
-  const { logout } = useAuth();
-  const navigate = useNavigate();
-  const [siteSettings, setSiteSettings] = useState(null);
-
   // Mark welcome as seen when leaving this page
   const markWelcomeSeen = () => {
     localStorage.setItem('observerWelcomeSeen', 'true');
   };
 
-  // Fetch site settings for logo
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        const response = await fetch(`${apiUrl}/api/settings`);
-        if (response.ok) {
-          const data = await response.json();
-          setSiteSettings(data);
-        }
-      } catch (error) {
-        // Silent fail - use fallback
-      }
-    };
-    fetchSettings();
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/login');
-    } catch (error) {
-      console.error('Logout failed:', error);
-      toast.error('Failed to log out');
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50">
-      {/* Observer Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Link to="/observer/feed" className="flex items-center">
-                {siteSettings?.logo_url ? (
-                  <img
-                    src={siteSettings.logo_url}
-                    alt={siteSettings.site_name || "Optio"}
-                    className="h-8 w-auto"
-                  />
-                ) : (
-                  <span className="text-2xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent">
-                    Optio
-                  </span>
-                )}
-              </Link>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Link
-                to="/observer/feed"
-                onClick={markWelcomeSeen}
-                className="flex items-center gap-1 text-sm text-gray-600 hover:text-optio-purple transition-colors"
-              >
-                <ArrowLeftIcon className="w-4 h-4" />
-                Back to Feed
-              </Link>
-              <Link
-                to="/dashboard"
-                onClick={markWelcomeSeen}
-                className="hidden sm:flex items-center gap-1 text-sm bg-gradient-to-r from-optio-purple to-optio-pink text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity font-medium"
-              >
-                <ArrowTopRightOnSquareIcon className="w-4 h-4" />
-                Access Platform
-              </Link>
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-1 text-sm text-gray-600 hover:text-red-600 transition-colors px-2 py-1 rounded hover:bg-red-50"
-              >
-                <ArrowRightOnRectangleIcon className="w-5 h-5" />
-                <span className="hidden sm:inline">Log out</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <div className="bg-gradient-to-br from-purple-50 via-white to-pink-50 min-h-0">
       <div className="max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-12">
         {/* Hero Section */}
         <div className="text-center mb-6 sm:mb-12">

@@ -7,7 +7,6 @@ import {
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import TrackSelector from '../interest-tracks/TrackSelector';
-import SparkSelector from '../curiosity-threads/SparkSelector';
 import { validateFileSize, detectMediaType, CAMERA_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING } from '../../utils/mediaUtils';
 
 const PILLAR_CONFIG = {

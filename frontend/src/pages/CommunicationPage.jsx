@@ -33,8 +33,10 @@ const CommunicationPage = () => {
   })
 
   // Auto-select OptioBot on initial load with empty chat (only if chatbot is enabled)
+  // Skip on mobile so user sees the conversation list first
   useEffect(() => {
-    if (!selectedConversation && user?.id && !aiAccessLoading && canUseChatbot) {
+    const isMobile = window.innerWidth < 768
+    if (!selectedConversation && user?.id && !aiAccessLoading && canUseChatbot && !isMobile) {
       // Select OptioBot by default with a fresh, empty chat
       setSelectedConversation({
         id: 'optiobot',
@@ -87,8 +89,10 @@ const CommunicationPage = () => {
 
       <div className="max-w-7xl mx-auto h-full">
         <div className="h-full flex bg-white shadow-lg rounded-lg overflow-hidden">
-          {/* Left Sidebar - Conversations List (30%) */}
-          <div className="w-full md:w-[350px] lg:w-[400px] flex-shrink-0">
+          {/* Left Sidebar - Conversations List
+              Mobile: full width, hidden when a conversation is selected
+              Desktop: fixed width, always visible */}
+          <div className={`w-full md:w-[350px] lg:w-[400px] flex-shrink-0 ${selectedConversation ? 'hidden md:block' : ''}`}>
             <ConversationList
               conversations={conversationsData?.conversations || []}
               selectedConversation={selectedConversation}
@@ -99,8 +103,10 @@ const CommunicationPage = () => {
             />
           </div>
 
-          {/* Right Side - Chat Window (70%) */}
-          <div className="flex-1 flex flex-col">
+          {/* Right Side - Chat Window
+              Mobile: full width, hidden when no conversation selected
+              Desktop: flex-1, always visible */}
+          <div className={`flex-1 flex flex-col ${!selectedConversation ? 'hidden md:flex' : ''}`}>
             {isGroupChat ? (
               <GroupChatWindow
                 group={selectedConversation}
@@ -109,6 +115,7 @@ const CommunicationPage = () => {
             ) : (
               <ChatWindow
                 conversation={selectedConversation}
+                onBack={() => setSelectedConversation(null)}
                 onConversationCreate={(convId) => {
                   // Update selected conversation with new conversation ID
                   if (selectedConversation?.type === 'bot') {
