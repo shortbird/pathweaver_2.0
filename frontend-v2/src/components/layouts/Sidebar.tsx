@@ -62,6 +62,20 @@ export function Sidebar() {
         {desktopNavItems.map((item) => (
           <NavLink key={item.key} item={item} />
         ))}
+
+        {/* Family link for parents/superadmin */}
+        {(user?.role === 'parent' || user?.role === 'superadmin' ||
+          user?.org_role === 'parent' ||
+          (user as any)?.has_dependents || (user as any)?.has_linked_students) && (
+          <NavLink item={{
+            key: 'family',
+            label: 'Family',
+            icon: 'people-outline',
+            iconActive: 'people',
+            href: '/(app)/parent',
+            platforms: ['web'],
+          }} />
+        )}
       </View>
 
       <Divider className="mx-4 mb-3" />

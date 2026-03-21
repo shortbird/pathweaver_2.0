@@ -14,20 +14,7 @@ import { DocumentViewer } from './DocumentViewer';
 import { MediaModal } from './MediaModal';
 import type { FeedItem } from '@/src/hooks/useFeed';
 import { toggleLike } from '@/src/hooks/useFeed';
-
-const pillarColors: Record<string, { bg: string; text: string }> = {
-  stem: { bg: 'bg-pillar-stem/15', text: 'text-pillar-stem' },
-  STEM: { bg: 'bg-pillar-stem/15', text: 'text-pillar-stem' },
-  art: { bg: 'bg-pillar-art/15', text: 'text-pillar-art' },
-  communication: { bg: 'bg-pillar-communication/15', text: 'text-pillar-communication' },
-  civics: { bg: 'bg-pillar-civics/15', text: 'text-pillar-civics' },
-  wellness: { bg: 'bg-pillar-wellness/15', text: 'text-pillar-wellness' },
-};
-
-function formatPillar(p: string) {
-  if (p.toLowerCase() === 'stem') return 'STEM';
-  return p.charAt(0).toUpperCase() + p.slice(1);
-}
+import { PillarBadge } from '../ui';
 
 function ExpandableText({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -247,16 +234,9 @@ export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
           {/* Pillar tags */}
           {pillars.length > 0 && (
             <HStack className="items-center gap-2 flex-wrap">
-              {pillars.map((p: string) => {
-                const colors = pillarColors[p] || pillarColors.stem;
-                return (
-                  <View key={p} className={`px-2 py-0.5 rounded-full ${colors.bg}`}>
-                    <UIText size="xs" className={`font-poppins-medium ${colors.text}`}>
-                      {formatPillar(p)}
-                    </UIText>
-                  </View>
-                );
-              })}
+              {pillars.map((p: string) => (
+                <PillarBadge key={p} pillar={p} />
+              ))}
               {isTask && item.task?.xp_value && (
                 <HStack className="items-center gap-1 ml-auto">
                   <Ionicons name="star" size={12} color="#FF9028" />

@@ -36,7 +36,7 @@ export function useAdminUsers() {
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const params: Record<string, string | number> = { page, per_page: perPage };
+      const params: Record<string, string | number> = { page, per_page: perPage, sort: 'last_active', order: 'desc' };
       if (search) params.search = search;
       if (roleFilter) params.role = roleFilter;
       const { data } = await api.get('/api/admin/users', { params });
@@ -66,10 +66,29 @@ export function useAdminUsers() {
     return data;
   };
 
+  const getUserDetail = async (userId: string) => {
+    const { data } = await api.get(`/api/admin/users/${userId}`);
+    return data.user || data;
+  };
+
+  const resetPassword = async (userId: string, newPassword: string) => {
+    await api.post(`/api/admin/users/${userId}/reset-password`, { password: newPassword });
+  };
+
+  const verifyEmail = async (userId: string) => {
+    await api.post(`/api/admin/users/${userId}/verify-email`, {});
+  };
+
+  const updateUser = async (userId: string, updates: Record<string, any>) => {
+    await api.put(`/api/admin/users/${userId}`, updates);
+    await fetchUsers();
+  };
+
   return {
     users, total, loading, page, setPage, search, setSearch,
     roleFilter, setRoleFilter, perPage, totalPages: Math.ceil(total / perPage),
-    refetch: fetchUsers, updateUserRole, deleteUser, masquerade,
+    refetch: fetchUsers, updateUserRole, updateUser, deleteUser, masquerade,
+    getUserDetail, resetPassword, verifyEmail,
   };
 }
 

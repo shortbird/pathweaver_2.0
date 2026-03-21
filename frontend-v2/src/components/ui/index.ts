@@ -10,3 +10,4 @@ export { Badge, BadgeText } from './badge';
 export { Divider } from './divider';
 export { Avatar, AvatarFallbackText, AvatarImage } from './avatar';
 export { Skeleton } from './skeleton';
+export { PillarBadge } from './pillar-badge';

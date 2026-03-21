@@ -1,12 +1,12 @@
 /**
- * Buddy hooks - pet companion system.
+ * Buddy hooks - pet companion system API.
  */
 
 import { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
-export interface Buddy {
+export interface BuddyData {
   id: string;
   user_id: string;
   name: string;
@@ -15,33 +15,27 @@ export interface Buddy {
   stage: number;
   highest_stage: number;
   last_interaction: string;
-  last_fed_date: string;
+  last_fed_date: string | null;
   total_xp_fed: number;
   xp_fed_today: number;
-  food_journal: string[];
+  food_journal: string[] | null;
   wallet: number;
-  equipped: any;
+  equipped: Record<string, string>;
 }
 
 export function useBuddy() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [buddy, setBuddy] = useState<Buddy | null>(null);
+  const [buddy, setBuddy] = useState<BuddyData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const fetchBuddy = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
       setLoading(true);
       const { data } = await api.get('/api/buddy');
-      setBuddy(data.buddy || data);
-      setError(null);
-    } catch (err: any) {
-      if (err.response?.status === 404) {
-        setBuddy(null);
-      } else {
-        setError('Failed to load buddy');
-      }
+      setBuddy(data.buddy || null);
+    } catch {
+      setBuddy(null);
     } finally {
       setLoading(false);
     }
@@ -49,23 +43,33 @@ export function useBuddy() {
 
   const createBuddy = async (name: string) => {
     const { data } = await api.post('/api/buddy', { name });
-    setBuddy(data.buddy || data);
-    return data;
+    const b = data.buddy || data;
+    setBuddy(b);
+    return b;
   };
 
-  const feedBuddy = async () => {
-    const { data } = await api.post('/api/buddy/feed', {});
-    setBuddy(data.buddy || data);
-    return data;
+  const feedBuddy = async (payload: Record<string, any>) => {
+    const { data } = await api.post('/api/buddy/feed', payload);
+    const b = data.buddy || data;
+    setBuddy(b);
+    return b;
   };
 
-  const tapBuddy = async () => {
-    const { data } = await api.post('/api/buddy/tap', {});
-    setBuddy(data.buddy || data);
-    return data;
+  const tapBuddy = async (payload: Record<string, any>) => {
+    const { data } = await api.post('/api/buddy/tap', payload);
+    const b = data.buddy || data;
+    setBuddy(b);
+    return b;
+  };
+
+  const updateBuddy = async (payload: Partial<BuddyData>) => {
+    const { data } = await api.put('/api/buddy', payload);
+    const b = data.buddy || data;
+    setBuddy(b);
+    return b;
   };
 
   useEffect(() => { fetchBuddy(); }, [fetchBuddy]);
 
-  return { buddy, loading, error, createBuddy, feedBuddy, tapBuddy, refetch: fetchBuddy };
+  return { buddy, loading, createBuddy, feedBuddy, tapBuddy, updateBuddy, refetch: fetchBuddy };
 }

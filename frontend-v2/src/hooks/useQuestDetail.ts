@@ -27,7 +27,6 @@ export interface QuestDetail {
   id: string;
   title: string;
   description: string;
-  big_idea: string;
   header_image_url: string | null;
   image_url: string | null;
   quest_type: string;

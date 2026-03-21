@@ -35,7 +35,7 @@ function QuestCard({ quest }: { quest: any }) {
       <VStack space="sm" className="flex-1">
         <Heading size="sm" numberOfLines={2}>{quest.title}</Heading>
         <UIText size="xs" className="text-typo-500 flex-1" numberOfLines={2}>
-          {quest.description || quest.big_idea}
+          {quest.description}
         </UIText>
         <HStack className="items-center justify-between">
           <HStack className="items-center gap-2">

@@ -49,7 +49,7 @@ function QuestCard({ quest }: { quest: any }) {
 
   return (
     <Pressable onPress={() => router.push(`/(app)/quests/${q?.id}`)}>
-    <Card variant="elevated" size="sm" className="flex-1 min-w-0 overflow-hidden h-full">
+    <Card variant="elevated" size="sm" className="min-w-0 overflow-hidden" style={{ minHeight: 240, maxHeight: 240 }}>
       {/* Quest image */}
       {imageUrl ? (
         <View className="h-28 -mx-3 -mt-3 mb-3 overflow-hidden rounded-t-xl">
@@ -79,7 +79,7 @@ function QuestCard({ quest }: { quest: any }) {
 
       {/* Description */}
       <UIText size="xs" className="text-typo-500 flex-1" numberOfLines={2}>
-        {q?.description || q?.big_idea || ''}
+        {q?.description || ''}
       </UIText>
     </Card>
     </Pressable>
@@ -242,7 +242,7 @@ export default function DashboardScreen() {
             {activeQuests.length > 0 ? (
               <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
                 {activeQuests.map((uq: any) => (
-                  <View key={uq.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]" style={{ height: 240 }}>
+                  <View key={uq.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
                     <QuestCard quest={uq} />
                   </View>
                 ))}

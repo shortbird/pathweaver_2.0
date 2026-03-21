@@ -13,6 +13,8 @@ import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider, Skeleton,
 } from '@/src/components/ui';
 import { TopicsSidebar } from '@/src/components/journal/TopicsSidebar';
+import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
+import { CaptureModal } from '@/src/components/capture/CaptureModal';
 import { LearningEventCard } from '@/src/components/journal/LearningEventCard';
 import {
   useUnifiedTopics, useUnassignedMoments, useTrackMoments, useQuestMoments,
@@ -30,6 +32,7 @@ export default function JournalScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<ViewType>('unassigned');
   const [mobileTab, setMobileTab] = useState<MobileTab>('topics');
+  const [captureVisible, setCaptureVisible] = useState(false);
 
   const { topics, loading: topicsLoading, refetch: refetchTopics } = useUnifiedTopics();
   const { moments: unassigned, loading: unassignedLoading, refetch: refetchUnassigned } = useUnassignedMoments();
@@ -174,7 +177,10 @@ export default function JournalScreen() {
           <View className="w-72 bg-white border-r border-surface-200 px-3 pt-4">
             <HStack className="items-center justify-between px-3 mb-3">
               <Heading size="md">Journal</Heading>
-              <Pressable className="w-8 h-8 rounded-full bg-optio-purple items-center justify-center">
+              <Pressable
+                onPress={() => setCaptureVisible(true)}
+                className="w-8 h-8 rounded-full bg-optio-purple items-center justify-center"
+              >
                 <Ionicons name="add" size={18} color="white" />
               </Pressable>
             </HStack>
@@ -193,6 +199,11 @@ export default function JournalScreen() {
             <ContentPanel />
           </View>
         </View>
+        <CaptureModal
+          visible={captureVisible}
+          onClose={() => setCaptureVisible(false)}
+          onCaptured={() => { refetchUnassigned(); refetchTopics(); }}
+        />
       </SafeAreaView>
     );
   }
@@ -204,7 +215,10 @@ export default function JournalScreen() {
         <VStack className="flex-1">
           <HStack className="items-center justify-between px-5 pt-4 pb-2">
             <Heading size="xl">Journal</Heading>
-            <Pressable className="w-10 h-10 rounded-full bg-optio-purple items-center justify-center">
+            <Pressable
+              onPress={() => setCaptureVisible(true)}
+              className="w-10 h-10 rounded-full bg-optio-purple items-center justify-center"
+            >
               <Ionicons name="add" size={22} color="white" />
             </Pressable>
           </HStack>
@@ -243,6 +257,11 @@ export default function JournalScreen() {
       ) : (
         <ContentPanel />
       )}
+      <CaptureSheet
+        visible={captureVisible}
+        onClose={() => setCaptureVisible(false)}
+        onCaptured={() => { refetchUnassigned(); refetchTopics(); }}
+      />
     </SafeAreaView>
   );
 }

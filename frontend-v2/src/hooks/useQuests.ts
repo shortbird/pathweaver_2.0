@@ -10,7 +10,6 @@ export interface Quest {
   id: string;
   title: string;
   description: string;
-  big_idea: string;
   image_url: string | null;
   header_image_url: string | null;
   pillar: string;

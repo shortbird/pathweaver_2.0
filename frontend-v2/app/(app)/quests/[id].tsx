@@ -769,7 +769,7 @@ export default function QuestDetailScreen() {
 
             {/* Description */}
             <UIText className="text-typo-500 leading-6">
-              {quest.big_idea || quest.description}
+              {quest.description}
             </UIText>
 
             {/* Approach examples */}

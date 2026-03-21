@@ -1,6 +1,20 @@
 import '../global.css';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
+
+// Suppress React Native Web warnings for native-only props
+if (Platform.OS === 'web') {
+  const originalConsoleError = console.error;
+  console.error = (...args: any[]) => {
+    if (typeof args[0] === 'string' && (
+      args[0].includes('non-boolean attribute `collapsable`') ||
+      args[0].includes('`transform-origin`') ||
+      args[0].includes('`transformOrigin`')
+    )) return;
+    originalConsoleError(...args);
+  };
+}
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import {
