@@ -81,7 +81,7 @@ const AccountSettings = ({
   const isDeletionPending = user?.deletion_status === 'pending';
 
   // Content that's shown when expanded
-  const SettingsContent = () => (
+  const settingsContent = (
     <div className="space-y-6">
           {/* Personal Information */}
           <div className="bg-gray-50 rounded-xl p-6">
@@ -268,7 +268,7 @@ const AccountSettings = ({
 
   // When header is hidden, just show the content
   if (hideHeader) {
-    return <SettingsContent />;
+    return settingsContent;
   }
 
   return (
@@ -300,7 +300,7 @@ const AccountSettings = ({
       {/* Expandable Content */}
       {isExpanded && (
         <div className="px-6 pb-6">
-          <SettingsContent />
+          {settingsContent}
         </div>
       )}
     </section>
