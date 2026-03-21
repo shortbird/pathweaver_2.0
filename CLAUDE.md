@@ -150,15 +150,36 @@ EOF
 ### Environments
 | Env | URL | Branch |
 |-----|-----|--------|
-| Local | http://localhost:3000 | any |
+| Local (v1) | http://localhost:3000 | any |
+| Local (v2 web) | http://localhost:8081 | any |
+| Local (v2 mobile) | exp://192.168.86.20:8081 | any |
 | Dev | https://optio-dev-frontend.onrender.com | `develop` |
 | Prod | https://www.optioeducation.com | `main` |
+| API | https://api.optioeducation.com | `main` |
 
 ### Tech Stack
 - **Backend**: Flask 3.0 + Supabase (PostgreSQL) + httpOnly cookies + CSRF
-- **Frontend**: React 18.3 + Vite + TailwindCSS
+- **Frontend (v1)**: React 18.3 + Vite + TailwindCSS (in `frontend/`)
+- **Frontend (v2)**: Expo SDK 55 + Expo Router + NativeWind + Gluestack-style UI (in `frontend-v2/`)
+- **Mobile**: Same `frontend-v2/` project, dev builds via EAS
 - **AI**: Gemini `gemini-2.5-flash-lite` (always use this model)
 - **Host**: Render
+
+### Frontend V2 (Universal App)
+The `frontend-v2/` project is a universal Expo app that builds for both web and native mobile (iOS/Android). It will replace `frontend/` once the page-by-page rebuild is complete.
+
+**Key files:**
+- `src/config/navigation.ts` - Single source of truth for all nav items (sidebar + tabs)
+- `src/services/api.ts` - API client with Bearer auth (Platform.select for web vs mobile URLs)
+- `src/stores/authStore.ts` - Zustand auth store
+- `src/components/ui/` - Shared UI component library
+- `tailwind.config.js` - Brand tokens (must be .js not .ts, must include NativeWind preset)
+
+**Mobile tabs:** Bounties, Journal, Home (center), Buddy, Profile
+**Desktop sidebar:** Home, Quests, Bounty Board, Buddy, Journal, Profile
+**Web-only:** Quests, Admin, Course Builder
+
+**API URL config:** Do NOT set `EXPO_PUBLIC_API_URL` in `.env` -- it breaks mobile. Platform.select in api.ts handles web (localhost) vs mobile (LAN IP) automatically.
 
 ### Core Philosophy
 "The Process Is The Goal" - Celebrate present-focused learning, not future outcomes
@@ -450,10 +471,27 @@ backend/
 ├── services/         # Business logic (22 services)
 └── middleware/       # CSRF, rate limiting
 
-frontend/src/
-├── pages/            # Route components
-├── components/       # UI components
-└── services/         # API + auth
+frontend/src/           # V1 frontend (React + Vite, being replaced)
+├── pages/              # Route components
+├── components/         # UI components
+└── services/           # API + auth
+
+frontend-v2/            # V2 universal frontend (Expo, web + mobile)
+├── app/                # Expo Router pages (file-based routing)
+│   ├── (auth)/         #   Login, register
+│   └── (app)/(tabs)/   #   Dashboard, quests, journal, bounties, buddy, profile
+├── src/
+│   ├── components/
+│   │   ├── ui/         #   Shared UI primitives (Button, Card, Input, etc.)
+│   │   ├── engagement/ #   MiniHeatmap, EngagementCalendar, RhythmBadge
+│   │   ├── journal/    #   LearningEventCard, TopicsSidebar
+│   │   └── layouts/    #   ScrollPageLayout, Sidebar
+│   ├── config/         #   navigation.ts (shared nav config)
+│   ├── hooks/          #   useDashboard, useJournal
+│   ├── services/       #   api.ts, tokenStore.ts
+│   └── stores/         #   authStore.ts (Zustand)
+├── tailwind.config.js  # Brand tokens (must be .js, not .ts)
+└── metro.config.js     # NativeWind integration (patched for Windows)
 ```
 
 ### Removed in March 2026 Audit
