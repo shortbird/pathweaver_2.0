@@ -3,14 +3,16 @@
  */
 
 import React, { useState } from 'react';
-import { View, ScrollView, Pressable } from 'react-native';
+import { View, ScrollView, Pressable, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useProfile } from '@/src/hooks/useProfile';
 import { useGlobalEngagement } from '@/src/hooks/useDashboard';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
+import { PillarRadar } from '@/src/components/engagement/PillarRadar';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Badge, BadgeText, Divider, Avatar, AvatarFallbackText, AvatarImage,
@@ -114,24 +116,18 @@ export default function ProfileScreen() {
           {pillarXP.length > 0 && (
             <CollapsibleSection title="Pillar Breakdown">
               <Card variant="elevated" size="md">
-                <VStack space="md">
-                  {pillarXP.map(({ pillar, xp }) => {
-                    const colors = pillarColors[pillar] || pillarColors.stem;
-                    const percent = Math.round((xp / maxPillarXP) * 100);
-                    return (
-                      <VStack key={pillar} space="xs">
-                        <HStack className="items-center justify-between">
-                          <UIText size="sm" className={`font-poppins-medium ${colors.text}`}>
-                            {pillar === 'stem' ? 'STEM' : pillar.charAt(0).toUpperCase() + pillar.slice(1)}
-                          </UIText>
-                          <UIText size="xs" className="text-typo-400">{xp.toLocaleString()} XP</UIText>
-                        </HStack>
-                        <View className="h-2.5 bg-surface-200 rounded-full overflow-hidden">
-                          <View className={`h-full rounded-full ${colors.bar}`} style={{ width: `${percent}%` }} />
-                        </View>
-                      </VStack>
-                    );
-                  })}
+                <VStack space="sm" className="items-center">
+                  <PillarRadar data={pillarXP} />
+                  <HStack className="flex-wrap gap-3 justify-center">
+                    {pillarXP.map(({ pillar, xp }) => (
+                      <HStack key={pillar} className="items-center gap-1">
+                        <UIText size="xs" className="font-poppins-medium text-typo-500">
+                          {pillar === 'stem' ? 'STEM' : pillar.charAt(0).toUpperCase() + pillar.slice(1)}
+                        </UIText>
+                        <UIText size="xs" className="text-typo-400">{xp.toLocaleString()}</UIText>
+                      </HStack>
+                    ))}
+                  </HStack>
                 </VStack>
               </Card>
             </CollapsibleSection>
@@ -179,6 +175,27 @@ export default function ProfileScreen() {
                 </VStack>
               </Card>
             </CollapsibleSection>
+          )}
+
+          {/* Family link (mobile only, parents/superadmin) */}
+          {Platform.OS !== 'web' &&
+            (user?.role === 'parent' || user?.role === 'superadmin' ||
+              user?.org_role === 'parent' ||
+              (user as any)?.has_dependents || (user as any)?.has_linked_students) && (
+            <Pressable onPress={() => router.push('/(app)/(tabs)/family' as any)}>
+              <Card variant="elevated" size="md">
+                <HStack className="items-center gap-3">
+                  <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#6D469B15', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="people" size={22} color="#6D469B" />
+                  </View>
+                  <VStack className="flex-1">
+                    <UIText size="sm" className="font-poppins-semibold">Family Dashboard</UIText>
+                    <UIText size="xs" className="text-typo-400">View your children's learning</UIText>
+                  </VStack>
+                  <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                </HStack>
+              </Card>
+            </Pressable>
           )}
 
           <Divider />

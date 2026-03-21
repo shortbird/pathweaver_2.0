@@ -13,6 +13,7 @@ import api from '@/src/services/api';
 import { useAdvisorStudents, useStudentOverview, createCheckin } from '@/src/hooks/useAdvisor';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
+import { PillarRadar } from '@/src/components/engagement/PillarRadar';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Badge, BadgeText, Divider, Skeleton, Avatar, AvatarFallbackText, AvatarImage,
@@ -110,8 +111,9 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
   const student = overview.student || overview.user || {};
   const dashboard = overview.dashboard || {};
   const engagement = overview.engagement || {};
-  const activeQuests = dashboard.activeQuests || dashboard.active_quests || [];
-  const pillars = overview.pillars || [];
+  const activeQuests = dashboard.active_quests || dashboard.activeQuests || [];
+  const pillars = overview.pillars_data || overview.pillars || [];
+  const recentCompletions = dashboard.recent_completions || dashboard.recentCompletions || [];
   const initials = `${student.first_name?.[0] || ''}${student.last_name?.[0] || ''}`.toUpperCase();
 
   const handleSubmitCheckin = async () => {
@@ -151,7 +153,7 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
             <Heading size="lg">{student.display_name || `${student.first_name} ${student.last_name}`}</Heading>
             <UIText size="xs" className="text-typo-400">{student.email}</UIText>
             <HStack className="items-center gap-3 mt-1">
-              <UIText size="sm" className="font-poppins-semibold text-optio-purple">{(dashboard.totalXp || dashboard.total_xp || student.total_xp || 0).toLocaleString()} XP</UIText>
+              <UIText size="sm" className="font-poppins-semibold text-optio-purple">{(dashboard.total_xp || student.total_xp || 0).toLocaleString()} XP</UIText>
               {engagement.rhythm && <RhythmBadge rhythm={engagement.rhythm} compact />}
             </HStack>
           </VStack>
@@ -170,37 +172,63 @@ function StudentDetailPanel({ studentId }: { studentId: string }) {
       {/* Overview tab */}
       {detailTab === 'overview' && (
         <VStack space="md">
-          {/* Engagement calendar */}
-          {engagement.calendar?.days && (
-            <Card variant="elevated" size="md">
-              <VStack space="sm">
-                <UIText size="xs" className="text-typo-400 font-poppins-medium">Engagement</UIText>
-                <EngagementCalendar days={engagement.calendar.days} firstActivityDate={engagement.calendar.first_activity_date} />
-              </VStack>
-            </Card>
-          )}
+          {/* Engagement + Pillar radar side by side */}
+          <View style={{ flexDirection: 'row', gap: 16 }}>
+            {/* Left: Engagement calendar */}
+            <View style={{ flex: 1 }}>
+              <Card variant="elevated" size="md" className="h-full">
+                <VStack space="sm">
+                  <UIText size="xs" className="text-typo-400 font-poppins-medium">Engagement</UIText>
+                  {(engagement.calendar?.days?.length > 0 || (Array.isArray(engagement.calendar) && engagement.calendar.length > 0)) ? (
+                    <EngagementCalendar
+                      days={engagement.calendar?.days || engagement.calendar || []}
+                      firstActivityDate={engagement.calendar?.first_activity_date || engagement.calendar?.[0]?.date}
+                    />
+                  ) : (
+                    <UIText size="xs" className="text-typo-400">No engagement data yet.</UIText>
+                  )}
+                </VStack>
+              </Card>
+            </View>
 
-          {/* Pillar breakdown */}
-          {pillars.length > 0 && (
-            <Card variant="elevated" size="md">
-              <VStack space="sm">
-                <UIText size="xs" className="text-typo-400 font-poppins-medium">Pillars</UIText>
-                {pillars.map((p: any) => (
-                  <HStack key={p.id || p.name} className="items-center justify-between">
-                    <UIText size="sm" className="font-poppins-medium capitalize">{p.name === 'stem' ? 'STEM' : p.name}</UIText>
-                    <UIText size="xs" className="text-typo-400">{(p.xp || 0).toLocaleString()} XP</UIText>
-                  </HStack>
-                ))}
-              </VStack>
-            </Card>
-          )}
+            {/* Right: Pillar radar */}
+            <View style={{ flex: 1 }}>
+              <Card variant="elevated" size="md" className="h-full">
+                <VStack space="sm" className="items-center">
+                  <UIText size="xs" className="text-typo-400 font-poppins-medium self-start">Pillar Balance</UIText>
+                  {pillars.length > 0 ? (
+                    <>
+                      <PillarRadar
+                        data={pillars.map((p: any) => ({
+                          pillar: p.id || p.name,
+                          xp: p.xp || 0,
+                        }))}
+                      />
+                      <HStack className="flex-wrap gap-3 justify-center">
+                        {pillars.map((p: any) => (
+                          <HStack key={p.id || p.name} className="items-center gap-1">
+                            <UIText size="xs" className="font-poppins-medium capitalize text-typo-500">
+                              {(p.id || p.name) === 'stem' ? 'STEM' : p.name || p.id}
+                            </UIText>
+                            <UIText size="xs" className="text-typo-400">{(p.xp || 0).toLocaleString()}</UIText>
+                          </HStack>
+                        ))}
+                      </HStack>
+                    </>
+                  ) : (
+                    <UIText size="xs" className="text-typo-400">No pillar data yet.</UIText>
+                  )}
+                </VStack>
+              </Card>
+            </View>
+          </View>
 
           {/* Recent completions */}
-          {dashboard.recentCompletions?.length > 0 && (
+          {recentCompletions.length > 0 && (
             <Card variant="elevated" size="md">
               <VStack space="sm">
                 <UIText size="xs" className="text-typo-400 font-poppins-medium">Recent Completions</UIText>
-                {dashboard.recentCompletions.slice(0, 5).map((c: any, i: number) => (
+                {recentCompletions.slice(0, 5).map((c: any, i: number) => (
                   <HStack key={i} className="items-center gap-2">
                     <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
                     <UIText size="xs" className="flex-1" numberOfLines={1}>{c.title || c.task_title || 'Task'}</UIText>

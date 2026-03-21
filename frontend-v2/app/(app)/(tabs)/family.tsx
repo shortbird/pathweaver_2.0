@@ -231,7 +231,7 @@ export default function ParentDashboardPage() {
                 backgroundColor: '#6D469B', alignItems: 'center', justifyContent: 'center',
               }}
             >
-              <Ionicons name="camera-outline" size={20} color="white" />
+              <Ionicons name="add" size={22} color="white" />
             </Pressable>
           </HStack>
 

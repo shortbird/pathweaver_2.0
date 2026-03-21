@@ -25,6 +25,7 @@ import {
 import { MiniHeatmap } from '@/src/components/engagement/MiniHeatmap';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
+import { PageHeader } from '@/src/components/layouts/MobileHeader';
 
 // ── Quest Card with engagement ──
 
@@ -217,9 +218,10 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
+      <PageHeader title="Home" />
       <ScrollView
         className="flex-1"
-        contentContainerClassName="px-5 md:px-8 pt-6 pb-12"
+        contentContainerClassName="px-5 md:px-8 pt-2 md:pt-6 pb-12"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />

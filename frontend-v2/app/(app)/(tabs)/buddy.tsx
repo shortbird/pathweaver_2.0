@@ -19,6 +19,7 @@ import {
 import {
   VStack, HStack, Heading, UIText, Button, ButtonText, Card, Divider,
 } from '@/src/components/ui';
+import { PageHeader } from '@/src/components/layouts/MobileHeader';
 
 // ── Create Buddy Form ──
 
@@ -311,6 +312,7 @@ export default function BuddyScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
+      <PageHeader title="Buddy" />
       {buddy ? (
         <BuddyView
           buddyData={buddy}

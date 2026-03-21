@@ -15,6 +15,7 @@ import {
 import { TopicsSidebar } from '@/src/components/journal/TopicsSidebar';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
 import { CaptureModal } from '@/src/components/capture/CaptureModal';
+import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { LearningEventCard } from '@/src/components/journal/LearningEventCard';
 import {
   useUnifiedTopics, useUnassignedMoments, useTrackMoments, useQuestMoments,
@@ -213,15 +214,7 @@ export default function JournalScreen() {
     <SafeAreaView className="flex-1 bg-surface-50">
       {mobileTab === 'topics' ? (
         <VStack className="flex-1">
-          <HStack className="items-center justify-between px-5 pt-4 pb-2">
-            <Heading size="xl">Journal</Heading>
-            <Pressable
-              onPress={() => setCaptureVisible(true)}
-              className="w-10 h-10 rounded-full bg-optio-purple items-center justify-center"
-            >
-              <Ionicons name="add" size={22} color="white" />
-            </Pressable>
-          </HStack>
+          <PageHeader title="Journal" />
 
           {/* Unassigned banner */}
           {unassigned.length > 0 && (

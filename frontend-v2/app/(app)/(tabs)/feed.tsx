@@ -14,6 +14,7 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { useFeed } from '@/src/hooks/useFeed';
 import { FeedCard } from '@/src/components/feed/FeedCard';
 import { VStack, Heading, UIText, Card } from '@/src/components/ui';
+import { PageHeader } from '@/src/components/layouts/MobileHeader';
 
 const DESKTOP_BREAKPOINT = 768;
 
@@ -39,17 +40,22 @@ export default function FeedScreen() {
     </View>
   );
 
+  const feedTitle = canSeeStudents ? 'Activity' : 'Feed';
+
   const renderHeader = () => (
-    <View className={`px-5 md:px-0 pt-6 pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
-      <Heading size="xl">
-        {canSeeStudents ? 'Student Activity' : 'Your Feed'}
-      </Heading>
-      <UIText size="sm" className="text-typo-500 mt-1">
-        {canSeeStudents
-          ? 'Recent activity from your linked students'
-          : 'Your recent completions and learning moments'}
-      </UIText>
-    </View>
+    <>
+      <PageHeader title={feedTitle} />
+      <View className={`px-5 md:px-0 pt-2 md:pt-6 pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
+        {isDesktop && (
+          <Heading size="xl">{feedTitle}</Heading>
+        )}
+        <UIText size="sm" className="text-typo-500 mt-1">
+          {canSeeStudents
+            ? 'Recent activity from your linked students'
+            : 'Your recent completions and learning moments'}
+        </UIText>
+      </View>
+    </>
   );
 
   const renderEmpty = () => {

@@ -13,6 +13,7 @@ import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Skeleton, PillarBadge,
 } from '@/src/components/ui';
+import { PageHeader } from '@/src/components/layouts/MobileHeader';
 
 type Tab = 'browse' | 'claims' | 'posted';
 
@@ -120,7 +121,8 @@ export default function BountiesScreen() {
       >
         <VStack className="max-w-5xl w-full md:mx-auto">
           {/* Header */}
-          <View className="px-5 md:px-8 pt-6 pb-4">
+          <PageHeader title="Bounties" />
+          <View className="px-5 md:px-8 pt-2 md:pt-6 pb-4 hidden md:flex">
             <Heading size="2xl">Bounties</Heading>
           </View>
 

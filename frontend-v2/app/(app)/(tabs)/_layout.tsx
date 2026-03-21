@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, useWindowDimensions, View, Image } from 'react-native';
 import { Sidebar } from '@/src/components/layouts/Sidebar';
+import { MobileHeader } from '@/src/components/layouts/MobileHeader';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
 import { mobileNavItems, hiddenMobileRoutes, navItems, mobileTabOrder } from '@/src/config/navigation';
 

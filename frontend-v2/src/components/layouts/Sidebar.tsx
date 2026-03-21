@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { UIText } from '../ui/text';
 import { Divider } from '../ui/divider';
 import { useAuthStore } from '@/src/stores/authStore';
-import { desktopNavItems } from '@/src/config/navigation';
+import { desktopNavItems, navItems } from '@/src/config/navigation';
 import type { NavItem } from '@/src/config/navigation';
 
 const LOGO_URI =
@@ -67,14 +67,7 @@ export function Sidebar() {
         {(user?.role === 'parent' || user?.role === 'superadmin' ||
           user?.org_role === 'parent' ||
           (user as any)?.has_dependents || (user as any)?.has_linked_students) && (
-          <NavLink item={{
-            key: 'family',
-            label: 'Family',
-            icon: 'people-outline',
-            iconActive: 'people',
-            href: '/(app)/parent',
-            platforms: ['web'],
-          }} />
+          <NavLink item={navItems.find((n) => n.key === 'family')!} />
         )}
       </View>
 
