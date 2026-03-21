@@ -1,0 +1,21 @@
+import { Redirect } from 'expo-router';
+import { useAuthStore } from '@/src/stores/authStore';
+import { View, ActivityIndicator } from 'react-native';
+
+export default function Index() {
+  const { isAuthenticated, isLoading } = useAuthStore();
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-surface-50">
+        <ActivityIndicator size="large" color="#6D469B" />
+      </View>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Redirect href="/(app)/(tabs)/dashboard" />;
+  }
+
+  return <Redirect href="/(auth)/login" />;
+}
