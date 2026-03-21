@@ -68,9 +68,15 @@ export function Sidebar() {
 
       {/* User info + logout */}
       <View className="px-4 gap-2">
-        <UIText size="sm" className="text-typo-500 font-poppins-medium" numberOfLines={1}>
-          {user?.display_name || user?.email}
-        </UIText>
+        <Pressable
+          onPress={() => router.push('/(app)/(tabs)/profile' as any)}
+          className="flex-row items-center gap-2 py-1 active:opacity-70"
+        >
+          <Ionicons name="person-circle-outline" size={20} color="#6B7280" />
+          <UIText size="sm" className="text-typo-500 font-poppins-medium flex-1" numberOfLines={1}>
+            {user?.display_name || user?.email}
+          </UIText>
+        </Pressable>
         <Pressable
           onPress={logout}
           className="flex-row items-center gap-2 py-2 active:opacity-70"

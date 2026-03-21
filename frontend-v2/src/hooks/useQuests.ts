@@ -32,24 +32,48 @@ export function useQuestDiscovery() {
   const [quests, setQuests] = useState<Quest[]>([]);
   const [topics, setTopics] = useState<QuestTopic[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const PAGE_SIZE = 12;
 
-  const fetchQuests = useCallback(async () => {
+  const fetchQuests = useCallback(async (pageNum = 1, append = false) => {
     if (!isAuthenticated) return;
     try {
-      setLoading(true);
-      const params: Record<string, string> = {};
+      if (append) setLoadingMore(true); else setLoading(true);
+      const params: Record<string, string | number> = { page: pageNum, per_page: PAGE_SIZE };
       if (search) params.search = search;
       if (selectedTopic) params.topic = selectedTopic;
       const { data } = await api.get('/api/quests', { params });
-      setQuests(data.quests || data.data || data || []);
+      const newQuests = data.data || data.quests || data || [];
+      const totalPages = data.meta?.pages || 1;
+      if (append) {
+        // Deduplicate by ID
+        setQuests((prev) => {
+          const existingIds = new Set(prev.map((q) => q.id));
+          const unique = newQuests.filter((q: Quest) => !existingIds.has(q.id));
+          return [...prev, ...unique];
+        });
+      } else {
+        setQuests(newQuests);
+      }
+      setHasMore(pageNum < totalPages);
+      setPage(pageNum);
     } catch {
       // Non-critical
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [isAuthenticated, search, selectedTopic]);
+
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore) {
+      fetchQuests(page + 1, true);
+    }
+  }, [fetchQuests, page, loadingMore, hasMore]);
 
   const fetchTopics = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -62,9 +86,9 @@ export function useQuestDiscovery() {
   }, [isAuthenticated]);
 
   useEffect(() => { fetchTopics(); }, [fetchTopics]);
-  useEffect(() => { fetchQuests(); }, [fetchQuests]);
+  useEffect(() => { fetchQuests(1, false); }, [fetchQuests]);
 
-  return { quests, topics, loading, search, setSearch, selectedTopic, setSelectedTopic, refetch: fetchQuests };
+  return { quests, topics, loading, loadingMore, hasMore, search, setSearch, selectedTopic, setSelectedTopic, loadMore, refetch: () => fetchQuests(1, false) };
 }
 
 export function useQuestDetail(questId: string | null) {

@@ -9,7 +9,8 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, Image, useWindowDimensions, RefreshControl } from 'react-native';
+import { View, ScrollView, Image, Pressable, useWindowDimensions, RefreshControl } from 'react-native';
+import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
@@ -47,7 +48,8 @@ function QuestCard({ quest }: { quest: any }) {
   const days = engagement?.calendar?.days || [];
 
   return (
-    <Card variant="elevated" size="sm" className="flex-1 min-w-0 overflow-hidden">
+    <Pressable onPress={() => router.push(`/(app)/quests/${q?.id}`)}>
+    <Card variant="elevated" size="sm" className="flex-1 min-w-0 overflow-hidden h-full">
       {/* Quest image */}
       {imageUrl ? (
         <View className="h-28 -mx-3 -mt-3 mb-3 overflow-hidden rounded-t-xl">
@@ -76,10 +78,11 @@ function QuestCard({ quest }: { quest: any }) {
       </HStack>
 
       {/* Description */}
-      <UIText size="xs" className="text-typo-500" numberOfLines={2}>
+      <UIText size="xs" className="text-typo-500 flex-1" numberOfLines={2}>
         {q?.description || q?.big_idea || ''}
       </UIText>
     </Card>
+    </Pressable>
   );
 }
 
@@ -239,7 +242,7 @@ export default function DashboardScreen() {
             {activeQuests.length > 0 ? (
               <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
                 {activeQuests.map((uq: any) => (
-                  <View key={uq.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
+                  <View key={uq.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]" style={{ height: 240 }}>
                     <QuestCard quest={uq} />
                   </View>
                 ))}

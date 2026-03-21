@@ -2,8 +2,9 @@
  * Quest Discovery - Browse and search available quests. Web only.
  */
 
-import React from 'react';
-import { View, Image, Platform, Pressable, ScrollView } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, Image, Platform, Pressable, ScrollView, ActivityIndicator, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuestDiscovery } from '@/src/hooks/useQuests';
@@ -21,15 +22,19 @@ function QuestCard({ quest }: { quest: any }) {
   const imageUrl = quest.header_image_url || quest.image_url;
 
   return (
-    <Card variant="elevated" size="sm" className="overflow-hidden">
-      {imageUrl && (
+    <Card variant="elevated" size="sm" className="overflow-hidden h-full">
+      {imageUrl ? (
         <View className="-mx-3 -mt-3 mb-3">
           <Image source={{ uri: imageUrl }} className="w-full h-36 rounded-t-xl" resizeMode="cover" />
         </View>
+      ) : (
+        <View className="-mx-3 -mt-3 mb-3 h-36 bg-optio-purple/10 items-center justify-center rounded-t-xl">
+          <Ionicons name="rocket-outline" size={40} color="#6D469B" />
+        </View>
       )}
-      <VStack space="sm">
+      <VStack space="sm" className="flex-1">
         <Heading size="sm" numberOfLines={2}>{quest.title}</Heading>
-        <UIText size="xs" className="text-typo-500" numberOfLines={3}>
+        <UIText size="xs" className="text-typo-500 flex-1" numberOfLines={2}>
           {quest.description || quest.big_idea}
         </UIText>
         <HStack className="items-center justify-between">
@@ -47,7 +52,7 @@ function QuestCard({ quest }: { quest: any }) {
               </UIText>
             )}
           </HStack>
-          <Button size="xs">
+          <Button size="xs" onPress={() => router.push(`/(app)/quests/${quest.id}`)}>
             <ButtonText>View</ButtonText>
           </Button>
         </HStack>
@@ -67,11 +72,19 @@ export default function QuestsScreen() {
     );
   }
 
-  const { quests, topics, loading, search, setSearch, selectedTopic, setSelectedTopic } = useQuestDiscovery();
+  const { quests, topics, loading, loadingMore, hasMore, search, setSearch, selectedTopic, setSelectedTopic, loadMore } = useQuestDiscovery();
+
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    if (distanceFromBottom < 200) {
+      loadMore();
+    }
+  }, [loadMore]);
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
-      <ScrollView className="flex-1" contentContainerClassName="px-5 md:px-8 pt-6 pb-12" showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1" contentContainerClassName="px-5 md:px-8 pt-6 pb-12" showsVerticalScrollIndicator={false} onScroll={handleScroll} scrollEventThrottle={200}>
         <VStack space="lg" className="max-w-5xl w-full md:mx-auto">
 
           <VStack space="sm">
@@ -116,13 +129,23 @@ export default function QuestsScreen() {
               ))}
             </View>
           ) : quests.length > 0 ? (
-            <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
-              {quests.map((q) => (
-                <View key={q.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
-                  <QuestCard quest={q} />
+            <>
+              <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
+                {quests.map((q) => (
+                  <View key={q.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
+                    <QuestCard quest={q} />
+                  </View>
+                ))}
+              </View>
+              {loadingMore && (
+                <View className="items-center py-6">
+                  <ActivityIndicator size="small" color="#6D469B" />
                 </View>
-              ))}
-            </View>
+              )}
+              {!hasMore && quests.length > 0 && (
+                <UIText size="sm" className="text-typo-400 text-center py-4">All quests loaded</UIText>
+              )}
+            </>
           ) : (
             <Card variant="filled" size="lg" className="items-center py-10">
               <Ionicons name="search-outline" size={40} color="#9CA3AF" />
