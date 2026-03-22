@@ -238,7 +238,6 @@ def register_routes(bp):
                     link_data = {
                         'observer_id': observer_id,
                         'student_id': student_id,
-                        'relationship': data.get('relationship', 'other'),
                         'can_comment': True,
                         'can_view_evidence': True,
                         'notifications_enabled': True
