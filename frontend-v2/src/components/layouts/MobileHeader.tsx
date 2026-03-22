@@ -84,10 +84,7 @@ function AvatarMenu() {
               borderRadius: 14,
               paddingVertical: 6,
               minWidth: 200,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.15,
-              shadowRadius: 20,
+              boxShadow: '0 8px 20px rgba(0, 0, 0, 0.15)',
               elevation: 10,
               borderWidth: 1,
               borderColor: '#E5E7EB',
@@ -105,19 +102,14 @@ function AvatarMenu() {
               <Pressable
                 key={item.key}
                 onPress={item.onPress}
-                style={({ pressed }: any) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 10,
-                  paddingHorizontal: 16,
-                  paddingVertical: 12,
-                  backgroundColor: pressed ? '#F9FAFB' : 'transparent',
-                })}
+                style={{ paddingHorizontal: 16, paddingVertical: 12 }}
               >
-                <Ionicons name={item.icon} size={18} color={item.color || '#6B7280'} />
-                <UIText size="sm" style={{ color: item.color || '#1F2937' }} className="font-poppins-medium">
-                  {item.label}
-                </UIText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Ionicons name={item.icon} size={18} color={item.color || '#6B7280'} />
+                  <UIText size="sm" style={{ color: item.color || '#1F2937' }} className="font-poppins-medium">
+                    {item.label}
+                  </UIText>
+                </View>
               </Pressable>
             ))}
           </View>

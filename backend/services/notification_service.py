@@ -571,6 +571,30 @@ class NotificationService(BaseService):
             organization_id=organization_id
         )
 
+    def notify_observer_added(
+        self,
+        student_id: str,
+        observer_name: str,
+        observer_id: str,
+        added_by: str = 'You',
+        organization_id: Optional[str] = None
+    ):
+        """Send notification to student when an observer is added to their account."""
+        if added_by == 'You':
+            message = f'{observer_name} accepted your observer invitation and can now view your learning activity.'
+        else:
+            message = f'{added_by} added {observer_name} as an observer on your account.'
+
+        return self.create_notification(
+            user_id=student_id,
+            notification_type='observer_added',
+            title='New Observer Added',
+            message=message,
+            link='/profile',
+            metadata={'observer_id': observer_id, 'observer_name': observer_name},
+            organization_id=organization_id
+        )
+
     def get_parents_for_student(self, student_id: str) -> List[Dict[str, Any]]:
         """
         Get all parents linked to a student.

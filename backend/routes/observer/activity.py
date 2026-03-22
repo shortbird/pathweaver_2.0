@@ -40,9 +40,28 @@ def register_routes(bp):
             200: Paginated feed of student's activities
             403: Access denied (not viewing own feed)
         """
-        # Only allow students to view their own activity
+        # Allow viewing own activity, or parent/observer viewing linked student
         if user_id != student_id:
-            return jsonify({'error': 'Access denied'}), 403
+            # Check if user has parent/observer access to this student
+            try:
+                supabase_check = get_supabase_admin_client()
+                # Check superadmin
+                user_resp = supabase_check.table('users').select('role').eq('id', user_id).single().execute()
+                if not user_resp.data or user_resp.data.get('role') != 'superadmin':
+                    # Check dependent relationship
+                    student_resp = supabase_check.table('users').select('is_dependent, managed_by_parent_id').eq('id', student_id).single().execute()
+                    is_dependent = student_resp.data and student_resp.data.get('is_dependent') and student_resp.data.get('managed_by_parent_id') == user_id
+                    if not is_dependent:
+                        # Check parent_student_links
+                        link_resp = supabase_check.table('parent_student_links').select('id').eq('parent_user_id', user_id).eq('student_user_id', student_id).eq('status', 'approved').limit(1).execute()
+                        if not link_resp.data:
+                            # Check observer_student_links
+                            obs_resp = supabase_check.table('observer_student_links').select('id').eq('observer_id', user_id).eq('student_id', student_id).limit(1).execute()
+                            if not obs_resp.data:
+                                return jsonify({'error': 'Access denied'}), 403
+            except Exception as e:
+                logger.error(f"Error checking parent/observer access: {e}")
+                return jsonify({'error': 'Access denied'}), 403
 
         limit = min(int(request.args.get('limit', 20)), 50)
         cursor = request.args.get('cursor')

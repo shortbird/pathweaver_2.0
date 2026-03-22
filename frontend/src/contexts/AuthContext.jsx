@@ -384,8 +384,9 @@ export const AuthProvider = ({ children }) => {
         toast.success('Account created successfully!')
 
         // Redirect based on user role
+        const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
         const redirectPath = user.role === 'superadmin' || user.role === 'parent' ? '/parent/dashboard'
-          : user.role === 'observer' ? '/observer/welcome'
+          : user.role === 'observer' ? (hasSeenWelcome ? '/observer/feed' : '/observer/welcome')
           : '/dashboard'
         navigate(redirectPath)
       } else {

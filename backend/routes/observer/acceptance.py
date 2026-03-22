@@ -12,6 +12,7 @@ from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth, validate_uuid_param
 from middleware.rate_limiter import rate_limit
 from services.email_service import email_service
+from services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +238,6 @@ def register_routes(bp):
                     link_data = {
                         'observer_id': observer_id,
                         'student_id': student_id,
-                        'relationship': data.get('relationship', 'other'),
                         'can_comment': True,
                         'can_view_evidence': True,
                         'notifications_enabled': True
@@ -255,7 +255,7 @@ def register_routes(bp):
 
             logger.info(f"Observer invitation accepted: observer={observer_id}, students={student_ids}, newly_linked={linked_student_ids}")
 
-            # Send notification email to parents of newly linked students
+            # Send notifications for newly linked students
             if linked_student_ids:
                 try:
                     # Get observer's info
@@ -271,14 +271,33 @@ def register_routes(bp):
                         'An observer'
                     observer_email_addr = observer_data.get('email', 'Unknown')
 
+                    # Determine who initiated the invitation
+                    invited_by_role = inv.get('invited_by_role')
+                    invited_by_user_id = inv.get('invited_by_user_id')
+
+                    # Get inviter's name for student notification context
+                    inviter_name = None
+                    if invited_by_role == 'parent' and invited_by_user_id:
+                        inviter_info = supabase.table('users') \
+                            .select('first_name, last_name, display_name') \
+                            .eq('id', invited_by_user_id) \
+                            .single() \
+                            .execute()
+                        if inviter_info.data:
+                            inviter_name = inviter_info.data.get('display_name') or \
+                                f"{inviter_info.data.get('first_name', '')} {inviter_info.data.get('last_name', '')}".strip() or \
+                                'Your parent'
+
                     logger.info(f"Preparing to send observer linked notifications: observer={observer_name}, students={linked_student_ids}")
+
+                    notification_service = NotificationService()
 
                     # Get student info and their parents
                     for student_id in linked_student_ids:
                         try:
                             # Get student info
                             student_info = supabase.table('users') \
-                                .select('first_name, last_name, display_name, managed_by_parent_id') \
+                                .select('first_name, last_name, display_name, managed_by_parent_id, organization_id') \
                                 .eq('id', student_id) \
                                 .single() \
                                 .execute()
@@ -287,7 +306,23 @@ def register_routes(bp):
                             student_name = student_data.get('display_name') or \
                                 f"{student_data.get('first_name', '')} {student_data.get('last_name', '')}".strip() or \
                                 'Your child'
+                            student_org_id = student_data.get('organization_id')
 
+                            # --- Notify the student via platform notification ---
+                            try:
+                                added_by = inviter_name if invited_by_role == 'parent' else 'You'
+                                notification_service.notify_observer_added(
+                                    student_id=student_id,
+                                    observer_name=observer_name,
+                                    observer_id=observer_id,
+                                    added_by=added_by,
+                                    organization_id=student_org_id
+                                )
+                                logger.info(f"Sent observer_added notification to student {student_id}")
+                            except Exception as e:
+                                logger.error(f"Failed to send student notification for observer added: {str(e)}", exc_info=True)
+
+                            # --- Notify parents via email ---
                             # Collect parent IDs to notify
                             parent_ids_to_notify = set()
 
@@ -310,12 +345,10 @@ def register_routes(bp):
                             logger.info(f"Found {len(parent_ids_to_notify)} parent(s) to notify for student {student_id}: {parent_ids_to_notify}")
 
                             if not parent_ids_to_notify:
-                                logger.warning(f"No parents found for student {student_id} - skipping notification")
+                                logger.warning(f"No parents found for student {student_id} - skipping parent email notification")
                                 continue
 
-                            # Send notification to each parent
-                            # Note: We notify ALL parents including the one who created the invitation
-                            # This serves as confirmation that the observer has successfully accepted
+                            # Send email notification to each parent
                             for parent_id in parent_ids_to_notify:
                                 # Get parent info
                                 parent_info = supabase.table('users') \
@@ -332,7 +365,7 @@ def register_routes(bp):
 
                                     logger.info(f"Sending observer linked notification to {parent_email} for student {student_name}")
 
-                                    # Send the notification
+                                    # Send the email notification
                                     result = email_service.send_observer_linked_notification(
                                         parent_email=parent_email,
                                         parent_name=parent_name,
@@ -349,11 +382,11 @@ def register_routes(bp):
                                     logger.warning(f"Parent {parent_id} has no email address - skipping notification")
 
                         except Exception as e:
-                            # Don't fail the invitation if email fails
+                            # Don't fail the invitation if notifications fail
                             logger.error(f"Failed to send observer notification for student {student_id}: {str(e)}", exc_info=True)
 
                 except Exception as e:
-                    # Don't fail the invitation if email fails
+                    # Don't fail the invitation if notifications fail
                     logger.error(f"Failed to send observer linked notifications: {str(e)}", exc_info=True)
 
             # Return the first student_id for backward compatibility

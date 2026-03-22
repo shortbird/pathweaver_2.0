@@ -7,12 +7,27 @@ import { Stack } from 'expo-router';
 if (Platform.OS === 'web') {
   const originalConsoleError = console.error;
   console.error = (...args: any[]) => {
-    if (typeof args[0] === 'string' && (
-      args[0].includes('non-boolean attribute `collapsable`') ||
-      args[0].includes('`transform-origin`') ||
-      args[0].includes('`transformOrigin`')
-    )) return;
+    const msg = typeof args[0] === 'string' ? args[0] : '';
+    if (
+      msg.includes('collapsable') ||
+      msg.includes('transform-origin') ||
+      msg.includes('transformOrigin') ||
+      msg.includes('Password field is not contained in a form') ||
+      msg.includes('pointerEvents is deprecated') ||
+      msg.includes('aria-hidden') ||
+      msg.includes('Blocked aria-hidden')
+    ) return;
     originalConsoleError(...args);
+  };
+  const originalConsoleWarn = console.warn;
+  console.warn = (...args: any[]) => {
+    const msg = typeof args[0] === 'string' ? args[0] : '';
+    if (
+      msg.includes('pointerEvents is deprecated') ||
+      msg.includes('shadow') ||
+      msg.includes('Password field')
+    ) return;
+    originalConsoleWarn(...args);
   };
 }
 import * as SplashScreen from 'expo-splash-screen';

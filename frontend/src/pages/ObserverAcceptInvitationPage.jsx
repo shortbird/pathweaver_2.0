@@ -99,9 +99,17 @@ export default function ObserverAcceptInvitationPage() {
             navigate('/observer/feed', { state: { freshInvitation: true } })
           }
         } else {
-          // New observer-only account - show welcome page
-          toast.success('Invitation accepted! Welcome to Optio.')
-          navigate('/observer/welcome', { state: { freshInvitation: true } })
+          // Observer-only account
+          const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
+          if (hasSeenWelcome) {
+            // Returning observer linked to additional student - go straight to feed
+            toast.success('Observer access added! You can now view this student from the Observer Feed.')
+            navigate('/observer/feed', { state: { freshInvitation: true } })
+          } else {
+            // First time observer - show welcome page
+            toast.success('Invitation accepted! Welcome to Optio.')
+            navigate('/observer/welcome', { state: { freshInvitation: true } })
+          }
         }
       }
     } catch (error) {

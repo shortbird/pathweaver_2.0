@@ -214,7 +214,7 @@ export default function ObserverFeedPage() {
           <UsersIcon className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-3 sm:mb-4" />
           <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">No Students Linked Yet</h2>
           <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
-            You haven't been linked to any students yet. Ask a parent to send you an invitation link so you can follow their child's learning journey.
+            You haven't been linked to any students yet. Ask a student or their parent to share an observer invitation link with you so you can follow their learning journey.
           </p>
           <p className="text-xs sm:text-sm text-gray-500">
             Once connected, you'll see student activity and achievements here.

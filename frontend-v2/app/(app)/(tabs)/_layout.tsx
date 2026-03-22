@@ -43,6 +43,7 @@ export default function TabsLayout() {
   return (
     <>
       <Tabs
+        initialRouteName="feed"
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: '#6D469B',
@@ -80,10 +81,7 @@ export default function TabsLayout() {
                         height: 52,
                         borderRadius: 26,
                         marginTop: -20,
-                        shadowColor: '#6D469B',
-                        shadowOffset: { width: 0, height: 4 },
-                        shadowOpacity: 0.3,
-                        shadowRadius: 8,
+                        boxShadow: '0 4px 8px rgba(109, 70, 155, 0.3)',
                         elevation: 8,
                       }}
                     >
