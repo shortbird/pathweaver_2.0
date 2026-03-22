@@ -18,6 +18,7 @@ import {
   Badge, BadgeText, Divider, Avatar, AvatarFallbackText, AvatarImage,
   Skeleton,
 } from '@/src/components/ui';
+import { PageHeader } from '@/src/components/layouts/MobileHeader';
 
 const pillarColors: Record<string, { bg: string; bar: string; text: string }> = {
   stem: { bg: 'bg-pillar-stem/15', bar: 'bg-pillar-stem', text: 'text-pillar-stem' },
@@ -65,7 +66,8 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
-      <ScrollView className="flex-1" contentContainerClassName="px-5 md:px-8 pt-6 pb-12" showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1" contentContainerClassName="px-5 md:px-8 pb-12" showsVerticalScrollIndicator={false}>
+        <PageHeader title="Profile" />
         <VStack space="lg" className="max-w-3xl w-full md:mx-auto">
 
           {/* Hero */}

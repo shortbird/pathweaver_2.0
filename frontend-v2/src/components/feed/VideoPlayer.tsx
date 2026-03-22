@@ -36,7 +36,7 @@ export function VideoPlayer({ uri, className = '', autoPlay = false, fillContain
   };
 
   return (
-    <Pressable onPress={handlePlay} className={`w-full rounded-lg overflow-hidden ${className}`}>
+    <View className={`w-full rounded-lg overflow-hidden ${className}`}>
       <View className="w-full bg-black" style={fillContainer ? { flex: 1 } : { aspectRatio: 3 / 4, minHeight: 300 }}>
         <VideoView
           player={player}
@@ -44,15 +44,17 @@ export function VideoPlayer({ uri, className = '', autoPlay = false, fillContain
           contentFit={fillContainer ? 'contain' : 'cover'}
           nativeControls={false}
         />
-        {/* Play/pause overlay */}
-        {!isPlaying && (
-          <View className="absolute inset-0 items-center justify-center bg-black/30">
-            <View className="w-14 h-14 rounded-full bg-white/90 items-center justify-center">
-              <Ionicons name="play" size={28} color="#1F2937" style={{ marginLeft: 3 }} />
+        {/* Tap overlay - always present so pause works even while playing */}
+        <Pressable onPress={handlePlay} className="absolute inset-0 items-center justify-center">
+          {!isPlaying && (
+            <View className="items-center justify-center bg-black/30 absolute inset-0">
+              <View className="w-14 h-14 rounded-full bg-white/90 items-center justify-center">
+                <Ionicons name="play" size={28} color="#1F2937" style={{ marginLeft: 3 }} />
+              </View>
             </View>
-          </View>
-        )}
+          )}
+        </Pressable>
       </View>
-    </Pressable>
+    </View>
   );
 }

@@ -32,6 +32,9 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
     await logout()
   }
 
+  // Hide Dashboard/Quests toggle on observer feed page
+  const hideToggle = location.pathname.startsWith('/observer/')
+
   const isActiveToggle = (path) => {
     // Dashboard toggle should be active for: /dashboard, /connections, /diploma, /profile, /overview, /admin, /communication, /calendar, /organization
     if (path === '/dashboard') {
@@ -108,8 +111,8 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
               )}
             </Link>
 
-            {/* Dashboard/Explore Toggle (authenticated only) */}
-            {isAuthenticated && (
+            {/* Dashboard/Explore Toggle (authenticated only, hidden on observer pages) */}
+            {isAuthenticated && !hideToggle && (
               <div className="hidden sm:flex items-center space-x-2 bg-neutral-50 rounded-lg p-1">
                 <button
                   onClick={() => navigate('/dashboard')}
@@ -182,8 +185,8 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
         </div>
       </div>
 
-      {/* Mobile Toggle Buttons (below logo on mobile) */}
-      {isAuthenticated && (
+      {/* Mobile Toggle Buttons (below logo on mobile, hidden on observer pages) */}
+      {isAuthenticated && !hideToggle && (
         <div className="sm:hidden border-t border-gray-200 px-4 py-2 flex space-x-2 bg-neutral-50">
           <button
             onClick={() => navigate('/dashboard')}

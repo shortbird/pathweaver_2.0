@@ -180,8 +180,8 @@ export default function AuthCallback() {
         // If invitation was just accepted, user is now an observer regardless of what the response said
         let redirectPath
         if (invitationAccepted) {
-          // First-time observer - send to welcome page
-          redirectPath = '/observer/welcome'
+          const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
+          redirectPath = hasSeenWelcome ? '/observer/feed' : '/observer/welcome'
         } else {
           const user = result.user
           // Check if observer has seen welcome page
@@ -251,8 +251,8 @@ export default function AuthCallback() {
         // If invitation was just accepted, user is now an observer regardless of what TOS response said
         let redirectPath
         if (invitationAccepted) {
-          // First-time observer - send to welcome page
-          redirectPath = '/observer/welcome'
+          const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
+          redirectPath = hasSeenWelcome ? '/observer/feed' : '/observer/welcome'
         } else {
           const user = result.user
           // Check if observer has seen welcome page

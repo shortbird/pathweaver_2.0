@@ -58,8 +58,10 @@ const LoginPage = () => {
           logger.debug('[LoginPage] User already authenticated with pending invitation, handling redirect')
           const acceptResult = await handlePendingObserverInvitation()
           if (acceptResult && acceptResult.status === 'success') {
-            logger.debug('[LoginPage] Observer invitation accepted, redirecting to observer welcome')
-            navigate('/observer/welcome', { replace: true })
+            const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
+            const dest = hasSeenWelcome ? '/observer/feed' : '/observer/welcome'
+            logger.debug(`[LoginPage] Observer invitation accepted, redirecting to ${dest}`)
+            navigate(dest, { replace: true, state: { freshInvitation: true } })
             return
           }
         }

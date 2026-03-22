@@ -21,7 +21,7 @@ export default function LoginScreen() {
     if (!email.trim() || !password.trim()) return;
     try {
       await login(email.trim(), password);
-      router.replace('/(app)/(tabs)/dashboard');
+      router.replace('/(app)/(tabs)/feed');
     } catch {
       // Error set in store
     }

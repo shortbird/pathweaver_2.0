@@ -14,14 +14,13 @@ import { useFeed } from '@/src/hooks/useFeed';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { FeedCard } from '@/src/components/feed/FeedCard';
-import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
-import { CaptureModal } from '@/src/components/capture/CaptureModal';
 import { PillarBadge } from '@/src/components/ui/pillar-badge';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Divider, Avatar, AvatarFallbackText, AvatarImage, Skeleton,
   Badge, BadgeText,
 } from '@/src/components/ui';
+import { PageHeader } from '@/src/components/layouts/MobileHeader';
 
 const DESKTOP_BREAKPOINT = 768;
 
@@ -128,7 +127,7 @@ function QuestsList({ quests, label }: { quests: any[]; label: string }) {
       {quests.map((q: any) => {
         const quest = q.quests || q;
         return (
-          <Card key={q.id || quest.id} variant="outline" size="md">
+          <Card key={q.quest_id || q.id || quest.id} variant="outline" size="md">
             <HStack className="items-center gap-3">
               {quest.image_url ? (
                 <Image
@@ -161,7 +160,6 @@ export default function ParentDashboardPage() {
 
   const { children, loading: childrenLoading } = useMyChildren();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [captureVisible, setCaptureVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Auto-select first child
@@ -209,7 +207,6 @@ export default function ParentDashboardPage() {
     );
   }
 
-  const CaptureComponent = isDesktop ? CaptureModal : CaptureSheet;
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
@@ -219,21 +216,8 @@ export default function ParentDashboardPage() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6D469B" />}
       >
-        <VStack className="max-w-5xl w-full md:mx-auto px-5 md:px-8 pt-6" space="lg">
-
-          {/* Header */}
-          <HStack className="items-center justify-between">
-            <Heading size="2xl">Family</Heading>
-            <Pressable
-              onPress={() => setCaptureVisible(true)}
-              style={{
-                width: 40, height: 40, borderRadius: 20,
-                backgroundColor: '#6D469B', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <Ionicons name="add" size={22} color="white" />
-            </Pressable>
-          </HStack>
+        <PageHeader title="Family" />
+        <VStack className="max-w-5xl w-full md:mx-auto px-5 md:px-8" space="lg">
 
           {/* Child selector */}
           <ChildSelector children={children} selectedId={selectedId} onSelect={setSelectedId} />
@@ -319,11 +303,6 @@ export default function ParentDashboardPage() {
         </VStack>
       </ScrollView>
 
-      <CaptureComponent
-        visible={captureVisible}
-        onClose={() => setCaptureVisible(false)}
-        onCaptured={() => refetch()}
-      />
     </SafeAreaView>
   );
 }

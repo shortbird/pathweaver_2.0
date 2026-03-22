@@ -112,10 +112,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
             width: '100%',
             maxWidth: 520,
             padding: 28,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 20 },
-            shadowOpacity: 0.15,
-            shadowRadius: 40,
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
           }}
         >
           <VStack space="md">

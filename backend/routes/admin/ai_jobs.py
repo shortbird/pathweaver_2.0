@@ -1,6 +1,6 @@
 """
 REPOSITORY MIGRATION: NO MIGRATION NEEDED
-- Uses JobScheduler, QualityMonitor, and AIQuestMaintenanceService (service layer)
+- Uses JobScheduler (service layer), QualityMonitor and AIQuestMaintenanceService lazy-imported
 - Job management functionality (scheduling, monitoring, execution)
 - Service layer essential for complex job orchestration
 - No direct database calls for business logic - delegated to services
@@ -13,8 +13,6 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_role
 from app_config import Config
 from jobs.scheduler import JobScheduler
-from jobs.quality_monitor import QualityMonitor
-from services.ai_quest_maintenance_service import AIQuestMaintenanceService
 from datetime import datetime
 
 from utils.logger import get_logger
@@ -176,6 +174,7 @@ def get_quality_report(user_id):
     """Get quality report for time period."""
     try:
         days = int(request.args.get('days', 30))
+        from jobs.quality_monitor import QualityMonitor
         report = QualityMonitor.get_quality_report(days=days)
         return jsonify(report), 200
 
@@ -188,6 +187,7 @@ def get_quality_report(user_id):
 def analyze_quest_performance(user_id, quest_id):
     """Analyze performance of a specific quest."""
     try:
+        from services.ai_quest_maintenance_service import AIQuestMaintenanceService
         analysis = AIQuestMaintenanceService.analyze_quest_performance(quest_id)
         return jsonify(analysis), 200
 
@@ -200,6 +200,7 @@ def analyze_quest_performance(user_id, quest_id):
 def analyze_all_quests(user_id):
     """Analyze performance of all active quests."""
     try:
+        from services.ai_quest_maintenance_service import AIQuestMaintenanceService
         analysis = AIQuestMaintenanceService.analyze_all_quests()
         return jsonify(analysis), 200
 
@@ -212,6 +213,7 @@ def analyze_all_quests(user_id):
 def get_improvement_suggestions(user_id, quest_id):
     """Get AI-powered improvement suggestions for a quest."""
     try:
+        from services.ai_quest_maintenance_service import AIQuestMaintenanceService
         suggestions = AIQuestMaintenanceService.get_content_improvement_suggestions(quest_id)
         return jsonify(suggestions), 200
 
@@ -224,6 +226,7 @@ def get_improvement_suggestions(user_id, quest_id):
 def update_metrics(user_id):
     """Update AI content metrics immediately."""
     try:
+        from services.ai_quest_maintenance_service import AIQuestMaintenanceService
         count = AIQuestMaintenanceService.update_ai_content_metrics()
 
         return jsonify({
@@ -240,6 +243,7 @@ def update_metrics(user_id):
 def generate_monthly_report(user_id):
     """Generate comprehensive monthly report."""
     try:
+        from services.ai_quest_maintenance_service import AIQuestMaintenanceService
         report = AIQuestMaintenanceService.generate_monthly_report()
         return jsonify(report), 200
 
