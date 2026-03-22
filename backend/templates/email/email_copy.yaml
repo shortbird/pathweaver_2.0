@@ -451,21 +451,25 @@ emails:
     footer_extra: "This promo code expires in 30 days. If you have questions, simply reply to this email."
 
   observer_linked_notification:
-    subject: "New observer linked to {{ student_name }}'s Optio account"
-    title: "New Observer Access Granted"
+    subject: "New observer added to {{ student_name }}'s Optio account"
+    title: "New Observer Added"
     salutation: "Hi {{ parent_name }},"
     paragraphs:
-      - "This is a notification that a new observer has been linked to your child's Optio account."
-      - "The following person now has observer access to <strong>{{ student_name }}</strong>'s learning activity:"
+      - "This is a notification that a new observer has been added to <strong>{{ student_name }}</strong>'s Optio account."
+      - "The following person now has observer access:"
       - "<strong>{{ observer_name }}</strong> ({{ observer_email }})"
+    highlight_box:
+      title: "What can observers see?"
+      bullet_points:
+        - "Completed quests, tasks, and learning milestones"
+        - "Evidence of work (photos, videos, documents)"
+        - "Observers can leave encouraging comments on your child's work"
+        - "Observers cannot edit, delete, or modify anything on the account"
     closing_paragraphs:
-      - "Observers can view your child's completed work, learning progress, and leave encouraging comments."
-      - "If you did not expect this or wish to remove this observer's access, you can do so from your Parent Dashboard."
-    cta:
-      text: "Go to Parent Dashboard"
-      url: "{{ dashboard_url }}"
+      - "<strong>Managing observers:</strong> Both you and {{ student_name }} can add or remove observers at any time from your respective dashboards. If you'd like to remove this observer, you can do so from your Parent Dashboard or contact us at support@optioeducation.com."
+      - "If you have any questions or concerns about this access, please don't hesitate to reach out."
     signature: "support"
-    footer_extra: "If you have concerns about this access, please contact us immediately at support@optioeducation.com."
+    footer_extra: "If you have concerns about this access, contact us at support@optioeducation.com."
 
   course_enrollment:
     subject: "Welcome to '{{ course_title }}' on Optio!"

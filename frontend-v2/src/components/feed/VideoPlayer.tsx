@@ -1,13 +1,12 @@
 /**
  * VideoPlayer - Inline video with play/pause controls.
- * Uses expo-av for cross-platform playback.
+ * Uses expo-video for cross-platform playback.
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Pressable } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
-import { UIText } from '../ui/text';
 
 interface VideoPlayerProps {
   uri: string;
@@ -17,38 +16,33 @@ interface VideoPlayerProps {
 }
 
 export function VideoPlayer({ uri, className = '', autoPlay = false, fillContainer = false }: VideoPlayerProps) {
-  const videoRef = useRef<Video>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [hasStarted, setHasStarted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(autoPlay);
 
-  const handlePlay = async () => {
-    if (!hasStarted) {
-      setHasStarted(true);
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = false;
+    if (autoPlay) {
+      p.play();
     }
-    if (videoRef.current) {
-      if (isPlaying) {
-        await videoRef.current.pauseAsync();
-      } else {
-        await videoRef.current.playAsync();
-      }
+  });
+
+  const handlePlay = () => {
+    if (isPlaying) {
+      player.pause();
+      setIsPlaying(false);
+    } else {
+      player.play();
+      setIsPlaying(true);
     }
   };
 
   return (
     <Pressable onPress={handlePlay} className={`w-full rounded-lg overflow-hidden ${className}`}>
       <View className="w-full bg-black" style={fillContainer ? { flex: 1 } : { aspectRatio: 3 / 4, minHeight: 300 }}>
-        <Video
-          ref={videoRef}
-          source={{ uri }}
-          resizeMode={fillContainer ? ResizeMode.CONTAIN : ResizeMode.COVER}
-          shouldPlay={autoPlay}
-          isLooping={false}
-          onPlaybackStatusUpdate={(status) => {
-            if (status.isLoaded) {
-              setIsPlaying(status.isPlaying);
-            }
-          }}
+        <VideoView
+          player={player}
           style={{ width: '100%', height: '100%' }}
+          contentFit={fillContainer ? 'contain' : 'cover'}
+          nativeControls={false}
         />
         {/* Play/pause overlay */}
         {!isPlaying && (
