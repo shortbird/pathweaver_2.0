@@ -46,7 +46,7 @@ const icons = {
 /**
  * StudentOverviewSections - Unified section layout for all overview views.
  *
- * Renders the collapsible sections (Snapshot, Skills, Constellation, Portfolio,
+ * Renders the collapsible sections (Snapshot, Portfolio, Skills, Constellation,
  * Journal, and optional after-slots) with consistent icons and titles.
  */
 const StudentOverviewSections = ({
@@ -90,6 +90,24 @@ const StudentOverviewSections = ({
         </CollapsibleSection>
       )}
 
+      {/* Portfolio */}
+      {hasPortfolioData && (
+        <CollapsibleSection id="portfolio" title="Portfolio" icon={icons.portfolio}>
+          <PortfolioSection
+            achievements={data.achievements}
+            visibilityStatus={visibilityStatus ?? data.visibilityStatus}
+            userId={studentId}
+            onPrivacyToggle={onPrivacyToggle}
+            privacyLoading={privacyLoading}
+            readOnly={portfolioReadOnly}
+            hideHeader
+            onEvidenceDeleted={onEvidenceDeleted}
+          />
+        </CollapsibleSection>
+      )}
+
+      {afterPortfolio}
+
       {/* Skills & Growth */}
       {hasSkillsData && (
         <CollapsibleSection title="Skills & Growth" icon={icons.skills}>
@@ -115,24 +133,6 @@ const StudentOverviewSections = ({
           />
         </CollapsibleSection>
       )}
-
-      {/* Portfolio */}
-      {hasPortfolioData && (
-        <CollapsibleSection id="portfolio" title="Portfolio" icon={icons.portfolio}>
-          <PortfolioSection
-            achievements={data.achievements}
-            visibilityStatus={visibilityStatus ?? data.visibilityStatus}
-            userId={studentId}
-            onPrivacyToggle={onPrivacyToggle}
-            privacyLoading={privacyLoading}
-            readOnly={portfolioReadOnly}
-            hideHeader
-            onEvidenceDeleted={onEvidenceDeleted}
-          />
-        </CollapsibleSection>
-      )}
-
-      {afterPortfolio}
 
       {/* Learning Journal */}
       {showJournal && (

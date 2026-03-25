@@ -21,17 +21,22 @@ const CourseCatalog = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
 
-  // Only superadmin can manage courses (create, see drafts, edit)
+  // Superadmin can manage all courses; creators can manage their own
   const effectiveRole = user?.role === 'org_managed' ? user?.org_role : user?.role
-  const canManageCourses = effectiveRole === 'superadmin'
   const isSuperadmin = effectiveRole === 'superadmin'
 
-  // Superadmin uses admin_all filter to see all courses including drafts
+  // Also fetch courses created_by the user to determine if they can manage any
   const queryFilters = isSuperadmin ? { filter: 'admin_all' } : {}
 
   const { data, isLoading: loading, error } = useCourses(queryFilters, {
     staleTime: 60 * 1000, // 1 minute - cached for quick revisits
   })
+
+  // Check if user created any courses (enables course builder access for their courses)
+  const hasCreatedCourses = useMemo(() => {
+    return (data?.courses || []).some(c => c.created_by === user?.id)
+  }, [data, user?.id])
+  const canManageCourses = isSuperadmin || hasCreatedCourses
 
   const courses = useMemo(() => {
     const allCourses = data?.courses || []
@@ -41,9 +46,9 @@ const CourseCatalog = () => {
       if (statusFilter === 'draft') return allCourses.filter(c => c.status === 'draft')
       return allCourses
     }
-    // Only show courses the user is enrolled in (or created, for admins)
-    return allCourses.filter(c => c.is_enrolled)
-  }, [data, statusFilter, isSuperadmin])
+    // Show enrolled courses + courses the user created
+    return allCourses.filter(c => c.is_enrolled || c.created_by === user?.id)
+  }, [data, statusFilter, isSuperadmin, user?.id])
 
   // Error is handled by React Query - shows in UI via loading/empty states
 
@@ -76,8 +81,8 @@ const CourseCatalog = () => {
               </p>
             </div>
 
-            {/* Create Course Button (admins only) */}
-            {canManageCourses && (
+            {/* Create Course Button (superadmin only) */}
+            {isSuperadmin && (
               <button
                 onClick={() => navigate('/courses/new')}
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 transition-opacity font-medium min-h-[44px]"
