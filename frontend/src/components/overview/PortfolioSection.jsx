@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
-import EvidenceMasonryGallery from '../diploma/EvidenceMasonryGallery';
+import QuestAccordionGallery from './QuestAccordionGallery';
 import EvidenceDetailModal from '../diploma/EvidenceDetailModal';
 
 const PortfolioSection = ({
@@ -262,10 +262,10 @@ const PortfolioSection = ({
   const EvidenceContent = () => (
     <>
       {achievements.length > 0 ? (
-        <EvidenceMasonryGallery
+        <QuestAccordionGallery
           achievements={achievements}
           onEvidenceClick={(item) => setSelectedEvidenceItem(item)}
-          isOwner={true}
+          isOwner={!readOnly}
         />
       ) : (
         <div className="text-center py-12 bg-gray-50 rounded-xl">

@@ -342,6 +342,7 @@ def get_child_overview(user_id, student_id):
                         'xp_awarded': task.get('xp_value', 0),
                         'completed_at': comp.get('completed_at'),
                         'diploma_subjects': task.get('diploma_subjects', {}),
+                        'evidence_type': 'multi_format' if evidence_blocks else 'text',
                         'evidence_blocks': evidence_blocks
                     }
 
@@ -364,7 +365,8 @@ def get_child_overview(user_id, student_id):
                 # For PortfolioSection achievements format
                 'quest': {
                     'id': quest_id,
-                    'title': quest['title']
+                    'title': quest['title'],
+                    'image_url': quest.get('image_url')
                 },
                 'status': 'completed'
             })
@@ -439,6 +441,7 @@ def get_child_overview(user_id, student_id):
                     'xp_awarded': task.get('xp_value', 0),
                     'completed_at': doc.get('completed_at'),
                     'diploma_subjects': task.get('diploma_subjects', {}),
+                    'evidence_type': 'multi_format' if blocks else 'text',
                     'evidence_blocks': blocks
                 }
 
@@ -456,7 +459,8 @@ def get_child_overview(user_id, student_id):
                     'total_xp_earned': total_quest_xp,
                     'quest': {
                         'id': quest_id,
-                        'title': quest.get('title', 'Quest')
+                        'title': quest.get('title', 'Quest'),
+                        'image_url': quest.get('image_url')
                     },
                     'status': 'in_progress'  # These are from in-progress quests
                 })
