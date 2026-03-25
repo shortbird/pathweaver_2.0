@@ -403,6 +403,8 @@ function App() {
                 {/* Course Routes */}
                 <Route path="courses" element={<CourseCatalog />} />
                 <Route path="courses/:courseId" element={<CourseHomepage />} />
+                {/* Course Builder - edit existing (backend enforces creator/superadmin) */}
+                <Route path="courses/:id/edit" element={<CourseBuilder />} />
                 {/* Credit & Transcript Routes */}
                 <Route path="credits" element={<CreditTrackerPage />} />
                 <Route path="transcript" element={<TranscriptPage />} />
@@ -437,8 +439,7 @@ function App() {
               
               <Route element={<PrivateRoute requiredRole="superadmin" />}>
                 <Route path="admin/*" element={<AdminPage />} />
-                {/* Course Builder - superadmin only */}
-                <Route path="courses/:id/edit" element={<CourseBuilder />} />
+                {/* Course Builder - new courses superadmin only */}
                 <Route path="courses/new" element={<CourseBuilder />} />
                 <Route path="course-plan" element={<CoursePlanMode />} />
                 <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
