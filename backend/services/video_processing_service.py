@@ -285,17 +285,27 @@ class VideoProcessingService:
                 tmp.write(file_content)
                 tmp_path = tmp.name
 
-            probe = self._probe_video(tmp_path)
-            if not probe:
-                return True, None
-
-            duration = float(probe.get('format', {}).get('duration', 0))
-            if duration > MAX_VIDEO_DURATION_SECONDS:
-                return False, duration
-            return True, duration
+            return self.validate_duration_from_path(tmp_path)
         finally:
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
+
+    def validate_duration_from_path(self, file_path: str) -> tuple[bool, Optional[float]]:
+        """
+        Validate video duration from an existing file on disk.
+        Avoids writing bytes to a temp file when caller already has one.
+        """
+        if not self._ffmpeg_available:
+            return True, None
+
+        probe = self._probe_video(file_path)
+        if not probe:
+            return True, None
+
+        duration = float(probe.get('format', {}).get('duration', 0))
+        if duration > MAX_VIDEO_DURATION_SECONDS:
+            return False, duration
+        return True, duration
 
     def process_video(self, file_content: bytes, storage_upload_fn=None) -> VideoMetadata:
         """
@@ -309,21 +319,46 @@ class VideoProcessingService:
         Returns:
             VideoMetadata with whatever could be extracted.
         """
+        if not self._ffmpeg_available:
+            logger.info("[VideoProcessing] FFmpeg unavailable, skipping processing")
+            return VideoMetadata()
+
+        tmp_video_path = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp:
+                tmp.write(file_content)
+                tmp_video_path = tmp.name
+
+            return self.process_video_from_path(tmp_video_path, storage_upload_fn=storage_upload_fn)
+        except Exception as e:
+            logger.error(f"[VideoProcessing] Processing error: {e}")
+            return VideoMetadata()
+        finally:
+            if tmp_video_path and os.path.exists(tmp_video_path):
+                os.unlink(tmp_video_path)
+
+    def process_video_from_path(self, video_path: str, storage_upload_fn=None) -> VideoMetadata:
+        """
+        Full video processing from an existing file on disk.
+        Avoids writing bytes to a temp file when caller already has one.
+
+        Args:
+            video_path: Path to video file on disk
+            storage_upload_fn: Optional callable(thumb_bytes, thumb_filename) -> public_url
+
+        Returns:
+            VideoMetadata with whatever could be extracted.
+        """
         metadata = VideoMetadata()
 
         if not self._ffmpeg_available:
             logger.info("[VideoProcessing] FFmpeg unavailable, skipping processing")
             return metadata
 
-        tmp_video_path = None
         tmp_thumb_path = None
         try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp:
-                tmp.write(file_content)
-                tmp_video_path = tmp.name
-
             # Extract metadata via ffprobe
-            probe = self._probe_video(tmp_video_path)
+            probe = self._probe_video(video_path)
             if probe:
                 metadata.duration_seconds = float(probe.get('format', {}).get('duration', 0))
 
@@ -335,11 +370,11 @@ class VideoProcessingService:
                         break
 
             # Generate thumbnail
-            tmp_thumb_path = tmp_video_path + '_thumb.jpg'
+            tmp_thumb_path = video_path + '_thumb.jpg'
             thumb_result = subprocess.run(
                 [
                     self._ffmpeg_path, '-y',
-                    '-i', tmp_video_path,
+                    '-i', video_path,
                     '-ss', '00:00:01',  # 1 second in (avoids black frames)
                     '-vframes', '1',
                     '-vf', f'scale={VIDEO_THUMBNAIL_WIDTH}:-1',
@@ -365,8 +400,6 @@ class VideoProcessingService:
         except Exception as e:
             logger.error(f"[VideoProcessing] Processing error: {e}")
         finally:
-            if tmp_video_path and os.path.exists(tmp_video_path):
-                os.unlink(tmp_video_path)
             if tmp_thumb_path and os.path.exists(tmp_thumb_path):
                 os.unlink(tmp_thumb_path)
 

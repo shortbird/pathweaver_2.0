@@ -7,6 +7,8 @@ learning moments, and task submissions.
 """
 
 import mimetypes
+import os
+import tempfile
 import uuid
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -177,9 +179,10 @@ class MediaUploadService:
                 error_code='INVALID_TYPE',
             )
 
-        # Read file content and validate size
-        file_content = file.read()
-        file_size = len(file_content)
+        # Check file size without reading into memory (prevents OOM on large uploads)
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(0)
         max_size = EVIDENCE_SIZE_LIMITS.get(block_type, MAX_IMAGE_SIZE)
 
         if file_size > max_size:
@@ -192,103 +195,126 @@ class MediaUploadService:
             )
 
         content_type = file.content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
-
-        # Convert HEIF/HEIC to JPEG (browsers can't display HEIF natively)
-        if ext in ('heic', 'heif') and block_type == 'image':
-            from utils.image_utils import convert_heif_if_needed
-            file_content, filename, content_type = convert_heif_if_needed(file_content, filename, content_type)
-            ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ext
-            file_size = len(file_content)
-
         is_video = block_type == 'video'
 
-        # Video duration validation
-        if is_video:
-            from services.video_processing_service import video_processing_service
-            duration_ok, duration = video_processing_service.validate_duration(file_content)
-            if not duration_ok:
-                return MediaUploadResult(
-                    success=False,
-                    error_message=f'Video is too long ({duration:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.',
-                    error_code='VIDEO_TOO_LONG',
-                )
+        # Stream file to a temp file to avoid holding entire upload in memory
+        tmp_path = None
+        try:
+            suffix = f'.{ext}' if ext else ''
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                tmp_path = tmp.name
+                while True:
+                    chunk = file.read(64 * 1024)  # 64KB chunks
+                    if not chunk:
+                        break
+                    tmp.write(chunk)
 
-        # Video thumbnail and metadata extraction (synchronous, fast)
-        video_metadata = {}
-        if is_video:
-            from services.video_processing_service import video_processing_service
+            # Convert HEIF/HEIC to JPEG (browsers can't display HEIF natively)
+            if ext in ('heic', 'heif') and block_type == 'image':
+                from utils.image_utils import convert_heif_if_needed
+                with open(tmp_path, 'rb') as f:
+                    file_content = f.read()
+                file_content, filename, content_type = convert_heif_if_needed(file_content, filename, content_type)
+                ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ext
+                file_size = len(file_content)
+                # Re-write converted content to temp file
+                with open(tmp_path, 'wb') as f:
+                    f.write(file_content)
+                del file_content  # Free memory immediately
 
-            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-            file_uuid = str(uuid.uuid4())
+            # Video duration validation (uses temp file path, no extra memory copy)
+            if is_video:
+                from services.video_processing_service import video_processing_service
+                duration_ok, duration = video_processing_service.validate_duration_from_path(tmp_path)
+                if not duration_ok:
+                    return MediaUploadResult(
+                        success=False,
+                        error_message=f'Video is too long ({duration:.0f}s). Maximum duration is {MAX_VIDEO_DURATION_SECONDS // 60} minutes.',
+                        error_code='VIDEO_TOO_LONG',
+                    )
 
-            def upload_thumbnail(thumb_bytes, thumb_name):
-                thumb_template = THUMBNAIL_PATH_TEMPLATES.get(context_type)
-                if not thumb_template:
-                    return None
-                thumb_path = thumb_template.format(
-                    user_id=user_id,
-                    context_id=context_id,
-                    sub_id=sub_id or '',
-                    timestamp=timestamp,
-                    file_uuid=file_uuid,
-                    thumb_name=thumb_name,
-                )
+            # Video thumbnail and metadata extraction (synchronous, fast)
+            video_metadata = {}
+            if is_video:
+                from services.video_processing_service import video_processing_service
+
+                timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                file_uuid = str(uuid.uuid4())
+
+                def upload_thumbnail(thumb_bytes, thumb_name):
+                    thumb_template = THUMBNAIL_PATH_TEMPLATES.get(context_type)
+                    if not thumb_template:
+                        return None
+                    thumb_path = thumb_template.format(
+                        user_id=user_id,
+                        context_id=context_id,
+                        sub_id=sub_id or '',
+                        timestamp=timestamp,
+                        file_uuid=file_uuid,
+                        thumb_name=thumb_name,
+                    )
+                    supabase = self._get_client()
+                    supabase.storage.from_(bucket).upload(
+                        path=thumb_path,
+                        file=thumb_bytes,
+                        file_options={"content-type": "image/jpeg"}
+                    )
+                    return fix_storage_url(supabase.storage.from_(bucket).get_public_url(thumb_path))
+
+                meta = video_processing_service.process_video_from_path(tmp_path, storage_upload_fn=upload_thumbnail)
+                video_metadata = {
+                    'thumbnail_url': meta.thumbnail_url,
+                    'duration_seconds': meta.duration_seconds,
+                    'width': meta.width,
+                    'height': meta.height,
+                }
+
+            # Generate storage path
+            storage_path = self._generate_storage_path(
+                context_type=context_type,
+                context_id=context_id,
+                user_id=user_id,
+                filename=filename,
+                ext=ext,
+                sub_id=sub_id,
+            )
+
+            # Upload from temp file to Supabase storage (reads in memory only for upload)
+            try:
+                with open(tmp_path, 'rb') as f:
+                    file_content = f.read()
                 supabase = self._get_client()
                 supabase.storage.from_(bucket).upload(
-                    path=thumb_path,
-                    file=thumb_bytes,
-                    file_options={"content-type": "image/jpeg"}
+                    path=storage_path,
+                    file=file_content,
+                    file_options={"content-type": content_type}
                 )
-                return fix_storage_url(supabase.storage.from_(bucket).get_public_url(thumb_path))
+                del file_content  # Free memory immediately after upload
+                public_url = fix_storage_url(
+                    supabase.storage.from_(bucket).get_public_url(storage_path)
+                )
+            except Exception as e:
+                logger.error(f"[MediaUpload] Storage upload failed: {e}")
+                return MediaUploadResult(
+                    success=False,
+                    error_message='Failed to upload file to storage',
+                    error_code='STORAGE_ERROR',
+                )
 
-            meta = video_processing_service.process_video(file_content, storage_upload_fn=upload_thumbnail)
-            video_metadata = {
-                'thumbnail_url': meta.thumbnail_url,
-                'duration_seconds': meta.duration_seconds,
-                'width': meta.width,
-                'height': meta.height,
-            }
+            # Kick off background video processing (transcode/compress)
+            if is_video:
+                from services.video_processing_service import video_processing_service
+                video_processing_service.process_video_background(
+                    public_url=public_url,
+                    storage_path=storage_path,
+                    bucket_name=bucket,
+                    user_id=notify_user_id,
+                )
 
-        # Generate storage path
-        storage_path = self._generate_storage_path(
-            context_type=context_type,
-            context_id=context_id,
-            user_id=user_id,
-            filename=filename,
-            ext=ext,
-            sub_id=sub_id,
-        )
-
-        # Upload raw file to Supabase storage
-        try:
-            supabase = self._get_client()
-            supabase.storage.from_(bucket).upload(
-                path=storage_path,
-                file=file_content,
-                file_options={"content-type": content_type}
-            )
-            public_url = fix_storage_url(
-                supabase.storage.from_(bucket).get_public_url(storage_path)
-            )
-        except Exception as e:
-            logger.error(f"[MediaUpload] Storage upload failed: {e}")
-            return MediaUploadResult(
-                success=False,
-                error_message='Failed to upload file to storage',
-                error_code='STORAGE_ERROR',
-            )
-
-        # Kick off background video processing (transcode/compress)
-        if is_video:
-            from services.video_processing_service import video_processing_service
-            video_processing_service.process_video_background(
-                public_url=public_url,
-                storage_path=storage_path,
-                bucket_name=bucket,
-                user_id=notify_user_id,
-            )
-
-        logger.info(f"[MediaUpload] Uploaded {block_type} ({file_size} bytes) to {bucket}/{storage_path}")
+            logger.info(f"[MediaUpload] Uploaded {block_type} ({file_size} bytes) to {bucket}/{storage_path}")
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
         return MediaUploadResult(
             success=True,
