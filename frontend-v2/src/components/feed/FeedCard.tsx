@@ -5,16 +5,19 @@
  * Shows student info, content, evidence, pillar tags, and social actions.
  */
 
-import React, { useState } from 'react';
-import { View, Image, Pressable, Linking } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Image, Pressable, Linking, Animated, Platform, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, VStack, UIText, Card, Avatar, AvatarFallbackText, AvatarImage } from '../ui';
 import { VideoPlayer } from './VideoPlayer';
 import { DocumentViewer } from './DocumentViewer';
 import { MediaModal } from './MediaModal';
 import type { FeedItem } from '@/src/hooks/useFeed';
-import { toggleLike } from '@/src/hooks/useFeed';
+import { toggleLike, createShareLink, toggleVisibility } from '@/src/hooks/useFeed';
+import { useAuthStore } from '@/src/stores/authStore';
 import { PillarBadge } from '../ui';
+import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
+import { CommentSheet } from './CommentSheet';
 
 function ExpandableText({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -45,10 +48,19 @@ function EvidenceDisplay({ evidence, media, description }: { evidence: FeedItem[
 
   // Collect all media items (images + videos)
   const allMedia = media || [];
-  const imageUrl = allMedia.find((m) => m.type === 'image')?.url ||
+
+  // HEIC files may arrive as 'link' or 'document' type -- rescue them as images
+  const topLevelIsHeic = isHeicUrl(evidence?.url);
+
+  const imageUrl = displayImageUrl(
+    allMedia.find((m) => m.type === 'image')?.url ||
     allMedia.find((m) => m.type === 'image')?.preview ||
     (evidence?.type === 'image' ? evidence?.url : null) ||
-    evidence?.blocks?.find((b) => b.type === 'image')?.url;
+    evidence?.blocks?.find((b) => b.type === 'image')?.url ||
+    (topLevelIsHeic ? evidence?.url : null) ||
+    evidence?.blocks?.find((b) => (b.type === 'document' || b.type === 'link') && isHeicUrl(b.url))?.url ||
+    null
+  );
 
   const videoUrl = allMedia.find((m) => m.type === 'video')?.url ||
     (evidence?.type === 'video' ? evidence?.url : null) ||
@@ -57,12 +69,13 @@ function EvidenceDisplay({ evidence, media, description }: { evidence: FeedItem[
   const textContent = evidence?.preview_text ||
     evidence?.blocks?.find((b) => b.type === 'text')?.content;
 
-  const documentBlocks = evidence?.blocks?.filter((b) => b.type === 'document') || [];
-  const linkBlocks = evidence?.blocks?.filter((b) => b.type === 'link') || [];
+  // Filter HEIC files out of document/link blocks -- rendered as images above
+  const documentBlocks = evidence?.blocks?.filter((b) => b.type === 'document' && !isHeicUrl(b.url)) || [];
+  const linkBlocks = evidence?.blocks?.filter((b) => b.type === 'link' && !isHeicUrl(b.url)) || [];
 
-  // Check top-level evidence type for link/document
-  const isLink = evidence?.type === 'link' && evidence?.url;
-  const isDocument = evidence?.type === 'document' && evidence?.url;
+  // Top-level link/document: skip if HEIC (handled as image above)
+  const isLink = evidence?.type === 'link' && evidence?.url && !topLevelIsHeic;
+  const isDocument = evidence?.type === 'document' && evidence?.url && !topLevelIsHeic;
 
   return (
     <VStack space="sm">
@@ -90,24 +103,28 @@ function EvidenceDisplay({ evidence, media, description }: { evidence: FeedItem[
 
       {/* Links (top-level or from blocks) */}
       {isLink && (
-        <View className="bg-surface-50 p-3 rounded-lg border border-surface-200">
-          <HStack className="items-center gap-2">
-            <Ionicons name="link-outline" size={16} color="#6D469B" />
-            <UIText size="sm" className="text-optio-purple flex-1" numberOfLines={1}>
-              {evidence.title || evidence.url}
-            </UIText>
-          </HStack>
-        </View>
+        <Pressable onPress={() => Platform.OS === 'web' ? window.open(evidence.url!, '_blank') : Linking.openURL(evidence.url!)}>
+          <View className="bg-surface-50 p-3 rounded-lg border border-surface-200">
+            <HStack className="items-center gap-2">
+              <Ionicons name="link-outline" size={16} color="#6D469B" />
+              <UIText size="sm" className="text-optio-purple flex-1" numberOfLines={1}>
+                {evidence.title || evidence.url}
+              </UIText>
+            </HStack>
+          </View>
+        </Pressable>
       )}
       {linkBlocks.map((block, i) => (
-        <View key={`link-${i}`} className="bg-surface-50 p-3 rounded-lg border border-surface-200">
-          <HStack className="items-center gap-2">
-            <Ionicons name="link-outline" size={16} color="#6D469B" />
-            <UIText size="sm" className="text-optio-purple flex-1" numberOfLines={1}>
-              {block.title || block.url || 'Link'}
-            </UIText>
-          </HStack>
-        </View>
+        <Pressable key={`link-${i}`} onPress={() => Platform.OS === 'web' ? window.open(block.url!, '_blank') : Linking.openURL(block.url!)}>
+          <View className="bg-surface-50 p-3 rounded-lg border border-surface-200">
+            <HStack className="items-center gap-2">
+              <Ionicons name="link-outline" size={16} color="#6D469B" />
+              <UIText size="sm" className="text-optio-purple flex-1" numberOfLines={1}>
+                {block.title || block.url || 'Link'}
+              </UIText>
+            </HStack>
+          </View>
+        </Pressable>
       ))}
 
       {/* Documents - tappable for full screen */}
@@ -145,8 +162,16 @@ interface FeedCardProps {
 export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
   const [liked, setLiked] = useState(item.user_has_liked);
   const [likesCount, setLikesCount] = useState(item.likes_count);
+  const [commentsCount, setCommentsCount] = useState(item.comments_count);
+  const [isConfidential, setIsConfidential] = useState(item.is_confidential);
+  const [showComments, setShowComments] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [shareToast, setShareToast] = useState('');
+  const likeScale = useRef(new Animated.Value(1)).current;
+  const { user } = useAuthStore();
 
   const isTask = item.type === 'task_completed';
+  const isOwnPost = user?.id === item.student?.id;
   const title = isTask ? item.task?.title : item.moment?.title;
   const description = isTask ? null : item.moment?.description;
   const pillars = isTask ? [item.task?.pillar].filter(Boolean) : (item.moment?.pillars || []);
@@ -157,16 +182,60 @@ export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
 
   const timeAgo = formatTimeAgo(item.timestamp);
 
+  const animateLike = () => {
+    Animated.sequence([
+      Animated.spring(likeScale, { toValue: 1.4, useNativeDriver: true, speed: 50, bounciness: 12 }),
+      Animated.spring(likeScale, { toValue: 1, useNativeDriver: true, speed: 50, bounciness: 12 }),
+    ]).start();
+  };
+
   const handleLike = async () => {
     const prevLiked = liked;
     const prevCount = likesCount;
     setLiked(!liked);
     setLikesCount(liked ? likesCount - 1 : likesCount + 1);
+    if (!liked) animateLike();
     try {
       await toggleLike(item.type, item.id);
     } catch {
       setLiked(prevLiked);
       setLikesCount(prevCount);
+    }
+  };
+
+  const showToast = (msg: string) => {
+    setShareToast(msg);
+    setTimeout(() => setShareToast(''), 2500);
+  };
+
+  const handleShare = async () => {
+    if (isConfidential) {
+      showToast('This post is private');
+      return;
+    }
+    setSharing(true);
+    try {
+      const { share_url } = await createShareLink(item.type, item.id);
+      if (Platform.OS === 'web') {
+        await navigator.clipboard.writeText(share_url);
+        showToast('Link copied!');
+      } else {
+        await Share.share({ url: share_url, message: share_url });
+      }
+    } catch {
+      showToast('Failed to share');
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const handleToggleVisibility = async () => {
+    const newHidden = !isConfidential;
+    setIsConfidential(newHidden);
+    try {
+      await toggleVisibility(item.type, item.id, newHidden);
+    } catch {
+      setIsConfidential(!newHidden);
     }
   };
 
@@ -251,11 +320,13 @@ export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
           {/* Social actions */}
           <HStack className="items-center gap-4 pt-1 border-t border-surface-100 mt-1">
             <Pressable onPress={handleLike} className="flex-row items-center gap-1.5 py-1">
-              <Ionicons
-                name={liked ? 'heart' : 'heart-outline'}
-                size={18}
-                color={liked ? '#EF597B' : '#9CA3AF'}
-              />
+              <Animated.View style={{ transform: [{ scale: likeScale }] }}>
+                <Ionicons
+                  name={liked ? 'heart' : 'heart-outline'}
+                  size={18}
+                  color={liked ? '#EF597B' : '#9CA3AF'}
+                />
+              </Animated.View>
               {likesCount > 0 && (
                 <UIText size="xs" className={liked ? 'text-optio-pink' : 'text-typo-400'}>
                   {likesCount}
@@ -263,19 +334,50 @@ export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
               )}
             </Pressable>
 
-            <Pressable className="flex-row items-center gap-1.5 py-1">
+            <Pressable onPress={() => setShowComments(true)} className="flex-row items-center gap-1.5 py-1">
               <Ionicons name="chatbubble-outline" size={16} color="#9CA3AF" />
-              {item.comments_count > 0 && (
-                <UIText size="xs" className="text-typo-400">{item.comments_count}</UIText>
+              {commentsCount > 0 && (
+                <UIText size="xs" className="text-typo-400">{commentsCount}</UIText>
               )}
             </Pressable>
 
-            <Pressable className="flex-row items-center gap-1.5 py-1">
-              <Ionicons name="share-outline" size={16} color="#9CA3AF" />
+            <Pressable onPress={handleShare} disabled={sharing} className="flex-row items-center gap-1.5 py-1" style={{ opacity: sharing ? 0.5 : 1 }}>
+              <Ionicons name="share-outline" size={16} color={isConfidential ? '#D1D5DB' : '#9CA3AF'} />
             </Pressable>
+
+            {/* Visibility toggle - only for student's own posts */}
+            {isOwnPost && (
+              <Pressable onPress={handleToggleVisibility} className="flex-row items-center gap-1.5 py-1 ml-auto">
+                <Ionicons
+                  name={isConfidential ? 'eye-off-outline' : 'eye-outline'}
+                  size={16}
+                  color={isConfidential ? '#EF597B' : '#9CA3AF'}
+                />
+                <UIText size="xs" className={isConfidential ? 'text-optio-pink' : 'text-typo-400'}>
+                  {isConfidential ? 'Private' : 'Public'}
+                </UIText>
+              </Pressable>
+            )}
           </HStack>
+
+          {/* Share toast */}
+          {shareToast ? (
+            <View className="bg-typo-700 rounded-lg py-2 px-3 self-center mt-1">
+              <UIText size="xs" className="text-white font-poppins-medium">{shareToast}</UIText>
+            </View>
+          ) : null}
         </VStack>
       </Card>
+
+      {/* Comment sheet */}
+      {showComments && (
+        <CommentSheet
+          visible={showComments}
+          item={item}
+          onClose={() => setShowComments(false)}
+          onCommentPosted={() => setCommentsCount((c) => c + 1)}
+        />
+      )}
     </Pressable>
   );
 }

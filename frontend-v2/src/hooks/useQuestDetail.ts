@@ -67,15 +67,20 @@ export function useQuestDetail(questId: string | null) {
 
   const enroll = async () => {
     if (!questId) return;
-    const { data } = await api.post(`/api/quests/${questId}/start`, {});
+    const { data } = await api.post(`/api/quests/${questId}/enroll`, {});
     await fetchQuest();
     return data;
   };
 
   const completeTask = async (taskId: string, evidenceBlocks?: any[]) => {
     if (!questId) return;
-    const { data } = await api.post(`/api/evidence-documents/tasks/${taskId}`, {
-      blocks: evidenceBlocks || [],
+    // Normalize blocks: backend expects `type`, DB returns `block_type`
+    const normalized = (evidenceBlocks || []).map((b: any) => ({
+      ...b,
+      type: b.type || b.block_type,
+    }));
+    const { data } = await api.post(`/api/evidence/documents/${taskId}`, {
+      blocks: normalized,
       status: 'completed',
     });
     // Update local state immediately
@@ -91,22 +96,62 @@ export function useQuestDetail(questId: string | null) {
     return data;
   };
 
+  // Personalization session management
+  const sessionRef = { current: null as string | null };
+
+  const ensureSession = async (): Promise<string> => {
+    if (sessionRef.current) return sessionRef.current;
+    if (!questId) throw new Error('No quest ID');
+    const { data } = await api.post(`/api/quests/${questId}/start-personalization`, {});
+    const sid = data.session_id;
+    if (!sid) throw new Error('No session ID returned');
+    sessionRef.current = sid;
+    return sid;
+  };
+
   const generateTasks = async (interests?: string, pillar?: string, subject?: string) => {
     if (!questId) return [];
+    const sessionId = await ensureSession();
+    // Pass existing task titles so AI avoids suggesting duplicates
+    const existingTitles = (quest?.quest_tasks || []).map((t) => t.title);
     const { data } = await api.post(`/api/quests/${questId}/generate-tasks`, {
-      interests,
-      pillar,
-      subject,
+      session_id: sessionId,
+      approach: 'hybrid',
+      interests: interests ? [interests] : [],
+      cross_curricular_subjects: subject ? [subject] : [],
+      exclude_tasks: existingTitles,
     });
     return data.tasks || data.generated_tasks || [];
   };
 
   const acceptTask = async (task: any) => {
     if (!questId) return;
+    const sessionId = await ensureSession();
     const { data } = await api.post(`/api/quests/${questId}/personalization/accept-task`, {
+      session_id: sessionId,
       task,
     });
-    await fetchQuest();
+    // Optimistically add the task to local state instead of refetching
+    // (refetch causes re-render that can unmount the wizard mid-flow)
+    const newTask = data.task || {
+      id: data.task_id || `temp-${Date.now()}`,
+      title: task.title,
+      description: task.description || '',
+      pillar: task.pillar || 'stem',
+      xp_value: task.xp_value || 50,
+      xp_amount: task.xp_value || 50,
+      diploma_subjects: task.diploma_subjects || [],
+      order_index: (quest?.quest_tasks?.length || 0),
+      is_completed: false,
+      is_required: false,
+    };
+    setQuest((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        quest_tasks: [...prev.quest_tasks, newTask],
+      };
+    });
     return data;
   };
 

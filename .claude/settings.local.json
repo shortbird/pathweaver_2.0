@@ -25,7 +25,12 @@
       "Bash(npm run build:*)",
       "Bash(timeout /t 5 /nobreak)",
       "Bash(echo:*)",
-      "mcp__supabase__execute_sql"
+      "mcp__supabase__execute_sql",
+      "Bash(ls \"c:/Users/tanne/Desktop/pw_v2/frontend-v2/app/\\(app\\)/courses/\")",
+      "Bash(powershell.exe -Command \"Get-Content ''C:\\\\Users\\\\tanne\\\\Desktop\\\\pw_v2\\\\backend_stderr.log'' -Tail 30\")",
+      "Bash(powershell.exe -Command \"Get-Content ''C:\\\\Users\\\\tanne\\\\Desktop\\\\pw_v2\\\\backend_stdout.log'' -Tail 50\")",
+      "Bash(powershell.exe -Command \"Start-Process ''C:\\\\Users\\\\tanne\\\\Desktop\\\\pw_v2\\\\mockups\\\\course-redesign.html''\")",
+      "Bash(powershell.exe -Command \"Get-Content ''C:\\\\Users\\\\tanne\\\\Desktop\\\\pw_v2\\\\frontend_v2_stdout.log'' -Tail 5\")"
     ]
   }
 }

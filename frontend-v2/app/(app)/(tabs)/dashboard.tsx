@@ -49,7 +49,7 @@ function QuestCard({ quest }: { quest: any }) {
   const days = engagement?.calendar?.days || [];
 
   return (
-    <Pressable onPress={() => router.push(`/(app)/quests/${q?.id}`)}>
+    <Pressable testID={`quest-card-${q?.id}`} onPress={() => router.push(`/(app)/quests/${q?.id}`)}>
     <Card variant="elevated" size="sm" className="min-w-0 overflow-hidden" style={{ minHeight: 240, maxHeight: 240 }}>
       {/* Quest image */}
       {imageUrl ? (
@@ -93,7 +93,7 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
   const initials = `${user?.first_name?.[0] || ''}${user?.last_name?.[0] || ''}`.toUpperCase();
 
   return (
-    <Card variant="elevated" size="lg">
+    <Card testID="welcome-header" variant="elevated" size="lg">
       {/* Top: avatar + greeting */}
       <HStack className="items-center gap-3 md:gap-4">
         <Avatar size="lg" className="flex-shrink-0">
@@ -104,7 +104,7 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
           )}
         </Avatar>
         <VStack className="flex-1 min-w-0">
-          <Heading size="md" className="md:text-2xl" numberOfLines={1}>
+          <Heading testID="welcome-greeting" size="md" className="md:text-2xl" numberOfLines={1}>
             Welcome back, {user?.first_name || 'Student'}!
           </Heading>
           <UIText size="sm" className="text-typo-500 mt-1">
@@ -115,27 +115,91 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
 
       {/* Bottom: stats */}
       <Divider className="mt-4 mb-3" />
-      <HStack className="justify-around">
+      <HStack testID="hero-stats" className="justify-around">
         <VStack className="items-center">
-          <UIText size="lg" className="font-poppins-bold text-optio-purple">
+          <UIText testID="stat-completed-quests" size="lg" className="font-poppins-bold text-optio-purple">
             {stats?.completed_quests_count || 0}
           </UIText>
           <UIText size="xs" className="text-typo-400">Completed Quests</UIText>
         </VStack>
         <VStack className="items-center">
-          <UIText size="lg" className="font-poppins-bold text-optio-pink">
+          <UIText testID="stat-total-xp" size="lg" className="font-poppins-bold text-optio-pink">
             {(stats?.total_xp || user?.total_xp || 0).toLocaleString()}
           </UIText>
           <UIText size="xs" className="text-typo-400">Total XP</UIText>
         </VStack>
         <VStack className="items-center">
-          <UIText size="lg" className="font-poppins-bold text-pillar-stem">
+          <UIText testID="stat-active-quests" size="lg" className="font-poppins-bold text-pillar-stem">
             {activeQuestCount}
           </UIText>
           <UIText size="xs" className="text-typo-400">Active Quests</UIText>
         </VStack>
       </HStack>
     </Card>
+  );
+}
+
+// ── Enrolled Courses ──
+
+function EnrolledCourses({ courses }: { courses: any[] }) {
+  if (!courses || courses.length === 0) return null;
+
+  return (
+    <VStack space="sm">
+      <HStack className="items-center justify-between">
+        <Heading size="md">Your Courses</Heading>
+        <Button variant="link" size="sm" onPress={() => router.push('/(app)/(tabs)/courses')}>
+          <ButtonText>View All</ButtonText>
+        </Button>
+      </HStack>
+      <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
+        {courses.map((course: any) => {
+          const imageUrl = course.cover_image_url;
+          const projectCount = course.quest_count || course.quests?.length || 0;
+          const progress = course.progress;
+          return (
+            <Pressable
+              key={course.id}
+              onPress={() => router.push(`/(app)/courses/${course.id}`)}
+              className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]"
+            >
+              <Card variant="elevated" size="sm" className="overflow-hidden" style={{ minHeight: 180 }}>
+                {imageUrl ? (
+                  <View className="h-24 -mx-3 -mt-3 mb-3 overflow-hidden rounded-t-xl">
+                    <Image
+                      source={{ uri: imageUrl }}
+                      className="w-full h-full"
+                      resizeMode="cover"
+                    />
+                  </View>
+                ) : (
+                  <View className="h-24 -mx-3 -mt-3 mb-3 bg-gradient-to-r from-optio-purple to-optio-pink rounded-t-xl items-center justify-center">
+                    <Ionicons name="book-outline" size={32} color="white" />
+                  </View>
+                )}
+                <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
+                  {course.title}
+                </UIText>
+                <HStack className="items-center gap-2 mt-1">
+                  <Ionicons name="layers-outline" size={14} color="#9CA3AF" />
+                  <UIText size="xs" className="text-typo-400">
+                    {projectCount} {projectCount === 1 ? 'project' : 'projects'}
+                  </UIText>
+                  {progress && (
+                    <>
+                      <View className="w-1 h-1 rounded-full bg-typo-300" />
+                      <UIText size="xs" className="text-optio-purple font-poppins-medium">
+                        {progress.completed_quests || 0}/{progress.total_quests || 0} done
+                      </UIText>
+                    </>
+                  )}
+                </HStack>
+              </Card>
+            </Pressable>
+          );
+        })}
+      </View>
+    </VStack>
   );
 }
 
@@ -213,6 +277,7 @@ export default function DashboardScreen() {
   }
 
   const activeQuests = data?.active_quests || [];
+  const enrolledCourses = data?.enrolled_courses || [];
   const completedQuests = data?.recent_completed_quests || [];
   const calendarDays = globalEngagement?.calendar?.days || [];
 
@@ -236,13 +301,13 @@ export default function DashboardScreen() {
           <VStack space="sm">
             <HStack className="items-center justify-between">
               <Heading size="md">Current Quests</Heading>
-              <Button variant="link" size="sm">
+              <Button variant="link" size="sm" onPress={() => router.push('/(app)/(tabs)/quests')}>
                 <ButtonText>Browse All</ButtonText>
               </Button>
             </HStack>
 
             {activeQuests.length > 0 ? (
-              <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
+              <View testID="current-quests-grid" className="flex flex-col md:flex-row md:flex-wrap gap-4">
                 {activeQuests.map((uq: any) => (
                   <View key={uq.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
                     <QuestCard quest={uq} />
@@ -254,17 +319,20 @@ export default function DashboardScreen() {
                 <Ionicons name="rocket-outline" size={40} color="#9CA3AF" />
                 <Heading size="sm" className="text-typo-500 mt-3">No quests yet</Heading>
                 <UIText size="sm" className="text-typo-400 mt-1">Browse quests to get started</UIText>
-                <Button size="sm" className="mt-4">
+                <Button size="sm" className="mt-4" onPress={() => router.push('/(app)/(tabs)/quests')}>
                   <ButtonText>Browse Quests</ButtonText>
                 </Button>
               </Card>
             )}
           </VStack>
 
+          {/* Enrolled Courses */}
+          <EnrolledCourses courses={enrolledCourses} />
+
           {/* Learning Rhythm + Activity Calendar (combined) */}
-          <VStack space="sm">
+          <VStack testID="learning-rhythm-section" space="sm">
             <Heading size="md">Your Learning Rhythm</Heading>
-            <Card variant="elevated" size="md">
+            <Card testID="learning-rhythm-card" variant="elevated" size="md">
               <VStack space="md">
                 {/* Header: title + rhythm badge inline */}
                 <HStack className="items-center justify-between">

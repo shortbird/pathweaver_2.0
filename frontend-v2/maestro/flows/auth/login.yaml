@@ -1,0 +1,10 @@
+appId: com.optioeducation.optio
+name: "Auth: Login as Student"
+tags:
+  - auth
+  - smoke
+---
+- runFlow: login-as-student.yaml
+- assertVisible:
+    text: "Feed"
+    timeout: 10000

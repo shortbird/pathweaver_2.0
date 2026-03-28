@@ -44,7 +44,7 @@ export interface InterestTrack {
 export interface UnifiedTopic {
   id: string;
   name: string;
-  type: 'topic' | 'quest' | 'course';
+  type: 'topic' | 'track' | 'quest' | 'course';
   color?: string;
   icon?: string;
   moment_count?: number;
@@ -125,6 +125,57 @@ export function useTrackMoments(trackId: string | null) {
   useEffect(() => { fetchTrack(); }, [fetchTrack]);
 
   return { track, moments, loading, refetch: fetchTrack };
+}
+
+// ── Mutation helpers (not hooks) ──
+
+export async function deleteLearningEvent(eventId: string) {
+  await api.delete(`/api/learning-events/${eventId}`);
+}
+
+export async function updateLearningEvent(eventId: string, updates: {
+  title?: string;
+  description?: string;
+  pillars?: string[];
+  track_id?: string | null;
+  topics?: Array<{ type: string; id: string }>;
+  event_date?: string | null;
+}) {
+  const { data } = await api.put(`/api/learning-events/${eventId}`, updates);
+  return data;
+}
+
+export async function getAiSuggestions(description: string) {
+  const { data } = await api.post('/api/learning-events/ai-suggestions', { description });
+  return data;
+}
+
+export async function assignMomentToTopic(momentId: string, topicType: string, topicId: string | null, action: 'add' | 'remove' = 'add') {
+  const { data } = await api.post(`/api/learning-events/${momentId}/assign-topic`, {
+    type: topicType,
+    topic_id: topicId,
+    action,
+  });
+  return data;
+}
+
+export async function deleteInterestTrack(trackId: string) {
+  await api.delete(`/api/interest-tracks/${trackId}`);
+}
+
+export async function updateInterestTrack(trackId: string, updates: { name?: string; description?: string; color?: string }) {
+  const { data } = await api.put(`/api/interest-tracks/${trackId}`, updates);
+  return data;
+}
+
+export async function evolveTrackToQuest(trackId: string) {
+  const { data } = await api.post(`/api/interest-tracks/${trackId}/evolve`, {});
+  return data;
+}
+
+export async function previewEvolvedQuest(trackId: string) {
+  const { data } = await api.get(`/api/interest-tracks/${trackId}/evolve/preview`);
+  return data;
 }
 
 export function useQuestMoments(questId: string | null) {

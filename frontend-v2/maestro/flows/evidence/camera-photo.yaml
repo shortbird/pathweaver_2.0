@@ -1,0 +1,14 @@
+appId: com.optioeducation.optio
+name: "Evidence: Camera Photo Option"
+tags:
+  - evidence
+---
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    id: "capture-button"
+- assertVisible:
+    text: "Capture a Moment"
+    timeout: 10000
+- assertVisible:
+    text: "Camera"
+    timeout: 5000

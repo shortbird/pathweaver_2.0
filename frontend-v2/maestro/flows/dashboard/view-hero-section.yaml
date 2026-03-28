@@ -1,0 +1,36 @@
+appId: com.optioeducation.optio
+name: "Dashboard: View Hero Section with Stats"
+tags:
+  - dashboard
+  - smoke
+---
+# Login and navigate to dashboard
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    text: "Home"
+    optional: true
+
+# Wait for dashboard to load (welcome greeting appears)
+- assertVisible:
+    text: "Welcome back"
+    timeout: 15000
+
+# Verify hero section stats are present
+- assertVisible:
+    id: "welcome-header"
+- assertVisible:
+    text: "Completed Quests"
+- assertVisible:
+    text: "Total XP"
+- assertVisible:
+    text: "Active Quests"
+
+# Verify the stats show numeric values (not loading skeletons)
+- assertVisible:
+    id: "hero-stats"
+- assertVisible:
+    id: "stat-completed-quests"
+- assertVisible:
+    id: "stat-total-xp"
+- assertVisible:
+    id: "stat-active-quests"

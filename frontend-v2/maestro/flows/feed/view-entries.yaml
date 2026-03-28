@@ -1,0 +1,10 @@
+appId: com.optioeducation.optio
+name: "Feed: View Entries"
+tags:
+  - feed
+  - smoke
+---
+- runFlow: ../auth/login-as-student.yaml
+- assertVisible:
+    text: "Feed"
+    timeout: 10000

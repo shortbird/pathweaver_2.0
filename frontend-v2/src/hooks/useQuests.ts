@@ -2,7 +2,7 @@
  * Quest hooks - discovery, detail, and enrollment.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
@@ -35,15 +35,24 @@ export function useQuestDiscovery() {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const PAGE_SIZE = 12;
+
+  // Debounce search input by 500ms
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedSearch(search), 500);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [search]);
 
   const fetchQuests = useCallback(async (pageNum = 1, append = false) => {
     if (!isAuthenticated) return;
     try {
       if (append) setLoadingMore(true); else setLoading(true);
       const params: Record<string, string | number> = { page: pageNum, per_page: PAGE_SIZE };
-      if (search) params.search = search;
+      if (debouncedSearch) params.search = debouncedSearch;
       if (selectedTopic) params.topic = selectedTopic;
       const { data } = await api.get('/api/quests', { params });
       const newQuests = data.data || data.quests || data || [];
@@ -66,7 +75,7 @@ export function useQuestDiscovery() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [isAuthenticated, search, selectedTopic]);
+  }, [isAuthenticated, debouncedSearch, selectedTopic]);
 
   const loadMore = useCallback(() => {
     if (!loadingMore && hasMore) {

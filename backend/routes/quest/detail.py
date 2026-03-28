@@ -196,10 +196,11 @@ def get_quest_detail(user_id: str, quest_id: str):
                 quest_data['sample_tasks'] = []
                 quest_data['preset_tasks'] = []
         else:
-            # User is actively enrolled - no need for sample/preset/template tasks
+            # User is actively enrolled - still include template_tasks so course pages
+            # can show suggested tasks alongside the user's own tasks
             quest_data['sample_tasks'] = []
             quest_data['preset_tasks'] = []
-            quest_data['template_tasks'] = []
+            quest_data['template_tasks'] = all_template_tasks
 
         # Check if this quest is part of an active course enrollment
         # This is used to disable the "End Quest" button for course quests

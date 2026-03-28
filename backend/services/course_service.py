@@ -547,16 +547,15 @@ class CourseService(BaseService):
             for lesson in lessons:
                 all_linked_task_ids.extend(lesson.get('linked_task_ids', []))
 
-            if all_linked_task_ids and quest_enrollment:
-                # Get template tasks to know their titles
-                template_tasks_result = supabase.table('user_quest_tasks')\
-                    .select('id, title, xp_value')\
-                    .in_('id', all_linked_task_ids)\
-                    .execute()
-                template_tasks = template_tasks_result.data or []
-                template_titles = {t['title'] for t in template_tasks}
-                total_tasks = len(all_linked_task_ids)
+            # Fetch suggested tasks from the template library (quest_template_tasks)
+            suggested_tasks_result = supabase.table('quest_template_tasks')\
+                .select('id, title, description, pillar, xp_value, is_required, order_index')\
+                .eq('quest_id', quest_id)\
+                .order('order_index')\
+                .execute()
+            suggested_task_records = suggested_tasks_result.data or []
 
+            if quest_enrollment:
                 # Get the current user's tasks for this quest
                 user_tasks_result = supabase.table('user_quest_tasks')\
                     .select('id, title, xp_value')\
@@ -564,23 +563,16 @@ class CourseService(BaseService):
                     .eq('user_id', user_id)\
                     .execute()
                 user_tasks = user_tasks_result.data or []
+                total_tasks = len(user_tasks)
 
-                # Match user tasks to template tasks by title
-                user_tasks_by_title = {t['title']: t for t in user_tasks}
-                matched_user_task_ids = []
-                task_xp_map = {}
+                if user_tasks:
+                    user_task_ids = [t['id'] for t in user_tasks]
+                    task_xp_map = {t['id']: t.get('xp_value', 0) or 0 for t in user_tasks}
 
-                for template_task in template_tasks:
-                    user_task = user_tasks_by_title.get(template_task['title'])
-                    if user_task:
-                        matched_user_task_ids.append(user_task['id'])
-                        task_xp_map[user_task['id']] = user_task.get('xp_value', 0) or template_task.get('xp_value', 0) or 0
-
-                if matched_user_task_ids:
                     completions_result = supabase.table('quest_task_completions')\
                         .select('user_quest_task_id')\
                         .eq('user_id', user_id)\
-                        .in_('user_quest_task_id', matched_user_task_ids)\
+                        .in_('user_quest_task_id', user_task_ids)\
                         .execute()
 
                     completions = completions_result.data or []
@@ -700,6 +692,7 @@ class CourseService(BaseService):
                 'xp_threshold': cq.get('xp_threshold', 0),
                 'is_required': cq.get('is_required', True),
                 'lessons': lessons,
+                'suggested_tasks': suggested_task_records,
                 'enrollment': quest_enrollment,
                 'progress': {
                     'completed_tasks': completed_tasks,

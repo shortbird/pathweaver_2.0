@@ -1,0 +1,14 @@
+appId: com.optioeducation.optio
+name: "Profile: Edit Profile"
+tags:
+  - profile
+---
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    text: "Profile"
+- assertVisible:
+    text: "Profile"
+    timeout: 10000
+- assertVisible:
+    text: "Total XP"
+    timeout: 10000

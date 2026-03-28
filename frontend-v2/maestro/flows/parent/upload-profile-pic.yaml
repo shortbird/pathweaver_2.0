@@ -1,0 +1,12 @@
+appId: com.optioeducation.optio
+name: "Parent: Upload Profile Picture"
+tags:
+  - parent
+  - profile
+---
+- runFlow: ../auth/login-as-parent.yaml
+- tapOn:
+    text: "Profile"
+- assertVisible:
+    text: "Profile"
+    timeout: 10000

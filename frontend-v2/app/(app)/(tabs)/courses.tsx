@@ -10,15 +10,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCourseCatalog } from '@/src/hooks/useCourses';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
-  Badge, BadgeText, Skeleton, Input, InputField, InputSlot, InputIcon,
+  Skeleton, Input, InputField, InputSlot, InputIcon,
 } from '@/src/components/ui';
 
-function CourseCard({ course }: { course: any }) {
+function CourseCard({ course, isSuperadmin }: { course: any; isSuperadmin: boolean }) {
   const imageUrl = course.cover_image_url;
 
   return (
-    <Pressable onPress={() => router.push(`/(app)/courses/${course.id}`)}>
-      <Card variant="elevated" size="sm" className="overflow-hidden h-full">
+    <Card variant="elevated" size="sm" className="overflow-hidden h-full">
+      <Pressable onPress={() => router.push(`/(app)/courses/${course.id}`)}>
         {imageUrl ? (
           <View className="-mx-3 -mt-3 mb-3">
             <Image source={{ uri: imageUrl }} className="w-full h-40 rounded-t-xl" resizeMode="cover" />
@@ -47,15 +47,47 @@ function CourseCard({ course }: { course: any }) {
                 <UIText size="xs" className="text-typo-400">{course.age_range}</UIText>
               </HStack>
             )}
-            {course.guidance_level && (
-              <Badge action="muted">
-                <BadgeText className="text-typo-500 capitalize">{course.guidance_level}</BadgeText>
-              </Badge>
+            {course.quest_count != null && (
+              <HStack className="items-center gap-1">
+                <Ionicons name="rocket-outline" size={12} color="#9CA3AF" />
+                <UIText size="xs" className="text-typo-400">{course.quest_count} project{course.quest_count !== 1 ? 's' : ''}</UIText>
+              </HStack>
             )}
           </HStack>
         </VStack>
-      </Card>
-    </Pressable>
+      </Pressable>
+
+      {isSuperadmin && (
+        <HStack className="mt-3 gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onPress={() => router.push(`/(app)/courses/${course.id}` as any)}
+          >
+            <ButtonText>
+              <HStack className="items-center gap-1">
+                <Ionicons name="eye-outline" size={14} color="#6D469B" />
+                <UIText size="xs" className="font-poppins-medium text-optio-purple"> View</UIText>
+              </HStack>
+            </ButtonText>
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onPress={() => router.push(`/(app)/courses/${course.id}/edit` as any)}
+          >
+            <ButtonText>
+              <HStack className="items-center gap-1">
+                <Ionicons name="create-outline" size={14} color="#6D469B" />
+                <UIText size="xs" className="font-poppins-medium text-optio-purple"> Edit</UIText>
+              </HStack>
+            </ButtonText>
+          </Button>
+        </HStack>
+      )}
+    </Card>
   );
 }
 
@@ -70,7 +102,7 @@ export default function CoursesScreen() {
     );
   }
 
-  const { courses, loading, search, setSearch } = useCourseCatalog();
+  const { courses, loading, search, setSearch, isSuperadmin } = useCourseCatalog();
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
@@ -101,7 +133,7 @@ export default function CoursesScreen() {
             <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
               {courses.map((c) => (
                 <View key={c.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
-                  <CourseCard course={c} />
+                  <CourseCard course={c} isSuperadmin={isSuperadmin} />
                 </View>
               ))}
             </View>

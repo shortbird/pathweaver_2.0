@@ -86,6 +86,8 @@ def start_masquerade(admin_id, target_user_id):
             'log_id': log_id,
             'target_user': {
                 'id': target_user_data['id'],
+                'first_name': target_user_data.get('first_name'),
+                'last_name': target_user_data.get('last_name'),
                 'display_name': target_user_data.get('display_name'),
                 'email': target_user_data.get('email'),
                 'role': target_user_data.get('role'),

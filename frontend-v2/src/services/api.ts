@@ -112,7 +112,7 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (email: string, password: string) =>
     api.post('/api/auth/login', { email, password }),
-  register: (data: { email: string; password: string; first_name: string; last_name: string }) =>
+  register: (data: Record<string, unknown>) =>
     api.post('/api/auth/register', data),
   me: () => api.get('/api/auth/me'),
   refresh: (refreshToken: string) =>
@@ -120,14 +120,14 @@ export const authAPI = {
   logout: () => api.post('/api/auth/logout', {}),
   forgotPassword: (email: string) =>
     api.post('/api/auth/forgot-password', { email }),
-  resetPassword: (token: string, password: string) =>
-    api.post('/api/auth/reset-password', { token, password }),
+  resetPassword: (token: string, newPassword: string) =>
+    api.post('/api/auth/reset-password', { token, new_password: newPassword }),
 };
 
 export const questAPI = {
   list: () => api.get('/api/quests'),
   get: (id: string) => api.get(`/api/quests/${id}`),
-  start: (id: string) => api.post(`/api/quests/${id}/start`, {}),
+  start: (id: string) => api.post(`/api/quests/${id}/enroll`, {}),
   tasks: (questId: string) => api.get(`/api/quests/${questId}/tasks`),
 };
 
@@ -145,6 +145,72 @@ export const userAPI = {
     api.put('/api/users/profile', data),
   xp: () => api.get('/api/users/xp'),
   badges: () => api.get('/api/users/badges'),
+};
+
+export const bountyAPI = {
+  list: (params?: Record<string, string>) =>
+    api.get('/api/bounties', { params }),
+  get: (id: string) =>
+    api.get(`/api/bounties/${id}`),
+  create: (data: Record<string, unknown>) =>
+    api.post('/api/bounties', data),
+  update: (id: string, data: Record<string, unknown>) =>
+    api.put(`/api/bounties/${id}`, data),
+  delete: (id: string) =>
+    api.delete(`/api/bounties/${id}`),
+  claim: (id: string) =>
+    api.post(`/api/bounties/${id}/claim`, {}),
+  myClaims: () =>
+    api.get('/api/bounties/my-claims'),
+  myPosted: () =>
+    api.get('/api/bounties/my-posted'),
+  toggleDeliverable: (bountyId: string, claimId: string, data: Record<string, unknown>) =>
+    api.put(`/api/bounties/${bountyId}/claims/${claimId}/deliverables`, data),
+  turnIn: (bountyId: string, claimId: string) =>
+    api.post(`/api/bounties/${bountyId}/claims/${claimId}/turn-in`, {}),
+  deleteEvidence: (bountyId: string, claimId: string, deliverableId: string, index: number) =>
+    api.delete(`/api/bounties/${bountyId}/claims/${claimId}/evidence/${deliverableId}/${index}`),
+  review: (bountyId: string, claimId: string, data: { decision: string; feedback?: string }) =>
+    api.post(`/api/bounties/${bountyId}/review/${claimId}`, data),
+  uploadEvidence: (formData: FormData) =>
+    api.post('/api/uploads/evidence', formData),
+};
+
+export const messageAPI = {
+  conversations: () => api.get('/api/messages/conversations'),
+  messages: (conversationId: string, limit = 50, offset = 0) =>
+    api.get(`/api/messages/conversations/${conversationId}`, { params: { limit, offset } }),
+  send: (targetUserId: string, content: string) =>
+    api.post(`/api/messages/conversations/${targetUserId}/send`, { content }),
+  markRead: (messageId: string) =>
+    api.put(`/api/messages/${messageId}/read`, {}),
+  unreadCount: () => api.get('/api/messages/unread-count'),
+  contacts: () => api.get('/api/messages/contacts'),
+  canMessage: (targetUserId: string) =>
+    api.get(`/api/messages/can-message/${targetUserId}`),
+};
+
+export const groupAPI = {
+  list: () => api.get('/api/groups'),
+  get: (groupId: string) => api.get(`/api/groups/${groupId}`),
+  create: (data: { name: string; description?: string; member_ids?: string[] }) =>
+    api.post('/api/groups', data),
+  update: (groupId: string, data: { name?: string; description?: string }) =>
+    api.put(`/api/groups/${groupId}`, data),
+  addMember: (groupId: string, userId: string) =>
+    api.post(`/api/groups/${groupId}/members`, { user_id: userId }),
+  removeMember: (groupId: string, userId: string) =>
+    api.delete(`/api/groups/${groupId}/members/${userId}`),
+  leave: (groupId: string) =>
+    api.post(`/api/groups/${groupId}/leave`, {}),
+  messages: (groupId: string, limit = 50, offset = 0) =>
+    api.get(`/api/groups/${groupId}/messages`, { params: { limit, offset } }),
+  sendMessage: (groupId: string, content: string) =>
+    api.post(`/api/groups/${groupId}/messages`, { content }),
+  markRead: (groupId: string) =>
+    api.post(`/api/groups/${groupId}/read`, {}),
+  availableMembers: (groupId: string) =>
+    api.get(`/api/groups/${groupId}/available-members`),
 };
 
 export default api;

@@ -1,0 +1,12 @@
+appId: com.optioeducation.optio
+name: "Bounties: Browse Available Bounties"
+tags:
+  - bounties
+  - smoke
+---
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    text: "Bounties"
+- assertVisible:
+    text: "Browse"
+    timeout: 10000

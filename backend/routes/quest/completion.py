@@ -224,6 +224,22 @@ def get_user_completed_quests(user_id: str):
             # Replace the empty completions with synthetic ones
             quest_task_completions = type('obj', (object,), {'data': synthetic_completions})()
 
+        # Fetch course info for all quests (one query)
+        all_quest_ids = [q.get('quests', {}).get('id') for q in (user_quests_response.data or []) if q.get('quests')]
+        course_map = {}  # quest_id -> { course_id, course_title }
+        if all_quest_ids:
+            course_quests_result = supabase.table('course_quests')\
+                .select('quest_id, course_id, courses(id, title)')\
+                .in_('quest_id', all_quest_ids)\
+                .execute()
+            for cq in (course_quests_result.data or []):
+                course_data = cq.get('courses')
+                if course_data:
+                    course_map[cq['quest_id']] = {
+                        'course_id': course_data['id'],
+                        'course_title': course_data['title'],
+                    }
+
         # Process quests with evidence
         achievements = []
 
@@ -289,7 +305,8 @@ def get_user_completed_quests(user_id: str):
                     'completed_at': cq['completed_at'],
                     'task_evidence': task_evidence,
                     'total_xp_earned': total_xp,
-                    'status': 'completed'
+                    'status': 'completed',
+                    'course': course_map.get(quest_id),
                 }
 
                 achievements.append(achievement)
@@ -363,6 +380,7 @@ def get_user_completed_quests(user_id: str):
                 'task_evidence': task_evidence,
                 'total_xp_earned': total_xp,
                 'status': 'in_progress',
+                'course': course_map.get(quest_id),
                 'progress': {
                     'completed_tasks': completed_tasks,
                     'total_tasks': total_tasks,

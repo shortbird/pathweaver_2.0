@@ -31,6 +31,14 @@ class BountyService(BaseService):
         self.repository = BountyRepository()
         self.yeti_repository = YetiRepository()
 
+    def is_superadmin(self, user_id: str) -> bool:
+        """Check if a user has the superadmin role."""
+        try:
+            result = self.repository.client.table('users').select('role').eq('id', user_id).execute()
+            return bool(result.data and result.data[0].get('role') == 'superadmin')
+        except Exception:
+            return False
+
     def create_bounty(self, poster_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new bounty with deliverables. Auto-activates."""
         self.validate_required(
@@ -124,9 +132,9 @@ class BountyService(BaseService):
             'requirements': requirements_text,
             'deliverables': deliverables,
             'rewards': rewards,
-            'pillar': primary_pillar or 'stem',
+            'pillar': data.get('pillar') or primary_pillar or 'stem',
             'bounty_type': data.get('bounty_type', 'open'),
-            'xp_reward': total_xp or MIN_XP_REWARD,
+            'xp_reward': total_xp,
             'max_participants': data.get('max_participants', 0),
             'deadline': data.get('deadline', (datetime.now(timezone.utc).replace(year=datetime.now().year + 1)).isoformat()),
             'status': 'active',
@@ -142,12 +150,12 @@ class BountyService(BaseService):
         return bounty
 
     def update_bounty(self, bounty_id: str, poster_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Update an existing bounty. Only the poster can update."""
+        """Update an existing bounty. Poster or superadmin can update."""
         bounty = self.repository.get_bounty_by_id(bounty_id)
         if not bounty:
             raise NotFoundError(f"Bounty {bounty_id} not found")
 
-        if bounty['poster_id'] != poster_id:
+        if bounty['poster_id'] != poster_id and not self.is_superadmin(poster_id):
             raise ValidationError("Only the poster can edit this bounty")
 
         updates = {}
@@ -224,9 +232,13 @@ class BountyService(BaseService):
                             rewards.append({'id': str(uuid.uuid4()), 'type': 'custom', 'text': text})
 
             updates['rewards'] = rewards
-            updates['xp_reward'] = total_xp or 0
+            updates['xp_reward'] = total_xp
             if primary_pillar:
                 updates['pillar'] = primary_pillar
+
+        # Explicit pillar override (e.g. custom-reward-only bounties)
+        if 'pillar' in data and data['pillar'] in VALID_PILLARS:
+            updates['pillar'] = data['pillar']
 
         if not updates:
             raise ValidationError("No valid fields to update")
@@ -299,10 +311,43 @@ class BountyService(BaseService):
         return self.repository.get_poster_bounties(poster_id)
 
     def get_my_posted_with_claims(self, poster_id: str) -> List[Dict[str, Any]]:
-        """Get bounties posted by user, each enriched with its claims."""
+        """Get bounties posted by user, each enriched with its claims and student info."""
         bounties = self.repository.get_poster_bounties(poster_id)
+        return self._enrich_bounties_with_claims(bounties)
+
+    def get_all_bounties_with_claims(self) -> List[Dict[str, Any]]:
+        """Get ALL bounties with claims (superadmin view)."""
+        try:
+            response = self.repository.client.table('bounties')\
+                .select('*').order('created_at', desc=True).execute()
+            bounties = response.data or []
+        except Exception as e:
+            logger.error(f"Error fetching all bounties: {e}")
+            return []
+        return self._enrich_bounties_with_claims(bounties)
+
+    def _enrich_bounties_with_claims(self, bounties: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Enrich a list of bounties with claims and student info."""
+        all_student_ids: set = set()
         for bounty in bounties:
             bounty['claims'] = self.repository.get_bounty_claims(bounty['id'])
+            for c in bounty['claims']:
+                if c.get('student_id'):
+                    all_student_ids.add(c['student_id'])
+        student_map: Dict[str, Dict] = {}
+        if all_student_ids:
+            students = self.repository.client.table('users')\
+                .select('id, display_name, first_name, last_name')\
+                .in_('id', list(all_student_ids)).execute()
+            for s in (students.data or []):
+                student_map[s['id']] = {
+                    'display_name': s.get('display_name') or f"{s.get('first_name', '')} {s.get('last_name', '')}".strip() or 'Student',
+                    'first_name': s.get('first_name', ''),
+                    'last_name': s.get('last_name', ''),
+                }
+        for bounty in bounties:
+            for claim in bounty['claims']:
+                claim['student'] = student_map.get(claim.get('student_id'), {})
         return bounties
 
     def get_my_claims(self, student_id: str) -> List[Dict[str, Any]]:

@@ -14,6 +14,8 @@ export interface NavItem {
   iconActive: keyof typeof Ionicons.glyphMap;
   href: string;
   platforms: ('web' | 'mobile')[];
+  /** If set, only these roles see this item. Superadmin always sees all. */
+  roles?: string[];
 }
 
 export const navItems: NavItem[] = [
@@ -26,8 +28,9 @@ export const navItems: NavItem[] = [
   { key: 'journal', label: 'Journal', icon: 'book-outline', iconActive: 'book', href: '/(app)/(tabs)/journal', platforms: ['web', 'mobile'] },
   { key: 'family', label: 'Family', icon: 'people-outline', iconActive: 'people', href: '/(app)/(tabs)/family', platforms: [] },
   { key: 'profile', label: 'Profile', icon: 'person-outline', iconActive: 'person', href: '/(app)/(tabs)/profile', platforms: [] },
-  { key: 'advisor', label: 'Advisor', icon: 'clipboard-outline', iconActive: 'clipboard', href: '/(app)/(tabs)/advisor', platforms: ['web'] },
-  { key: 'admin', label: 'Admin', icon: 'shield-outline', iconActive: 'shield', href: '/(app)/(tabs)/admin', platforms: ['web'] },
+  { key: 'messages', label: 'Messages', icon: 'chatbubbles-outline', iconActive: 'chatbubbles', href: '/(app)/(tabs)/messages', platforms: ['web'] },
+  { key: 'advisor', label: 'Advisor', icon: 'clipboard-outline', iconActive: 'clipboard', href: '/(app)/(tabs)/advisor', platforms: ['web'], roles: ['advisor', 'org_admin', 'superadmin'] },
+  { key: 'admin', label: 'Admin', icon: 'shield-outline', iconActive: 'shield', href: '/(app)/(tabs)/admin', platforms: ['web'], roles: ['superadmin', 'org_admin'] },
 ];
 
 /**

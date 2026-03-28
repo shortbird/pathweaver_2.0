@@ -1,0 +1,21 @@
+appId: com.optioeducation.optio
+name: "Helper: Login as Observer"
+tags:
+  - helper
+  - auth
+---
+- launchApp
+- assertVisible:
+    text: "Welcome Back"
+    timeout: 10000
+- tapOn:
+    text: "you@email.com"
+- inputText: ${TEST_OBSERVER_EMAIL}
+- tapOn:
+    text: "Enter password"
+- inputText: ${TEST_OBSERVER_PASSWORD}
+- tapOn:
+    text: "Sign In"
+- assertVisible:
+    text: "Feed"
+    timeout: 10000

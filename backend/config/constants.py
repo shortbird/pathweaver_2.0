@@ -15,7 +15,7 @@ XP_THRESHOLDS = {
 }
 
 # File Upload Limits
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB (Render's hard limit)
 MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB for images
 MAX_DOCUMENT_SIZE = 25 * 1024 * 1024  # 25MB for documents (PDFs, etc.)

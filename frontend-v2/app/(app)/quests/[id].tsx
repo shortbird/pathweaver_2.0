@@ -16,6 +16,7 @@ import { useQuestDetail, PILLARS, DIPLOMA_SUBJECTS } from '@/src/hooks/useQuestD
 import { useQuestEngagement } from '@/src/hooks/useDashboard';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { MiniHeatmap } from '@/src/components/engagement/MiniHeatmap';
+import { TaskCreationWizard } from '@/src/components/tasks/TaskCreationWizard';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Badge, BadgeText, Divider, Skeleton, Input, InputField,
@@ -39,10 +40,17 @@ const blockTypeIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   document: 'attach-outline',
 };
 
+/** Normalize a block for POST (backend expects `type`, DB returns `block_type`) */
+function normalizeBlockForSave(block: any) {
+  const { block_type, ...rest } = block;
+  return { ...rest, type: block.type || block_type };
+}
+
 function EvidenceBlockDisplay({ block }: { block: any }) {
+  const blockType = block.block_type || block.type;
   const content = block.content || {};
 
-  if (block.block_type === 'image' && content.url) {
+  if (blockType === 'image' && content.url) {
     return (
       <View className="rounded-lg overflow-hidden">
         <Image source={{ uri: content.url }} className="w-full h-40" resizeMode="cover" />
@@ -51,7 +59,7 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
     );
   }
 
-  if (block.block_type === 'video' && content.url) {
+  if (blockType === 'video' && content.url) {
     return (
       <HStack className="items-center gap-2 p-3 bg-surface-100 rounded-lg">
         <Ionicons name="videocam" size={20} color="#6D469B" />
@@ -63,7 +71,7 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
     );
   }
 
-  if (block.block_type === 'link' && (content.url || content.value)) {
+  if (blockType === 'link' && (content.url || content.value)) {
     return (
       <HStack className="items-center gap-2 p-3 bg-surface-100 rounded-lg">
         <Ionicons name="link" size={18} color="#2469D1" />
@@ -75,7 +83,7 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
     );
   }
 
-  if (block.block_type === 'text') {
+  if (blockType === 'text') {
     return (
       <View className="p-3 bg-surface-50 rounded-lg">
         <UIText size="xs" className="text-typo-500">{content.text || content.value || ''}</UIText>
@@ -83,7 +91,7 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
     );
   }
 
-  if (block.block_type === 'document' && content.url) {
+  if (blockType === 'document' && content.url) {
     return (
       <HStack className="items-center gap-2 p-3 bg-surface-100 rounded-lg">
         <Ionicons name="document-attach" size={18} color="#6B7280" />
@@ -103,7 +111,7 @@ function TaskItem({
   onDelete,
 }: {
   task: any;
-  onComplete: (taskId: string) => void;
+  onComplete: (taskId: string) => void;  // just update local state, no API call
   onDelete: (taskId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -115,12 +123,12 @@ function TaskItem({
   const [showTextInput, setShowTextInput] = useState(false);
   const colors = pillarColors[task.pillar] || pillarColors.stem;
 
-  // Fetch evidence when expanded
+  // Fetch evidence on mount (for count indicator) and when expanded (for full display)
   useEffect(() => {
-    if (expanded && !evidenceLoaded) {
+    if (!evidenceLoaded) {
       (async () => {
         try {
-          const { data } = await api.get(`/api/evidence-documents/documents/${task.id}`);
+          const { data } = await api.get(`/api/evidence/documents/${task.id}`);
           setEvidenceBlocks(data.blocks || []);
         } catch {
           // No evidence yet
@@ -129,7 +137,7 @@ function TaskItem({
         }
       })();
     }
-  }, [expanded, evidenceLoaded, task.id]);
+  }, [task.id]);
 
   const handleComplete = async () => {
     setCompleting(true);
@@ -137,10 +145,10 @@ function TaskItem({
       // Save any pending text evidence + complete
       const blocks = [...evidenceBlocks];
       if (textEvidence.trim()) {
-        blocks.push({ block_type: 'text', content: { text: textEvidence.trim() }, order_index: blocks.length });
+        blocks.push({ type: 'text', content: { text: textEvidence.trim() }, order_index: blocks.length });
       }
-      await api.post(`/api/evidence-documents/documents/${task.id}`, {
-        blocks,
+      await api.post(`/api/evidence/documents/${task.id}`, {
+        blocks: blocks.map(normalizeBlockForSave),
         status: 'completed',
       });
       onComplete(task.id);
@@ -165,7 +173,7 @@ function TaskItem({
       try {
         const formData = new FormData();
         formData.append('file', file);
-        const { data } = await api.post(`/api/evidence-documents/documents/${task.id}/upload`, formData, {
+        const { data } = await api.post(`/api/evidence/documents/${task.id}/upload`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
 
@@ -175,7 +183,7 @@ function TaskItem({
         const blockType = isImage ? 'image' : isVideo ? 'video' : 'document';
 
         const newBlock = {
-          block_type: blockType,
+          type: blockType,
           content: {
             url: data.url,
             filename: data.filename || file.name,
@@ -186,8 +194,8 @@ function TaskItem({
 
         // Save the block
         const updatedBlocks = [...evidenceBlocks, newBlock];
-        await api.post(`/api/evidence-documents/documents/${task.id}`, {
-          blocks: updatedBlocks,
+        await api.post(`/api/evidence/documents/${task.id}`, {
+          blocks: updatedBlocks.map(normalizeBlockForSave),
           status: 'draft',
         });
         setEvidenceBlocks(updatedBlocks);
@@ -203,14 +211,14 @@ function TaskItem({
   const handleAddText = async () => {
     if (!textEvidence.trim()) return;
     const newBlock = {
-      block_type: 'text',
+      type: 'text',
       content: { text: textEvidence.trim() },
       order_index: evidenceBlocks.length,
     };
     const updatedBlocks = [...evidenceBlocks, newBlock];
     try {
-      await api.post(`/api/evidence-documents/documents/${task.id}`, {
-        blocks: updatedBlocks,
+      await api.post(`/api/evidence/documents/${task.id}`, {
+        blocks: updatedBlocks.map(normalizeBlockForSave),
         status: 'draft',
       });
       setEvidenceBlocks(updatedBlocks);
@@ -225,14 +233,14 @@ function TaskItem({
     const url = prompt('Enter a URL:');
     if (!url) return;
     const newBlock = {
-      block_type: 'link',
+      type: 'link',
       content: { url, title: url },
       order_index: evidenceBlocks.length,
     };
     const updatedBlocks = [...evidenceBlocks, newBlock];
     try {
-      await api.post(`/api/evidence-documents/documents/${task.id}`, {
-        blocks: updatedBlocks,
+      await api.post(`/api/evidence/documents/${task.id}`, {
+        blocks: updatedBlocks.map(normalizeBlockForSave),
         status: 'draft',
       });
       setEvidenceBlocks(updatedBlocks);
@@ -395,284 +403,6 @@ function TaskItem({
   );
 }
 
-// ── Inline Task Creator ──
-
-function InlineTaskCreator({
-  questId,
-  onGenerate,
-  onAcceptTask,
-  onManualAdd,
-}: {
-  questId: string;
-  onGenerate: (interests?: string, pillar?: string, subject?: string) => Promise<any[]>;
-  onAcceptTask: (task: any) => Promise<void>;
-  onManualAdd: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<'choice' | 'manual' | 'ai'>('choice');
-  const [interests, setInterests] = useState('');
-  const [selectedPillar, setSelectedPillar] = useState<string | null>(null);
-  const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
-  const [generating, setGenerating] = useState(false);
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
-  const [adding, setAdding] = useState(false);
-
-  // Manual task fields
-  const [manualTitle, setManualTitle] = useState('');
-  const [manualPillar, setManualPillar] = useState('stem');
-
-  const handleGenerate = async () => {
-    setGenerating(true);
-    try {
-      const tasks = await onGenerate(
-        interests || undefined,
-        selectedPillar || undefined,
-        selectedSubject || undefined,
-      );
-      setSuggestions(tasks);
-      setSelectedTasks(new Set());
-    } catch {
-      // Error handling
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const handleAddSelected = async () => {
-    setAdding(true);
-    try {
-      for (const idx of selectedTasks) {
-        await onAcceptTask(suggestions[idx]);
-      }
-      // Reset
-      setSuggestions([]);
-      setSelectedTasks(new Set());
-      setMode('choice');
-      setOpen(false);
-      setInterests('');
-      setSelectedPillar(null);
-      setSelectedSubject(null);
-    } finally {
-      setAdding(false);
-    }
-  };
-
-  const toggleTask = (idx: number) => {
-    setSelectedTasks((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
-  };
-
-  if (!open) {
-    return (
-      <Pressable onPress={() => setOpen(true)}>
-        <Card variant="ghost" size="sm" className="border border-dashed border-surface-300 items-center py-4">
-          <HStack className="items-center gap-2">
-            <Ionicons name="add-circle-outline" size={20} color="#6D469B" />
-            <UIText size="sm" className="text-optio-purple font-poppins-medium">Add Task</UIText>
-          </HStack>
-        </Card>
-      </Pressable>
-    );
-  }
-
-  return (
-    <Card variant="elevated" size="md">
-      <VStack space="md">
-        {/* Choice mode */}
-        {mode === 'choice' && (
-          <VStack space="sm">
-            <Heading size="sm">Add a Task</Heading>
-            <Button variant="outline" onPress={() => setMode('manual')}>
-              <ButtonText>Create your own task</ButtonText>
-            </Button>
-            <Divider />
-            <Button onPress={() => setMode('ai')}>
-              <ButtonText>Suggest tasks for me</ButtonText>
-            </Button>
-            <Button variant="link" size="sm" onPress={() => setOpen(false)}>
-              <ButtonText className="text-typo-400">Cancel</ButtonText>
-            </Button>
-          </VStack>
-        )}
-
-        {/* Manual mode */}
-        {mode === 'manual' && (
-          <VStack space="sm">
-            <Heading size="sm">Create Task</Heading>
-            <Input>
-              <InputField
-                placeholder="What do you want to work on?"
-                value={manualTitle}
-                onChangeText={setManualTitle}
-              />
-            </Input>
-            <UIText size="xs" className="text-typo-400 font-poppins-medium">Pillar</UIText>
-            <HStack className="flex-wrap gap-2">
-              {PILLARS.map((p) => (
-                <Pressable key={p.key} onPress={() => setManualPillar(p.key)}>
-                  <View className={`px-3 py-1.5 rounded-full ${manualPillar === p.key ? 'bg-optio-purple' : 'bg-surface-200'}`}>
-                    <UIText size="xs" className={`font-poppins-medium ${manualPillar === p.key ? 'text-white' : 'text-typo-500'}`}>
-                      {p.label}
-                    </UIText>
-                  </View>
-                </Pressable>
-              ))}
-            </HStack>
-            <HStack className="gap-2">
-              <Button className="flex-1" onPress={() => {
-                if (manualTitle.trim()) {
-                  onAcceptTask({ title: manualTitle.trim(), pillar: manualPillar, xp_value: 50 });
-                  setManualTitle('');
-                  setMode('choice');
-                  setOpen(false);
-                }
-              }}>
-                <ButtonText>Add Task</ButtonText>
-              </Button>
-              <Button variant="outline" onPress={() => setMode('choice')}>
-                <ButtonText>Back</ButtonText>
-              </Button>
-            </HStack>
-          </VStack>
-        )}
-
-        {/* AI mode */}
-        {mode === 'ai' && !suggestions.length && (
-          <VStack space="sm">
-            <Heading size="sm">Suggest Tasks</Heading>
-
-            <UIText size="xs" className="text-typo-400 font-poppins-medium">
-              What are you interested in? (optional)
-            </UIText>
-            <Input>
-              <InputField
-                placeholder='e.g. "photography", "coding", "cooking"'
-                value={interests}
-                onChangeText={setInterests}
-              />
-            </Input>
-
-            <UIText size="xs" className="text-typo-400 font-poppins-medium">Pillar (optional)</UIText>
-            <HStack className="flex-wrap gap-2">
-              <Pressable onPress={() => setSelectedPillar(null)}>
-                <View className={`px-3 py-1.5 rounded-full ${!selectedPillar ? 'bg-optio-purple' : 'bg-surface-200'}`}>
-                  <UIText size="xs" className={`font-poppins-medium ${!selectedPillar ? 'text-white' : 'text-typo-500'}`}>Any</UIText>
-                </View>
-              </Pressable>
-              {PILLARS.map((p) => (
-                <Pressable key={p.key} onPress={() => setSelectedPillar(p.key)}>
-                  <View className={`px-3 py-1.5 rounded-full ${selectedPillar === p.key ? 'bg-optio-purple' : 'bg-surface-200'}`}>
-                    <UIText size="xs" className={`font-poppins-medium ${selectedPillar === p.key ? 'text-white' : 'text-typo-500'}`}>
-                      {p.label}
-                    </UIText>
-                  </View>
-                </Pressable>
-              ))}
-            </HStack>
-
-            <UIText size="xs" className="text-typo-400 font-poppins-medium">Subject (optional)</UIText>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <HStack className="gap-2">
-                <Pressable onPress={() => setSelectedSubject(null)}>
-                  <View className={`px-3 py-1.5 rounded-full ${!selectedSubject ? 'bg-optio-purple' : 'bg-surface-200'}`}>
-                    <UIText size="xs" className={`font-poppins-medium ${!selectedSubject ? 'text-white' : 'text-typo-500'}`}>Any</UIText>
-                  </View>
-                </Pressable>
-                {DIPLOMA_SUBJECTS.map((s) => (
-                  <Pressable key={s} onPress={() => setSelectedSubject(s)}>
-                    <View className={`px-3 py-1.5 rounded-full ${selectedSubject === s ? 'bg-optio-purple' : 'bg-surface-200'}`}>
-                      <UIText size="xs" className={`font-poppins-medium ${selectedSubject === s ? 'text-white' : 'text-typo-500'}`}>
-                        {s}
-                      </UIText>
-                    </View>
-                  </Pressable>
-                ))}
-              </HStack>
-            </ScrollView>
-
-            <HStack className="gap-2">
-              <Button className="flex-1" onPress={handleGenerate} loading={generating}>
-                <ButtonText>Generate Ideas</ButtonText>
-              </Button>
-              <Button variant="outline" onPress={() => setMode('choice')}>
-                <ButtonText>Back</ButtonText>
-              </Button>
-            </HStack>
-          </VStack>
-        )}
-
-        {/* AI suggestions results */}
-        {mode === 'ai' && suggestions.length > 0 && (
-          <VStack space="sm">
-            <Heading size="sm">Pick Your Tasks</Heading>
-            <UIText size="xs" className="text-typo-500">Select the ones you want to add</UIText>
-
-            {suggestions.map((task, idx) => {
-              const isSelected = selectedTasks.has(idx);
-              const tColors = pillarColors[task.pillar] || pillarColors.stem;
-              return (
-                <Pressable key={idx} onPress={() => toggleTask(idx)}>
-                  <Card
-                    variant={isSelected ? 'elevated' : 'outline'}
-                    size="sm"
-                    className={isSelected ? 'border-2 border-optio-purple' : ''}
-                  >
-                    <HStack className="items-start gap-3">
-                      <Ionicons
-                        name={isSelected ? 'checkbox' : 'square-outline'}
-                        size={22}
-                        color={isSelected ? '#6D469B' : '#D1D5DB'}
-                      />
-                      <VStack className="flex-1" space="xs">
-                        <UIText size="sm" className="font-poppins-medium">{task.title}</UIText>
-                        {task.description && (
-                          <UIText size="xs" className="text-typo-500" numberOfLines={2}>{task.description}</UIText>
-                        )}
-                        <HStack className="items-center gap-2">
-                          <View className={`px-1.5 py-0.5 rounded ${tColors.bg}`}>
-                            <UIText size="xs" className={tColors.text}>
-                              {task.pillar === 'stem' ? 'STEM' : task.pillar?.charAt(0).toUpperCase() + task.pillar?.slice(1)}
-                            </UIText>
-                          </View>
-                          <UIText size="xs" className="text-typo-400">{task.xp_value || 50} XP</UIText>
-                        </HStack>
-                      </VStack>
-                    </HStack>
-                  </Card>
-                </Pressable>
-              );
-            })}
-
-            <HStack className="gap-2">
-              <Button
-                className="flex-1"
-                onPress={handleAddSelected}
-                loading={adding}
-                disabled={selectedTasks.size === 0}
-              >
-                <ButtonText>
-                  Add {selectedTasks.size} Task{selectedTasks.size !== 1 ? 's' : ''}
-                </ButtonText>
-              </Button>
-              <Button variant="outline" onPress={() => { setSuggestions([]); }}>
-                <ButtonText>Regenerate</ButtonText>
-              </Button>
-            </HStack>
-            <Button variant="link" size="sm" onPress={() => { setSuggestions([]); setMode('choice'); setOpen(false); }}>
-              <ButtonText className="text-typo-400">Cancel</ButtonText>
-            </Button>
-          </VStack>
-        )}
-      </VStack>
-    </Card>
-  );
-}
-
 // ── Main Quest Detail Page ──
 
 export default function QuestDetailScreen() {
@@ -684,6 +414,7 @@ export default function QuestDetailScreen() {
   const isEnrolled = !!quest?.user_enrollment;
   const { data: engagement } = useQuestEngagement(isEnrolled ? quest?.id || null : null);
   const [enrolling, setEnrolling] = useState(false);
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
 
   const handleEnroll = async () => {
     setEnrolling(true);
@@ -722,8 +453,34 @@ export default function QuestDetailScreen() {
 
   const tasks = quest.quest_tasks || [];
   const completedCount = tasks.filter((t) => t.is_completed).length;
+  const totalXP = tasks.reduce((sum, t) => sum + (t.xp_value || t.xp_amount || 0), 0);
+  const earnedXP = tasks.filter((t) => t.is_completed).reduce((sum, t) => sum + (t.xp_value || t.xp_amount || 0), 0);
+  const allComplete = tasks.length > 0 && completedCount === tasks.length;
   const imageUrl = quest.header_image_url || quest.image_url;
   const calendarDays = engagement?.calendar?.days || [];
+
+  // XP by pillar
+  const pillarXP = tasks.reduce((acc, t) => {
+    if (t.is_completed && t.pillar) {
+      acc[t.pillar] = (acc[t.pillar] || 0) + (t.xp_value || t.xp_amount || 0);
+    }
+    return acc;
+  }, {} as Record<string, number>);
+
+  const handleLeaveQuest = async () => {
+    try {
+      await api.delete(`/api/quests/${quest.id}/enrollment`);
+      router.back();
+    } catch {
+      // Fallback: try the older endpoint
+      try {
+        await api.post(`/api/quests/${quest.id}/end`, {});
+        router.back();
+      } catch {
+        // Error
+      }
+    }
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
@@ -757,8 +514,8 @@ export default function QuestDetailScreen() {
           <VStack className="px-5 md:px-8 pt-6 pb-12" space="lg">
 
             {/* Title + engagement */}
-            <VStack space="sm">
-              <Heading size="2xl">{quest.title}</Heading>
+            <VStack testID="quest-detail-header" space="sm">
+              <Heading testID="quest-title" size="2xl">{quest.title}</Heading>
               {isEnrolled && engagement?.rhythm && (
                 <HStack className="items-center gap-3">
                   <RhythmBadge rhythm={engagement.rhythm} compact />
@@ -768,33 +525,9 @@ export default function QuestDetailScreen() {
             </VStack>
 
             {/* Description */}
-            <UIText className="text-typo-500 leading-6">
+            <UIText testID="quest-description" className="text-typo-500 leading-6">
               {quest.description}
             </UIText>
-
-            {/* Approach examples */}
-            {quest.approach_examples?.length > 0 && (
-              <VStack space="sm">
-                <Heading size="md">Approach Ideas</Heading>
-                <View className="flex flex-col md:flex-row md:flex-wrap gap-3">
-                  {quest.approach_examples.map((approach: any, idx: number) => (
-                    <View key={idx} className="md:w-[calc(50%-6px)]">
-                      <Card variant="outline" size="sm">
-                        <VStack space="xs">
-                          <UIText size="sm" className="font-poppins-semibold">{approach.label || `Path ${idx + 1}`}</UIText>
-                          {approach.tasks?.map((task: any, tidx: number) => (
-                            <HStack key={tidx} className="items-center gap-2">
-                              <Ionicons name="ellipse" size={6} color="#9CA3AF" />
-                              <UIText size="xs" className="text-typo-500">{task.title || task}</UIText>
-                            </HStack>
-                          ))}
-                        </VStack>
-                      </Card>
-                    </View>
-                  ))}
-                </View>
-              </VStack>
-            )}
 
             {/* Enrollment CTA (not enrolled) */}
             {!isEnrolled && (
@@ -812,18 +545,87 @@ export default function QuestDetailScreen() {
               </Card>
             )}
 
+            {/* Quest Progress (enrolled) */}
+            {isEnrolled && tasks.length > 0 && (
+              <Card variant="elevated" size="md">
+                <VStack space="sm">
+                  <HStack className="items-center justify-between">
+                    <UIText size="sm" className="font-poppins-medium">Progress</UIText>
+                    <UIText size="sm" className="font-poppins-bold text-optio-purple">
+                      {completedCount}/{tasks.length} tasks
+                    </UIText>
+                  </HStack>
+                  {/* Progress bar */}
+                  <View className="h-2.5 bg-surface-200 rounded-full overflow-hidden">
+                    <View
+                      className="h-full bg-optio-purple rounded-full"
+                      style={{ width: `${tasks.length > 0 ? (completedCount / tasks.length) * 100 : 0}%` }}
+                    />
+                  </View>
+                  <HStack className="items-center justify-between">
+                    <HStack className="items-center gap-1">
+                      <Ionicons name="star" size={14} color="#FF9028" />
+                      <UIText size="xs" className="text-typo-500 font-poppins-medium">
+                        {earnedXP} / {totalXP} XP
+                      </UIText>
+                    </HStack>
+                    {/* Pillar breakdown */}
+                    <HStack className="items-center gap-2">
+                      {Object.entries(pillarXP).map(([pillar, xp]) => (
+                        <HStack key={pillar} className="items-center gap-1">
+                          <View className={`w-2 h-2 rounded-full ${(pillarColors[pillar] || pillarColors.stem).bar}`} />
+                          <UIText size="xs" className="text-typo-400">{xp}</UIText>
+                        </HStack>
+                      ))}
+                    </HStack>
+                  </HStack>
+                </VStack>
+              </Card>
+            )}
+
+            {/* Completion Celebration */}
+            {isEnrolled && allComplete && (
+              <Card variant="elevated" size="lg" className="border-2 border-green-300 bg-green-50">
+                <VStack space="sm" className="items-center">
+                  <Ionicons name="trophy" size={40} color="#16A34A" />
+                  <Heading size="md" className="text-green-800">Quest Complete!</Heading>
+                  <UIText size="sm" className="text-green-700 text-center">
+                    You earned {earnedXP} XP across {tasks.length} tasks. Great work!
+                  </UIText>
+                </VStack>
+              </Card>
+            )}
+
             {/* Task list (enrolled) */}
             {isEnrolled && (
-              <VStack space="sm">
-                <Heading size="md">Tasks</Heading>
+              <VStack testID="quest-task-list" space="sm">
+                <HStack className="items-center justify-between">
+                  <Heading size="md">Tasks</Heading>
+                  <Pressable
+                    onPress={() => setAddTaskOpen(true)}
+                    className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg bg-optio-purple/10 active:bg-optio-purple/20"
+                  >
+                    <Ionicons name="add-circle-outline" size={16} color="#6D469B" />
+                    <UIText size="xs" className="text-optio-purple font-poppins-medium">Add Task</UIText>
+                  </Pressable>
+                </HStack>
 
                 {tasks.length > 0 ? (
                   <VStack space="sm">
-                    {[...tasks].sort((a, b) => Number(a.is_completed) - Number(b.is_completed)).map((task) => (
+                    {[...tasks].sort((a, b) => {
+                      // Incomplete first, then by reverse order (newest first)
+                      if (a.is_completed !== b.is_completed) return Number(a.is_completed) - Number(b.is_completed);
+                      return (b.order_index ?? Infinity) - (a.order_index ?? Infinity);
+                    }).map((task) => (
                       <TaskItem
                         key={task.id}
                         task={task}
-                        onComplete={completeTask}
+                        onComplete={(taskId) => {
+                          // TaskItem.handleComplete already POSTed to the API.
+                          // Just update local state here -- no second API call.
+                          if (!quest) return;
+                          refetch();
+                        }}
                         onDelete={deleteTask}
                       />
                     ))}
@@ -834,13 +636,28 @@ export default function QuestDetailScreen() {
                   </Card>
                 )}
 
-                {/* Inline task creator */}
-                <InlineTaskCreator
+                {/* Task creation wizard */}
+                <TaskCreationWizard
                   questId={quest.id}
+                  questTitle={quest.title}
+                  open={addTaskOpen}
+                  onClose={() => setAddTaskOpen(false)}
                   onGenerate={generateTasks}
                   onAcceptTask={acceptTask}
-                  onManualAdd={() => {}}
                 />
+
+                {/* Leave Quest */}
+                <Divider className="mt-4" />
+                <Pressable
+                  onPress={() => {
+                    if (typeof window !== 'undefined' && window.confirm('Leave this quest? Your completed tasks will be preserved.')) {
+                      handleLeaveQuest();
+                    }
+                  }}
+                  className="py-3 items-center"
+                >
+                  <UIText size="sm" className="text-red-400">Leave Quest</UIText>
+                </Pressable>
               </VStack>
             )}
 

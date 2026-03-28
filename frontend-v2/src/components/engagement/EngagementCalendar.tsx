@@ -24,7 +24,7 @@ interface EngagementCalendarProps {
 export function EngagementCalendar({ days, firstActivityDate }: EngagementCalendarProps) {
   if (!days || days.length === 0) {
     return (
-      <VStack space="sm">
+      <VStack testID="calendar-empty" space="sm">
         <UIText size="sm" className="text-typo-400">
           Your activity calendar will appear here as you engage with quests.
         </UIText>
@@ -51,16 +51,16 @@ export function EngagementCalendar({ days, firstActivityDate }: EngagementCalend
     <VStack space="sm">
       {/* Header */}
       <HStack className="items-center justify-between">
-        <UIText size="xs" className="text-typo-400">
+        <UIText testID="calendar-date-range" size="xs" className="text-typo-400">
           {firstDate && lastDate ? `${formatDate(firstDate)} - ${formatDate(lastDate)}` : ''}
         </UIText>
-        <UIText size="xs" className="text-typo-500 font-poppins-medium">
+        <UIText testID="calendar-active-days" size="xs" className="text-typo-500 font-poppins-medium">
           {activeDays} active day{activeDays !== 1 ? 's' : ''}
         </UIText>
       </HStack>
 
       {/* Grid */}
-      <View className="flex-row flex-wrap gap-1">
+      <View testID="calendar-grid" className="flex-row flex-wrap gap-1">
         {days.map((day, i) => (
           <View
             key={i}

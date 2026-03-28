@@ -1,0 +1,17 @@
+appId: com.optioeducation.optio
+name: "Journal: Capture a Moment"
+tags:
+  - journal
+  - smoke
+---
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    id: "capture-button"
+- assertVisible:
+    text: "Capture a Moment"
+    timeout: 10000
+- tapOn:
+    text: "What did you learn?"
+- inputText: "Learned about E2E testing with Maestro"
+- tapOn:
+    text: "Save Moment"

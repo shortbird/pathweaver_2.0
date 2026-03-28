@@ -39,6 +39,7 @@ import {
   Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useActingAsStore } from '@/src/stores/actingAsStore';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -55,6 +56,8 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    // Restore acting-as state from sessionStorage before loading user
+    useActingAsStore.getState().restore();
     loadUser();
   }, []);
 
@@ -74,6 +77,7 @@ export default function RootLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(app)" />
+      <Stack.Screen name="auth/callback" />
     </Stack>
   );
 }

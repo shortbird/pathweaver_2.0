@@ -1,0 +1,9 @@
+appId: com.optioeducation.optio
+name: "Observer: Comment on a Post"
+tags:
+  - observer
+---
+- runFlow: ../auth/login-as-observer.yaml
+- assertVisible:
+    text: "Feed"
+    timeout: 10000

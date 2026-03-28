@@ -3,12 +3,13 @@
  */
 
 import React, { useState } from 'react';
-import { View, ScrollView, Pressable, Platform } from 'react-native';
+import { View, ScrollView, Pressable, Platform, Modal, TextInput, KeyboardAvoidingView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
-import { useProfile } from '@/src/hooks/useProfile';
+import { useProfile, Viewer } from '@/src/hooks/useProfile';
+import api from '@/src/services/api';
 import { useGlobalEngagement } from '@/src/hooks/useDashboard';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
@@ -19,6 +20,7 @@ import {
   Skeleton,
 } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
+import { PortfolioSection } from '@/src/components/portfolio/PortfolioSection';
 
 const pillarColors: Record<string, { bg: string; bar: string; text: string }> = {
   stem: { bg: 'bg-pillar-stem/15', bar: 'bg-pillar-stem', text: 'text-pillar-stem' },
@@ -43,8 +45,112 @@ function CollapsibleSection({ title, children, defaultOpen = true }: { title: st
 
 export default function ProfileScreen() {
   const { user, logout } = useAuthStore();
-  const { pillarXP, achievements, subjectXP, loading } = useProfile();
+  const { pillarXP, achievements, subjectXP, viewers, deletionStatus, loading, refetch } = useProfile();
   const { data: engagement } = useGlobalEngagement();
+
+  const [editVisible, setEditVisible] = useState(false);
+  const [editFirst, setEditFirst] = useState('');
+  const [editLast, setEditLast] = useState('');
+  const [editDisplay, setEditDisplay] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [inviteObserverVisible, setInviteObserverVisible] = useState(false);
+  const [observerEmail, setObserverEmail] = useState('');
+  const [invitingObserver, setInvitingObserver] = useState(false);
+  const [deletionRequesting, setDeletionRequesting] = useState(false);
+
+  const isStudent = user?.role === 'student' || user?.org_role === 'student';
+
+  const handleInviteObserver = async () => {
+    if (!observerEmail.trim()) return;
+    setInvitingObserver(true);
+    try {
+      await api.post('/api/observers/invite', { observer_email: observerEmail.trim() });
+      Alert.alert('Sent', `Invitation sent to ${observerEmail.trim()}`);
+      setObserverEmail('');
+      setInviteObserverVisible(false);
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to send invitation');
+    } finally {
+      setInvitingObserver(false);
+    }
+  };
+
+  const handleRemoveObserver = (linkId: string, name: string) => {
+    Alert.alert('Remove Observer', `Remove ${name} from your observers?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove', style: 'destructive', onPress: async () => {
+          try {
+            await api.delete(`/api/observers/${linkId}/remove`);
+            Alert.alert('Removed', `${name} has been removed as an observer.`);
+            refetch();
+          } catch {
+            Alert.alert('Error', 'Failed to remove observer');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleRequestDeletion = () => {
+    Alert.alert(
+      'Delete Account',
+      'This will schedule your account for permanent deletion in 30 days. You can cancel within the grace period.\n\nAll your data will be permanently deleted after 30 days. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete My Account', style: 'destructive', onPress: async () => {
+            setDeletionRequesting(true);
+            try {
+              await api.post('/api/users/delete-account', { reason: 'User requested deletion' });
+              Alert.alert('Scheduled', 'Account deletion scheduled. You have 30 days to cancel.');
+              refetch();
+            } catch (err: any) {
+              Alert.alert('Error', err.response?.data?.error || 'Failed to request account deletion');
+            } finally {
+              setDeletionRequesting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleCancelDeletion = async () => {
+    try {
+      await api.post('/api/users/cancel-deletion', {});
+      Alert.alert('Cancelled', 'Account deletion has been cancelled.');
+      refetch();
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to cancel deletion');
+    }
+  };
+
+  const openEdit = () => {
+    setEditFirst(user?.first_name || '');
+    setEditLast(user?.last_name || '');
+    setEditDisplay(user?.display_name || '');
+    setEditVisible(true);
+  };
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    try {
+      await api.put('/api/users/profile', {
+        display_name: editDisplay.trim(),
+        first_name: editFirst.trim(),
+        last_name: editLast.trim(),
+      });
+      setEditVisible(false);
+      refetch();
+      // Update authStore user
+      useAuthStore.getState().loadUser();
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to update profile');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const initials = `${user?.first_name?.[0] || ''}${user?.last_name?.[0] || ''}`.toUpperCase();
   const memberSince = user?.created_at
@@ -83,6 +189,10 @@ export default function ProfileScreen() {
               <VStack className="items-center" space="xs">
                 <Heading size="xl">{user?.display_name || `${user?.first_name} ${user?.last_name}`}</Heading>
                 {memberSince && <UIText size="sm" className="text-typo-400">Member since {memberSince}</UIText>}
+                <Pressable onPress={openEdit} className="flex-row items-center gap-1 mt-1">
+                  <Ionicons name="pencil-outline" size={14} color="#6D469B" />
+                  <UIText size="xs" className="text-optio-purple font-poppins-medium">Edit Profile</UIText>
+                </Pressable>
               </VStack>
               <HStack className="justify-around w-full mt-2">
                 <VStack className="items-center">
@@ -90,8 +200,8 @@ export default function ProfileScreen() {
                   <UIText size="xs" className="text-typo-400">Total XP</UIText>
                 </VStack>
                 <VStack className="items-center">
-                  <UIText size="lg" className="font-poppins-bold text-optio-pink">{achievements.length}</UIText>
-                  <UIText size="xs" className="text-typo-400">Completed</UIText>
+                  <UIText size="lg" className="font-poppins-bold text-optio-pink">{achievements.filter((a: any) => a.status === 'completed').length}</UIText>
+                  <UIText size="xs" className="text-typo-400">Quests</UIText>
                 </VStack>
                 <VStack className="items-center">
                   <UIText size="lg" className="font-poppins-bold text-pillar-stem">{pillarXP.length}</UIText>
@@ -121,8 +231,8 @@ export default function ProfileScreen() {
                 <VStack space="sm" className="items-center">
                   <PillarRadar data={pillarXP} />
                   <HStack className="flex-wrap gap-3 justify-center">
-                    {pillarXP.map(({ pillar, xp }) => (
-                      <HStack key={pillar} className="items-center gap-1">
+                    {pillarXP.map(({ pillar, xp }, idx) => (
+                      <HStack key={`${pillar}-${idx}`} className="items-center gap-1">
                         <UIText size="xs" className="font-poppins-medium text-typo-500">
                           {pillar === 'stem' ? 'STEM' : pillar.charAt(0).toUpperCase() + pillar.slice(1)}
                         </UIText>
@@ -135,36 +245,18 @@ export default function ProfileScreen() {
             </CollapsibleSection>
           )}
 
-          {/* Achievements */}
-          {achievements.length > 0 && (
-            <CollapsibleSection title="Achievements" defaultOpen={false}>
-              <View className="flex flex-col md:flex-row md:flex-wrap gap-3">
-                {achievements.map((a: any) => (
-                  <View key={a.id} className="md:w-[calc(50%-6px)]">
-                    <Card variant="outline" size="sm">
-                      <HStack className="items-center gap-3">
-                        <View className="w-10 h-10 rounded-lg bg-green-50 items-center justify-center">
-                          <Ionicons name="checkmark-circle" size={22} color="#16A34A" />
-                        </View>
-                        <VStack className="flex-1 min-w-0">
-                          <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>{a.title || a.quests?.title || 'Quest'}</UIText>
-                          <UIText size="xs" className="text-typo-400">{a.completed_at ? new Date(a.completed_at).toLocaleDateString() : ''}</UIText>
-                        </VStack>
-                      </HStack>
-                    </Card>
-                  </View>
-                ))}
-              </View>
-            </CollapsibleSection>
-          )}
+          {/* Portfolio */}
+          <CollapsibleSection title="Portfolio" defaultOpen={false}>
+            <PortfolioSection achievements={achievements} />
+          </CollapsibleSection>
 
           {/* Subject XP */}
           {subjectXP.length > 0 && (
             <CollapsibleSection title="Subject Credits" defaultOpen={false}>
               <Card variant="elevated" size="md">
                 <VStack space="sm">
-                  {subjectXP.map((s: any) => (
-                    <HStack key={s.school_subject} className="items-center justify-between py-1">
+                  {subjectXP.map((s: any, idx: number) => (
+                    <HStack key={s.school_subject || `subject-${idx}`} className="items-center justify-between py-1">
                       <UIText size="sm" className="font-poppins-medium">{s.school_subject}</UIText>
                       <HStack className="items-center gap-2">
                         <UIText size="sm" className="text-optio-purple font-poppins-semibold">{s.xp_amount?.toLocaleString()} XP</UIText>
@@ -174,6 +266,51 @@ export default function ProfileScreen() {
                       </HStack>
                     </HStack>
                   ))}
+                </VStack>
+              </Card>
+            </CollapsibleSection>
+          )}
+
+          {/* Observer management (students) */}
+          {isStudent && (
+            <CollapsibleSection title="Who Can See My Activity">
+              <Card variant="elevated" size="md">
+                <VStack space="md">
+                  <UIText size="sm" className="text-typo-500">
+                    These people can view your learning activity and leave comments.
+                  </UIText>
+                  {viewers.length > 0 ? (
+                    <VStack space="xs">
+                      {viewers.map((viewer: Viewer, idx: number) => (
+                        <HStack key={`viewer-${idx}`} className="items-center justify-between py-2">
+                          <HStack className="items-center gap-3 flex-1">
+                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: viewer.type === 'platform' ? '#6D469B15' : viewer.type === 'parent' ? '#3B82F615' : viewer.type === 'advisor' ? '#10B98115' : '#F59E0B15', alignItems: 'center', justifyContent: 'center' }}>
+                              <Ionicons
+                                name={viewer.type === 'platform' ? 'shield-checkmark' : viewer.type === 'parent' ? 'people' : viewer.type === 'advisor' ? 'school' : 'eye'}
+                                size={18}
+                                color={viewer.type === 'platform' ? '#6D469B' : viewer.type === 'parent' ? '#3B82F6' : viewer.type === 'advisor' ? '#10B981' : '#F59E0B'}
+                              />
+                            </View>
+                            <VStack>
+                              <UIText size="sm" className="font-poppins-medium">{viewer.name}</UIText>
+                              <UIText size="xs" className="text-typo-400">{viewer.detail}</UIText>
+                            </VStack>
+                          </HStack>
+                          {viewer.removable && viewer.link_id && (
+                            <Pressable onPress={() => handleRemoveObserver(viewer.link_id!, viewer.name)} className="p-2">
+                              <Ionicons name="close-circle-outline" size={22} color="#EF4444" />
+                            </Pressable>
+                          )}
+                        </HStack>
+                      ))}
+                    </VStack>
+                  ) : (
+                    <UIText size="sm" className="text-typo-400 text-center py-2">No observers yet</UIText>
+                  )}
+                  <Divider />
+                  <Button size="md" variant="outline" onPress={() => setInviteObserverVisible(true)}>
+                    <ButtonText>Invite an Observer</ButtonText>
+                  </Button>
                 </VStack>
               </Card>
             </CollapsibleSection>
@@ -200,12 +337,136 @@ export default function ProfileScreen() {
             </Pressable>
           )}
 
+          {/* Account Settings */}
+          <CollapsibleSection title="Account Settings" defaultOpen={false}>
+            <Card variant="elevated" size="md">
+              <VStack space="md">
+                {deletionStatus.deletion_status === 'pending' ? (
+                  <VStack space="sm">
+                    <HStack className="items-center gap-2">
+                      <Ionicons name="warning" size={20} color="#EF4444" />
+                      <UIText size="sm" className="font-poppins-semibold text-red-600">Account Deletion Scheduled</UIText>
+                    </HStack>
+                    <UIText size="sm" className="text-typo-500">
+                      Your account is scheduled for permanent deletion
+                      {deletionStatus.days_remaining !== undefined && ` in ${deletionStatus.days_remaining} days`}.
+                      All data will be permanently removed after this period.
+                    </UIText>
+                    {deletionStatus.deletion_scheduled_for && (
+                      <UIText size="xs" className="text-typo-400">
+                        Scheduled for: {new Date(deletionStatus.deletion_scheduled_for).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                      </UIText>
+                    )}
+                    <Button size="md" variant="outline" onPress={handleCancelDeletion}>
+                      <ButtonText>Cancel Deletion</ButtonText>
+                    </Button>
+                  </VStack>
+                ) : (
+                  <VStack space="sm">
+                    <UIText size="sm" className="font-poppins-medium">Delete Account</UIText>
+                    <UIText size="sm" className="text-typo-500">
+                      Permanently delete your account and all associated data. A 30-day grace period applies.
+                    </UIText>
+                    <Button size="md" variant="outline" action="negative" onPress={handleRequestDeletion} loading={deletionRequesting} disabled={deletionRequesting}>
+                      <ButtonText>Delete My Account</ButtonText>
+                    </Button>
+                  </VStack>
+                )}
+              </VStack>
+            </Card>
+          </CollapsibleSection>
+
           <Divider />
           <Button variant="outline" action="negative" onPress={logout}>
             <ButtonText>Sign Out</ButtonText>
           </Button>
         </VStack>
       </ScrollView>
+
+      {/* Invite Observer Modal */}
+      <Modal visible={inviteObserverVisible} transparent animationType="none" onRequestClose={() => setInviteObserverVisible(false)}>
+        <KeyboardAvoidingView className="flex-1 justify-end" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <Pressable className="flex-1" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setInviteObserverVisible(false)} />
+          <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
+            <View className="w-10 h-1 bg-surface-300 rounded-full self-center mb-4" />
+            <VStack space="md">
+              <Heading size="lg">Invite Observer</Heading>
+              <UIText size="sm" className="text-typo-500">
+                Enter the email of someone you'd like to observe your learning journey.
+              </UIText>
+              <TextInput
+                value={observerEmail}
+                onChangeText={setObserverEmail}
+                placeholder="Observer's email address"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                className="bg-surface-50 rounded-xl p-4 text-base"
+                style={{ fontFamily: 'Poppins_400Regular' }}
+              />
+              <Button size="lg" onPress={handleInviteObserver} loading={invitingObserver} disabled={!observerEmail.trim() || invitingObserver} className="w-full">
+                <ButtonText>Send Invitation</ButtonText>
+              </Button>
+            </VStack>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Edit Profile Modal */}
+      <Modal visible={editVisible} transparent animationType="none" onRequestClose={() => setEditVisible(false)}>
+        <KeyboardAvoidingView className="flex-1 justify-end" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <Pressable className="flex-1" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setEditVisible(false)} />
+          <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
+            <View className="w-10 h-1 bg-surface-300 rounded-full self-center mb-4" />
+            <VStack space="md">
+              <HStack className="items-center justify-between">
+                <Heading size="lg">Edit Profile</Heading>
+                <Pressable onPress={() => setEditVisible(false)} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
+                  <Ionicons name="close" size={18} color="#6B7280" />
+                </Pressable>
+              </HStack>
+              <VStack space="xs">
+                <UIText size="sm" className="font-poppins-medium">Display Name</UIText>
+                <TextInput
+                  value={editDisplay}
+                  onChangeText={setEditDisplay}
+                  placeholder="Display name"
+                  placeholderTextColor="#9CA3AF"
+                  className="bg-surface-50 rounded-xl p-4 text-base"
+                  style={{ fontFamily: 'Poppins_400Regular' }}
+                />
+              </VStack>
+              <HStack space="sm">
+                <VStack space="xs" className="flex-1">
+                  <UIText size="sm" className="font-poppins-medium">First Name</UIText>
+                  <TextInput
+                    value={editFirst}
+                    onChangeText={setEditFirst}
+                    placeholder="First name"
+                    placeholderTextColor="#9CA3AF"
+                    className="bg-surface-50 rounded-xl p-4 text-base"
+                    style={{ fontFamily: 'Poppins_400Regular' }}
+                  />
+                </VStack>
+                <VStack space="xs" className="flex-1">
+                  <UIText size="sm" className="font-poppins-medium">Last Name</UIText>
+                  <TextInput
+                    value={editLast}
+                    onChangeText={setEditLast}
+                    placeholder="Last name"
+                    placeholderTextColor="#9CA3AF"
+                    className="bg-surface-50 rounded-xl p-4 text-base"
+                    style={{ fontFamily: 'Poppins_400Regular' }}
+                  />
+                </VStack>
+              </HStack>
+              <Button size="lg" onPress={handleSaveProfile} loading={saving} disabled={saving} className="w-full">
+                <ButtonText>Save Changes</ButtonText>
+              </Button>
+            </VStack>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }

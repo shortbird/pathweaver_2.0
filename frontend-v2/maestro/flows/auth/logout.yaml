@@ -1,0 +1,20 @@
+appId: com.optioeducation.optio
+name: "Auth: Logout"
+tags:
+  - auth
+---
+- runFlow: login-as-student.yaml
+- tapOn:
+    text: "Profile"
+- assertVisible:
+    text: "Profile"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Sign Out"
+    direction: DOWN
+- tapOn:
+    text: "Sign Out"
+- assertVisible:
+    text: "Welcome Back"
+    timeout: 10000

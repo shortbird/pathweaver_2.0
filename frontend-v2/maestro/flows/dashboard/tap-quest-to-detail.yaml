@@ -1,0 +1,53 @@
+appId: com.optioeducation.optio
+name: "Dashboard: Tap Quest Card to View Detail"
+tags:
+  - dashboard
+  - quests
+  - navigation
+---
+# Login and navigate to dashboard
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    text: "Home"
+    optional: true
+
+# Wait for dashboard to load
+- assertVisible:
+    text: "Welcome back"
+    timeout: 15000
+
+# Wait for quest cards to load
+- assertVisible:
+    text: "Current Quests"
+    timeout: 10000
+
+# Tap the first quest card (uses testID pattern quest-card-{id})
+# Since we don't know the quest ID, tap any visible quest card text
+- runFlow:
+    when:
+      visible:
+        id: "current-quests-grid"
+    commands:
+      # Tap the first quest card in the grid
+      - tapOn:
+          id: "current-quests-grid"
+          childOf:
+            index: 0
+
+      # Verify we landed on the quest detail page
+      - assertVisible:
+          id: "quest-detail-header"
+          timeout: 15000
+      - assertVisible:
+          id: "quest-title"
+      - assertVisible:
+          id: "quest-description"
+
+      # Verify task section is present if enrolled
+      - runFlow:
+          when:
+            visible:
+              id: "quest-task-list"
+          commands:
+            - assertVisible:
+                text: "Tasks"

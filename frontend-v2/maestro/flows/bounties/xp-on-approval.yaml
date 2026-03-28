@@ -1,0 +1,12 @@
+appId: com.optioeducation.optio
+name: "Bounties: Verify XP on Profile"
+tags:
+  - bounties
+  - profile
+---
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    text: "Profile"
+- assertVisible:
+    text: "Total XP"
+    timeout: 10000

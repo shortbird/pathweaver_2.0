@@ -72,15 +72,6 @@ export function useFeed(options: UseFeedOptions = {}) {
   const [error, setError] = useState<string | null>(null);
   const cursorRef = useRef<string | null>(null);
 
-  // Determine if user should see the aggregated observer feed
-  // Check role, org_role, AND backend flags for superadmin/parent with dependents
-  const canSeeStudents = user?.role === 'parent' || user?.role === 'advisor' ||
-    user?.role === 'observer' || user?.role === 'superadmin' ||
-    user?.org_role === 'parent' || user?.org_role === 'advisor' ||
-    user?.org_role === 'observer' || user?.org_role === 'org_admin' ||
-    (user as any)?.has_dependents || (user as any)?.has_linked_students ||
-    (user as any)?.has_advisor_assignments;
-
   const fetchFeed = useCallback(async (cursor?: string) => {
     if (!isAuthenticated) return;
 
@@ -89,19 +80,14 @@ export function useFeed(options: UseFeedOptions = {}) {
     else setLoading(true);
 
     try {
-      // Route to appropriate endpoint based on role
-      let endpoint: string;
+      // Single unified feed endpoint for all roles and contexts.
+      // /api/observers/feed returns task completions + learning moments,
+      // scoped by permissions (own activity, dependents, linked students, etc.)
+      const endpoint = '/api/observers/feed';
       const params: Record<string, string> = {};
 
       if (options.studentId) {
-        // Viewing specific student's activity
-        endpoint = `/api/observers/student/${options.studentId}/activity`;
-      } else if (canSeeStudents) {
-        // Parent/advisor/observer/superadmin sees linked students
-        endpoint = '/api/observers/feed';
-      } else {
-        // Student sees own activity
-        endpoint = `/api/observers/student/${user?.id}/activity`;
+        params.student_id = options.studentId;
       }
 
       if (cursor) params.cursor = cursor;
@@ -130,7 +116,7 @@ export function useFeed(options: UseFeedOptions = {}) {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [isAuthenticated, user?.id, options.studentId, canSeeStudents, options.limit]);
+  }, [isAuthenticated, user?.id, options.studentId, options.limit]);
 
   useEffect(() => {
     cursorRef.current = null;
@@ -180,4 +166,22 @@ export async function getComments(type: 'task_completed' | 'learning_moment', id
     : `/api/observers/learning-events/${cleanId}/comments`;
   const { data } = await api.get(endpoint);
   return data.comments || data || [];
+}
+
+export async function createShareLink(type: 'task_completed' | 'learning_moment', id: string) {
+  const cleanId = id.replace(/^(tc_|le_)/, '');
+  const body = type === 'task_completed'
+    ? { completion_id: cleanId }
+    : { learning_event_id: cleanId };
+  const { data } = await api.post('/api/observers/feed/share', body);
+  return data as { share_url: string; token: string };
+}
+
+export async function toggleVisibility(type: 'task_completed' | 'learning_moment', id: string, hidden: boolean) {
+  const cleanId = id.replace(/^(tc_|le_)/, '');
+  const body = type === 'task_completed'
+    ? { completion_id: cleanId, hidden }
+    : { learning_event_id: cleanId, hidden };
+  const { data } = await api.post('/api/observers/feed-item/toggle-visibility', body);
+  return data as { status: string; hidden: boolean };
 }

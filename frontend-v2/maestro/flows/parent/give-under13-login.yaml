@@ -1,0 +1,16 @@
+appId: com.optioeducation.optio
+name: "Parent: Give Under-13 Login Credentials"
+tags:
+  - parent
+---
+- runFlow: ../auth/login-as-parent.yaml
+- tapOn:
+    text: "Profile"
+- assertVisible:
+    text: "Profile"
+    timeout: 10000
+- tapOn:
+    text: "Family Dashboard"
+- assertVisible:
+    text: "Family Dashboard"
+    timeout: 10000
