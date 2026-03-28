@@ -1,0 +1,113 @@
+name: Frontend V2 E2E Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend-v2/**'
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Build APK for E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: frontend-v2
+        run: npm ci
+
+      - name: Build APK
+        working-directory: frontend-v2
+        run: eas build --platform android --profile development --non-interactive --local
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: optio-dev-apk
+          path: frontend-v2/build-*.apk
+          retention-days: 1
+
+  maestro-e2e:
+    name: Maestro E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: build-apk
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: optio-dev-apk
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Setup Android emulator and run Maestro
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            # Install APK
+            adb install build-*.apk
+
+            # Install Maestro CLI
+            curl -Ls "https://get.maestro.mobile.dev" | bash
+            export PATH="$PATH":"$HOME/.maestro/bin"
+
+            # Setup E2E test data
+            pip install supabase python-dotenv
+            python backend/scripts/setup_e2e_test_data.py
+
+            # Run Maestro flows
+            maestro test frontend-v2/maestro/flows/ --format junit --output maestro-report.xml
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          E2E_STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
+          E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
+          E2E_PARENT_EMAIL: ${{ secrets.E2E_PARENT_EMAIL }}
+          E2E_PARENT_PASSWORD: ${{ secrets.E2E_PARENT_PASSWORD }}
+          E2E_OBSERVER_EMAIL: ${{ secrets.E2E_OBSERVER_EMAIL }}
+          E2E_OBSERVER_PASSWORD: ${{ secrets.E2E_OBSERVER_PASSWORD }}
+
+      - name: Upload Maestro report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-report
+          path: maestro-report.xml
+          retention-days: 30

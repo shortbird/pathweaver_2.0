@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
-import { useAuthStore } from '../stores/authStore';
+import { useActingAsStore } from '../stores/actingAsStore';
 
 // ── Users ──
 
@@ -62,8 +62,8 @@ export function useAdminUsers() {
   };
 
   const masquerade = async (userId: string) => {
-    const { data } = await api.post(`/api/admin/masquerade/${userId}`, {});
-    return data;
+    // startMasquerade swaps tokens and triggers a full page reload
+    await useActingAsStore.getState().startMasquerade(userId);
   };
 
   const getUserDetail = async (userId: string) => {

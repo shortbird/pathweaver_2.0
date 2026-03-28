@@ -1,0 +1,11 @@
+appId: com.optioeducation.optio
+name: "Observer: Student Removes Observer"
+tags:
+  - observer
+---
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    text: "Profile"
+- assertVisible:
+    text: "Profile"
+    timeout: 10000

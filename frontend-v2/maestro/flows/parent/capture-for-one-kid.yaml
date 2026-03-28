@@ -1,0 +1,17 @@
+appId: com.optioeducation.optio
+name: "Parent: Capture Moment for One Kid"
+tags:
+  - parent
+  - journal
+---
+- runFlow: ../auth/login-as-parent.yaml
+- tapOn:
+    id: "capture-button"
+- assertVisible:
+    text: "Capture a Moment"
+    timeout: 10000
+- tapOn:
+    text: "What did you learn?"
+- inputText: "Parent captured moment for child"
+- tapOn:
+    text: "Save Moment"

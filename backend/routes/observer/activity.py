@@ -149,22 +149,25 @@ def register_routes(bp):
                         evidence_preview = None
                         content = block.get('content', {})
 
-                        if block['block_type'] == 'image':
+                        url = content.get('url', '')
+                        is_heic = url.lower().endswith('.heic') or url.lower().endswith('.heif') if url else False
+
+                        if block['block_type'] == 'image' or is_heic:
                             evidence_type = 'image'
-                            evidence_preview = content.get('url')
+                            evidence_preview = url
                         elif block['block_type'] == 'video':
                             evidence_type = 'video'
-                            evidence_preview = content.get('url')
+                            evidence_preview = url
                         elif block['block_type'] == 'link':
                             evidence_type = 'link'
-                            evidence_preview = content.get('url')
+                            evidence_preview = url
                         elif block['block_type'] == 'text':
                             evidence_type = 'text'
                             text = content.get('text', '')
                             evidence_preview = text[:200] + '...' if len(text) > 200 else text
                         elif block['block_type'] == 'document':
                             evidence_type = 'link'
-                            evidence_preview = content.get('url')
+                            evidence_preview = url
 
                         if evidence_type:
                             raw_feed_items.append({
@@ -260,22 +263,25 @@ def register_routes(bp):
                                 evidence_type = None
                                 evidence_preview = None
 
-                                if block['block_type'] == 'image':
+                                url = content.get('url', '')
+                                be_is_heic = url.lower().endswith('.heic') or url.lower().endswith('.heif') if url else False
+
+                                if block['block_type'] == 'image' or be_is_heic:
                                     evidence_type = 'image'
-                                    evidence_preview = content.get('url')
+                                    evidence_preview = url
                                 elif block['block_type'] == 'video':
                                     evidence_type = 'video'
-                                    evidence_preview = content.get('url')
+                                    evidence_preview = url
                                 elif block['block_type'] == 'link':
                                     evidence_type = 'link'
-                                    evidence_preview = content.get('url')
+                                    evidence_preview = url
                                 elif block['block_type'] == 'text':
                                     evidence_type = 'text'
                                     text = content.get('text', '')
                                     evidence_preview = text[:200] + '...' if len(text) > 200 else text
                                 elif block['block_type'] == 'document':
                                     evidence_type = 'link'
-                                    evidence_preview = content.get('url')
+                                    evidence_preview = url
 
                                 if evidence_type:
                                     raw_feed_items.append({

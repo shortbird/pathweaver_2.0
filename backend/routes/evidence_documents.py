@@ -477,8 +477,16 @@ def upload_block_file(user_id: str, block_id: str):
         if block_type == 'image' and not current_content.get('alt'):
             current_content['alt'] = result.filename
 
+        # If the file was converted (e.g. HEIC->JPG), reclassify block as image
+        update_data = {'content': current_content}
+        if block_type == 'document' and result.content_type and result.content_type.startswith('image/'):
+            update_data['block_type'] = 'image'
+            if not current_content.get('alt'):
+                current_content['alt'] = result.filename
+            update_data['content'] = current_content
+
         admin_supabase.table('evidence_document_blocks')\
-            .update({'content': current_content})\
+            .update(update_data)\
             .eq('id', block_id)\
             .execute()
 

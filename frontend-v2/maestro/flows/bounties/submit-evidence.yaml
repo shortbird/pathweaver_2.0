@@ -1,0 +1,22 @@
+appId: com.optioeducation.optio
+name: "Bounties: Submit Evidence for Claim"
+tags:
+  - bounties
+---
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    text: "Bounties"
+- assertVisible:
+    text: "Browse"
+    timeout: 10000
+- tapOn:
+    text: "My Claims"
+- assertVisible:
+    text: "My Claims"
+    timeout: 10000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn:
+          text: "Continue"

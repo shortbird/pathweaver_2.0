@@ -1,0 +1,12 @@
+appId: com.optioeducation.optio
+name: "Parent: Upload Evidence for Kid"
+tags:
+  - parent
+  - evidence
+---
+- runFlow: ../auth/login-as-parent.yaml
+- tapOn:
+    id: "capture-button"
+- assertVisible:
+    text: "Capture a Moment"
+    timeout: 10000

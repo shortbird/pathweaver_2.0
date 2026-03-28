@@ -1,0 +1,17 @@
+appId: com.optioeducation.optio
+name: "Bounties: Parent View Posted Bounties"
+tags:
+  - bounties
+  - parent
+---
+- runFlow: ../auth/login-as-parent.yaml
+- tapOn:
+    text: "Bounties"
+- assertVisible:
+    text: "Bounties"
+    timeout: 10000
+- tapOn:
+    text: "Posted"
+- assertVisible:
+    text: "Posted"
+    timeout: 10000

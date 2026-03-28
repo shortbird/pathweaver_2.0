@@ -1,0 +1,41 @@
+appId: com.optioeducation.optio
+name: "Dashboard: View Current Quests"
+tags:
+  - dashboard
+  - quests
+---
+# Login and navigate to dashboard
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    text: "Home"
+    optional: true
+
+# Wait for dashboard to load
+- assertVisible:
+    text: "Welcome back"
+    timeout: 15000
+
+# Verify Current Quests section exists
+- assertVisible:
+    text: "Current Quests"
+- assertVisible:
+    text: "Browse All"
+
+# Either quest cards are visible or the empty state is shown
+- runFlow:
+    when:
+      visible:
+        id: "current-quests-grid"
+    commands:
+      # Quest grid loaded with at least one card
+      - assertVisible:
+          id: "current-quests-grid"
+- runFlow:
+    when:
+      visible: "No quests yet"
+    commands:
+      # Empty state: shows browse prompt
+      - assertVisible:
+          text: "Browse quests to get started"
+      - assertVisible:
+          text: "Browse Quests"

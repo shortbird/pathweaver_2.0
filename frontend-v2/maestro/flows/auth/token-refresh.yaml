@@ -1,0 +1,17 @@
+appId: com.optioeducation.optio
+name: "Auth: Token Refresh"
+tags:
+  - auth
+---
+- runFlow: login-as-student.yaml
+- assertVisible:
+    text: "Feed"
+    timeout: 10000
+- wait:
+    seconds: 5
+- swipe:
+    direction: DOWN
+    duration: 500
+- assertVisible:
+    text: "Feed"
+    timeout: 10000

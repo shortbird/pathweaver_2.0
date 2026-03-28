@@ -3,7 +3,7 @@
  * Mobile uses bottom tabs instead.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Pressable, Image } from 'react-native';
 import { usePathname, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +12,7 @@ import { Divider } from '../ui/divider';
 import { useAuthStore } from '@/src/stores/authStore';
 import { desktopNavItems, navItems } from '@/src/config/navigation';
 import type { NavItem } from '@/src/config/navigation';
+import api from '@/src/services/api';
 
 const LOGO_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
@@ -20,6 +21,7 @@ function NavLink({ item }: { item: NavItem }) {
   const pathname = usePathname();
   const routePath = item.href.replace('/(app)/(tabs)', '');
   const isActive = pathname === routePath || pathname.startsWith(routePath + '/');
+  const isAdminOnly = !!item.roles;
 
   return (
     <Pressable
@@ -35,16 +37,40 @@ function NavLink({ item }: { item: NavItem }) {
       />
       <UIText
         size="sm"
-        className={isActive ? 'text-optio-purple font-poppins-semibold' : 'text-typo-500'}
+        className={`flex-1 ${isActive ? 'text-optio-purple font-poppins-semibold' : 'text-typo-500'}`}
       >
         {item.label}
       </UIText>
+      {isAdminOnly && (
+        <Ionicons name="shield-checkmark-outline" size={14} color="#9CA3AF" />
+      )}
     </Pressable>
   );
 }
 
 export function Sidebar() {
   const { user, logout } = useAuthStore();
+  const [hasCourses, setHasCourses] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    const effectiveRole = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
+    // Superadmin/org_admin/advisor always see courses
+    if (['superadmin', 'org_admin', 'advisor'].includes(effectiveRole)) {
+      setHasCourses(true);
+      return;
+    }
+    // Others: check if they have enrolled courses
+    (async () => {
+      try {
+        const { data } = await api.get('/api/users/dashboard');
+        const enrolled = data?.enrolled_courses || [];
+        setHasCourses(enrolled.length > 0);
+      } catch {
+        setHasCourses(false);
+      }
+    })();
+  }, [user]);
 
   return (
     <View className="w-60 bg-white border-r border-surface-200 pt-6 pb-4 flex flex-col h-full">
@@ -59,7 +85,15 @@ export function Sidebar() {
 
       {/* Nav items */}
       <View className="flex-1 gap-1">
-        {desktopNavItems.map((item) => (
+        {desktopNavItems.filter((item) => {
+          // Courses: only if user has enrolled/created courses
+          if (item.key === 'courses' && !hasCourses) return false;
+          // Role-gated items
+          if (!item.roles) return true;
+          if (!user) return false;
+          const effectiveRole = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
+          return item.roles.includes(effectiveRole) || effectiveRole === 'superadmin';
+        }).map((item) => (
           <NavLink key={item.key} item={item} />
         ))}
 

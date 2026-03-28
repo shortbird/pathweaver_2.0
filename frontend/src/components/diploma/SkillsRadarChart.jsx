@@ -81,7 +81,7 @@ const CustomAngleTick = ({ payload, x, y, cx, cy, compact }) => {
 };
 
 const SkillsRadarChart = ({ skillsXP, compact = false }) => {
-  // Reordered for better visual balance - alternating between high and low values
+  // Static order for stats display
   const competencyOrder = [
     'art',
     'wellness',
@@ -89,6 +89,14 @@ const SkillsRadarChart = ({ skillsXP, compact = false }) => {
     'civics',
     'communication'
   ];
+
+  // Dynamic order for radar chart: group non-zero pillars together so the
+  // polygon forms a connected shape instead of disconnected spikes
+  const chartOrder = (() => {
+    const withXP = competencyOrder.filter(k => (skillsXP[k] || 0) > 0);
+    const withoutXP = competencyOrder.filter(k => (skillsXP[k] || 0) === 0);
+    return [...withXP, ...withoutXP];
+  })();
 
   const competencyInfo = {
     art: {
@@ -148,8 +156,8 @@ const SkillsRadarChart = ({ skillsXP, compact = false }) => {
   const highestXP = Math.max(...Object.values(skillsXP || {}), 0);
   const maxXP = highestXP > 0 ? highestXP + 250 : 1000;
 
-  // Prepare data for radar chart using the reordered sequence
-  const radarData = competencyOrder.map(key => ({
+  // Prepare data for radar chart using the dynamic order
+  const radarData = chartOrder.map(key => ({
     competency: competencyInfo[key].label,
     value: skillsXP[key] || 0,
     fullMark: maxXP

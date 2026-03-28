@@ -1,0 +1,54 @@
+appId: com.optioeducation.optio
+name: "Dashboard: View Learning Rhythm Calendar"
+tags:
+  - dashboard
+  - engagement
+---
+# Login and navigate to dashboard
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    text: "Home"
+    optional: true
+
+# Wait for dashboard to load
+- assertVisible:
+    text: "Welcome back"
+    timeout: 15000
+
+# Scroll down to the Learning Rhythm section
+- scrollUntilVisible:
+    element:
+      text: "Your Learning Rhythm"
+    direction: DOWN
+    timeout: 10000
+
+# Verify the rhythm section loaded
+- assertVisible:
+    id: "learning-rhythm-section"
+- assertVisible:
+    id: "learning-rhythm-card"
+
+# Either the calendar grid is rendered (has activity) or the empty state
+- runFlow:
+    when:
+      visible:
+        id: "calendar-grid"
+    commands:
+      # Calendar has data: verify date range and active days counter
+      - assertVisible:
+          id: "calendar-date-range"
+      - assertVisible:
+          id: "calendar-active-days"
+      # Verify the legend is present
+      - assertVisible:
+          text: "Less"
+      - assertVisible:
+          text: "More"
+- runFlow:
+    when:
+      visible:
+        id: "calendar-empty"
+    commands:
+      # New student with no activity yet
+      - assertVisible:
+          text: "Your activity calendar will appear here"

@@ -1,0 +1,18 @@
+appId: com.optioeducation.optio
+name: "Profile: View XP Breakdown"
+tags:
+  - profile
+---
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    text: "Profile"
+- assertVisible:
+    text: "Profile"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Pillar Breakdown"
+    direction: DOWN
+- assertVisible:
+    text: "Pillar Breakdown"
+    timeout: 10000

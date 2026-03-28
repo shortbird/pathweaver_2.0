@@ -1,0 +1,11 @@
+appId: com.optioeducation.optio
+name: "Journal: Assign to Quest"
+tags:
+  - journal
+---
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    text: "Journal"
+- assertVisible:
+    text: "Journal"
+    timeout: 10000

@@ -25,7 +25,7 @@ const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
 interface TopicsSidebarProps {
   topics: UnifiedTopic[];
   selectedId: string | null;
-  selectedType: 'unassigned' | 'topic' | 'quest';
+  selectedType: 'unassigned' | 'topic' | 'track' | 'quest';
   onSelectUnassigned: () => void;
   onSelectTopic: (id: string, type: 'topic' | 'quest' | 'track') => void;
   unassignedCount: number;

@@ -20,8 +20,8 @@ const variantClasses: Record<InputVariant, string> = {
 };
 
 const sizeClasses: Record<InputSize, string> = {
-  sm: 'h-9',
-  md: 'h-11',
+  sm: 'h-10',
+  md: 'h-12',
   lg: 'h-14',
 };
 
@@ -62,7 +62,7 @@ export function InputField({ className = '', ...props }: InputFieldProps) {
 
   return (
     <TextInput
-      className={`flex-1 px-3 font-poppins text-base text-typo ${className}`}
+      className={`flex-1 px-3 py-2 font-poppins text-sm text-typo ${className}`}
       editable={!isDisabled}
       placeholderTextColor="#9CA3AF"
       {...props}

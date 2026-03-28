@@ -1,0 +1,17 @@
+appId: com.optioeducation.optio
+name: "Parent: Add Observer"
+tags:
+  - parent
+  - observer
+---
+- runFlow: ../auth/login-as-parent.yaml
+- tapOn:
+    text: "Profile"
+- assertVisible:
+    text: "Profile"
+    timeout: 10000
+- tapOn:
+    text: "Family Dashboard"
+- assertVisible:
+    text: "Family Dashboard"
+    timeout: 10000

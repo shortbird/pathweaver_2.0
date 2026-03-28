@@ -35,7 +35,6 @@ export function PillarRadar({ data, size = 240 }: PillarRadarProps) {
   const cx = size / 2;
   const cy = size / 2;
   const maxRadius = size / 2 - 30; // leave room for labels
-  const angleStep = 360 / PILLARS.length;
 
   // Find max XP for normalization
   const xpMap: Record<string, number> = {};
@@ -44,9 +43,17 @@ export function PillarRadar({ data, size = 240 }: PillarRadarProps) {
   }
   const maxXP = Math.max(...Object.values(xpMap), 1);
 
+  // Reorder pillars so non-zero values are adjacent, preventing disconnected spikes
+  const orderedPillars = (() => {
+    const withXP = PILLARS.filter((p) => (xpMap[p.key] || 0) > 0);
+    const withoutXP = PILLARS.filter((p) => (xpMap[p.key] || 0) === 0);
+    return [...withXP, ...withoutXP];
+  })();
+  const orderedAngleStep = 360 / orderedPillars.length;
+
   // Build data polygon points
-  const dataPoints = PILLARS.map((p, i) => {
-    const angle = i * angleStep;
+  const dataPoints = orderedPillars.map((p, i) => {
+    const angle = i * orderedAngleStep;
     const value = xpMap[p.key] || 0;
     const normalizedRadius = (value / maxXP) * maxRadius;
     return polarToCartesian(angle, normalizedRadius, cx, cy);
@@ -56,16 +63,16 @@ export function PillarRadar({ data, size = 240 }: PillarRadarProps) {
   // Build grid rings
   const rings = Array.from({ length: LEVELS }, (_, i) => {
     const r = ((i + 1) / LEVELS) * maxRadius;
-    const points = PILLARS.map((_, j) => {
-      const angle = j * angleStep;
+    const points = orderedPillars.map((_, j) => {
+      const angle = j * orderedAngleStep;
       return polarToCartesian(angle, r, cx, cy);
     });
     return points.map((p) => `${p.x},${p.y}`).join(' ');
   });
 
   // Axis endpoints + labels
-  const axes = PILLARS.map((p, i) => {
-    const angle = i * angleStep;
+  const axes = orderedPillars.map((p, i) => {
+    const angle = i * orderedAngleStep;
     const end = polarToCartesian(angle, maxRadius, cx, cy);
     const labelPos = polarToCartesian(angle, maxRadius + 18, cx, cy);
     return { ...p, end, labelPos };
@@ -113,7 +120,7 @@ export function PillarRadar({ data, size = 240 }: PillarRadarProps) {
             cx={p.x}
             cy={p.y}
             r={4}
-            fill={PILLARS[i].color}
+            fill={orderedPillars[i].color}
             stroke="white"
             strokeWidth={2}
           />

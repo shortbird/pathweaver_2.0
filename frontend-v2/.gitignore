@@ -32,6 +32,8 @@ yarn-error.*
 
 # local env files
 .env*.local
+maestro/.env.maestro
+maestro/*.apk
 
 # typescript
 *.tsbuildinfo

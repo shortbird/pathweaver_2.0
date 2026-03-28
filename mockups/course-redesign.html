@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Course Redesign Mockups</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Poppins', sans-serif; background: #f3f4f6; color: #1f2937; }
+
+  /* Tab navigation */
+  .tab-bar { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; gap: 0; }
+  .tab-btn { flex: 1; padding: 16px; text-align: center; font-weight: 600; font-size: 14px; cursor: pointer; border: none; background: none; color: #6b7280; border-bottom: 3px solid transparent; transition: all .2s; }
+  .tab-btn.active { color: #6D469B; border-bottom-color: #6D469B; }
+  .tab-btn:hover { color: #6D469B; background: #f9fafb; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Shared */
+  .page { max-width: 860px; margin: 0 auto; padding: 32px 20px 80px; }
+  .page-title { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+  .page-sub { color: #6b7280; font-size: 15px; margin-bottom: 28px; }
+  .section-title { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
+
+  /* Cards */
+  .card { background: #fff; border-radius: 16px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 12px; transition: box-shadow .2s; }
+  .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.06); }
+  .card-header { display: flex; align-items: center; gap: 14px; cursor: pointer; }
+  .card-img { width: 48px; height: 48px; border-radius: 10px; background: linear-gradient(135deg, #6D469B22, #EF597B22); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+  .card-info { flex: 1; min-width: 0; }
+  .card-info h3 { font-size: 15px; font-weight: 600; }
+  .card-info .meta { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+  .chevron { color: #9ca3af; font-size: 18px; transition: transform .2s; }
+  .expanded .chevron { transform: rotate(180deg); }
+
+  /* Progress bar (small) */
+  .progress-bar-sm { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; flex: 1; }
+  .progress-bar-sm .fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #6D469B, #EF597B); transition: width .3s; }
+
+  /* Task row */
+  .task-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; background: #f9fafb; margin-bottom: 6px; transition: background .15s; }
+  .task-row:hover { background: #f3f4f6; }
+  .task-check { width: 24px; height: 24px; border-radius: 12px; border: 2px solid #d1d5db; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; transition: all .2s; }
+  .task-check.done { background: #16a34a; border-color: #16a34a; color: #fff; font-size: 13px; }
+  .task-title { flex: 1; font-size: 13px; }
+  .task-title.done-text { color: #9ca3af; text-decoration: line-through; }
+  .pillar-tag { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: .5px; }
+  .pillar-stem { background: #2469D118; color: #2469D1; }
+  .pillar-art { background: #AF56E518; color: #AF56E5; }
+  .pillar-comm { background: #3DA24A18; color: #3DA24A; }
+  .pillar-wellness { background: #FF902818; color: #FF9028; }
+  .pillar-civics { background: #E65C5C18; color: #E65C5C; }
+  .xp-tag { font-size: 11px; font-weight: 600; color: #6D469B; white-space: nowrap; }
+
+  /* Lesson link */
+  .lesson-link { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #6D469B; cursor: pointer; padding: 6px 12px; border-radius: 8px; background: #6D469B0a; margin-top: 8px; transition: background .15s; }
+  .lesson-link:hover { background: #6D469B18; }
+
+  /* Expandable body */
+  .card-body { display: none; padding-top: 16px; margin-top: 12px; border-top: 1px solid #f3f4f6; }
+  .expanded .card-body { display: block; }
+
+  /* === Option 3: Progress Rings === */
+  .rings-row { display: flex; gap: 16px; margin-bottom: 28px; overflow-x: auto; padding-bottom: 4px; }
+  .ring-card { background: #fff; border-radius: 16px; border: 1px solid #e5e7eb; padding: 20px; min-width: 200px; flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; cursor: pointer; transition: all .2s; }
+  .ring-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.06); border-color: #6D469B44; }
+  .ring-card.ring-active { border-color: #6D469B; box-shadow: 0 0 0 2px #6D469B22; }
+  .ring-svg { width: 80px; height: 80px; margin-bottom: 12px; }
+  .ring-bg { fill: none; stroke: #e5e7eb; stroke-width: 6; }
+  .ring-fill { fill: none; stroke: url(#ringGrad); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset .6s ease; }
+  .ring-text { font-size: 16px; font-weight: 700; fill: #1f2937; }
+  .ring-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .ring-card .ring-meta { font-size: 11px; color: #9ca3af; }
+
+  /* === Merged: Hero stats === */
+  .hero-stats { display: flex; gap: 20px; margin-bottom: 28px; background: #fff; border-radius: 16px; border: 1px solid #e5e7eb; padding: 24px 28px; align-items: center; }
+  .hero-ring { flex-shrink: 0; }
+  .hero-ring .ring-svg { width: 100px; height: 100px; }
+  .hero-details { flex: 1; }
+  .hero-details h2 { font-size: 22px; font-weight: 700; margin-bottom: 2px; }
+  .hero-details .hero-sub { font-size: 13px; color: #6b7280; margin-bottom: 12px; }
+  .stat-pills { display: flex; gap: 10px; flex-wrap: wrap; }
+  .stat-pill { background: #f9fafb; border-radius: 10px; padding: 8px 14px; display: flex; flex-direction: column; }
+  .stat-pill .stat-val { font-size: 18px; font-weight: 700; color: #6D469B; }
+  .stat-pill .stat-label { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: .5px; }
+
+  /* Mini ring row in merged */
+  .mini-rings { display: flex; gap: 12px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 4px; }
+  .mini-ring-card { background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px 16px; display: flex; align-items: center; gap: 12px; min-width: 180px; cursor: pointer; transition: all .2s; }
+  .mini-ring-card:hover { border-color: #6D469B44; }
+  .mini-ring-card.active { border-color: #6D469B; background: #6D469B08; }
+  .mini-ring-svg { width: 40px; height: 40px; flex-shrink: 0; }
+  .mini-ring-info h4 { font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .mini-ring-info .mini-meta { font-size: 10px; color: #9ca3af; }
+
+  /* Lesson drawer */
+  .lesson-drawer { background: #faf8fc; border: 1px solid #6D469B22; border-radius: 12px; padding: 16px; margin-top: 10px; }
+  .lesson-drawer h4 { font-size: 13px; font-weight: 600; color: #6D469B; margin-bottom: 8px; }
+  .lesson-drawer-item { font-size: 12px; color: #4b5563; padding: 6px 0; display: flex; align-items: center; gap: 8px; }
+  .lesson-drawer-item .dot { width: 6px; height: 6px; border-radius: 3px; background: #6D469B; flex-shrink: 0; }
+
+  .open-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; background: #6D469B; color: #fff; font-size: 13px; font-weight: 600; border: none; cursor: pointer; margin-top: 12px; }
+  .open-btn:hover { background: #5a3884; }
+
+  .label-tag { display: inline-block; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: #6D469B; background: #6D469B12; padding: 2px 8px; border-radius: 4px; margin-bottom: 4px; }
+  .suggested-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; margin-top: 4px; }
+  .suggested-label { font-size: 11px; color: #9ca3af; font-weight: 500; }
+  .add-task-btn { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #6D469B; cursor: pointer; padding: 6px 14px; border-radius: 8px; border: 1px dashed #6D469B44; background: #fff; margin-top: 6px; margin-bottom: 6px; transition: all .15s; font-weight: 500; font-family: inherit; }
+  .add-task-btn:hover { background: #6D469B0a; border-color: #6D469B88; }
+  .xp-hint { font-size: 11px; color: #9ca3af; margin-top: 2px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="showTab('opt1')">Option 1: Task-First</button>
+  <button class="tab-btn" onclick="showTab('opt3')">Option 3: Progress Rings</button>
+  <button class="tab-btn" onclick="showTab('merged')">Merged</button>
+</div>
+
+<!-- SVG defs for rings -->
+<svg style="position:absolute;width:0;height:0">
+  <defs>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#6D469B"/>
+      <stop offset="100%" style="stop-color:#EF597B"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<!-- ═══════════ OPTION 1: Task-First Accordion ═══════════ -->
+<div id="opt1" class="tab-panel active">
+  <div class="page">
+    <div class="page-title">Storytelling Foundations</div>
+    <div class="page-sub">5 of 12 tasks complete &middot; 250 / 800 XP</div>
+
+    <!-- Project 1 -->
+    <div class="card expanded" onclick="toggleCard(this)">
+      <div class="card-header">
+        <div class="card-img">&#128214;</div>
+        <div class="card-info">
+          <h3>Explore Storytelling Basics</h3>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+            <div class="meta" style="white-space:nowrap;">3 of 5 tasks</div>
+            <div class="progress-bar-sm"><div class="fill" style="width:60%"></div></div>
+            <div class="xp-tag">300 / 500 XP</div>
+          </div>
+        </div>
+        <span class="chevron">&#9662;</span>
+      </div>
+      <div class="card-body">
+        <div class="task-row">
+          <div class="task-check done">&#10003;</div>
+          <span class="task-title done-text">Write a 1-paragraph personal story</span>
+          <span class="pillar-tag pillar-art">Art</span>
+          <span class="xp-tag">50 XP</span>
+        </div>
+        <div class="task-row">
+          <div class="task-check done">&#10003;</div>
+          <span class="task-title done-text">Record a 60-second voice memo telling your story</span>
+          <span class="pillar-tag pillar-art">Art</span>
+          <span class="xp-tag">75 XP</span>
+        </div>
+        <div class="task-row">
+          <div class="task-check done">&#10003;</div>
+          <span class="task-title done-text">Identify 3 story structures in media you consume</span>
+          <span class="pillar-tag pillar-comm">Communication</span>
+          <span class="xp-tag">75 XP</span>
+        </div>
+        <div class="task-row">
+          <div class="task-check"></div>
+          <span class="task-title">Map your story using a simple story arc template</span>
+          <span class="pillar-tag pillar-comm">Communication</span>
+          <span class="xp-tag">50 XP</span>
+        </div>
+        <div class="task-row">
+          <div class="task-check"></div>
+          <span class="task-title">Share your story with someone and get feedback</span>
+          <span class="pillar-tag pillar-civics">Civics</span>
+          <span class="xp-tag">75 XP</span>
+        </div>
+
+        <div class="lesson-link" onclick="event.stopPropagation()">
+          &#128218; Background: Find Your Story Idea &middot; Map Out Your Story &middot; +2 more
+        </div>
+      </div>
+    </div>
+
+    <!-- Project 2 -->
+    <div class="card" onclick="toggleCard(this)">
+      <div class="card-header">
+        <div class="card-img">&#127908;</div>
+        <div class="card-info">
+          <h3>Build Your Narrative Voice</h3>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+            <div class="meta" style="white-space:nowrap;">2 of 4 tasks</div>
+            <div class="progress-bar-sm"><div class="fill" style="width:50%"></div></div>
+            <div class="xp-tag">100 / 400 XP</div>
+          </div>
+        </div>
+        <span class="chevron">&#9662;</span>
+      </div>
+      <div class="card-body">
+        <div class="task-row">
+          <div class="task-check done">&#10003;</div>
+          <span class="task-title done-text">Write the same event from two different perspectives</span>
+          <span class="pillar-tag pillar-art">Art</span>
+          <span class="xp-tag">75 XP</span>
+        </div>
+        <div class="task-row">
+          <div class="task-check done">&#10003;</div>
+          <span class="task-title done-text">Record yourself telling a story in formal vs casual tone</span>
+          <span class="pillar-tag pillar-art">Art</span>
+          <span class="xp-tag">75 XP</span>
+        </div>
+        <div class="task-row">
+          <div class="task-check"></div>
+          <span class="task-title">Interview someone about a meaningful experience</span>
+          <span class="pillar-tag pillar-civics">Civics</span>
+          <span class="xp-tag">100 XP</span>
+        </div>
+        <div class="task-row">
+          <div class="task-check"></div>
+          <span class="task-title">Create a 2-minute video essay on a topic you care about</span>
+          <span class="pillar-tag pillar-art">Art</span>
+          <span class="xp-tag">150 XP</span>
+        </div>
+
+        <div class="lesson-link" onclick="event.stopPropagation()">
+          &#128218; Background: Voice & Tone &middot; Interview Techniques
+        </div>
+      </div>
+    </div>
+
+    <!-- Project 3 -->
+    <div class="card" onclick="toggleCard(this)">
+      <div class="card-header">
+        <div class="card-img">&#127912;</div>
+        <div class="card-info">
+          <h3>Tell Stories That Move People</h3>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+            <div class="meta" style="white-space:nowrap;">0 of 3 tasks</div>
+            <div class="progress-bar-sm"><div class="fill" style="width:0%"></div></div>
+            <div class="xp-tag">0 / 300 XP</div>
+          </div>
+        </div>
+        <span class="chevron">&#9662;</span>
+      </div>
+      <div class="card-body">
+        <div class="task-row">
+          <div class="task-check"></div>
+          <span class="task-title">Write a story that makes the reader feel a specific emotion</span>
+          <span class="pillar-tag pillar-art">Art</span>
+          <span class="xp-tag">100 XP</span>
+        </div>
+        <div class="task-row">
+          <div class="task-check"></div>
+          <span class="task-title">Perform your story live for an audience of 3+</span>
+          <span class="pillar-tag pillar-wellness">Wellness</span>
+          <span class="xp-tag">100 XP</span>
+        </div>
+        <div class="task-row">
+          <div class="task-check"></div>
+          <span class="task-title">Teach someone else a storytelling technique you learned</span>
+          <span class="pillar-tag pillar-civics">Civics</span>
+          <span class="xp-tag">100 XP</span>
+        </div>
+
+        <div class="lesson-link" onclick="event.stopPropagation()">
+          &#128218; Background: Emotional Hooks &middot; Performance Tips
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ OPTION 3: Progress Rings ═══════════ -->
+<div id="opt3" class="tab-panel">
+  <div class="page">
+    <div class="page-title">Storytelling Foundations</div>
+    <div class="page-sub">5 of 12 tasks complete &middot; 250 / 800 XP</div>
+
+    <!-- Rings row -->
+    <div class="rings-row">
+      <div class="ring-card ring-active" onclick="selectRing(this, 'ring-detail-1')">
+        <svg class="ring-svg" viewBox="0 0 42 42">
+          <circle class="ring-bg" cx="21" cy="21" r="18"/>
+          <circle class="ring-fill" cx="21" cy="21" r="18"
+            stroke-dasharray="113.1" stroke-dashoffset="45.24"
+            transform="rotate(-90 21 21)"/>
+          <text class="ring-text" x="21" y="24" text-anchor="middle">60%</text>
+        </svg>
+        <h4>Storytelling Basics</h4>
+        <div class="ring-meta">3 of 5 tasks &middot; 300 XP</div>
+      </div>
+      <div class="ring-card" onclick="selectRing(this, 'ring-detail-2')">
+        <svg class="ring-svg" viewBox="0 0 42 42">
+          <circle class="ring-bg" cx="21" cy="21" r="18"/>
+          <circle class="ring-fill" cx="21" cy="21" r="18"
+            stroke-dasharray="113.1" stroke-dashoffset="56.55"
+            transform="rotate(-90 21 21)"/>
+          <text class="ring-text" x="21" y="24" text-anchor="middle">50%</text>
+        </svg>
+        <h4>Narrative Voice</h4>
+        <div class="ring-meta">2 of 4 tasks &middot; 100 XP</div>
+      </div>
+      <div class="ring-card" onclick="selectRing(this, 'ring-detail-3')">
+        <svg class="ring-svg" viewBox="0 0 42 42">
+          <circle class="ring-bg" cx="21" cy="21" r="18"/>
+          <circle class="ring-fill" cx="21" cy="21" r="18"
+            stroke-dasharray="113.1" stroke-dashoffset="113.1"
+            transform="rotate(-90 21 21)"/>
+          <text class="ring-text" x="21" y="24" text-anchor="middle">0%</text>
+        </svg>
+        <h4>Move People</h4>
+        <div class="ring-meta">0 of 3 tasks &middot; 0 XP</div>
+      </div>
+    </div>
+
+    <!-- Detail panels -->
+    <div id="ring-detail-1" class="ring-detail" style="display:block">
+      <div class="section-title">Explore Storytelling Basics</div>
+      <div style="font-size:13px;color:#6b7280;margin-bottom:16px;">Students will find simple stories or ideas they want to share.</div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Write a 1-paragraph personal story</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">50 XP</span></div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Record a 60-second voice memo telling your story</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">75 XP</span></div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Identify 3 story structures in media you consume</span><span class="pillar-tag pillar-comm">Communication</span><span class="xp-tag">75 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Map your story using a simple story arc template</span><span class="pillar-tag pillar-comm">Communication</span><span class="xp-tag">50 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Share your story with someone and get feedback</span><span class="pillar-tag pillar-civics">Civics</span><span class="xp-tag">75 XP</span></div>
+      <div class="lesson-link">&#128218; Background reading: 4 lessons available</div>
+    </div>
+    <div id="ring-detail-2" class="ring-detail" style="display:none">
+      <div class="section-title">Build Your Narrative Voice</div>
+      <div style="font-size:13px;color:#6b7280;margin-bottom:16px;">Explore how tone, perspective, and style shape a story.</div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Write the same event from two different perspectives</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">75 XP</span></div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Record yourself telling a story in formal vs casual tone</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">75 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Interview someone about a meaningful experience</span><span class="pillar-tag pillar-civics">Civics</span><span class="xp-tag">100 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Create a 2-minute video essay on a topic you care about</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">150 XP</span></div>
+      <div class="lesson-link">&#128218; Background reading: 2 lessons available</div>
+    </div>
+    <div id="ring-detail-3" class="ring-detail" style="display:none">
+      <div class="section-title">Tell Stories That Move People</div>
+      <div style="font-size:13px;color:#6b7280;margin-bottom:16px;">Apply everything you've learned to create something that resonates.</div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Write a story that makes the reader feel a specific emotion</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">100 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Perform your story live for an audience of 3+</span><span class="pillar-tag pillar-wellness">Wellness</span><span class="xp-tag">100 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Teach someone else a storytelling technique you learned</span><span class="pillar-tag pillar-civics">Civics</span><span class="xp-tag">100 XP</span></div>
+      <div class="lesson-link">&#128218; Background reading: 2 lessons available</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MERGED: Rings + Task-First ═══════════ -->
+<div id="merged" class="tab-panel">
+  <div class="page">
+
+    <!-- Hero stats bar -->
+    <div class="hero-stats">
+      <div class="hero-ring">
+        <svg class="ring-svg" viewBox="0 0 42 42">
+          <circle class="ring-bg" cx="21" cy="21" r="18"/>
+          <circle class="ring-fill" cx="21" cy="21" r="18"
+            stroke-dasharray="113.1" stroke-dashoffset="65.6"
+            transform="rotate(-90 21 21)"/>
+          <text class="ring-text" x="21" y="24" text-anchor="middle">42%</text>
+        </svg>
+      </div>
+      <div class="hero-details">
+        <h2>Storytelling Foundations</h2>
+        <div class="hero-sub">Earn XP across 3 projects to complete this course</div>
+        <div class="stat-pills">
+          <div class="stat-pill">
+            <span class="stat-val">500 / 1,200</span>
+            <span class="stat-label">Total XP</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-val">1 / 3</span>
+            <span class="stat-label">Projects Complete</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-val">3</span>
+            <span class="stat-label">Pillars</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mini project rings as horizontal scroller / filter -->
+    <div class="mini-rings">
+      <div class="mini-ring-card active" onclick="selectMini(this, 'merged-all')">
+        <div style="width:40px;height:40px;border-radius:20px;background:linear-gradient(135deg,#6D469B,#EF597B);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;flex-shrink:0;">All</div>
+        <div class="mini-ring-info">
+          <h4>All Projects</h4>
+          <div class="mini-meta">500 / 1,200 XP</div>
+        </div>
+      </div>
+      <div class="mini-ring-card" onclick="selectMini(this, 'merged-1')">
+        <svg class="mini-ring-svg" viewBox="0 0 42 42">
+          <circle class="ring-bg" cx="21" cy="21" r="18"/>
+          <circle class="ring-fill" cx="21" cy="21" r="18" stroke-dasharray="113.1" stroke-dashoffset="45.24" transform="rotate(-90 21 21)"/>
+          <text class="ring-text" x="21" y="24" text-anchor="middle" style="font-size:11px">300</text>
+        </svg>
+        <div class="mini-ring-info">
+          <h4>Storytelling Basics</h4>
+          <div class="mini-meta">300 / 500 XP</div>
+        </div>
+      </div>
+      <div class="mini-ring-card" onclick="selectMini(this, 'merged-2')">
+        <svg class="mini-ring-svg" viewBox="0 0 42 42">
+          <circle class="ring-bg" cx="21" cy="21" r="18"/>
+          <circle class="ring-fill" cx="21" cy="21" r="18" stroke-dasharray="113.1" stroke-dashoffset="56.55" transform="rotate(-90 21 21)"/>
+          <text class="ring-text" x="21" y="24" text-anchor="middle" style="font-size:11px">150</text>
+        </svg>
+        <div class="mini-ring-info">
+          <h4>Narrative Voice</h4>
+          <div class="mini-meta">150 / 400 XP</div>
+        </div>
+      </div>
+      <div class="mini-ring-card" onclick="selectMini(this, 'merged-3')">
+        <svg class="mini-ring-svg" viewBox="0 0 42 42">
+          <circle class="ring-bg" cx="21" cy="21" r="18"/>
+          <circle class="ring-fill" cx="21" cy="21" r="18" stroke-dasharray="113.1" stroke-dashoffset="113.1" transform="rotate(-90 21 21)"/>
+          <text class="ring-text" x="21" y="24" text-anchor="middle" style="font-size:11px">0</text>
+        </svg>
+        <div class="mini-ring-info">
+          <h4>Move People</h4>
+          <div class="mini-meta">0 / 300 XP</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALL view -->
+    <div id="merged-all" style="display:block">
+      <!-- Project 1 -->
+      <div class="label-tag">Storytelling Basics</div>
+      <div class="xp-hint">300 / 500 XP to complete this project</div>
+      <div class="suggested-header"><span class="suggested-label">Suggested tasks</span></div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Write a 1-paragraph personal story</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">50 XP</span></div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Record a 60-second voice memo telling your story</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">75 XP</span></div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Identify 3 story structures in media you consume</span><span class="pillar-tag pillar-comm">Communication</span><span class="xp-tag">75 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Map your story using a simple story arc template</span><span class="pillar-tag pillar-comm">Communication</span><span class="xp-tag">50 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Share your story with someone and get feedback</span><span class="pillar-tag pillar-civics">Civics</span><span class="xp-tag">75 XP</span></div>
+      <button class="add-task-btn">+ Create your own task</button>
+      <div style="margin-bottom:6px">
+        <div class="lesson-link" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">&#128218; Need context? 4 lessons available</div>
+        <div class="lesson-drawer" style="display:none">
+          <h4>Background Lessons</h4>
+          <div class="lesson-drawer-item"><span class="dot"></span> Find Your Story Idea</div>
+          <div class="lesson-drawer-item"><span class="dot"></span> Map Out Your Story</div>
+          <div class="lesson-drawer-item"><span class="dot"></span> Practice Telling Your Story</div>
+          <div class="lesson-drawer-item"><span class="dot"></span> Share Your Story</div>
+        </div>
+      </div>
+
+      <!-- Project 2 -->
+      <div class="label-tag" style="margin-top:24px">Narrative Voice</div>
+      <div class="xp-hint">150 / 400 XP to complete this project</div>
+      <div class="suggested-header"><span class="suggested-label">Suggested tasks</span></div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Write the same event from two different perspectives</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">75 XP</span></div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Record yourself telling a story in formal vs casual tone</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">75 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Interview someone about a meaningful experience</span><span class="pillar-tag pillar-civics">Civics</span><span class="xp-tag">100 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Create a 2-minute video essay on a topic you care about</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">150 XP</span></div>
+      <button class="add-task-btn">+ Create your own task</button>
+      <div style="margin-bottom:6px">
+        <div class="lesson-link" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">&#128218; Need context? 2 lessons available</div>
+        <div class="lesson-drawer" style="display:none">
+          <h4>Background Lessons</h4>
+          <div class="lesson-drawer-item"><span class="dot"></span> Voice & Tone</div>
+          <div class="lesson-drawer-item"><span class="dot"></span> Interview Techniques</div>
+        </div>
+      </div>
+
+      <!-- Project 3 -->
+      <div class="label-tag" style="margin-top:24px">Move People</div>
+      <div class="xp-hint">0 / 300 XP to complete this project</div>
+      <div class="suggested-header"><span class="suggested-label">Suggested tasks</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Write a story that makes the reader feel a specific emotion</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">100 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Perform your story live for an audience of 3+</span><span class="pillar-tag pillar-wellness">Wellness</span><span class="xp-tag">100 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Teach someone else a storytelling technique you learned</span><span class="pillar-tag pillar-civics">Civics</span><span class="xp-tag">100 XP</span></div>
+      <button class="add-task-btn">+ Create your own task</button>
+      <div style="margin-bottom:6px">
+        <div class="lesson-link" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">&#128218; Need context? 2 lessons available</div>
+        <div class="lesson-drawer" style="display:none">
+          <h4>Background Lessons</h4>
+          <div class="lesson-drawer-item"><span class="dot"></span> Emotional Hooks</div>
+          <div class="lesson-drawer-item"><span class="dot"></span> Performance Tips</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filtered: Project 1 only -->
+    <div id="merged-1" style="display:none">
+      <div class="section-title">Explore Storytelling Basics</div>
+      <div style="font-size:13px;color:#6b7280;margin-bottom:4px;">Students will find simple stories or ideas they want to share.</div>
+      <div class="xp-hint">300 / 500 XP to complete this project</div>
+      <div class="suggested-header"><span class="suggested-label">Suggested tasks</span></div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Write a 1-paragraph personal story</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">50 XP</span></div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Record a 60-second voice memo telling your story</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">75 XP</span></div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Identify 3 story structures in media you consume</span><span class="pillar-tag pillar-comm">Communication</span><span class="xp-tag">75 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Map your story using a simple story arc template</span><span class="pillar-tag pillar-comm">Communication</span><span class="xp-tag">50 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Share your story with someone and get feedback</span><span class="pillar-tag pillar-civics">Civics</span><span class="xp-tag">75 XP</span></div>
+      <button class="add-task-btn">+ Create your own task</button>
+      <div style="margin-bottom:6px">
+        <div class="lesson-link" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">&#128218; Need context? 4 lessons available</div>
+        <div class="lesson-drawer" style="display:none">
+          <h4>Background Lessons</h4>
+          <div class="lesson-drawer-item"><span class="dot"></span> Find Your Story Idea</div>
+          <div class="lesson-drawer-item"><span class="dot"></span> Map Out Your Story</div>
+          <div class="lesson-drawer-item"><span class="dot"></span> Practice Telling Your Story</div>
+          <div class="lesson-drawer-item"><span class="dot"></span> Share Your Story</div>
+        </div>
+      </div>
+      <button class="open-btn">Open Project &rarr;</button>
+    </div>
+
+    <!-- Filtered: Project 2 only -->
+    <div id="merged-2" style="display:none">
+      <div class="section-title">Build Your Narrative Voice</div>
+      <div style="font-size:13px;color:#6b7280;margin-bottom:4px;">Explore how tone, perspective, and style shape a story.</div>
+      <div class="xp-hint">150 / 400 XP to complete this project</div>
+      <div class="suggested-header"><span class="suggested-label">Suggested tasks</span></div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Write the same event from two different perspectives</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">75 XP</span></div>
+      <div class="task-row"><div class="task-check done">&#10003;</div><span class="task-title done-text">Record yourself telling a story in formal vs casual tone</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">75 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Interview someone about a meaningful experience</span><span class="pillar-tag pillar-civics">Civics</span><span class="xp-tag">100 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Create a 2-minute video essay on a topic you care about</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">150 XP</span></div>
+      <button class="add-task-btn">+ Create your own task</button>
+      <div style="margin-bottom:6px">
+        <div class="lesson-link" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">&#128218; Need context? 2 lessons available</div>
+        <div class="lesson-drawer" style="display:none">
+          <h4>Background Lessons</h4>
+          <div class="lesson-drawer-item"><span class="dot"></span> Voice & Tone</div>
+          <div class="lesson-drawer-item"><span class="dot"></span> Interview Techniques</div>
+        </div>
+      </div>
+      <button class="open-btn">Open Project &rarr;</button>
+    </div>
+
+    <!-- Filtered: Project 3 only -->
+    <div id="merged-3" style="display:none">
+      <div class="section-title">Tell Stories That Move People</div>
+      <div style="font-size:13px;color:#6b7280;margin-bottom:4px;">Apply everything you've learned to create something that resonates.</div>
+      <div class="xp-hint">0 / 300 XP to complete this project</div>
+      <div class="suggested-header"><span class="suggested-label">Suggested tasks</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Write a story that makes the reader feel a specific emotion</span><span class="pillar-tag pillar-art">Art</span><span class="xp-tag">100 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Perform your story live for an audience of 3+</span><span class="pillar-tag pillar-wellness">Wellness</span><span class="xp-tag">100 XP</span></div>
+      <div class="task-row"><div class="task-check"></div><span class="task-title">Teach someone else a storytelling technique you learned</span><span class="pillar-tag pillar-civics">Civics</span><span class="xp-tag">100 XP</span></div>
+      <button class="add-task-btn">+ Create your own task</button>
+      <div style="margin-bottom:6px">
+        <div class="lesson-link" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">&#128218; Need context? 2 lessons available</div>
+        <div class="lesson-drawer" style="display:none">
+          <h4>Background Lessons</h4>
+          <div class="lesson-drawer-item"><span class="dot"></span> Emotional Hooks</div>
+          <div class="lesson-drawer-item"><span class="dot"></span> Performance Tips</div>
+        </div>
+      </div>
+      <button class="open-btn">Open Project &rarr;</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function showTab(id) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function toggleCard(el) {
+  el.classList.toggle('expanded');
+}
+
+function selectRing(el, detailId) {
+  el.closest('.page').querySelectorAll('.ring-card').forEach(c => c.classList.remove('ring-active'));
+  el.classList.add('ring-active');
+  el.closest('.page').querySelectorAll('.ring-detail').forEach(d => d.style.display = 'none');
+  document.getElementById(detailId).style.display = 'block';
+}
+
+function selectMini(el, detailId) {
+  el.closest('.page').querySelectorAll('.mini-ring-card').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  ['merged-all','merged-1','merged-2','merged-3'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+  document.getElementById(detailId).style.display = 'block';
+}
+</script>
+
+</body>
+</html>

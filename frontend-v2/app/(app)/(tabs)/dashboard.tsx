@@ -8,9 +8,9 @@
  * Mobile: single column with bottom tabs.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, ScrollView, Image, Pressable, useWindowDimensions, RefreshControl } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
@@ -49,7 +49,7 @@ function QuestCard({ quest }: { quest: any }) {
   const days = engagement?.calendar?.days || [];
 
   return (
-    <Pressable onPress={() => router.push(`/(app)/quests/${q?.id}`)}>
+    <Pressable testID={`quest-card-${q?.id}`} onPress={() => router.push(`/(app)/quests/${q?.id}`)}>
     <Card variant="elevated" size="sm" className="min-w-0 overflow-hidden" style={{ minHeight: 240, maxHeight: 240 }}>
       {/* Quest image */}
       {imageUrl ? (
@@ -93,7 +93,7 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
   const initials = `${user?.first_name?.[0] || ''}${user?.last_name?.[0] || ''}`.toUpperCase();
 
   return (
-    <Card variant="elevated" size="lg">
+    <Card testID="welcome-header" variant="elevated" size="lg">
       {/* Top: avatar + greeting */}
       <HStack className="items-center gap-3 md:gap-4">
         <Avatar size="lg" className="flex-shrink-0">
@@ -104,7 +104,7 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
           )}
         </Avatar>
         <VStack className="flex-1 min-w-0">
-          <Heading size="md" className="md:text-2xl" numberOfLines={1}>
+          <Heading testID="welcome-greeting" size="md" className="md:text-2xl" numberOfLines={1}>
             Welcome back, {user?.first_name || 'Student'}!
           </Heading>
           <UIText size="sm" className="text-typo-500 mt-1">
@@ -115,27 +115,91 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
 
       {/* Bottom: stats */}
       <Divider className="mt-4 mb-3" />
-      <HStack className="justify-around">
+      <HStack testID="hero-stats" className="justify-around">
         <VStack className="items-center">
-          <UIText size="lg" className="font-poppins-bold text-optio-purple">
+          <UIText testID="stat-completed-quests" size="lg" className="font-poppins-bold text-optio-purple">
             {stats?.completed_quests_count || 0}
           </UIText>
           <UIText size="xs" className="text-typo-400">Completed Quests</UIText>
         </VStack>
         <VStack className="items-center">
-          <UIText size="lg" className="font-poppins-bold text-optio-pink">
+          <UIText testID="stat-total-xp" size="lg" className="font-poppins-bold text-optio-pink">
             {(stats?.total_xp || user?.total_xp || 0).toLocaleString()}
           </UIText>
           <UIText size="xs" className="text-typo-400">Total XP</UIText>
         </VStack>
         <VStack className="items-center">
-          <UIText size="lg" className="font-poppins-bold text-pillar-stem">
+          <UIText testID="stat-active-quests" size="lg" className="font-poppins-bold text-pillar-stem">
             {activeQuestCount}
           </UIText>
           <UIText size="xs" className="text-typo-400">Active Quests</UIText>
         </VStack>
       </HStack>
     </Card>
+  );
+}
+
+// ── Enrolled Courses ──
+
+function EnrolledCourses({ courses }: { courses: any[] }) {
+  if (!courses || courses.length === 0) return null;
+
+  return (
+    <VStack space="sm">
+      <HStack className="items-center justify-between">
+        <Heading size="md">Your Courses</Heading>
+        <Button variant="link" size="sm" onPress={() => router.push('/(app)/(tabs)/courses')}>
+          <ButtonText>View All</ButtonText>
+        </Button>
+      </HStack>
+      <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
+        {courses.map((course: any) => {
+          const imageUrl = course.cover_image_url;
+          const projectCount = course.quest_count || course.quests?.length || 0;
+          const progress = course.progress;
+          return (
+            <Pressable
+              key={course.id}
+              onPress={() => router.push(`/(app)/courses/${course.id}`)}
+              className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]"
+            >
+              <Card variant="elevated" size="sm" className="overflow-hidden" style={{ minHeight: 180 }}>
+                {imageUrl ? (
+                  <View className="h-24 -mx-3 -mt-3 mb-3 overflow-hidden rounded-t-xl">
+                    <Image
+                      source={{ uri: imageUrl }}
+                      className="w-full h-full"
+                      resizeMode="cover"
+                    />
+                  </View>
+                ) : (
+                  <View className="h-24 -mx-3 -mt-3 mb-3 bg-gradient-to-r from-optio-purple to-optio-pink rounded-t-xl items-center justify-center">
+                    <Ionicons name="book-outline" size={32} color="white" />
+                  </View>
+                )}
+                <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
+                  {course.title}
+                </UIText>
+                <HStack className="items-center gap-2 mt-1">
+                  <Ionicons name="layers-outline" size={14} color="#9CA3AF" />
+                  <UIText size="xs" className="text-typo-400">
+                    {projectCount} {projectCount === 1 ? 'project' : 'projects'}
+                  </UIText>
+                  {progress && (
+                    <>
+                      <View className="w-1 h-1 rounded-full bg-typo-300" />
+                      <UIText size="xs" className="text-optio-purple font-poppins-medium">
+                        {progress.completed_quests || 0}/{progress.total_quests || 0} done
+                      </UIText>
+                    </>
+                  )}
+                </HStack>
+              </Card>
+            </Pressable>
+          );
+        })}
+      </View>
+    </VStack>
   );
 }
 
@@ -190,6 +254,96 @@ function DashboardSkeleton() {
   );
 }
 
+// ── Next Up Tasks ──
+
+function NextUpPanel({ quests }: { quests: any[] }) {
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (quests.length === 0) { setLoading(false); return; }
+    (async () => {
+      try {
+        const results = await Promise.allSettled(
+          quests.slice(0, 5).map(async (uq: any) => {
+            const q = uq.quests;
+            if (!q?.id) return null;
+            const { data } = await api.get(`/api/quests/${q.id}`);
+            const questData = data.quest || data;
+            const allTasks = questData.quest_tasks || [];
+            const nextTask = allTasks.find((t: any) => !t.is_completed);
+            if (!nextTask) return null;
+            return { ...nextTask, quest_title: q.title, quest_id: q.id };
+          })
+        );
+        const validTasks = results
+          .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled' && r.value !== null)
+          .map((r) => r.value);
+        setTasks(validTasks);
+      } catch {
+        // Non-critical
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [quests]);
+
+  if (loading) {
+    return (
+      <VStack space="sm">
+        <Heading size="md">Next Up</Heading>
+        <Skeleton className="h-20 rounded-xl" />
+        <Skeleton className="h-20 rounded-xl" />
+      </VStack>
+    );
+  }
+
+  if (tasks.length === 0) return null;
+
+  const pillarColors: Record<string, string> = {
+    stem: 'bg-pillar-stem',
+    art: 'bg-pillar-art',
+    communication: 'bg-pillar-communication',
+    civics: 'bg-pillar-civics',
+    wellness: 'bg-pillar-wellness',
+  };
+
+  return (
+    <VStack space="sm">
+      <HStack className="items-center gap-2">
+        <Ionicons name="flash-outline" size={20} color="#6D469B" />
+        <Heading size="md">Next Up</Heading>
+      </HStack>
+      <VStack space="sm">
+        {tasks.map((task) => (
+          <Pressable key={task.id} onPress={() => router.push(`/(app)/quests/${task.quest_id}`)}>
+            <Card variant="elevated" size="sm">
+              <HStack className="items-center gap-3">
+                <View className={`w-1.5 h-12 rounded-full ${pillarColors[task.pillar] || pillarColors.stem}`} />
+                <VStack className="flex-1 min-w-0">
+                  <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
+                    {task.title}
+                  </UIText>
+                  <HStack className="items-center gap-2 mt-0.5">
+                    <UIText size="xs" className="text-typo-400" numberOfLines={1}>
+                      {task.quest_title}
+                    </UIText>
+                    <View className="w-1 h-1 rounded-full bg-typo-300" />
+                    <UIText size="xs" className="text-optio-purple font-poppins-medium">
+                      {task.xp_value || task.xp_amount || 0} XP
+                    </UIText>
+                  </HStack>
+                </VStack>
+                <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+              </HStack>
+            </Card>
+          </Pressable>
+        ))}
+      </VStack>
+    </VStack>
+  );
+}
+
 // ── Main Dashboard ──
 
 export default function DashboardScreen() {
@@ -197,6 +351,13 @@ export default function DashboardScreen() {
   const { data, loading, refetch } = useDashboard();
   const { data: globalEngagement } = useGlobalEngagement();
   const [refreshing, setRefreshing] = useState(false);
+
+  // Refetch when screen regains focus (e.g. after leaving a quest)
+  useFocusEffect(
+    useCallback(() => {
+      if (data) refetch();
+    }, [])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -213,6 +374,7 @@ export default function DashboardScreen() {
   }
 
   const activeQuests = data?.active_quests || [];
+  const enrolledCourses = data?.enrolled_courses || [];
   const completedQuests = data?.recent_completed_quests || [];
   const calendarDays = globalEngagement?.calendar?.days || [];
 
@@ -236,13 +398,13 @@ export default function DashboardScreen() {
           <VStack space="sm">
             <HStack className="items-center justify-between">
               <Heading size="md">Current Quests</Heading>
-              <Button variant="link" size="sm">
+              <Button variant="link" size="sm" onPress={() => router.push('/(app)/(tabs)/quests')}>
                 <ButtonText>Browse All</ButtonText>
               </Button>
             </HStack>
 
             {activeQuests.length > 0 ? (
-              <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
+              <View testID="current-quests-grid" className="flex flex-col md:flex-row md:flex-wrap gap-4">
                 {activeQuests.map((uq: any) => (
                   <View key={uq.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
                     <QuestCard quest={uq} />
@@ -254,26 +416,32 @@ export default function DashboardScreen() {
                 <Ionicons name="rocket-outline" size={40} color="#9CA3AF" />
                 <Heading size="sm" className="text-typo-500 mt-3">No quests yet</Heading>
                 <UIText size="sm" className="text-typo-400 mt-1">Browse quests to get started</UIText>
-                <Button size="sm" className="mt-4">
+                <Button size="sm" className="mt-4" onPress={() => router.push('/(app)/(tabs)/quests')}>
                   <ButtonText>Browse Quests</ButtonText>
                 </Button>
               </Card>
             )}
           </VStack>
 
+          {/* Next Up */}
+          <NextUpPanel quests={activeQuests} />
+
+          {/* Enrolled Courses */}
+          <EnrolledCourses courses={enrolledCourses} />
+
           {/* Learning Rhythm + Activity Calendar (combined) */}
-          <VStack space="sm">
+          <VStack testID="learning-rhythm-section" space="sm">
             <Heading size="md">Your Learning Rhythm</Heading>
-            <Card variant="elevated" size="md">
+            <Card testID="learning-rhythm-card" variant="elevated" size="md">
               <VStack space="md">
                 {/* Header: title + rhythm badge inline */}
                 <HStack className="items-center justify-between">
                   <RhythmBadge rhythm={globalEngagement?.rhythm || null} compact />
-                  {globalEngagement?.rhythm?.pattern_description && (
+                  {globalEngagement?.rhythm?.pattern_description ? (
                     <UIText size="xs" className="text-typo-400">
                       {globalEngagement.rhythm.pattern_description}
                     </UIText>
-                  )}
+                  ) : null}
                 </HStack>
 
                 {/* Activity calendar */}

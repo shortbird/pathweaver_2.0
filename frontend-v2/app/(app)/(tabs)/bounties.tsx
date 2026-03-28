@@ -4,10 +4,12 @@
  */
 
 import React, { useState } from 'react';
-import { View, ScrollView, Pressable, FlatList, Platform, useWindowDimensions } from 'react-native';
+import { View, ScrollView, Pressable, FlatList, Platform, useWindowDimensions, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useBounties, useMyClaims, useMyPosted } from '@/src/hooks/useBounties';
+import { useAuthStore } from '@/src/stores/authStore';
+import { useBounties, useMyClaims, useMyPosted, deleteBounty } from '@/src/hooks/useBounties';
 import { pillars as pillarMap, pillarKeys, pillarShortLabels, getPillar } from '@/src/config/pillars';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
@@ -25,86 +27,139 @@ const statusConfig: Record<string, { bg: string; text: string; label: string }> 
   revision_requested: { bg: 'bg-orange-100', text: 'text-orange-700', label: 'Revise' },
 };
 
+/** Return { icon, text, color } for a bounty's reward display. */
+function rewardLabel(bounty: any): { icon: string; text: string; color: string } {
+  if (bounty.xp_reward > 0) return { icon: 'star', text: `${bounty.xp_reward} XP`, color: '#FF9028' };
+  const custom = (bounty.rewards || []).find((r: any) => r.type === 'custom');
+  if (custom?.text) return { icon: 'gift-outline', text: custom.text, color: '#B45309' };
+  return { icon: 'star', text: '0 XP', color: '#FF9028' };
+}
+
 function BountyCard({ bounty, showClaim }: { bounty: any; showClaim?: boolean }) {
   return (
-    <Card variant="elevated" size="md">
-      <VStack space="sm">
-        {/* Pillar + XP header */}
-        <HStack className="items-center justify-between">
-          <PillarBadge pillar={bounty.pillar} size="md" />
-          <HStack className="items-center gap-1">
-            <Ionicons name="star" size={14} color="#FF9028" />
-            <UIText size="sm" className="font-poppins-bold text-pillar-civics">{bounty.xp_reward || 0} XP</UIText>
+    <Pressable onPress={() => router.push(`/bounties/${bounty.id}`)}>
+      <Card variant="elevated" size="md">
+        <VStack space="sm">
+          {/* Pillar + reward header */}
+          <HStack className="items-center justify-between">
+            <PillarBadge pillar={bounty.pillar} size="md" />
+            {(() => { const r = rewardLabel(bounty); return (
+              <HStack className="items-center gap-1">
+                <Ionicons name={r.icon as any} size={14} color={r.color} />
+                <UIText size="sm" className="font-poppins-bold" style={{ color: r.color }} numberOfLines={1}>{r.text}</UIText>
+              </HStack>
+            ); })()}
           </HStack>
-        </HStack>
 
-        {/* Title + description */}
-        <Heading size="sm" numberOfLines={2}>{bounty.title}</Heading>
-        <UIText size="sm" className="text-typo-500" numberOfLines={3}>{bounty.description}</UIText>
+          {/* Title + description */}
+          <Heading size="sm" numberOfLines={2}>{bounty.title}</Heading>
+          <UIText size="sm" className="text-typo-500" numberOfLines={3}>{bounty.description}</UIText>
 
-        {/* Deliverables count */}
-        {bounty.deliverables?.length > 0 && (
-          <HStack className="items-center gap-1.5">
-            <Ionicons name="checkbox-outline" size={14} color="#9CA3AF" />
-            <UIText size="xs" className="text-typo-400">
-              {bounty.deliverables.length} deliverable{bounty.deliverables.length !== 1 ? 's' : ''}
-            </UIText>
-          </HStack>
-        )}
+          {/* Deliverables count */}
+          {bounty.deliverables?.length > 0 && (
+            <HStack className="items-center gap-1.5">
+              <Ionicons name="checkbox-outline" size={14} color="#9CA3AF" />
+              <UIText size="xs" className="text-typo-400">
+                {bounty.deliverables.length} deliverable{bounty.deliverables.length !== 1 ? 's' : ''}
+              </UIText>
+            </HStack>
+          )}
 
-        {/* Claim button */}
-        {showClaim && (
-          <Button size="md" className="w-full mt-1">
-            <ButtonText>Claim Bounty</ButtonText>
-          </Button>
-        )}
-      </VStack>
-    </Card>
+          {/* Claim button */}
+          {showClaim && (
+            <Button size="md" className="w-full mt-1" onPress={() => router.push(`/bounties/${bounty.id}`)}>
+              <ButtonText>Claim Bounty</ButtonText>
+            </Button>
+          )}
+        </VStack>
+      </Card>
+    </Pressable>
   );
 }
+
+const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  claimed: { bg: '#DBEAFE', text: '#1D4ED8' },
+  submitted: { bg: '#FEF3C7', text: '#B45309' },
+  approved: { bg: '#DCFCE7', text: '#15803D' },
+  rejected: { bg: '#FEE2E2', text: '#B91C1C' },
+  revision_requested: { bg: '#FFEDD5', text: '#C2410C' },
+};
 
 function ClaimCard({ claim }: { claim: any }) {
   const bounty = claim.bounty || {};
   const sc = statusConfig[claim.status] || statusConfig.claimed;
+  const colors = STATUS_COLORS[claim.status] || STATUS_COLORS.claimed;
+  const completedCount = (claim.evidence?.completed_deliverables || []).length;
+  const totalCount = (bounty.deliverables || []).length;
+  const hasProgress = totalCount > 0;
 
   return (
-    <Card variant="outline" size="md">
-      <VStack space="sm">
-        <HStack className="items-center justify-between">
-          <HStack className="items-center gap-2">
-            <View style={{ backgroundColor: sc.bg === 'bg-blue-100' ? '#DBEAFE' : sc.bg === 'bg-amber-100' ? '#FEF3C7' : sc.bg === 'bg-green-100' ? '#DCFCE7' : sc.bg === 'bg-red-100' ? '#FEE2E2' : '#FFEDD5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
-              <UIText size="xs" style={{ color: sc.text === 'text-blue-700' ? '#1D4ED8' : sc.text === 'text-amber-700' ? '#B45309' : sc.text === 'text-green-700' ? '#15803D' : sc.text === 'text-red-700' ? '#B91C1C' : '#C2410C', fontFamily: 'Poppins_600SemiBold' }}>
-                {sc.label}
-              </UIText>
-            </View>
-            {bounty.pillar && <PillarBadge pillar={bounty.pillar} />}
+    <Pressable onPress={() => router.push(`/bounties/${claim.bounty_id}`)}>
+      <Card variant="outline" size="md">
+        <VStack space="sm">
+          <HStack className="items-center justify-between">
+            <HStack className="items-center gap-2">
+              <View style={{ backgroundColor: colors.bg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
+                <UIText size="xs" style={{ color: colors.text, fontFamily: 'Poppins_600SemiBold' }}>
+                  {sc.label}
+                </UIText>
+              </View>
+              {bounty.pillar && <PillarBadge pillar={bounty.pillar} />}
+            </HStack>
+            {(() => { const r = rewardLabel(bounty); return (
+              <HStack className="items-center gap-1">
+                <Ionicons name={r.icon as any} size={12} color={r.color} />
+                <UIText size="xs" className="font-poppins-medium" style={{ color: r.color }} numberOfLines={1}>{r.text}</UIText>
+              </HStack>
+            ); })()}
           </HStack>
-          <HStack className="items-center gap-1">
-            <Ionicons name="star" size={12} color="#FF9028" />
-            <UIText size="xs" className="font-poppins-medium" style={{ color: '#FF9028' }}>{bounty.xp_reward || 0} XP</UIText>
-          </HStack>
-        </HStack>
-        <Heading size="sm" numberOfLines={2}>{bounty.title || 'Bounty'}</Heading>
-        <UIText size="xs" className="text-typo-500" numberOfLines={2}>{bounty.description}</UIText>
-        {claim.status === 'claimed' && (
-          <Button size="md" variant="outline" className="w-full mt-1">
-            <ButtonText>Continue</ButtonText>
-          </Button>
-        )}
-      </VStack>
-    </Card>
+          <Heading size="sm" numberOfLines={2}>{bounty.title || 'Bounty'}</Heading>
+          <UIText size="xs" className="text-typo-500" numberOfLines={2}>{bounty.description}</UIText>
+
+          {/* Deliverable progress */}
+          {hasProgress && (
+            <VStack space="xs">
+              <HStack className="items-center justify-between">
+                <UIText size="xs" className="text-typo-400">
+                  {completedCount}/{totalCount} deliverable{totalCount !== 1 ? 's' : ''}
+                </UIText>
+                {completedCount === totalCount && totalCount > 0 && (
+                  <Ionicons name="checkmark-circle" size={14} color="#16A34A" />
+                )}
+              </HStack>
+              <View className="h-1.5 bg-surface-200 rounded-full overflow-hidden">
+                <View
+                  className="h-full rounded-full bg-optio-purple"
+                  style={{ width: `${(completedCount / totalCount) * 100}%` }}
+                />
+              </View>
+            </VStack>
+          )}
+
+          {(claim.status === 'claimed' || claim.status === 'revision_requested') && (
+            <Button size="md" variant="outline" className="w-full mt-1" onPress={() => router.push(`/bounties/${claim.bounty_id}`)}>
+              <ButtonText>{claim.status === 'revision_requested' ? 'Revise' : 'Continue'}</ButtonText>
+            </Button>
+          )}
+        </VStack>
+      </Card>
+    </Pressable>
   );
 }
 
 export default function BountiesScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 768;
+  const { user } = useAuthStore();
   const [tab, setTab] = useState<Tab>('browse');
   const [pillarFilter, setPillarFilter] = useState<string | undefined>(undefined);
 
+  const isStudent = user?.role === 'student' || user?.org_role === 'student';
+  const canPost = !isStudent || user?.role === 'superadmin';
+
   const { bounties, loading: browsing } = useBounties(pillarFilter);
   const { claims, loading: claimsLoading } = useMyClaims();
-  const { bounties: posted, loading: postedLoading } = useMyPosted();
+  const { bounties: posted, loading: postedLoading, refetch: refetchPosted } = useMyPosted();
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'browse', label: 'Browse' },
@@ -244,17 +299,72 @@ export default function BountiesScreen() {
           {/* Posted tab */}
           {tab === 'posted' && (
             <View className="px-5 md:px-8">
+              {canPost && (
+                <Button size="md" className="w-full mb-4" onPress={() => router.push('/bounties/create')}>
+                  <ButtonText>Post Bounty</ButtonText>
+                </Button>
+              )}
               {postedLoading ? (
                 <VStack space="sm">{[1, 2].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</VStack>
               ) : posted.length > 0 ? (
                 <VStack space="sm">
-                  {posted.map((b: any) => <BountyCard key={b.id} bounty={b} />)}
+                  {posted.map((b: any) => (
+                    <Pressable key={b.id} onPress={() => router.push(`/bounties/review/${b.id}`)}>
+                      <Card variant="outline" size="md">
+                        <VStack space="sm">
+                          <HStack className="items-center justify-between">
+                            <PillarBadge pillar={b.pillar} size="md" />
+                            <HStack className="items-center gap-2">
+                              {(b.claims || []).filter((c: any) => c.status === 'submitted').length > 0 && (
+                                <View className="bg-amber-50 px-2 py-0.5 rounded-full">
+                                  <UIText size="xs" className="text-amber-700 font-poppins-semibold">
+                                    {(b.claims || []).filter((c: any) => c.status === 'submitted').length} to review
+                                  </UIText>
+                                </View>
+                              )}
+                              <Pressable
+                                onPress={(e) => {
+                                  e.stopPropagation?.();
+                                  router.push(`/bounties/create?edit=${b.id}`);
+                                }}
+                              >
+                                <Ionicons name="create-outline" size={18} color="#6D469B" />
+                              </Pressable>
+                              <Pressable
+                                onPress={async (e) => {
+                                  e.stopPropagation?.();
+                                  const confirmed = Platform.OS === 'web'
+                                    ? window.confirm(`Delete "${b.title}"?`)
+                                    : await new Promise<boolean>((resolve) =>
+                                        Alert.alert('Delete Bounty', `Delete "${b.title}"?`, [
+                                          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                                          { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+                                        ])
+                                      );
+                                  if (!confirmed) return;
+                                  try { await deleteBounty(b.id); refetchPosted(); } catch { /* silently fail */ }
+                                }}
+                              >
+                                <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                              </Pressable>
+                            </HStack>
+                          </HStack>
+                          <Heading size="sm" numberOfLines={2}>{b.title}</Heading>
+                          <UIText size="xs" className="text-typo-400">
+                            {(b.claims || []).length} claimed
+                          </UIText>
+                        </VStack>
+                      </Card>
+                    </Pressable>
+                  ))}
                 </VStack>
               ) : (
                 <Card variant="filled" size="lg" className="items-center py-10">
                   <Ionicons name="create-outline" size={40} color="#9CA3AF" />
                   <Heading size="sm" className="text-typo-500 mt-3">No posted bounties</Heading>
-                  <UIText size="sm" className="text-typo-400 mt-1">Parents and advisors can post bounties</UIText>
+                  <UIText size="sm" className="text-typo-400 mt-1">
+                    {canPost ? 'Post your first bounty above' : 'Parents and advisors can post bounties'}
+                  </UIText>
                 </Card>
               )}
             </View>

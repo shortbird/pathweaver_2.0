@@ -1,0 +1,19 @@
+appId: com.optioeducation.optio
+name: "Auth: Register Screen Renders"
+tags:
+  - auth
+  - smoke
+---
+- launchApp
+- assertVisible:
+    text: "Welcome Back"
+    timeout: 10000
+- tapOn:
+    text: "Sign Up"
+- assertVisible:
+    text: "Create Account"
+    timeout: 10000
+- assertVisible:
+    text: "you@email.com"
+- assertVisible:
+    text: "Enter password"

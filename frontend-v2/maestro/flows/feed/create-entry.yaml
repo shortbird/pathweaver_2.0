@@ -1,0 +1,17 @@
+appId: com.optioeducation.optio
+name: "Feed: Create Entry via Capture"
+tags:
+  - feed
+  - journal
+---
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    id: "capture-button"
+- assertVisible:
+    text: "Capture a Moment"
+    timeout: 10000
+- tapOn:
+    text: "What did you learn?"
+- inputText: "Test learning moment"
+- tapOn:
+    text: "Save Moment"

@@ -1,27 +1,84 @@
 import { useState } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, useWindowDimensions, View, Image } from 'react-native';
+import { Platform, useWindowDimensions, View, Image, Pressable } from 'react-native';
 import { Sidebar } from '@/src/components/layouts/Sidebar';
 import { MobileHeader } from '@/src/components/layouts/MobileHeader';
+import { ActingAsBanner } from '@/src/components/layouts/ActingAsBanner';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
+import { useAuthStore } from '@/src/stores/authStore';
+import { UIText } from '@/src/components/ui/text';
 import { mobileNavItems, hiddenMobileRoutes, navItems, mobileTabOrder } from '@/src/config/navigation';
 
 const DESKTOP_BREAKPOINT = 768;
 
+const LOGO_URI =
+  'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
+
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const optioIcon = require('@/assets/images/icon.png');
+
+function useIsObserver() {
+  const user = useAuthStore((s) => s.user);
+  if (!user) return false;
+  const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
+  return role === 'observer';
+}
+
+/** Minimal header for observers on web — logo + sign out, no sidebar */
+function ObserverHeader() {
+  const { user, logout } = useAuthStore();
+  return (
+    <View className="bg-white border-b border-surface-200 px-6 py-3 flex-row items-center justify-between">
+      <Image source={{ uri: LOGO_URI }} style={{ width: 110, height: 34 }} resizeMode="contain" />
+      <Pressable onPress={logout} className="flex-row items-center gap-2 active:opacity-70">
+        <Ionicons name="person-circle-outline" size={20} color="#6B7280" />
+        <UIText size="sm" className="text-typo-500 font-poppins-medium">
+          {user?.display_name || user?.first_name || user?.email}
+        </UIText>
+        <Ionicons name="log-out-outline" size={18} color="#9CA3AF" />
+      </Pressable>
+    </View>
+  );
+}
 
 export default function TabsLayout() {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
   const [captureVisible, setCaptureVisible] = useState(false);
+  const isObserver = useIsObserver();
 
+  // ── Observer: feed-only, no sidebar, no tabs ──
+  if (isObserver) {
+    return (
+      <View className="flex-1 bg-surface-50">
+        {isDesktop && <ObserverHeader />}
+        <ActingAsBanner />
+        <Tabs
+          initialRouteName="feed"
+          screenOptions={{
+            headerShown: false,
+            tabBarStyle: { display: 'none' },
+          }}
+        >
+          <Tabs.Screen name="feed" />
+          {/* Register all routes but hide them — Expo Router requires it */}
+          {navItems.filter((n) => n.key !== 'feed').map((n) => (
+            <Tabs.Screen key={n.key} name={n.key} options={{ href: null }} />
+          ))}
+          <Tabs.Screen name="capture" options={{ href: null }} />
+        </Tabs>
+      </View>
+    );
+  }
+
+  // ── Desktop: sidebar + content ──
   if (isDesktop) {
     return (
       <View className="flex-1 flex-row bg-surface-50">
         <Sidebar />
         <View className="flex-1">
+          <ActingAsBanner />
           <Tabs
             screenOptions={{
               headerShown: false,
@@ -39,9 +96,10 @@ export default function TabsLayout() {
     );
   }
 
-  // Mobile tabs with center capture button
+  // ── Mobile: tabs with center capture button ──
   return (
     <>
+      <ActingAsBanner />
       <Tabs
         initialRouteName="feed"
         screenOptions={{

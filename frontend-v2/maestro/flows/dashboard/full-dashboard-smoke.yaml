@@ -1,0 +1,62 @@
+appId: com.optioeducation.optio
+name: "Dashboard: Full Smoke Test"
+tags:
+  - dashboard
+  - smoke
+  - critical
+---
+# Login and navigate to dashboard
+- runFlow: ../auth/login-as-student.yaml
+- tapOn:
+    text: "Home"
+    optional: true
+
+# === 1. Hero section loads with stats ===
+- assertVisible:
+    text: "Welcome back"
+    timeout: 15000
+- assertVisible:
+    id: "welcome-header"
+- assertVisible:
+    text: "Completed Quests"
+- assertVisible:
+    text: "Total XP"
+- assertVisible:
+    text: "Active Quests"
+- assertVisible:
+    id: "stat-completed-quests"
+- assertVisible:
+    id: "stat-total-xp"
+- assertVisible:
+    id: "stat-active-quests"
+
+# === 2. Current Quests section visible ===
+- assertVisible:
+    text: "Current Quests"
+
+# === 3. Learning Rhythm section loads ===
+- scrollUntilVisible:
+    element:
+      text: "Your Learning Rhythm"
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: "learning-rhythm-card"
+
+# === 4. Navigate to quest detail (if quests exist) ===
+- scroll:
+    direction: UP
+- runFlow:
+    when:
+      visible:
+        id: "current-quests-grid"
+    commands:
+      - tapOn:
+          id: "current-quests-grid"
+          childOf:
+            index: 0
+      - assertVisible:
+          id: "quest-title"
+          timeout: 15000
+      - assertVisible:
+          id: "quest-description"

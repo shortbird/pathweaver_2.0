@@ -652,6 +652,11 @@ class LearningEventsService(BaseService):
                     'order_index': block.get('order_index', block.get('order', 0))
                 }
 
+                if block.get('file_url'):
+                    block_data['file_url'] = block['file_url']
+                if block.get('file_name'):
+                    block_data['file_name'] = block['file_name']
+
                 response = supabase.table('learning_event_evidence_blocks') \
                     .insert(block_data) \
                     .execute()

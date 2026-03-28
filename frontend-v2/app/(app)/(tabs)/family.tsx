@@ -5,8 +5,8 @@
  * Mobile: child selector dropdown + scrollable overview.
  */
 
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, Pressable, ActivityIndicator, Platform, useWindowDimensions, Image, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, ScrollView, Pressable, ActivityIndicator, Platform, useWindowDimensions, Image, RefreshControl, Alert, TextInput, Modal, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useMyChildren, useChildDashboard, useChildEngagement } from '@/src/hooks/useParent';
@@ -15,6 +15,10 @@ import { EngagementCalendar } from '@/src/components/engagement/EngagementCalend
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { FeedCard } from '@/src/components/feed/FeedCard';
 import { PillarBadge } from '@/src/components/ui/pillar-badge';
+import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
+import * as ImagePicker from 'expo-image-picker';
+import api from '@/src/services/api';
+import { useActingAsStore } from '@/src/stores/actingAsStore';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Divider, Avatar, AvatarFallbackText, AvatarImage, Skeleton,
@@ -174,6 +178,162 @@ export default function ParentDashboardPage() {
   const { data: engagement } = useChildEngagement(selectedId);
   const { items: feedItems, loading: feedLoading } = useFeed({ studentId: selectedId || undefined });
 
+  // ── Parent action state ──
+  const [captureVisible, setCaptureVisible] = useState(false);
+  const [captureStudentIds, setCaptureStudentIds] = useState<string[]>([]);
+  const [inviteObserverVisible, setInviteObserverVisible] = useState(false);
+  const [observerEmail, setObserverEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
+
+  const isUnder13 = useMemo(() => {
+    if (!selectedChild?.date_of_birth) return false;
+    const now = new Date();
+    const cutoff = new Date(now.getFullYear() - 13, now.getMonth(), now.getDate());
+    return new Date(selectedChild.date_of_birth) > cutoff;
+  }, [selectedChild]);
+
+  const handleCaptureForChild = () => {
+    if (!selectedId) return;
+    setCaptureStudentIds([selectedId]);
+    setCaptureVisible(true);
+  };
+
+  const handleCaptureForAll = () => {
+    setCaptureStudentIds(children.map((c) => c.id));
+    setCaptureVisible(true);
+  };
+
+  const handleInviteObserver = async () => {
+    if (!observerEmail.trim() || !selectedId) return;
+    setInviting(true);
+    try {
+      await api.post('/api/observers/invite', {
+        student_id: selectedId,
+        observer_email: observerEmail.trim(),
+      });
+      Alert.alert('Sent', `Invitation sent to ${observerEmail.trim()}`);
+      setObserverEmail('');
+      setInviteObserverVisible(false);
+    } catch (err: any) {
+      const msg = err.response?.data?.error || 'Failed to send invitation';
+      Alert.alert('Error', msg);
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const handleRemoveObserver = (observerId: string, name: string) => {
+    Alert.alert('Remove Observer', `Remove ${name} as an observer?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove', style: 'destructive', onPress: async () => {
+          try {
+            await api.delete(`/api/observers/${observerId}`);
+            Alert.alert('Removed', `${name} has been removed.`);
+          } catch {
+            Alert.alert('Error', 'Failed to remove observer');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleToggleAI = async () => {
+    if (!selectedId) return;
+    const current = (selectedChild as any)?.ai_enabled !== false;
+    try {
+      await api.put(`/api/dependents/${selectedId}/settings`, { ai_enabled: !current });
+      Alert.alert('Updated', `AI features ${!current ? 'enabled' : 'disabled'}.`);
+      refetch();
+    } catch {
+      Alert.alert('Error', 'Failed to update settings');
+    }
+  };
+
+  const handleViewAsChild = async () => {
+    if (!selectedChild) return;
+    try {
+      // startActingAs swaps tokens and triggers a full page reload
+      await useActingAsStore.getState().startActingAs({
+        id: selectedChild.id,
+        display_name: selectedChild.display_name,
+        first_name: selectedChild.first_name,
+        last_name: selectedChild.last_name,
+        avatar_url: selectedChild.avatar_url,
+      });
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to switch to child view');
+    }
+  };
+
+  const handleUploadAvatar = async () => {
+    if (!selectedId) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    const formData = new FormData();
+    formData.append('avatar', {
+      uri: asset.uri,
+      name: asset.fileName || 'avatar.jpg',
+      type: 'image/jpeg',
+    } as any);
+    try {
+      await api.put(`/api/users/${selectedId}/profile`, formData);
+      Alert.alert('Updated', 'Profile picture updated.');
+      refetch();
+    } catch {
+      Alert.alert('Error', 'Failed to upload picture');
+    }
+  };
+
+  const handlePromote = () => {
+    if (!selectedId || !selectedChild) return;
+    Alert.prompt
+      ? Alert.prompt('Give Login Access', `Enter an email for ${selectedChild.first_name}:`, [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Create Login', onPress: async (email) => {
+              if (!email?.trim()) return;
+              try {
+                await api.post(`/api/dependents/${selectedId}/promote`, {
+                  email: email.trim(),
+                  password: 'TempPass123!',
+                });
+                Alert.alert('Success', `Login created for ${selectedChild.first_name}. They can sign in with ${email.trim()}.`);
+              } catch (err: any) {
+                Alert.alert('Error', err.response?.data?.error || 'Failed to create login');
+              }
+            },
+          },
+        ])
+      : // Fallback for Android (no Alert.prompt)
+        Alert.alert(
+          'Give Login Access',
+          `This will create a login for ${selectedChild.first_name}. Contact support to set their email.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Create Login', onPress: async () => {
+                try {
+                  await api.post(`/api/dependents/${selectedId}/promote`, {
+                    email: `${selectedChild.first_name.toLowerCase()}@family.optio.com`,
+                    password: 'TempPass123!',
+                  });
+                  Alert.alert('Success', `Login created for ${selectedChild.first_name}.`);
+                } catch (err: any) {
+                  Alert.alert('Error', err.response?.data?.error || 'Failed to create login');
+                }
+              },
+            },
+          ],
+        );
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
     await refetch();
@@ -237,6 +397,45 @@ export default function ParentDashboardPage() {
                 stats={dashboard?.stats}
                 rhythm={engagement?.rhythm}
               />
+
+              {/* Quick actions */}
+              <VStack space="sm">
+                <Heading size="md">Actions</Heading>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+                  <Pressable onPress={handleCaptureForChild} className="items-center py-3 px-4 bg-surface-50 rounded-xl">
+                    <Ionicons name="camera-outline" size={22} color="#6D469B" />
+                    <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Capture</UIText>
+                  </Pressable>
+                  {children.length > 1 && (
+                    <Pressable onPress={handleCaptureForAll} className="items-center py-3 px-4 bg-surface-50 rounded-xl">
+                      <Ionicons name="people-outline" size={22} color="#6D469B" />
+                      <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Capture All</UIText>
+                    </Pressable>
+                  )}
+                  <Pressable onPress={handleViewAsChild} className="items-center py-3 px-4 bg-surface-50 rounded-xl">
+                    <Ionicons name="eye-outline" size={22} color="#6D469B" />
+                    <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">View As</UIText>
+                  </Pressable>
+                  <Pressable onPress={() => setInviteObserverVisible(true)} className="items-center py-3 px-4 bg-surface-50 rounded-xl">
+                    <Ionicons name="person-add-outline" size={22} color="#6D469B" />
+                    <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Add Observer</UIText>
+                  </Pressable>
+                  <Pressable onPress={handleToggleAI} className="items-center py-3 px-4 bg-surface-50 rounded-xl">
+                    <Ionicons name="sparkles-outline" size={22} color="#6D469B" />
+                    <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">AI Settings</UIText>
+                  </Pressable>
+                  <Pressable onPress={handleUploadAvatar} className="items-center py-3 px-4 bg-surface-50 rounded-xl">
+                    <Ionicons name="image-outline" size={22} color="#6D469B" />
+                    <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Photo</UIText>
+                  </Pressable>
+                  {isUnder13 && selectedChild?.is_dependent && (
+                    <Pressable onPress={handlePromote} className="items-center py-3 px-4 bg-surface-50 rounded-xl">
+                      <Ionicons name="key-outline" size={22} color="#6D469B" />
+                      <UIText size="xs" className="text-typo-500 mt-1 font-poppins-medium">Give Login</UIText>
+                    </Pressable>
+                  )}
+                </ScrollView>
+              </VStack>
 
               {/* Two-column on desktop: Engagement + Quests */}
               <View className={`${isDesktop ? 'flex flex-row gap-4' : ''}`}>
@@ -303,6 +502,47 @@ export default function ParentDashboardPage() {
         </VStack>
       </ScrollView>
 
+      {/* Capture sheet */}
+      <CaptureSheet
+        visible={captureVisible}
+        onClose={() => setCaptureVisible(false)}
+        onCaptured={() => refetch()}
+        studentIds={captureStudentIds}
+      />
+
+      {/* Invite Observer Modal */}
+      <Modal visible={inviteObserverVisible} transparent animationType="none" onRequestClose={() => setInviteObserverVisible(false)}>
+        <KeyboardAvoidingView className="flex-1 justify-end" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <Pressable className="flex-1" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setInviteObserverVisible(false)} />
+          <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
+            <View className="w-10 h-1 bg-surface-300 rounded-full self-center mb-4" />
+            <VStack space="md">
+              <HStack className="items-center justify-between">
+                <Heading size="lg">Invite Observer</Heading>
+                <Pressable onPress={() => setInviteObserverVisible(false)} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
+                  <Ionicons name="close" size={18} color="#6B7280" />
+                </Pressable>
+              </HStack>
+              <UIText size="sm" className="text-typo-500">
+                Invite someone to observe {selectedChild?.first_name}'s learning journey.
+              </UIText>
+              <TextInput
+                value={observerEmail}
+                onChangeText={setObserverEmail}
+                placeholder="Observer's email address"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                className="bg-surface-50 rounded-xl p-4 text-base"
+                style={{ fontFamily: 'Poppins_400Regular' }}
+              />
+              <Button size="lg" onPress={handleInviteObserver} loading={inviting} disabled={!observerEmail.trim() || inviting} className="w-full">
+                <ButtonText>Send Invitation</ButtonText>
+              </Button>
+            </VStack>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }

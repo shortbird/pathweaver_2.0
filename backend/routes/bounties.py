@@ -64,9 +64,25 @@ def get_bounty(user_id, bounty_id):
         service = BountyService()
         bounty = service.get_bounty(bounty_id)
 
-        # Include claims if the requester is the poster
-        if bounty['poster_id'] == user_id:
+        # Include claims with student info if the requester is the poster or superadmin
+        is_superadmin = service.is_superadmin(user_id)
+        if bounty['poster_id'] == user_id or is_superadmin:
             claims = service.repository.get_bounty_claims(bounty_id)
+            # Enrich claims with student display info
+            student_ids = list({c['student_id'] for c in claims if c.get('student_id')})
+            student_map = {}
+            if student_ids:
+                students = service.repository.client.table('users')\
+                    .select('id, display_name, first_name, last_name')\
+                    .in_('id', student_ids).execute()
+                for s in (students.data or []):
+                    student_map[s['id']] = {
+                        'display_name': s.get('display_name') or f"{s.get('first_name', '')} {s.get('last_name', '')}".strip() or 'Student',
+                        'first_name': s.get('first_name', ''),
+                        'last_name': s.get('last_name', ''),
+                    }
+            for claim in claims:
+                claim['student'] = student_map.get(claim.get('student_id'), {})
             bounty['claims'] = claims
 
         return jsonify({'success': True, 'bounty': bounty}), 200
@@ -253,10 +269,13 @@ def review_submission(user_id, bounty_id, claim_id):
 @bounties_bp.route('/api/bounties/my-posted', methods=['GET', 'OPTIONS'])
 @require_role('parent', 'advisor', 'org_admin', 'superadmin')
 def get_my_posted(user_id):
-    """Get bounties posted by current user, with claims."""
+    """Get bounties posted by current user (or all bounties for superadmin), with claims."""
     try:
         service = BountyService()
-        bounties = service.get_my_posted_with_claims(user_id)
+        if service.is_superadmin(user_id):
+            bounties = service.get_all_bounties_with_claims()
+        else:
+            bounties = service.get_my_posted_with_claims(user_id)
 
         return jsonify({'success': True, 'bounties': bounties}), 200
 
