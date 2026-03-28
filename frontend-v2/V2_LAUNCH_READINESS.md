@@ -1,9 +1,9 @@
 # V2 Launch Readiness - Page-by-Page Verification
 
 **Created**: 2026-03-27
-**Updated**: 2026-03-27
+**Updated**: 2026-03-28
 **Purpose**: Systematic comparison of v1 vs v2 web functionality for v2 launch
-**Status**: In Progress - Auth fixed, bounties fixed, journal/capture updated, courses redesigned (task-first)
+**Status**: In Progress - Auth fixed, bounties fixed, journal/capture updated, courses redesigned (task-first), quest detail/dashboard/profile/public pages improved
 
 Legend:
 - [x] = Verified working in v2
@@ -98,7 +98,7 @@ Legend:
 
 ### 1.2 Dashboard
 
-#### Item 8: Student Dashboard (`/(app)/(tabs)/dashboard`) -- PARTIAL FIX 2026-03-27
+#### Item 8: Student Dashboard (`/(app)/(tabs)/dashboard`) -- UPDATED 2026-03-28
 
 | Feature | V1 | V2 | Gap |
 |---------|----|----|-----|
@@ -108,18 +108,18 @@ Legend:
 | Enrolled courses display | Yes (CourseCardWithQuests) | Yes (cards with image, progress) | **FIXED** |
 | Learning Rhythm section | Yes (RhythmIndicator + calendar) | Yes (RhythmBadge + EngagementCalendar) | OK |
 | Rhythm explainer modal | Yes (click to learn more) | No (static display) | MISSING |
-| Upcoming Tasks panel ("Next Up") | Yes (1 task per quest, pillar variety) | No | MISSING |
+| Upcoming Tasks panel ("Next Up") | Yes (1 task per quest, pillar variety) | Yes (NextUpPanel: 1 task per quest, pillar bar, XP) | **FIXED** |
 | Diploma Credit Tracker | Yes (DiplomaCreditTracker) | No | MISSING |
 | Completed quests section | Yes (grid + list with dates) | Yes (list with dates) | OK |
 | Quick Capture FAB | Yes (floating button) | No | MISSING |
 | Browse quests link (empty state) | Yes | Yes (wired to navigation) | **FIXED** |
 | Browse All button | Yes | Yes (wired to quests page) | **FIXED** |
-| Auto-refresh (30s interval) | Yes | No (pull-to-refresh only) | MISSING |
+| Auto-refresh on focus | Yes (30s interval) | Yes (useFocusEffect refetch on tab focus) | **FIXED** |
 | Acting as dependent (parent view) | Yes (ActingAsContext) | Yes (actingAsStore + banner) | **FIXED** |
 | Mini heatmap on quest cards | No | Yes | V2 improvement |
 | RhythmBadge on quest cards | No | Yes | V2 improvement |
 
-**Tests**: 15 unit tests in `app/(app)/(tabs)/__tests__/dashboard.test.tsx` -- welcome header, stats, quest cards, enrolled courses, navigation, empty states
+**Tests**: 17 unit tests in `app/(app)/(tabs)/__tests__/dashboard.test.tsx` -- welcome header, stats, quest cards, enrolled courses, navigation, empty states, Next Up panel
 
 #### Item 9: Activity Feed (`/(app)/(tabs)/feed`) - FIXED 2026-03-27
 
@@ -165,7 +165,7 @@ Legend:
 | Empty state | Yes (with create button) | Yes (icon + message) | OK |
 | Mobile native support | Yes | No (web-only, shows "Desktop Only") | N/A for web launch |
 
-#### Item 11: Quest Detail (`/(app)/quests/[id]`) - Web Only -- PARTIAL FIX 2026-03-27
+#### Item 11: Quest Detail (`/(app)/quests/[id]`) - Web Only -- UPDATED 2026-03-28
 
 | Feature | V1 | V2 | Gap |
 |---------|----|----|-----|
@@ -182,13 +182,13 @@ Legend:
 | Evidence upload: document | Yes | Yes (via file picker) | OK |
 | Progress bar with XP earned | Yes | Yes (bar + X/Y tasks + XP) | **FIXED** |
 | Quest completion celebration | Yes (confetti modal) | Yes (trophy card + XP summary) | **FIXED** |
-| XP breakdown by pillar | Yes (pillar breakdown display) | Yes (colored dots in progress) | **FIXED** |
+| XP breakdown by pillar | Yes (pillar breakdown display) | Yes (labeled pillar names + colored dots) | **FIXED** (improved 2026-03-28) |
 | Leave quest / end quest | Yes (with confirmation) | Yes (confirm dialog, preserves work) | **FIXED** |
-| Approach examples section | Yes (before enrollment) | Yes (renders when data available) | OK |
+| Approach examples section | Yes (before enrollment) | Yes (bulleted list from approach_examples) | **FIXED** (added 2026-03-28) |
 | Task reordering (drag-drop) | Yes | No | MISSING |
 | Display mode switching (list/board) | Yes | No | MISSING |
 | Metadata card (deliverables) | Yes | No | MISSING |
-| Restart quest modal (409 conflict) | Yes (load previous or start fresh) | No | MISSING |
+| Restart quest modal (409 conflict) | Yes (load previous or start fresh) | Yes (modal on 409, Continue/Start Fresh/Cancel) | **FIXED** |
 | Role-based features (advisor/admin) | Yes | No | MISSING |
 | Lazy-loaded components | Yes (6 components) | No (all eager) | MISSING |
 | Engagement widgets (heatmap, rhythm) | No | Yes (MiniHeatmap, RhythmBadge) | V2 improvement |
@@ -420,19 +420,19 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 | Total XP, quest count, task count | Yes | Yes | OK |
 | Member since date | Yes | Yes | OK |
 | Edit profile (name fields) | Yes (inline collapsible) | Yes (modal) | OK (different UI) |
-| Bio / Learning Vision editing | Yes | No | MISSING (cosmetic) |
+| Bio / Learning Vision editing | Yes | Yes (modal textarea, displays on profile) | **FIXED** |
 | Pillar radar chart | Yes (SkillsRadarChart) | Yes (PillarRadar) | OK |
 | Engagement calendar (heatmap) | Implicit in snapshot | Yes (EngagementCalendar) | V2 improvement |
 | RhythmBadge | No | Yes | V2 improvement |
-| Portfolio section | Yes (achievements, evidence, sharing) | Yes (collapsed, no sharing) | PARTIAL |
-| Portfolio sharing / QR code | Yes | No | MISSING |
+| Portfolio section | Yes (achievements, evidence, sharing) | Yes (collapsed, share button, public/private toggle) | **FIXED** |
+| Portfolio sharing / QR code | Yes | Yes (copy link, public/private toggle via FERPA API) | **FIXED** |
 | Subject credits display | Yes (with progress bars) | Yes (raw data, no bars) | PARTIAL |
 | Diploma credit requirements | Yes | No | MISSING |
 | Learning Snapshot (active quests) | Yes | No | MISSING |
 | Learning Constellation | Yes (quest + badge orbs) | No | MISSING |
 | Learning Journal section | Yes (inline moments) | No | MISSING |
 | Account Settings | Yes (personal info, privacy, deletion) | Yes (deletion with 30-day grace, cancel) | **FIXED** |
-| Privacy / visibility toggle | Yes (make public/private) | No | MISSING |
+| Privacy / visibility toggle | Yes (make public/private) | Yes (Make Public button + API, status indicator) | **FIXED** |
 | FERPA consent modal | Yes | No | MISSING |
 | Observer list management | Yes (list + remove) | Yes (viewers list + remove observers) | **FIXED** |
 | Invite observer modal | No | Yes (bottom sheet) | V2 addition |
@@ -489,7 +489,9 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 - **Credit review dashboard**: MISSING
 
 ### Priority 6: Public Pages
-All 10 public pages MISSING (landing, catalog, course preview, diploma, docs, terms, privacy, how-it-works, org signup, parental consent)
+- **Terms of Service** (`/terms`): **ADDED** 2026-03-28 -- full 16-section ToS, accessible without auth, linked from registration
+- **Privacy Policy** (`/privacy`): **ADDED** 2026-03-28 -- full 14-section policy, accessible without auth, linked from registration
+- Other 8 public pages MISSING (landing, catalog, course preview, diploma, docs, how-it-works, org signup, parental consent)
 
 ### Priority 7: Sharing & Misc
 All 5 sharing pages MISSING (evidence reports, shared feed post, public evidence report, quest invitation accept, my invitations)
@@ -538,22 +540,22 @@ All 5 sharing pages MISSING (evidence reports, shared feed post, public evidence
 | 20 | No subtopic filtering | Quest Discovery | Open |
 | 21 | No Create Quest from discovery | Quest Discovery | Open |
 | 22 | No task reordering | Quest Detail | Open |
-| 23 | No XP breakdown by pillar | Quest Detail | Open |
+| ~~23~~ | ~~No XP breakdown by pillar~~ | ~~Quest Detail~~ | **FIXED** (labeled pillar names + colored dots) |
 | ~~24~~ | ~~No enrolled courses on dashboard~~ | ~~Dashboard~~ | **FIXED** (course cards with progress on dashboard) |
-| 25 | No upcoming tasks panel | Dashboard | Open |
-| 26 | No auto-refresh (30s) | Dashboard | Open |
+| ~~25~~ | ~~No upcoming tasks panel~~ | ~~Dashboard~~ | **FIXED** (NextUpPanel: 1 task per quest, pillar color, XP) |
+| ~~26~~ | ~~No auto-refresh (30s)~~ | ~~Dashboard~~ | **FIXED** (useFocusEffect refetch on tab focus) |
 | ~~27~~ | ~~No topic edit/delete~~ | ~~Journal~~ | **FIXED** (was already fixed, stale entry) |
 | ~~28~~ | ~~No AI suggestions (capture)~~ | ~~Journal / Capture~~ | **FIXED** (AI suggestions in EditMomentModal) |
 | ~~29~~ | ~~No multiple evidence blocks~~ | ~~Capture Sheet~~ | **FIXED** (multi-file upload in CaptureSheet + CaptureModal) |
 | ~~30~~ | ~~No title/date/topic on capture~~ | ~~Capture Sheet~~ | **FIXED** (via edit-after-capture in EditMomentModal) |
 | ~~31~~ | ~~No progress bars on bounty claims tab~~ | ~~Bounty Board~~ | **FIXED** |
-| 32 | No portfolio sharing / QR | Profile | Open |
-| 33 | No bio editing | Profile | Open |
+| ~~32~~ | ~~No portfolio sharing / QR~~ | ~~Profile~~ | **FIXED** (share link + public/private toggle via FERPA API) |
+| ~~33~~ | ~~No bio editing~~ | ~~Profile~~ | **FIXED** (bio field in edit modal, displays on profile hero) |
 | 34 | No diploma credit tracking | Profile | Open |
 | 35 | Messaging placeholder | Messages | Open |
 | 36 | No notifications page | -- | Open |
 
-**6 of 19 medium issues resolved.**
+**11 of 19 medium issues resolved.**
 
 ### OTHER FIXES (Found During Testing)
 
@@ -571,6 +573,11 @@ All 5 sharing pages MISSING (evidence reports, shared feed post, public evidence
 | 46 | Date display off by 1 day (UTC midnight timezone bug) | `LearningEventCard` | **FIXED** (append T12:00 to date-only strings) |
 | 47 | "Unexpected text node" error (empty string in View) | `journal.tsx` | **FIXED** (activeSubtitle && → ternary with null) |
 | 48 | MAX_FILE_SIZE 10MB too low | `backend/config/constants.py` | **FIXED** (raised to 100MB) |
+| 49 | "Unexpected text node" (bio empty string in View) | `profile.tsx` | **FIXED** (`&& →` ternary with null) |
+| 50 | Portfolio share URL used wrong slug (display_name vs diplomas.portfolio_slug) | `profile.tsx`, `useProfile.ts` | **FIXED** (fetches real slug from visibility API) |
+| 51 | Portfolio share had no inline visual feedback (browser alert only) | `profile.tsx` | **FIXED** (green checkmark + "Link copied!" for 2.5s) |
+| 52 | Dashboard stale after leaving quest (card persisted) | `dashboard.tsx` | **FIXED** (useFocusEffect refetch on tab focus) |
+| 53 | "Unexpected text node" (pattern_description empty string) | `dashboard.tsx` | **FIXED** (`&& →` ternary with null) |
 
 ---
 
@@ -582,7 +589,7 @@ All 5 sharing pages MISSING (evidence reports, shared feed post, public evidence
 | `app/(auth)/__tests__/register.test.tsx` | 12 | Field validation, password strength, terms, COPPA, errors |
 | `app/(auth)/__tests__/reset-password.test.tsx` | 9 | Token handling, validation, API integration, success/error |
 | `src/stores/__tests__/authStore.test.ts` | 18 | Login, register, logout, loadUser, forgotPassword, error extraction |
-| `app/(app)/(tabs)/__tests__/dashboard.test.tsx` | 15 | Welcome header, stats, quests, courses, navigation, empty states |
+| `app/(app)/(tabs)/__tests__/dashboard.test.tsx` | 17 | Welcome header, stats, quests, courses, navigation, empty states, Next Up panel |
 | `src/components/feed/__tests__/FeedCard.test.tsx` | 12 | Rendering, share/clipboard, visibility toggle, confidential, like, XP |
 | `app/(app)/(tabs)/__tests__/bounties.test.tsx` | 5 | Cards, tabs, XP/custom rewards, claim progress bars |
 | `app/(app)/bounties/__tests__/create.test.tsx` | 6 | Form validation, pillar selector, edit mode |
@@ -592,10 +599,10 @@ All 5 sharing pages MISSING (evidence reports, shared feed post, public evidence
 | `src/components/journal/__tests__/LearningEventCard.test.tsx` | 7 | Rendering, topic tags, evidence indicators, description dedup, action menu |
 | `src/components/capture/__tests__/CaptureSheet.test.tsx` | 6 | Rendering, camera, multi-select, shared-upload save flow, description-only save, close |
 | `src/components/capture/__tests__/CaptureSheet.parentCapture.test.tsx` | 3 | Single kid JSON, multi-kid JSON, realtime source type |
-| `src/hooks/__tests__/useQuestDetail.test.ts` | 7 | Session, generate, accept, complete, delete, enroll |
+| `src/hooks/__tests__/useQuestDetail.test.ts` | 8 | Session, generate, accept, complete, delete, enroll, enroll with options |
 | `app/(app)/quests/__tests__/detail.test.tsx` | 5 | Renders quest, task list, add task (shared TaskCreationWizard) |
-| `src/hooks/__tests__/useProfile.test.ts` | 2 | Parallel fetch, edit profile (Achievement now includes course) |
-| **Total new/updated** | **142** | |
+| `src/hooks/__tests__/useProfile.test.ts` | 2 | Parallel fetch (incl. visibility/slug), edit profile |
+| **Total new/updated** | **147** | |
 
 All tests are unit tests with mocked data (no live backend). E2E tests via Maestro planned separately.
 
@@ -606,17 +613,18 @@ All tests are unit tests with mocked data (no live backend). E2E tests via Maest
 | Category | Total Features | OK / Fixed | Partial | Missing | % Complete |
 |----------|---------------|-----------|---------|---------|------------|
 | Auth (Login + Register + Reset) | 30 | 22 | 1 | 7 | **73%** |
-| Dashboard | 14 | 8 | 1 | 5 | 57% |
+| Dashboard | 16 | 11 | 1 | 4 | **69%** |
 | Feed (new) | 14 | 10 | 0 | 4 | 71% |
 | Quest Discovery | 11 | 5 | 1 | 5 | 45% |
-| Quest Detail | 22 | 9 | 1 | 12 | 41% |
+| Quest Detail | 22 | 12 | 1 | 9 | **55%** |
 | Course Catalog | 12 | 8 | 0 | 4 | 67% |
 | Course Detail | 29 | 22 | 0 | 7 | **76%** |
 | Journal | 24 | 12 | 1 | 11 | 50% |
 | Capture | 13 | 11 | 0 | 2 | 85% |
 | Bounties (all) | 47 | 37 | 2 | 8 | **79%** |
 | Buddy | 9 | 9 | 0 | 0 | 100% |
-| Profile | 22 | 10 | 2 | 10 | 45% |
-| **TOTAL** | **251** | **166 (66%)** | **9 (4%)** | **76 (30%)** | **66%** |
+| Profile | 22 | 14 | 1 | 7 | **64%** |
+| Public Pages | 2 | 2 | 0 | 0 | 100% |
+| **TOTAL** | **253** | **177 (70%)** | **8 (3%)** | **68 (27%)** | **70%** |
 
-**V2 is at approximately 66% feature parity with v1 for Priority 1 pages (up from 65% after journal/capture overhaul). All 7 critical and all 10 high issues resolved.**
+**V2 is at approximately 70% feature parity with v1 for Priority 1 pages (up from 66% after quest detail, dashboard, profile, and public page additions). All 7 critical, all 10 high, and 11 of 19 medium issues resolved.**

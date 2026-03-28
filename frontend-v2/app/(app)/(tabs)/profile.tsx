@@ -45,18 +45,23 @@ function CollapsibleSection({ title, children, defaultOpen = true }: { title: st
 
 export default function ProfileScreen() {
   const { user, logout } = useAuthStore();
-  const { pillarXP, achievements, subjectXP, viewers, deletionStatus, loading, refetch } = useProfile();
+  const { pillarXP, achievements, subjectXP, viewers, deletionStatus, portfolioPublic: hookPortfolioPublic, setPortfolioPublic: setHookPortfolioPublic, portfolioSlug, loading, refetch } = useProfile();
   const { data: engagement } = useGlobalEngagement();
 
   const [editVisible, setEditVisible] = useState(false);
   const [editFirst, setEditFirst] = useState('');
   const [editLast, setEditLast] = useState('');
   const [editDisplay, setEditDisplay] = useState('');
+  const [editBio, setEditBio] = useState('');
   const [saving, setSaving] = useState(false);
   const [inviteObserverVisible, setInviteObserverVisible] = useState(false);
   const [observerEmail, setObserverEmail] = useState('');
   const [invitingObserver, setInvitingObserver] = useState(false);
   const [deletionRequesting, setDeletionRequesting] = useState(false);
+  const [portfolioCopied, setPortfolioCopied] = useState(false);
+  const [makingPublic, setMakingPublic] = useState(false);
+  const portfolioPublic = hookPortfolioPublic;
+  const setPortfolioPublic = setHookPortfolioPublic;
 
   const isStudent = user?.role === 'student' || user?.org_role === 'student';
 
@@ -130,6 +135,7 @@ export default function ProfileScreen() {
     setEditFirst(user?.first_name || '');
     setEditLast(user?.last_name || '');
     setEditDisplay(user?.display_name || '');
+    setEditBio((user as any)?.bio || '');
     setEditVisible(true);
   };
 
@@ -140,6 +146,7 @@ export default function ProfileScreen() {
         display_name: editDisplay.trim(),
         first_name: editFirst.trim(),
         last_name: editLast.trim(),
+        bio: editBio.trim(),
       });
       setEditVisible(false);
       refetch();
@@ -193,6 +200,11 @@ export default function ProfileScreen() {
                   <Ionicons name="pencil-outline" size={14} color="#6D469B" />
                   <UIText size="xs" className="text-optio-purple font-poppins-medium">Edit Profile</UIText>
                 </Pressable>
+                {(user as any)?.bio ? (
+                  <UIText size="sm" className="text-typo-500 text-center mt-1 px-4" numberOfLines={3}>
+                    {(user as any).bio}
+                  </UIText>
+                ) : null}
               </VStack>
               <HStack className="justify-around w-full mt-2">
                 <VStack className="items-center">
@@ -247,6 +259,88 @@ export default function ProfileScreen() {
 
           {/* Portfolio */}
           <CollapsibleSection title="Portfolio" defaultOpen={false}>
+            <VStack space="sm" className="mb-2">
+              <HStack className="items-center justify-between">
+                <HStack className="items-center gap-2">
+                  <Ionicons
+                    name={portfolioPublic ? 'globe-outline' : 'lock-closed-outline'}
+                    size={14}
+                    color={portfolioPublic ? '#16A34A' : '#9CA3AF'}
+                  />
+                  <UIText size="xs" className={portfolioPublic ? 'text-green-600' : 'text-typo-400'}>
+                    {portfolioPublic ? 'Public' : 'Private'}
+                  </UIText>
+                </HStack>
+                <HStack className="items-center gap-2">
+                  {!portfolioPublic && (
+                    <Pressable
+                      onPress={async () => {
+                        if (makingPublic) return;
+                        const confirmed = Platform.OS === 'web'
+                          ? window.confirm('Make your portfolio public? Anyone with the link will be able to view your learning achievements.')
+                          : true;
+                        if (!confirmed) return;
+                        setMakingPublic(true);
+                        try {
+                          await api.put(`/api/portfolio/user/${user?.id}/privacy`, {
+                            is_public: true,
+                            consent_acknowledged: true,
+                          });
+                          setPortfolioPublic(true);
+                        } catch (err: any) {
+                          const msg = err.response?.data?.message || 'Failed to make portfolio public';
+                          Alert.alert('Error', msg);
+                        } finally {
+                          setMakingPublic(false);
+                        }
+                      }}
+                      className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50"
+                    >
+                      <Ionicons name="globe-outline" size={14} color="#16A34A" />
+                      <UIText size="xs" className="text-green-700 font-poppins-medium">
+                        {makingPublic ? 'Publishing...' : 'Make Public'}
+                      </UIText>
+                    </Pressable>
+                  )}
+                  <Pressable
+                    onPress={async () => {
+                      if (!portfolioPublic) {
+                        Alert.alert('Private Portfolio', 'Make your portfolio public first to share it.');
+                        return;
+                      }
+                      const slug = portfolioSlug || (user as any)?.portfolio_slug || user?.id;
+                      const url = `https://www.optioeducation.com/portfolio/${slug}`;
+                      if (Platform.OS === 'web') {
+                        try {
+                          await navigator.clipboard.writeText(url);
+                          setPortfolioCopied(true);
+                          setTimeout(() => setPortfolioCopied(false), 2500);
+                        } catch {
+                          window.prompt('Copy your portfolio link:', url);
+                        }
+                      } else {
+                        const { Share } = require('react-native');
+                        Share.share({ message: `Check out my learning portfolio: ${url}`, url });
+                      }
+                    }}
+                    className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg ${
+                      portfolioCopied ? 'bg-green-100' : portfolioPublic ? 'bg-optio-purple/10' : 'bg-surface-100'
+                    }`}
+                  >
+                    <Ionicons
+                      name={portfolioCopied ? 'checkmark-circle' : 'share-outline'}
+                      size={16}
+                      color={portfolioCopied ? '#16A34A' : portfolioPublic ? '#6D469B' : '#9CA3AF'}
+                    />
+                    <UIText size="xs" className={`font-poppins-medium ${
+                      portfolioCopied ? 'text-green-700' : portfolioPublic ? 'text-optio-purple' : 'text-typo-400'
+                    }`}>
+                      {portfolioCopied ? 'Link copied!' : 'Share Portfolio'}
+                    </UIText>
+                  </Pressable>
+                </HStack>
+              </HStack>
+            </VStack>
             <PortfolioSection achievements={achievements} />
           </CollapsibleSection>
 
@@ -460,6 +554,20 @@ export default function ProfileScreen() {
                   />
                 </VStack>
               </HStack>
+              <VStack space="xs">
+                <UIText size="sm" className="font-poppins-medium">Learning Vision / Bio</UIText>
+                <TextInput
+                  value={editBio}
+                  onChangeText={setEditBio}
+                  placeholder="What drives your learning? What are you passionate about?"
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  className="bg-surface-50 rounded-xl p-4 text-base min-h-[80px]"
+                  style={{ fontFamily: 'Poppins_400Regular' }}
+                />
+              </VStack>
               <Button size="lg" onPress={handleSaveProfile} loading={saving} disabled={saving} className="w-full">
                 <ButtonText>Save Changes</ButtonText>
               </Button>

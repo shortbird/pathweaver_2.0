@@ -415,11 +415,42 @@ export default function QuestDetailScreen() {
   const { data: engagement } = useQuestEngagement(isEnrolled ? quest?.id || null : null);
   const [enrolling, setEnrolling] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [restartModalVisible, setRestartModalVisible] = useState(false);
 
   const handleEnroll = async () => {
     setEnrolling(true);
     try {
       await enroll();
+    } catch (err: any) {
+      if (err?.response?.status === 409 || err?.response?.data?.requires_confirmation) {
+        setRestartModalVisible(true);
+      }
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
+  const handleRestartFresh = async () => {
+    setRestartModalVisible(false);
+    setEnrolling(true);
+    try {
+      await api.post(`/api/quests/${id}/enroll`, { force_new: true });
+      await refetch();
+    } catch {
+      // Error
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
+  const handleLoadPrevious = async () => {
+    setRestartModalVisible(false);
+    setEnrolling(true);
+    try {
+      await api.post(`/api/quests/${id}/enroll`, { load_previous_tasks: true, force_new: true });
+      await refetch();
+    } catch {
+      // Error
     } finally {
       setEnrolling(false);
     }
@@ -529,6 +560,26 @@ export default function QuestDetailScreen() {
               {quest.description}
             </UIText>
 
+            {/* Approach Examples */}
+            {!isEnrolled && quest.approach_examples && (
+              <Card variant="outline" size="md">
+                <VStack space="sm">
+                  <HStack className="items-center gap-2">
+                    <Ionicons name="bulb-outline" size={18} color="#6D469B" />
+                    <UIText size="sm" className="font-poppins-semibold">How others have approached this</UIText>
+                  </HStack>
+                  {(Array.isArray(quest.approach_examples) ? quest.approach_examples : [quest.approach_examples]).map((ex: any, idx: number) => (
+                    <HStack key={idx} className="items-start gap-2 ml-1">
+                      <UIText size="xs" className="text-optio-purple mt-0.5">•</UIText>
+                      <UIText size="xs" className="text-typo-500 flex-1">
+                        {typeof ex === 'string' ? ex : ex.text || ex.description || JSON.stringify(ex)}
+                      </UIText>
+                    </HStack>
+                  ))}
+                </VStack>
+              </Card>
+            )}
+
             {/* Enrollment CTA (not enrolled) */}
             {!isEnrolled && (
               <Card variant="elevated" size="lg" className="items-center">
@@ -570,10 +621,13 @@ export default function QuestDetailScreen() {
                       </UIText>
                     </HStack>
                     {/* Pillar breakdown */}
-                    <HStack className="items-center gap-2">
+                    <HStack className="items-center gap-2 flex-wrap">
                       {Object.entries(pillarXP).map(([pillar, xp]) => (
                         <HStack key={pillar} className="items-center gap-1">
-                          <View className={`w-2 h-2 rounded-full ${(pillarColors[pillar] || pillarColors.stem).bar}`} />
+                          <View className={`w-2.5 h-2.5 rounded-full ${(pillarColors[pillar] || pillarColors.stem).bar}`} />
+                          <UIText size="xs" className="text-typo-500 font-poppins-medium">
+                            {pillar === 'stem' ? 'STEM' : pillar.charAt(0).toUpperCase() + pillar.slice(1)}
+                          </UIText>
                           <UIText size="xs" className="text-typo-400">{xp}</UIText>
                         </HStack>
                       ))}
@@ -664,6 +718,31 @@ export default function QuestDetailScreen() {
           </VStack>
         </VStack>
       </ScrollView>
+      {/* Restart Quest Modal */}
+      {restartModalVisible && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 50 }}>
+          <Card variant="elevated" size="lg" className="mx-6 max-w-md w-full">
+            <VStack space="md" className="items-center">
+              <Ionicons name="refresh-circle-outline" size={40} color="#6D469B" />
+              <Heading size="md" className="text-center">Welcome Back!</Heading>
+              <UIText size="sm" className="text-typo-500 text-center">
+                You've worked on this quest before. Would you like to continue where you left off or start fresh?
+              </UIText>
+              <VStack space="sm" className="w-full">
+                <Button size="lg" className="w-full" onPress={handleLoadPrevious}>
+                  <ButtonText>Continue Previous Progress</ButtonText>
+                </Button>
+                <Button size="lg" variant="outline" className="w-full" onPress={handleRestartFresh}>
+                  <ButtonText>Start Fresh</ButtonText>
+                </Button>
+                <Button size="sm" variant="link" className="w-full" onPress={() => setRestartModalVisible(false)}>
+                  <ButtonText className="text-typo-400">Cancel</ButtonText>
+                </Button>
+              </VStack>
+            </VStack>
+          </Card>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

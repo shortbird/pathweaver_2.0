@@ -65,9 +65,9 @@ export function useQuestDetail(questId: string | null) {
     }
   }, [isAuthenticated, questId]);
 
-  const enroll = async () => {
+  const enroll = async (options?: { force_new?: boolean; load_previous_tasks?: boolean }) => {
     if (!questId) return;
-    const { data } = await api.post(`/api/quests/${questId}/enroll`, {});
+    const { data } = await api.post(`/api/quests/${questId}/enroll`, options || {});
     await fetchQuest();
     return data;
   };

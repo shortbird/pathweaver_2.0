@@ -226,7 +226,7 @@ describe('deleteTask', () => {
 });
 
 describe('enroll', () => {
-  it('calls POST /api/quests/{id}/start and refetches', async () => {
+  it('calls POST /api/quests/{id}/enroll and refetches', async () => {
     (api.get as jest.Mock)
       .mockResolvedValueOnce({ data: { quest: { ...mockQuest, user_enrollment: null } } }) // initial
       .mockResolvedValueOnce({ data: { quest: mockQuest } }); // refetch after enroll
@@ -240,5 +240,24 @@ describe('enroll', () => {
     });
 
     expect(api.post).toHaveBeenCalledWith('/api/quests/quest-1/enroll', {});
+  });
+
+  it('passes options (force_new, load_previous_tasks) to enroll API', async () => {
+    (api.get as jest.Mock)
+      .mockResolvedValueOnce({ data: { quest: { ...mockQuest, user_enrollment: null } } })
+      .mockResolvedValueOnce({ data: { quest: mockQuest } });
+    (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: true } });
+
+    const { result } = renderHook(() => useQuestDetail('quest-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.enroll({ force_new: true, load_previous_tasks: true });
+    });
+
+    expect(api.post).toHaveBeenCalledWith('/api/quests/quest-1/enroll', {
+      force_new: true,
+      load_previous_tasks: true,
+    });
   });
 });

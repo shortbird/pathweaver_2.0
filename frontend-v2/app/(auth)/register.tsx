@@ -344,7 +344,7 @@ export default function RegisterScreen() {
                     <UIText
                       size="xs"
                       className="text-optio-purple underline"
-                      onPress={() => Linking.openURL(TERMS_URL)}
+                      onPress={() => Platform.OS === 'web' ? router.push('/terms' as any) : Linking.openURL(TERMS_URL)}
                     >
                       Terms of Service
                     </UIText>
@@ -352,7 +352,7 @@ export default function RegisterScreen() {
                     <UIText
                       size="xs"
                       className="text-optio-purple underline"
-                      onPress={() => Linking.openURL(PRIVACY_URL)}
+                      onPress={() => Platform.OS === 'web' ? router.push('/privacy' as any) : Linking.openURL(PRIVACY_URL)}
                     >
                       Privacy Policy
                     </UIText>

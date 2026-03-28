@@ -21,11 +21,14 @@ afterEach(() => {
 });
 
 describe('useProfile', () => {
-  it('fetches dashboard + completed quests + subject XP in parallel', async () => {
+  it('fetches dashboard + completed quests + subject XP + visibility in parallel', async () => {
     (api.get as jest.Mock)
-      .mockResolvedValueOnce({ data: { xp_by_category: { stem: 500, art: 200 } } })
-      .mockResolvedValueOnce({ data: { achievements: [{ id: 'a1', title: 'Math Quest' }] } })
-      .mockResolvedValueOnce({ data: { subjects: [{ school_subject: 'Math', xp_amount: 300, pending_xp: 50 }] } });
+      .mockResolvedValueOnce({ data: { xp_by_category: { stem: 500, art: 200 } } })  // dashboard
+      .mockResolvedValueOnce({ data: { achievements: [{ id: 'a1', title: 'Math Quest' }] } })  // completed
+      .mockResolvedValueOnce({ data: { subjects: [{ school_subject: 'Math', xp_amount: 300, pending_xp: 50 }] } })  // subject-xp
+      .mockResolvedValueOnce({ data: { deletion_status: 'none' } })  // deletion-status
+      .mockResolvedValueOnce({ data: { is_public: true, portfolio_slug: 'testuser' } })  // visibility
+      .mockResolvedValueOnce({ data: { viewers: [] } });  // observers
 
     const { result } = renderHook(() => useProfile());
 
@@ -41,6 +44,8 @@ describe('useProfile', () => {
     expect(result.current.achievements).toHaveLength(1);
     expect(result.current.subjectXP).toHaveLength(1);
     expect(result.current.subjectXP[0].school_subject).toBe('Math');
+    expect(result.current.portfolioPublic).toBe(true);
+    expect(result.current.portfolioSlug).toBe('testuser');
   });
 
   it('edit profile: PUT /api/users/profile with updated fields', async () => {

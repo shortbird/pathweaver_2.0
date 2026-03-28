@@ -8,9 +8,9 @@
  * Mobile: single column with bottom tabs.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, ScrollView, Image, Pressable, useWindowDimensions, RefreshControl } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
@@ -254,6 +254,96 @@ function DashboardSkeleton() {
   );
 }
 
+// ── Next Up Tasks ──
+
+function NextUpPanel({ quests }: { quests: any[] }) {
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (quests.length === 0) { setLoading(false); return; }
+    (async () => {
+      try {
+        const results = await Promise.allSettled(
+          quests.slice(0, 5).map(async (uq: any) => {
+            const q = uq.quests;
+            if (!q?.id) return null;
+            const { data } = await api.get(`/api/quests/${q.id}`);
+            const questData = data.quest || data;
+            const allTasks = questData.quest_tasks || [];
+            const nextTask = allTasks.find((t: any) => !t.is_completed);
+            if (!nextTask) return null;
+            return { ...nextTask, quest_title: q.title, quest_id: q.id };
+          })
+        );
+        const validTasks = results
+          .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled' && r.value !== null)
+          .map((r) => r.value);
+        setTasks(validTasks);
+      } catch {
+        // Non-critical
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [quests]);
+
+  if (loading) {
+    return (
+      <VStack space="sm">
+        <Heading size="md">Next Up</Heading>
+        <Skeleton className="h-20 rounded-xl" />
+        <Skeleton className="h-20 rounded-xl" />
+      </VStack>
+    );
+  }
+
+  if (tasks.length === 0) return null;
+
+  const pillarColors: Record<string, string> = {
+    stem: 'bg-pillar-stem',
+    art: 'bg-pillar-art',
+    communication: 'bg-pillar-communication',
+    civics: 'bg-pillar-civics',
+    wellness: 'bg-pillar-wellness',
+  };
+
+  return (
+    <VStack space="sm">
+      <HStack className="items-center gap-2">
+        <Ionicons name="flash-outline" size={20} color="#6D469B" />
+        <Heading size="md">Next Up</Heading>
+      </HStack>
+      <VStack space="sm">
+        {tasks.map((task) => (
+          <Pressable key={task.id} onPress={() => router.push(`/(app)/quests/${task.quest_id}`)}>
+            <Card variant="elevated" size="sm">
+              <HStack className="items-center gap-3">
+                <View className={`w-1.5 h-12 rounded-full ${pillarColors[task.pillar] || pillarColors.stem}`} />
+                <VStack className="flex-1 min-w-0">
+                  <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
+                    {task.title}
+                  </UIText>
+                  <HStack className="items-center gap-2 mt-0.5">
+                    <UIText size="xs" className="text-typo-400" numberOfLines={1}>
+                      {task.quest_title}
+                    </UIText>
+                    <View className="w-1 h-1 rounded-full bg-typo-300" />
+                    <UIText size="xs" className="text-optio-purple font-poppins-medium">
+                      {task.xp_value || task.xp_amount || 0} XP
+                    </UIText>
+                  </HStack>
+                </VStack>
+                <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+              </HStack>
+            </Card>
+          </Pressable>
+        ))}
+      </VStack>
+    </VStack>
+  );
+}
+
 // ── Main Dashboard ──
 
 export default function DashboardScreen() {
@@ -261,6 +351,13 @@ export default function DashboardScreen() {
   const { data, loading, refetch } = useDashboard();
   const { data: globalEngagement } = useGlobalEngagement();
   const [refreshing, setRefreshing] = useState(false);
+
+  // Refetch when screen regains focus (e.g. after leaving a quest)
+  useFocusEffect(
+    useCallback(() => {
+      if (data) refetch();
+    }, [])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -326,6 +423,9 @@ export default function DashboardScreen() {
             )}
           </VStack>
 
+          {/* Next Up */}
+          <NextUpPanel quests={activeQuests} />
+
           {/* Enrolled Courses */}
           <EnrolledCourses courses={enrolledCourses} />
 
@@ -337,11 +437,11 @@ export default function DashboardScreen() {
                 {/* Header: title + rhythm badge inline */}
                 <HStack className="items-center justify-between">
                   <RhythmBadge rhythm={globalEngagement?.rhythm || null} compact />
-                  {globalEngagement?.rhythm?.pattern_description && (
+                  {globalEngagement?.rhythm?.pattern_description ? (
                     <UIText size="xs" className="text-typo-400">
                       {globalEngagement.rhythm.pattern_description}
                     </UIText>
-                  )}
+                  ) : null}
                 </HStack>
 
                 {/* Activity calendar */}

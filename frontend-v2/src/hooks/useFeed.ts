@@ -33,6 +33,7 @@ export interface FeedMedia {
 export interface FeedItem {
   type: 'task_completed' | 'learning_moment';
   id: string;
+  completion_id?: string;
   timestamp: string;
   student: FeedStudent;
   task?: {
@@ -177,11 +178,15 @@ export async function createShareLink(type: 'task_completed' | 'learning_moment'
   return data as { share_url: string; token: string };
 }
 
-export async function toggleVisibility(type: 'task_completed' | 'learning_moment', id: string, hidden: boolean) {
-  const cleanId = id.replace(/^(tc_|le_)/, '');
+export async function toggleVisibility(type: 'task_completed' | 'learning_moment', id: string, hidden: boolean, completionId?: string) {
+  // Use completion_id when available (feed items have composite ids like "uuid_uuid")
+  const rawId = completionId || id;
+  const cleanId = rawId.replace(/^(tc_|le_|bounty_)/, '');
+  // Strip any trailing _blockId suffix to get the actual DB uuid
+  const dbId = cleanId.includes('_') ? cleanId.split('_')[0] : cleanId;
   const body = type === 'task_completed'
-    ? { completion_id: cleanId, hidden }
-    : { learning_event_id: cleanId, hidden };
+    ? { completion_id: dbId, hidden }
+    : { learning_event_id: dbId, hidden };
   const { data } = await api.post('/api/observers/feed-item/toggle-visibility', body);
   return data as { status: string; hidden: boolean };
 }

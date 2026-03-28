@@ -233,7 +233,7 @@ export function FeedCard({ item, showStudent = true, onPress }: FeedCardProps) {
     const newHidden = !isConfidential;
     setIsConfidential(newHidden);
     try {
-      await toggleVisibility(item.type, item.id, newHidden);
+      await toggleVisibility(item.type, item.id, newHidden, item.completion_id);
     } catch {
       setIsConfidential(!newHidden);
     }

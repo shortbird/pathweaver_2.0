@@ -82,6 +82,8 @@ export function useProfile() {
   const [subjectXP, setSubjectXP] = useState<SubjectXP[]>([]);
   const [viewers, setViewers] = useState<Viewer[]>([]);
   const [deletionStatus, setDeletionStatus] = useState<DeletionStatus>({ deletion_status: 'none' });
+  const [portfolioPublic, setPortfolioPublic] = useState<boolean | null>(null);
+  const [portfolioSlug, setPortfolioSlug] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const isStudent = user?.role === 'student' || (user as any)?.org_role === 'student';
@@ -90,18 +92,20 @@ export function useProfile() {
     if (!isAuthenticated) return;
     try {
       setLoading(true);
+      const userId = user?.id;
       const requests: Promise<any>[] = [
         api.get('/api/users/dashboard'),
         api.get('/api/quests/completed'),
         api.get('/api/users/subject-xp'),
         api.get('/api/users/deletion-status'),
+        userId ? api.get(`/api/portfolio/user/${userId}/visibility-status`) : Promise.resolve({ data: {} }),
       ];
       if (isStudent) {
         requests.push(api.get('/api/observers/my-observers'));
       }
 
       const results = await Promise.allSettled(requests);
-      const [dashRes, achieveRes, subjectRes, deletionRes, observerRes] = results;
+      const [dashRes, achieveRes, subjectRes, deletionRes, visibilityRes, observerRes] = results;
 
       if (dashRes.status === 'fulfilled') {
         const d = dashRes.value.data;
@@ -128,6 +132,12 @@ export function useProfile() {
         setDeletionStatus(deletionRes.value.data);
       }
 
+      if (visibilityRes && visibilityRes.status === 'fulfilled') {
+        const v = visibilityRes.value.data;
+        setPortfolioPublic(v?.is_public ?? v?.data?.is_public ?? false);
+        setPortfolioSlug(v?.portfolio_slug ?? v?.data?.portfolio_slug ?? null);
+      }
+
       if (observerRes && observerRes.status === 'fulfilled') {
         setViewers(observerRes.value.data.viewers || []);
       }
@@ -136,9 +146,9 @@ export function useProfile() {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, isStudent]);
+  }, [isAuthenticated, isStudent, user?.id]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
-  return { user, pillarXP, achievements, subjectXP, viewers, deletionStatus, loading, refetch: fetchProfile };
+  return { user, pillarXP, achievements, subjectXP, viewers, deletionStatus, portfolioPublic, setPortfolioPublic, portfolioSlug, loading, refetch: fetchProfile };
 }

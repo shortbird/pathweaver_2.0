@@ -605,7 +605,8 @@ class PortfolioService:
         try:
             diploma_result = self.client.table('diplomas').select(
                 'is_public, public_consent_given, public_consent_given_at, '
-                'pending_parent_approval, parent_approval_denied, parent_approval_denied_at'
+                'pending_parent_approval, parent_approval_denied, parent_approval_denied_at, '
+                'portfolio_slug'
             ).eq('user_id', user_id).execute()
             diploma_data = diploma_result.data[0] if diploma_result.data else {}
         except Exception:
@@ -631,6 +632,7 @@ class PortfolioService:
             'is_public': diploma_data.get('is_public', False),
             'consent_given': diploma_data.get('public_consent_given', False),
             'consent_given_at': diploma_data.get('public_consent_given_at'),
+            'portfolio_slug': diploma_data.get('portfolio_slug'),
             'is_minor': is_minor,
             'requires_parent_approval': is_minor,
             'pending_parent_approval': diploma_data.get('pending_parent_approval', False),
