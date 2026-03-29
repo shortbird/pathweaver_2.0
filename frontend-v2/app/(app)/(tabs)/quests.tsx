@@ -2,12 +2,14 @@
  * Quest Discovery - Browse and search available quests. Web only.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Image, Platform, Pressable, ScrollView, ActivityIndicator, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuestDiscovery } from '@/src/hooks/useQuests';
+import { useAuthStore } from '@/src/stores/authStore';
+import { CreateQuestModal } from '@/src/components/admin/CreateQuestModal';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Skeleton, Input, InputField, InputSlot, InputIcon,
@@ -62,6 +64,19 @@ function QuestCard({ quest }: { quest: any }) {
 }
 
 export default function QuestsScreen() {
+  const { quests, topics, loading, loadingMore, hasMore, search, setSearch, selectedTopic, setSelectedTopic, selectedSubtopic, setSelectedSubtopic, subtopics, loadMore, refetch } = useQuestDiscovery();
+  const user = useAuthStore((s) => s.user);
+  const canCreateQuest = (user && ['superadmin', 'advisor'].includes(user.role)) || (user?.role === 'org_managed' && ['advisor', 'org_admin'].includes(user?.org_role || ''));
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    if (distanceFromBottom < 200) {
+      loadMore();
+    }
+  }, [loadMore]);
+
   if (Platform.OS !== 'web') {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 items-center justify-center">
@@ -72,25 +87,29 @@ export default function QuestsScreen() {
     );
   }
 
-  const { quests, topics, loading, loadingMore, hasMore, search, setSearch, selectedTopic, setSelectedTopic, loadMore } = useQuestDiscovery();
-
-  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
-    if (distanceFromBottom < 200) {
-      loadMore();
-    }
-  }, [loadMore]);
-
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
       <ScrollView className="flex-1" contentContainerClassName="px-5 md:px-8 pt-6 pb-12" showsVerticalScrollIndicator={false} onScroll={handleScroll} scrollEventThrottle={200}>
         <VStack space="lg" className="max-w-5xl w-full md:mx-auto">
 
-          <VStack space="sm">
-            <Heading size="2xl">Discover Quests</Heading>
-            <UIText className="text-typo-500">Find your next learning adventure</UIText>
-          </VStack>
+          {/* Hero gradient banner */}
+          <View className="bg-gradient-to-r from-optio-purple to-optio-pink rounded-2xl px-6 py-8 md:py-10">
+            <HStack className="items-center justify-between">
+              <VStack space="sm">
+                <Heading size="2xl" className="text-white">Discover Quests</Heading>
+                <UIText className="text-white/80">Find your next learning adventure</UIText>
+              </VStack>
+            {canCreateQuest ? (
+              <Pressable
+                onPress={() => setShowCreateModal(true)}
+                className="flex-row items-center gap-1.5 bg-white/20 px-4 py-2 rounded-lg"
+              >
+                <Ionicons name="add" size={16} color="white" />
+                <UIText size="sm" className="text-white font-poppins-medium">Create Quest</UIText>
+              </Pressable>
+            ) : null}
+            </HStack>
+          </View>
 
           <Input variant="rounded" size="lg">
             <InputSlot className="ml-3">
@@ -100,24 +119,43 @@ export default function QuestsScreen() {
           </Input>
 
           {topics.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <HStack space="sm">
-                <Pressable onPress={() => setSelectedTopic(null)}>
-                  <View className={`px-4 py-2 rounded-full ${!selectedTopic ? 'bg-optio-purple' : 'bg-surface-200'}`}>
-                    <UIText size="sm" className={`font-poppins-medium ${!selectedTopic ? 'text-white' : 'text-typo-500'}`}>All</UIText>
-                  </View>
-                </Pressable>
-                {topics.map((t) => (
-                  <Pressable key={t.name} onPress={() => setSelectedTopic(t.name)}>
-                    <View className={`px-4 py-2 rounded-full ${selectedTopic === t.name ? 'bg-optio-purple' : 'bg-surface-200'}`}>
-                      <UIText size="sm" className={`font-poppins-medium ${selectedTopic === t.name ? 'text-white' : 'text-typo-500'}`}>
-                        {t.name} ({t.count})
-                      </UIText>
+            <VStack space="sm">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <HStack space="sm">
+                  <Pressable onPress={() => setSelectedTopic(null)}>
+                    <View className={`px-4 py-2 rounded-full ${!selectedTopic ? 'bg-optio-purple' : 'bg-surface-200'}`}>
+                      <UIText size="sm" className={`font-poppins-medium ${!selectedTopic ? 'text-white' : 'text-typo-500'}`}>All</UIText>
                     </View>
                   </Pressable>
-                ))}
-              </HStack>
-            </ScrollView>
+                  {topics.map((t) => (
+                    <Pressable key={t.name} onPress={() => setSelectedTopic(t.name)}>
+                      <View className={`px-4 py-2 rounded-full ${selectedTopic === t.name ? 'bg-optio-purple' : 'bg-surface-200'}`}>
+                        <UIText size="sm" className={`font-poppins-medium ${selectedTopic === t.name ? 'text-white' : 'text-typo-500'}`}>
+                          {t.name} ({t.count})
+                        </UIText>
+                      </View>
+                    </Pressable>
+                  ))}
+                </HStack>
+              </ScrollView>
+
+              {selectedTopic && subtopics.length > 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <HStack space="xs" className="items-center">
+                    <UIText size="xs" className="text-typo-400 mr-1">Filter by:</UIText>
+                    {subtopics.map((st) => (
+                      <Pressable key={st} onPress={() => setSelectedSubtopic(selectedSubtopic === st ? null : st)}>
+                        <View className={`px-3 py-1.5 rounded-full border ${selectedSubtopic === st ? 'bg-optio-purple border-optio-purple' : 'bg-surface-100 border-surface-300'}`}>
+                          <UIText size="xs" className={`font-poppins-medium ${selectedSubtopic === st ? 'text-white' : 'text-typo-500'}`}>
+                            {st}
+                          </UIText>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </HStack>
+                </ScrollView>
+              )}
+            </VStack>
           )}
 
           {loading ? (
@@ -155,6 +193,12 @@ export default function QuestsScreen() {
           )}
         </VStack>
       </ScrollView>
+
+      <CreateQuestModal
+        visible={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={refetch}
+      />
     </SafeAreaView>
   );
 }

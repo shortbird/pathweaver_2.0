@@ -19,6 +19,19 @@ import { PillarBadge } from '../ui';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import { CommentSheet } from './CommentSheet';
 
+/** Request a server-resized thumbnail for Supabase storage URLs to save memory */
+function thumbUrl(url: string, width = 600): string {
+  if (!url) return url;
+  // Supabase storage URLs support /render/image/public with transform params
+  if (url.includes('.supabase.co/storage/v1/object/public/')) {
+    return url.replace(
+      '/storage/v1/object/public/',
+      `/storage/v1/render/image/public/`
+    ) + `?width=${width}&resize=contain`;
+  }
+  return url;
+}
+
 function ExpandableText({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
   const isLong = text.length > 200;
@@ -83,9 +96,9 @@ function EvidenceDisplay({ evidence, media, description }: { evidence: FeedItem[
       {imageUrl && (
         <Pressable onPress={() => setModal({ type: 'image', uri: imageUrl })}>
           <Image
-            source={{ uri: imageUrl }}
+            source={{ uri: thumbUrl(imageUrl) }}
             className="w-full rounded-lg"
-            style={{ aspectRatio: 3 / 4, minHeight: 300 }}
+            style={{ height: 280 }}
             resizeMode="cover"
           />
         </Pressable>

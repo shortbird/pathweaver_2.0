@@ -93,15 +93,11 @@ function mockApiForEnrolled() {
         data: { course: mockCourse, quests: mockQuests, enrollment: mockEnrollment, progress: mockProgress },
       });
     }
-    if (url.includes('/api/courses/course-1') && !url.includes('homepage')) {
-      return Promise.resolve({ data: { course: mockCourse } });
-    }
-    if (url.includes('/api/quests/quest-1')) {
+    // Quest detail fetched lazily when project is expanded
+    if (url.includes('/api/quests/quest-1') && !url.includes('/curriculum')) {
       return Promise.resolve({ data: { quest: mockQuestDetail } });
     }
-    if (url.includes('/curriculum/lessons')) {
-      return Promise.resolve({ data: { lessons: mockQuests[0].lessons } });
-    }
+    // Evidence fetched lazily when task is expanded
     if (url.includes('/evidence/documents/')) {
       return Promise.resolve({ data: { blocks: [] } });
     }
@@ -115,9 +111,6 @@ function mockApiForUnenrolled() {
       return Promise.resolve({
         data: { course: mockCourse, quests: [], enrollment: null, progress: null },
       });
-    }
-    if (url.includes('/api/courses/course-1')) {
-      return Promise.resolve({ data: { course: mockCourse } });
     }
     return Promise.resolve({ data: {} });
   });

@@ -10,11 +10,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCourseCatalog } from '@/src/hooks/useCourses';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
-  Skeleton, Input, InputField, InputSlot, InputIcon,
+  Skeleton, Input, InputField, InputSlot, InputIcon, Badge, BadgeText,
 } from '@/src/components/ui';
+
+const statusBadgeConfig: Record<string, { action: string; label: string }> = {
+  draft: { action: 'muted', label: 'Draft' },
+  archived: { action: 'warning', label: 'Archived' },
+  published: { action: 'success', label: 'Published' },
+};
 
 function CourseCard({ course, isSuperadmin }: { course: any; isSuperadmin: boolean }) {
   const imageUrl = course.cover_image_url;
+  const statusConfig = statusBadgeConfig[course.status] || null;
 
   return (
     <Card variant="elevated" size="sm" className="overflow-hidden h-full">
@@ -22,10 +29,20 @@ function CourseCard({ course, isSuperadmin }: { course: any; isSuperadmin: boole
         {imageUrl ? (
           <View className="-mx-3 -mt-3 mb-3">
             <Image source={{ uri: imageUrl }} className="w-full h-40 rounded-t-xl" resizeMode="cover" />
+            {isSuperadmin && statusConfig && (
+              <View className="absolute top-2 right-2">
+                <Badge action={statusConfig.action as any}><BadgeText>{statusConfig.label}</BadgeText></Badge>
+              </View>
+            )}
           </View>
         ) : (
           <View className="-mx-3 -mt-3 mb-3 h-40 bg-optio-purple/10 items-center justify-center rounded-t-xl">
             <Ionicons name="school-outline" size={40} color="#6D469B" />
+            {isSuperadmin && statusConfig && (
+              <View className="absolute top-2 right-2">
+                <Badge action={statusConfig.action as any}><BadgeText>{statusConfig.label}</BadgeText></Badge>
+              </View>
+            )}
           </View>
         )}
         <VStack space="sm" className="flex-1 min-h-[100px]">

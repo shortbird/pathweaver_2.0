@@ -268,6 +268,11 @@ export default function FeedScreen() {
         refreshing={false}
         onRefresh={refetch}
         showsVerticalScrollIndicator={false}
+        windowSize={3}
+        maxToRenderPerBatch={3}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        initialNumToRender={4}
+        updateCellsBatchingPeriod={100}
       />
       <ObserverWelcomeModal visible={welcomeVisible} onClose={dismissWelcome} />
     </SafeAreaView>

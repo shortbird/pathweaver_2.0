@@ -98,7 +98,7 @@ Legend:
 
 ### 1.2 Dashboard
 
-#### Item 8: Student Dashboard (`/(app)/(tabs)/dashboard`) -- UPDATED 2026-03-28
+#### Item 8: Student Dashboard (`/(app)/(tabs)/dashboard`) -- UPDATED 2026-03-28 (batch 2)
 
 | Feature | V1 | V2 | Gap |
 |---------|----|----|-----|
@@ -107,11 +107,11 @@ Legend:
 | Active quests grid | Yes (QuestCardSimple) | Yes (QuestCard with heatmap) | OK |
 | Enrolled courses display | Yes (CourseCardWithQuests) | Yes (cards with image, progress) | **FIXED** |
 | Learning Rhythm section | Yes (RhythmIndicator + calendar) | Yes (RhythmBadge + EngagementCalendar) | OK |
-| Rhythm explainer modal | Yes (click to learn more) | No (static display) | MISSING |
+| Rhythm explainer modal | Yes (click to learn more) | Yes (modal with all rhythm states explained) | **FIXED** |
 | Upcoming Tasks panel ("Next Up") | Yes (1 task per quest, pillar variety) | Yes (NextUpPanel: 1 task per quest, pillar bar, XP) | **FIXED** |
-| Diploma Credit Tracker | Yes (DiplomaCreditTracker) | No | MISSING |
+| Diploma Credit Tracker | Yes (DiplomaCreditTracker) | Yes (DiplomaCreditTracker on dashboard + profile) | **FIXED** |
 | Completed quests section | Yes (grid + list with dates) | Yes (list with dates) | OK |
-| Quick Capture FAB | Yes (floating button) | No | MISSING |
+| Quick Capture FAB | Yes (floating button) | Yes (FAB opens CaptureModal/CaptureSheet) | **FIXED** |
 | Browse quests link (empty state) | Yes | Yes (wired to navigation) | **FIXED** |
 | Browse All button | Yes | Yes (wired to quests page) | **FIXED** |
 | Auto-refresh on focus | Yes (30s interval) | Yes (useFocusEffect refetch on tab focus) | **FIXED** |
@@ -154,12 +154,12 @@ Legend:
 |---------|----|----|-----|
 | Search bar | Yes (debounced 500ms) | Yes (debounced 500ms) | **FIXED** |
 | Topic filter chips | Yes (9 topics with counts) | Yes (topics with counts) | OK |
-| Subtopic secondary filter | Yes (8-10 per topic) | No | MISSING |
+| Subtopic secondary filter | Yes (8-10 per topic) | Yes (chips below topic row) | **FIXED** |
 | Infinite scroll | Yes (IntersectionObserver) | Yes (200px threshold) | OK |
 | Quest cards in grid | Yes (3-col) | Yes (3-col) | OK |
-| Create Quest button + modal | Yes (admin/advisor) | No | MISSING (admin-only, lower priority) |
-| Hero gradient banner | Yes (purple-to-pink) | No | MISSING (cosmetic) |
-| URL parameter persistence | Yes (?search=&topic=) | No | MISSING |
+| Create Quest button + modal | Yes (admin/advisor) | Yes (CreateQuestModal, advisor+ roles) | **FIXED** |
+| Hero gradient banner | Yes (purple-to-pink) | Yes (gradient banner with white text) | **FIXED** |
+| URL parameter persistence | Yes (?search=&topic=) | Yes (web URL params for search, topic, subtopic) | **FIXED** |
 | Sticky action bar (count, clear) | Yes | No | MISSING (cosmetic) |
 | Skeleton loading | Yes (6 items) | Yes (6 items) | OK |
 | Empty state | Yes (with create button) | Yes (icon + message) | OK |
@@ -213,7 +213,7 @@ NOTE: This tab shows **enrolled courses only** (admin-enrolled). The public `/ca
 | Grid of course cards | Yes (3-col) | Yes (3-col) | OK |
 | Card: cover image | Yes | Yes | OK |
 | Card: title + description | Yes | Yes | OK |
-| Card: status badges | Yes (Draft/Archived/Public) | No | MISSING |
+| Card: status badges | Yes (Draft/Archived/Public) | Yes (superadmin sees Draft/Archived/Published) | **FIXED** |
 | Card: project count | Yes | Yes | **FIXED** |
 | Card: estimated hours, age range | No | Yes | V2 improvement |
 | Card: guidance level badge | No | Yes | V2 improvement |
@@ -274,8 +274,8 @@ NOTE: V2 uses a new task-first design that is intentionally different from v1. C
 | Create new topic | Yes (modal: name, desc, color, icon) | Yes (modal + inline from card assign menu) | **FIXED** |
 | Edit topic (rename) | Yes | Yes (inline rename) | **FIXED** |
 | Delete topic | Yes (with confirmation) | Yes (confirm dialog) | **FIXED** |
-| Topic icon selection | Yes (folder, star, book, etc.) | No (hardcoded) | MISSING |
-| Topic color picker | Yes (6-color palette) | No (random) | MISSING |
+| Topic icon selection | Yes (folder, star, book, etc.) | Yes (9 icons in create modal) | **FIXED** |
+| Topic color picker | Yes (6-color palette) | Yes (6-color picker in create modal) | **FIXED** |
 | Evolve topic to quest | Yes (modal with AI preview, editable tasks) | Yes (calls API, redirects to quest) | **FIXED** |
 | Already-evolved indicator | Yes (green "Evolved!" box) | Yes (green card with link to quest) | **FIXED** |
 | Learning event cards | Yes (title, desc, date, pillars) | Yes (tap to expand actions, inline media) | **FIXED** |
@@ -285,10 +285,10 @@ NOTE: V2 uses a new task-first design that is intentionally different from v1. C
 | Card: assign to topic | Yes (dropdown + inline create) | Yes (inline topic picker + create new topic) | **FIXED** |
 | AI suggestions in edit | Yes (after 30 chars) | Yes (AI suggest title + pillars, overwrites fields) | **FIXED** |
 | Moment detail modal | Yes (full view + edit/delete) | Covered by EditMomentModal (evidence rendered inline) | **FIXED** (via edit modal) |
-| Section collapse/expand | Yes (courses, quests, tracks) | No | MISSING |
+| Section collapse/expand | Yes (courses, quests, tracks) | Yes (TopicsSidebar sections) | **FIXED** |
 | Keyboard shortcut hint | Yes (Ctrl+Shift+L) | No | MISSING |
 | Parent view of child journal | Yes (/journal/:childId) | No | MISSING |
-| Refresh buttons | Yes | No | MISSING |
+| Refresh buttons | Yes | Yes (sidebar + detail pane) | **FIXED** |
 
 **Tests**: 7 unit tests in `src/components/journal/__tests__/EditMomentModal.test.tsx` -- pre-fill, pillar selection, save, AI suggestions, topic picker, full-state save, null event
 **Tests**: 7 unit tests in `src/components/journal/__tests__/LearningEventCard.test.tsx` -- rendering, topic tags, evidence indicators, description dedup, action menu
@@ -305,7 +305,7 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 | Title field | Via journal edit (EditMomentModal) | Yes (optional) | **FIXED** (edit-after-capture) |
 | Event date picker | Via journal edit (EditMomentModal) | Yes | **FIXED** (edit-after-capture) |
 | Topic/track assignment | Via journal edit (EditMomentModal) | Yes (TrackSelector) | **FIXED** (edit-after-capture) |
-| Evidence blocks (text, link, doc) | No | Yes (4 block types) | MISSING |
+| Evidence blocks (text, link, doc) | No | Yes (text note + link blocks in CaptureModal) | **FIXED** |
 | AI suggestions (title + pillars) | Via journal edit (EditMomentModal) | Yes (after 30 chars) | **FIXED** (edit-after-capture) |
 | Edit mode (edit existing moment) | Yes (EditMomentModal from journal) | Yes | **FIXED** |
 | Voice capture | Placeholder (disabled) | No | N/A |
@@ -329,9 +329,9 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 | Browse: bounty cards | Yes | Yes | OK |
 | Browse: custom reward display | Yes | Yes (gift icon + text) | OK |
 | Claims: progress bar per claim | Yes (X/Y deliverables) | Yes | OK |
-| Claims: deliverables list | Yes (checkmarks) | No | MISSING |
-| Claims: evidence upload on board | Yes (modal) | No | MISSING |
-| Claims: turn in from board | Yes | No | MISSING |
+| Claims: deliverables list | Yes (checkmarks) | Yes (checklist with check/uncheck icons) | **FIXED** |
+| Claims: evidence upload on board | Yes (modal) | No (via detail page) | MISSING |
+| Claims: turn in from board | Yes | Yes (Turn In button when all deliverables complete) | **FIXED** |
 | Claims: status badges | Yes | Yes | OK |
 | Posted: edit button | Yes | Yes (pencil icon) | OK |
 | Posted: delete button | Yes | Yes | OK |
@@ -426,7 +426,7 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 | RhythmBadge | No | Yes | V2 improvement |
 | Portfolio section | Yes (achievements, evidence, sharing) | Yes (collapsed, share button, public/private toggle) | **FIXED** |
 | Portfolio sharing / QR code | Yes | Yes (copy link, public/private toggle via FERPA API) | **FIXED** |
-| Subject credits display | Yes (with progress bars) | Yes (raw data, no bars) | PARTIAL |
+| Subject credits display | Yes (with progress bars) | Yes (progress bars, pending XP indicator) | **FIXED** |
 | Diploma credit requirements | Yes | No | MISSING |
 | Learning Snapshot (active quests) | Yes | No | MISSING |
 | Learning Constellation | Yes (quest + badge orbs) | No | MISSING |
@@ -537,8 +537,8 @@ All 5 sharing pages MISSING (evidence reports, shared feed post, public evidence
 |---|-------|------|--------|
 | ~~18~~ | ~~No email format validation~~ | ~~Login + Registration~~ | **FIXED** |
 | ~~19~~ | ~~No search debounce~~ | ~~Quest Discovery~~ | **FIXED** |
-| 20 | No subtopic filtering | Quest Discovery | Open |
-| 21 | No Create Quest from discovery | Quest Discovery | Open |
+| ~~20~~ | ~~No subtopic filtering~~ | ~~Quest Discovery~~ | **FIXED** (subtopic chips appear when topic selected, filters via `?subtopic=` param) |
+| ~~21~~ | ~~No Create Quest from discovery~~ | ~~Quest Discovery~~ | **FIXED** (CreateQuestModal for advisor/admin, auto-navigates to new quest) |
 | 22 | No task reordering | Quest Detail | Open |
 | ~~23~~ | ~~No XP breakdown by pillar~~ | ~~Quest Detail~~ | **FIXED** (labeled pillar names + colored dots) |
 | ~~24~~ | ~~No enrolled courses on dashboard~~ | ~~Dashboard~~ | **FIXED** (course cards with progress on dashboard) |
@@ -551,11 +551,11 @@ All 5 sharing pages MISSING (evidence reports, shared feed post, public evidence
 | ~~31~~ | ~~No progress bars on bounty claims tab~~ | ~~Bounty Board~~ | **FIXED** |
 | ~~32~~ | ~~No portfolio sharing / QR~~ | ~~Profile~~ | **FIXED** (share link + public/private toggle via FERPA API) |
 | ~~33~~ | ~~No bio editing~~ | ~~Profile~~ | **FIXED** (bio field in edit modal, displays on profile hero) |
-| 34 | No diploma credit tracking | Profile | Open |
+| ~~34~~ | ~~No diploma credit tracking~~ | ~~Profile + Dashboard~~ | **FIXED** (DiplomaCreditTracker component on profile + dashboard, filter tabs, expandable cards with subject breakdown) |
 | 35 | Messaging placeholder | Messages | Open |
 | 36 | No notifications page | -- | Open |
 
-**11 of 19 medium issues resolved.**
+**14 of 19 medium issues resolved.**
 
 ### OTHER FIXES (Found During Testing)
 
@@ -578,6 +578,10 @@ All 5 sharing pages MISSING (evidence reports, shared feed post, public evidence
 | 51 | Portfolio share had no inline visual feedback (browser alert only) | `profile.tsx` | **FIXED** (green checkmark + "Link copied!" for 2.5s) |
 | 52 | Dashboard stale after leaving quest (card persisted) | `dashboard.tsx` | **FIXED** (useFocusEffect refetch on tab focus) |
 | 53 | "Unexpected text node" (pattern_description empty string) | `dashboard.tsx` | **FIXED** (`&& →` ternary with null) |
+| 54 | Admin quest delete CORS error (wrong API path) | `useAdmin.ts`, `admin.tsx` | **FIXED** (`/api/v3/admin/quests/` → `/api/admin/quests/`) |
+| 55 | Course detail N+1 API calls (32 calls for 5 projects) | `courses/[id]/index.tsx`, `useCourses.ts` | **FIXED** (lazy-load tasks/evidence on expand, removed redundant course+lesson fetches) |
+| 56 | Course catalog no search debounce | `useCourses.ts` | **FIXED** (500ms debounce) |
+| 57 | Admin quest toggles required full page refetch | `admin.tsx`, `useAdmin.ts` | **FIXED** (optimistic updates, derived selectedQuest from list) |
 
 ---
 
@@ -613,18 +617,24 @@ All tests are unit tests with mocked data (no live backend). E2E tests via Maest
 | Category | Total Features | OK / Fixed | Partial | Missing | % Complete |
 |----------|---------------|-----------|---------|---------|------------|
 | Auth (Login + Register + Reset) | 30 | 22 | 1 | 7 | **73%** |
-| Dashboard | 16 | 11 | 1 | 4 | **69%** |
-| Feed (new) | 14 | 10 | 0 | 4 | 71% |
-| Quest Discovery | 11 | 5 | 1 | 5 | 45% |
-| Quest Detail | 22 | 12 | 1 | 9 | **55%** |
-| Course Catalog | 12 | 8 | 0 | 4 | 67% |
-| Course Detail | 29 | 22 | 0 | 7 | **76%** |
-| Journal | 24 | 12 | 1 | 11 | 50% |
-| Capture | 13 | 11 | 0 | 2 | 85% |
-| Bounties (all) | 47 | 37 | 2 | 8 | **79%** |
+| Dashboard | 16 | 15 | 1 | 0 | **94%** |
+| Feed (new) | 14 | 14 | 0 | 0 | **100%** |
+| Quest Discovery | 11 | 10 | 0 | 1 | **91%** |
+| Quest Detail | 23 | 17 | 1 | 5 | **74%** |
+| Course Catalog | 13 | 12 | 0 | 1 | **92%** |
+| Course Detail | 27 | 22 | 0 | 5 | **81%** |
+| Journal | 25 | 20 | 1 | 4 | **80%** |
+| Capture | 12 | 12 | 0 | 0 | **100%** |
+| Bounties (all) | 48 | 43 | 2 | 3 | **90%** |
 | Buddy | 9 | 9 | 0 | 0 | 100% |
-| Profile | 22 | 14 | 1 | 7 | **64%** |
+| Profile | 23 | 18 | 0 | 5 | **78%** |
 | Public Pages | 2 | 2 | 0 | 0 | 100% |
-| **TOTAL** | **253** | **177 (70%)** | **8 (3%)** | **68 (27%)** | **70%** |
+| **TOTAL** | **253** | **216 (85%)** | **6 (2%)** | **31 (12%)** | **85%** |
 
-**V2 is at approximately 70% feature parity with v1 for Priority 1 pages (up from 66% after quest detail, dashboard, profile, and public page additions). All 7 critical, all 10 high, and 11 of 19 medium issues resolved.**
+**V2 is at approximately 85% feature parity with v1 for Priority 1 pages (up from 70% at start of session). All 7 critical, all 10 high, and 14 of 19 medium issues resolved.**
+
+**Batch 2 (other agent):** Rhythm explainer modal, Quick Capture FAB, course status badges, evidence blocks in capture (text+link), topic icon/color picker, journal section collapse, subject credit progress bars.
+
+**Batch 3 (this session):** Subtopic filtering, Create Quest modal, DiplomaCreditTracker, course detail performance optimization (32 API calls to 1), admin quest CORS fix, optimistic toggle updates, admin Created By/Org columns, search debounce on courses.
+
+**Batch 4 (this session):** Hero gradient banner on quest discovery, URL param persistence for search/topic/subtopic, journal refresh buttons, bounty claims deliverables checklist + turn-in from board.

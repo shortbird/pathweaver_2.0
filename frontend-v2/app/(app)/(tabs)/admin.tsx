@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useAdminUsers, useAdminQuests, useAdminOrganizations, useOrgDetail, type AdminUser } from '@/src/hooks/useAdmin';
+import { CreateQuestModal } from '@/src/components/admin/CreateQuestModal';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Badge, BadgeText, Divider, Skeleton, Input, InputField, InputSlot, InputIcon,
@@ -464,7 +465,7 @@ function UsersPanel() {
 
 // ── Quests Tab ──
 
-function QuestRowDesktop({ quest, onSelect, isSelected }: { quest: any; onSelect: () => void; isSelected: boolean }) {
+function QuestRowDesktop({ quest, onSelect, isSelected, orgName }: { quest: any; onSelect: () => void; isSelected: boolean; orgName?: string }) {
   const imageUrl = quest.header_image_url || quest.image_url;
 
   return (
@@ -480,10 +481,16 @@ function QuestRowDesktop({ quest, onSelect, isSelected }: { quest: any; onSelect
               </View>
             )}
           </View>
-          <View style={{ flex: 4 }}>
+          <View style={{ flex: 3 }}>
             <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>{quest.title}</UIText>
           </View>
           <View style={{ flex: 1.5 }}>
+            <UIText size="xs" className="text-typo-400" numberOfLines={1}>{quest.creator_name || '--'}</UIText>
+          </View>
+          <View style={{ flex: 1.5 }}>
+            <UIText size="xs" className="text-typo-400" numberOfLines={1}>{orgName || '--'}</UIText>
+          </View>
+          <View style={{ flex: 1 }}>
             <Badge action="muted"><BadgeText className="text-typo-500 capitalize">{quest.quest_type || 'optio'}</BadgeText></Badge>
           </View>
           <View style={{ flex: 1 }}>
@@ -543,8 +550,8 @@ function QuestCardMobile({ quest, onDelete, onSelect }: { quest: any; onDelete: 
   );
 }
 
-function QuestDetailPanel({ quest, onClose, onDelete, onRefetch }: {
-  quest: any; onClose: () => void; onDelete: () => void; onRefetch: () => void;
+function QuestDetailPanel({ quest, onClose, onDelete, onUpdate }: {
+  quest: any; onClose: () => void; onDelete: () => void; onUpdate: (questId: string, updates: Record<string, any>) => void;
 }) {
   const [detailTab, setDetailTab] = useState<'details' | 'settings' | 'actions'>('details');
   const [title, setTitle] = useState(quest.title || '');
@@ -552,28 +559,22 @@ function QuestDetailPanel({ quest, onClose, onDelete, onRefetch }: {
   const [saving, setSaving] = useState(false);
   const imageUrl = quest.header_image_url || quest.image_url;
 
+  // Sync local state when quest prop changes
+  useEffect(() => {
+    setTitle(quest.title || '');
+    setDescription(quest.description || '');
+  }, [quest.id, quest.title, quest.description]);
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put(`/api/v3/admin/quests/${quest.id}`, { title, description });
-      onRefetch();
+      onUpdate(quest.id, { title, description });
     } catch { /* error */ }
     finally { setSaving(false); }
   };
 
-  const handleToggleActive = async () => {
-    try {
-      await api.put(`/api/v3/admin/quests/${quest.id}`, { is_active: !quest.is_active });
-      onRefetch();
-    } catch { /* error */ }
-  };
-
-  const handleTogglePublic = async () => {
-    try {
-      await api.put(`/api/v3/admin/quests/${quest.id}`, { is_public: !quest.is_public });
-      onRefetch();
-    } catch { /* error */ }
-  };
+  const handleToggleActive = () => onUpdate(quest.id, { is_active: !quest.is_active });
+  const handleTogglePublic = () => onUpdate(quest.id, { is_public: !quest.is_public });
 
   return (
     <Card variant="elevated" size="md">
@@ -723,11 +724,22 @@ function QuestDetailPanel({ quest, onClose, onDelete, onRefetch }: {
 }
 
 function QuestsPanel() {
-  const { quests, loading, search, setSearch, deleteQuest, refetch } = useAdminQuests();
+  const { quests, loading, search, setSearch, deleteQuest, updateQuest, refetch } = useAdminQuests();
+  const { orgs } = useAdminOrganizations();
+  const orgLookup = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const o of orgs) map[o.id] = o.name;
+    return map;
+  }, [orgs]);
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 768;
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [selectedQuest, setSelectedQuest] = useState<any>(null);
+  const [selectedQuestId, setSelectedQuestId] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Derive selectedQuest from the quests list so it stays fresh after refetch
+  const selectedQuest = selectedQuestId ? quests.find((q: any) => q.id === selectedQuestId) || null : null;
+  const setSelectedQuest = (q: any | null) => setSelectedQuestId(q?.id || null);
 
   const filtered = quests.filter((q: any) => {
     if (statusFilter === 'active') return q.is_active;
@@ -745,7 +757,7 @@ function QuestsPanel() {
             <InputField placeholder="Search quests..." value={search} onChangeText={setSearch} />
           </Input>
         </View>
-        <Button size="md">
+        <Button size="md" onPress={() => setShowCreateModal(true)}>
           <ButtonText>+ New Quest</ButtonText>
         </Button>
       </HStack>
@@ -773,8 +785,10 @@ function QuestsPanel() {
               <Card variant="elevated" size="sm" className="overflow-hidden">
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#F9FAFB', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
                   <View style={{ flex: 0.5 }} />
-                  <View style={{ flex: 4 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Title</UIText></View>
-                  <View style={{ flex: 1.5 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Type</UIText></View>
+                  <View style={{ flex: 3 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Title</UIText></View>
+                  <View style={{ flex: 1.5 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Created By</UIText></View>
+                  <View style={{ flex: 1.5 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Organization</UIText></View>
+                  <View style={{ flex: 1 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Type</UIText></View>
                   <View style={{ flex: 1 }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Status</UIText></View>
                   <View style={{ flex: 1, alignItems: 'flex-end' }}><UIText size="xs" className="text-typo-400 font-poppins-medium">Visibility</UIText></View>
                 </View>
@@ -784,6 +798,7 @@ function QuestsPanel() {
                     quest={q}
                     isSelected={selectedQuest?.id === q.id}
                     onSelect={() => setSelectedQuest(selectedQuest?.id === q.id ? null : q)}
+                    orgName={q.organization_id ? orgLookup[q.organization_id] : undefined}
                   />
                 ))}
               </Card>
@@ -794,7 +809,7 @@ function QuestsPanel() {
                   quest={selectedQuest}
                   onClose={() => setSelectedQuest(null)}
                   onDelete={() => { if (confirm(`Delete "${selectedQuest.title}"?`)) { deleteQuest(selectedQuest.id); setSelectedQuest(null); } }}
-                  onRefetch={() => { refetch(); }}
+                  onUpdate={updateQuest}
                 />
               </View>
             )}
@@ -813,7 +828,7 @@ function QuestsPanel() {
                     quest={q}
                     onClose={() => setSelectedQuest(null)}
                     onDelete={() => { if (confirm(`Delete "${q.title}"?`)) { deleteQuest(q.id); setSelectedQuest(null); } }}
-                    onRefetch={refetch}
+                    onUpdate={updateQuest}
                   />
                 )}
               </VStack>
@@ -827,6 +842,12 @@ function QuestsPanel() {
           <UIText size="sm" className="text-typo-400 mt-1">Try a different search or filter</UIText>
         </Card>
       )}
+
+      <CreateQuestModal
+        visible={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={refetch}
+      />
     </VStack>
   );
 }

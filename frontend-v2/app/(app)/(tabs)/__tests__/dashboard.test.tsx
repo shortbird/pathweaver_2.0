@@ -26,6 +26,15 @@ jest.mock('@/src/components/engagement/RhythmBadge', () => ({
 jest.mock('@/src/components/layouts/MobileHeader', () => ({
   PageHeader: () => null,
 }));
+jest.mock('@/src/components/capture/CaptureSheet', () => ({
+  CaptureSheet: () => null,
+}));
+jest.mock('@/src/components/capture/CaptureModal', () => ({
+  CaptureModal: () => null,
+}));
+jest.mock('@/src/components/diploma/DiplomaCreditTracker', () => ({
+  DiplomaCreditTracker: () => null,
+}));
 
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
@@ -234,6 +243,30 @@ describe('DashboardScreen', () => {
     const r = tryRender(<DashboardScreen />);
     if (!r) return;
     expect(r.getByText('Your Learning Rhythm')).toBeTruthy();
+  });
+
+  it('renders Learn more link for rhythm explainer', () => {
+    const r = tryRender(<DashboardScreen />);
+    if (!r) return;
+    expect(r.getByText('Learn more')).toBeTruthy();
+  });
+
+  it('opens rhythm explainer modal on Learn more press', () => {
+    const r = tryRender(<DashboardScreen />);
+    if (!r) return;
+    fireEvent.press(r.getByText('Learn more'));
+    expect(r.getByText('Learning Rhythm')).toBeTruthy();
+    expect(r.getByText('Active')).toBeTruthy();
+    expect(r.getByText('Building')).toBeTruthy();
+    expect(r.getByText('Resting')).toBeTruthy();
+  });
+
+  // ── Quick Capture FAB ──
+
+  it('renders Quick Capture FAB', () => {
+    const r = tryRender(<DashboardScreen />);
+    if (!r) return;
+    expect(r.getByTestId('capture-fab')).toBeTruthy();
   });
 
   // ── Next Up Panel ──

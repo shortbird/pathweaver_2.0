@@ -115,12 +115,23 @@ export function useAdminQuests() {
 
   useEffect(() => { fetchQuests(); }, [fetchQuests]);
 
+  const updateQuest = async (questId: string, updates: Record<string, any>) => {
+    // Optimistic update
+    setQuests(prev => prev.map(q => q.id === questId ? { ...q, ...updates } : q));
+    try {
+      await api.put(`/api/admin/quests/${questId}`, updates);
+    } catch {
+      // Revert on failure
+      await fetchQuests();
+    }
+  };
+
   const deleteQuest = async (questId: string) => {
-    await api.delete(`/api/v3/admin/quests/${questId}`);
+    await api.delete(`/api/admin/quests/${questId}`);
     await fetchQuests();
   };
 
-  return { quests, loading, search, setSearch, refetch: fetchQuests, deleteQuest };
+  return { quests, loading, search, setSearch, refetch: fetchQuests, updateQuest, deleteQuest };
 }
 
 // ── Organizations ──
