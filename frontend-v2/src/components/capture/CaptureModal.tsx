@@ -19,6 +19,11 @@ interface FileItem {
   preview: string | null;
 }
 
+interface EvidenceBlock {
+  type: 'text' | 'link';
+  content: string;
+}
+
 interface CaptureModalProps {
   visible: boolean;
   onClose: () => void;
@@ -29,8 +34,21 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
   const [description, setDescription] = useState('');
   const [selectedPillars, setSelectedPillars] = useState<string[]>([]);
   const [files, setFiles] = useState<FileItem[]>([]);
+  const [evidenceBlocks, setEvidenceBlocks] = useState<EvidenceBlock[]>([]);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const addEvidenceBlock = (type: 'text' | 'link') => {
+    setEvidenceBlocks((prev) => [...prev, { type, content: '' }]);
+  };
+
+  const updateEvidenceBlock = (index: number, content: string) => {
+    setEvidenceBlocks((prev) => prev.map((b, i) => i === index ? { ...b, content } : b));
+  };
+
+  const removeEvidenceBlock = (index: number) => {
+    setEvidenceBlocks((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const reset = () => {
     setDescription('');
@@ -38,6 +56,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
     // Revoke object URLs to prevent memory leaks
     files.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });
     setFiles([]);
+    setEvidenceBlocks([]);
   };
 
   const handleClose = () => {
@@ -95,6 +114,9 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
       const eventId = data.event?.id;
 
       if (eventId) {
+        const allBlocks: any[] = [];
+        let orderIdx = 0;
+
         // Step 2: Upload files via shared /api/uploads/evidence endpoint
         if (files.length > 0) {
           const fd = new FormData();
@@ -102,21 +124,32 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
           const uploadRes = await api.post('/api/uploads/evidence', fd);
           const uploadedFiles = uploadRes.data?.files || [];
 
-          // Step 3: Save uploaded files as evidence blocks on the event
-          if (uploadedFiles.length > 0) {
-            const blocks = uploadedFiles.map((f: any, i: number) => {
-              const blockType = f.content_type?.startsWith('video/') ? 'video' :
-                                f.content_type?.startsWith('image/') ? 'image' : 'document';
-              return {
-                block_type: blockType,
-                content: {},
-                file_url: f.url,
-                file_name: f.original_name || f.stored_name,
-                order_index: i,
-              };
+          uploadedFiles.forEach((f: any) => {
+            const blockType = f.content_type?.startsWith('video/') ? 'video' :
+                              f.content_type?.startsWith('image/') ? 'image' : 'document';
+            allBlocks.push({
+              block_type: blockType,
+              content: {},
+              file_url: f.url,
+              file_name: f.original_name || f.stored_name,
+              order_index: orderIdx++,
             });
-            await api.post(`/api/learning-events/${eventId}/evidence`, { blocks });
-          }
+          });
+        }
+
+        // Step 3: Add text/link evidence blocks
+        evidenceBlocks.forEach((block) => {
+          if (!block.content.trim()) return;
+          allBlocks.push({
+            block_type: block.type,
+            content: block.type === 'link' ? { url: block.content.trim() } : { text: block.content.trim() },
+            order_index: orderIdx++,
+          });
+        });
+
+        // Save all evidence blocks
+        if (allBlocks.length > 0) {
+          await api.post(`/api/learning-events/${eventId}/evidence`, { blocks: allBlocks });
         }
 
         // Step 4: Update with pillars if selected
@@ -136,7 +169,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
     }
   };
 
-  const canSave = description.trim().length > 0 || files.length > 0;
+  const canSave = description.trim().length > 0 || files.length > 0 || evidenceBlocks.some((b) => b.content.trim().length > 0);
 
   if (!visible) return null;
 
@@ -237,28 +270,102 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
               </VStack>
             )}
 
-            {/* Attach button */}
-            <Pressable
-              onPress={() => fileInputRef.current?.click()}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 8,
-                paddingVertical: 10,
-                paddingHorizontal: 14,
-                backgroundColor: '#F9FAFB',
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: '#E5E7EB',
-                borderStyle: 'dashed',
-                alignSelf: 'flex-start',
-              }}
-            >
-              <Ionicons name="attach-outline" size={20} color="#6D469B" />
-              <UIText size="sm" className="text-optio-purple font-poppins-medium">
-                {files.length > 0 ? 'Add more files' : 'Attach photos, videos, or files'}
-              </UIText>
-            </Pressable>
+            {/* Attach buttons row */}
+            <HStack className="flex-wrap gap-2">
+              <Pressable
+                onPress={() => fileInputRef.current?.click()}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#E5E7EB',
+                  borderStyle: 'dashed',
+                }}
+              >
+                <Ionicons name="attach-outline" size={18} color="#6D469B" />
+                <UIText size="xs" className="text-optio-purple font-poppins-medium">
+                  {files.length > 0 ? 'More files' : 'Files'}
+                </UIText>
+              </Pressable>
+              <Pressable
+                onPress={() => addEvidenceBlock('text')}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#E5E7EB',
+                  borderStyle: 'dashed',
+                }}
+              >
+                <Ionicons name="document-text-outline" size={18} color="#6D469B" />
+                <UIText size="xs" className="text-optio-purple font-poppins-medium">Text Note</UIText>
+              </Pressable>
+              <Pressable
+                onPress={() => addEvidenceBlock('link')}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#E5E7EB',
+                  borderStyle: 'dashed',
+                }}
+              >
+                <Ionicons name="link-outline" size={18} color="#6D469B" />
+                <UIText size="xs" className="text-optio-purple font-poppins-medium">Link</UIText>
+              </Pressable>
+            </HStack>
+
+            {/* Evidence blocks (text/link) */}
+            {evidenceBlocks.length > 0 && (
+              <VStack space="xs">
+                {evidenceBlocks.map((block, idx) => (
+                  <HStack key={idx} className="items-start gap-2" style={{ backgroundColor: '#F9FAFB', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB' }}>
+                    <Ionicons
+                      name={block.type === 'link' ? 'link-outline' : 'document-text-outline'}
+                      size={18}
+                      color="#6D469B"
+                      style={{ marginTop: 4 }}
+                    />
+                    <TextInput
+                      value={block.content}
+                      onChangeText={(val) => updateEvidenceBlock(idx, val)}
+                      placeholder={block.type === 'link' ? 'https://...' : 'Add a text note...'}
+                      placeholderTextColor="#9CA3AF"
+                      multiline={block.type === 'text'}
+                      numberOfLines={block.type === 'text' ? 3 : 1}
+                      keyboardType={block.type === 'link' ? 'url' : 'default'}
+                      autoCapitalize={block.type === 'link' ? 'none' : 'sentences'}
+                      style={{
+                        flex: 1,
+                        fontSize: 14,
+                        fontFamily: 'Poppins_400Regular',
+                        color: '#1F2937',
+                        minHeight: block.type === 'text' ? 60 : undefined,
+                        textAlignVertical: block.type === 'text' ? 'top' : undefined,
+                      }}
+                    />
+                    <Pressable onPress={() => removeEvidenceBlock(idx)} style={{ marginTop: 2 }}>
+                      <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                    </Pressable>
+                  </HStack>
+                ))}
+              </VStack>
+            )}
 
             {/* Hidden file input (multiple) */}
             <input

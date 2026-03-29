@@ -33,9 +33,12 @@ jest.mock('@/src/components/engagement/PillarRadar', () => ({
 jest.mock('@/src/components/layouts/MobileHeader', () => ({
   PageHeader: () => null,
 }));
+jest.mock('@/src/components/diploma/DiplomaCreditTracker', () => ({
+  DiplomaCreditTracker: () => null,
+}));
 
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { render, fireEvent } from '@testing-library/react-native';
 import ProfileScreen from '../profile';
 import { useProfile } from '@/src/hooks/useProfile';
 import { useGlobalEngagement } from '@/src/hooks/useDashboard';
@@ -51,19 +54,25 @@ afterEach(() => {
   clearAuthState();
 });
 
+const baseProfileMock = {
+  pillarXP: [
+    { pillar: 'stem', xp: 500 },
+    { pillar: 'art', xp: 200 },
+  ],
+  achievements: [],
+  subjectXP: [],
+  viewers: [],
+  deletionStatus: {},
+  portfolioPublic: false,
+  setPortfolioPublic: jest.fn(),
+  portfolioSlug: null,
+  loading: false,
+  refetch: jest.fn(),
+};
+
 describe('ProfileScreen', () => {
   it('renders user name, total XP, pillar breakdown, and sign out button', () => {
-    (useProfile as jest.Mock).mockReturnValue({
-      user: { id: 'user-1', display_name: 'Test Student', first_name: 'Test', last_name: 'Student', total_xp: 1250, avatar_url: null },
-      pillarXP: [
-        { pillar: 'stem', xp: 500 },
-        { pillar: 'art', xp: 200 },
-      ],
-      achievements: [],
-      subjectXP: [],
-      loading: false,
-      refetch: jest.fn(),
-    });
+    (useProfile as jest.Mock).mockReturnValue(baseProfileMock);
 
     const { getByText } = render(<ProfileScreen />);
 
@@ -71,5 +80,56 @@ describe('ProfileScreen', () => {
     expect(getByText('1,250')).toBeTruthy();
     expect(getByText('Sign Out')).toBeTruthy();
     expect(getByText('Pillar Breakdown')).toBeTruthy();
+  });
+
+  it('formats subject credit names from snake_case to Title Case', () => {
+    (useProfile as jest.Mock).mockReturnValue({
+      ...baseProfileMock,
+      subjectXP: [
+        { school_subject: 'fine_arts', xp_amount: 300, pending_xp: 0 },
+        { school_subject: 'social_studies', xp_amount: 150, pending_xp: 50 },
+      ],
+    });
+
+    const { getByText } = render(<ProfileScreen />);
+
+    fireEvent.press(getByText('Subject Credits'));
+
+    expect(getByText('Fine Arts')).toBeTruthy();
+    expect(getByText('Social Studies')).toBeTruthy();
+  });
+
+  it('capitalizes CTE and PE as all-caps acronyms', () => {
+    (useProfile as jest.Mock).mockReturnValue({
+      ...baseProfileMock,
+      subjectXP: [
+        { school_subject: 'cte', xp_amount: 200, pending_xp: 0 },
+        { school_subject: 'pe', xp_amount: 100, pending_xp: 0 },
+      ],
+    });
+
+    const { getByText } = render(<ProfileScreen />);
+
+    fireEvent.press(getByText('Subject Credits'));
+
+    expect(getByText('CTE')).toBeTruthy();
+    expect(getByText('PE')).toBeTruthy();
+  });
+
+  it('renders progress bars and pending XP badge for subject credits', () => {
+    (useProfile as jest.Mock).mockReturnValue({
+      ...baseProfileMock,
+      subjectXP: [
+        { school_subject: 'math', xp_amount: 400, pending_xp: 75 },
+      ],
+    });
+
+    const { getByText } = render(<ProfileScreen />);
+
+    // Section is collapsed by default -- expand it
+    fireEvent.press(getByText('Subject Credits'));
+
+    expect(getByText('400 XP')).toBeTruthy();
+    expect(getByText('+75 pending')).toBeTruthy();
   });
 });

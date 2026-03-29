@@ -2,7 +2,7 @@
  * Course hooks - catalog, detail, enrollment, progress.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
@@ -66,9 +66,18 @@ export function useCourseCatalog() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const effectiveRole = user?.role === 'org_managed' ? user?.org_role : user?.role;
   const isSuperadmin = effectiveRole === 'superadmin';
+
+  // Debounce search by 500ms
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedSearch(search), 500);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [search]);
 
   const fetchCourses = useCallback(async () => {
     // Wait for auth to settle before fetching -- avoids double-fetch
@@ -78,13 +87,13 @@ export function useCourseCatalog() {
       if (isSuperadmin && isAuthenticated) {
         // Superadmin sees all courses via authenticated endpoint
         const params: Record<string, string> = { filter: 'admin_all' };
-        if (search) params.search = search;
+        if (debouncedSearch) params.search = debouncedSearch;
         const { data } = await api.get('/api/courses', { params });
         setCourses(data.courses || data || []);
       } else {
         // Use public endpoint (no auth required) for catalog
         const params: Record<string, string> = {};
-        if (search) params.search = search;
+        if (debouncedSearch) params.search = debouncedSearch;
         const { data } = await api.get('/api/public/courses', { params });
         setCourses(data.courses || data || []);
       }
@@ -93,7 +102,7 @@ export function useCourseCatalog() {
     } finally {
       setLoading(false);
     }
-  }, [search, isSuperadmin, isAuthenticated, isLoading]);
+  }, [debouncedSearch, isSuperadmin, isAuthenticated, isLoading]);
 
   useEffect(() => { fetchCourses(); }, [fetchCourses]);
 
@@ -113,30 +122,14 @@ export function useCourseDetail(courseId: string | null) {
     try {
       setLoading(true);
       if (isAuthenticated) {
-        // Fetch homepage (enrollment, progress, quests) and full course details in parallel
-        const [homepageRes, detailRes] = await Promise.all([
-          api.get(`/api/courses/${courseId}/homepage`),
-          api.get(`/api/courses/${courseId}`),
-        ]);
-        const hp = homepageRes.data;
-        const detail = detailRes.data.course || detailRes.data || {};
-        // Merge: full course fields from detail + runtime data from homepage
-        const courseData = {
-          ...detail,
+        // Homepage returns everything: course details, quests with lessons, enrollment, progress
+        const { data: hp } = await api.get(`/api/courses/${courseId}/homepage`);
+        setCourse({
           ...hp.course,
-          // Preserve showcase fields from the detail endpoint
-          learning_outcomes: detail.learning_outcomes,
-          final_deliverable: detail.final_deliverable,
-          guidance_level: detail.guidance_level,
-          academic_alignment: detail.academic_alignment,
-          age_range: detail.age_range,
-          estimated_hours: detail.estimated_hours,
-          // Runtime data from homepage
           quests: hp.quests || [],
           enrollment: hp.enrollment || null,
           progress: hp.progress || null,
-        };
-        setCourse(courseData);
+        });
       } else {
         const res = await api.get(`/api/public/courses/${courseId}`);
         const data = res.data;

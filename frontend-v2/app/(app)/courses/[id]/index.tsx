@@ -11,7 +11,7 @@ import { View, ScrollView, Image, Pressable, TextInput, Platform, Modal } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useCourseDetail, useLessons } from '@/src/hooks/useCourses';
+import { useCourseDetail } from '@/src/hooks/useCourses';
 import { useAuthStore } from '@/src/stores/authStore';
 import { LessonViewer } from '@/src/components/curriculum/LessonViewer';
 import { TaskCreationWizard } from '@/src/components/tasks/TaskCreationWizard';
@@ -117,8 +117,9 @@ function CourseTaskItem({ task, onComplete, onRemove }: { task: any; onComplete:
   const xp = task.xp_value || task.xp_amount || 0;
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  // Lazy-load evidence only when expanded (avoids N API calls on mount)
   useEffect(() => {
-    if (!evidenceLoaded && task.id) {
+    if (expanded && !evidenceLoaded && task.id) {
       (async () => {
         try {
           const { data } = await api.get(`/api/evidence/documents/${task.id}`);
@@ -127,7 +128,7 @@ function CourseTaskItem({ task, onComplete, onRemove }: { task: any; onComplete:
         finally { setEvidenceLoaded(true); }
       })();
     }
-  }, [task.id]);
+  }, [expanded, task.id]);
 
   const handleComplete = async () => {
     const blocks = [...evidenceBlocks];
@@ -342,19 +343,24 @@ function ProjectSection({
   const [scrollOffset, setScrollOffset] = useState(0);
   const sessionRef = React.useRef<string | null>(null);
 
-  // Fetch data
+  // Load suggested tasks from homepage data (no extra fetch)
   useEffect(() => {
     setSuggestedTasks(quest.suggested_tasks || []);
-    if (!questId) { setTasksLoading(false); return; }
+  }, [quest.suggested_tasks]);
+
+  // Fetch user tasks only when expanded (avoids N+1 API calls)
+  useEffect(() => {
+    if (!expanded || userTasks.length > 0 || !questId) { if (!expanded) setTasksLoading(false); return; }
     (async () => {
       try {
+        setTasksLoading(true);
         const { data } = await api.get(`/api/quests/${questId}`);
         const q = data.quest || data;
         setUserTasks(q.quest_tasks || []);
       } catch { /* non-critical */ }
       finally { setTasksLoading(false); }
     })();
-  }, [questId, quest.suggested_tasks]);
+  }, [expanded, questId]);
 
   const handleTaskComplete = (taskId: string) => {
     setUserTasks(prev => {
@@ -408,9 +414,8 @@ function ProjectSection({
     } catch { /* error */ }
   };
 
-  // Lessons
-  const { lessons } = useLessons(questId);
-  const displayLessons = lessons.length > 0 ? lessons : (quest.lessons || []);
+  // Lessons come from homepage data (no extra fetch needed)
+  const displayLessons = quest.lessons || [];
 
   useEffect(() => {
     const ids = new Set<string>();

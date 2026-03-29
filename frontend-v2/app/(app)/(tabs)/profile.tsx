@@ -21,6 +21,7 @@ import {
 } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { PortfolioSection } from '@/src/components/portfolio/PortfolioSection';
+import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
 
 const pillarColors: Record<string, { bg: string; bar: string; text: string }> = {
   stem: { bg: 'bg-pillar-stem/15', bar: 'bg-pillar-stem', text: 'text-pillar-stem' },
@@ -348,20 +349,49 @@ export default function ProfileScreen() {
           {subjectXP.length > 0 && (
             <CollapsibleSection title="Subject Credits" defaultOpen={false}>
               <Card variant="elevated" size="md">
-                <VStack space="sm">
-                  {subjectXP.map((s: any, idx: number) => (
-                    <HStack key={s.school_subject || `subject-${idx}`} className="items-center justify-between py-1">
-                      <UIText size="sm" className="font-poppins-medium">{s.school_subject}</UIText>
-                      <HStack className="items-center gap-2">
-                        <UIText size="sm" className="text-optio-purple font-poppins-semibold">{s.xp_amount?.toLocaleString()} XP</UIText>
-                        {s.pending_xp > 0 && (
-                          <Badge action="warning"><BadgeText className="text-amber-700">+{s.pending_xp} pending</BadgeText></Badge>
-                        )}
-                      </HStack>
-                    </HStack>
-                  ))}
+                <VStack space="md">
+                  {(() => {
+                    const maxXP = Math.max(...subjectXP.map((s: any) => (s.xp_amount || 0) + (s.pending_xp || 0)), 1);
+                    return subjectXP.map((s: any, idx: number) => {
+                      const total = (s.xp_amount || 0) + (s.pending_xp || 0);
+                      const earnedPct = Math.min(((s.xp_amount || 0) / maxXP) * 100, 100);
+                      const pendingPct = Math.min(((s.pending_xp || 0) / maxXP) * 100, 100);
+                      return (
+                        <VStack key={s.school_subject || `subject-${idx}`} space="xs">
+                          <HStack className="items-center justify-between">
+                            <UIText size="sm" className="font-poppins-medium">{(s.school_subject || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()).replace(/\b(Cte|Pe)\b/g, (m: string) => m.toUpperCase())}</UIText>
+                            <HStack className="items-center gap-2">
+                              <UIText size="sm" className="text-optio-purple font-poppins-semibold">{s.xp_amount?.toLocaleString()} XP</UIText>
+                              {s.pending_xp > 0 && (
+                                <Badge action="warning"><BadgeText className="text-amber-700">+{s.pending_xp} pending</BadgeText></Badge>
+                              )}
+                            </HStack>
+                          </HStack>
+                          <View className="h-2.5 bg-surface-100 rounded-full overflow-hidden flex-row">
+                            <View
+                              className="h-full bg-optio-purple rounded-full"
+                              style={{ width: `${earnedPct}%` }}
+                            />
+                            {s.pending_xp > 0 && (
+                              <View
+                                className="h-full bg-amber-300 rounded-full"
+                                style={{ width: `${pendingPct}%` }}
+                              />
+                            )}
+                          </View>
+                        </VStack>
+                      );
+                    });
+                  })()}
                 </VStack>
               </Card>
+            </CollapsibleSection>
+          )}
+
+          {/* Diploma Credit Tracker (students) */}
+          {isStudent && (
+            <CollapsibleSection title="Diploma Credits" defaultOpen={false}>
+              <DiplomaCreditTracker />
             </CollapsibleSection>
           )}
 

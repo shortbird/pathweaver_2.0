@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, ScrollView, Image, Pressable, useWindowDimensions, RefreshControl } from 'react-native';
+import { View, ScrollView, Image, Pressable, useWindowDimensions, RefreshControl, Modal, Platform } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +26,54 @@ import { MiniHeatmap } from '@/src/components/engagement/MiniHeatmap';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
+import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
+import { CaptureModal } from '@/src/components/capture/CaptureModal';
+import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
+
+// ── Rhythm Explainer Modal ──
+
+const rhythmExplainerContent: { state: string; label: string; icon: keyof typeof Ionicons.glyphMap; color: string; description: string }[] = [
+  { state: 'active', label: 'Active', icon: 'flash', color: '#6D469B', description: 'You are learning regularly. Keep going!' },
+  { state: 'building', label: 'Building', icon: 'trending-up', color: '#1D4ED8', description: 'You are getting into a groove -- whether starting fresh or returning after a break.' },
+  { state: 'resting', label: 'Resting', icon: 'moon', color: '#15803D', description: 'You are taking a break or haven\'t started yet. Rest is part of learning too.' },
+];
+
+function RhythmExplainerModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  if (!visible) return null;
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+        <Pressable onPress={(e) => e.stopPropagation?.()} style={{ backgroundColor: '#fff', borderRadius: 20, width: '100%', maxWidth: 480, padding: 24, margin: 20 }}>
+          <VStack space="md">
+            <HStack className="items-center justify-between">
+              <Heading size="lg">Learning Rhythm</Heading>
+              <Pressable onPress={onClose} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="close" size={18} color="#6B7280" />
+              </Pressable>
+            </HStack>
+            <UIText size="sm" className="text-typo-500">
+              Your learning rhythm reflects how consistently you engage with learning activities. It is not about speed or quantity -- it is about finding a sustainable pattern that works for you.
+            </UIText>
+            <Divider />
+            <VStack space="sm">
+              {rhythmExplainerContent.map((item) => (
+                <HStack key={item.state} className="items-center gap-3">
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: item.color + '15', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name={item.icon} size={18} color={item.color} />
+                  </View>
+                  <VStack className="flex-1">
+                    <UIText size="sm" className="font-poppins-semibold" style={{ color: item.color }}>{item.label}</UIText>
+                    <UIText size="xs" className="text-typo-500">{item.description}</UIText>
+                  </VStack>
+                </HStack>
+              ))}
+            </VStack>
+          </VStack>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
 
 // ── Quest Card with engagement ──
 
@@ -351,6 +399,9 @@ export default function DashboardScreen() {
   const { data, loading, refetch } = useDashboard();
   const { data: globalEngagement } = useGlobalEngagement();
   const [refreshing, setRefreshing] = useState(false);
+  const [captureVisible, setCaptureVisible] = useState(false);
+  const [rhythmExplainerVisible, setRhythmExplainerVisible] = useState(false);
+  const isWeb = Platform.OS === 'web';
 
   // Refetch when screen regains focus (e.g. after leaving a quest)
   useFocusEffect(
@@ -429,9 +480,18 @@ export default function DashboardScreen() {
           {/* Enrolled Courses */}
           <EnrolledCourses courses={enrolledCourses} />
 
+          {/* Diploma Credit Tracker */}
+          <DiplomaCreditTracker />
+
           {/* Learning Rhythm + Activity Calendar (combined) */}
           <VStack testID="learning-rhythm-section" space="sm">
-            <Heading size="md">Your Learning Rhythm</Heading>
+            <HStack className="items-center justify-between">
+              <Heading size="md">Your Learning Rhythm</Heading>
+              <Pressable onPress={() => setRhythmExplainerVisible(true)} className="flex-row items-center gap-1">
+                <Ionicons name="help-circle-outline" size={16} color="#9CA3AF" />
+                <UIText size="xs" className="text-typo-400">Learn more</UIText>
+              </Pressable>
+            </HStack>
             <Card testID="learning-rhythm-card" variant="elevated" size="md">
               <VStack space="md">
                 {/* Header: title + rhythm badge inline */}
@@ -459,6 +519,40 @@ export default function DashboardScreen() {
 
         </VStack>
       </ScrollView>
+
+      {/* Quick Capture FAB */}
+      <Pressable
+        testID="capture-fab"
+        onPress={() => setCaptureVisible(true)}
+        style={{
+          position: 'absolute',
+          bottom: 24,
+          right: 24,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: '#6D469B',
+          alignItems: 'center',
+          justifyContent: 'center',
+          elevation: 6,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.27,
+          shadowRadius: 4.65,
+        }}
+      >
+        <Ionicons name="add" size={28} color="white" />
+      </Pressable>
+
+      {/* Capture modal/sheet */}
+      {isWeb ? (
+        <CaptureModal visible={captureVisible} onClose={() => setCaptureVisible(false)} onCaptured={refetch} />
+      ) : (
+        <CaptureSheet visible={captureVisible} onClose={() => setCaptureVisible(false)} onCaptured={refetch} />
+      )}
+
+      {/* Rhythm explainer */}
+      <RhythmExplainerModal visible={rhythmExplainerVisible} onClose={() => setRhythmExplainerVisible(false)} />
     </SafeAreaView>
   );
 }

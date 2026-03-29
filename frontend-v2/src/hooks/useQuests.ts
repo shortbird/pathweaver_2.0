@@ -3,8 +3,25 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { Platform } from 'react-native';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+
+// Read/write URL search params on web for persistence
+function getWebParam(key: string): string | null {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  return new URLSearchParams(window.location.search).get(key);
+}
+
+function setWebParams(params: Record<string, string | null>) {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  for (const [k, v] of Object.entries(params)) {
+    if (v) url.searchParams.set(k, v);
+    else url.searchParams.delete(k);
+  }
+  window.history.replaceState({}, '', url.toString());
+}
 
 export interface Quest {
   id: string;
@@ -26,6 +43,19 @@ export interface QuestTopic {
   count: number;
 }
 
+// Topic taxonomy with subtopics (matches v1 QuestDiscovery)
+export const TOPIC_TAXONOMY: Record<string, string[]> = {
+  Creative: ['Music', 'Art', 'Design', 'Animation', 'Film', 'Writing', 'Photography', 'Crafts'],
+  Science: ['Biology', 'Chemistry', 'Physics', 'Technology', 'Research', 'Astronomy', 'Environment'],
+  Building: ['3D Printing', 'Engineering', 'Robotics', 'DIY', 'Woodworking', 'Electronics', 'Maker'],
+  Nature: ['Gardening', 'Wildlife', 'Outdoors', 'Sustainability', 'Plants', 'Animals', 'Hiking'],
+  Business: ['Entrepreneurship', 'Finance', 'Marketing', 'Leadership', 'Startups', 'Economics'],
+  Personal: ['Wellness', 'Fitness', 'Mindfulness', 'Skills', 'Philosophy', 'Self-Improvement'],
+  Academic: ['Reading', 'Math', 'History', 'Languages', 'Literature', 'Geography', 'Social Studies'],
+  Food: ['Cooking', 'Baking', 'Nutrition', 'Food Science', 'Fermentation', 'World Cuisine'],
+  Games: ['Board Games', 'Video Games', 'Game Design', 'Puzzles', 'Strategy', 'Esports'],
+};
+
 export function useQuestDiscovery() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [quests, setQuests] = useState<Quest[]>([]);
@@ -34,9 +64,15 @@ export function useQuestDiscovery() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [search, setSearchRaw] = useState(getWebParam('search') || '');
+  const [debouncedSearch, setDebouncedSearch] = useState(getWebParam('search') || '');
+  const [selectedTopic, setSelectedTopicRaw] = useState<string | null>(getWebParam('topic'));
+  const [selectedSubtopic, setSelectedSubtopicRaw] = useState<string | null>(getWebParam('subtopic'));
+
+  // Wrap setters to sync URL params
+  const setSearch = useCallback((v: string) => { setSearchRaw(v); setWebParams({ search: v || null }); }, []);
+  const setSelectedTopic = useCallback((v: string | null) => { setSelectedTopicRaw(v); setWebParams({ topic: v, subtopic: null }); }, []);
+  const setSelectedSubtopic = useCallback((v: string | null) => { setSelectedSubtopicRaw(v); setWebParams({ subtopic: v }); }, []);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const PAGE_SIZE = 12;
 
@@ -47,6 +83,11 @@ export function useQuestDiscovery() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [search]);
 
+  // Clear subtopic when topic changes
+  useEffect(() => {
+    setSelectedSubtopic(null);
+  }, [selectedTopic]);
+
   const fetchQuests = useCallback(async (pageNum = 1, append = false) => {
     if (!isAuthenticated) return;
     try {
@@ -54,6 +95,7 @@ export function useQuestDiscovery() {
       const params: Record<string, string | number> = { page: pageNum, per_page: PAGE_SIZE };
       if (debouncedSearch) params.search = debouncedSearch;
       if (selectedTopic) params.topic = selectedTopic;
+      if (selectedSubtopic) params.subtopic = selectedSubtopic;
       const { data } = await api.get('/api/quests', { params });
       const newQuests = data.data || data.quests || data || [];
       const totalPages = data.meta?.pages || 1;
@@ -75,7 +117,7 @@ export function useQuestDiscovery() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [isAuthenticated, debouncedSearch, selectedTopic]);
+  }, [isAuthenticated, debouncedSearch, selectedTopic, selectedSubtopic]);
 
   const loadMore = useCallback(() => {
     if (!loadingMore && hasMore) {
@@ -96,7 +138,10 @@ export function useQuestDiscovery() {
   useEffect(() => { fetchTopics(); }, [fetchTopics]);
   useEffect(() => { fetchQuests(1, false); }, [fetchQuests]);
 
-  return { quests, topics, loading, loadingMore, hasMore, search, setSearch, selectedTopic, setSelectedTopic, loadMore, refetch: () => fetchQuests(1, false) };
+  // Derive subtopics from selected topic
+  const subtopics = selectedTopic ? TOPIC_TAXONOMY[selectedTopic] || [] : [];
+
+  return { quests, topics, loading, loadingMore, hasMore, search, setSearch, selectedTopic, setSelectedTopic, selectedSubtopic, setSelectedSubtopic, subtopics, loadMore, refetch: () => fetchQuests(1, false) };
 }
 
 export function useQuestDetail(questId: string | null) {

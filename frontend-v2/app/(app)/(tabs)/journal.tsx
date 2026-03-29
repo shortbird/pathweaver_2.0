@@ -45,18 +45,32 @@ export default function JournalScreen() {
   const [editingEvent, setEditingEvent] = useState<LearningEvent | null>(null);
 
   const TOPIC_COLORS = ['#6D469B', '#EF597B', '#3DA24A', '#FF9028', '#2D8CFF', '#E84393'];
+  const TOPIC_ICONS: { key: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { key: 'folder', icon: 'folder-outline' },
+    { key: 'star', icon: 'star-outline' },
+    { key: 'book', icon: 'book-outline' },
+    { key: 'code', icon: 'code-slash-outline' },
+    { key: 'paint', icon: 'color-palette-outline' },
+    { key: 'music', icon: 'musical-notes-outline' },
+    { key: 'science', icon: 'flask-outline' },
+    { key: 'heart', icon: 'heart-outline' },
+    { key: 'globe', icon: 'globe-outline' },
+  ];
+  const [selectedColor, setSelectedColor] = useState(TOPIC_COLORS[0]);
+  const [selectedIcon, setSelectedIcon] = useState('folder');
 
   const handleCreateTopic = async () => {
     if (!newTopicName.trim()) return;
     setCreatingTopic(true);
     try {
-      const color = TOPIC_COLORS[Math.floor(Math.random() * TOPIC_COLORS.length)];
       await api.post('/api/interest-tracks', {
         name: newTopicName.trim(),
-        color,
-        icon: 'hardware-chip-outline',
+        color: selectedColor,
+        icon: selectedIcon,
       });
       setNewTopicName('');
+      setSelectedColor(TOPIC_COLORS[0]);
+      setSelectedIcon('folder');
       setNewTopicVisible(false);
       refetchTopics();
     } catch (err: any) {
@@ -199,6 +213,9 @@ export default function JournalScreen() {
                 <UIText size="sm" className="text-typo-500">{activeSubtitle}</UIText>
               ) : null}
             </VStack>
+            <Pressable onPress={refetchCurrentView} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
+              <Ionicons name="refresh-outline" size={16} color="#6B7280" />
+            </Pressable>
           </HStack>
 
           {/* Track color bar */}
@@ -335,6 +352,12 @@ export default function JournalScreen() {
               <Heading size="md">Journal</Heading>
               <HStack className="items-center gap-2">
                 <Pressable
+                  onPress={refetchCurrentView}
+                  className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
+                >
+                  <Ionicons name="refresh-outline" size={16} color="#6B7280" />
+                </Pressable>
+                <Pressable
                   onPress={() => setNewTopicVisible(true)}
                   className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
                 >
@@ -389,6 +412,48 @@ export default function JournalScreen() {
                   className="bg-surface-50 rounded-xl p-4 text-base"
                   style={{ fontFamily: 'Poppins_400Regular' }}
                 />
+                {/* Icon picker */}
+                <VStack space="xs">
+                  <UIText size="xs" className="text-typo-400 font-poppins-medium">Icon</UIText>
+                  <HStack className="flex-wrap gap-2">
+                    {TOPIC_ICONS.map((item) => (
+                      <Pressable
+                        key={item.key}
+                        onPress={() => setSelectedIcon(item.key)}
+                        style={{
+                          width: 36, height: 36, borderRadius: 10,
+                          backgroundColor: selectedIcon === item.key ? selectedColor + '20' : '#F3F4F6',
+                          borderWidth: selectedIcon === item.key ? 2 : 0,
+                          borderColor: selectedColor,
+                          alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        <Ionicons name={item.icon} size={18} color={selectedIcon === item.key ? selectedColor : '#6B7280'} />
+                      </Pressable>
+                    ))}
+                  </HStack>
+                </VStack>
+                {/* Color picker */}
+                <VStack space="xs">
+                  <UIText size="xs" className="text-typo-400 font-poppins-medium">Color</UIText>
+                  <HStack className="gap-2">
+                    {TOPIC_COLORS.map((color) => (
+                      <Pressable
+                        key={color}
+                        onPress={() => setSelectedColor(color)}
+                        style={{
+                          width: 32, height: 32, borderRadius: 16,
+                          backgroundColor: color,
+                          borderWidth: selectedColor === color ? 3 : 0,
+                          borderColor: '#1F2937',
+                          alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        {selectedColor === color && <Ionicons name="checkmark" size={16} color="white" />}
+                      </Pressable>
+                    ))}
+                  </HStack>
+                </VStack>
                 <HStack className="gap-3 justify-end">
                   <Button variant="outline" size="md" onPress={() => setNewTopicVisible(false)}>
                     <ButtonText>Cancel</ButtonText>
@@ -490,6 +555,48 @@ export default function JournalScreen() {
                 className="bg-surface-50 rounded-xl p-4 text-base"
                 style={{ fontFamily: 'Poppins_400Regular' }}
               />
+              {/* Icon picker */}
+              <VStack space="xs">
+                <UIText size="xs" className="text-typo-400 font-poppins-medium">Icon</UIText>
+                <HStack className="flex-wrap gap-2">
+                  {TOPIC_ICONS.map((item) => (
+                    <Pressable
+                      key={item.key}
+                      onPress={() => setSelectedIcon(item.key)}
+                      style={{
+                        width: 36, height: 36, borderRadius: 10,
+                        backgroundColor: selectedIcon === item.key ? selectedColor + '20' : '#F3F4F6',
+                        borderWidth: selectedIcon === item.key ? 2 : 0,
+                        borderColor: selectedColor,
+                        alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      <Ionicons name={item.icon} size={18} color={selectedIcon === item.key ? selectedColor : '#6B7280'} />
+                    </Pressable>
+                  ))}
+                </HStack>
+              </VStack>
+              {/* Color picker */}
+              <VStack space="xs">
+                <UIText size="xs" className="text-typo-400 font-poppins-medium">Color</UIText>
+                <HStack className="gap-2">
+                  {TOPIC_COLORS.map((color) => (
+                    <Pressable
+                      key={color}
+                      onPress={() => setSelectedColor(color)}
+                      style={{
+                        width: 32, height: 32, borderRadius: 16,
+                        backgroundColor: color,
+                        borderWidth: selectedColor === color ? 3 : 0,
+                        borderColor: '#1F2937',
+                        alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      {selectedColor === color && <Ionicons name="checkmark" size={16} color="white" />}
+                    </Pressable>
+                  ))}
+                </HStack>
+              </VStack>
               <Button size="lg" onPress={handleCreateTopic} loading={creatingTopic} disabled={!newTopicName.trim() || creatingTopic} className="w-full">
                 <ButtonText>Create Topic</ButtonText>
               </Button>

@@ -9,18 +9,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { HStack, VStack, UIText } from '../ui';
 import type { RhythmState } from '@/src/hooks/useDashboard';
 
+// Map backend's granular states into 3 simplified display buckets
+const simplifiedState: Record<string, string> = {
+  in_flow: 'active',
+  building: 'building',
+  finding_rhythm: 'building',
+  fresh_return: 'building',
+  resting: 'resting',
+  ready_to_begin: 'resting',
+  ready_when_you_are: 'resting',
+};
+
 const rhythmConfig: Record<string, {
   icon: keyof typeof Ionicons.glyphMap;
   bg: string;
   color: string;
+  label: string;
 }> = {
-  in_flow: { icon: 'flash', bg: 'bg-optio-purple/10', color: '#6D469B' },
-  building: { icon: 'trending-up', bg: 'bg-blue-50', color: '#1D4ED8' },
-  resting: { icon: 'moon', bg: 'bg-green-50', color: '#15803D' },
-  fresh_return: { icon: 'refresh', bg: 'bg-amber-50', color: '#B45309' },
-  ready_to_begin: { icon: 'play-circle', bg: 'bg-surface-100', color: '#6B7280' },
-  ready_when_you_are: { icon: 'play-circle', bg: 'bg-surface-100', color: '#6B7280' },
-  finding_rhythm: { icon: 'trending-up', bg: 'bg-blue-50', color: '#1D4ED8' },
+  active: { icon: 'flash', bg: 'bg-optio-purple/10', color: '#6D469B', label: 'Active' },
+  building: { icon: 'trending-up', bg: 'bg-blue-50', color: '#1D4ED8', label: 'Building' },
+  resting: { icon: 'moon', bg: 'bg-green-50', color: '#15803D', label: 'Resting' },
 };
 
 interface RhythmBadgeProps {
@@ -29,9 +37,10 @@ interface RhythmBadgeProps {
 }
 
 export function RhythmBadge({ rhythm, compact = false }: RhythmBadgeProps) {
-  const state = rhythm?.state || 'ready_to_begin';
-  const config = rhythmConfig[state] || rhythmConfig.ready_to_begin;
-  const display = rhythm?.state_display || 'Ready to Begin';
+  const rawState = rhythm?.state || 'ready_to_begin';
+  const bucket = simplifiedState[rawState] || 'resting';
+  const config = rhythmConfig[bucket] || rhythmConfig.resting;
+  const display = config.label;
   const message = rhythm?.message || '';
 
   if (compact) {

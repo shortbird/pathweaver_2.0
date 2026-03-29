@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
-import { useBounties, useMyClaims, useMyPosted, deleteBounty } from '@/src/hooks/useBounties';
+import { useBounties, useMyClaims, useMyPosted, deleteBounty, turnInBounty } from '@/src/hooks/useBounties';
 import { pillars as pillarMap, pillarKeys, pillarShortLabels, getPillar } from '@/src/config/pillars';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
@@ -85,13 +85,26 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   revision_requested: { bg: '#FFEDD5', text: '#C2410C' },
 };
 
-function ClaimCard({ claim }: { claim: any }) {
+function ClaimCard({ claim, onTurnedIn }: { claim: any; onTurnedIn?: () => void }) {
   const bounty = claim.bounty || {};
   const sc = statusConfig[claim.status] || statusConfig.claimed;
   const colors = STATUS_COLORS[claim.status] || STATUS_COLORS.claimed;
-  const completedCount = (claim.evidence?.completed_deliverables || []).length;
-  const totalCount = (bounty.deliverables || []).length;
+  const completedIds = new Set(claim.evidence?.completed_deliverables || []);
+  const deliverables = bounty.deliverables || [];
+  const completedCount = completedIds.size;
+  const totalCount = deliverables.length;
   const hasProgress = totalCount > 0;
+  const allDone = completedCount === totalCount && totalCount > 0;
+  const [turningIn, setTurningIn] = useState(false);
+
+  const handleTurnIn = async () => {
+    setTurningIn(true);
+    try {
+      await turnInBounty(claim.bounty_id, claim.id);
+      onTurnedIn?.();
+    } catch { Alert.alert('Error', 'Failed to turn in bounty'); }
+    finally { setTurningIn(false); }
+  };
 
   return (
     <Pressable onPress={() => router.push(`/bounties/${claim.bounty_id}`)}>
@@ -116,16 +129,14 @@ function ClaimCard({ claim }: { claim: any }) {
           <Heading size="sm" numberOfLines={2}>{bounty.title || 'Bounty'}</Heading>
           <UIText size="xs" className="text-typo-500" numberOfLines={2}>{bounty.description}</UIText>
 
-          {/* Deliverable progress */}
+          {/* Deliverables checklist */}
           {hasProgress && (
             <VStack space="xs">
               <HStack className="items-center justify-between">
-                <UIText size="xs" className="text-typo-400">
+                <UIText size="xs" className="text-typo-400 font-poppins-medium">
                   {completedCount}/{totalCount} deliverable{totalCount !== 1 ? 's' : ''}
                 </UIText>
-                {completedCount === totalCount && totalCount > 0 && (
-                  <Ionicons name="checkmark-circle" size={14} color="#16A34A" />
-                )}
+                {allDone && <Ionicons name="checkmark-circle" size={14} color="#16A34A" />}
               </HStack>
               <View className="h-1.5 bg-surface-200 rounded-full overflow-hidden">
                 <View
@@ -133,12 +144,37 @@ function ClaimCard({ claim }: { claim: any }) {
                   style={{ width: `${(completedCount / totalCount) * 100}%` }}
                 />
               </View>
+              {deliverables.map((d: any) => (
+                <HStack key={d.id} className="items-center gap-2 pl-1">
+                  <Ionicons
+                    name={completedIds.has(d.id) ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={14}
+                    color={completedIds.has(d.id) ? '#16A34A' : '#D1D5DB'}
+                  />
+                  <UIText size="xs" className={completedIds.has(d.id) ? 'text-typo-400 line-through' : 'text-typo-600'} numberOfLines={1}>
+                    {d.text}
+                  </UIText>
+                </HStack>
+              ))}
             </VStack>
           )}
 
-          {(claim.status === 'claimed' || claim.status === 'revision_requested') && (
+          {/* Turn in button (when all deliverables complete) */}
+          {claim.status === 'claimed' && allDone && (
+            <Button size="md" className="w-full mt-1" onPress={(e: any) => { e.stopPropagation?.(); handleTurnIn(); }} disabled={turningIn}>
+              <ButtonText>{turningIn ? 'Submitting...' : 'Turn In'}</ButtonText>
+            </Button>
+          )}
+
+          {(claim.status === 'claimed' && !allDone) && (
             <Button size="md" variant="outline" className="w-full mt-1" onPress={() => router.push(`/bounties/${claim.bounty_id}`)}>
-              <ButtonText>{claim.status === 'revision_requested' ? 'Revise' : 'Continue'}</ButtonText>
+              <ButtonText>Continue</ButtonText>
+            </Button>
+          )}
+
+          {claim.status === 'revision_requested' && (
+            <Button size="md" variant="outline" className="w-full mt-1" onPress={() => router.push(`/bounties/${claim.bounty_id}`)}>
+              <ButtonText>Revise</ButtonText>
             </Button>
           )}
         </VStack>
@@ -158,7 +194,7 @@ export default function BountiesScreen() {
   const canPost = !isStudent || user?.role === 'superadmin';
 
   const { bounties, loading: browsing } = useBounties(pillarFilter);
-  const { claims, loading: claimsLoading } = useMyClaims();
+  const { claims, loading: claimsLoading, refetch: refetchClaims } = useMyClaims();
   const { bounties: posted, loading: postedLoading, refetch: refetchPosted } = useMyPosted();
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
@@ -284,7 +320,7 @@ export default function BountiesScreen() {
                 <VStack space="sm">{[1, 2].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</VStack>
               ) : claims.length > 0 ? (
                 <VStack space="sm">
-                  {claims.map((c: any) => <ClaimCard key={c.id} claim={c} />)}
+                  {claims.map((c: any) => <ClaimCard key={c.id} claim={c} onTurnedIn={refetchClaims} />)}
                 </VStack>
               ) : (
                 <Card variant="filled" size="lg" className="items-center py-10">
