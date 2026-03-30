@@ -547,13 +547,24 @@ class CourseService(BaseService):
             for lesson in lessons:
                 all_linked_task_ids.extend(lesson.get('linked_task_ids', []))
 
-            # Fetch suggested tasks from the template library (quest_template_tasks)
-            suggested_tasks_result = supabase.table('quest_template_tasks')\
-                .select('id, title, description, pillar, xp_value, is_required, order_index')\
-                .eq('quest_id', quest_id)\
-                .order('order_index')\
-                .execute()
-            suggested_task_records = suggested_tasks_result.data or []
+            # Fetch suggested tasks: first from lesson-linked tasks (course builder),
+            # then fall back to quest_template_tasks
+            suggested_task_records = []
+            if all_linked_task_ids:
+                linked_tasks_result = supabase.table('user_quest_tasks')\
+                    .select('id, title, description, pillar, xp_value, is_required')\
+                    .in_('id', all_linked_task_ids)\
+                    .execute()
+                suggested_task_records = linked_tasks_result.data or []
+
+            if not suggested_task_records:
+                # Fall back to template library if no lesson-linked tasks exist
+                suggested_tasks_result = supabase.table('quest_template_tasks')\
+                    .select('id, title, description, pillar, xp_value, is_required, order_index')\
+                    .eq('quest_id', quest_id)\
+                    .order('order_index')\
+                    .execute()
+                suggested_task_records = suggested_tasks_result.data or []
 
             if quest_enrollment:
                 # Get the current user's tasks for this quest
