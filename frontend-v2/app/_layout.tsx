@@ -1,6 +1,7 @@
 import '../global.css';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
+import { useColorScheme } from 'nativewind';
 import { Stack } from 'expo-router';
 
 // Suppress React Native Web warnings for native-only props
@@ -40,6 +41,7 @@ import {
 } from '@expo-google-fonts/poppins';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
+import { loadPersistedTheme } from '@/src/stores/themeStore';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -47,6 +49,7 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const loadUser = useAuthStore((s) => s.loadUser);
+  const { setColorScheme } = useColorScheme();
 
   const [fontsLoaded, fontError] = useFonts({
     Poppins_400Regular,
@@ -59,6 +62,12 @@ export default function RootLayout() {
     // Restore acting-as state from sessionStorage before loading user
     useActingAsStore.getState().restore();
     loadUser();
+    // Restore persisted theme preference
+    loadPersistedTheme().then((mode) => {
+      if (mode === 'dark' || mode === 'light') {
+        setColorScheme(mode);
+      }
+    });
   }, []);
 
   useEffect(() => {

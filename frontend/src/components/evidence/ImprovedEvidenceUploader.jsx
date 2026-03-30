@@ -31,7 +31,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
 
   // File size limits
   const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-  const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
+  const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
   const MAX_DOCUMENT_SIZE = 25 * 1024 * 1024; // 25MB
 
   // Evidence type icons and colors
@@ -99,7 +99,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
     ],
     camera: [
       { tip: 'Photos up to 10MB', icon: '📷' },
-      { tip: 'Videos up to 100MB, max 3 min', icon: '🎬' },
+      { tip: 'Videos up to 50MB, max 3 min', icon: '🎬' },
       { tip: 'Show your work in action', icon: '🎯' },
       { tip: 'Good lighting and framing', icon: '💡' }
     ],
@@ -496,7 +496,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
               {isDragging ? 'Drop your file here!' : 'Click to upload or drag and drop'}
             </p>
             <p className="text-xs text-gray-500">
-              {evidenceType === 'camera' && 'Photos up to 10MB, videos (MP4/MOV) up to 100MB, max 3 min'}
+              {evidenceType === 'camera' && 'Photos up to 10MB, videos (MP4/MOV) up to 50MB, max 3 min'}
               {evidenceType === 'document' && `${DOCUMENT_FORMAT_LABEL} up to 25MB`}
             </p>
             

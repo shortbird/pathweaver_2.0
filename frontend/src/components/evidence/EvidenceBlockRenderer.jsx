@@ -227,8 +227,8 @@ export const EvidenceBlockRenderer = ({
               toast.error(durationCheck.message);
               continue;
             }
-            if (file.size > 100 * 1024 * 1024) {
-              toast.error(`"${file.name}" is too large. Videos must be under 100MB.`);
+            if (file.size > 50 * 1024 * 1024) {
+              toast.error(`"${file.name}" is too large. Videos must be under 50MB.`);
               continue;
             }
             const fileInfo = await mediaHandlers.handleFileUpload(file, block.id, 'video');
@@ -312,7 +312,7 @@ export const EvidenceBlockRenderer = ({
           <p className="text-sm font-medium text-gray-700">
             {items.length > 0 ? 'Add more photos or videos' : 'Click to upload photos or videos'}
           </p>
-          <p className="text-xs text-gray-500 mt-1">Images up to 10MB, videos (MP4/MOV) up to 100MB, max 3 min</p>
+          <p className="text-xs text-gray-500 mt-1">Images up to 10MB, videos (MP4/MOV) up to 50MB, max 3 min</p>
         </div>
 
         <input
@@ -441,7 +441,7 @@ export const EvidenceBlockRenderer = ({
           <p className="text-sm font-medium text-gray-700">
             {items.length > 0 ? 'Add another video' : 'Click to upload a video'}
           </p>
-          <p className="text-xs text-gray-500 mt-1">{VIDEO_FORMAT_LABEL} up to 100MB, max 3 minutes</p>
+          <p className="text-xs text-gray-500 mt-1">{VIDEO_FORMAT_LABEL} up to 50MB, max 3 minutes</p>
         </div>
 
         <input

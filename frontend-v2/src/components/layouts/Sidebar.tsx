@@ -27,7 +27,7 @@ function NavLink({ item }: { item: NavItem }) {
     <Pressable
       onPress={() => router.push(item.href as any)}
       className={`flex-row items-center gap-3 px-4 py-3 rounded-xl mx-2 ${
-        isActive ? 'bg-optio-purple/10' : 'active:bg-surface-100'
+        isActive ? 'bg-optio-purple/10' : 'active:bg-surface-100 dark:active:bg-dark-surface-200'
       }`}
     >
       <Ionicons
@@ -73,7 +73,7 @@ export function Sidebar() {
   }, [user]);
 
   return (
-    <View className="w-60 bg-white border-r border-surface-200 pt-6 pb-4 flex flex-col h-full">
+    <View className="w-60 bg-white dark:bg-dark-surface-50 border-r border-surface-200 dark:border-dark-surface-300 pt-6 pb-4 flex flex-col h-full">
       {/* Logo */}
       <View className="px-5 mb-6">
         <Image

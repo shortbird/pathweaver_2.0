@@ -16,7 +16,7 @@ const sizeMap = {
 export function UIText({ className = '', size = 'md', ...props }: UITextProps) {
   return (
     <RNText
-      className={`font-poppins text-typo ${sizeMap[size]} ${className}`}
+      className={`font-poppins text-typo dark:text-dark-typo ${sizeMap[size]} ${className}`}
       {...props}
     />
   );

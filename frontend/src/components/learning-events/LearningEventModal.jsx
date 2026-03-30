@@ -517,7 +517,7 @@ const LearningEventModal = ({
             }}
           >
             <p className="text-sm text-gray-500">Click to upload a photo or video</p>
-            <p className="text-xs text-gray-400 mt-1">Images up to 10MB, videos (MP4/MOV) up to 100MB</p>
+            <p className="text-xs text-gray-400 mt-1">Images up to 10MB, videos (MP4/MOV) up to 50MB</p>
           </div>
         )}
       </div>
@@ -570,7 +570,7 @@ const LearningEventModal = ({
           }}
         >
           <p className="text-sm text-gray-500">Click to upload a document</p>
-          <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX up to 100MB</p>
+          <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX up to 25MB</p>
         </div>
       )}
     </div>

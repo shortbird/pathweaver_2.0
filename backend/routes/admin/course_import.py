@@ -68,16 +68,19 @@ def preview_imscc_import(user_id):
                 'error': 'Invalid file type. Please upload a .imscc or .zip file.'
             }), 400
 
-        # Read file content
-        file_content = file.read()
-
-        # Validate file size (max 100MB)
-        max_size = 100 * 1024 * 1024  # 100MB
-        if len(file_content) > max_size:
+        # Validate file size before reading into memory (prevents OOM)
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(0)
+        max_size = 50 * 1024 * 1024  # 50MB
+        if file_size > max_size:
             return jsonify({
                 'success': False,
-                'error': f'File too large. Maximum size is 100MB.'
+                'error': 'File too large. Maximum size is 50MB.'
             }), 400
+
+        # Read file content
+        file_content = file.read()
 
         # Validate IMSCC format
         is_valid, error_msg = parser_service.validate_imscc_file(file_content)

@@ -169,6 +169,16 @@ function TaskItem({
     input.onchange = async (e: any) => {
       const file = e.target.files?.[0];
       if (!file) return;
+      const isVideo = file.type.startsWith('video/');
+      const isImage = file.type.startsWith('image/');
+      const maxSize = isVideo ? 50 * 1024 * 1024 : isImage ? 10 * 1024 * 1024 : 25 * 1024 * 1024;
+      if (file.size > maxSize) {
+        const maxMB = maxSize / (1024 * 1024);
+        const fileMB = (file.size / (1024 * 1024)).toFixed(1);
+        const fileType = isVideo ? 'videos' : isImage ? 'images' : 'documents';
+        alert(`File too large (${fileMB}MB). Maximum for ${fileType} is ${maxMB}MB.`);
+        return;
+      }
       setUploading(true);
       try {
         const formData = new FormData();

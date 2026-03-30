@@ -14,6 +14,10 @@ import {
   VStack, HStack, UIText, Heading, Button, ButtonText,
 } from '../ui';
 
+// File size limits (must match backend constants)
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
+
 interface EvidenceUploadSheetProps {
   visible: boolean;
   deliverableText: string;
@@ -53,9 +57,17 @@ export function EvidenceUploadSheet({ visible, deliverableText, onClose, onSubmi
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
+      const isVideo = asset.type === 'video';
+      const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+      if (asset.fileSize && asset.fileSize > maxSize) {
+        const maxMB = maxSize / (1024 * 1024);
+        const fileMB = (asset.fileSize / (1024 * 1024)).toFixed(1);
+        Alert.alert('File too large', `${isVideo ? 'Videos' : 'Images'} must be under ${maxMB}MB. This file is ${fileMB}MB.`);
+        return;
+      }
       setMediaUri(asset.uri);
-      setMediaType(asset.type === 'video' ? 'video' : 'image');
-      setMediaName(asset.fileName || (asset.type === 'video' ? 'Video' : 'Photo'));
+      setMediaType(isVideo ? 'video' : 'image');
+      setMediaName(asset.fileName || (isVideo ? 'Video' : 'Photo'));
     }
   };
 
@@ -66,9 +78,17 @@ export function EvidenceUploadSheet({ visible, deliverableText, onClose, onSubmi
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
+      const isVideo = asset.type === 'video';
+      const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+      if (asset.fileSize && asset.fileSize > maxSize) {
+        const maxMB = maxSize / (1024 * 1024);
+        const fileMB = (asset.fileSize / (1024 * 1024)).toFixed(1);
+        Alert.alert('File too large', `${isVideo ? 'Videos' : 'Images'} must be under ${maxMB}MB. This file is ${fileMB}MB.`);
+        return;
+      }
       setMediaUri(asset.uri);
-      setMediaType(asset.type === 'video' ? 'video' : 'image');
-      setMediaName(asset.fileName || (asset.type === 'video' ? 'Video' : 'Photo'));
+      setMediaType(isVideo ? 'video' : 'image');
+      setMediaName(asset.fileName || (isVideo ? 'Video' : 'Photo'));
     }
   };
 

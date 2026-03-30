@@ -16,13 +16,13 @@ interface ButtonProps extends PressableProps {
 const variantActionClasses: Record<ButtonVariant, Record<ButtonAction, string>> = {
   solid: {
     primary: 'bg-optio-purple active:bg-optio-purple-dark',
-    secondary: 'bg-surface-200 active:bg-surface-300',
+    secondary: 'bg-surface-200 dark:bg-dark-surface-200 active:bg-surface-300 dark:active:bg-dark-surface-300',
     positive: 'bg-green-600 active:bg-green-700',
     negative: 'bg-red-500 active:bg-red-600',
   },
   outline: {
     primary: 'border-2 border-optio-purple bg-transparent active:bg-optio-purple/10',
-    secondary: 'border-2 border-surface-200 bg-transparent active:bg-surface-50',
+    secondary: 'border-2 border-surface-200 dark:border-dark-surface-300 bg-transparent active:bg-surface-50 dark:active:bg-dark-surface-100',
     positive: 'border-2 border-green-600 bg-transparent active:bg-green-50',
     negative: 'border-2 border-red-500 bg-transparent active:bg-red-50',
   },
@@ -44,21 +44,21 @@ const sizeClasses: Record<ButtonSize, string> = {
 const textVariantAction: Record<ButtonVariant, Record<ButtonAction, string>> = {
   solid: {
     primary: 'text-white',
-    secondary: 'text-typo',
+    secondary: 'text-typo dark:text-dark-typo',
     positive: 'text-white',
     negative: 'text-white',
   },
   outline: {
     primary: 'text-optio-purple',
-    secondary: 'text-typo',
+    secondary: 'text-typo dark:text-dark-typo',
     positive: 'text-green-600',
-    negative: 'text-red-500',
+    negative: 'text-red-500 dark:text-red-400',
   },
   link: {
     primary: 'text-optio-purple',
-    secondary: 'text-typo-500',
+    secondary: 'text-typo-500 dark:text-dark-typo-500',
     positive: 'text-green-600',
-    negative: 'text-red-500',
+    negative: 'text-red-500 dark:text-red-400',
   },
 };
 

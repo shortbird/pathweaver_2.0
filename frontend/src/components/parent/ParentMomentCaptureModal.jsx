@@ -83,7 +83,7 @@ const ParentMomentCaptureModal = ({
 
     try {
       let result;
-      const isLargeVideo = attachment.file.size > 100 * 1024 * 1024 && attachment.type === 'video';
+      const isLargeVideo = attachment.file.size > 50 * 1024 * 1024 && attachment.type === 'video';
 
       if (isLargeVideo && isSuperadmin) {
         // Direct-to-Supabase upload for large videos (superadmin only)

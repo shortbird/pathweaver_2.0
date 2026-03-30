@@ -17,7 +17,7 @@ module.exports = {
         'optio-pink': '#EF597B',
         'optio-pink-dark': '#E73862',
 
-        // Surfaces
+        // Surfaces (light)
         surface: {
           DEFAULT: '#FFFFFF',
           50: '#F9FAFB',
@@ -26,13 +26,31 @@ module.exports = {
           300: '#D1D5DB',
         },
 
-        // Typography
+        // Surfaces (dark)
+        'dark-surface': {
+          DEFAULT: '#1A1A2E',
+          50: '#16162A',
+          100: '#1E1E36',
+          200: '#2A2A42',
+          300: '#3A3A52',
+        },
+
+        // Typography (light)
         typo: {
           DEFAULT: '#1F2937',
           700: '#374151',
           500: '#6B7280',
           400: '#9CA3AF',
           300: '#D1D5DB',
+        },
+
+        // Typography (dark)
+        'dark-typo': {
+          DEFAULT: '#F3F4F6',
+          700: '#E5E7EB',
+          500: '#9CA3AF',
+          400: '#6B7280',
+          300: '#4B5563',
         },
 
         // Pillars
