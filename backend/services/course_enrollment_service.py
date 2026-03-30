@@ -627,9 +627,8 @@ class CourseEnrollmentService(BaseService):
                 .select('id, email, display_name, first_name, last_name, role, org_role, total_xp', count='exact')
 
             if is_superadmin:
-                # Superadmin: get platform users (no organization)
-                query = query.is_('organization_id', 'null')\
-                    .neq('role', 'superadmin')
+                # Superadmin: get all non-superadmin users
+                query = query.neq('role', 'superadmin')
             else:
                 # Org admin: get their organization's users
                 query = query.eq('organization_id', organization_id)

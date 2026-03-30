@@ -203,11 +203,10 @@ def bulk_enroll_users(current_user_id, current_org_id, is_superadmin, course_id)
                     'invalid_user_ids': invalid_users
                 }), 400
         else:
-            # Superadmin: verify users are platform users (no organization)
+            # Superadmin: can enroll any non-superadmin user
             users_result = client.table('users')\
                 .select('id')\
                 .in_('id', user_ids)\
-                .is_('organization_id', 'null')\
                 .neq('role', 'superadmin')\
                 .execute()
 
@@ -216,7 +215,7 @@ def bulk_enroll_users(current_user_id, current_org_id, is_superadmin, course_id)
 
             if invalid_users:
                 return jsonify({
-                    'error': f'{len(invalid_users)} users are not platform users or are superadmins',
+                    'error': f'{len(invalid_users)} users not found or are superadmins',
                     'invalid_user_ids': invalid_users
                 }), 400
 
@@ -501,10 +500,6 @@ def get_user_enrollments(current_user_id, current_org_id, is_superadmin):
             # Org admin can only view their org's users
             if user_org_id != current_org_id:
                 return jsonify({'error': 'Access denied'}), 403
-        else:
-            # Superadmin can only view platform users (no organization)
-            if user_org_id is not None:
-                return jsonify({'error': 'This user belongs to an organization'}), 403
 
         # Get all enrollments for this user with course details
         enrollments_result = client.table('course_enrollments')\

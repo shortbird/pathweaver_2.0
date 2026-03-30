@@ -24,11 +24,14 @@ function RelationshipsSection({
   handleSelectAdvisor,
   handleUnassignStudent,
   setShowAssignModal,
+  allStudentsWithAdvisors = [],
   // Parent props
   parentLinks,
   handleDisconnectParentLink,
   setShowAddConnectionModal
 }) {
+  const assignedCount = allStudentsWithAdvisors.filter(s => s.advisor_count > 0).length
+  const unassignedCount = allStudentsWithAdvisors.length - assignedCount
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100">
       <button
@@ -78,6 +81,23 @@ function RelationshipsSection({
               {relationshipView === 'advisors' ? (
                 /* Advisor-Student Connections */
                 <div className="space-y-3">
+                  {/* Summary Stats */}
+                  {advisors.length > 0 && (
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-500">Advisors</p>
+                        <p className="text-lg font-bold text-gray-900">{advisors.length}</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-500">Assigned</p>
+                        <p className="text-lg font-bold text-green-600">{assignedCount}</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-500">Unassigned</p>
+                        <p className="text-lg font-bold text-amber-600">{unassignedCount}</p>
+                      </div>
+                    </div>
+                  )}
                   {advisors.length === 0 ? (
                     <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
                       <UsersIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
