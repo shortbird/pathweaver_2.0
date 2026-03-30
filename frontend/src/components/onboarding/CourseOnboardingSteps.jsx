@@ -1,9 +1,11 @@
 /**
  * CourseOnboardingSteps
  *
- * Defines the 8-step walkthrough sequence and renders the appropriate CoachMark.
+ * Defines the walkthrough sequence and renders the appropriate CoachMark.
  * Steps 0-2: Centered orientation cards explaining the Optio model
- * Steps 3-7: Coach marks pointing at real UI elements
+ * Steps 3-4: Coach marks pointing at projects and tasks
+ * Steps 5-6: Centered cards explaining task flow and completion
+ * Step 7: Coach mark on course progress
  */
 
 import { useOnboarding } from '../../contexts/OnboardingContext'
@@ -15,7 +17,7 @@ const STEPS = [
     targetSelector: null,
     title: 'Why This Feels Different',
     content:
-      'Optio courses are not lecture-and-test. You learn by doing. Lessons give you just enough to start, then you apply what you learned through tasks you choose.',
+      'Optio courses are not lecture-and-test. You learn by doing -- complete tasks you choose to earn XP and finish projects.',
   },
   {
     // Step 1: Centered card
@@ -32,42 +34,35 @@ const STEPS = [
       'Every task earns XP. Meet the XP goal for each project to complete the course. No grades, just evidence of growth.',
   },
   {
-    // Step 3: Coach mark on first quest item (collapsed)
+    // Step 3: Coach mark on first quest item
     targetSelector: '[data-onboarding="quest-item-0"]',
     title: 'These Are Your Projects',
     content:
-      'Your course is made up of projects. Each one has lessons and tasks to complete.',
+      'Your course is made up of projects. Click one to see its tasks, suggested activities, and lessons.',
   },
   {
-    // Step 4: Coach mark on first lesson item (quest auto-expands on this step)
-    targetSelector: '[data-onboarding="lesson-item-0"]',
-    title: 'Start With a Lesson',
+    // Step 4: Coach mark on the tasks section (auto-selects first project)
+    targetSelector: '[data-onboarding="project-tasks"]',
+    title: 'Tasks Earn XP',
     content:
-      'Lessons give you just enough context to get started on your tasks.',
+      'This is where the action happens. Add tasks, attach evidence of your work, and mark them complete to earn XP.',
   },
   {
-    // Step 5: Coach mark on step indicators
-    targetSelector: '[data-onboarding="step-indicators"]',
-    title: 'Navigate Through Steps',
+    // Step 5: Centered card explaining the flow
+    targetSelector: null,
+    title: 'How Tasks Work',
     content:
-      'Each lesson has steps. Use arrows or dots to move through them.',
+      'Pick from suggested tasks, use AI to create personalized ones, or write your own. Attach evidence (photos, text, files) and complete them to earn XP.',
   },
   {
-    // Step 6: Coach mark on tasks step (lesson navigates here automatically)
-    targetSelector: '[data-onboarding="tasks-step"]',
-    title: 'Apply What You Learned',
-    content:
-      'After each lesson, you will find tasks. Pick suggested tasks or create your own to earn XP toward your project goal.',
-  },
-  {
-    // Step 7: Centered card explaining XP requirements
+    // Step 6: Centered card explaining completion
     targetSelector: null,
     title: 'Completing the Course',
     content:
       'Each project has a minimum XP requirement. Complete tasks to meet that goal for every project, and you will complete the course.',
   },
   {
-    // Step 8: Coach mark on course progress
+    // Step 7: Coach mark on course progress
     targetSelector: '[data-onboarding="course-progress"]',
     title: 'Track Your Journey',
     content:

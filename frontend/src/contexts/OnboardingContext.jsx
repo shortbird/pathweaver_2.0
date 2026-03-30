@@ -29,7 +29,7 @@ export const useOnboarding = () => {
 }
 
 const STORAGE_KEY = 'optio-onboarding-step'
-const TOTAL_STEPS = 9
+const TOTAL_STEPS = 8
 
 export const OnboardingProvider = ({ children }) => {
   const [isActive, setIsActive] = useState(false)

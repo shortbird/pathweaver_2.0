@@ -1,19 +1,20 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import {
   ChevronLeftIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   CheckCircleIcon,
-  LockClosedIcon,
   PlayCircleIcon,
   BookOpenIcon,
   ArrowsPointingOutIcon,
   ArrowsPointingInIcon,
-  ArrowRightStartOnRectangleIcon,
   ExclamationTriangleIcon,
   XMarkIcon,
   QuestionMarkCircleIcon,
+  PlusIcon,
+  ClipboardDocumentListIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid, ExclamationCircleIcon } from '@heroicons/react/24/solid'
 import { useCourseHomepage } from '../../hooks/api/useCourseData'
@@ -23,7 +24,10 @@ import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import { OnboardingProvider, useOnboarding } from '../../contexts/OnboardingContext'
 import CourseOnboardingSteps from '../../components/onboarding/CourseOnboardingSteps'
-import QuestJourneyMap from '../../components/courses/QuestJourneyMap'
+import { getPillarData } from '../../utils/pillarMappings'
+import api from '../../services/api'
+
+const QuestPersonalizationWizard = lazy(() => import('../../components/quests/QuestPersonalizationWizard'))
 
 const stripHtml = (html) => {
   if (!html) return ''
@@ -32,20 +36,14 @@ const stripHtml = (html) => {
 }
 
 /**
- * ExpandableQuestItem - Sidebar quest item with nested lessons
- * Matches CourseBuilder styling but without drag/edit actions
+ * ExpandableQuestItem - Sidebar quest item with XP and task progress
  */
 const ExpandableQuestItem = ({
   quest,
   index,
-  isExpanded,
   isSelected,
-  onToggleExpand,
   onSelectQuest,
-  onSelectLesson,
-  selectedLessonId,
   isNextStep,
-  nextStepLessonId,
 }) => {
   const isCompleted = quest.progress?.is_completed
   const canComplete = quest.progress?.can_complete
@@ -66,7 +64,7 @@ const ExpandableQuestItem = ({
       <div
         onClick={() => onSelectQuest(quest)}
         className={`relative overflow-hidden flex items-center gap-2 p-3 rounded-lg transition-all cursor-pointer ${
-          isSelected && !selectedLessonId
+          isSelected
             ? 'bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 border-2 border-optio-purple'
             : isNextStep && !isCompleted && !canComplete
               ? 'bg-white border border-gray-200 border-l-[3px] border-l-optio-purple hover:border-optio-purple/50'
@@ -80,20 +78,6 @@ const ExpandableQuestItem = ({
             style={{ width: `${Math.min(progressPercent, 100)}%` }}
           />
         )}
-        {/* Expand/Collapse Chevron */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggleExpand(quest.id)
-          }}
-          className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          {isExpanded ? (
-            <ChevronDownIcon className="w-4 h-4" />
-          ) : (
-            <ChevronRightIcon className="w-4 h-4" />
-          )}
-        </button>
 
         {/* Order Number */}
         <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-optio-purple/10 text-optio-purple rounded-full text-xs font-medium">
@@ -118,6 +102,12 @@ const ExpandableQuestItem = ({
               )}
             </div>
           )}
+          {/* Task progress */}
+          {quest.progress?.total_tasks > 0 && !isCompleted && !canComplete && (
+            <span className="text-xs text-gray-400">
+              {quest.progress.completed_tasks}/{quest.progress.total_tasks} tasks
+            </span>
+          )}
           {/* Show required tasks warning if XP met but required tasks incomplete */}
           {hasIncompleteRequired && progressPercent >= 100 && !isCompleted && (
             <span className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
@@ -132,56 +122,6 @@ const ExpandableQuestItem = ({
           <CheckCircleSolid className="w-5 h-5 text-green-500 flex-shrink-0" />
         ) : null}
       </div>
-
-      {/* Nested Lessons */}
-      {isExpanded && quest.lessons && quest.lessons.length > 0 && (
-        <div className="ml-8 mt-1 space-y-1">
-          {quest.lessons.map((lesson, idx) => {
-            const isLessonCompleted = lesson.progress?.status === 'completed'
-            const isLessonSelected = selectedLessonId === lesson.id
-            const hasIncompleteRequired = lesson.progress?.has_incomplete_required
-            const isNextLesson = nextStepLessonId === lesson.id
-
-            return (
-              <div
-                key={lesson.id}
-                data-onboarding={idx === 0 ? 'lesson-item-0' : undefined}
-                onClick={() => onSelectLesson(quest, lesson)}
-                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors min-h-[56px] ${
-                  isLessonSelected
-                    ? 'bg-optio-purple/10 border border-optio-purple'
-                    : isNextLesson
-                      ? 'bg-optio-purple/5 border border-optio-purple/30'
-                      : 'hover:bg-gray-50 border border-transparent'
-                }`}
-              >
-                {/* Lesson Number */}
-                <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-xs text-gray-500">
-                  {idx + 1}
-                </span>
-
-                {/* Lesson Title */}
-                <span className="flex-1 text-sm text-gray-700 truncate">
-                  {lesson.title}
-                </span>
-
-                {/* Status */}
-                {isLessonCompleted ? (
-                  <CheckCircleSolid className="w-4 h-4 text-green-500 flex-shrink-0" />
-                ) : hasIncompleteRequired ? (
-                  <span className="flex items-center gap-1 text-xs text-amber-600 flex-shrink-0" title={`${lesson.progress?.completed_required_tasks || 0}/${lesson.progress?.total_required_tasks || 0} required tasks`}>
-                    <ExclamationCircleIcon className="w-4 h-4" />
-                  </span>
-                ) : isNextLesson ? (
-                  <span className="text-[10px] font-medium text-optio-purple bg-optio-purple/10 px-1.5 py-0.5 rounded flex-shrink-0">
-                    Next
-                  </span>
-                ) : null}
-              </div>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }
@@ -204,31 +144,48 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
       )}
 
       {/* Course Header */}
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">{course.title}</h1>
         {course.description && (
           <p className="text-gray-600">{stripHtml(course.description)}</p>
         )}
       </div>
 
-      {/* Journey Map */}
+      {/* Progress Card */}
       <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-xl p-6 mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Your Progress</h2>
-          <span className="text-sm text-gray-600">
-            {progress.completed_quests} / {progress.total_quests} Projects
-            {progress.percentage >= 100 && (
-              <span className="inline-flex items-center gap-1 ml-2 font-semibold text-green-600">
-                <CheckCircleSolid className="w-4 h-4" />
-                Complete
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <span className="text-2xl font-bold text-gray-900">
+              {progress.earned_xp || 0}
+            </span>
+            <span className="text-sm text-gray-500 ml-1">/ {progress.total_xp || 0} XP</span>
+          </div>
+          <div className="text-right">
+            {progress.percentage >= 100 ? (
+              <span className="inline-flex items-center gap-1.5 font-semibold text-green-600">
+                <CheckCircleSolid className="w-5 h-5" />
+                Course Complete
+              </span>
+            ) : (
+              <span className="text-sm text-gray-600">
+                {progress.completed_quests} / {progress.total_quests} Projects
               </span>
             )}
-          </span>
+          </div>
         </div>
-        <QuestJourneyMap
-          quests={quests}
-          onQuestClick={onSelectQuest}
-        />
+        <div className="w-full bg-white/60 rounded-full h-2.5 mb-3">
+          <div
+            className={`h-2.5 rounded-full transition-all ${
+              progress.percentage >= 100
+                ? 'bg-green-500'
+                : 'bg-gradient-to-r from-optio-purple to-optio-pink'
+            }`}
+            style={{ width: `${Math.min(100, progress.percentage)}%` }}
+          />
+        </div>
+        <p className="text-sm text-gray-500">
+          Complete tasks in each project to earn XP and finish the course.
+        </p>
       </div>
 
       {/* Projects Grid */}
@@ -274,18 +231,17 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
                             />
                           </div>
                           <span className="text-xs text-gray-500">
-                            {Math.round(quest.progress.percentage)}%
+                            {quest.progress.earned_xp || 0}/{quest.progress.total_xp} XP
                           </span>
                         </>
                       ) : (
                         <span className="text-sm text-gray-500">Not started</span>
                       )}
                     </div>
-                    {/* Show warning if XP met but required tasks incomplete */}
-                    {!isCompleted && quest.progress?.xp_met && !quest.progress?.required_tasks_met && (
-                      <span className="inline-flex items-center gap-1 text-xs text-amber-600">
-                        <ExclamationCircleIcon className="w-3.5 h-3.5" />
-                        {quest.progress?.completed_required_tasks}/{quest.progress?.total_required_tasks} required tasks
+                    {/* Task count */}
+                    {quest.progress?.total_tasks > 0 && !isCompleted && (
+                      <span className="text-xs text-gray-400">
+                        {quest.progress.completed_tasks}/{quest.progress.total_tasks} tasks completed
                       </span>
                     )}
                   </div>
@@ -300,12 +256,254 @@ const CourseOverview = ({ course, quests, progress, onSelectQuest }) => {
 }
 
 /**
- * QuestDetail - Content when a quest is selected but no lesson
+ * CourseTaskItem - Expandable task card with evidence and completion
  */
-const QuestDetail = ({ quest, onSelectLesson, onStartQuest, fallbackImageUrl }) => {
+const CourseTaskItem = ({ task, onComplete, onRemove }) => {
+  const [expanded, setExpanded] = useState(false)
+  const [completing, setCompleting] = useState(false)
+  const [evidenceBlocks, setEvidenceBlocks] = useState([])
+  const [evidenceLoaded, setEvidenceLoaded] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [textEvidence, setTextEvidence] = useState('')
+  const fileInputRef = useRef(null)
+  const pillar = getPillarData(task.pillar)
+  const xp = task.xp_value || task.xp_amount || 0
+
+  // Lazy-load evidence when expanded
+  useEffect(() => {
+    if (expanded && !evidenceLoaded && task.id) {
+      (async () => {
+        try {
+          const { data } = await api.get(`/api/evidence/documents/${task.id}`)
+          setEvidenceBlocks(data.blocks || [])
+        } catch { /* no evidence yet */ }
+        finally { setEvidenceLoaded(true) }
+      })()
+    }
+  }, [expanded, task.id])
+
+  const handleComplete = async () => {
+    const blocks = [...evidenceBlocks]
+    if (textEvidence.trim()) {
+      blocks.push({ type: 'text', content: { text: textEvidence.trim() }, order_index: blocks.length })
+    }
+    if (blocks.length === 0) {
+      toast.error('Please add at least one piece of evidence before completing this task.')
+      return
+    }
+    setCompleting(true)
+    try {
+      await api.post(`/api/evidence/documents/${task.id}`, {
+        blocks: blocks.map(b => ({ ...b, type: b.type || b.block_type })),
+        status: 'completed',
+      })
+      onComplete(task.id, xp)
+      setTextEvidence('')
+    } catch { toast.error('Failed to complete task') }
+    finally { setCompleting(false) }
+  }
+
+  const handleFileSelect = async (e) => {
+    const file = e.target?.files?.[0]
+    if (!file) return
+    const maxSize = file.type.startsWith('video/') ? 50 * 1024 * 1024 : file.type.startsWith('image/') ? 10 * 1024 * 1024 : 25 * 1024 * 1024
+    if (file.size > maxSize) {
+      toast.error(`File too large (${(file.size / (1024 * 1024)).toFixed(1)}MB)`)
+      return
+    }
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const { data } = await api.post(`/api/evidence/documents/${task.id}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      const blockType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'document'
+      const newBlock = { type: blockType, content: { url: data.url, filename: data.filename || file.name }, order_index: evidenceBlocks.length }
+      const updated = [...evidenceBlocks, newBlock]
+      await api.post(`/api/evidence/documents/${task.id}`, { blocks: updated.map(b => ({ ...b, type: b.type || b.block_type })), status: 'draft' })
+      setEvidenceBlocks(updated)
+    } catch { toast.error('Upload failed') }
+    finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = '' }
+  }
+
+  const handleAddText = async () => {
+    if (!textEvidence.trim()) return
+    const newBlock = { type: 'text', content: { text: textEvidence.trim() }, order_index: evidenceBlocks.length }
+    const updated = [...evidenceBlocks, newBlock]
+    try {
+      await api.post(`/api/evidence/documents/${task.id}`, { blocks: updated.map(b => ({ ...b, type: b.type || b.block_type })), status: 'draft' })
+      setEvidenceBlocks(updated)
+      setTextEvidence('')
+    } catch { toast.error('Failed to save note') }
+  }
+
+  const handleDeleteBlock = async (idx) => {
+    const updated = evidenceBlocks.filter((_, i) => i !== idx)
+    try {
+      await api.post(`/api/evidence/documents/${task.id}`, { blocks: updated.map(b => ({ ...b, type: b.type || b.block_type })), status: 'draft' })
+      setEvidenceBlocks(updated)
+    } catch { /* error */ }
+  }
+
+  return (
+    <div className={`bg-white border rounded-xl overflow-hidden transition-shadow ${expanded ? 'shadow-md border-gray-300' : 'border-gray-200 hover:border-gray-300'} border-l-4 ${pillar?.border || 'border-l-gray-300'}`}>
+      {/* Header */}
+      <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center gap-3 p-4 text-left">
+        {task.is_completed ? (
+          <CheckCircleSolid className="w-5 h-5 text-green-500 flex-shrink-0" />
+        ) : (
+          <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0" />
+        )}
+        <div className="flex-1 min-w-0">
+          <h4 className={`font-medium text-sm ${task.is_completed ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+            {task.title}
+          </h4>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className={`text-xs px-1.5 py-0.5 rounded ${pillar?.bg || 'bg-gray-100'} ${pillar?.text || 'text-gray-600'}`}>
+              {pillar?.name || task.pillar}
+            </span>
+            <span className="text-xs text-gray-500">{xp} XP</span>
+            {evidenceBlocks.length > 0 && (
+              <span className="text-xs text-gray-400">{evidenceBlocks.length} evidence</span>
+            )}
+          </div>
+        </div>
+        {task.is_required && (
+          <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded flex-shrink-0">Required</span>
+        )}
+        {expanded ? (
+          <ChevronDownIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        ) : (
+          <ChevronRightIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        )}
+      </button>
+
+      {/* Expanded Content */}
+      {expanded && (
+        <div className="px-4 pb-4 space-y-3 border-t border-gray-100 pt-3">
+          {task.description && (
+            <p className="text-sm text-gray-600">{task.description}</p>
+          )}
+
+          {/* Evidence blocks */}
+          {evidenceBlocks.length > 0 && (
+            <div className="space-y-2">
+              {evidenceBlocks.map((block, idx) => {
+                const bType = block.type || block.block_type
+                const content = block.content || {}
+                return (
+                  <div key={block.id || idx} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg text-sm">
+                    <span className="text-gray-400">
+                      {bType === 'image' ? '📷' : bType === 'video' ? '🎬' : bType === 'link' ? '🔗' : bType === 'document' ? '📄' : '📝'}
+                    </span>
+                    <span className="flex-1 text-gray-600 truncate">
+                      {content.caption || content.filename || content.title || content.text?.slice(0, 60) || content.url || 'Evidence'}
+                    </span>
+                    {!task.is_completed && (
+                      <button onClick={() => handleDeleteBlock(idx)} className="text-gray-400 hover:text-red-500 p-0.5">
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Evidence input */}
+          {!task.is_completed && (
+            <div className="space-y-2">
+              <textarea
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm resize-none focus:ring-1 focus:ring-optio-purple focus:border-optio-purple"
+                placeholder="What did you do? Describe your work..."
+                rows={2}
+                value={textEvidence}
+                onChange={(e) => setTextEvidence(e.target.value)}
+              />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-optio-purple bg-optio-purple/5 border border-optio-purple/20 rounded-lg hover:bg-optio-purple/10 transition-colors disabled:opacity-50"
+                  >
+                    <PlusIcon className="w-3.5 h-3.5" />
+                    {uploading ? 'Uploading...' : 'Attach File'}
+                  </button>
+                  {textEvidence.trim() && (
+                    <button
+                      onClick={handleAddText}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-optio-purple rounded-lg hover:opacity-90 transition-opacity"
+                    >
+                      Save Note
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={handleComplete}
+                  disabled={completing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
+                >
+                  <CheckCircleIcon className="w-4 h-4" />
+                  {completing ? 'Saving...' : 'Complete Task'}
+                </button>
+              </div>
+              <input ref={fileInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx" onChange={handleFileSelect} className="hidden" />
+            </div>
+          )}
+
+          {/* Completed status */}
+          {task.is_completed && task.completed_at && (
+            <p className="text-xs text-green-600">
+              Completed {new Date(task.completed_at).toLocaleDateString()}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * ProjectView - Task-first project content view
+ */
+const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, questTasksLoading, onTaskComplete, onAcceptSuggestion, onWizardComplete, refetchCourse }) => {
   const isCompleted = quest.progress?.is_completed
   const hasLessons = quest.lessons && quest.lessons.length > 0
   const headerImage = quest.header_image_url || quest.image_url || fallbackImageUrl
+  const totalXp = quest.progress?.total_xp || 0
+  const earnedXp = quest.progress?.earned_xp || 0
+  const [lessonsExpanded, setLessonsExpanded] = useState(false)
+  const [addedSuggestionIds, setAddedSuggestionIds] = useState(new Set())
+  const [showWizard, setShowWizard] = useState(false)
+  const [localEarnedXp, setLocalEarnedXp] = useState(earnedXp)
+
+  // Reset local XP when quest changes
+  useEffect(() => {
+    setLocalEarnedXp(quest.progress?.earned_xp || 0)
+    setAddedSuggestionIds(new Set())
+    setLessonsExpanded(false)
+  }, [quest.id])
+
+  const tasks = questTasks || []
+  const userTaskTitles = new Set(tasks.map(t => t.title))
+  const suggestedTasks = (quest.suggested_tasks || []).filter(
+    t => !addedSuggestionIds.has(t.id) && !userTaskTitles.has(t.title)
+  )
+  const pct = totalXp > 0 ? Math.round((localEarnedXp / totalXp) * 100) : 0
+
+  const handleLocalTaskComplete = (taskId, xpValue) => {
+    setLocalEarnedXp(prev => prev + xpValue)
+    onTaskComplete(quest.id, taskId, xpValue)
+    toast.success(`+${xpValue} XP earned!`)
+  }
+
+  const handleAddSuggestion = async (suggestion) => {
+    setAddedSuggestionIds(prev => new Set(prev).add(suggestion.id))
+    await onAcceptSuggestion(quest.id, suggestion)
+    toast.success('Task added!')
+  }
 
   return (
     <div className="p-6">
@@ -320,20 +518,20 @@ const QuestDetail = ({ quest, onSelectLesson, onStartQuest, fallbackImageUrl }) 
         </div>
       )}
 
-      {/* Quest Header */}
-      <div className="mb-6">
+      {/* Project Header */}
+      <div className="mb-4">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">{quest.title}</h1>
         {quest.description && (
           <p className="text-gray-600">{stripHtml(quest.description)}</p>
         )}
       </div>
 
-      {/* Progress Bar */}
-      {quest.progress?.total_xp > 0 && (
+      {/* XP Progress Bar */}
+      {totalXp > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
           <div className="flex justify-between text-sm mb-2">
-            <span className="text-gray-600">
-              {quest.progress.earned_xp || 0} / {quest.progress.total_xp} XP
+            <span className="text-gray-600 font-medium">
+              {localEarnedXp} / {totalXp} XP earned
             </span>
             {(isCompleted || quest.progress?.can_complete) ? (
               <span className="inline-flex items-center gap-1 font-semibold text-green-600">
@@ -342,7 +540,7 @@ const QuestDetail = ({ quest, onSelectLesson, onStartQuest, fallbackImageUrl }) 
               </span>
             ) : (
               <span className="font-semibold text-gray-900">
-                {Math.round(quest.progress.percentage)}%
+                {Math.min(pct, 100)}%
               </span>
             )}
           </div>
@@ -353,47 +551,85 @@ const QuestDetail = ({ quest, onSelectLesson, onStartQuest, fallbackImageUrl }) 
                   ? 'bg-green-500'
                   : 'bg-gradient-to-r from-optio-purple to-optio-pink'
               }`}
-              style={{ width: `${Math.min(100, quest.progress.percentage)}%` }}
+              style={{ width: `${Math.min(100, pct)}%` }}
             />
           </div>
         </div>
       )}
 
-      {/* Lessons List */}
-      {hasLessons && (
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Lessons</h2>
-          <div className="space-y-2">
-            {quest.lessons.map((lesson, idx) => {
-              const isLessonCompleted = lesson.progress?.status === 'completed'
+      {/* How it works callout */}
+      {!isCompleted && totalXp > 0 && (
+        <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-lg mb-6 border border-optio-purple/10">
+          <SparklesIcon className="w-5 h-5 text-optio-purple flex-shrink-0" />
+          <p className="text-sm text-gray-600">
+            Complete tasks to earn XP. Reach <span className="font-semibold text-gray-900">{totalXp} XP</span> to complete this project.
+          </p>
+        </div>
+      )}
 
+      {/* Your Tasks */}
+      <div className="mb-6" data-onboarding="project-tasks">
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          Your Tasks
+        </h2>
+        {questTasksLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />
+            ))}
+          </div>
+        ) : tasks.length > 0 ? (
+          <div className="space-y-2">
+            {tasks.map(task => (
+              <CourseTaskItem
+                key={task.id}
+                task={task}
+                onComplete={handleLocalTaskComplete}
+                onRemove={() => {}}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+            <ClipboardDocumentListIcon className="w-6 h-6 text-gray-400 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-gray-700">No tasks yet</p>
+              <p className="text-xs text-gray-500">Add suggested tasks below or visit the project page to create your own.</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Suggested Tasks */}
+      {suggestedTasks.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Suggested Tasks
+          </h2>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+            {suggestedTasks.map(suggestion => {
+              const sPillar = getPillarData(suggestion.pillar)
               return (
                 <div
-                  key={lesson.id}
-                  onClick={() => onSelectLesson(quest, lesson)}
-                  className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-lg cursor-pointer hover:border-optio-purple/50 hover:shadow-sm transition-all min-h-[56px]"
+                  key={suggestion.id}
+                  className={`flex-shrink-0 w-52 bg-white border border-gray-200 rounded-xl p-3 border-l-4 ${sPillar?.border || 'border-l-gray-300'}`}
                 >
-                  {/* Lesson Number */}
-                  <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-optio-purple/10 text-optio-purple rounded-full text-sm font-medium">
-                    {idx + 1}
-                  </span>
-
-                  {/* Lesson Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-gray-900">{lesson.title}</h3>
-                    {lesson.estimated_duration_minutes && (
-                      <span className="text-sm text-gray-500">
-                        {lesson.estimated_duration_minutes} min
+                  <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-2">{suggestion.title}</h4>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${sPillar?.bg || 'bg-gray-100'} ${sPillar?.text || 'text-gray-600'}`}>
+                        {sPillar?.name || suggestion.pillar}
                       </span>
-                    )}
+                      <span className="text-xs text-gray-500">{suggestion.xp_value || 0} XP</span>
+                    </div>
+                    <button
+                      onClick={() => handleAddSuggestion(suggestion)}
+                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-optio-purple bg-optio-purple/5 rounded-lg hover:bg-optio-purple/10 transition-colors"
+                    >
+                      <PlusIcon className="w-3 h-3" />
+                      Add
+                    </button>
                   </div>
-
-                  {/* Status */}
-                  {isLessonCompleted ? (
-                    <CheckCircleSolid className="w-5 h-5 text-green-500" />
-                  ) : (
-                    <PlayCircleIcon className="w-5 h-5 text-gray-400" />
-                  )}
                 </div>
               )
             })}
@@ -401,15 +637,97 @@ const QuestDetail = ({ quest, onSelectLesson, onStartQuest, fallbackImageUrl }) 
         </div>
       )}
 
-      {/* Action Button */}
+      {/* Create Your Own Tasks */}
       {!isCompleted && (
-        <button
-          onClick={onStartQuest}
-          className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 transition-opacity min-h-[44px]"
-        >
-          <PlayCircleIcon className="w-5 h-5" />
-          {quest.enrollment ? 'Continue Project' : 'Start Project'}
-        </button>
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Create Your Own
+          </h2>
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200">
+            <p className="text-sm text-gray-600">
+              Write a custom task or use AI to generate personalized ideas.
+            </p>
+            <button
+              onClick={() => setShowWizard(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-optio-purple bg-optio-purple/5 border border-optio-purple/20 rounded-lg hover:bg-optio-purple/10 transition-colors flex-shrink-0 ml-3"
+            >
+              <SparklesIcon className="w-4 h-4" />
+              Create Tasks
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Personalization Wizard Modal */}
+      {showWizard && (
+        <Suspense fallback={
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-4 shadow-2xl">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-optio-purple border-t-transparent" />
+              <p className="text-lg font-semibold text-gray-700">Loading task creator...</p>
+            </div>
+          </div>
+        }>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+              <QuestPersonalizationWizard
+                questId={quest.id}
+                questTitle={quest.title}
+                onComplete={() => {
+                  setShowWizard(false)
+                  onWizardComplete(quest.id)
+                }}
+                onCancel={() => setShowWizard(false)}
+              />
+            </div>
+          </div>
+        </Suspense>
+      )}
+
+      {/* Lessons (collapsible, secondary) */}
+      {hasLessons && (
+        <div className="border-t border-gray-200 pt-4">
+          <button
+            onClick={() => setLessonsExpanded(!lessonsExpanded)}
+            className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 hover:text-gray-700 transition-colors"
+          >
+            {lessonsExpanded ? (
+              <ChevronDownIcon className="w-4 h-4" />
+            ) : (
+              <ChevronRightIcon className="w-4 h-4" />
+            )}
+            Lessons ({quest.lessons.length})
+          </button>
+          {lessonsExpanded && (
+            <div className="space-y-2">
+              {quest.lessons.map((lesson, idx) => {
+                const isLessonCompleted = lesson.progress?.status === 'completed'
+                return (
+                  <div
+                    key={lesson.id}
+                    onClick={() => onSelectLesson(quest, lesson)}
+                    className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg cursor-pointer hover:border-optio-purple/50 hover:shadow-sm transition-all"
+                  >
+                    <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-optio-purple/10 text-optio-purple rounded-full text-xs font-medium">
+                      {idx + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-gray-900 text-sm">{lesson.title}</h3>
+                      {lesson.estimated_duration_minutes && (
+                        <span className="text-xs text-gray-500">{lesson.estimated_duration_minutes} min</span>
+                      )}
+                    </div>
+                    {isLessonCompleted ? (
+                      <CheckCircleSolid className="w-5 h-5 text-green-500 flex-shrink-0" />
+                    ) : (
+                      <PlayCircleIcon className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
@@ -430,7 +748,6 @@ const CourseHomepageInner = () => {
   const { data, isLoading, error, refetch } = useCourseHomepage(courseId)
 
   // State for sidebar navigation
-  const [expandedQuestIds, setExpandedQuestIds] = useState(new Set())
   const [selectedQuest, setSelectedQuest] = useState(null)
   const [selectedLesson, setSelectedLesson] = useState(null)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
@@ -442,6 +759,79 @@ const CourseHomepageInner = () => {
   const [isEnrolling, setIsEnrolling] = useState(false)
   const [isUnenrolling, setIsUnenrolling] = useState(false)
   const [incompleteProjectsModal, setIncompleteProjectsModal] = useState(null)
+
+  // Task state management
+  const [questTasks, setQuestTasks] = useState({}) // questId -> task[]
+  const [questTasksLoading, setQuestTasksLoading] = useState(false)
+  const sessionRefs = useRef({}) // questId -> session_id
+
+  // Fetch user tasks when a quest is selected
+  const fetchQuestTasks = useCallback(async (questId) => {
+    if (questTasks[questId]) return // Already loaded
+    setQuestTasksLoading(true)
+    try {
+      const { data } = await api.get(`/api/quests/${questId}`)
+      const q = data.quest || data
+      setQuestTasks(prev => ({ ...prev, [questId]: q.quest_tasks || [] }))
+    } catch {
+      setQuestTasks(prev => ({ ...prev, [questId]: [] }))
+    } finally {
+      setQuestTasksLoading(false)
+    }
+  }, [questTasks])
+
+  // Handle task completion (optimistic update)
+  const handleTaskComplete = useCallback((questId, taskId, xpValue) => {
+    setQuestTasks(prev => ({
+      ...prev,
+      [questId]: (prev[questId] || []).map(t =>
+        t.id === taskId ? { ...t, is_completed: true, completed_at: new Date().toISOString() } : t
+      )
+    }))
+    // Refetch course data after a short delay for server sync
+    setTimeout(() => refetch(), 1500)
+  }, [refetch])
+
+  // Handle accepting a suggested task
+  const handleAcceptSuggestion = useCallback(async (questId, suggestion) => {
+    try {
+      // Ensure personalization session
+      if (!sessionRefs.current[questId]) {
+        const { data } = await api.post(`/api/quests/${questId}/start-personalization`, {})
+        sessionRefs.current[questId] = data.session_id
+      }
+      const { data } = await api.post(`/api/quests/${questId}/personalization/accept-task`, {
+        session_id: sessionRefs.current[questId],
+        task: suggestion,
+      })
+      const newTask = data.task || {
+        id: data.task_id || `temp-${Date.now()}`,
+        title: suggestion.title,
+        description: suggestion.description || '',
+        pillar: suggestion.pillar || 'stem',
+        xp_value: suggestion.xp_value || 50,
+        is_completed: false,
+        is_required: false,
+      }
+      setQuestTasks(prev => ({
+        ...prev,
+        [questId]: [...(prev[questId] || []), newTask]
+      }))
+    } catch (err) {
+      toast.error('Failed to add task')
+      throw err
+    }
+  }, [])
+
+  // Handle wizard completion -- refetch tasks for the quest
+  const handleWizardComplete = useCallback(async (questId) => {
+    try {
+      const { data } = await api.get(`/api/quests/${questId}`)
+      const q = data.quest || data
+      setQuestTasks(prev => ({ ...prev, [questId]: q.quest_tasks || [] }))
+    } catch { /* error */ }
+    refetch()
+  }, [refetch])
 
   // Handle enroll in course (for creators testing their course)
   const handleEnroll = async () => {
@@ -516,6 +906,7 @@ const CourseHomepageInner = () => {
       setSelectedQuest(quest)
       setSelectedLesson(null)
       setSearchParams({ quest: questId })
+      fetchQuestTasks(quest.id)
     }
   }
 
@@ -531,7 +922,7 @@ const CourseHomepageInner = () => {
       const quest = data.quests.find(q => q.id === questId)
       if (quest) {
         setSelectedQuest(quest)
-        setExpandedQuestIds(prev => new Set([...prev, questId]))
+        fetchQuestTasks(quest.id)
 
         if (lessonId && quest.lessons) {
           const lesson = quest.lessons.find(l => l.id === lessonId)
@@ -556,7 +947,7 @@ const CourseHomepageInner = () => {
 
     if (quest) {
       setSelectedQuest(quest)
-      setExpandedQuestIds(prev => new Set([...prev, questId]))
+      fetchQuestTasks(quest.id)
 
       if (lessonId && quest.lessons) {
         const lesson = quest.lessons.find(l => l.id === lessonId)
@@ -585,55 +976,37 @@ const CourseHomepageInner = () => {
   useEffect(() => {
     if (!isOnboarding || !data?.quests?.length) return
 
-    // Collapse all projects for steps before 4
+    // Steps 0-3: no quest selected (centered cards + quest-item highlight)
     if (onboardingStep < 4) {
-      setExpandedQuestIds(new Set())
+      setSelectedQuest(null)
+      setSelectedLesson(null)
       return
     }
 
-    if (onboardingStep >= 4) {
-      const firstQuest = data.quests[0]
-      if (firstQuest) {
-        setExpandedQuestIds(new Set([firstQuest.id]))
-        if (firstQuest.lessons?.length > 0) {
-          setSelectedQuest(firstQuest)
-          setSelectedLesson(firstQuest.lessons[0])
-          // On step 6, navigate to the tasks step within the lesson
-          if (onboardingStep === 6) {
-            setInitialStepIndex(999) // Will be clamped to last step (tasks)
-          }
-        }
-      }
+    // Step 4+: select first quest to show the task-first project view
+    const firstQuest = data.quests[0]
+    if (firstQuest) {
+      setSelectedQuest(firstQuest)
+      setSelectedLesson(null)
+      fetchQuestTasks(firstQuest.id)
     }
   }, [isOnboarding, onboardingStep, data?.quests])
 
-  // Auto-expand next-step quest on load (only if no URL state and not onboarding)
+  // Auto-select next-step quest on load (only if no URL state and not onboarding)
   useEffect(() => {
     if (isOnboarding) return
     if (user && !user.tutorial_completed_at) return // Onboarding about to start
-    if (data?.quests?.length > 0 && expandedQuestIds.size === 0 && !searchParams.get('quest')) {
+    if (data?.quests?.length > 0 && !selectedQuest && !searchParams.get('quest')) {
       if (next_step) {
-        setExpandedQuestIds(new Set([next_step.quest_id]))
-      } else {
-        const firstQuestWithLessons = data.quests.find(q => q.lessons?.length > 0)
-        if (firstQuestWithLessons) {
-          setExpandedQuestIds(new Set([firstQuestWithLessons.id]))
+        const quest = data.quests.find(q => q.id === next_step.quest_id)
+        if (quest) {
+          setSelectedQuest(quest)
+          fetchQuestTasks(quest.id)
+          setSearchParams({ quest: quest.id })
         }
       }
     }
   }, [data?.quests, searchParams])
-
-  const toggleQuestExpand = (questId) => {
-    setExpandedQuestIds(prev => {
-      const next = new Set(prev)
-      if (next.has(questId)) {
-        next.delete(questId)
-      } else {
-        next.add(questId)
-      }
-      return next
-    })
-  }
 
   // Track current step index from CurriculumView for back navigation
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
@@ -645,6 +1018,8 @@ const CourseHomepageInner = () => {
     setInitialStepIndex(null)
     // Update URL params
     setSearchParams({ quest: quest.id })
+    // Fetch tasks for this quest
+    fetchQuestTasks(quest.id)
   }
 
   const handleSelectLesson = (quest, lesson) => {
@@ -654,12 +1029,6 @@ const CourseHomepageInner = () => {
     setInitialStepIndex(null)
     // Update URL params
     setSearchParams({ quest: quest.id, lesson: lesson.id })
-  }
-
-  const handleStartQuest = () => {
-    if (selectedQuest) {
-      navigate(`/quests/${selectedQuest.id}`)
-    }
   }
 
   const handleTaskClick = (task) => {
@@ -900,14 +1269,9 @@ const CourseHomepageInner = () => {
                       key={quest.id}
                       quest={quest}
                       index={index}
-                      isExpanded={expandedQuestIds.has(quest.id)}
                       isSelected={selectedQuest?.id === quest.id}
-                      onToggleExpand={toggleQuestExpand}
                       onSelectQuest={handleSelectQuest}
-                      onSelectLesson={handleSelectLesson}
-                      selectedLessonId={selectedLesson?.id}
                       isNextStep={next_step?.quest_id === quest.id}
-                      nextStepLessonId={next_step?.quest_id === quest.id ? next_step?.lesson_id : null}
                     />
                   ))}
                 </div>
@@ -976,12 +1340,17 @@ const CourseHomepageInner = () => {
                   </div>
                 </div>
               ) : selectedQuest ? (
-                /* Quest Detail View */
-                <QuestDetail
+                /* Task-First Project View */
+                <ProjectView
                   quest={selectedQuest}
                   onSelectLesson={handleSelectLesson}
-                  onStartQuest={handleStartQuest}
                   fallbackImageUrl={course?.cover_image_url}
+                  questTasks={questTasks[selectedQuest.id]}
+                  questTasksLoading={questTasksLoading}
+                  onTaskComplete={handleTaskComplete}
+                  onAcceptSuggestion={handleAcceptSuggestion}
+                  onWizardComplete={handleWizardComplete}
+                  refetchCourse={refetch}
                 />
               ) : (
                 /* Course Overview (default) */

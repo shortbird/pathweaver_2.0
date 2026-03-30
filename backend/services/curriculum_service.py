@@ -190,37 +190,24 @@ class CurriculumService(BaseService):
             file_size: File size in bytes
             mime_type: MIME type
             user_id: User uploading
-            organization_id: Organization ID (required for RLS)
+            organization_id: Organization ID (optional, for org quests)
 
         Returns:
             Created attachment record
         """
         try:
-            # Get organization_id from quest if not provided
-            if not organization_id:
-                quest = self.supabase.table('quests').select('organization_id').eq('id', quest_id).execute()
-                if quest.data:
-                    organization_id = quest.data[0].get('organization_id')
-
-            insert_data = {
-                'quest_id': quest_id,
-                'file_name': filename,  # DB column is file_name, not filename
-                'file_url': file_url,
-                'file_size_bytes': file_size,  # DB column is file_size_bytes
-                'file_type': mime_type,  # DB column is file_type, not mime_type
-                'uploaded_by': user_id
-            }
-
-            # Only add organization_id if it exists (for org quests)
-            if organization_id:
-                insert_data['organization_id'] = organization_id
-
-            result = self.supabase.table('curriculum_attachments')\
-                .insert(insert_data)\
-                .execute()
+            result = self.supabase.rpc('insert_curriculum_attachment', {
+                'p_quest_id': quest_id,
+                'p_file_name': filename,
+                'p_file_url': file_url,
+                'p_file_size_bytes': file_size,
+                'p_file_type': mime_type,
+                'p_uploaded_by': user_id,
+                'p_organization_id': organization_id
+            }).execute()
 
             logger.info(f"Added attachment {filename} to quest {quest_id}")
-            return result.data[0] if result.data else {}
+            return result.data if isinstance(result.data, dict) else (result.data[0] if result.data else {})
 
         except Exception as e:
             logger.error(f"Error adding attachment: {str(e)}")

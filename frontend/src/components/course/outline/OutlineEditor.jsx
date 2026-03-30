@@ -211,6 +211,8 @@ const OutlineEditor = ({
             questId={questId}
             onDeleteStep={onDeleteStep}
             selectedItem={selectedItem}
+            onSave={onSave}
+            selectedType={selectedType}
           />
         )}
 
@@ -493,7 +495,7 @@ const LessonEditor = ({
 /**
  * Step Editor - Title, type selector, rich text content, video URL, file uploads, links
  */
-const StepEditor = ({ formData, onChange, questId, onDeleteStep, selectedItem }) => {
+const StepEditor = ({ formData, onChange, questId, onDeleteStep, selectedItem, onSave, selectedType }) => {
   const [linkUrl, setLinkUrl] = useState('')
   const [linkText, setLinkText] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -548,9 +550,18 @@ const StepEditor = ({ formData, onChange, questId, onDeleteStep, selectedItem })
           size: file.size,
           type: file.type
         }
-        const currentAttachments = formData.attachments || []
-        onChange('attachments', [...currentAttachments, newAttachment])
+        const updatedAttachments = [...(formData.attachments || []), newAttachment]
+        onChange('attachments', updatedAttachments)
         toast.success('File uploaded')
+
+        // Auto-save so attachments persist without manual Save click
+        if (onSave && selectedItem) {
+          try {
+            await onSave(selectedItem, selectedType, { ...formData, attachments: updatedAttachments })
+          } catch (err) {
+            console.error('Auto-save after upload failed:', err)
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to upload file:', error)
@@ -563,9 +574,16 @@ const StepEditor = ({ formData, onChange, questId, onDeleteStep, selectedItem })
     }
   }
 
-  const handleRemoveAttachment = (index) => {
-    const currentAttachments = formData.attachments || []
-    onChange('attachments', currentAttachments.filter((_, i) => i !== index))
+  const handleRemoveAttachment = async (index) => {
+    const updatedAttachments = (formData.attachments || []).filter((_, i) => i !== index)
+    onChange('attachments', updatedAttachments)
+    if (onSave && selectedItem) {
+      try {
+        await onSave(selectedItem, selectedType, { ...formData, attachments: updatedAttachments })
+      } catch (err) {
+        console.error('Auto-save after remove failed:', err)
+      }
+    }
   }
 
   return (
