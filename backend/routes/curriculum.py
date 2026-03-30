@@ -175,19 +175,34 @@ def upload_attachment(user_id: str, quest_id: str):
         if not result.success:
             return jsonify({'error': result.error_message}), 400
 
-        attachment = curriculum_service.add_attachment(
-            quest_id=quest_id,
-            filename=result.filename,
-            file_url=result.url,
-            file_size=result.file_size,
-            mime_type=file.content_type or 'application/octet-stream',
-            user_id=user_id,
-            organization_id=organization_id
-        )
+        # Try to record in curriculum_attachments table, but don't fail if it errors
+        # (PostgREST schema cache issue can make this table inaccessible)
+        attachment = {
+            'file_name': result.filename,
+            'file_url': result.url,
+            'file_size_bytes': result.file_size,
+            'file_type': file.content_type or 'application/octet-stream',
+            'quest_id': quest_id
+        }
+        try:
+            db_record = curriculum_service.add_attachment(
+                quest_id=quest_id,
+                filename=result.filename,
+                file_url=result.url,
+                file_size=result.file_size,
+                mime_type=file.content_type or 'application/octet-stream',
+                user_id=user_id,
+                organization_id=organization_id
+            )
+            if db_record:
+                attachment = db_record
+        except Exception as db_err:
+            logger.warning(f"Failed to record attachment in DB (file uploaded OK): {db_err}")
 
         return jsonify({
             'success': True,
             'attachment': attachment,
+            'url': result.url,
             'message': 'File uploaded successfully'
         }), 201
 
