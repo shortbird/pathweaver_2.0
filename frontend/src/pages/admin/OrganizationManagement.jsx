@@ -1,21 +1,18 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, useSearchParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import api from '../../services/api'
 import { SettingsTab, PeopleTab, ContentTab } from '../../components/organization'
-import AdvisorsTab from '../../components/organization/AdvisorsTab'
+import OrgCoursesTab from '../../components/organization/OrgCoursesTab'
 import { ClassList, ClassDetailPage } from '../../components/classes'
-
-const OrgStudentProgress = lazy(() => import('../../components/admin/OrgStudentProgress'))
 
 const TABS = [
   { id: 'settings', label: 'Settings' },
   { id: 'people', label: 'People' },
-  { id: 'advisors', label: 'Advisors' },
+  { id: 'courses', label: 'Courses' },
   { id: 'classes', label: 'Classes' },
-  { id: 'content', label: 'Content' },
-  { id: 'progress', label: 'Progress' }
+  { id: 'content', label: 'Content' }
 ]
 
 // Map old tab names to new ones for URL compatibility
@@ -24,7 +21,8 @@ const TAB_REDIRECTS = {
   'users': 'people',
   'connections': 'people',
   'quests': 'content',
-  'courses': 'content'
+  'advisors': 'people',
+  'progress': 'settings'
 }
 
 /**
@@ -166,12 +164,6 @@ export default function OrganizationManagement() {
     )
   }
 
-  const LoadingSpinner = () => (
-    <div className="flex justify-center py-12">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
-    </div>
-  )
-
   return (
     <div className="container mx-auto p-8">
       <h1 className="text-3xl font-bold mb-6">{orgData.organization.name}</h1>
@@ -212,8 +204,8 @@ export default function OrganizationManagement() {
         />
       )}
 
-      {activeTab === 'advisors' && (
-        <AdvisorsTab orgId={orgId} />
+      {activeTab === 'courses' && (
+        <OrgCoursesTab orgId={orgId} orgData={orgData} />
       )}
 
       {activeTab === 'classes' && (
@@ -232,11 +224,6 @@ export default function OrganizationManagement() {
         />
       )}
 
-      {activeTab === 'progress' && (
-        <Suspense fallback={<LoadingSpinner />}>
-          <OrgStudentProgress orgId={orgId} />
-        </Suspense>
-      )}
     </div>
   )
 }

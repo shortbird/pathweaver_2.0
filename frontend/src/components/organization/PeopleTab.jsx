@@ -159,6 +159,7 @@ export default function PeopleTab({ orgId, orgSlug, users, onUpdate }) {
         handleSelectAdvisor={state.handleSelectAdvisor}
         handleUnassignStudent={state.handleUnassignStudent}
         setShowAssignModal={state.setShowAssignModal}
+        allStudentsWithAdvisors={state.allStudentsWithAdvisors}
         parentLinks={state.parentLinks}
         handleDisconnectParentLink={state.handleDisconnectParentLink}
         setShowAddConnectionModal={state.setShowAddConnectionModal}

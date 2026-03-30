@@ -43,7 +43,7 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
   const [showPendingInvitations, setShowPendingInvitations] = useState(true)
 
   // Relationships state
-  const [showRelationships, setShowRelationships] = useState(false)
+  const [showRelationships, setShowRelationships] = useState(true)
   const [relationshipView, setRelationshipView] = useState('advisors')
   const [loading, setLoading] = useState(false)
 
