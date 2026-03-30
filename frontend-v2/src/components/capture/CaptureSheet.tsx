@@ -14,10 +14,15 @@ import {
   VStack, HStack, UIText, Heading, Button, ButtonText,
 } from '../ui';
 
+// File size limits (must match backend constants)
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
+
 interface MediaItem {
   uri: string;
   type: 'image' | 'video';
   name: string;
+  fileSize?: number;
 }
 
 interface CaptureSheetProps {
@@ -44,12 +49,26 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds }: Captu
   };
 
   const addMedia = (assets: ImagePicker.ImagePickerAsset[]) => {
-    const newItems: MediaItem[] = assets.map((asset) => ({
-      uri: asset.uri,
-      type: asset.type === 'video' ? 'video' : 'image',
-      name: asset.fileName || (asset.type === 'video' ? 'Video' : 'Photo'),
-    }));
-    setMedia((prev) => [...prev, ...newItems]);
+    const newItems: MediaItem[] = [];
+    for (const asset of assets) {
+      const isVideo = asset.type === 'video';
+      const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+      const maxMB = maxSize / (1024 * 1024);
+      if (asset.fileSize && asset.fileSize > maxSize) {
+        const fileMB = (asset.fileSize / (1024 * 1024)).toFixed(1);
+        Alert.alert('File too large', `${asset.fileName || (isVideo ? 'Video' : 'Photo')} is ${fileMB}MB. Maximum for ${isVideo ? 'videos' : 'images'} is ${maxMB}MB.`);
+        continue;
+      }
+      newItems.push({
+        uri: asset.uri,
+        type: isVideo ? 'video' : 'image',
+        name: asset.fileName || (isVideo ? 'Video' : 'Photo'),
+        fileSize: asset.fileSize,
+      });
+    }
+    if (newItems.length > 0) {
+      setMedia((prev) => [...prev, ...newItems]);
+    }
   };
 
   const removeMedia = (index: number) => {

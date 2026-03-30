@@ -49,7 +49,7 @@ if not os.getenv('FLASK_ENV'):
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max request size (Render hard limit)
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max request size (prevents OOM on Render)
 
 # Validate configuration on startup
 try:

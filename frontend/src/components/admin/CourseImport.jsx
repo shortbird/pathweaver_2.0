@@ -42,10 +42,10 @@ const CourseImport = ({ organizationId = null }) => {
       return
     }
 
-    // Validate file size (100MB max)
-    const maxSize = 100 * 1024 * 1024
+    // Validate file size (50MB max)
+    const maxSize = 50 * 1024 * 1024
     if (selectedFile.size > maxSize) {
-      toast.error('File too large. Maximum size is 100MB.')
+      toast.error('File too large. Maximum size is 50MB.')
       return
     }
 

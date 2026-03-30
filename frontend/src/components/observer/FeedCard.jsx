@@ -335,7 +335,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
       <div className="px-4 py-3 sm:px-5 sm:py-4 flex items-center gap-3">
         {showStudentName && (
           <Link
-            to={`/observer/student/${localItem.student?.id}`}
+            to={isStudentView ? '/overview' : `/observer/student/${localItem.student?.id}`}
             className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity"
           >
             {hasAvatar ? (
@@ -351,7 +351,6 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
               <p className="font-semibold text-gray-900 truncate text-sm sm:text-base">
                 {`${localItem.student?.first_name || ''} ${localItem.student?.last_name || ''}`.trim() || localItem.student?.display_name}
               </p>
-              {/* 2. "completed a task in {quest}" - only for task completions */}
               {!isLearningMoment && (
                 <p className="text-xs sm:text-sm text-gray-500 truncate">
                   Completed a task in <span className="font-medium text-gray-700">{localItem.quest?.title}</span>

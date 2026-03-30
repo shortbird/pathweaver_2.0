@@ -190,7 +190,7 @@ const LearningEventDetailModal = ({ event, isOpen, onClose, onUpdate, studentId 
       >
         <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
           {/* Header */}
-          <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white p-6 rounded-t-xl sticky top-0">
+          <div className="bg-gradient-to-r from-optio-purple to-optio-pink text-white p-6 rounded-t-xl sticky top-0 z-10">
             <div className="flex justify-between items-start">
               <div>
                 <h2 className="text-xl font-bold mb-1">Learning Moment</h2>

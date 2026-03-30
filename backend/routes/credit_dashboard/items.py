@@ -285,12 +285,15 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
             .order('round_number') \
             .execute()
 
-        # Get accreditor reviews
-        accreditor_reviews = admin_supabase.table('accreditor_reviews') \
-            .select('*, users!reviewer_id(display_name)') \
-            .eq('completion_id', completion_id) \
-            .order('created_at') \
-            .execute()
+        # Get accreditor reviews (table may not exist yet)
+        try:
+            accreditor_reviews = admin_supabase.table('accreditor_reviews') \
+                .select('*, users!reviewer_id(display_name)') \
+                .eq('completion_id', completion_id) \
+                .order('created_at') \
+                .execute()
+        except Exception:
+            accreditor_reviews = type('obj', (object,), {'data': []})()
 
         # Get subject XP distribution
         from routes.tasks import get_subject_xp_distribution
@@ -374,16 +377,19 @@ def get_dashboard_stats(user_id: str):
             'merged_this_week': 0
         }
 
-        # Count merges this week
-        from datetime import datetime, timedelta
-        week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-        merge_q = admin_supabase.table('task_merges') \
-            .select('id', count='exact') \
-            .gte('created_at', week_ago)
-        if student_ids is not None:
-            merge_q = merge_q.in_('student_id', student_ids)
-        merge_result = merge_q.execute()
-        stats['merged_this_week'] = merge_result.count or 0
+        # Count merges this week (table may not exist yet)
+        try:
+            from datetime import datetime, timedelta
+            week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+            merge_q = admin_supabase.table('task_merges') \
+                .select('id', count='exact') \
+                .gte('created_at', week_ago)
+            if student_ids is not None:
+                merge_q = merge_q.in_('student_id', student_ids)
+            merge_result = merge_q.execute()
+            stats['merged_this_week'] = merge_result.count or 0
+        except Exception:
+            pass
 
         return success_response(data=stats)
 
@@ -448,31 +454,38 @@ def get_student_context(user_id: str, student_id: str):
                 'accreditor_status': p.get('accreditor_status', 'not_reviewed')
             })
 
-        # Recent merges for this student
-        recent_merges = admin_supabase.table('task_merges') \
-            .select('id, final_xp, merge_reason, created_at') \
-            .eq('student_id', student_id) \
-            .order('created_at', desc=True) \
-            .limit(5) \
-            .execute()
+        # Recent merges for this student (table may not exist yet)
+        recent_merges_data = []
+        try:
+            recent_merges = admin_supabase.table('task_merges') \
+                .select('id, final_xp, merge_reason, created_at') \
+                .eq('student_id', student_id) \
+                .order('created_at', desc=True) \
+                .limit(5) \
+                .execute()
+            recent_merges_data = recent_merges.data or []
+        except Exception:
+            pass
 
-        # Recent flags
-        recent_flags = admin_supabase.table('accreditor_reviews') \
-            .select('id, completion_id, status, flag_reason, created_at') \
-            .eq('status', 'flagged') \
-            .order('created_at', desc=True) \
-            .limit(5) \
-            .execute()
-
-        # Filter flags to this student's completions
-        student_completion_ids = [p['id'] for p in (pending_items.data or [])]
-        student_flags = [f for f in (recent_flags.data or []) if f['completion_id'] in student_completion_ids]
+        # Recent flags (table may not exist yet)
+        student_flags = []
+        try:
+            recent_flags = admin_supabase.table('accreditor_reviews') \
+                .select('id, completion_id, status, flag_reason, created_at') \
+                .eq('status', 'flagged') \
+                .order('created_at', desc=True) \
+                .limit(5) \
+                .execute()
+            student_completion_ids = [p['id'] for p in (pending_items.data or [])]
+            student_flags = [f for f in (recent_flags.data or []) if f['completion_id'] in student_completion_ids]
+        except Exception:
+            pass
 
         return success_response(data={
             'student': student.data,
             'subject_xp': subject_xp.data or [],
             'pending_items': pending_list,
-            'recent_merges': recent_merges.data or [],
+            'recent_merges': recent_merges_data,
             'recent_flags': student_flags
         })
 

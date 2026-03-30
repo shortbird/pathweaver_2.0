@@ -69,6 +69,14 @@ def register_routes(bp):
         try:
             supabase = get_supabase_admin_client()
 
+            # Get student profile for feed display
+            student_profile = supabase.table('users') \
+                .select('id, display_name, first_name, last_name, avatar_url') \
+                .eq('id', student_id) \
+                .single() \
+                .execute()
+            student_info = student_profile.data or {}
+
             # Get student's completed tasks
             query = supabase.table('quest_task_completions') \
                 .select('id, user_id, quest_id, user_quest_task_id, completed_at, evidence_url, evidence_text, is_confidential') \
@@ -81,11 +89,23 @@ def register_routes(bp):
 
             completions = query.execute()
 
-            if not completions.data:
+            # Get ALL learning events for this student (journal entries, bounties, etc.)
+            learning_events_query = supabase.table('learning_events') \
+                .select('id, user_id, title, description, pillars, created_at, source_type, captured_by_user_id, track_id, is_confidential') \
+                .eq('user_id', student_id) \
+                .order('created_at', desc=True) \
+                .limit(limit + 1)
+
+            if cursor:
+                learning_events_query = learning_events_query.lt('created_at', cursor)
+
+            learning_events = learning_events_query.execute()
+
+            if not completions.data and not learning_events.data:
                 return jsonify({'items': [], 'has_more': False}), 200
 
             # Get task details
-            task_ids = list(set([c['user_quest_task_id'] for c in completions.data if c['user_quest_task_id']]))
+            task_ids = list(set([c['user_quest_task_id'] for c in (completions.data or []) if c['user_quest_task_id']]))
             tasks_map = {}
             if task_ids:
                 tasks = supabase.table('user_quest_tasks') \
@@ -95,7 +115,7 @@ def register_routes(bp):
                 tasks_map = {t['id']: t for t in tasks.data}
 
             # Get quest details
-            quest_ids = list(set([c['quest_id'] for c in completions.data if c['quest_id']]))
+            quest_ids = list(set([c['quest_id'] for c in (completions.data or []) if c['quest_id']]))
             quests_map = {}
             if quest_ids:
                 quests = supabase.table('quests') \
@@ -104,17 +124,30 @@ def register_routes(bp):
                     .execute()
                 quests_map = {q['id']: q for q in quests.data}
 
+            # Get track names for learning events
+            track_ids = list(set([e['track_id'] for e in (learning_events.data or []) if e.get('track_id')]))
+            tracks_map = {}
+            if track_ids:
+                tracks = supabase.table('interest_tracks') \
+                    .select('id, name') \
+                    .in_('id', track_ids) \
+                    .execute()
+                tracks_map = {t['id']: t['name'] for t in tracks.data}
+
             # Get evidence document blocks for multi-format evidence
-            evidence_docs = supabase.table('user_task_evidence_documents') \
-                .select('id, task_id, user_id, status') \
-                .in_('task_id', task_ids) \
-                .eq('user_id', student_id) \
-                .eq('status', 'completed') \
-                .execute()
+            evidence_docs_data = []
+            if task_ids:
+                evidence_docs = supabase.table('user_task_evidence_documents') \
+                    .select('id, task_id, user_id, status') \
+                    .in_('task_id', task_ids) \
+                    .eq('user_id', student_id) \
+                    .eq('status', 'completed') \
+                    .execute()
+                evidence_docs_data = evidence_docs.data or []
 
             doc_map = {}
             doc_ids = []
-            for doc in evidence_docs.data:
+            for doc in evidence_docs_data:
                 key = f"{doc['task_id']}_{doc['user_id']}"
                 doc_map[key] = doc['id']
                 doc_ids.append(doc['id'])
@@ -134,9 +167,25 @@ def register_routes(bp):
                         evidence_blocks_map[doc_id] = []
                     evidence_blocks_map[doc_id].append(block)
 
-            # Build feed items - one per evidence block
+            # Get evidence blocks for learning events
+            learning_event_ids = [e['id'] for e in learning_events.data] if learning_events.data else []
+            learning_event_blocks_map = {}
+            if learning_event_ids:
+                le_blocks = supabase.table('learning_event_evidence_blocks') \
+                    .select('id, learning_event_id, block_type, content, order_index, created_at, file_url, file_name') \
+                    .in_('learning_event_id', learning_event_ids) \
+                    .order('order_index') \
+                    .execute()
+
+                for block in le_blocks.data:
+                    le_id = block['learning_event_id']
+                    if le_id not in learning_event_blocks_map:
+                        learning_event_blocks_map[le_id] = []
+                    learning_event_blocks_map[le_id].append(block)
+
+            # Build feed items from task completions
             raw_feed_items = []
-            for completion in completions.data:
+            for completion in (completions.data or []):
                 task_info = tasks_map.get(completion['user_quest_task_id'], {})
                 quest_info = quests_map.get(completion['quest_id'], {})
 
@@ -172,6 +221,7 @@ def register_routes(bp):
                         if evidence_type:
                             raw_feed_items.append({
                                 'id': f"{completion['id']}_{block['id']}",
+                                'item_type': 'task_completed',
                                 'completion_id': completion['id'],
                                 'block_id': block['id'],
                                 'timestamp': block.get('created_at') or completion['completed_at'],
@@ -212,6 +262,7 @@ def register_routes(bp):
                     if evidence_type:
                         raw_feed_items.append({
                             'id': completion['id'],
+                            'item_type': 'task_completed',
                             'completion_id': completion['id'],
                             'block_id': None,
                             'timestamp': completion['completed_at'],
@@ -226,122 +277,121 @@ def register_routes(bp):
                             'is_confidential': completion.get('is_confidential', False)
                         })
 
-            # Include bounty completion learning events
-            try:
-                bounty_events_q = supabase.table('learning_events') \
-                    .select('id, title, description, pillars, created_at') \
-                    .eq('user_id', student_id) \
-                    .like('title', 'Bounty:%') \
-                    .order('created_at', desc=True) \
-                    .limit(limit)
+            # Build feed items from learning events (journal entries, bounties, etc.)
+            for event in (learning_events.data or []):
+                event_blocks = learning_event_blocks_map.get(event['id'], [])
 
-                if cursor:
-                    bounty_events_q = bounty_events_q.lt('created_at', cursor)
+                # Collect all media items
+                media_items = []
+                primary_evidence = None
 
-                bounty_events = bounty_events_q.execute()
+                if event_blocks:
+                    for block in event_blocks:
+                        content = block.get('content', {})
+                        media_item = None
 
-                if bounty_events.data:
-                    be_ids = [e['id'] for e in bounty_events.data]
-                    be_blocks = supabase.table('learning_event_evidence_blocks') \
-                        .select('id, learning_event_id, block_type, content, order_index, created_at') \
-                        .in_('learning_event_id', be_ids) \
-                        .order('order_index') \
-                        .execute()
+                        if block['block_type'] == 'image':
+                            media_item = {
+                                'type': 'image',
+                                'url': content.get('url') or block.get('file_url'),
+                                'title': None
+                            }
+                        elif block['block_type'] == 'video':
+                            media_item = {
+                                'type': 'video',
+                                'url': content.get('url') or block.get('file_url'),
+                                'title': content.get('title'),
+                                'thumbnail_url': content.get('thumbnail_url'),
+                                'duration_seconds': content.get('duration_seconds'),
+                            }
+                        elif block['block_type'] == 'link':
+                            media_item = {
+                                'type': 'link',
+                                'url': content.get('url'),
+                                'title': content.get('title')
+                            }
+                        elif block['block_type'] == 'document':
+                            media_item = {
+                                'type': 'document',
+                                'url': content.get('url') or block.get('file_url'),
+                                'title': content.get('title') or content.get('filename') or block.get('file_name')
+                            }
 
-                    be_blocks_map = {}
-                    for block in (be_blocks.data or []):
-                        eid = block['learning_event_id']
-                        if eid not in be_blocks_map:
-                            be_blocks_map[eid] = []
-                        be_blocks_map[eid].append(block)
+                        if media_item and media_item.get('url'):
+                            media_items.append(media_item)
+                            if primary_evidence is None:
+                                primary_evidence = {
+                                    'type': media_item['type'],
+                                    'preview': media_item['url'],
+                                    'title': media_item.get('title')
+                                }
 
-                    for event in bounty_events.data:
-                        blocks = be_blocks_map.get(event['id'], [])
-                        if blocks:
-                            for block in blocks:
-                                content = block.get('content', {})
-                                evidence_type = None
-                                evidence_preview = None
+                description = event.get('description', '')
 
-                                url = content.get('url', '')
-                                be_is_heic = url.lower().endswith('.heic') or url.lower().endswith('.heif') if url else False
-
-                                if block['block_type'] == 'image' or be_is_heic:
-                                    evidence_type = 'image'
-                                    evidence_preview = url
-                                elif block['block_type'] == 'video':
-                                    evidence_type = 'video'
-                                    evidence_preview = url
-                                elif block['block_type'] == 'link':
-                                    evidence_type = 'link'
-                                    evidence_preview = url
-                                elif block['block_type'] == 'text':
-                                    evidence_type = 'text'
-                                    text = content.get('text', '')
-                                    evidence_preview = text[:200] + '...' if len(text) > 200 else text
-                                elif block['block_type'] == 'document':
-                                    evidence_type = 'link'
-                                    evidence_preview = url
-
-                                if evidence_type:
-                                    raw_feed_items.append({
-                                        'id': f"bounty_{event['id']}_{block['id']}",
-                                        'completion_id': event['id'],
-                                        'block_id': block['id'],
-                                        'timestamp': block.get('created_at') or event['created_at'],
-                                        'task_id': None,
-                                        'task_title': event.get('title', 'Bounty'),
-                                        'task_pillar': (event.get('pillars') or ['stem'])[0] if event.get('pillars') else 'stem',
-                                        'task_xp': 0,
-                                        'quest_id': None,
-                                        'quest_title': 'Bounty Board',
-                                        'evidence_type': evidence_type,
-                                        'evidence_preview': evidence_preview,
-                                        'is_confidential': False,
-                                        'is_bounty': True,
-                                    })
-                        else:
-                            # No evidence blocks -- show the description as text
-                            raw_feed_items.append({
-                                'id': f"bounty_{event['id']}",
-                                'completion_id': event['id'],
-                                'block_id': None,
-                                'timestamp': event['created_at'],
-                                'task_id': None,
-                                'task_title': event.get('title', 'Bounty'),
-                                'task_pillar': (event.get('pillars') or ['stem'])[0] if event.get('pillars') else 'stem',
-                                'task_xp': 0,
-                                'quest_id': None,
-                                'quest_title': 'Bounty Board',
-                                'evidence_type': 'text',
-                                'evidence_preview': event.get('description', ''),
-                                'is_confidential': False,
-                                'is_bounty': True,
-                            })
-            except Exception as e:
-                logger.warning(f"Failed to fetch bounty learning events for feed: {e}")
+                # Only add if we have media or description
+                if media_items or description:
+                    raw_feed_items.append({
+                        'id': f"le_{event['id']}",
+                        'item_type': 'learning_moment',
+                        'learning_event_id': event['id'],
+                        'block_id': None,
+                        'timestamp': event['created_at'],
+                        'event_title': event.get('title') or 'Learning Moment',
+                        'event_description': description,
+                        'event_pillars': event.get('pillars', []),
+                        'topic_name': tracks_map.get(event.get('track_id')),
+                        'source_type': event.get('source_type', 'realtime'),
+                        'captured_by_user_id': event.get('captured_by_user_id'),
+                        'evidence_type': primary_evidence['type'] if primary_evidence else ('text' if description else None),
+                        'evidence_preview': primary_evidence['preview'] if primary_evidence else description,
+                        'evidence_title': primary_evidence.get('title') if primary_evidence else None,
+                        'media_items': media_items,
+                        'is_confidential': event.get('is_confidential', False)
+                    })
 
             # Sort and paginate
             raw_feed_items.sort(key=lambda x: x['timestamp'], reverse=True)
             has_more = len(raw_feed_items) > limit
             paginated_items = raw_feed_items[:limit]
 
-            # Get like counts
-            completion_ids = list(set([item['completion_id'] for item in paginated_items]))
+            # Get like counts for task completions
+            completion_ids = list(set([item['completion_id'] for item in paginated_items if item.get('completion_id')]))
             likes_count = {}
+            user_likes = set()
             try:
                 if completion_ids:
                     likes = supabase.table('observer_likes') \
-                        .select('completion_id') \
+                        .select('completion_id, observer_id') \
                         .in_('completion_id', completion_ids) \
                         .execute()
 
                     for like in likes.data:
                         likes_count[like['completion_id']] = likes_count.get(like['completion_id'], 0) + 1
+                        if like['observer_id'] == user_id:
+                            user_likes.add(like['completion_id'])
             except Exception:
                 pass
 
-            # Get comment counts
+            # Get like counts for learning events
+            le_ids = list(set([item['learning_event_id'] for item in paginated_items if item.get('learning_event_id')]))
+            le_likes_count = {}
+            le_user_likes = set()
+            try:
+                if le_ids:
+                    le_likes = supabase.table('observer_likes') \
+                        .select('learning_event_id, observer_id') \
+                        .in_('learning_event_id', le_ids) \
+                        .execute()
+
+                    for like in le_likes.data:
+                        le_id = like['learning_event_id']
+                        le_likes_count[le_id] = le_likes_count.get(le_id, 0) + 1
+                        if like['observer_id'] == user_id:
+                            le_user_likes.add(le_id)
+            except Exception:
+                pass
+
+            # Get comment counts for task completions
             comments_count = {}
             try:
                 if completion_ids:
@@ -356,35 +406,93 @@ def register_routes(bp):
             except Exception:
                 pass
 
+            # Get comment counts for learning events
+            le_comments_count = {}
+            try:
+                if le_ids:
+                    le_comments = supabase.table('observer_comments') \
+                        .select('learning_event_id') \
+                        .in_('learning_event_id', le_ids) \
+                        .execute()
+
+                    for comment in le_comments.data:
+                        if comment['learning_event_id']:
+                            le_comments_count[comment['learning_event_id']] = le_comments_count.get(comment['learning_event_id'], 0) + 1
+            except Exception:
+                pass
+
             # Build final feed items
             feed_items = []
             for item in paginated_items:
-                feed_items.append({
-                    'type': 'task_completed',
-                    'id': item['id'],
-                    'completion_id': item['completion_id'],
-                    'timestamp': item['timestamp'],
-                    'task': {
-                        'id': item['task_id'],
-                        'title': item['task_title'],
-                        'pillar': item['task_pillar'],
-                        'xp_value': item['task_xp']
-                    },
-                    'quest': {
-                        'id': item['quest_id'],
-                        'title': item['quest_title']
-                    },
-                    'evidence': {
-                        'type': item['evidence_type'],
-                        'url': item['evidence_preview'] if item['evidence_type'] != 'text' else None,
-                        'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None,
-                        'title': item.get('evidence_title')
-                    },
-                    'xp_awarded': item['task_xp'],
-                    'likes_count': likes_count.get(item['completion_id'], 0),
-                    'comments_count': comments_count.get(item['completion_id'], 0),
-                    'is_confidential': item.get('is_confidential', False)
-                })
+                if item.get('item_type') == 'learning_moment':
+                    le_id = item['learning_event_id']
+                    feed_items.append({
+                        'type': 'learning_moment',
+                        'id': item['id'],
+                        'learning_event_id': le_id,
+                        'timestamp': item['timestamp'],
+                        'student': {
+                            'id': student_id,
+                            'display_name': student_info.get('display_name'),
+                            'first_name': student_info.get('first_name'),
+                            'last_name': student_info.get('last_name'),
+                            'avatar_url': student_info.get('avatar_url')
+                        },
+                        'moment': {
+                            'title': item['event_title'],
+                            'description': item['event_description'],
+                            'pillars': item['event_pillars'],
+                            'topic_name': item.get('topic_name'),
+                            'source_type': item['source_type'],
+                            'captured_by_user_id': item.get('captured_by_user_id')
+                        },
+                        'evidence': {
+                            'type': item['evidence_type'],
+                            'url': item['evidence_preview'] if item['evidence_type'] not in ('text',) else None,
+                            'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None,
+                            'title': item.get('evidence_title')
+                        },
+                        'media': item.get('media_items', []),
+                        'likes_count': le_likes_count.get(le_id, 0),
+                        'comments_count': le_comments_count.get(le_id, 0),
+                        'user_has_liked': le_id in le_user_likes,
+                        'is_confidential': item.get('is_confidential', False)
+                    })
+                else:
+                    feed_items.append({
+                        'type': 'task_completed',
+                        'id': item['id'],
+                        'completion_id': item['completion_id'],
+                        'timestamp': item['timestamp'],
+                        'student': {
+                            'id': student_id,
+                            'display_name': student_info.get('display_name'),
+                            'first_name': student_info.get('first_name'),
+                            'last_name': student_info.get('last_name'),
+                            'avatar_url': student_info.get('avatar_url')
+                        },
+                        'task': {
+                            'id': item['task_id'],
+                            'title': item['task_title'],
+                            'pillar': item['task_pillar'],
+                            'xp_value': item['task_xp']
+                        },
+                        'quest': {
+                            'id': item['quest_id'],
+                            'title': item['quest_title']
+                        },
+                        'evidence': {
+                            'type': item['evidence_type'],
+                            'url': item['evidence_preview'] if item['evidence_type'] != 'text' else None,
+                            'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None,
+                            'title': item.get('evidence_title')
+                        },
+                        'xp_awarded': item['task_xp'],
+                        'likes_count': likes_count.get(item.get('completion_id'), 0),
+                        'comments_count': comments_count.get(item.get('completion_id'), 0),
+                        'user_has_liked': item.get('completion_id') in user_likes,
+                        'is_confidential': item.get('is_confidential', False)
+                    })
 
             next_cursor = paginated_items[-1]['timestamp'] if paginated_items and has_more else None
 

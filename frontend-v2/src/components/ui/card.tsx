@@ -11,9 +11,9 @@ interface CardProps extends ViewProps {
 }
 
 const variantClasses: Record<CardVariant, string> = {
-  elevated: 'bg-white shadow-md',
-  outline: 'border border-surface-200 bg-white',
-  filled: 'bg-surface-50',
+  elevated: 'bg-white dark:bg-dark-surface-100 shadow-md',
+  outline: 'border border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100',
+  filled: 'bg-surface-50 dark:bg-dark-surface-50',
   ghost: '',
 };
 

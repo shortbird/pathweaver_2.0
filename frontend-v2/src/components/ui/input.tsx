@@ -14,9 +14,9 @@ interface InputProps extends ViewProps {
 }
 
 const variantClasses: Record<InputVariant, string> = {
-  outline: 'border border-surface-200 rounded-lg bg-white',
-  underlined: 'border-b border-surface-200 bg-transparent rounded-none',
-  rounded: 'border border-surface-200 rounded-full bg-white',
+  outline: 'border border-surface-200 dark:border-dark-surface-300 rounded-lg bg-white dark:bg-dark-surface-100',
+  underlined: 'border-b border-surface-200 dark:border-dark-surface-300 bg-transparent rounded-none',
+  rounded: 'border border-surface-200 dark:border-dark-surface-300 rounded-full bg-white dark:bg-dark-surface-100',
 };
 
 const sizeClasses: Record<InputSize, string> = {
@@ -62,7 +62,7 @@ export function InputField({ className = '', ...props }: InputFieldProps) {
 
   return (
     <TextInput
-      className={`flex-1 px-3 py-2 font-poppins text-sm text-typo ${className}`}
+      className={`flex-1 px-3 py-2 font-poppins text-sm text-typo dark:text-dark-typo ${className}`}
       editable={!isDisabled}
       placeholderTextColor="#9CA3AF"
       {...props}

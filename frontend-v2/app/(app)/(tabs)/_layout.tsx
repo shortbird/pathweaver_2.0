@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, useWindowDimensions, View, Image, Pressable } from 'react-native';
+import { useColorScheme } from 'nativewind';
 import { Sidebar } from '@/src/components/layouts/Sidebar';
 import { MobileHeader } from '@/src/components/layouts/MobileHeader';
 import { ActingAsBanner } from '@/src/components/layouts/ActingAsBanner';
@@ -29,7 +30,7 @@ function useIsObserver() {
 function ObserverHeader() {
   const { user, logout } = useAuthStore();
   return (
-    <View className="bg-white border-b border-surface-200 px-6 py-3 flex-row items-center justify-between">
+    <View className="bg-white dark:bg-dark-surface-50 border-b border-surface-200 dark:border-dark-surface-300 px-6 py-3 flex-row items-center justify-between">
       <Image source={{ uri: LOGO_URI }} style={{ width: 110, height: 34 }} resizeMode="contain" />
       <Pressable onPress={logout} className="flex-row items-center gap-2 active:opacity-70">
         <Ionicons name="person-circle-outline" size={20} color="#6B7280" />
@@ -47,11 +48,13 @@ export default function TabsLayout() {
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
   const [captureVisible, setCaptureVisible] = useState(false);
   const isObserver = useIsObserver();
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
   // ── Observer: feed-only, no sidebar, no tabs ──
   if (isObserver) {
     return (
-      <View className="flex-1 bg-surface-50">
+      <View className="flex-1 bg-surface-50 dark:bg-dark-surface">
         {isDesktop && <ObserverHeader />}
         <ActingAsBanner />
         <Tabs
@@ -75,7 +78,7 @@ export default function TabsLayout() {
   // ── Desktop: sidebar + content ──
   if (isDesktop) {
     return (
-      <View className="flex-1 flex-row bg-surface-50">
+      <View className="flex-1 flex-row bg-surface-50 dark:bg-dark-surface">
         <Sidebar />
         <View className="flex-1">
           <ActingAsBanner />
@@ -113,7 +116,8 @@ export default function TabsLayout() {
           tabBarStyle: {
             height: 85,
             paddingBottom: 20,
-            borderTopColor: '#E5E7EB',
+            borderTopColor: isDark ? '#3A3A52' : '#E5E7EB',
+            backgroundColor: isDark ? '#1A1A2E' : '#FFFFFF',
           },
         }}
       >

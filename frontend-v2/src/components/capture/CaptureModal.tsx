@@ -14,6 +14,11 @@ import {
 } from '../ui';
 import { pillarKeys, getPillar } from '@/src/config/pillars';
 
+// File size limits (must match backend constants)
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_DOCUMENT_SIZE = 25 * 1024 * 1024; // 25MB
+
 interface FileItem {
   file: File;
   preview: string | null;
@@ -81,10 +86,23 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
       new File([f], f.name, { type: f.type, lastModified: f.lastModified })
     );
 
-    const newItems: FileItem[] = clonedFiles.map((file) => ({
-      file,
-      preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
-    }));
+    const newItems: FileItem[] = [];
+    for (const file of clonedFiles) {
+      const isVideo = file.type.startsWith('video/');
+      const isImage = file.type.startsWith('image/');
+      const maxSize = isVideo ? MAX_VIDEO_SIZE : isImage ? MAX_IMAGE_SIZE : MAX_DOCUMENT_SIZE;
+      const maxMB = maxSize / (1024 * 1024);
+      if (file.size > maxSize) {
+        const fileMB = (file.size / (1024 * 1024)).toFixed(1);
+        const fileType = isVideo ? 'videos' : isImage ? 'images' : 'documents';
+        alert(`"${file.name}" is too large (${fileMB}MB). Maximum for ${fileType} is ${maxMB}MB.`);
+        continue;
+      }
+      newItems.push({
+        file,
+        preview: isImage ? URL.createObjectURL(file) : null,
+      });
+    }
     setFiles((prev) => [...prev, ...newItems]);
 
     // Reset input so the same file can be re-selected

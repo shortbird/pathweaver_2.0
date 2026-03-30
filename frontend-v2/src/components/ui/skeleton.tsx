@@ -25,7 +25,7 @@ export function Skeleton({ className = '', ...props }: SkeletonProps) {
   return (
     <Animated.View
       style={animatedStyle}
-      className={`bg-surface-200 rounded-lg ${className}`}
+      className={`bg-surface-200 dark:bg-dark-surface-200 rounded-lg ${className}`}
       {...props}
     />
   );

@@ -9,11 +9,11 @@ interface BadgeProps extends ViewProps {
 }
 
 const actionClasses: Record<BadgeAction, string> = {
-  info: 'bg-blue-100',
-  success: 'bg-green-100',
-  warning: 'bg-amber-100',
-  error: 'bg-red-100',
-  muted: 'bg-surface-100',
+  info: 'bg-blue-100 dark:bg-blue-900/40',
+  success: 'bg-green-100 dark:bg-green-900/40',
+  warning: 'bg-amber-100 dark:bg-amber-900/40',
+  error: 'bg-red-100 dark:bg-red-900/40',
+  muted: 'bg-surface-100 dark:bg-dark-surface-200',
 };
 
 export function Badge({ className = '', action = 'info', ...props }: BadgeProps) {

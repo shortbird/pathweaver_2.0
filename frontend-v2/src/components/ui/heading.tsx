@@ -18,7 +18,7 @@ const sizeMap = {
 export function Heading({ className = '', size = 'lg', ...props }: HeadingProps) {
   return (
     <Text
-      className={`text-typo ${sizeMap[size]} ${className}`}
+      className={`text-typo dark:text-dark-typo ${sizeMap[size]} ${className}`}
       {...props}
     />
   );

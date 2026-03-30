@@ -8,5 +8,5 @@ interface DividerProps extends ViewProps {
 
 export function Divider({ className = '', orientation = 'horizontal', ...props }: DividerProps) {
   const dir = orientation === 'horizontal' ? 'h-px w-full' : 'w-px h-full';
-  return <View className={`bg-surface-200 ${dir} ${className}`} {...props} />;
+  return <View className={`bg-surface-200 dark:bg-dark-surface-300 ${dir} ${className}`} {...props} />;
 }

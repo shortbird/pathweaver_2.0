@@ -3,7 +3,7 @@ import api from '../../services/api'
 import toast from 'react-hot-toast'
 
 const VALID_EXTENSIONS = ['.imscc', '.zip', '.pdf', '.docx', '.doc']
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 const LOCALSTORAGE_KEY_PREFIX = 'orgCurriculumUpload_'
 
 // Helper to format relative time
@@ -145,7 +145,7 @@ export default function OrgCurriculumUpload({ orgId }) {
     }
 
     if (selectedFile.size > MAX_FILE_SIZE) {
-      toast.error('File too large. Maximum size is 100MB.')
+      toast.error('File too large. Maximum size is 50MB.')
       return
     }
 

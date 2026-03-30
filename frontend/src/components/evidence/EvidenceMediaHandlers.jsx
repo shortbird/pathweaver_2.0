@@ -236,10 +236,10 @@ export class EvidenceMediaHandlers {
       }
 
       // Validate file size
-      const maxSize = blockType === 'video' ? 100 * 1024 * 1024 : blockType === 'document' ? 25 * 1024 * 1024 : 10 * 1024 * 1024;
+      const maxSize = blockType === 'video' ? 50 * 1024 * 1024 : blockType === 'document' ? 25 * 1024 * 1024 : 10 * 1024 * 1024;
       const maxSizeMB = maxSize / (1024 * 1024);
       if (file.size > maxSize) {
-        // Superadmin can bypass the 100MB limit via direct-to-Supabase upload
+        // Superadmin can bypass the 50MB limit via direct-to-Supabase upload
         if (this.isSuperadmin && blockType === 'video') {
           return this._handleDirectUpload(file, blockId, blockType);
         }

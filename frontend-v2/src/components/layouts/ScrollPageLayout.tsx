@@ -34,7 +34,7 @@ export function ScrollPageLayout({
 }: ScrollPageLayoutProps) {
   if (loading) {
     return (
-      <SafeAreaView className={`flex-1 bg-surface-50 ${className}`}>
+      <SafeAreaView className={`flex-1 bg-surface-50 dark:bg-dark-surface ${className}`}>
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#6D469B" />
         </View>
@@ -43,7 +43,7 @@ export function ScrollPageLayout({
   }
 
   return (
-    <SafeAreaView className={`flex-1 bg-surface-50 ${className}`}>
+    <SafeAreaView className={`flex-1 bg-surface-50 dark:bg-dark-surface ${className}`}>
       <ScrollView
         className="flex-1"
         contentContainerClassName={`px-5 pt-6 pb-12 ${contentClassName}`}

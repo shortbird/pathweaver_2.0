@@ -15,12 +15,12 @@ XP_THRESHOLDS = {
 }
 
 # File Upload Limits
-MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
-MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB (Render's hard limit)
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB (keep under Render memory budget)
 MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB for images
 MAX_DOCUMENT_SIZE = 25 * 1024 * 1024  # 25MB for documents (PDFs, etc.)
-MAX_VIDEO_SIZE = 100 * 1024 * 1024  # 100MB for videos (server processes in background)
-MAX_VIDEO_COMPRESSION_THRESHOLD = 50 * 1024 * 1024  # 50MB - compress videos above this
+MAX_VIDEO_SIZE = 50 * 1024 * 1024  # 50MB for videos (was 100MB, caused OOM on Render)
+MAX_VIDEO_COMPRESSION_THRESHOLD = 25 * 1024 * 1024  # 25MB - compress videos above this
 MAX_VIDEO_DURATION_SECONDS = 180  # 3 minutes
 
 # Allowed File Extensions (by type)

@@ -3,10 +3,12 @@
  */
 
 import React, { useState } from 'react';
-import { View, ScrollView, Pressable, Platform, Modal, TextInput, KeyboardAvoidingView, Alert } from 'react-native';
+import { View, ScrollView, Pressable, Platform, Modal, TextInput, KeyboardAvoidingView, Alert, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useColorScheme } from 'nativewind';
+import { saveTheme } from '@/src/stores/themeStore';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useProfile, Viewer } from '@/src/hooks/useProfile';
 import api from '@/src/services/api';
@@ -46,6 +48,8 @@ function CollapsibleSection({ title, children, defaultOpen = true }: { title: st
 
 export default function ProfileScreen() {
   const { user, logout } = useAuthStore();
+  const { colorScheme, setColorScheme } = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const { pillarXP, achievements, subjectXP, viewers, deletionStatus, portfolioPublic: hookPortfolioPublic, setPortfolioPublic: setHookPortfolioPublic, portfolioSlug, loading, refetch } = useProfile();
   const { data: engagement } = useGlobalEngagement();
 
@@ -168,7 +172,7 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-surface-50">
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface">
         <VStack className="px-5 pt-6" space="lg">
           <Skeleton className="h-40 rounded-2xl" />
           <Skeleton className="h-32 rounded-xl" />
@@ -179,7 +183,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-surface-50">
+    <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface">
       <ScrollView className="flex-1" contentContainerClassName="px-5 md:px-8 pb-12" showsVerticalScrollIndicator={false}>
         <PageHeader title="Profile" />
         <VStack space="lg" className="max-w-3xl w-full md:mx-auto">
@@ -367,7 +371,7 @@ export default function ProfileScreen() {
                               )}
                             </HStack>
                           </HStack>
-                          <View className="h-2.5 bg-surface-100 rounded-full overflow-hidden flex-row">
+                          <View className="h-2.5 bg-surface-100 dark:bg-dark-surface-200 rounded-full overflow-hidden flex-row">
                             <View
                               className="h-full bg-optio-purple rounded-full"
                               style={{ width: `${earnedPct}%` }}
@@ -465,6 +469,29 @@ export default function ProfileScreen() {
           <CollapsibleSection title="Account Settings" defaultOpen={false}>
             <Card variant="elevated" size="md">
               <VStack space="md">
+                {/* Dark Mode Toggle */}
+                <HStack className="items-center justify-between">
+                  <HStack className="items-center gap-3">
+                    <View className="w-9 h-9 rounded-lg bg-dark-surface/10 dark:bg-dark-surface-200 items-center justify-center">
+                      <Ionicons name={isDark ? 'moon' : 'sunny'} size={20} color={isDark ? '#A78BFA' : '#F59E0B'} />
+                    </View>
+                    <VStack>
+                      <UIText size="sm" className="font-poppins-medium">Dark Mode</UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{isDark ? 'On' : 'Off'}</UIText>
+                    </VStack>
+                  </HStack>
+                  <Switch
+                    value={isDark}
+                    onValueChange={(val) => {
+                      const mode = val ? 'dark' : 'light';
+                      setColorScheme(mode);
+                      saveTheme(mode);
+                    }}
+                    trackColor={{ false: '#E5E7EB', true: '#6D469B' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </HStack>
+                <Divider />
                 {deletionStatus.deletion_status === 'pending' ? (
                   <VStack space="sm">
                     <HStack className="items-center gap-2">
@@ -511,8 +538,8 @@ export default function ProfileScreen() {
       <Modal visible={inviteObserverVisible} transparent animationType="none" onRequestClose={() => setInviteObserverVisible(false)}>
         <KeyboardAvoidingView className="flex-1 justify-end" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <Pressable className="flex-1" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setInviteObserverVisible(false)} />
-          <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
-            <View className="w-10 h-1 bg-surface-300 rounded-full self-center mb-4" />
+          <View style={{ backgroundColor: isDark ? '#1E1E36' : '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
+            <View className="w-10 h-1 bg-surface-300 dark:bg-dark-surface-300 rounded-full self-center mb-4" />
             <VStack space="md">
               <Heading size="lg">Invite Observer</Heading>
               <UIText size="sm" className="text-typo-500">
@@ -525,7 +552,7 @@ export default function ProfileScreen() {
                 placeholderTextColor="#9CA3AF"
                 keyboardType="email-address"
                 autoCapitalize="none"
-                className="bg-surface-50 rounded-xl p-4 text-base"
+                className="bg-surface-50 dark:bg-dark-surface-50 dark:text-dark-typo rounded-xl p-4 text-base"
                 style={{ fontFamily: 'Poppins_400Regular' }}
               />
               <Button size="lg" onPress={handleInviteObserver} loading={invitingObserver} disabled={!observerEmail.trim() || invitingObserver} className="w-full">
@@ -540,12 +567,12 @@ export default function ProfileScreen() {
       <Modal visible={editVisible} transparent animationType="none" onRequestClose={() => setEditVisible(false)}>
         <KeyboardAvoidingView className="flex-1 justify-end" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <Pressable className="flex-1" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setEditVisible(false)} />
-          <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
-            <View className="w-10 h-1 bg-surface-300 rounded-full self-center mb-4" />
+          <View style={{ backgroundColor: isDark ? '#1E1E36' : '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 }}>
+            <View className="w-10 h-1 bg-surface-300 dark:bg-dark-surface-300 rounded-full self-center mb-4" />
             <VStack space="md">
               <HStack className="items-center justify-between">
                 <Heading size="lg">Edit Profile</Heading>
-                <Pressable onPress={() => setEditVisible(false)} className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center">
+                <Pressable onPress={() => setEditVisible(false)} className="w-8 h-8 rounded-full bg-surface-100 dark:bg-dark-surface-200 items-center justify-center">
                   <Ionicons name="close" size={18} color="#6B7280" />
                 </Pressable>
               </HStack>
@@ -556,7 +583,7 @@ export default function ProfileScreen() {
                   onChangeText={setEditDisplay}
                   placeholder="Display name"
                   placeholderTextColor="#9CA3AF"
-                  className="bg-surface-50 rounded-xl p-4 text-base"
+                  className="bg-surface-50 dark:bg-dark-surface-50 dark:text-dark-typo rounded-xl p-4 text-base"
                   style={{ fontFamily: 'Poppins_400Regular' }}
                 />
               </VStack>
@@ -568,7 +595,7 @@ export default function ProfileScreen() {
                     onChangeText={setEditFirst}
                     placeholder="First name"
                     placeholderTextColor="#9CA3AF"
-                    className="bg-surface-50 rounded-xl p-4 text-base"
+                    className="bg-surface-50 dark:bg-dark-surface-50 dark:text-dark-typo rounded-xl p-4 text-base"
                     style={{ fontFamily: 'Poppins_400Regular' }}
                   />
                 </VStack>
@@ -579,7 +606,7 @@ export default function ProfileScreen() {
                     onChangeText={setEditLast}
                     placeholder="Last name"
                     placeholderTextColor="#9CA3AF"
-                    className="bg-surface-50 rounded-xl p-4 text-base"
+                    className="bg-surface-50 dark:bg-dark-surface-50 dark:text-dark-typo rounded-xl p-4 text-base"
                     style={{ fontFamily: 'Poppins_400Regular' }}
                   />
                 </VStack>

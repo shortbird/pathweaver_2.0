@@ -72,13 +72,13 @@ export function detectMediaType(file) {
  *
  * Limits:
  *   image    - 10 MB
- *   video    - 100 MB
+ *   video    - 50 MB
  *   document - 25 MB
  */
 export function validateFileSize(file, mediaType) {
   const limits = {
     image: 10 * 1024 * 1024,
-    video: 100 * 1024 * 1024,
+    video: 50 * 1024 * 1024,
     document: 25 * 1024 * 1024,
   };
   const maxBytes = limits[mediaType] || limits.document;

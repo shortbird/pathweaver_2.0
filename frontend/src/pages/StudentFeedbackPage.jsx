@@ -311,7 +311,7 @@ export default function StudentFeedbackPage() {
                 <FeedCard
                   key={item.id}
                   item={item}
-                  showStudentName={false}
+                  showStudentName={true}
                   isStudentView={true}
                 />
               ))}

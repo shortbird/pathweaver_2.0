@@ -430,7 +430,7 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
         <p className="font-medium text-gray-700" style={{ fontFamily: 'Poppins' }}>
           Click to upload photos or videos
         </p>
-        <p className="text-sm text-gray-500 mt-1">Images up to 10MB, videos (MP4/MOV) up to 100MB, max 3 min</p>
+        <p className="text-sm text-gray-500 mt-1">Images up to 10MB, videos (MP4/MOV) up to 50MB, max 3 min</p>
       </div>
 
       <input
