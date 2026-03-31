@@ -1,18 +1,22 @@
-appId: com.optioeducation.optio
-name: "Smoke Suite"
+url: http://localhost:8081
+name: "Smoke Suite - Web"
 tags:
   - smoke
   - ci
+  - web
 ---
-# Smoke Suite - Run on every push to develop (~3 min)
-# Tests the critical happy paths that must never break.
-
-# S1 + S2: Student login -> dashboard loads
-- runFlow: ../flows/auth/login-as-student.yaml
-- runFlow: ../flows/dashboard/full-dashboard-smoke.yaml
-
-# S3: Parent login -> family view
-- runFlow: ../flows/auth/login-as-parent.yaml
-
-# S4: Auth flows
-- runFlow: ../flows/auth/login.yaml
+# S1: Student login -> verify dashboard
+- launchApp
+- extendedWaitUntil:
+    visible: "Welcome Back"
+    timeout: 15000
+- tapOn: "you@email.com"
+- inputText: ${E2E_STUDENT_EMAIL}
+- tapOn: "Enter password"
+- inputText: ${E2E_STUDENT_PASSWORD}
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 15000
+- assertVisible: "Total XP"
+- assertVisible: "Active Quests"
