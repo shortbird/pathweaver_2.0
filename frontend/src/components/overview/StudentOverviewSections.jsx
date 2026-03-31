@@ -6,6 +6,7 @@ import SkillsGrowth from './SkillsGrowth';
 import ConstellationPreview from './ConstellationPreview';
 import PortfolioSection from './PortfolioSection';
 import LearningJournalSection from './LearningJournalSection';
+import TranscriptSection from './TranscriptSection';
 import CollapsibleSection from './CollapsibleSection';
 
 // Shared SVG icons for section headers
@@ -106,6 +107,9 @@ const StudentOverviewSections = ({
           />
         </CollapsibleSection>
       )}
+
+      {/* Academic Transcript (only renders if one has been created) */}
+      <TranscriptSection studentId={studentId} />
 
       {afterPortfolio}
 

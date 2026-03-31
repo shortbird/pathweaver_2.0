@@ -69,22 +69,7 @@ def get_transcript_data(admin_user_id, user_id):
             if org_result.data:
                 org_name = org_result.data[0].get('name')
 
-        # Earned subject XP (from user_subject_xp table)
-        subject_xp_result = supabase.table('user_subject_xp').select(
-            'school_subject, xp_amount, pending_xp'
-        ).eq('user_id', user_id).execute()
-
-        earned_credits = {}
-        for row in (subject_xp_result.data or []):
-            subject = row['school_subject']
-            xp = row.get('xp_amount', 0)
-            earned_credits[subject] = {
-                'xp': xp,
-                'credits': round(xp / XP_PER_CREDIT, 2),
-                'display_name': SUBJECT_DISPLAY_NAMES.get(subject, subject)
-            }
-
-        # Transfer credits (all records)
+        # Transfer credits (all records) - fetch first to subtract from earned
         tc_result = supabase.table('transfer_credits').select('*').eq(
             'user_id', user_id
         ).order('created_at', desc=False).execute()
@@ -114,6 +99,30 @@ def get_transcript_data(admin_user_id, user_id):
                 'notes': tc.get('notes'),
                 'created_at': tc.get('created_at')
             })
+
+        # Aggregate transfer credit XP by subject to subtract from earned
+        transfer_xp_by_subject = {}
+        for tc in (tc_result.data or []):
+            for subj, xp in tc.get('subject_xp', {}).items():
+                transfer_xp_by_subject[subj] = transfer_xp_by_subject.get(subj, 0) + xp
+
+        # Earned subject XP (from user_subject_xp table, minus transfer credit XP)
+        subject_xp_result = supabase.table('user_subject_xp').select(
+            'school_subject, xp_amount, pending_xp'
+        ).eq('user_id', user_id).execute()
+
+        earned_credits = {}
+        for row in (subject_xp_result.data or []):
+            subject = row['school_subject']
+            total_xp = row.get('xp_amount', 0)
+            # Subtract transfer credit XP that was synced into this table
+            optio_xp = max(0, total_xp - transfer_xp_by_subject.get(subject, 0))
+            if optio_xp > 0:
+                earned_credits[subject] = {
+                    'xp': optio_xp,
+                    'credits': round(optio_xp / XP_PER_CREDIT, 2),
+                    'display_name': SUBJECT_DISPLAY_NAMES.get(subject, subject)
+                }
 
         # Planned/in-progress credits
         planned_result = supabase.table('planned_credits').select('*').eq(
@@ -150,6 +159,12 @@ def get_transcript_data(admin_user_id, user_id):
                     'completed_at': uq.get('completed_at')
                 })
 
+        # Overrides
+        overrides_result = supabase.table('transcript_overrides').select('overrides').eq(
+            'user_id', user_id
+        ).execute()
+        overrides = overrides_result.data[0]['overrides'] if overrides_result.data else {}
+
         # Totals
         total_earned_credits = sum(c['credits'] for c in earned_credits.values())
         total_transfer_credits = sum(tc['total_credits'] for tc in transfer_credits)
@@ -169,6 +184,7 @@ def get_transcript_data(admin_user_id, user_id):
             'transfer_credits': transfer_credits,
             'planned_credits': planned_credits,
             'completed_quests': completed_quests,
+            'overrides': overrides,
             'totals': {
                 'earned_credits': round(total_earned_credits, 2),
                 'transfer_credits': round(total_transfer_credits, 2),
@@ -294,4 +310,65 @@ def delete_planned_credit(admin_user_id, user_id, credit_id):
         return success_response({'message': 'Planned credit deleted'})
     except Exception as e:
         logger.error(f"Error deleting planned credit: {str(e)}")
+        return error_response(str(e), status_code=500)
+
+
+@bp.route('/<user_id>/exists', methods=['GET'])
+@require_school_admin
+def check_transcript_exists(admin_user_id, user_id):
+    """Check if a transcript has been created for this student."""
+    try:
+        supabase = get_supabase_admin_client()
+        result = supabase.table('transcript_overrides').select('id').eq(
+            'user_id', user_id
+        ).execute()
+        return success_response({'exists': len(result.data or []) > 0})
+    except Exception as e:
+        return success_response({'exists': False})
+
+
+@bp.route('/<user_id>/overrides', methods=['GET'])
+@require_school_admin
+def get_overrides(admin_user_id, user_id):
+    """Get transcript field overrides for a student."""
+    try:
+        supabase = get_supabase_admin_client()
+        result = supabase.table('transcript_overrides').select('overrides').eq(
+            'user_id', user_id
+        ).execute()
+        overrides = result.data[0]['overrides'] if result.data else {}
+        return success_response({'overrides': overrides})
+    except Exception as e:
+        logger.error(f"Error getting transcript overrides: {str(e)}")
+        return error_response(str(e), status_code=500)
+
+
+@bp.route('/<user_id>/overrides', methods=['PUT'])
+@require_school_admin
+def save_overrides(admin_user_id, user_id):
+    """Save transcript field overrides for a student."""
+    try:
+        supabase = get_supabase_admin_client()
+        overrides = request.json or {}
+
+        existing = supabase.table('transcript_overrides').select('id').eq(
+            'user_id', user_id
+        ).execute()
+
+        if existing.data:
+            supabase.table('transcript_overrides').update({
+                'overrides': overrides,
+                'updated_by': admin_user_id,
+                'updated_at': 'now()'
+            }).eq('user_id', user_id).execute()
+        else:
+            supabase.table('transcript_overrides').insert({
+                'user_id': user_id,
+                'overrides': overrides,
+                'updated_by': admin_user_id
+            }).execute()
+
+        return success_response({'message': 'Overrides saved'})
+    except Exception as e:
+        logger.error(f"Error saving transcript overrides: {str(e)}")
         return error_response(str(e), status_code=500)

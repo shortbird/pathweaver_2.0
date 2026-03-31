@@ -281,8 +281,9 @@ api.interceptors.response.use(
         const isSharedPage = currentPath.startsWith('/shared/')
         const isInvitationPage = currentPath.startsWith('/invitation/')
         const isDocsPage = currentPath.startsWith('/docs')
+        const isPublicTranscript = currentPath.startsWith('/public/transcript/')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript) {
           window.location.href = '/login'
         }
 

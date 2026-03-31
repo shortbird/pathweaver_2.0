@@ -104,6 +104,7 @@ const StudentFeedbackPage = lazy(() => import('./pages/StudentFeedbackPage'))
 const MyEvidenceReports = lazy(() => import('./pages/MyEvidenceReports'))
 const EvidenceReportBuilder = lazy(() => import('./pages/EvidenceReportBuilder'))
 const PublicEvidenceReport = lazy(() => import('./pages/PublicEvidenceReport'))
+const PublicTranscriptPage = lazy(() => import('./pages/PublicTranscriptPage'))
 const SharedFeedPostPage = lazy(() => import('./pages/SharedFeedPostPage'))
 // Credit Review Dashboard (March 2026 - Unified credit review for advisors/accreditors)
 const CreditReviewDashboardPage = lazy(() => import('./pages/CreditReviewDashboardPage'))
@@ -497,6 +498,7 @@ function App() {
             <Route path="diploma" element={<DiplomaPage />} />
             <Route path="portfolio/:slug" element={<DiplomaPage />} />
             <Route path="public/diploma/:userId" element={<DiplomaPage />} />
+            <Route path="public/transcript/:userId" element={<PublicTranscriptPage />} />
 
             {/* Public evidence report view (no auth required) */}
             <Route path="report/:token" element={<PublicEvidenceReport />} />
