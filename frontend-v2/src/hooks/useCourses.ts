@@ -71,6 +71,7 @@ export function useCourseCatalog() {
 
   const effectiveRole = user?.role === 'org_managed' ? user?.org_role : user?.role;
   const isSuperadmin = effectiveRole === 'superadmin';
+  const [canCreateCourse, setCanCreateCourse] = useState(false);
 
   // Debounce search by 500ms
   useEffect(() => {
@@ -84,18 +85,21 @@ export function useCourseCatalog() {
     if (isLoading) return;
     try {
       setLoading(true);
-      if (isSuperadmin && isAuthenticated) {
-        // Superadmin sees all courses via authenticated endpoint
-        const params: Record<string, string> = { filter: 'admin_all' };
+      if (isAuthenticated) {
+        // Authenticated users get their courses + permission flags
+        const params: Record<string, string> = {};
+        if (isSuperadmin) params.filter = 'admin_all';
         if (debouncedSearch) params.search = debouncedSearch;
         const { data } = await api.get('/api/courses', { params });
         setCourses(data.courses || data || []);
+        setCanCreateCourse(!!data.can_create_course);
       } else {
         // Use public endpoint (no auth required) for catalog
         const params: Record<string, string> = {};
         if (debouncedSearch) params.search = debouncedSearch;
         const { data } = await api.get('/api/public/courses', { params });
         setCourses(data.courses || data || []);
+        setCanCreateCourse(false);
       }
     } catch {
       // Non-critical
@@ -106,7 +110,7 @@ export function useCourseCatalog() {
 
   useEffect(() => { fetchCourses(); }, [fetchCourses]);
 
-  return { courses, loading, search, setSearch, refetch: fetchCourses, isSuperadmin };
+  return { courses, loading, search, setSearch, refetch: fetchCourses, isSuperadmin, canCreateCourse };
 }
 
 export function useCourseDetail(courseId: string | null) {

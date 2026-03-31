@@ -8,6 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useCourseCatalog } from '@/src/hooks/useCourses';
+import { useAuthStore } from '@/src/stores/authStore';
+import api from '@/src/services/api';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Skeleton, Input, InputField, InputSlot, InputIcon, Badge, BadgeText,
@@ -19,7 +21,8 @@ const statusBadgeConfig: Record<string, { action: string; label: string }> = {
   published: { action: 'success', label: 'Published' },
 };
 
-function CourseCard({ course, isSuperadmin }: { course: any; isSuperadmin: boolean }) {
+function CourseCard({ course, isSuperadmin, userId }: { course: any; isSuperadmin: boolean; userId?: string }) {
+  const canManage = isSuperadmin || (!!userId && course.created_by === userId);
   const imageUrl = course.cover_image_url;
   const statusConfig = statusBadgeConfig[course.status] || null;
 
@@ -29,7 +32,7 @@ function CourseCard({ course, isSuperadmin }: { course: any; isSuperadmin: boole
         {imageUrl ? (
           <View className="-mx-3 -mt-3 mb-3">
             <Image source={{ uri: imageUrl }} className="w-full h-40 rounded-t-xl" resizeMode="cover" />
-            {isSuperadmin && statusConfig && (
+            {canManage && statusConfig && (
               <View className="absolute top-2 right-2">
                 <Badge action={statusConfig.action as any}><BadgeText>{statusConfig.label}</BadgeText></Badge>
               </View>
@@ -38,7 +41,7 @@ function CourseCard({ course, isSuperadmin }: { course: any; isSuperadmin: boole
         ) : (
           <View className="-mx-3 -mt-3 mb-3 h-40 bg-optio-purple/10 items-center justify-center rounded-t-xl">
             <Ionicons name="school-outline" size={40} color="#6D469B" />
-            {isSuperadmin && statusConfig && (
+            {canManage && statusConfig && (
               <View className="absolute top-2 right-2">
                 <Badge action={statusConfig.action as any}><BadgeText>{statusConfig.label}</BadgeText></Badge>
               </View>
@@ -74,7 +77,7 @@ function CourseCard({ course, isSuperadmin }: { course: any; isSuperadmin: boole
         </VStack>
       </Pressable>
 
-      {isSuperadmin && (
+      {canManage && (
         <HStack className="mt-3 gap-2">
           <Button
             size="sm"
@@ -119,17 +122,44 @@ export default function CoursesScreen() {
     );
   }
 
-  const { courses, loading, search, setSearch, isSuperadmin } = useCourseCatalog();
+  const { courses, loading, search, setSearch, isSuperadmin, canCreateCourse } = useCourseCatalog();
+  const user = useAuthStore((s) => s.user);
+  const canManageCourses = isSuperadmin || canCreateCourse;
 
   return (
     <SafeAreaView className="flex-1 bg-surface-50">
       <ScrollView className="flex-1" contentContainerClassName="px-5 md:px-8 pt-6 pb-12" showsVerticalScrollIndicator={false}>
         <VStack space="lg" className="max-w-5xl w-full md:mx-auto">
 
-          <VStack space="sm">
-            <Heading size="2xl">Course Catalog</Heading>
-            <UIText className="text-typo-500">Structured learning paths with projects and lessons</UIText>
-          </VStack>
+          <HStack className="items-start justify-between">
+            <VStack space="sm" className="flex-1">
+              <Heading size="2xl">Course Catalog</Heading>
+              <UIText className="text-typo-500">Structured learning paths with projects and lessons</UIText>
+            </VStack>
+            {canManageCourses && (
+              <Button
+                size="md"
+                className="bg-optio-purple"
+                onPress={async () => {
+                  try {
+                    const { data } = await api.post('/api/courses', { title: 'Untitled Course' });
+                    if (data?.course?.id) {
+                      router.push(`/(app)/courses/${data.course.id}/edit` as any);
+                    }
+                  } catch {
+                    // Error creating course
+                  }
+                }}
+              >
+                <ButtonText>
+                  <HStack className="items-center gap-1">
+                    <Ionicons name="add" size={18} color="#FFFFFF" />
+                    <UIText size="sm" className="font-poppins-medium text-white"> New Course</UIText>
+                  </HStack>
+                </ButtonText>
+              </Button>
+            )}
+          </HStack>
 
           <Input variant="rounded" size="lg">
             <InputSlot className="ml-3">
@@ -150,7 +180,7 @@ export default function CoursesScreen() {
             <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
               {courses.map((c) => (
                 <View key={c.id} className="md:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]">
-                  <CourseCard course={c} isSuperadmin={isSuperadmin} />
+                  <CourseCard course={c} isSuperadmin={isSuperadmin} userId={user?.id} />
                 </View>
               ))}
             </View>

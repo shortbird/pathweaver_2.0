@@ -17,6 +17,27 @@ from utils.roles import get_effective_role
 # Create the blueprint
 bp = Blueprint('courses', __name__, url_prefix='/api/courses')
 
+# Users granted course creation/management privileges (in addition to superadmin)
+COURSE_CREATOR_USER_IDS = {
+    '1e50bf47-4146-48e3-b520-1cae530b37f3',  # Lisa Mauer (lmauer@jspeducate.com)
+}
+
+
+def can_create_course(user_data):
+    """
+    Check if a user can create new courses.
+
+    Allows:
+    - superadmin
+    - explicitly granted users (COURSE_CREATOR_USER_IDS)
+    """
+    effective_role = get_effective_role(user_data)
+    if effective_role == 'superadmin':
+        return True
+    if user_data.get('id') in COURSE_CREATOR_USER_IDS:
+        return True
+    return False
+
 
 def can_manage_course(user_data, course=None):
     """
@@ -25,6 +46,7 @@ def can_manage_course(user_data, course=None):
     Allows:
     - superadmin: full access to all courses
     - course creator: can edit only courses they created
+    - explicitly granted users: can manage courses they created
 
     Args:
         user_data: dict with role, org_role fields
