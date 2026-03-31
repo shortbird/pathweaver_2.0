@@ -127,4 +127,11 @@ describe('CreateBountyPage', () => {
     expect(getByText('Save Changes')).toBeTruthy();
     expect(getByDisplayValue('Existing Bounty')).toBeTruthy();
   });
+
+  it('renders max claims field', () => {
+    const { getByText, getByPlaceholderText } = render(<CreateBountyPage />);
+
+    expect(getByText('Max Claims')).toBeTruthy();
+    expect(getByPlaceholderText('0')).toBeTruthy();
+  });
 });

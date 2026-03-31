@@ -74,6 +74,43 @@ describe('authStore', () => {
     });
   });
 
+  describe('loginWithUsername', () => {
+    it('calls authAPI.loginWithUsername, stores tokens, and sets user', async () => {
+      (authAPI.loginWithUsername as jest.Mock).mockResolvedValue({
+        data: {
+          app_access_token: 'org-access-tok',
+          app_refresh_token: 'org-refresh-tok',
+          user: { ...mockUser, role: 'org_managed', org_role: 'student' },
+        },
+      });
+
+      await useAuthStore.getState().loginWithUsername('my-school', 'jdoe', 'password123');
+
+      expect(authAPI.loginWithUsername).toHaveBeenCalledWith('my-school', 'jdoe', 'password123');
+      expect(tokenStore.setTokens).toHaveBeenCalledWith('org-access-tok', 'org-refresh-tok');
+
+      const state = useAuthStore.getState();
+      expect(state.user?.role).toBe('org_managed');
+      expect(state.isAuthenticated).toBe(true);
+      expect(state.error).toBeNull();
+    });
+
+    it('sets error on loginWithUsername failure', async () => {
+      (authAPI.loginWithUsername as jest.Mock).mockRejectedValue({
+        response: { data: { error: 'Invalid username or password' } },
+      });
+
+      await expect(
+        useAuthStore.getState().loginWithUsername('my-school', 'bad', 'wrong')
+      ).rejects.toBeDefined();
+
+      const state = useAuthStore.getState();
+      expect(state.user).toBeNull();
+      expect(state.isAuthenticated).toBe(false);
+      expect(state.error).toBe('Invalid username or password');
+    });
+  });
+
   describe('register', () => {
     it('calls authAPI.register, stores tokens, fetches /me, and sets user', async () => {
       (authAPI.register as jest.Mock).mockResolvedValue({

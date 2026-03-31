@@ -35,6 +35,7 @@ export function mockApiModule() {
       logout: jest.fn().mockResolvedValue({ data: {} }),
       forgotPassword: jest.fn().mockResolvedValue({ data: {} }),
       resetPassword: jest.fn().mockResolvedValue({ data: {} }),
+      loginWithUsername: jest.fn().mockResolvedValue({ data: {} }),
     },
     questAPI: {
       list: jest.fn().mockResolvedValue({ data: {} }),
