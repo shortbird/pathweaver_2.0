@@ -110,6 +110,25 @@ jobs:
             --format junit \
             --output maestro-smoke-report.xml
 
+      - name: Dump server logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          echo "=== Backend stdout ==="
+          cat /tmp/optio-backend.log 2>/dev/null | tail -50 || echo "No backend log"
+          echo ""
+          echo "=== Frontend stdout ==="
+          cat /tmp/optio-frontend.log 2>/dev/null | tail -50 || echo "No frontend log"
+          echo ""
+          echo "=== Curl backend health ==="
+          curl -s http://localhost:5001/api/health 2>&1 || echo "Backend unreachable"
+          echo ""
+          echo "=== Curl frontend ==="
+          curl -s http://localhost:8081 2>&1 | head -20 || echo "Frontend unreachable"
+          echo ""
+          echo "=== Maestro screenshots ==="
+          ls -la ~/.maestro/tests/ 2>/dev/null || echo "No test artifacts"
+
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4
