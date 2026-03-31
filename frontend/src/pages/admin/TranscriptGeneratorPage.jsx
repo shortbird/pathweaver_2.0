@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -17,12 +17,92 @@ const SUBJECT_OPTIONS = [
   { value: 'electives', label: 'Electives' }
 ];
 
+// Inline editable text field -- click to edit, blur/enter to save
+const EditableField = ({ value, onChange, className = '', printClassName = '' }) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef(null);
+
+  useEffect(() => { setDraft(value); }, [value]);
+  useEffect(() => { if (editing && inputRef.current) inputRef.current.focus(); }, [editing]);
+
+  const commit = () => {
+    setEditing(false);
+    if (draft !== value) onChange(draft);
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(value); setEditing(false); }}}
+        className={`bg-blue-50 border-b border-blue-400 outline-none px-0.5 no-print-edit ${className}`}
+        style={{ fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 'inherit' }}
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={() => setEditing(true)}
+      className={`cursor-pointer hover:bg-blue-50 hover:border-b hover:border-blue-300 transition-colors no-print-hover ${className} ${printClassName}`}
+      title="Click to edit"
+    >
+      {value || <span className="text-gray-300 italic no-print">Click to add</span>}
+    </span>
+  );
+};
+
+// Date picker field -- click text to open native date picker
+const DatePickerField = ({ value, rawDate, onChange, className = '' }) => {
+  const inputRef = useRef(null);
+
+  const formatDateLocal = (d) => {
+    if (!d) return '';
+    const parts = d.split('-');
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return `${months[m - 1]} ${day}, ${y}`;
+  };
+
+  const inputValue = rawDate ? rawDate.split('T')[0] : '';
+
+  return (
+    <span className={`inline-block ${className}`}>
+      <input
+        ref={inputRef}
+        type="date"
+        value={inputValue}
+        onChange={(e) => {
+          const raw = e.target.value;
+          if (raw) onChange(formatDateLocal(raw), raw);
+        }}
+        className="sr-only"
+      />
+      <span
+        onClick={() => inputRef.current?.showPicker()}
+        className="cursor-pointer hover:bg-blue-50 hover:border-b hover:border-blue-300 transition-colors"
+        title="Click to select date"
+      >
+        {value || <span className="text-gray-300 italic no-print">Click to add</span>}
+      </span>
+    </span>
+  );
+};
+
 const TranscriptGeneratorPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [overrides, setOverrides] = useState({});
+  const saveTimer = useRef(null);
 
   // Planned credit form
   const [showAddForm, setShowAddForm] = useState(false);
@@ -41,7 +121,9 @@ const TranscriptGeneratorPage = () => {
     try {
       setLoading(true);
       const response = await api.get(`/api/admin/transcript/${userId}`);
-      setData(response.data?.data || response.data);
+      const d = response.data?.data || response.data;
+      setData(d);
+      setOverrides(d.overrides || {});
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load transcript data');
     } finally {
@@ -50,6 +132,35 @@ const TranscriptGeneratorPage = () => {
   }, [userId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Auto-save overrides with debounce
+  const saveOverrides = useCallback((newOverrides) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        await api.put(`/api/admin/transcript/${userId}/overrides`, newOverrides);
+      } catch (err) {
+        toast.error('Failed to save changes');
+      }
+    }, 800);
+  }, [userId]);
+
+  const updateOverride = (key, value) => {
+    setOverrides(prev => {
+      const updated = { ...prev, [key]: value };
+      saveOverrides(updated);
+
+      // Sync DOB to user profile if they don't have one (use raw ISO date)
+      if (key === 'date_of_birth_raw' && value && !student?.date_of_birth) {
+        api.put(`/api/admin/users/${userId}`, { date_of_birth: value }).catch(() => {});
+      }
+
+      return updated;
+    });
+  };
+
+  // Helper: get value with override fallback
+  const field = (key, fallback) => overrides[key] !== undefined && overrides[key] !== '' ? overrides[key] : fallback;
 
   const resetForm = () => {
     setFormData({ school_subject: '', course_name: '', credits: '1.0', source: '', notes: '', status: 'in_progress' });
@@ -118,6 +229,7 @@ const TranscriptGeneratorPage = () => {
   }
 
   const { student, earned_credits, transfer_credits, planned_credits, totals } = data;
+  const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
 
   // Build rows for the transcript table
   const buildCreditRows = () => {
@@ -126,13 +238,15 @@ const TranscriptGeneratorPage = () => {
     // Earned credits from Optio
     Object.entries(earned_credits || {}).forEach(([subject, info]) => {
       if (info.credits > 0) {
+        const overrideKey = `earned_course_${subject}`;
         rows.push({
           type: 'earned',
           subject: info.display_name,
-          course: 'Optio Education',
+          course: field(overrideKey, 'Optio Competency-Based'),
+          courseOverrideKey: overrideKey,
+          source: 'Optio',
           credits: info.credits,
-          status: 'Completed',
-          source: 'Optio'
+          status: 'Completed'
         });
       }
     });
@@ -140,13 +254,15 @@ const TranscriptGeneratorPage = () => {
     // Transfer credits
     (transfer_credits || []).forEach(tc => {
       Object.entries(tc.subjects || {}).forEach(([subject, info]) => {
+        const overrideKey = `tc_course_${tc.id}_${subject}`;
         rows.push({
           type: 'transfer',
           subject: info.display_name,
-          course: tc.school_name || 'Transfer',
+          course: field(overrideKey, info.display_name),
+          courseOverrideKey: overrideKey,
+          source: tc.school_name || 'Transfer',
           credits: info.credits,
           status: 'Completed',
-          source: tc.school_name,
           transcriptUrl: tc.transcript_url
         });
       });
@@ -158,14 +274,14 @@ const TranscriptGeneratorPage = () => {
         type: 'planned',
         subject: pc.display_name,
         course: pc.course_name,
+        source: pc.source || '',
         credits: pc.credits,
         status: pc.status === 'in_progress' ? 'In Progress' : pc.status === 'completed' ? 'Completed' : 'Dropped',
-        source: pc.source || '',
-        id: pc.id
+        id: pc.id,
+        raw: pc
       });
     });
 
-    // Sort: completed first, then by subject
     rows.sort((a, b) => {
       if (a.status === 'Completed' && b.status !== 'Completed') return -1;
       if (a.status !== 'Completed' && b.status === 'Completed') return 1;
@@ -176,7 +292,6 @@ const TranscriptGeneratorPage = () => {
   };
 
   const creditRows = buildCreditRows();
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
 
   // Aggregate credits by subject for the summary
   const subjectTotals = {};
@@ -185,6 +300,14 @@ const TranscriptGeneratorPage = () => {
       subjectTotals[row.subject] = (subjectTotals[row.subject] || 0) + row.credits;
     }
   });
+
+  // Displayed field values (override or default)
+  const studentName = field('student_name', `${student.last_name}, ${student.first_name}`);
+  const dateIssued = field('date_issued', formatDate(new Date().toISOString()));
+  const dateOfBirth = field('date_of_birth', student.date_of_birth ? formatDate(student.date_of_birth) : '');
+  const enrollmentDate = field('enrollment_date', formatDate(student.enrolled_date));
+  const orgName = field('organization_name', student.organization_name || '');
+  const footerText = field('footer_text', "This transcript is an official record of the student's academic achievements.");
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -210,6 +333,18 @@ const TranscriptGeneratorPage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               Add Planned Credit
+            </button>
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/public/transcript/${userId}`;
+                navigator.clipboard.writeText(url).then(() => toast.success('Public link copied!'));
+              }}
+              className="px-3 py-1.5 text-sm bg-optio-purple text-white rounded-lg hover:bg-purple-700 flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+              </svg>
+              Copy Public Link
             </button>
             <button
               onClick={() => window.print()}
@@ -323,15 +458,19 @@ const TranscriptGeneratorPage = () => {
 
       {/* Printable transcript */}
       <div className="max-w-5xl mx-auto px-6 py-8">
-        <div className="bg-white shadow-sm print:shadow-none" style={{ fontFamily: 'Georgia, "Times New Roman", Times, serif' }}>
+        <div id="printable-transcript" className="bg-white shadow-sm" style={{ fontFamily: 'Georgia, "Times New Roman", Times, serif' }}>
           {/* Transcript header */}
           <div className="border-b-4 border-double border-gray-900 px-10 pt-10 pb-6">
             <div className="text-center">
-              <h1 className="text-2xl font-bold tracking-wide text-gray-900 uppercase">
-                Optio Education
-              </h1>
-              {student.organization_name && (
-                <p className="text-sm text-gray-600 mt-0.5">{student.organization_name}</p>
+              <img
+                src="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png"
+                alt="Optio"
+                className="h-10 mx-auto"
+              />
+              {orgName && (
+                <p className="text-sm text-gray-600 mt-0.5">
+                  <EditableField value={orgName} onChange={v => updateOverride('organization_name', v)} />
+                </p>
               )}
               <p className="text-xs text-gray-500 mt-1 tracking-widest uppercase">
                 Official Academic Transcript
@@ -343,24 +482,46 @@ const TranscriptGeneratorPage = () => {
           <div className="border-b border-gray-300 px-10 py-4">
             <div className="grid grid-cols-2 gap-x-12 gap-y-1 text-sm">
               <div className="flex">
-                <span className="w-32 text-gray-500">Student Name:</span>
-                <span className="font-semibold text-gray-900">
-                  {student.last_name}, {student.first_name}
-                </span>
+                <span className="w-32 text-gray-500 flex-shrink-0">Student Name:</span>
+                <EditableField
+                  value={studentName}
+                  onChange={v => updateOverride('student_name', v)}
+                  className="font-semibold text-gray-900"
+                />
               </div>
               <div className="flex">
-                <span className="w-32 text-gray-500">Date Issued:</span>
-                <span className="text-gray-900">{formatDate(new Date().toISOString())}</span>
+                <span className="w-32 text-gray-500 flex-shrink-0">Date Issued:</span>
+                <EditableField
+                  value={dateIssued}
+                  onChange={v => updateOverride('date_issued', v)}
+                  className="text-gray-900"
+                />
               </div>
-              {student.date_of_birth && (
-                <div className="flex">
-                  <span className="w-32 text-gray-500">Date of Birth:</span>
-                  <span className="text-gray-900">{formatDate(student.date_of_birth)}</span>
-                </div>
-              )}
               <div className="flex">
-                <span className="w-32 text-gray-500">Enrollment Date:</span>
-                <span className="text-gray-900">{formatDate(student.enrolled_date)}</span>
+                <span className="w-32 text-gray-500 flex-shrink-0">Date of Birth:</span>
+                <DatePickerField
+                  value={dateOfBirth}
+                  rawDate={overrides.date_of_birth_raw || student.date_of_birth || ''}
+                  onChange={(display, raw) => {
+                    setOverrides(prev => {
+                      const updated = { ...prev, date_of_birth: display, date_of_birth_raw: raw };
+                      saveOverrides(updated);
+                      if (raw && !student?.date_of_birth) {
+                        api.put(`/api/admin/users/${userId}`, { date_of_birth: raw }).catch(() => {});
+                      }
+                      return updated;
+                    });
+                  }}
+                  className="text-gray-900"
+                />
+              </div>
+              <div className="flex">
+                <span className="w-32 text-gray-500 flex-shrink-0">Enrollment Date:</span>
+                <EditableField
+                  value={enrollmentDate}
+                  onChange={v => updateOverride('enrollment_date', v)}
+                  className="text-gray-900"
+                />
               </div>
             </div>
           </div>
@@ -393,21 +554,30 @@ const TranscriptGeneratorPage = () => {
               <thead>
                 <tr className="border-b-2 border-gray-900">
                   <th className="text-left py-2 font-semibold text-gray-900">Subject Area</th>
-                  <th className="text-left py-2 font-semibold text-gray-900">Course / Source</th>
+                  <th className="text-left py-2 font-semibold text-gray-900">Course</th>
+                  <th className="text-left py-2 font-semibold text-gray-900">Source</th>
                   <th className="text-center py-2 font-semibold text-gray-900">Credits</th>
                   <th className="text-center py-2 font-semibold text-gray-900">Status</th>
-                  <th className="text-center py-2 font-semibold text-gray-900 no-print w-20">Actions</th>
+                  <th className="text-center py-2 font-semibold text-gray-900 no-print w-16">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {creditRows.map((row, i) => (
                   <tr
-                    key={`${row.type}-${row.subject}-${row.course}-${i}`}
+                    key={`${row.type}-${row.subject}-${i}`}
                     className={`border-b border-gray-200 ${row.status === 'In Progress' ? 'bg-amber-50 print:bg-transparent' : ''} ${row.status === 'Dropped' ? 'text-gray-400 line-through' : ''}`}
                   >
                     <td className="py-2 text-gray-900">{row.subject}</td>
                     <td className="py-2 text-gray-700">
-                      {row.course}
+                      {row.courseOverrideKey ? (
+                        <EditableField
+                          value={row.course}
+                          onChange={v => updateOverride(row.courseOverrideKey, v)}
+                        />
+                      ) : row.course}
+                    </td>
+                    <td className="py-2 text-gray-700">
+                      {row.source}
                       {row.transcriptUrl && (
                         <a
                           href={row.transcriptUrl}
@@ -420,9 +590,6 @@ const TranscriptGeneratorPage = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                           </svg>
                         </a>
-                      )}
-                      {row.type === 'transfer' && (
-                        <span className="ml-1.5 text-xs text-gray-400 italic">(Transfer)</span>
                       )}
                     </td>
                     <td className="py-2 text-center font-medium text-gray-900">{row.credits.toFixed(2)}</td>
@@ -473,7 +640,7 @@ const TranscriptGeneratorPage = () => {
                 ))}
                 {creditRows.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-gray-400 italic">
+                    <td colSpan={6} className="py-8 text-center text-gray-400 italic">
                       No credits recorded
                     </td>
                   </tr>
@@ -505,8 +672,13 @@ const TranscriptGeneratorPage = () => {
           <div className="border-t-4 border-double border-gray-900 px-10 py-6 mt-4">
             <div className="flex justify-between text-xs text-gray-500">
               <div>
-                <p>This transcript is an official record of the student's academic achievements.</p>
-                <p className="mt-1">Optio Education -- www.optioeducation.com</p>
+                <p>
+                  <EditableField
+                    value={footerText}
+                    onChange={v => updateOverride('footer_text', v)}
+                  />
+                </p>
+                <p className="mt-1">Optio -- www.optioeducation.com</p>
               </div>
               <div className="text-right">
                 <p>Generated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
@@ -521,11 +693,25 @@ const TranscriptGeneratorPage = () => {
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .min-h-screen { min-height: auto; }
-          .bg-gray-100 { background: white !important; }
-          .shadow-sm { box-shadow: none !important; }
-          .max-w-5xl { max-width: 100%; padding: 0; }
+
+          /* Hide everything except the printable transcript */
+          body * { visibility: hidden; }
+          #printable-transcript, #printable-transcript * { visibility: visible; }
+          #printable-transcript {
+            position: absolute; left: 0; top: 0; width: 100%;
+          }
+          .min-h-screen { min-height: auto !important; }
+          #main-content { min-height: auto !important; padding: 0 !important; margin: 0 !important; }
+
+          /* Clean up */
+          #printable-transcript { box-shadow: none !important; overflow: visible !important; }
+          html, body { height: auto !important; overflow: visible !important; }
+
+          /* Hide edit affordances in print */
+          .no-print-hover { cursor: default !important; }
+          .no-print-edit { display: none !important; }
+
+          -webkit-print-color-adjust: exact; print-color-adjust: exact;
           @page { margin: 0.75in; size: letter; }
         }
       `}</style>
